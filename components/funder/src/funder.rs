@@ -1,5 +1,9 @@
+use std::fmt::Debug;
+
 use futures::channel::mpsc;
 use futures::{future, stream, SinkExt, StreamExt};
+
+use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
@@ -9,7 +13,6 @@ use database::DatabaseClient;
 
 use proto::funder::messages::{FunderIncomingControl, 
     FunderOutgoingControl};
-use proto::funder::scheme::FunderScheme;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::{funder_handle_message};
@@ -29,27 +32,28 @@ pub enum FunderError {
 
 
 #[derive(Debug, Clone)]
-pub enum FunderEvent<FS: FunderScheme> {
-    FunderIncoming(FunderIncoming<FS>),
+pub enum FunderEvent<B> {
+    FunderIncoming(FunderIncoming<B>),
     IncomingControlClosed,
     IncomingCommClosed,
 }
 
-pub async fn inner_funder_loop<FS,R>(
+pub async fn inner_funder_loop<B,R>(
     mut identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
-    mut funder_state: FunderState<FS>,
-    mut db_client: DatabaseClient<FunderMutation<FS>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<B>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<B>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<B>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<B>>,
+    mut funder_state: FunderState<B>,
+    mut db_client: DatabaseClient<FunderMutation<B>>,
     max_operations_in_batch: usize,
+    max_node_relays: usize,
     max_pending_user_requests: usize,
-    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<FS>>>) -> Result<(), FunderError> 
+    mut opt_event_sender: Option<mpsc::Sender<FunderEvent<B>>>) -> Result<(), FunderError> 
 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'static,
 {
 
@@ -84,6 +88,7 @@ where
                               &rng,
                               funder_state.clone(),
                               ephemeral.clone(),
+                              max_node_relays,
                               max_operations_in_batch,
                               max_pending_user_requests,
                               funder_incoming));
@@ -133,19 +138,20 @@ where
     Ok(())
 }
 
-pub async fn funder_loop<FS,R>(
+pub async fn funder_loop<B,R>(
     identity_client: IdentityClient,
     rng: R,
-    incoming_control: mpsc::Receiver<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
-    incoming_comm: mpsc::Receiver<FunderIncomingComm<FS>>,
-    control_sender: mpsc::Sender<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-    comm_sender: mpsc::Sender<FunderOutgoingComm<FS>>,
+    incoming_control: mpsc::Receiver<FunderIncomingControl<B>>,
+    incoming_comm: mpsc::Receiver<FunderIncomingComm<B>>,
+    control_sender: mpsc::Sender<FunderOutgoingControl<B>>,
+    comm_sender: mpsc::Sender<FunderOutgoingComm<B>>,
     max_operations_in_batch: usize,
+    max_node_relays: usize,
     max_pending_user_requests: usize,
-    funder_state: FunderState<FS>,
-    db_client: DatabaseClient<FunderMutation<FS>>) -> Result<(), FunderError> 
+    funder_state: FunderState<B>,
+    db_client: DatabaseClient<FunderMutation<B>>) -> Result<(), FunderError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'static,
 {
 
@@ -158,9 +164,9 @@ where
            funder_state,
            db_client,
            max_operations_in_batch,
+           max_node_relays,
            max_pending_user_requests,
            None))
-
 }
 
 

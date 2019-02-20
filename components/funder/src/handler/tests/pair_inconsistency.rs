@@ -1,4 +1,5 @@
 use super::utils::apply_funder_incoming;
+    
 
 use std::cmp::Ordering;
 
@@ -8,6 +9,7 @@ use futures::task::SpawnExt;
 
 use identity::{create_identity, IdentityClient};
 
+use crypto::uid::{Uid, UID_LEN};
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
 use crypto::crypto_rand::RngContainer;
@@ -16,14 +18,16 @@ use crypto::crypto_rand::RngContainer;
 use proto::funder::messages::{FriendMessage, 
     FunderIncomingControl, 
     AddFriend, FriendStatus,
-    SetFriendStatus, ResetFriendChannel};
+    SetFriendStatus, ResetFriendChannel,
+    FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::test_scheme::TestFunderScheme;
+
+use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
 async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityClient, 
                                              identity_client2: &'a mut IdentityClient) {
@@ -40,9 +44,11 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<TestFunderScheme>::new(&pk1, &("1337".to_string(), 0x1337u32));
+    let relays1 = vec![dummy_named_relay_address(1)];
+    let mut state1 = FunderState::<u32>::new(pk1.clone(), relays1);
     let mut ephemeral1 = Ephemeral::new();
-    let mut state2 = FunderState::<TestFunderScheme>::new(&pk2, &("1338".to_string(), 0x1338u32));
+    let relays2 = vec![dummy_named_relay_address(2)];
+    let mut state2 = FunderState::<u32>::new(pk2.clone(), relays2);
     let mut ephemeral2 = Ephemeral::new();
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -60,11 +66,13 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: 22u32,
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 20i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -74,7 +82,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -84,11 +94,13 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
     // -20i128, but we assign -10i128 to cause an inconsistency.
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: 11u32,
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: -10i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -99,7 +111,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -124,7 +138,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 20i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -165,7 +179,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert!(friend_move_token.opt_local_address.is_some());
+                assert!(friend_move_token.opt_local_relays.is_some());
 
             } else {
                 unreachable!();
@@ -235,7 +249,9 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
         friend_public_key: pk2.clone(),
         reset_token: reset_token2.clone(),
     };
-    let incoming_control_message = FunderIncomingControl::ResetFriendChannel(reset_friend_channel);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::ResetFriendChannel(reset_friend_channel));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -262,7 +278,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, 10i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -291,7 +307,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -320,7 +336,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, 10i128);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1337u32));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
 
             } else {
                 unreachable!();
@@ -347,7 +363,7 @@ async fn task_handler_pair_inconsistency<'a>(identity_client1: &'a mut IdentityC
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
                 assert_eq!(friend_move_token.balance, -10i128);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }

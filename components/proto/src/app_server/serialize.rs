@@ -11,14 +11,13 @@ use crate::capnp_common::{write_signature, read_signature,
                           write_public_key, read_public_key,
                           write_relay_address, read_relay_address,
                           write_named_relay_address, read_named_relay_address,
-                          write_receipt, read_receipt,
-                          write_net_address, read_net_address};
+                          write_named_index_server_address, read_named_index_server_address,
+                          write_receipt, read_receipt};
 
 use app_server_capnp;
 use crate::serialize::SerializeError;
 
-use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult,
-                                    AddIndexServer};
+use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 
 use index_server::serialize::{ser_route_with_capacity, deser_route_with_capacity,
                               ser_request_routes, deser_request_routes};
@@ -27,13 +26,12 @@ use crate::report::serialize::{ser_node_report, deser_node_report,
 
 use crate::funder::messages::{UserRequestSendFunds, 
     ResponseReceived, ResponseSendFundsResult, ReceiptAck, 
-    AddFriend, SetFriendName, SetFriendAddress,
+    AddFriend, SetFriendName, SetFriendRelays,
     SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::funder::serialize::{ser_friends_route, deser_friends_route};
-use crate::net::messages::NetAddress;
 
 use crate::app_server::messages::{AppServerToApp, AppToAppServer, 
-    AppPermissions, RelayAddress};
+    AppPermissions, AppRequest, ReportMutations};
 
 
 fn ser_user_request_send_funds(user_request_send_funds: &UserRequestSendFunds,
@@ -127,9 +125,9 @@ fn ser_add_friend(add_friend: &AddFriend,
               &mut add_friend_builder.reborrow().init_friend_public_key());
 
 
-    let relays_len = usize_to_u32(add_friend.address.len()).unwrap();
+    let relays_len = usize_to_u32(add_friend.relays.len()).unwrap();
     let mut relays_builder = add_friend_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in add_friend.address.iter().enumerate() {
+    for (index, relay_address) in add_friend.relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
@@ -150,7 +148,7 @@ fn deser_add_friend(add_friend_reader: &app_server_capnp::add_friend::Reader)
 
     Ok(AddFriend {
         friend_public_key: read_public_key(&add_friend_reader.get_friend_public_key()?)?,
-        address: relays,
+        relays,
         name: add_friend_reader.get_name()?.to_owned(),
         balance: read_custom_int128(&add_friend_reader.get_balance()?)?,
     })
@@ -174,31 +172,31 @@ fn deser_set_friend_name(set_friend_name_reader: &app_server_capnp::set_friend_n
     })
 }
 
-fn ser_set_friend_relays(set_friend_address: &SetFriendAddress<Vec<RelayAddress>>,
+fn ser_set_friend_relays(set_friend_relays: &SetFriendRelays,
                     set_friend_relays_builder: &mut app_server_capnp::set_friend_relays::Builder) {
 
-    write_public_key(&set_friend_address.friend_public_key, 
+    write_public_key(&set_friend_relays.friend_public_key, 
               &mut set_friend_relays_builder.reborrow().init_friend_public_key());
 
-    let relays_len = usize_to_u32(set_friend_address.address.len()).unwrap();
+    let relays_len = usize_to_u32(set_friend_relays.relays.len()).unwrap();
     let mut relays_builder = set_friend_relays_builder.reborrow().init_relays(relays_len);
-    for (index, relay_address) in set_friend_address.address.iter().enumerate() {
+    for (index, relay_address) in set_friend_relays.relays.iter().enumerate() {
         let mut relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
         write_relay_address(relay_address, &mut relay_address_builder);
     }
 }
 
 fn deser_set_friend_relays(set_friend_relays_reader: &app_server_capnp::set_friend_relays::Reader)
-    -> Result<SetFriendAddress<Vec<RelayAddress>>, SerializeError> {
+    -> Result<SetFriendRelays, SerializeError> {
 
     let mut relays = Vec::new();
     for relay_address in set_friend_relays_reader.get_relays()? {
         relays.push(read_relay_address(&relay_address)?);
     }
 
-    Ok(SetFriendAddress {
+    Ok(SetFriendRelays {
         friend_public_key: read_public_key(&set_friend_relays_reader.get_friend_public_key()?)?,
-        address: relays,
+        relays,
     })
 }
 
@@ -290,6 +288,7 @@ fn deser_client_response_routes(client_response_routes_reader: &app_server_capnp
 }
 
 
+/*
 fn ser_add_index_server(add_index_server: &AddIndexServer<NetAddress>, 
                             add_index_server_builder: &mut app_server_capnp::add_index_server::Builder) {
 
@@ -307,10 +306,10 @@ fn deser_add_index_server(add_index_server_reader: &app_server_capnp::add_index_
         name: add_index_server_reader.get_name()?.to_owned(),
     })
 }
+*/
 
 fn ser_app_permissions(app_permissions: &AppPermissions,
                     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder) {
-    app_permissions_builder.reborrow().set_reports(app_permissions.reports);
     app_permissions_builder.reborrow().set_routes(app_permissions.routes);
     app_permissions_builder.reborrow().set_send_funds(app_permissions.send_funds);
     app_permissions_builder.reborrow().set_config(app_permissions.config);
@@ -320,10 +319,62 @@ fn deser_app_permissions(app_permissions_reader: &app_server_capnp::app_permissi
     -> Result<AppPermissions, SerializeError> {
 
     Ok(AppPermissions {
-        reports: app_permissions_reader.get_reports(),
         routes: app_permissions_reader.get_routes(),
         send_funds: app_permissions_reader.get_send_funds(),
         config: app_permissions_reader.get_config(),
+    })
+}
+
+fn ser_report_mutations(report_mutations: &ReportMutations,
+                    report_mutations_builder: &mut app_server_capnp::report_mutations::Builder) {
+    let mut opt_app_request_id_builder = report_mutations_builder.reborrow().init_opt_app_request_id();
+    match report_mutations.opt_app_request_id {
+        Some(app_request_id) => {
+            let mut app_request_id_builder = opt_app_request_id_builder.init_app_request_id();
+            write_uid(&app_request_id, 
+                      &mut app_request_id_builder);
+        },
+        None => {
+            opt_app_request_id_builder.reborrow().set_empty(());
+        },
+    };
+
+    let mutations_len = usize_to_u32(report_mutations.mutations.len()).unwrap();
+    let mut mutations_builder = report_mutations_builder.reborrow().init_mutations(mutations_len);
+    for (index, node_report_mutation) in report_mutations.mutations.iter().enumerate() {
+        let mut node_report_mutation_builder = mutations_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_node_report_mutation(node_report_mutation, &mut node_report_mutation_builder);
+    }
+}
+
+fn deser_report_mutations(report_mutations_reader: &app_server_capnp::report_mutations::Reader)
+    -> Result<ReportMutations, SerializeError> {
+
+    let opt_app_request_id = match report_mutations_reader.get_opt_app_request_id().which()? {
+        app_server_capnp
+            ::report_mutations
+            ::opt_app_request_id
+            ::AppRequestId(app_request_id_reader) => {
+
+            Some(read_uid(&app_request_id_reader?)?)
+        },
+        app_server_capnp
+            ::report_mutations
+            ::opt_app_request_id
+            ::Empty(()) => {
+
+            None
+        },
+    };
+
+    let mut mutations = Vec::new();
+    for node_report_mutation in report_mutations_reader.get_mutations()? {
+        mutations.push(deser_node_report_mutation(&node_report_mutation)?);
+    }
+
+    Ok(ReportMutations {
+        opt_app_request_id,
+        mutations,
     })
 }
 
@@ -337,14 +388,9 @@ fn ser_app_server_to_app(app_server_to_app: &AppServerToApp,
         AppServerToApp::Report(node_report) =>
             ser_node_report(node_report, 
                                    &mut app_server_to_app_builder.reborrow().init_report()),
-        AppServerToApp::ReportMutations(node_report_mutations) => {
-            let mutations_len = usize_to_u32(node_report_mutations.len()).unwrap();
-            let mut node_report_mutations_builder = app_server_to_app_builder.reborrow().init_report_mutations(mutations_len);
-            for (index, node_report_mutation) in node_report_mutations.iter().enumerate() {
-                let mut node_report_mutation_builder = node_report_mutations_builder.reborrow().get(usize_to_u32(index).unwrap());
-                ser_node_report_mutation(node_report_mutation, &mut node_report_mutation_builder);
-            }
-        },
+        AppServerToApp::ReportMutations(report_mutations) =>
+            ser_report_mutations(report_mutations,
+                                 &mut app_server_to_app_builder.reborrow().init_report_mutations()),
         AppServerToApp::ResponseRoutes(response_routes) => 
             ser_client_response_routes(response_routes, 
                                    &mut app_server_to_app_builder.reborrow().init_response_routes()),
@@ -359,134 +405,144 @@ fn deser_app_server_to_app(app_server_to_app_reader: &app_server_capnp::app_serv
             AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?),
         app_server_capnp::app_server_to_app::Report(node_report_reader) =>
             AppServerToApp::Report(deser_node_report(&node_report_reader?)?),
-        app_server_capnp::app_server_to_app::ReportMutations(report_mutations_reader) => {
-            let mut node_report_mutations = Vec::new();
-            for node_report_mutation in report_mutations_reader? {
-                node_report_mutations.push(deser_node_report_mutation(&node_report_mutation)?);
-            }
-            AppServerToApp::ReportMutations(node_report_mutations)
-        },
+        app_server_capnp::app_server_to_app::ReportMutations(report_mutations_reader) =>
+            AppServerToApp::ReportMutations(deser_report_mutations(&report_mutations_reader?)?),
         app_server_capnp::app_server_to_app::ResponseRoutes(client_response_routes_reader) =>
             AppServerToApp::ResponseRoutes(deser_client_response_routes(&client_response_routes_reader?)?),
+    })
+}
+
+fn ser_app_request(app_request: &AppRequest,
+                    app_request_builder: &mut app_server_capnp::app_request::Builder) {
+
+    match app_request {
+        AppRequest::AddRelay(named_relay_address) =>
+            write_named_relay_address(named_relay_address, 
+                                      &mut app_request_builder.reborrow().init_add_relay()),
+        AppRequest::RemoveRelay(public_key) =>
+            write_public_key(public_key, 
+                             &mut app_request_builder.reborrow().init_remove_relay()),
+        AppRequest::RequestSendFunds(user_request_send_funds) =>
+            ser_user_request_send_funds(user_request_send_funds, 
+                                        &mut app_request_builder.reborrow().init_request_send_funds()),
+        AppRequest::ReceiptAck(receipt_ack) =>
+            ser_receipt_ack(receipt_ack, 
+                            &mut app_request_builder.reborrow().init_receipt_ack()),
+        AppRequest::AddFriend(add_friend) =>
+            ser_add_friend(add_friend, 
+                            &mut app_request_builder.reborrow().init_add_friend()),
+        AppRequest::SetFriendRelays(set_friend_relays) =>
+            ser_set_friend_relays(set_friend_relays, 
+                            &mut app_request_builder.reborrow().init_set_friend_relays()),
+        AppRequest::SetFriendName(set_friend_name) =>
+            ser_set_friend_name(set_friend_name, 
+                            &mut app_request_builder.reborrow().init_set_friend_name()),
+        AppRequest::RemoveFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_request_builder.reborrow().init_remove_friend()),
+        AppRequest::EnableFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_request_builder.reborrow().init_enable_friend()),
+        AppRequest::DisableFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_request_builder.reborrow().init_disable_friend()),
+        AppRequest::OpenFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_request_builder.reborrow().init_open_friend()),
+        AppRequest::CloseFriend(friend_public_key) =>
+            write_public_key(friend_public_key, 
+                            &mut app_request_builder.reborrow().init_close_friend()),
+        AppRequest::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
+            ser_set_friend_remote_max_debt(set_friend_remote_max_debt, 
+                            &mut app_request_builder.reborrow().init_set_friend_remote_max_debt()),
+        AppRequest::ResetFriendChannel(reset_friend_channel) =>
+            ser_reset_friend_channel(reset_friend_channel, 
+                            &mut app_request_builder.reborrow().init_reset_friend_channel()),
+        AppRequest::RequestRoutes(request_routes) =>
+            ser_request_routes(request_routes, 
+                            &mut app_request_builder.reborrow().init_request_routes()),
+        AppRequest::AddIndexServer(named_index_server_address_reader) =>
+            write_named_index_server_address(named_index_server_address_reader, 
+                            &mut app_request_builder.reborrow().init_add_index_server()),
+        AppRequest::RemoveIndexServer(public_key) =>
+            write_public_key(public_key, 
+                            &mut app_request_builder.reborrow().init_remove_index_server()),
+    }
+}
+
+fn deser_app_request(app_request: &app_server_capnp::app_request::Reader)
+    -> Result<AppRequest, SerializeError> {
+
+    Ok(match app_request.which()? {
+        app_server_capnp::app_request::AddRelay(named_relay_address_reader) =>
+            AppRequest::AddRelay(read_named_relay_address(&named_relay_address_reader?)?),
+        app_server_capnp::app_request::RemoveRelay(public_key_reader) =>
+            AppRequest::RemoveRelay(read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::RequestSendFunds(request_send_funds_reader) => 
+            AppRequest::RequestSendFunds(
+                deser_user_request_send_funds(&request_send_funds_reader?)?),
+        app_server_capnp::app_request::ReceiptAck(receipt_ack_reader) => 
+            AppRequest::ReceiptAck(
+                deser_receipt_ack(&receipt_ack_reader?)?),
+        app_server_capnp::app_request::AddFriend(add_friend_reader) =>
+            AppRequest::AddFriend(
+                deser_add_friend(&add_friend_reader?)?),
+        app_server_capnp::app_request::SetFriendRelays(set_friend_relays) =>
+            AppRequest::SetFriendRelays(
+                deser_set_friend_relays(&set_friend_relays?)?),
+        app_server_capnp::app_request::SetFriendName(set_friend_name) =>
+            AppRequest::SetFriendName(
+                deser_set_friend_name(&set_friend_name?)?),
+        app_server_capnp::app_request::RemoveFriend(public_key_reader) =>
+            AppRequest::RemoveFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::EnableFriend(public_key_reader) =>
+            AppRequest::EnableFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::DisableFriend(public_key_reader) =>
+            AppRequest::DisableFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::OpenFriend(public_key_reader) =>
+            AppRequest::OpenFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::CloseFriend(public_key_reader) =>
+            AppRequest::CloseFriend(
+                read_public_key(&public_key_reader?)?),
+        app_server_capnp::app_request::SetFriendRemoteMaxDebt(set_friend_remote_max_debt_reader) =>
+            AppRequest::SetFriendRemoteMaxDebt(
+                deser_set_friend_remote_max_debt(&set_friend_remote_max_debt_reader?)?),
+        app_server_capnp::app_request::ResetFriendChannel(reset_friend_channel_reader) =>
+            AppRequest::ResetFriendChannel(
+                deser_reset_friend_channel(&reset_friend_channel_reader?)?),
+        app_server_capnp::app_request::RequestRoutes(request_routes_reader) =>
+            AppRequest::RequestRoutes(
+                deser_request_routes(&request_routes_reader?)?),
+        app_server_capnp::app_request::AddIndexServer(add_index_server_reader) =>
+            AppRequest::AddIndexServer(
+                read_named_index_server_address(&add_index_server_reader?)?),
+        app_server_capnp::app_request::RemoveIndexServer(public_key_reader) =>
+            AppRequest::RemoveIndexServer(
+                read_public_key(&public_key_reader?)?),
     })
 }
 
 fn ser_app_to_app_server(app_to_app_server: &AppToAppServer,
                     app_to_app_server_builder: &mut app_server_capnp::app_to_app_server::Builder) {
 
-    match app_to_app_server {
-        AppToAppServer::SetRelays(relays) => {
-            let relays_len = usize_to_u32(relays.len()).unwrap();
-            let mut relays_builder = app_to_app_server_builder.reborrow().init_set_relays(relays_len);
-            for (index, named_relay_address) in relays.iter().enumerate() {
-                let mut named_relay_address_builder = relays_builder.reborrow().get(usize_to_u32(index).unwrap());
-                write_named_relay_address(named_relay_address, &mut named_relay_address_builder);
-            }
-        },
-        AppToAppServer::RequestSendFunds(user_request_send_funds) =>
-            ser_user_request_send_funds(user_request_send_funds, 
-                                        &mut app_to_app_server_builder.reborrow().init_request_send_funds()),
-        AppToAppServer::ReceiptAck(receipt_ack) =>
-            ser_receipt_ack(receipt_ack, 
-                            &mut app_to_app_server_builder.reborrow().init_receipt_ack()),
-        AppToAppServer::AddFriend(add_friend) =>
-            ser_add_friend(add_friend, 
-                            &mut app_to_app_server_builder.reborrow().init_add_friend()),
-        AppToAppServer::SetFriendRelays(set_friend_address) =>
-            ser_set_friend_relays(set_friend_address, 
-                            &mut app_to_app_server_builder.reborrow().init_set_friend_relays()),
-        AppToAppServer::SetFriendName(set_friend_name) =>
-            ser_set_friend_name(set_friend_name, 
-                            &mut app_to_app_server_builder.reborrow().init_set_friend_name()),
-        AppToAppServer::RemoveFriend(friend_public_key) =>
-            write_public_key(friend_public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_remove_friend()),
-        AppToAppServer::EnableFriend(friend_public_key) =>
-            write_public_key(friend_public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_enable_friend()),
-        AppToAppServer::DisableFriend(friend_public_key) =>
-            write_public_key(friend_public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_disable_friend()),
-        AppToAppServer::OpenFriend(friend_public_key) =>
-            write_public_key(friend_public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_open_friend()),
-        AppToAppServer::CloseFriend(friend_public_key) =>
-            write_public_key(friend_public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_close_friend()),
-        AppToAppServer::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
-            ser_set_friend_remote_max_debt(set_friend_remote_max_debt, 
-                            &mut app_to_app_server_builder.reborrow().init_set_friend_remote_max_debt()),
-        AppToAppServer::ResetFriendChannel(reset_friend_channel) =>
-            ser_reset_friend_channel(reset_friend_channel, 
-                            &mut app_to_app_server_builder.reborrow().init_reset_friend_channel()),
-        AppToAppServer::RequestRoutes(request_routes) =>
-            ser_request_routes(request_routes, 
-                            &mut app_to_app_server_builder.reborrow().init_request_routes()),
-        AppToAppServer::AddIndexServer(add_index_server) =>
-            ser_add_index_server(add_index_server, 
-                            &mut app_to_app_server_builder.reborrow().init_add_index_server()),
-        AppToAppServer::RemoveIndexServer(public_key) =>
-            write_public_key(public_key, 
-                            &mut app_to_app_server_builder.reborrow().init_remove_index_server()),
-    }
+    write_uid(&app_to_app_server.app_request_id, 
+              &mut app_to_app_server_builder.reborrow().init_app_request_id());
+
+    ser_app_request(&app_to_app_server.app_request, 
+              &mut app_to_app_server_builder.reborrow().init_app_request());
 }
 
-fn deser_app_to_app_server(app_to_app_server: &app_server_capnp::app_to_app_server::Reader)
+
+fn deser_app_to_app_server(app_to_app_server_reader: &app_server_capnp::app_to_app_server::Reader)
     -> Result<AppToAppServer, SerializeError> {
 
-    Ok(match app_to_app_server.which()? {
-        app_server_capnp::app_to_app_server::SetRelays(named_relays_reader) => {
-            let mut relays = Vec::new();
-            for named_relay_address_reader in named_relays_reader? {
-                relays.push(read_named_relay_address(&named_relay_address_reader)?);
-            }
-            AppToAppServer::SetRelays(relays)
-        },
-        app_server_capnp::app_to_app_server::RequestSendFunds(request_send_funds_reader) => 
-            AppToAppServer::RequestSendFunds(
-                deser_user_request_send_funds(&request_send_funds_reader?)?),
-        app_server_capnp::app_to_app_server::ReceiptAck(receipt_ack_reader) => 
-            AppToAppServer::ReceiptAck(
-                deser_receipt_ack(&receipt_ack_reader?)?),
-        app_server_capnp::app_to_app_server::AddFriend(add_friend_reader) =>
-            AppToAppServer::AddFriend(
-                deser_add_friend(&add_friend_reader?)?),
-        app_server_capnp::app_to_app_server::SetFriendRelays(set_friend_relays) =>
-            AppToAppServer::SetFriendRelays(
-                deser_set_friend_relays(&set_friend_relays?)?),
-        app_server_capnp::app_to_app_server::SetFriendName(set_friend_name) =>
-            AppToAppServer::SetFriendName(
-                deser_set_friend_name(&set_friend_name?)?),
-        app_server_capnp::app_to_app_server::RemoveFriend(public_key_reader) =>
-            AppToAppServer::RemoveFriend(
-                read_public_key(&public_key_reader?)?),
-        app_server_capnp::app_to_app_server::EnableFriend(public_key_reader) =>
-            AppToAppServer::EnableFriend(
-                read_public_key(&public_key_reader?)?),
-        app_server_capnp::app_to_app_server::DisableFriend(public_key_reader) =>
-            AppToAppServer::DisableFriend(
-                read_public_key(&public_key_reader?)?),
-        app_server_capnp::app_to_app_server::OpenFriend(public_key_reader) =>
-            AppToAppServer::OpenFriend(
-                read_public_key(&public_key_reader?)?),
-        app_server_capnp::app_to_app_server::CloseFriend(public_key_reader) =>
-            AppToAppServer::CloseFriend(
-                read_public_key(&public_key_reader?)?),
-        app_server_capnp::app_to_app_server::SetFriendRemoteMaxDebt(set_friend_remote_max_debt_reader) =>
-            AppToAppServer::SetFriendRemoteMaxDebt(
-                deser_set_friend_remote_max_debt(&set_friend_remote_max_debt_reader?)?),
-        app_server_capnp::app_to_app_server::ResetFriendChannel(reset_friend_channel_reader) =>
-            AppToAppServer::ResetFriendChannel(
-                deser_reset_friend_channel(&reset_friend_channel_reader?)?),
-        app_server_capnp::app_to_app_server::RequestRoutes(request_routes_reader) =>
-            AppToAppServer::RequestRoutes(
-                deser_request_routes(&request_routes_reader?)?),
-        app_server_capnp::app_to_app_server::AddIndexServer(add_index_server_reader) =>
-            AppToAppServer::AddIndexServer(
-                deser_add_index_server(&add_index_server_reader?)?),
-        app_server_capnp::app_to_app_server::RemoveIndexServer(public_key_reader) =>
-            AppToAppServer::RemoveIndexServer(
-                read_public_key(&public_key_reader?)?),
+    Ok(AppToAppServer {
+        app_request_id: read_uid(&app_to_app_server_reader.get_app_request_id()?)?,
+        app_request: deser_app_request(&app_to_app_server_reader.get_app_request()?)?,
     })
 }
 
@@ -552,6 +608,7 @@ mod tests {
     use super::*;
     use std::convert::TryInto;
     use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
+    use crypto::uid::{Uid, UID_LEN};
     use crate::report::messages::FunderReportMutation;
     use crate::app_server::messages::{NodeReportMutation, RelayAddress};
     use crate::index_client::messages::{IndexClientReportMutation};
@@ -559,7 +616,6 @@ mod tests {
     #[test]
     fn test_serialize_app_permissions() {
         let app_permissions = AppPermissions {
-            reports: true,
             routes: false,
             send_funds: true,
             config: false,
@@ -572,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_serialize_app_server_to_app() {
-        let mut report_mutations = Vec::new();
+        let mut mutations = Vec::new();
 
         let funder_report_mutation = FunderReportMutation::RemoveFriend(
             PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]));
@@ -580,8 +636,12 @@ mod tests {
         let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(
             Some(PublicKey::from(&[0xdd; PUBLIC_KEY_LEN])));
 
-        report_mutations.push(NodeReportMutation::Funder(funder_report_mutation));
-        report_mutations.push(NodeReportMutation::IndexClient(index_client_report_mutation));
+        mutations.push(NodeReportMutation::Funder(funder_report_mutation));
+        mutations.push(NodeReportMutation::IndexClient(index_client_report_mutation));
+        let report_mutations = ReportMutations {
+            opt_app_request_id: Some(Uid::from(&[0; UID_LEN])),
+            mutations,
+        };
         let app_server_to_app = AppServerToApp::ReportMutations(report_mutations);
 
         let data = serialize_app_server_to_app(&app_server_to_app);
@@ -603,11 +663,14 @@ mod tests {
 
         let add_friend = AddFriend {
             friend_public_key: PublicKey::from(&[0xee; PUBLIC_KEY_LEN]),
-            address: relays,
+            relays,
             name: "Friend name".to_owned(),
             balance: -500, 
         };
-        let app_to_app_server = AppToAppServer::AddFriend(add_friend);
+        let app_to_app_server = AppToAppServer {
+            app_request_id: Uid::from(&[1; UID_LEN]),
+            app_request: AppRequest::AddFriend(add_friend),
+        };
 
         let data = serialize_app_to_app_server(&app_to_app_server);
         let app_to_app_server2 = deserialize_app_to_app_server(&data).unwrap();

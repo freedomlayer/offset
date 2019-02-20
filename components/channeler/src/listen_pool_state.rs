@@ -6,14 +6,14 @@ pub struct Relay<P,ST> {
     pub status: ST,
 }
 
-pub struct ListenPoolState<B,P,ST> {
-    pub relays: HashMap<B, Relay<P,ST>>,
-    local_addresses: HashSet<B>,
+pub struct ListenPoolState<RA,P,ST> {
+    pub relays: HashMap<RA, Relay<P,ST>>,
+    local_addresses: HashSet<RA>,
 }
 
-impl<B,P,ST> ListenPoolState<B,P,ST> 
+impl<RA,P,ST> ListenPoolState<RA,P,ST> 
 where
-    B: Hash + Eq + Clone,
+    RA: Hash + Eq + Clone,
     P: Hash + Eq + Clone,
 {
     pub fn new() -> Self {
@@ -27,8 +27,8 @@ where
     /// Returns directions to spawn relays (relay_friends, relay_addresses)
     /// For each address in relay_addresses, we should spawn a new relay with relay_friends as
     /// friends.
-    pub fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
-        -> (HashSet<P>, Vec<B>) {
+    pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) 
+        -> (HashSet<P>, Vec<RA>) {
 
         self.local_addresses = local_addresses
             .iter()
@@ -68,8 +68,8 @@ where
     /// - relays_add is a list of relays to add the friend to.
     /// - relays_remove is a list of relays to remove the friend from.
     /// - relays_spawn is a list of new relays to spawn
-    pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<B>)
-                -> (Vec<B>, Vec<B>, Vec<B>) {
+    pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<RA>)
+                -> (Vec<RA>, Vec<RA>, Vec<RA>) {
 
         let mut relays_add = Vec::new();
         let mut relays_remove = Vec::new();
@@ -133,7 +133,7 @@ where
 
     /// Remove a friend
     /// Returns: relays_remove - relays to signal friend_public_key has been removed.
-    pub fn remove_friend(&mut self, friend_public_key: &P) -> Vec<B> {
+    pub fn remove_friend(&mut self, friend_public_key: &P) -> Vec<RA> {
         let local_addresses = self.local_addresses.clone();
 
         let mut relays_remove = Vec::new();
@@ -170,19 +170,19 @@ mod tests {
     struct Status;
     
     /// A util struct that simulates the usage of ListenPoolState.
-    struct ListenPoolStateWrap<B,P>(ListenPoolState<B,P,Status>);
+    struct ListenPoolStateWrap<RA,P>(ListenPoolState<RA,P,Status>);
 
-    impl<B,P> ListenPoolStateWrap<B,P> 
+    impl<RA,P> ListenPoolStateWrap<RA,P> 
     where
-        B: Hash + Eq + Clone,
+        RA: Hash + Eq + Clone,
         P: Hash + Eq + Clone,
     {
         pub fn new() -> Self {
             ListenPoolStateWrap(ListenPoolState::new())
         }
 
-        pub fn set_local_addresses(&mut self, local_addresses: Vec<B>) 
-            -> (HashSet<P>, Vec<B>) {
+        pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) 
+            -> (HashSet<P>, Vec<RA>) {
             let (friends, relay_addresses) = self.0.set_local_addresses(local_addresses);
             for address in &relay_addresses {
                 let res = self.0.relays.insert(address.clone(), Relay { 
@@ -194,8 +194,8 @@ mod tests {
             (friends, relay_addresses)
         }
 
-        pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<B>)
-                    -> (Vec<B>, Vec<B>, Vec<B>) {
+        pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<RA>)
+                    -> (Vec<RA>, Vec<RA>, Vec<RA>) {
 
             let (relays_add, relays_remove, relays_spawn) = self.0.update_friend(friend_public_key.clone(), addresses);
 
@@ -212,7 +212,7 @@ mod tests {
             (relays_add, relays_remove, relays_spawn)
         }
 
-        pub fn remove_friend(&mut self, friend_public_key: &P) -> Vec<B> {
+        pub fn remove_friend(&mut self, friend_public_key: &P) -> Vec<RA> {
             self.0.remove_friend(friend_public_key)
         }
     }

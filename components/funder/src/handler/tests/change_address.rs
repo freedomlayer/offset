@@ -1,4 +1,4 @@
-use super::utils::{apply_funder_incoming};
+use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
 
@@ -11,18 +11,19 @@ use identity::{create_identity, IdentityClient};
 use crypto::test_utils::DummyRandom;
 use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, compare_public_key};
 use crypto::crypto_rand::RngContainer;
+use crypto::uid::{Uid, UID_LEN};
 
 
 use proto::funder::messages::{FriendMessage, 
     FunderIncomingControl, 
     AddFriend, FriendStatus,
-    SetFriendStatus};
+    SetFriendStatus, FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
-use crate::test_scheme::TestFunderScheme;
+use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
 async fn task_handler_change_address(identity_client1: IdentityClient, 
                                  identity_client2: IdentityClient) {
@@ -39,9 +40,11 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<TestFunderScheme>::new(&pk1, &("0x1337".to_string(), 0x1337u32));
+    let relays1 = vec![dummy_named_relay_address(1)];
+    let mut state1 = FunderState::<u32>::new(pk1.clone(), relays1);
     let mut ephemeral1 = Ephemeral::new();
-    let mut state2 = FunderState::<TestFunderScheme>::new(&pk2, &("0x1338".to_string(), 0x1338u32));
+    let relays2 = vec![dummy_named_relay_address(2)];
+    let mut state2 = FunderState::<u32>::new(pk2.clone(), relays2);
     let mut ephemeral2 = Ephemeral::new();
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -59,11 +62,13 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: 22u32,
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1)).unwrap();
@@ -73,7 +78,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1))).unwrap();
@@ -81,11 +88,13 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     // Node2: Add friend 1:
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: 11u32,
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
@@ -96,7 +105,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, &mut identity_client2))).unwrap();
@@ -120,7 +131,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
 
             } else {
                 unreachable!();
@@ -154,7 +165,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1338));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(2)]));
             } else {
                 unreachable!();
             }
@@ -162,7 +173,6 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
         },
         _ => unreachable!(),
     };
-
 
     // Node1: Receive friend_message from Node2:
     let funder_incoming = FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
@@ -181,7 +191,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x1337));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
             } else {
                 unreachable!();
             }
@@ -207,7 +217,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }
@@ -224,7 +234,9 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
 
 
     // Node1 decides to change his address:
-    let incoming_control_message = FunderIncomingControl::SetAddress(("2337".to_string(), 0x2337));
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::AddRelay(dummy_named_relay_address(11)));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, &mut identity_client1)).unwrap();
@@ -233,15 +245,18 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     assert_eq!(outgoing_comms.len(), 3);
 
     match &outgoing_comms[0] {
-        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::SetAddress(0x2337)) => {},
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::SetRelays(relays)) => {
+            assert_eq!(relays, &vec![dummy_relay_address(1), dummy_relay_address(11)]);
+        },
         _ => unreachable!(),
     };
 
     match &outgoing_comms[1] {
         FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
             assert_eq!(update_friend.friend_public_key, pk2);
-            assert_eq!(update_friend.friend_address, 0x1338);
-            assert_eq!(update_friend.local_addresses, vec![0x2337, 0x1337]);
+            assert_eq!(update_friend.friend_relays, vec![dummy_relay_address(2)]);
+            assert_eq!(update_friend.local_relays, vec![dummy_relay_address(1), 
+                       dummy_relay_address(11)]);
         },
         _ => unreachable!(),
     };
@@ -257,7 +272,8 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 4);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(0x2337));
+                let expected_address = vec![dummy_relay_address(1), dummy_relay_address(11)];
+                assert_eq!(friend_move_token.opt_local_relays, Some(expected_address));
             } else {
                 unreachable!();
             }
@@ -283,7 +299,7 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 5);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }
@@ -300,8 +316,8 @@ async fn task_handler_change_address(identity_client1: IdentityClient,
     match &outgoing_comms[0] {
         FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
             assert_eq!(update_friend.friend_public_key, pk2);
-            assert_eq!(update_friend.friend_address, 0x1338);
-            assert_eq!(update_friend.local_addresses, vec![0x2337]);
+            assert_eq!(update_friend.friend_relays, vec![dummy_relay_address(2)]);
+            assert_eq!(update_friend.local_relays, vec![dummy_relay_address(1), dummy_relay_address(11)]);
         },
         _ => unreachable!(),
     };

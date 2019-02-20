@@ -1,5 +1,6 @@
 #![feature(try_from)]
 #![feature(nll)]
+#![feature(never_type)]
 
 #![deny(
     trivial_numeric_casts,
@@ -34,7 +35,7 @@ pub mod index_server;
 pub mod index_client;
 pub mod report;
 pub mod net;
-pub mod scheme;
+// pub mod scheme;
 
 
 

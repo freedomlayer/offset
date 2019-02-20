@@ -1,17 +1,19 @@
 use common::canonical_serialize::CanonicalSerialize;
+use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
 use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
-                            ReceiptAck, AddFriend, SetFriendAddress, 
+                            ReceiptAck, AddFriend, SetFriendRelays, 
                             SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
 use crate::report::messages::{FunderReport, FunderReportMutation};
 use crate::index_client::messages::{IndexClientReport, 
     IndexClientReportMutation, ClientResponseRoutes};
-use crate::index_server::messages::RequestRoutes;
+use crate::index_server::messages::{RequestRoutes, NamedIndexServerAddress};
 use crate::net::messages::NetAddress;
 
-use index_client::messages::AddIndexServer;
 
+// TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
@@ -23,6 +25,15 @@ pub struct NamedRelayAddress<B=NetAddress> {
 pub struct RelayAddress<B=NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
+}
+
+impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
+    fn from(from: NamedRelayAddress<B>) -> Self {
+        RelayAddress {
+            public_key: from.public_key,
+            address: from.address,
+        }
+    }
 }
 
 impl<B> CanonicalSerialize for RelayAddress<B> 
@@ -39,45 +50,62 @@ where
 
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
-where
-    RA: Clone,
-    NRA: Clone,
+pub struct NodeReport<B=NetAddress> 
+where   
+    B: Clone,
 {
-    pub funder_report: FunderReport<RA,NRA>,
-    pub index_client_report: IndexClientReport<ISA>,
+    pub funder_report: FunderReport<B>,
+    pub index_client_report: IndexClientReport<B>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
-    Funder(FunderReportMutation<RA,NRA>),
-    IndexClient(IndexClientReportMutation<ISA>),
+pub enum NodeReportMutation<B=NetAddress> 
+where
+    B: Clone,
+{
+    Funder(FunderReportMutation<B>),
+    IndexClient(IndexClientReportMutation<B>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReportMutations<B=NetAddress> 
+where
+    B: Clone,
+{
+    pub opt_app_request_id: Option<Uid>,
+    pub mutations: Vec<NodeReportMutation<B>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> 
+pub enum AppServerToApp<B=NetAddress> 
 where
-    RA: Clone,
-    NRA: Clone,
+    B: Clone,
 {
     /// Funds:
     ResponseReceived(ResponseReceived),
     /// Reports about current state:
-    Report(NodeReport<RA,NRA,ISA>),
-    ReportMutations(Vec<NodeReportMutation<RA,NRA,ISA>>),
+    Report(NodeReport<B>),
+    ReportMutations(ReportMutations<B>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetAddress> {
-    /// Set relay address to be used locally:
-    SetRelays(NRA),
+pub enum NamedRelaysMutation<B=NetAddress> {
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AppRequest<B=NetAddress> {
+    /// Manage locally used relays:
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
     /// Sending funds:
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
     /// Friend management:
-    AddFriend(AddFriend<RA>),
-    SetFriendRelays(SetFriendAddress<RA>),
+    AddFriend(AddFriend<B>),
+    SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
@@ -89,21 +117,39 @@ pub enum AppToAppServer<RA=Vec<RelayAddress>,NRA=Vec<NamedRelayAddress>,ISA=NetA
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
-    AddIndexServer(AddIndexServer<ISA>),
+    AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
+}
+#[derive(Debug, PartialEq, Eq)]
+pub struct AppToAppServer<B=NetAddress> {
+    pub app_request_id: Uid,
+    pub app_request: AppRequest<B>,
+}
+
+impl<B> AppToAppServer<B> {
+    pub fn new(app_request_id: Uid,
+               app_request: AppRequest<B>) -> Self {
+
+        AppToAppServer {
+            app_request_id,
+            app_request,
+        }
+    }
 }
 
 
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
-impl<RA,NRA,ISA> NodeReport<RA,NRA,ISA> 
+
+impl<B> MutableState for NodeReport<B>
 where
-    RA: Clone,
-    NRA: Clone,
-    ISA: Eq + Clone,
+    B: Eq + Clone,
 {
-    pub fn mutate(&mut self, mutation: &NodeReportMutation<RA,NRA,ISA>) 
+    type Mutation = NodeReportMutation<B>;
+    type MutateError = NodeReportMutateError;
+
+    fn mutate(&mut self, mutation: &NodeReportMutation<B>)
         -> Result<(), NodeReportMutateError> {
 
         match mutation {
@@ -119,8 +165,6 @@ where
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
-    /// Receives reports about state
-    pub reports: bool,
     /// Can request routes
     pub routes: bool,
     /// Can send credits

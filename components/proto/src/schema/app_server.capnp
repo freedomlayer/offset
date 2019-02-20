@@ -14,6 +14,7 @@ using import "common.capnp".Receipt;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
+using import "common.capnp".NamedIndexServerAddress;
 
 using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
@@ -88,25 +89,29 @@ struct ClientResponseRoutes {
         result @1: ResponseRoutesResult;
 }
 
-struct AddIndexServer {
-        publicKey @0: PublicKey;
-        address @1: NetAddress;
-        name @2: Text;
-}
-
-
 #####################################################################
 
 struct AppPermissions {
-        reports @0: Bool;
-        # Receives reports about state
-        routes @1: Bool;
+        routes @0: Bool;
         # Can request routes
-        sendFunds @2: Bool;
+        sendFunds @1: Bool;
         # Can send credits
-        config @3: Bool;
+        config @2: Bool;
         # Can configure friends
 }
+
+
+struct ReportMutations {
+        optAppRequestId: union {
+                appRequestId @0: Uid;
+                # Mutations were caused by an application request.
+                empty @1: Void;
+                # Mutations were caused for some other reason.
+        }
+        mutations @2: List(NodeReportMutation);
+        # A list of mutations
+}
+
 
 struct AppServerToApp {
     union {
@@ -115,7 +120,7 @@ struct AppServerToApp {
 
         # Reports about current state:
         report @1: NodeReport;
-        reportMutations @2: List(NodeReportMutation);
+        reportMutations @2: ReportMutations;
 
         # Routes:
         responseRoutes @3: ClientResponseRoutes;
@@ -123,34 +128,40 @@ struct AppServerToApp {
     }
 }
 
-
-struct AppToAppServer {
+struct AppRequest {
     union {
-        # Set relay address to be used locally (Could be empty)
-        setRelays @0: List(NamedRelayAddress);
+        # Set relay address to be used locally
+        addRelay @0: NamedRelayAddress;
+        removeRelay @1: PublicKey;
 
         # Sending Funds:
-        requestSendFunds @1: UserRequestSendFunds;
-        receiptAck @2: ReceiptAck;
+        requestSendFunds @2: UserRequestSendFunds;
+        receiptAck @3: ReceiptAck;
 
         # Friends management
-        addFriend @3: AddFriend;
-        setFriendRelays @4: SetFriendRelays;
-        setFriendName @5: SetFriendName;
-        removeFriend @6: PublicKey;
-        enableFriend @7: PublicKey;
-        disableFriend @8: PublicKey;
-        openFriend @9: PublicKey;
-        closeFriend @10: PublicKey;
-        setFriendRemoteMaxDebt @11: SetFriendRemoteMaxDebt;
-        resetFriendChannel @12: ResetFriendChannel;
+        addFriend @4: AddFriend;
+        setFriendRelays @5: SetFriendRelays;
+        setFriendName @6: SetFriendName;
+        removeFriend @7: PublicKey;
+        enableFriend @8: PublicKey;
+        disableFriend @9: PublicKey;
+        openFriend @10: PublicKey;
+        closeFriend @11: PublicKey;
+        setFriendRemoteMaxDebt @12: SetFriendRemoteMaxDebt;
+        resetFriendChannel @13: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @13: RequestRoutes;
+        requestRoutes @14: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @14: AddIndexServer;
-        removeIndexServer @15: PublicKey;
+        addIndexServer @15: NamedIndexServerAddress;
+        removeIndexServer @16: PublicKey;
     }
+}
+
+
+struct AppToAppServer {
+        appRequestId @0: Uid;
+        appRequest @1: AppRequest;
 }
 

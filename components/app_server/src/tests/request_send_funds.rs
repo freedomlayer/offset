@@ -8,11 +8,12 @@ use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::uid::UID_LEN;
 
-use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl,
+use proto::funder::messages::{FunderOutgoingControl,
                                 UserRequestSendFunds, FriendsRoute, 
                                 InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
-                                ResponseSendFundsResult};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, AppPermissions};
+                                ResponseSendFundsResult, FunderControl};
+use proto::app_server::messages::{AppServerToApp, AppToAppServer, 
+    AppPermissions, AppRequest};
 
 use super::utils::spawn_dummy_app_server;
 
@@ -31,7 +32,6 @@ where
     let (app_server_sender, mut app_receiver0) = mpsc::channel(0);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
-        reports: true,
         routes: true,
         send_funds: true,
         config: true,
@@ -42,7 +42,6 @@ where
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
-        reports: true,
         routes: true,
         send_funds: true,
         config: true,
@@ -64,12 +63,15 @@ where
         dest_payment: 20,
     };
 
-    await!(app_sender0.send(AppToAppServer::RequestSendFunds(user_request_send_funds.clone()))).unwrap();
+    let to_app_server = AppToAppServer::new(Uid::from(&[22; UID_LEN]),
+                                            AppRequest::RequestSendFunds(user_request_send_funds.clone()));
+    await!(app_sender0.send(to_app_server)).unwrap();
 
     // RequestRoutes command should be forwarded to IndexClient:
-    let to_funder_message = await!(funder_receiver.next()).unwrap();
-    match to_funder_message {
-        FunderIncomingControl::RequestSendFunds(received_user_request_send_funds) => 
+    let funder_incoming_control = await!(funder_receiver.next()).unwrap();
+    assert_eq!(funder_incoming_control.app_request_id, Uid::from(&[22; UID_LEN]));
+    match funder_incoming_control.funder_control {
+        FunderControl::RequestSendFunds(received_user_request_send_funds) => 
             assert_eq!(received_user_request_send_funds, user_request_send_funds),
         _ => unreachable!(),
     };

@@ -8,7 +8,6 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use super::messages::{ResponseSendFunds, FailureSendFunds, 
     Receipt, PendingRequest, MoveToken};
-use super::scheme::FunderScheme;
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -111,7 +110,7 @@ pub fn verify_receipt(receipt: &Receipt,
 const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash<FS:FunderScheme>(move_token: &MoveToken<FS>) -> HashResult {
+pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {
     let mut operations_data = Vec::new();
     operations_data.write_u64::<BigEndian>(
         usize_to_u64(move_token.operations.len()).unwrap()).unwrap();
@@ -122,12 +121,18 @@ pub fn operations_hash<FS:FunderScheme>(move_token: &MoveToken<FS>) -> HashResul
 }
 
 /// Combine all operations into one hash value.
-pub fn local_address_hash<FS:FunderScheme>(move_token: &MoveToken<FS>) -> HashResult {
-    sha_512_256(&move_token.opt_local_address.canonical_serialize())
+pub fn local_address_hash<B>(move_token: &MoveToken<B>) -> HashResult 
+where
+    B: CanonicalSerialize,
+{
+    sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
 /// Hash operations and local_address:
-pub fn prefix_hash<FS:FunderScheme,S>(move_token: &MoveToken<FS,S>) -> HashResult {
+pub fn prefix_hash<B,S>(move_token: &MoveToken<B,S>) -> HashResult 
+where
+    B: CanonicalSerialize,
+{
     let mut hash_buff = Vec::new();
 
     hash_buff.extend_from_slice(&move_token.old_token);
@@ -139,11 +144,14 @@ pub fn prefix_hash<FS:FunderScheme,S>(move_token: &MoveToken<FS,S>) -> HashResul
         hash_buff.extend_from_slice(&op.canonical_serialize());
     }
 
-    hash_buff.extend_from_slice(&move_token.opt_local_address.canonical_serialize());
+    hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<FS:FunderScheme,S>(move_token: &MoveToken<FS,S>) -> Vec<u8> {
+pub fn move_token_signature_buff<B,S>(move_token: &MoveToken<B,S>) -> Vec<u8> 
+where
+    B: CanonicalSerialize,
+{
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
@@ -158,7 +166,10 @@ pub fn move_token_signature_buff<FS:FunderScheme,S>(move_token: &MoveToken<FS,S>
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token<FS:FunderScheme>(move_token: &MoveToken<FS>, public_key: &PublicKey) -> bool {
+pub fn verify_move_token<B>(move_token: &MoveToken<B>, public_key: &PublicKey) -> bool 
+where
+    B: CanonicalSerialize,
+{
     let sig_buffer = move_token_signature_buff(move_token);
     verify_signature(&sig_buffer, public_key, &move_token.new_token)
 }

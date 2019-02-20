@@ -1,4 +1,5 @@
 use common::mutable_state::MutableState;
+use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::identity::PublicKey;
 use funder::{FunderState, FunderMutation};
@@ -7,27 +8,26 @@ use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::IndexClientReport;
-use proto::funder::scheme::FunderScheme;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum NodeMutation<FS:FunderScheme,ISA> {
-    Funder(FunderMutation<FS>),
-    IndexClient(IndexClientConfigMutation<ISA>)
+pub enum NodeMutation<B:Clone> {
+    Funder(FunderMutation<B>),
+    IndexClient(IndexClientConfigMutation<B>)
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct NodeState<FS:FunderScheme,ISA> {
-    pub funder_state: FunderState<FS>,
-    pub index_client_config: IndexClientConfig<ISA>,
+pub struct NodeState<B:Clone> {
+    pub funder_state: FunderState<B>,
+    pub index_client_config: IndexClientConfig<B>,
 }
 
-impl<FS,ISA> NodeState<FS,ISA> 
+impl<B> NodeState<B> 
 where
-    FS: FunderScheme
+    B: Clone + CanonicalSerialize,
 {
-    pub fn new(local_public_key: PublicKey, named_address: FS::NamedAddress) -> Self {
+    pub fn new(local_public_key: PublicKey) -> Self {
         NodeState {
-            funder_state: FunderState::new(&local_public_key, &named_address),
+            funder_state: FunderState::new(local_public_key, Vec::new()),
             index_client_config: IndexClientConfig::new(),
         }
     }
@@ -37,12 +37,11 @@ where
 #[derive(Debug)]
 pub struct NodeMutateError;
 
-impl<FS,ISA> MutableState for NodeState<FS,ISA> 
+impl<B> MutableState for NodeState<B> 
 where
-    FS: FunderScheme,
-    ISA: Clone + PartialEq + Eq,
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
 {
-    type Mutation = NodeMutation<FS,ISA>;
+    type Mutation = NodeMutation<B>;
     type MutateError = NodeMutateError;
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
@@ -61,9 +60,9 @@ where
 
 
 /// Create an initial IndexClientReport, based on an IndexClientConfig
-fn create_index_client_report<ISA>(index_client_config: &IndexClientConfig<ISA>) -> IndexClientReport<ISA>
+fn create_index_client_report<B>(index_client_config: &IndexClientConfig<B>) -> IndexClientReport<B>
 where
-    ISA: Clone,
+    B: Clone,
 {
     IndexClientReport {
         index_servers: index_client_config.index_servers.clone(),
@@ -74,10 +73,9 @@ where
 
 
 /// Create an initial NodeReport, based on a NodeState
-pub fn create_node_report<FS,ISA>(node_state: &NodeState<FS,ISA>) -> NodeReport<FS::Address, FS::NamedAddress,ISA> 
+pub fn create_node_report<B>(node_state: &NodeState<B>) -> NodeReport<B> 
 where
-    FS: FunderScheme,
-    ISA: Clone,
+    B: Clone + CanonicalSerialize,
 {
     NodeReport {
         funder_report: create_initial_report(&node_state.funder_state),

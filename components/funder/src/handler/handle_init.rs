@@ -1,14 +1,16 @@
+use std::fmt::Debug;
+use common::canonical_serialize::CanonicalSerialize;
+
 use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
-use proto::funder::scheme::FunderScheme;
+use proto::app_server::messages::RelayAddress;
 
 use crate::types::ChannelerConfig;
-
 use crate::handler::handler::MutableFunderState;
 
-pub fn handle_init<FS>(m_state: &MutableFunderState<FS>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>)
+pub fn handle_init<B>(m_state: &MutableFunderState<B>,
+                      outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>) 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
     let mut enabled_friends = Vec::new();
     for (_friend_public_key, friend) in &m_state.state().friends {
@@ -16,8 +18,8 @@ where
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerUpdateFriend {
                     friend_public_key: friend.remote_public_key.clone(),
-                    friend_address: friend.remote_address.clone(),
-                    local_addresses: friend.sent_local_address.to_vec(),
+                    friend_relays: friend.remote_relays.clone(),
+                    local_relays: friend.sent_local_relays.to_vec(),
                 };
                 enabled_friends.push(channeler_add_friend);
             },
@@ -31,9 +33,14 @@ where
     // let report = create_report(&self.state, &self.ephemeral);
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
+
     // Notify Channeler about current address:
-    let anon_address = FS::anonymize_address(m_state.state().address.clone());
-    outgoing_channeler_config.push(ChannelerConfig::SetAddress(anon_address));
+    let relays = m_state.state().relays
+        .iter()
+        .cloned()
+        .map(RelayAddress::from)
+        .collect();
+    outgoing_channeler_config.push(ChannelerConfig::SetRelays(relays));
 
     // Notify channeler about all enabled friends:
     for enabled_friend in enabled_friends {
@@ -54,8 +61,7 @@ mod tests {
     use crate::friend::FriendMutation;
 
     use crate::handler::handler::MutableFunderState;
-    use crate::test_scheme::TestFunderScheme;
-
+    use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
     fn test_handle_init_basic() {
@@ -64,12 +70,13 @@ mod tests {
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
-        let mut state = FunderState::<TestFunderScheme>::new(&local_pk, &("1337".to_string(), 1337u32));
+        let relays = vec![dummy_named_relay_address(0)];
+        let mut state = FunderState::<u32>::new(local_pk, relays);
 
         // Add a remote friend:
         let add_friend = AddFriend {
             friend_public_key: pk_b.clone(),
-            address: 3u32,
+            relays: vec![dummy_relay_address(3)],
             name: "pk_b".into(),
             balance: 0i128,
         };
@@ -97,8 +104,8 @@ mod tests {
         // SetAddress:
         let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
-            ChannelerConfig::SetAddress(opt_address) => {
-                assert_eq!(opt_address, 1337u32);
+            ChannelerConfig::SetRelays(cur_relays) => {
+                assert_eq!(cur_relays, vec![dummy_relay_address(0)]);
             },
             _ => unreachable!(),
         };
@@ -106,9 +113,9 @@ mod tests {
         // UpdateFriend:
         let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
-            ChannelerConfig::UpdateFriend(channeler_add_friend) => {
-                assert_eq!(channeler_add_friend.friend_address, 3u32);
-                assert_eq!(channeler_add_friend.friend_public_key, pk_b);
+            ChannelerConfig::UpdateFriend(channeler_update_friend) => {
+                assert_eq!(channeler_update_friend.friend_relays, vec![dummy_relay_address(3)]);
+                assert_eq!(channeler_update_friend.friend_public_key, pk_b);
             },
             _ => unreachable!(),
         };

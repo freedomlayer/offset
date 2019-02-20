@@ -1,14 +1,16 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
+use common::canonical_serialize::CanonicalSerialize;
+
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, 
     SIGNATURE_LEN, compare_public_key};
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 
 use proto::funder::messages::{MoveToken, FriendTcOp};
-use proto::funder::scheme::FunderScheme;
 use proto::funder::signature_buff::verify_move_token;
+use proto::app_server::messages::RelayAddress;
 
 use crate::mutual_credit::types::{MutualCredit, McMutation};
 use crate::mutual_credit::incoming::{ProcessOperationOutput, ProcessTransListError, 
@@ -19,21 +21,21 @@ use crate::types::{MoveTokenHashed, create_unsigned_move_token, create_hashed,
                     UnsignedMoveToken};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SetDirection<FS:FunderScheme> {
+pub enum SetDirection<B> {
     Incoming(MoveTokenHashed), 
-    Outgoing(MoveToken<FS>),
+    Outgoing(MoveToken<B>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TcMutation<FS:FunderScheme> {
+pub enum TcMutation<B> {
     McMutation(McMutation),
-    SetDirection(SetDirection<FS>),
+    SetDirection(SetDirection<B>),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TcOutgoing<FS:FunderScheme> {
+pub struct TcOutgoing<B> {
     pub mutual_credit: MutualCredit,
-    pub move_token_out: MoveToken<FS>,
+    pub move_token_out: MoveToken<B>,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
 
@@ -44,15 +46,15 @@ pub struct TcIncoming {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum TcDirection<FS:FunderScheme> {
+pub enum TcDirection<B> {
     Incoming(TcIncoming),
-    Outgoing(TcOutgoing<FS>),
+    Outgoing(TcOutgoing<B>),
 }
 
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct TokenChannel<FS:FunderScheme> {
-    direction: TcDirection<FS>,
+pub struct TokenChannel<B> {
+    direction: TcDirection<B>,
 }
 
 #[derive(Debug)]
@@ -68,19 +70,19 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived<FS:FunderScheme> {
+pub struct MoveTokenReceived<B> {
     pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<TcMutation<FS>>,
+    pub mutations: Vec<TcMutation<B>>,
     pub remote_requests_closed: bool,
-    pub opt_local_address: Option<FS::Address>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
 
 #[derive(Debug)]
-pub enum ReceiveMoveTokenOutput<FS:FunderScheme> {
+pub enum ReceiveMoveTokenOutput<B> {
     Duplicate,
-    RetransmitOutgoing(MoveToken<FS>),
-    Received(MoveTokenReceived<FS>),
+    RetransmitOutgoing(MoveToken<B>),
+    Received(MoveTokenReceived<B>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
@@ -110,9 +112,9 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token<FS:FunderScheme>(low_public_key: &PublicKey,
+fn initial_move_token<B>(low_public_key: &PublicKey,
                            high_public_key: &PublicKey,
-                           balance: i128) -> MoveToken<FS> {
+                           balance: i128) -> MoveToken<B> {
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
@@ -120,7 +122,7 @@ fn initial_move_token<FS:FunderScheme>(low_public_key: &PublicKey,
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     MoveToken {
         operations: Vec::new(),
-        opt_local_address: None,
+        opt_local_relays: None,
         old_token: token_from_public_key(&low_public_key),
         local_public_key: low_public_key.clone(),
         remote_public_key: high_public_key.clone(),
@@ -135,9 +137,9 @@ fn initial_move_token<FS:FunderScheme>(low_public_key: &PublicKey,
 }
 
 
-impl<FS> TokenChannel<FS> 
+impl<B> TokenChannel<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
     pub fn new(local_public_key: &PublicKey, 
                remote_public_key: &PublicKey,
@@ -161,7 +163,7 @@ where
             // We are the second sender
             let tc_incoming = TcIncoming {
                 mutual_credit,
-                move_token_in: create_hashed::<FS>(&initial_move_token(remote_public_key, 
+                move_token_in: create_hashed::<B>(&initial_move_token(remote_public_key, 
                                                                 local_public_key, 
                                                                 balance.checked_neg().unwrap())),
             };
@@ -173,8 +175,8 @@ where
 
     pub fn new_from_remote_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken<FS>,
-                      balance: i128) -> TokenChannel<FS> { // is balance redundant here?
+                      reset_move_token: &MoveToken<B>,
+                      balance: i128) -> TokenChannel<B> { // is balance redundant here?
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -188,9 +190,9 @@ where
 
     pub fn new_from_local_reset(local_public_key: &PublicKey, 
                       remote_public_key: &PublicKey, 
-                      reset_move_token: &MoveToken<FS>,
+                      reset_move_token: &MoveToken<B>,
                       balance: i128, // Is this redundant?
-                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> TokenChannel<FS> {
+                      opt_last_incoming_move_token: Option<MoveTokenHashed>) -> TokenChannel<B> {
 
         let tc_outgoing = TcOutgoing {
             mutual_credit: MutualCredit::new(local_public_key, remote_public_key, balance),
@@ -214,7 +216,7 @@ where
         self.get_mutual_credit().state().balance.remote_max_debt
     }
 
-    pub fn get_direction(&self) -> &TcDirection<FS> {
+    pub fn get_direction(&self) -> &TcDirection<B> {
         &self.direction
     }
 
@@ -233,7 +235,7 @@ where
         }
     }
 
-    pub fn mutate(&mut self, d_mutation: &TcMutation<FS>) {
+    pub fn mutate(&mut self, d_mutation: &TcMutation<B>) {
         match d_mutation {
             TcMutation::McMutation(mc_mutation) => {
                 let mutual_credit = match &mut self.direction {
@@ -287,8 +289,8 @@ where
     }
 
     pub fn simulate_receive_move_token(&self, 
-                              new_move_token: MoveToken<FS>)
-        -> Result<ReceiveMoveTokenOutput<FS>, ReceiveMoveTokenError> {
+                              new_move_token: MoveToken<B>)
+        -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
 
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
@@ -304,9 +306,12 @@ where
 
 impl TcIncoming {
     /// Handle an incoming move token during Incoming direction:
-    fn handle_incoming<FS: FunderScheme>(&self, 
-                        new_move_token: MoveToken<FS>) 
-        -> Result<ReceiveMoveTokenOutput<FS>, ReceiveMoveTokenError> {
+    fn handle_incoming<B>(&self, 
+                        new_move_token: MoveToken<B>) 
+        -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> 
+    where
+        B: CanonicalSerialize,
+    {
 
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -319,14 +324,14 @@ impl TcIncoming {
         }
     }
 
-    pub fn create_unsigned_move_token<FS: FunderScheme>(&self,
+    pub fn create_unsigned_move_token<B>(&self,
                                     operations: Vec<FriendTcOp>,
-                                    opt_local_address: Option<FS::Address>,
-                                    rand_nonce: RandValue) -> UnsignedMoveToken<FS> {
+                                    opt_local_relays: Option<Vec<RelayAddress<B>>>,
+                                    rand_nonce: RandValue) -> UnsignedMoveToken<B> {
 
         create_unsigned_move_token(
             operations,
-            opt_local_address,
+            opt_local_relays,
             self.move_token_in.new_token.clone(),
             // Note the swap here (remote, local):
             self.move_token_in.remote_public_key.clone(),
@@ -346,14 +351,14 @@ impl TcIncoming {
 
 
 
-impl<FS> TcOutgoing<FS> 
+impl<B> TcOutgoing<B> 
 where
-    FS: FunderScheme,
+    B: Clone + CanonicalSerialize,
 {
     /// Handle an incoming move token during Outgoing direction:
     fn handle_incoming(&self, 
-                        new_move_token: MoveToken<FS>) 
-        -> Result<ReceiveMoveTokenOutput<FS>, ReceiveMoveTokenError> {
+                        new_move_token: MoveToken<B>) 
+        -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
 
         // Make sure that the stated remote public key and local public key match:
         if !((self.mutual_credit.state().idents.local_public_key == new_move_token.remote_public_key) &&
@@ -373,8 +378,8 @@ where
     }
 
     fn handle_incoming_token_match(&self,
-                                   new_move_token: MoveToken<FS>)
-        -> Result<ReceiveMoveTokenOutput<FS>, ReceiveMoveTokenError> {
+                                   new_move_token: MoveToken<B>)
+        -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
 
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
@@ -451,7 +456,7 @@ where
                     mutations,
                     // Were the remote requests initially open and now it is closed?
                     remote_requests_closed: final_remote_requests && !initial_remote_requests,
-                    opt_local_address: new_move_token.opt_local_address.clone(),
+                    opt_local_relays: new_move_token.opt_local_relays.clone(),
                 };
 
                 Ok(ReceiveMoveTokenOutput::Received(move_token_received))
@@ -463,7 +468,7 @@ where
     }
 
     /// Get the current outgoing move token
-    pub fn create_outgoing_move_token(&self) -> MoveToken<FS> {
+    pub fn create_outgoing_move_token(&self) -> MoveToken<B> {
         self.move_token_out.clone()
     }
 }
@@ -480,21 +485,19 @@ mod tests {
 
     use proto::funder::signature_buff::move_token_signature_buff;
 
-    use crate::test_scheme::TestFunderScheme;
-
     /// A helper function to sign an UnsignedMoveToken using an identity:
-    fn dummy_sign_move_token<FS,I>(unsigned_move_token: UnsignedMoveToken<FS>, 
+    fn dummy_sign_move_token<B,I>(unsigned_move_token: UnsignedMoveToken<B>, 
                                   identity: &I) 
-        -> MoveToken<FS> 
+        -> MoveToken<B> 
     where
-        FS: FunderScheme,
+        B: CanonicalSerialize,
         I: Identity,
     {
         let signature_buff = move_token_signature_buff(&unsigned_move_token);
 
         MoveToken {
             operations: unsigned_move_token.operations,
-            opt_local_address: unsigned_move_token.opt_local_address,
+            opt_local_relays: unsigned_move_token.opt_local_relays,
             old_token: unsigned_move_token.old_token,
             local_public_key: unsigned_move_token.local_public_key,
             remote_public_key: unsigned_move_token.remote_public_key,
@@ -513,8 +516,8 @@ mod tests {
     fn test_initial_direction() {
         let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let token_channel_a_b = TokenChannel::<TestFunderScheme>::new(&pk_a, &pk_b, 0i128);
-        let token_channel_b_a = TokenChannel::<TestFunderScheme>::new(&pk_b, &pk_a, 0i128);
+        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
+        let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a, 0i128);
 
         // Only one of those token channels is outgoing:
         let is_a_b_outgoing = token_channel_a_b.is_outgoing();
@@ -562,7 +565,7 @@ mod tests {
 
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
-        let token_channel12 = TokenChannel::<TestFunderScheme>::new(&pk1, &pk2, 0i128); // (local, remote)
+        let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2, 0i128); // (local, remote)
         if token_channel12.is_outgoing() {
             (identity1, identity2)
         } else {
@@ -575,8 +578,8 @@ mod tests {
     /// After: tc1: incoming, tc2: outgoing
     fn set_remote_max_debt21<I>(_identity1: &I,
                             identity2: &I,
-                            tc1: &mut TokenChannel<TestFunderScheme>,
-                            tc2: &mut TokenChannel<TestFunderScheme>) 
+                            tc1: &mut TokenChannel<u32>,
+                            tc2: &mut TokenChannel<u32>) 
     where
         I: Identity,
     {
@@ -594,9 +597,9 @@ mod tests {
         let operations = vec![friend_tc_op];
 
         let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
-        let opt_local_address = None;
+        let opt_local_relays = None;
         let unsigned_move_token = tc2_incoming.create_unsigned_move_token(operations, 
-                                                    opt_local_address,
+                                                    opt_local_relays,
                                                     rand_nonce);
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);

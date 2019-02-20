@@ -34,15 +34,8 @@ pub struct AddIndexServer<ISA> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AddIndexServerReport<ISA> {
-    pub public_key: PublicKey,
-    pub address: ISA,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA> {
-    AddIndexServer(AddIndexServerReport<ISA>),
+    AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
     SetConnectedServer(Option<PublicKey>),
 }
@@ -59,17 +52,28 @@ pub struct ClientResponseRoutes {
     pub result: ResponseRoutesResult,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexClientReportMutations<ISA> {
+    pub opt_app_request_id: Option<Uid>,
+    pub mutations: Vec<IndexClientReportMutation<ISA>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientToAppServer<ISA> {
-    ReportMutations(Vec<IndexClientReportMutation<ISA>>),
+    ReportMutations(IndexClientReportMutations<ISA>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
-#[derive(Debug)]
-pub enum AppServerToIndexClient<ISA> {
-    AddIndexServer(AddIndexServer<ISA>),
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexClientRequest<ISA> {
+    AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
     RequestRoutes(RequestRoutes),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppServerToIndexClient<ISA> {
+    AppRequest((Uid, IndexClientRequest<ISA>)), // (app_request_id, app_request)
     ApplyMutations(Vec<IndexMutation>),
 }
 

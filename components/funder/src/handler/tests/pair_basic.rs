@@ -17,14 +17,17 @@ use proto::funder::messages::{FriendMessage, FriendsRoute,
     InvoiceId, INVOICE_ID_LEN, FunderIncomingControl, 
     AddFriend, FriendStatus,
     SetFriendStatus, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds, SetRequestsStatus, RequestsStatus};
+    UserRequestSendFunds, SetRequestsStatus, RequestsStatus,
+    FunderControl};
 
 use crate::types::{FunderIncoming, IncomingLivenessMessage, 
     FunderOutgoingComm, FunderIncomingComm, ChannelerConfig};
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
 use crate::friend::ChannelStatus;
-use crate::test_scheme::TestFunderScheme;
+
+use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
+
 
 async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient, 
                                      identity_client2: &'a mut IdentityClient) {
@@ -41,9 +44,11 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         (identity_client2, pk2, identity_client1, pk1)
     };
 
-    let mut state1 = FunderState::<TestFunderScheme>::new(&pk1, &("11".to_string(), 11u32));
+    let relays1 = vec![dummy_named_relay_address(1)];
+    let mut state1 = FunderState::<u32>::new(pk1.clone(), relays1);
     let mut ephemeral1 = Ephemeral::new();
-    let mut state2 = FunderState::<TestFunderScheme>::new(&pk2, &("22".to_string(), 22u32));
+    let relays2 = vec![dummy_named_relay_address(2)];
+    let mut state2 = FunderState::<u32>::new(pk2.clone(), relays2);
     let mut ephemeral2 = Ephemeral::new();
 
     let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
@@ -61,11 +66,13 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node1: Add friend 2:
     let add_friend = AddFriend {
         friend_public_key: pk2.clone(),
-        address: 22u32,
+        relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[11; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -75,7 +82,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[12; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -83,11 +92,13 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2: Add friend 1:
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
-        address: 11u32,
+        relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
         balance: 0i128,
     };
-    let incoming_control_message = FunderIncomingControl::AddFriend(add_friend);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[13; UID_LEN]),
+        FunderControl::AddFriend(add_friend));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -98,7 +109,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk1.clone(),
         status: FriendStatus::Enabled,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendStatus(set_friend_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[14; UID_LEN]),
+        FunderControl::SetFriendStatus(set_friend_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -123,7 +136,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert!(friend_move_token.opt_local_address.is_none());
+                assert!(friend_move_token.opt_local_relays.is_none());
 
             } else {
                 unreachable!();
@@ -145,8 +158,8 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     match &outgoing_comms[0] {
         FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
             assert_eq!(update_friend.friend_public_key, pk1);
-            assert_eq!(update_friend.friend_address, 11);
-            assert_eq!(update_friend.local_addresses, vec![22]);
+            assert_eq!(update_friend.friend_relays, vec![dummy_relay_address(1)]);
+            assert_eq!(update_friend.local_relays, vec![dummy_relay_address(2)]);
         },
         _ => unreachable!(),
     };
@@ -171,7 +184,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(22));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(2)]));
 
             } else {
                 unreachable!();
@@ -187,7 +200,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                                  &mut rng, identity_client1))).unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
-    // Node1 should send a message containing opt_local_address to Node2:
+    // Node1 should send a message containing opt_local_relays to Node2:
     let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
@@ -198,7 +211,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, Some(11));
+                assert_eq!(friend_move_token.opt_local_relays, Some(vec![dummy_relay_address(1)]));
 
             } else {
                 unreachable!();
@@ -227,7 +240,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
-                assert_eq!(friend_move_token.opt_local_address, None);
+                assert_eq!(friend_move_token.opt_local_relays, None);
 
             } else {
                 unreachable!();
@@ -249,7 +262,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         remote_max_debt: 100,
     };
-    let incoming_control_message = FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; UID_LEN]),
+        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -302,7 +317,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; UID_LEN]),
+        FunderControl::RequestSendFunds(user_request_send_funds));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();
@@ -311,8 +328,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
     // not ready:
     assert_eq!(outgoing_comms.len(), 0);
-    assert_eq!(outgoing_control.len(), 1);
-
+    assert_eq!(dbg!(outgoing_control).len(), 2);
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -330,7 +346,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         friend_public_key: pk2.clone(),
         status: RequestsStatus::Open,
     };
-    let incoming_control_message = FunderIncomingControl::SetRequestsStatus(set_requests_status);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[17; UID_LEN]),
+        FunderControl::SetRequestsStatus(set_requests_status));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state1, &mut ephemeral1, 
                                  &mut rng, identity_client1))).unwrap();
@@ -394,7 +412,9 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
-    let incoming_control_message = FunderIncomingControl::RequestSendFunds(user_request_send_funds);
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[18; UID_LEN]),
+        FunderControl::RequestSendFunds(user_request_send_funds));
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(funder_incoming, &mut state2, &mut ephemeral2, 
                                  &mut rng, identity_client2))).unwrap();

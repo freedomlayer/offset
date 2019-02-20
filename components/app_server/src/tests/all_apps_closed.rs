@@ -7,8 +7,8 @@ use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
 use proto::app_server::messages::{AppServerToApp, AppPermissions};
 use proto::index_client::messages::{IndexClientToAppServer, 
-    IndexClientReportMutation, AddIndexServerReport};
-
+    IndexClientReportMutation, IndexClientReportMutations};
+use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
 
@@ -27,7 +27,6 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
 
     let app_permissions = AppPermissions {
-        reports: true,
         routes: true,
         send_funds: true,
         config: true,
@@ -45,13 +44,17 @@ where
     drop(connections_sender);
 
     // Communication with the last connected app should still work:
-    let add_index_server_report = AddIndexServerReport {
+    let named_index_server_address = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        address: 300u64,
+        address: 300u32,
         name: "IndexServer300".to_string(),
     };
-    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(add_index_server_report);
-    let index_client_report_mutations = vec![index_client_report_mutation.clone()];
+    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address);
+    let mutations = vec![index_client_report_mutation.clone()];
+    let index_client_report_mutations = IndexClientReportMutations {
+        opt_app_request_id: None,
+        mutations,
+    };
     await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
 
     let _to_app_message = await!(app_receiver.next()).unwrap(); 

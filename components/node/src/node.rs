@@ -22,14 +22,12 @@ use index_client::{IndexClientError, spawn_index_client};
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder, 
     FunderIncomingControl, FunderOutgoingControl};
-use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
+use proto::app_server::messages::RelayAddress;
 use proto::net::messages::NetAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
 use proto::report::messages::funder_report_to_index_client_state;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
-
-use proto::scheme::OffstScheme;
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
 use crate::adapters::{EncRelayConnector, EncKeepaliveConnector};
@@ -47,7 +45,7 @@ fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           timer_client: TimerClient,
                           net_connector: C,
                           rng: R,
-                          from_funder: mpsc::Receiver<FunderToChanneler<Vec<RelayAddress>>>,
+                          from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
                           spawner: S) 
     -> Result<impl Future<Output=Result<(), ChannelerError>>, NodeError>
@@ -87,12 +85,12 @@ where
 
 fn node_spawn_funder<R,S>(node_config: &NodeConfig,
                 identity_client: IdentityClient,
-                funder_state: FunderState<OffstScheme>,
-                mut database_client: DatabaseClient<NodeMutation<OffstScheme,NetAddress>>,
+                funder_state: FunderState<NetAddress>,
+                mut database_client: DatabaseClient<NodeMutation<NetAddress>>,
                 mut from_channeler: mpsc::Receiver<ChannelerToFunder>,
-                mut to_channeler: mpsc::Sender<FunderToChanneler<Vec<RelayAddress>>>,
-                from_app_server: mpsc::Receiver<FunderIncomingControl<Vec<RelayAddress>,Vec<NamedRelayAddress>>>,
-                to_app_server: mpsc::Sender<FunderOutgoingControl<Vec<RelayAddress>,Vec<NamedRelayAddress>>>,
+                mut to_channeler: mpsc::Sender<FunderToChanneler<RelayAddress>>,
+                from_app_server: mpsc::Receiver<FunderIncomingControl<NetAddress>>,
+                to_app_server: mpsc::Sender<FunderOutgoingControl<NetAddress>>,
                 rng: R,
                 mut spawner: S)
         -> Result<impl Future<Output=Result<(), FunderError>>, NodeError>
@@ -160,8 +158,8 @@ where
             let to_channeler_message = match funder_message {
                 FunderOutgoingComm::ChannelerConfig(channeler_config) =>
                     match channeler_config {
-                        ChannelerConfig::SetAddress(relay_addresses) =>
-                            FunderToChanneler::SetAddress(relay_addresses),
+                        ChannelerConfig::SetRelays(relay_addresses) =>
+                            FunderToChanneler::SetRelays(relay_addresses),
                         ChannelerConfig::UpdateFriend(channeler_update_friend) =>
                             FunderToChanneler::UpdateFriend(channeler_update_friend),
                         ChannelerConfig::RemoveFriend(friend_public_key) => 
@@ -188,6 +186,7 @@ where
         incoming_comm,
         to_app_server,
         outgoing_comm_sender,
+        node_config.max_node_relays,
         node_config.max_operations_in_batch,
         node_config.max_pending_user_requests,
         funder_state,
@@ -201,8 +200,8 @@ async fn node_spawn_index_client<'a, C,R,S>(node_config: &'a NodeConfig,
                 local_public_key: PublicKey,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                node_state: &'a NodeState<OffstScheme, NetAddress>,
-                mut database_client: DatabaseClient<NodeMutation<OffstScheme,NetAddress>>,
+                node_state: &'a NodeState<NetAddress>,
+                mut database_client: DatabaseClient<NodeMutation<NetAddress>>,
                 from_app_server: mpsc::Receiver<AppServerToIndexClient<NetAddress>>,
                 to_app_server: mpsc::Sender<IndexClientToAppServer<NetAddress>>,
                 net_connector: C,
@@ -280,15 +279,15 @@ pub async fn node<C,IA,R,S>(
                 node_config: NodeConfig,
                 identity_client: IdentityClient,
                 timer_client: TimerClient,
-                node_state: NodeState<OffstScheme, NetAddress>,
-                database_client: DatabaseClient<NodeMutation<OffstScheme,NetAddress>>,
+                node_state: NodeState<NetAddress>,
+                database_client: DatabaseClient<NodeMutation<NetAddress>>,
                 net_connector: C,
                 incoming_apps: IA,
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
 where
     C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    IA: Stream<Item=IncomingAppConnection<RelayAddress,NamedRelayAddress, NetAddress>> + Unpin + Send + 'static,  
+    IA: Stream<Item=IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,  
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -338,7 +337,6 @@ where
                 app_server_to_index_client_sender,
                 incoming_apps,
                 initial_node_report.clone(),
-                node_config.max_node_relays,
                 spawner.clone());
 
     let app_server_handle = spawner.spawn_with_handle(app_server_fut)

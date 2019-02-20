@@ -18,9 +18,9 @@ use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
 use crate::listen_pool_state::{ListenPoolState, Relay};
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum LpConfig<B> {
-    SetLocalAddresses(Vec<B>),
-    UpdateFriend((PublicKey, Vec<B>)),
+pub enum LpConfig<RA> {
+    SetLocalAddresses(Vec<RA>),
+    UpdateFriend((PublicKey, Vec<RA>)),
     RemoveFriend(PublicKey),
 }
 
@@ -30,18 +30,18 @@ pub enum LpConfig<B> {
 struct ListenPoolClientError;
 
 
-pub struct LpConfigClient<B> {
-    request_sender: mpsc::Sender<LpConfig<B>>,
+pub struct LpConfigClient<RA> {
+    request_sender: mpsc::Sender<LpConfig<RA>>,
 }
 
-impl<B> LpConfigClient<B> {
-    pub fn new(request_sender: mpsc::Sender<LpConfig<B>>) -> Self {
+impl<RA> LpConfigClient<RA> {
+    pub fn new(request_sender: mpsc::Sender<LpConfig<RA>>) -> Self {
         LpConfigClient {
             request_sender,
         }
     }
 
-    pub async fn config(&mut self, config: LpConfig<B>) -> Result<(), ListenPoolClientError> {
+    pub async fn config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolClientError> {
         await!(self.request_sender.send(config))
             .map_err(|_| ListenPoolClientError)?;
         Ok(())
@@ -56,10 +56,10 @@ enum ListenPoolError {
     SpawnError,
 }
 
-enum LpEvent<B> {
-    Config(LpConfig<B>),
+enum LpEvent<RA> {
+    Config(LpConfig<RA>),
     ConfigClosed,
-    RelayClosed(B),
+    RelayClosed(RA),
     TimerTick,
     TimerClosed,
 }
@@ -71,24 +71,24 @@ enum RelayStatus {
 
 
 
-struct ListenPool<B,L,S> {
-    state: ListenPoolState<B,PublicKey,RelayStatus>,
+struct ListenPool<RA,L,S> {
+    state: ListenPoolState<RA,PublicKey,RelayStatus>,
     plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
-    relay_closed_sender: mpsc::Sender<B>,
+    relay_closed_sender: mpsc::Sender<RA>,
     listener: L,
     backoff_ticks: usize,
     spawner: S,
 }
 
-impl<B,L,S> ListenPool<B,L,S> 
+impl<RA,L,S> ListenPool<RA,L,S> 
 where
-    B: Hash + Eq + Clone + Send + Debug + 'static,
+    RA: Hash + Eq + Clone + Send + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
+        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + 'static,
     S: Spawn + Clone,
 {
     pub fn new(plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
-               relay_closed_sender: mpsc::Sender<B>,
+               relay_closed_sender: mpsc::Sender<RA>,
                listener: L,
                backoff_ticks: usize,
                spawner: S) -> Self {
@@ -103,7 +103,7 @@ where
         }
     }
 
-    fn spawn_listen(&self, address: B, relay_friends: &HashSet<PublicKey>) 
+    fn spawn_listen(&self, address: RA, relay_friends: &HashSet<PublicKey>) 
         -> Result<mpsc::Sender<AccessControlOpPk>, ListenPoolError> {
 
         // Fill in access_control:
@@ -131,7 +131,7 @@ where
         Ok(access_control_sender)
     }
 
-    pub async fn handle_config(&mut self, config: LpConfig<B>) -> Result<(), ListenPoolError> {
+    pub async fn handle_config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolError> {
         match config {
             LpConfig::SetLocalAddresses(local_addresses) => {
                 let (relay_friends, addresses) = self.state.set_local_addresses(local_addresses);
@@ -193,7 +193,7 @@ where
     }
 
     pub fn handle_relay_closed(&mut self,
-                           address: B) -> Result<(), ListenPoolError> {
+                           address: RA) -> Result<(), ListenPoolError> {
 
         let relay = match self.state.relays.get_mut(&address) {
             Some(relay) => relay,
@@ -232,7 +232,7 @@ where
 }
 
 
-async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>,
+async fn listen_pool_loop<RA,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<RA>>,
                                     outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
                                     listener: L,
                                     backoff_ticks: usize,
@@ -241,16 +241,16 @@ async fn listen_pool_loop<B,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<B>>
                                     mut opt_event_sender: Option<mpsc::Sender<()>>) 
                         -> Result<(), ListenPoolError>
 where
-    B: Clone + Eq + Hash + Send + Debug + 'static,
+    RA: Clone + Eq + Hash + Send + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + 'static,
+        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + 'static,
     TS: Stream + Unpin,
     S: Spawn + Clone + Send + 'static,
 {
     
     let (relay_closed_sender, relay_closed_receiver) = mpsc::channel(0);
 
-    let mut listen_pool = ListenPool::<B,L,S>::new(outgoing_plain_conns,
+    let mut listen_pool = ListenPool::<RA,L,S>::new(outgoing_plain_conns,
                                                    relay_closed_sender,
                                                    listener,
                                                    backoff_ticks,
@@ -264,7 +264,7 @@ where
         .chain(stream::once(future::ready(LpEvent::ConfigClosed)));
 
     let timer_stream = timer_stream
-        .map(|_| LpEvent::<B>::TimerTick)
+        .map(|_| LpEvent::<RA>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
     let mut incoming_events = incoming_relay_closed
@@ -293,17 +293,17 @@ where
 
 
 #[derive(Clone)]
-pub struct PoolListener<B,L,ET,S> {
+pub struct PoolListener<RA,L,ET,S> {
     listener: L,
     encrypt_transform: ET,
     max_concurrent_encrypt: usize,
     backoff_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
-    phantom_b: PhantomData<B>,
+    phantom_b: PhantomData<RA>,
 }
 
-impl<B,L,ET,S> PoolListener<B,L,ET,S> {
+impl<RA,L,ET,S> PoolListener<RA,L,ET,S> {
     pub fn new(listener: L,
            encrypt_transform: ET,
            max_concurrent_encrypt: usize,
@@ -324,17 +324,17 @@ impl<B,L,ET,S> PoolListener<B,L,ET,S> {
 }
 
 
-impl<B,L,ET,S> Listener for PoolListener<B,L,ET,S> 
+impl<RA,L,ET,S> Listener for PoolListener<RA,L,ET,S> 
 where
-    B: Clone + Eq + Hash + Send + Sync + Debug + 'static,
+    RA: Clone + Eq + Hash + Send + Sync + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(B, AccessControlPk)> + Clone + Send + 'static,
+        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + Send + 'static,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 
 {
     type Connection = (PublicKey, RawConn);
-    type Config = LpConfig<B>;
+    type Config = LpConfig<RA>;
     type Arg = ();
 
     fn listen(mut self, _arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 

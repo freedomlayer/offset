@@ -39,8 +39,6 @@ pub mod report;
 mod funder;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod test_scheme;
 
 pub use self::state::{FunderMutation, FunderState};
 pub use self::funder::{funder_loop, FunderError};

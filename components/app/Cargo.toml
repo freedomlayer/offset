@@ -1,0 +1,29 @@
+[package]
+name = "offst-app"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+
+edition = "2018"
+
+[dependencies]
+
+common = { path = "../common", version = "0.1.0", package = "offst-common" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
+timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
+secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
+version = { path = "../version", version = "0.1.0" , package = "offst-version" }
+net = { path = "../net", version = "0.1.0" , package = "offst-net" }
+bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
+
+
+log = "0.4"
+simple_logger = "1.0.1"
+futures-preview = "0.3.0-alpha.11"
+
+[dev-dependencies]
+
+tempfile = "3.0.5"
+

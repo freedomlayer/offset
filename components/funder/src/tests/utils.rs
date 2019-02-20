@@ -1,27 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
-// use serde::Serialize;
-// use serde::de::DeserializeOwned;
+use common::canonical_serialize::CanonicalSerialize;
+use common::mutable_state::MutableState;
 
 use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 use futures::{future, FutureExt, StreamExt, SinkExt};
 
-use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey};
+use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair, PublicKey,
+                        PUBLIC_KEY_LEN};
 use crypto::test_utils::DummyRandom;
+use crypto::uid::{Uid, UID_LEN};
 
-use proto::report::messages::{FunderReport, FunderReportMutation, ChannelStatusReport,
-                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport};
+use proto::report::messages::{FunderReport, ChannelStatusReport,
+                    FriendLivenessReport, FriendStatusReport, RequestsStatusReport,
+                    FunderReportMutations};
 
 use proto::funder::messages::{FunderIncomingControl,
     AddFriend, FriendStatus, SetFriendStatus, 
     SetFriendRemoteMaxDebt, RequestsStatus, SetRequestsStatus, 
-    FunderOutgoingControl, ResponseReceived};
+    FunderOutgoingControl, ResponseReceived,
+    FunderControl};
+use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 
-use proto::funder::scheme::FunderScheme;
-
-
-use common::int_convert::usize_to_u32;
 
 use database::DatabaseClient;
 
@@ -35,8 +36,8 @@ use crate::report::create_report;
 
 use crate::types::{ChannelerConfig, FunderOutgoingComm, FunderIncomingComm,
                 IncomingLivenessMessage};
-use crate::test_scheme::TestFunderScheme;
 
+const TEST_MAX_NODE_RELAYS: usize = 16;
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 
@@ -47,28 +48,42 @@ const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
 // approach makes tests difficult to write.
 const CHANNEL_SIZE: usize = 64;
 
+/// A helper function to quickly create a dummy NamedRelayAddress.
+pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
+    NamedRelayAddress {
+        public_key: PublicKey::from(&[index; PUBLIC_KEY_LEN]),
+        address: index as u32,
+        name: format!("relay-{}", index),
+    }
+}
+
+/// A helper function to quickly create a dummy RelayAddress.
+pub fn dummy_relay_address(index: u8) -> RelayAddress<u32> {
+    dummy_named_relay_address(index).into()
+}
+
 #[derive(Debug)]
-struct Node<FS: FunderScheme> {
+struct Node<B> {
     friends: HashSet<PublicKey>,
-    comm_out: mpsc::Sender<FunderIncomingComm<FS>>,
+    comm_out: mpsc::Sender<FunderIncomingComm<B>>,
 }
 
 #[derive(Debug)]
-struct NewNode<FS: FunderScheme> {
+struct NewNode<B> {
     public_key: PublicKey,
-    comm_in: mpsc::Receiver<FunderOutgoingComm<FS>>,
-    comm_out: mpsc::Sender<FunderIncomingComm<FS>>,
+    comm_in: mpsc::Receiver<FunderOutgoingComm<B>>,
+    comm_out: mpsc::Sender<FunderIncomingComm<B>>,
 }
 
 #[derive(Debug)]
-enum RouterEvent<FS: FunderScheme> {
-    NewNode(NewNode<FS>),
-    OutgoingComm((PublicKey, FunderOutgoingComm<FS>)), // (src_public_key, outgoing_comm)
+enum RouterEvent<B> {
+    NewNode(NewNode<B>),
+    OutgoingComm((PublicKey, FunderOutgoingComm<B>)), // (src_public_key, outgoing_comm)
 }
 
-async fn router_handle_outgoing_comm<'a, FS: FunderScheme + 'a>(nodes: &'a mut HashMap<PublicKey, Node<FS>>, 
+async fn router_handle_outgoing_comm<'a, B:'a>(nodes: &'a mut HashMap<PublicKey, Node<B>>, 
                                         src_public_key: PublicKey,
-                                        outgoing_comm: FunderOutgoingComm<FS>) {
+                                        outgoing_comm: FunderOutgoingComm<B>) {
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
             let node = nodes.get_mut(&dest_public_key).unwrap();
@@ -107,7 +122,7 @@ async fn router_handle_outgoing_comm<'a, FS: FunderScheme + 'a>(nodes: &'a mut H
                         await!(comm_out.send(incoming_comm_message)).unwrap();
                     }
                 },
-                ChannelerConfig::SetAddress(_address) => {
+                ChannelerConfig::SetRelays(_) => {
                     // Do nothing here. We use a mock router instead of a set of relays,
                     // so changing the address has no meaning.
                 },
@@ -118,14 +133,14 @@ async fn router_handle_outgoing_comm<'a, FS: FunderScheme + 'a>(nodes: &'a mut H
 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
-async fn router<FS,S>(incoming_new_node: mpsc::Receiver<NewNode<FS>>, 
+async fn router<B,S>(incoming_new_node: mpsc::Receiver<NewNode<B>>, 
                     mut spawner: S)
 where
-    FS: FunderScheme + Send + 'static,
+    B: Send + 'static,
     S: Spawn + Clone,
 {
-    let mut nodes: HashMap<PublicKey, Node<FS>> = HashMap::new();
-    let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<FS>)>(0);
+    let mut nodes: HashMap<PublicKey, Node<B>> = HashMap::new();
+    let (comm_sender, comm_receiver) = mpsc::channel::<(PublicKey, FunderOutgoingComm<B>)>(0);
 
     let incoming_new_node = incoming_new_node
         .map(|new_node| RouterEvent::NewNode(new_node));
@@ -156,34 +171,37 @@ where
     }
 }
 
-pub struct NodeControl<FS: FunderScheme> {
+pub struct NodeControl<B: Clone> {
     pub public_key: PublicKey,
-    send_control: mpsc::Sender<FunderIncomingControl<FS::Address, FS::NamedAddress>>,
-    recv_control: mpsc::Receiver<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-    pub report: FunderReport<FS::Address, FS::NamedAddress>,
+    send_control: mpsc::Sender<FunderIncomingControl<B>>,
+    recv_control: mpsc::Receiver<FunderOutgoingControl<B>>,
+    pub report: FunderReport<B>,
 }
 
 #[derive(Debug)]
-pub enum NodeRecv<FS: FunderScheme> {
-    ReportMutations(Vec<FunderReportMutation<FS::Address, FS::NamedAddress>>),
+pub enum NodeRecv<B:Clone> {
+    ReportMutations(FunderReportMutations<B>),
     ResponseReceived(ResponseReceived),
 }
 
-impl<FS: FunderScheme> NodeControl<FS> {
-    pub async fn send(&mut self, msg: FunderIncomingControl<FS::Address, FS::NamedAddress>) -> Option<()> {
+impl<B> NodeControl<B> 
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize,
+{
+    pub async fn send(&mut self, msg: FunderIncomingControl<B>) -> Option<()> {
         await!(self.send_control.send(msg))
             .ok()
             .map(|_| ())
     }
 
-    pub async fn recv(&mut self) -> Option<NodeRecv<FS>> {
+    pub async fn recv(&mut self) -> Option<NodeRecv<B>> {
         let funder_outgoing_control = await!(self.recv_control.next())?;
         match funder_outgoing_control {
-            FunderOutgoingControl::ReportMutations(mutations) => {
-                for mutation in &mutations {
+            FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
+                for mutation in &funder_report_mutations.mutations {
                     self.report.mutate(&mutation).unwrap();
                 }
-                Some(NodeRecv::ReportMutations(mutations))
+                Some(NodeRecv::ReportMutations(funder_report_mutations))
             },
             FunderOutgoingControl::ResponseReceived(response_received) =>
                 Some(NodeRecv::ResponseReceived(response_received)),
@@ -192,7 +210,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
 
     pub async fn recv_until<'a, P: 'a>(&'a mut self, predicate: P)
     where
-        P: Fn(&FunderReport<FS::Address, FS::NamedAddress>) -> bool,
+        P: Fn(&FunderReport<B>) -> bool,
     {
         while !predicate(&self.report) {
             match await!(self.recv()).unwrap() {
@@ -211,26 +229,48 @@ impl<FS: FunderScheme> NodeControl<FS> {
         }
     }
 
-    pub async fn set_address<'a>(&'a mut self, address: FS::NamedAddress) {
-        await!(self.send(FunderIncomingControl::SetAddress(address.clone()))).unwrap();
-        let pred = |report: &FunderReport<_,_>| report.address == address;
+    pub async fn add_relay<'a>(&'a mut self, named_relay_address: NamedRelayAddress<B>) {
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[33; UID_LEN]),
+            FunderControl::AddRelay(named_relay_address.clone()));
+        await!(self.send(incoming_control_message)).unwrap();
+        let pred = |report: &FunderReport<_>| report.relays.contains(&named_relay_address);
+        await!(self.recv_until(pred));
+    }
+
+    pub async fn remove_relay<'a>(&'a mut self, public_key: PublicKey) {
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[34; UID_LEN]),
+            FunderControl::RemoveRelay(public_key.clone()));
+        await!(self.send(incoming_control_message)).unwrap();
+        let pred = |report: &FunderReport<_>| {
+            for relay in &report.relays {
+                if relay.public_key == public_key {
+                    return true;
+                }
+            }
+            false
+        };
         await!(self.recv_until(pred));
     }
 
     pub async fn add_friend<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey,
-                         address: FS::Address,
+                         relays: Vec<RelayAddress<B>>,
                          name: &'a str,
                          balance: i128) {
 
         let add_friend = AddFriend {
             friend_public_key: friend_public_key.clone(),
-            address,
+            relays,
             name: name.into(),
             balance, 
         };
-        await!(self.send(FunderIncomingControl::AddFriend(add_friend))).unwrap();
-        let pred = |report: &FunderReport<_,_>| report.friends.contains_key(&friend_public_key);
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[35; UID_LEN]),
+            FunderControl::AddFriend(add_friend));
+        await!(self.send(incoming_control_message)).unwrap();
+        let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
         await!(self.recv_until(pred));
     }
 
@@ -242,8 +282,11 @@ impl<FS: FunderScheme> NodeControl<FS> {
             friend_public_key: friend_public_key.clone(),
             status: status.clone(),
         };
-        await!(self.send(FunderIncomingControl::SetFriendStatus(set_friend_status))).unwrap();
-        let pred = |report: &FunderReport<_,_>| {
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[36; UID_LEN]),
+            FunderControl::SetFriendStatus(set_friend_status));
+        await!(self.send(incoming_control_message)).unwrap();
+        let pred = |report: &FunderReport<_>| {
            match report.friends.get(&friend_public_key) {
                None => false,
                Some(friend) => friend.status == FriendStatusReport::from(&status),
@@ -260,9 +303,12 @@ impl<FS: FunderScheme> NodeControl<FS> {
             friend_public_key: friend_public_key.clone(),
             remote_max_debt: remote_max_debt,
         };
-        await!(self.send(FunderIncomingControl::SetFriendRemoteMaxDebt(set_remote_max_debt))).unwrap();
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[36; UID_LEN]),
+            FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt));
+        await!(self.send(incoming_control_message)).unwrap();
 
-        let pred = |report: &FunderReport<_,_>| {
+        let pred = |report: &FunderReport<_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -284,9 +330,12 @@ impl<FS: FunderScheme> NodeControl<FS> {
             friend_public_key: friend_public_key.clone(),
             status: requests_status.clone(),
         };
-        await!(self.send(FunderIncomingControl::SetRequestsStatus(set_requests_status))).unwrap();
+        let incoming_control_message = FunderIncomingControl::new(
+            Uid::from(&[37; UID_LEN]),
+            FunderControl::SetRequestsStatus(set_requests_status));
+        await!(self.send(incoming_control_message)).unwrap();
 
-        let pred = |report: &FunderReport<_,_>| {
+        let pred = |report: &FunderReport<_>| {
            let friend = match report.friends.get(&friend_public_key) {
                Some(friend) => friend,
                None => return false,
@@ -303,7 +352,7 @@ impl<FS: FunderScheme> NodeControl<FS> {
     pub async fn wait_until_ready<'a>(&'a mut self, 
                          friend_public_key: &'a PublicKey) {
 
-        let pred = |report: &FunderReport<_,_>| {
+        let pred = |report: &FunderReport<_>| {
            let friend = match report.friends.get(&friend_public_key) {
                None => return false,
                Some(friend) => friend,
@@ -326,12 +375,12 @@ impl<FS: FunderScheme> NodeControl<FS> {
 /// We use A = u32:
 pub async fn create_node_controls<S>(num_nodes: usize, 
                               mut spawner: S)
-                                -> Vec<NodeControl<TestFunderScheme>>
+                                -> Vec<NodeControl<u32>>
 where
     S: Spawn + Clone + Send + 'static,
 {
 
-    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<TestFunderScheme>>(0);
+    let (mut send_new_node, recv_new_node) = mpsc::channel::<NewNode<u32>>(0);
     spawner.spawn(router(recv_new_node, spawner.clone())).unwrap();
 
     // Avoid problems with casting to u8:
@@ -348,11 +397,8 @@ where
 
 
         let public_key = await!(identity_client.request_public_key()).unwrap();
-        // We give all the nodes the same relay address. Usually this will not happen, but
-        // it is the easier thing to do in this code (Unless we change it to have specific A type,
-        // for example, u32).
-        let name = format!("{}", i);
-        let funder_state = FunderState::new(&public_key, &(name, usize_to_u32(i).unwrap()));
+        let relays = vec![dummy_named_relay_address(i as u8)];
+        let funder_state = FunderState::new(public_key.clone(), relays);
         let ephemeral = Ephemeral::new();
         let base_report = create_report(&funder_state, &ephemeral);
 
@@ -386,6 +432,7 @@ where
             comm_sender,
             funder_state,
             db_client,
+            TEST_MAX_NODE_RELAYS,
             TEST_MAX_OPERATIONS_IN_BATCH,
             TEST_MAX_PENDING_USER_REQUESTS,
             None);

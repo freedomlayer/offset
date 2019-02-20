@@ -9,19 +9,19 @@ use crypto::hash::{self, HashResult};
 
 use common::int_convert::{usize_to_u64};
 use common::canonical_serialize::CanonicalSerialize;
-use crate::report::messages::FunderReportMutation;
+use crate::report::messages::{FunderReportMutations};
 use crate::consts::MAX_ROUTE_LEN;
-use crate::funder::scheme::FunderScheme;
-use crate::app_server::messages::RelayAddress;
+use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
+use crate::net::messages::NetAddress;
 
 
 #[derive(Debug)]
 pub struct ChannelerUpdateFriend<RA> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:
-    pub friend_address: RA,
+    pub friend_relays: Vec<RA>,
     /// We should be listening on this address:
-    pub local_addresses: Vec<RA>,
+    pub local_relays: Vec<RA>, 
 }
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ pub enum FunderToChanneler<RA> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetAddress(RA), 
+    SetRelays(Vec<RA>), 
     /// Request to add a new friend or update friend's information
     UpdateFriend(ChannelerUpdateFriend<RA>),
     /// Request to remove a friend
@@ -96,9 +96,9 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<FS:FunderScheme,S=Signature> {
+pub struct MoveToken<B=NetAddress,S=Signature> {
     pub operations: Vec<FriendTcOp>,
-    pub opt_local_address: Option<FS::Address>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub old_token: Signature,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -119,16 +119,16 @@ pub struct ResetTerms {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Debug)]
-pub struct MoveTokenRequest<FS:FunderScheme> {
-    pub friend_move_token: MoveToken<FS>,
+pub struct MoveTokenRequest<B=NetAddress> {
+    pub friend_move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<FS:FunderScheme> {
-    MoveTokenRequest(MoveTokenRequest<FS>),
+pub enum FriendMessage<B=NetAddress> {
+    MoveTokenRequest(MoveTokenRequest<B>),
     InconsistencyError(ResetTerms),
 }
 
@@ -339,9 +339,9 @@ impl RequestsStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddFriend<RA=Vec<RelayAddress>> {
+pub struct AddFriend<B=NetAddress> {
     pub friend_public_key: PublicKey,
-    pub address: RA,
+    pub relays: Vec<RelayAddress<B>>,
     pub name: String,
     pub balance: i128, // Initial balance
 }
@@ -376,9 +376,9 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendAddress<RA> {
+pub struct SetFriendRelays<B=NetAddress> {
     pub friend_public_key: PublicKey,
-    pub address: RA,
+    pub relays: Vec<RelayAddress<B>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -404,21 +404,36 @@ pub struct ReceiptAck {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// A  -- Anonymous address
-/// NA -- Named address
-pub enum FunderIncomingControl<RA,NRA> {
-    /// Set relay address used for the local node
-    SetAddress(NRA),
-    AddFriend(AddFriend<RA>),
+pub enum FunderControl<B> {
+    AddRelay(NamedRelayAddress<B>),
+    RemoveRelay(PublicKey),
+    AddFriend(AddFriend<B>),
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendAddress(SetFriendAddress<RA>),
+    SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     RequestSendFunds(UserRequestSendFunds),
     ReceiptAck(ReceiptAck),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunderIncomingControl<B> {
+    pub app_request_id: Uid,
+    pub funder_control: FunderControl<B>,
+}
+
+impl<B> FunderIncomingControl<B> {
+    pub fn new(app_request_id: Uid,
+           funder_control: FunderControl<B>) -> Self {
+
+        FunderIncomingControl {
+            app_request_id,
+            funder_control,
+        }
+    }
 }
 
 impl UserRequestSendFunds {
@@ -454,9 +469,8 @@ pub struct ResponseReceived {
     pub result: ResponseSendFundsResult,
 }
 
-
 #[derive(Debug)]
-pub enum FunderOutgoingControl<RA,NRA> {
+pub enum FunderOutgoingControl<B: Clone> {
     ResponseReceived(ResponseReceived),
-    ReportMutations(Vec<FunderReportMutation<RA,NRA>>),
+    ReportMutations(FunderReportMutations<B>),
 }

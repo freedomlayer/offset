@@ -191,11 +191,12 @@ struct PkFriendReportMutation {
 # A FunderReportMutation. Could be applied over a FunderReport to make small changes.
 struct FunderReportMutation {
         union {
-                setRelays @0: List(NamedRelayAddress);
-                addFriend @1: AddFriendReport;
-                removeFriend @2: PublicKey;
-                pkFriendReportMutation @3: PkFriendReportMutation;
-                setNumReadyReceipts @4: UInt64;
+                addRelay @0: NamedRelayAddress;
+                removeRelay @1: PublicKey;
+                addFriend @2: AddFriendReport;
+                removeFriend @3: PublicKey;
+                pkFriendReportMutation @4: PkFriendReportMutation;
+                setNumReadyReceipts @5: UInt64;
         }
 }
 
@@ -203,12 +204,6 @@ struct FunderReportMutation {
 ############################################################################
 ##### IndexClient report
 ############################################################################
-
-struct AddIndexServerReport {
-        publicKey @0: PublicKey;
-        address @1: NetAddress;
-        name @2: Text;
-}
 
 struct IndexClientReport {
         indexServers @0: List(NamedIndexServerAddress);
@@ -220,7 +215,7 @@ struct IndexClientReport {
 
 struct IndexClientReportMutation {
         union {
-                addIndexServer @0: AddIndexServerReport;
+                addIndexServer @0: NamedIndexServerAddress;
                 removeIndexServer @1: PublicKey;
                 setConnectedServer: union {
                         publicKey @2: PublicKey;

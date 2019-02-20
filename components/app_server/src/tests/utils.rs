@@ -8,28 +8,39 @@ use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
 use proto::report::messages::FunderReport;
-use proto::app_server::messages::NodeReport;
+use proto::app_server::messages::{NodeReport, NamedRelayAddress};
 use proto::index_client::messages::{IndexClientToAppServer, 
     AppServerToIndexClient, IndexClientReport};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use crate::server::{IncomingAppConnection, app_server_loop};
 
+/// A helper function to quickly create a dummy NamedRelayAddress.
+pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
+    NamedRelayAddress {
+        public_key: PublicKey::from(&[index; PUBLIC_KEY_LEN]),
+        address: index as u32,
+        name: format!("relay-{}", index),
+    }
+}
 
-type TAddr = Vec<u32>;
-type TNamedAddr = Vec<(String, u32)>;
+/*
+/// A helper function to quickly create a dummy RelayAddress.
+pub fn dummy_relay_address(index: u8) -> RelayAddress<u32> {
+    dummy_named_relay_address(index).into()
+}
+*/
 
 /// A test util function.
 /// Spawns an app server loop and returns all relevant channels
 /// used for control or communication.
 pub fn spawn_dummy_app_server<S>(mut spawner: S) -> 
-    (mpsc::Sender<FunderOutgoingControl<TAddr, TNamedAddr>>,
-     mpsc::Receiver<FunderIncomingControl<TAddr, TNamedAddr>>,
-     mpsc::Sender<IndexClientToAppServer<u64>>,
-     mpsc::Receiver<AppServerToIndexClient<u64>>,
-     mpsc::Sender<IncomingAppConnection<u32,(String, u32),u64>>,
-     NodeReport<TAddr,TNamedAddr,u64>)
-
+    (mpsc::Sender<FunderOutgoingControl<u32>>,
+     mpsc::Receiver<FunderIncomingControl<u32>>,
+     mpsc::Sender<IndexClientToAppServer<u32>>,
+     mpsc::Receiver<AppServerToIndexClient<u32>>,
+     mpsc::Sender<IncomingAppConnection<u32>>,
+     NodeReport<u32>)
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -44,20 +55,20 @@ where
     // Create a dummy initial_node_report:
     let funder_report = FunderReport {
         local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        address: vec![("0".to_string(), 0u32), ("1".to_string(), 1u32)],
+        relays: vec![dummy_named_relay_address(0), dummy_named_relay_address(1)].into_iter().collect(),
         friends: ImHashMap::new(),
         num_ready_receipts: 0,
     };
 
     let server100 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]), 
-        address: 100u64,
+        address: 100u32,
         name: "server100".to_owned(),
     };
 
     let server101 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]), 
-        address: 101u64,
+        address: 101u32,
         name: "server101".to_owned(),
     };
 
@@ -71,14 +82,12 @@ where
         index_client_report,
     };
 
-    let max_node_relays = 16;
     let fut_loop = app_server_loop(from_funder,
                     to_funder,
                     from_index_client,
                     to_index_client,
                     incoming_connections,
                     initial_node_report.clone(),
-                    max_node_relays,
                     spawner.clone())
         .map_err(|e| error!("app_server_loop() error: {:?}", e))
         .map(|_| ());

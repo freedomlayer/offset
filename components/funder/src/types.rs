@@ -1,3 +1,5 @@
+use common::canonical_serialize::CanonicalSerialize;
+
 use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
@@ -5,24 +7,23 @@ use crypto::hash::HashResult;
 use proto::funder::messages::{RequestSendFunds, ResponseSendFunds, FailureSendFunds, 
     MoveToken, FriendMessage, FriendTcOp, PendingRequest, FunderIncomingControl, 
     FunderOutgoingControl, ChannelerUpdateFriend};
+use proto::app_server::messages::RelayAddress;
 
 use proto::funder::signature_buff::{prefix_hash,
     move_token_signature_buff, create_response_signature_buffer,
     create_failure_signature_buffer};
-
-use proto::funder::scheme::FunderScheme;
 
 use identity::IdentityClient;
 
 
 pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
 pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
-pub type UnsignedMoveToken<FS> = MoveToken<FS,()>;
+pub type UnsignedMoveToken<B> = MoveToken<B,()>;
 
-pub async fn sign_move_token<'a,FS:FunderScheme>(unsigned_move_token: UnsignedMoveToken<FS>,
-                         identity_client: &'a mut IdentityClient) -> MoveToken<FS> 
-where   
-    FS: 'a,
+pub async fn sign_move_token<'a,B>(unsigned_move_token: UnsignedMoveToken<B>,
+                         identity_client: &'a mut IdentityClient) -> MoveToken<B> 
+where
+    B: CanonicalSerialize + 'a,
 {
 
     let signature_buff = move_token_signature_buff(&unsigned_move_token);
@@ -31,7 +32,7 @@ where
 
     MoveToken {
         operations: unsigned_move_token.operations,
-        opt_local_address: unsigned_move_token.opt_local_address,
+        opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
         local_public_key: unsigned_move_token.local_public_key,
         remote_public_key: unsigned_move_token.remote_public_key,
@@ -123,7 +124,7 @@ pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingR
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
-    /// Hash of operations and local_address
+    /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -136,8 +137,8 @@ pub struct MoveTokenHashed {
     pub new_token: Signature,
 }
 
-pub fn create_unsigned_move_token<FS:FunderScheme>(operations: Vec<FriendTcOp>,
-                 opt_local_address: Option<FS::Address>,
+pub fn create_unsigned_move_token<B>(operations: Vec<FriendTcOp>,
+                 opt_local_relays: Option<Vec<RelayAddress<B>>>,
                  old_token: Signature,
                  local_public_key: PublicKey,
                  remote_public_key: PublicKey,
@@ -146,11 +147,11 @@ pub fn create_unsigned_move_token<FS:FunderScheme>(operations: Vec<FriendTcOp>,
                  balance: i128,
                  local_pending_debt: u128,
                  remote_pending_debt: u128,
-                 rand_nonce: RandValue) -> UnsignedMoveToken<FS> {
+                 rand_nonce: RandValue) -> UnsignedMoveToken<B> {
 
     MoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         old_token,
         local_public_key,
         remote_public_key,
@@ -166,7 +167,7 @@ pub fn create_unsigned_move_token<FS:FunderScheme>(operations: Vec<FriendTcOp>,
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
-                 opt_local_address: Option<A>,
+                 opt_local_relays: Option<A>,
                  old_token: Signature,
                  inconsistency_counter: u64,
                  move_token_counter: u128,
@@ -181,7 +182,7 @@ where
 
     let mut move_token = MoveToken {
         operations,
-        opt_local_address,
+        opt_local_relays,
         old_token,
         inconsistency_counter,
         move_token_counter,
@@ -203,7 +204,10 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<FS: FunderScheme>(move_token: &MoveToken<FS>) -> MoveTokenHashed {
+pub fn create_hashed<B>(move_token: &MoveToken<B>) -> MoveTokenHashed 
+where
+    B: CanonicalSerialize,
+{
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
         local_public_key: move_token.local_public_key.clone(),
@@ -238,33 +242,36 @@ pub enum ChannelerConfig<RA> {
     /// Set relay address for local node
     /// This is the address the Channeler will connect to 
     /// and listen for new connections
-    SetAddress(RA),
+    SetRelays(Vec<RA>),
     UpdateFriend(ChannelerUpdateFriend<RA>),
     RemoveFriend(PublicKey),
 }
 
 #[derive(Debug, Clone)]
-pub enum FunderIncomingComm<FS:FunderScheme> {
+pub enum FunderIncomingComm<B> {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage<FS>)),
+    Friend((PublicKey, FriendMessage<B>)),
 }
 
 /// An incoming message to the Funder:
 #[derive(Clone, Debug)]
-pub enum FunderIncoming<FS:FunderScheme> {
+pub enum FunderIncoming<B> {
     Init,
-    Control(FunderIncomingControl<FS::Address, FS::NamedAddress>),
-    Comm(FunderIncomingComm<FS>),
+    Control(FunderIncomingControl<B>),
+    Comm(FunderIncomingComm<B>),
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoing<FS:FunderScheme> {
-    Control(FunderOutgoingControl<FS::Address, FS::NamedAddress>),
-    Comm(FunderOutgoingComm<FS>),
+pub enum FunderOutgoing<B> 
+where
+    B: Clone,
+{
+    Control(FunderOutgoingControl<B>),
+    Comm(FunderOutgoingComm<B>),
 }
 
 #[derive(Debug)]
-pub enum FunderOutgoingComm<FS:FunderScheme> {
-    FriendMessage((PublicKey, FriendMessage<FS>)),
-    ChannelerConfig(ChannelerConfig<FS::Address>),
+pub enum FunderOutgoingComm<B> {
+    FriendMessage((PublicKey, FriendMessage<B>)),
+    ChannelerConfig(ChannelerConfig<RelayAddress<B>>),
 }

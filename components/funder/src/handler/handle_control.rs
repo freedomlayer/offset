@@ -1,3 +1,7 @@
+use std::fmt::Debug;
+
+use common::canonical_serialize::CanonicalSerialize;
+
 use crypto::identity::PublicKey;
 
 use crate::friend::{FriendMutation, ChannelStatus};
@@ -5,13 +9,12 @@ use crate::state::{FunderMutation};
 
 
 use proto::funder::messages::{FriendStatus, UserRequestSendFunds,
-    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendAddress, SetFriendName, 
+    SetFriendRemoteMaxDebt, ResetFriendChannel, SetFriendRelays, SetFriendName, 
     AddFriend, RemoveFriend, SetFriendStatus, SetRequestsStatus,
-    ReceiptAck, FunderIncomingControl, ResponseReceived, 
+    ReceiptAck, ResponseReceived, 
     FunderOutgoingControl, ResponseSendFundsResult,
-    ChannelerUpdateFriend};
-
-use proto::funder::scheme::FunderScheme;
+    ChannelerUpdateFriend, FunderControl};
+use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{MutableFunderState, MutableEphemeral, is_friend_ready};
@@ -34,15 +37,16 @@ pub enum HandleControlError {
     ReceiptSignatureMismatch,
     UserRequestInvalid,
     FriendNotReady,
+    MaxNodeRelaysReached,
 }
 
 
-fn control_set_friend_remote_max_debt<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_set_friend_remote_max_debt<B>(m_state: &mut MutableFunderState<B>,
                                          send_commands: &mut SendCommands,
-                                        set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
+                                         set_friend_remote_max_debt: SetFriendRemoteMaxDebt) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -66,12 +70,12 @@ where
     Ok(())
 }
 
-fn control_reset_friend_channel<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_reset_friend_channel<B>(m_state: &mut MutableFunderState<B>,
                                 send_commands: &mut SendCommands,
                                 reset_friend_channel: ResetFriendChannel) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let friend = m_state.state().friends.get(&reset_friend_channel.friend_public_key)
@@ -100,34 +104,36 @@ where
     Ok(())
 }
 
-fn enable_friend<FS>(m_state: &mut MutableFunderState<FS>,
-                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+fn enable_friend<B>(m_state: &mut MutableFunderState<B>,
+                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                  friend_public_key: &PublicKey,
-                 friend_address: &FS::Address) 
+                 friend_relays: &Vec<RelayAddress<B>>) 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
     // Notify Channeler:
     let channeler_add_friend = ChannelerUpdateFriend {
         friend_public_key: friend_public_key.clone(),
-        friend_address: friend_address.clone(),
-        local_addresses: friend.sent_local_address.to_vec(),
+        friend_relays: friend_relays.clone(),
+        local_relays: friend.sent_local_relays.to_vec(),
     };
     let channeler_config = ChannelerConfig::UpdateFriend(channeler_add_friend);
     outgoing_channeler_config.push(channeler_config);
 
 }
 
-fn disable_friend<FS>(m_state: &mut MutableFunderState<FS>,
+fn disable_friend<B>(m_state: &mut MutableFunderState<B>,
                      send_commands: &mut SendCommands,
-                     outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-                     outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+                     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+                     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                      friend_public_key: &PublicKey) 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+
     // Cancel all pending requests to this friend:
     cancel_pending_requests(m_state,
                             send_commands,
@@ -145,18 +151,67 @@ where
 
 }
 
-fn control_set_address<FS>(m_state: &mut MutableFunderState<FS>, 
+fn control_add_relay<B>(m_state: &mut MutableFunderState<B>, 
                           send_commands: &mut SendCommands,
-                          outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
-                          address: FS::NamedAddress) 
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                          max_node_relays: usize,
+                          named_relay_address: NamedRelayAddress<B>) -> Result<(), HandleControlError>
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let funder_mutation = FunderMutation::SetAddress(address.clone());
+
+    // We can't have more than `max_node_relays` relays
+    if m_state.state().relays.len() >= max_node_relays {
+        return Err(HandleControlError::MaxNodeRelaysReached);
+    }
+
+    let funder_mutation = FunderMutation::AddRelay(named_relay_address);
     m_state.mutate(funder_mutation);
 
+    let relays = m_state
+        .state()
+        .relays
+        .iter()
+        .cloned()
+        .map(RelayAddress::from)
+        .collect::<Vec<_>>();
+
     // Notify Channeler about relay address change:
-    let channeler_config = ChannelerConfig::SetAddress(FS::anonymize_address(address.clone()));
+    let channeler_config = ChannelerConfig::SetRelays(relays);
+    outgoing_channeler_config.push(channeler_config);
+
+    // We might need to update all friends about the address change:
+    let friend_public_keys = m_state.state().friends.keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    
+    for friend_public_key in &friend_public_keys {
+        send_commands.set_try_send(friend_public_key);
+    }
+    Ok(())
+}
+
+fn control_remove_relay<B>(m_state: &mut MutableFunderState<B>, 
+                          send_commands: &mut SendCommands,
+                          outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                          public_key: PublicKey) 
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+
+    let funder_mutation = FunderMutation::RemoveRelay(public_key);
+    m_state.mutate(funder_mutation);
+
+    let relays = m_state
+        .state()
+        .relays
+        .iter()
+        .cloned()
+        .map(RelayAddress::from)
+        .collect::<Vec<_>>();
+
+    // Notify Channeler about relay address change:
+    let channeler_config = ChannelerConfig::SetRelays(relays);
     outgoing_channeler_config.push(channeler_config);
 
     // We might need to update all friends about the address change:
@@ -169,10 +224,10 @@ where
     }
 }
 
-fn control_add_friend<FS>(m_state: &mut MutableFunderState<FS>, 
-                         add_friend: AddFriend<FS::Address>)
+fn control_add_friend<B>(m_state: &mut MutableFunderState<B>, 
+                         add_friend: AddFriend<B>) 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
@@ -180,15 +235,16 @@ where
 
 /// This is a violent operation, as it removes all the known state with the remote friend.  
 /// An inconsistency will occur if the friend is added again.
-fn control_remove_friend<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_remove_friend<B>(m_state: &mut MutableFunderState<B>,
                             send_commands: &mut SendCommands,
-                            outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-                            outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+                            outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+                            outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                             remove_friend: RemoveFriend) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+
     // Make sure that friend exists:
     let _friend = m_state.state().friends.get(&remove_friend.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
@@ -211,14 +267,14 @@ where
     Ok(())
 }
 
-fn control_set_friend_status<FS>(m_state: &mut MutableFunderState<FS>, 
+fn control_set_friend_status<B>(m_state: &mut MutableFunderState<B>,
                                 send_commands: &mut SendCommands,
-                                outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-                                outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+                                outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+                                outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
                                 set_friend_status: SetFriendStatus) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -234,7 +290,7 @@ where
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     let friend_public_key = &set_friend_status.friend_public_key;
-    let friend_address = friend.remote_address.clone();
+    let friend_address = friend.remote_relays.clone();
 
     match set_friend_status.status {
         FriendStatus::Enabled => enable_friend(m_state, 
@@ -251,12 +307,12 @@ where
     Ok(())
 }
 
-fn control_set_requests_status<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_set_requests_status<B>(m_state: &mut MutableFunderState<B>,
                                   send_commands: &mut SendCommands,
                                set_requests_status: SetRequestsStatus) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -272,37 +328,37 @@ where
     Ok(())
 }
 
-fn control_set_friend_address<FS>(m_state: &mut MutableFunderState<FS>, 
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
-                                 set_friend_address: SetFriendAddress<FS::Address>)
+fn control_set_friend_relays<B>(m_state: &mut MutableFunderState<B>, 
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                                 set_friend_relays: SetFriendRelays<B>)
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
-    let friend = m_state.state().friends.get(&set_friend_address.friend_public_key)
+    let friend = m_state.state().friends.get(&set_friend_relays.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
 
     // If the newly proposed address is the same as the old one,
     // we do nothing:
-    if set_friend_address.address == friend.remote_address {
+    if set_friend_relays.relays == friend.remote_relays {
         return Ok(())
     }
 
-    let local_addresses = friend.sent_local_address.to_vec();
+    let local_relays = friend.sent_local_relays.to_vec();
 
-    let friend_mutation = FriendMutation::SetRemoteAddress(set_friend_address.address.clone());
+    let friend_mutation = FriendMutation::SetRemoteRelays(set_friend_relays.relays.clone());
     let funder_mutation = FunderMutation::FriendMutation(
-        (set_friend_address.friend_public_key.clone(), friend_mutation));
+        (set_friend_relays.friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
     // Notify Channeler to change the friend's address:
     let update_friend = ChannelerUpdateFriend {
-        friend_public_key: set_friend_address.friend_public_key.clone(),
-        friend_address: set_friend_address.address.clone(),
-        local_addresses,
+        friend_public_key: set_friend_relays.friend_public_key.clone(),
+        friend_relays: set_friend_relays.relays.clone(),
+        local_relays,
     };
     let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
     outgoing_channeler_config.push(channeler_config);
@@ -310,11 +366,11 @@ where
     Ok(())
 }
 
-fn control_set_friend_name<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_set_friend_name<B>(m_state: &mut MutableFunderState<B>,
                               set_friend_name: SetFriendName)
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     // Make sure that friend exists:
@@ -343,15 +399,15 @@ fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds)
     Some(())
 }
 
-fn control_request_send_funds_inner<FS>(m_state: &mut MutableFunderState<FS>,
+fn control_request_send_funds_inner<B>(m_state: &mut MutableFunderState<B>,
                                        ephemeral: &Ephemeral,
-                                       outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+                                       outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                        send_commands: &mut SendCommands,
                                        max_pending_user_requests: usize,
                                        user_request_send_funds: UserRequestSendFunds)
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     check_user_request_valid(&user_request_send_funds)
@@ -433,15 +489,15 @@ where
 }
 
 
-fn control_request_send_funds<FS>(m_state: &mut MutableFunderState<FS>, 
+fn control_request_send_funds<B>(m_state: &mut MutableFunderState<B>, 
                                  ephemeral: &Ephemeral,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
                                  send_commands: &mut SendCommands,
                                  max_pending_user_requests: usize,
                                  user_request_send_funds: UserRequestSendFunds) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     
     // If we managed to push the message, we return an Ok(()).
@@ -468,11 +524,11 @@ where
 }
 
 /// Handle an incoming receipt ack message
-fn control_receipt_ack<FS>(m_state: &mut MutableFunderState<FS>, 
+fn control_receipt_ack<B>(m_state: &mut MutableFunderState<B>, 
                           receipt_ack: ReceiptAck) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     let receipt = m_state.state().ready_receipts.get(&receipt_ack.request_id)
@@ -492,68 +548,76 @@ where
 }
 
 
-pub fn handle_control_message<FS>(m_state: &mut MutableFunderState<FS>,
+pub fn handle_control_message<B>(m_state: &mut MutableFunderState<B>,
                                  m_ephemeral: &mut MutableEphemeral,
                                  send_commands: &mut SendCommands,
-                                 outgoing_control: &mut Vec<FunderOutgoingControl<FS::Address, FS::NamedAddress>>,
-                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<FS::Address>>,
+                                 outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+                                 outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                                 max_node_relays: usize,
                                  max_pending_user_requests: usize,
-                                 incoming_control: FunderIncomingControl<FS::Address, FS::NamedAddress>) 
+                                 incoming_control: FunderControl<B>) 
     -> Result<(), HandleControlError> 
 where
-    FS: FunderScheme,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
 
     match incoming_control {
-        FunderIncomingControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
+        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) =>
             control_set_friend_remote_max_debt(m_state, 
                                                send_commands, 
                                                set_friend_remote_max_debt),
 
-        FunderIncomingControl::ResetFriendChannel(reset_friend_channel) =>
+        FunderControl::ResetFriendChannel(reset_friend_channel) =>
             control_reset_friend_channel(m_state, 
                                          send_commands,
                                          reset_friend_channel),
 
-        FunderIncomingControl::SetAddress(address) =>
-            Ok(control_set_address(m_state, 
+        FunderControl::AddRelay(named_relay_address) =>
+            control_add_relay(m_state, 
                                 send_commands,
                                 outgoing_channeler_config,
-                                address)),
+                                max_node_relays,
+                                named_relay_address),
 
-        FunderIncomingControl::AddFriend(add_friend) =>
+        FunderControl::RemoveRelay(public_key) =>
+            Ok(control_remove_relay(m_state, 
+                                    send_commands,
+                                    outgoing_channeler_config,
+                                    public_key)),
+
+        FunderControl::AddFriend(add_friend) =>
             Ok(control_add_friend(m_state, 
                                add_friend)),
 
-        FunderIncomingControl::RemoveFriend(remove_friend) =>
+        FunderControl::RemoveFriend(remove_friend) =>
             control_remove_friend(m_state,
                                   send_commands,
                                   outgoing_control,
                                   outgoing_channeler_config,
                                   remove_friend),
 
-        FunderIncomingControl::SetFriendStatus(set_friend_status) =>
+        FunderControl::SetFriendStatus(set_friend_status) =>
             control_set_friend_status(m_state, 
                                       send_commands,
                                       outgoing_control,
                                       outgoing_channeler_config,
                                       set_friend_status),
 
-        FunderIncomingControl::SetRequestsStatus(set_requests_status) =>
+        FunderControl::SetRequestsStatus(set_requests_status) =>
             control_set_requests_status(m_state, 
                                         send_commands,
                                         set_requests_status),
 
-        FunderIncomingControl::SetFriendAddress(set_friend_address) =>
-            control_set_friend_address(m_state, 
+        FunderControl::SetFriendRelays(set_friend_relays) =>
+            control_set_friend_relays(m_state, 
                                        outgoing_channeler_config,
-                                       set_friend_address),
+                                       set_friend_relays),
 
-        FunderIncomingControl::SetFriendName(set_friend_name) =>
+        FunderControl::SetFriendName(set_friend_name) =>
             control_set_friend_name(m_state, 
                                     set_friend_name),
 
-        FunderIncomingControl::RequestSendFunds(user_request_send_funds) =>
+        FunderControl::RequestSendFunds(user_request_send_funds) =>
             control_request_send_funds(m_state, 
                                        m_ephemeral.ephemeral(),
                                        outgoing_control, 
@@ -561,7 +625,7 @@ where
                                        max_pending_user_requests,
                                        user_request_send_funds),
 
-        FunderIncomingControl::ReceiptAck(receipt_ack) =>
+        FunderControl::ReceiptAck(receipt_ack) =>
             control_receipt_ack(m_state, 
                                 receipt_ack),
     }
