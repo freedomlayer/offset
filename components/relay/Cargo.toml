@@ -9,9 +9,12 @@ edition = "2018"
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
+version = { path = "../version", version = "0.1.0" , package = "offst-version" }
+secure-channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.11"
