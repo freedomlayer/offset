@@ -14,12 +14,12 @@ use common::state_service::{state_service, StateClient};
 use common::mutable_state::BatchMutable;
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 
-use crate::connection::connect::NodeConnectionTuple;
-
 use super::report::AppReport;
 use super::config::AppConfig;
 use super::routes::AppRoutes;
 use super::send_funds::AppSendFunds;
+
+use crate::connect::connect::NodeConnectionTuple;
 
 #[derive(Debug)]
 pub enum NodeConnectionError {
