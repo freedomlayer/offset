@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use futures::channel::{mpsc, oneshot};
 use futures::{StreamExt, SinkExt};
+use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 use proto::net::messages::NetAddress;
@@ -11,7 +12,6 @@ pub enum TestNetworkRequest {
     Connect((NetAddress, oneshot::Sender<ConnPairVec>)),
 }
 
-#[allow(unused)]
 pub async fn test_network_loop(mut incoming_requests: mpsc::Receiver<TestNetworkRequest>) {
 
     let mut listeners: HashMap<NetAddress, mpsc::Sender<ConnPairVec>> = HashMap::new();
@@ -58,7 +58,6 @@ pub struct TestNetworkClient {
 
 
 impl TestNetworkClient {
-    #[allow(unused)]
     pub fn new(sender: mpsc::Sender<TestNetworkRequest>) -> Self {
         TestNetworkClient {
             sender,
@@ -100,6 +99,21 @@ impl FutTransform for TestNetworkClient {
     }
 }
 
+#[allow(unused)]
+/// A test util, simulating a network.
+/// Allows clients to listen on certain addresses and try to connect to certain addresses.
+/// No two listeners can listen on the same address.
+pub fn create_test_network<S>(spawner: &mut S) -> TestNetworkClient
+where
+    S: Spawn,
+{
+
+    let (request_sender, incoming_requests) = mpsc::channel(0);
+    spawner.spawn(test_network_loop(incoming_requests)).unwrap();
+
+    TestNetworkClient::new(request_sender)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -108,7 +122,6 @@ mod tests {
     use std::convert::TryFrom;
 
     use futures::executor::ThreadPool;
-    use futures::task::{Spawn, SpawnExt};
 
     /// A helper function to create a net_address from a &str:
     fn net_address(from: &str) -> NetAddress {
@@ -120,10 +133,7 @@ mod tests {
         S: Spawn,
     {
 
-        let (request_sender, incoming_requests) = mpsc::channel(0);
-        spawner.spawn(test_network_loop(incoming_requests)).unwrap();
-
-        let mut net_client1 = TestNetworkClient::new(request_sender);
+        let mut net_client1 = create_test_network(&mut spawner);
         let mut net_client2 = net_client1.clone();
         let mut net_client3 = net_client1.clone();
 
