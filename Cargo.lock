@@ -523,14 +523,11 @@ dependencies = [
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "offst-identity 0.1.0",
- "offst-keepalive 0.1.0",
  "offst-net 0.1.0",
+ "offst-node 0.1.0",
  "offst-proto 0.1.0",
- "offst-secure-channel 0.1.0",
  "offst-timer 0.1.0",
- "offst-version 0.1.0",
  "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
