@@ -4,6 +4,7 @@ use futures::task::Spawn;
 
 use common::int_convert::usize_to_u64;
 use common::conn::FutTransform;
+
 use proto::consts::{TICK_MS, MAX_FRAME_LENGTH};
 use proto::net::messages::NetAddress;
 
@@ -14,10 +15,11 @@ use identity::IdentityClient;
 
 use net::NetConnector;
 
-use crate::node_connection::NodeConnection;
+use super::node_connection::NodeConnection;
 
-use crate::setup_conn::{setup_connection, SetupConnectionError};
-pub use crate::setup_conn::NodeConnectionTuple;
+use super::setup_conn::{setup_connection, 
+    SetupConnectionError};
+pub use super::setup_conn::NodeConnectionTuple;
 
 
 

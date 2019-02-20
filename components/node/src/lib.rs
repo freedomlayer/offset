@@ -20,7 +20,9 @@ mod types;
 mod adapters;
 mod node;
 mod net_node;
+mod connection;
 
 pub use self::net_node::{net_node, NetNodeError};
 pub use self::types::{NodeConfig, NodeState};
 pub use app_server::IncomingAppConnection;
+pub use connection::connect::node_connect;
