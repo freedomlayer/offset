@@ -14,4 +14,5 @@
 // #[macro_use]
 extern crate log;
 
+#[cfg(test)]
 mod test_network;

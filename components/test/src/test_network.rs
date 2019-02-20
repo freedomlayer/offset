@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::collections::HashMap;
 
 use futures::channel::{mpsc, oneshot};
@@ -6,6 +7,11 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 use proto::net::messages::NetAddress;
+
+/// A helper function to create a net_address from a &str:
+pub fn net_address(from: &str) -> NetAddress {
+    NetAddress::try_from(from.to_string()).unwrap()
+}
 
 pub enum TestNetworkRequest {
     Listen((NetAddress, oneshot::Sender<mpsc::Receiver<ConnPairVec>>)),
@@ -118,15 +124,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::convert::TryFrom;
-
     use futures::executor::ThreadPool;
-
-    /// A helper function to create a net_address from a &str:
-    fn net_address(from: &str) -> NetAddress {
-        NetAddress::try_from(from.to_string()).unwrap()
-    }
 
     async fn task_test_network_basic<S>(mut spawner: S) 
     where
