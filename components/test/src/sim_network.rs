@@ -13,18 +13,18 @@ pub fn net_address(from: &str) -> NetAddress {
     NetAddress::try_from(from.to_string()).unwrap()
 }
 
-pub enum TestNetworkRequest {
+pub enum SimNetworkRequest {
     Listen((NetAddress, oneshot::Sender<mpsc::Receiver<ConnPairVec>>)),
     Connect((NetAddress, oneshot::Sender<ConnPairVec>)),
 }
 
-pub async fn test_network_loop(mut incoming_requests: mpsc::Receiver<TestNetworkRequest>) {
+pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRequest>) {
 
     let mut listeners: HashMap<NetAddress, mpsc::Sender<ConnPairVec>> = HashMap::new();
 
     while let Some(request) = await!(incoming_requests.next()) {
         match request {
-            TestNetworkRequest::Listen((listen_address, receiver_sender)) => {
+            SimNetworkRequest::Listen((listen_address, receiver_sender)) => {
                 if listeners.contains_key(&listen_address) {
                     // Someone is already listening on this address
                     continue;
@@ -34,7 +34,7 @@ pub async fn test_network_loop(mut incoming_requests: mpsc::Receiver<TestNetwork
                     listeners.insert(listen_address, conn_sender);
                 }
             },
-            TestNetworkRequest::Connect((connect_address, oneshot_sender)) => {
+            SimNetworkRequest::Connect((connect_address, oneshot_sender)) => {
                 if let Some(mut conn_sender) = listeners.remove(&connect_address) {
                     let (connect_sender, listen_receiver) = mpsc::channel(0);
                     let (listen_sender, connect_receiver) = mpsc::channel(0);
@@ -54,43 +54,43 @@ pub async fn test_network_loop(mut incoming_requests: mpsc::Receiver<TestNetwork
 }
 
 #[derive(Debug)]
-pub enum TestNetworkClientError {
+pub enum SimNetworkClientError {
     ListenError,
 }
 
-pub struct TestNetworkClient {
-    sender: mpsc::Sender<TestNetworkRequest>,
+pub struct SimNetworkClient {
+    sender: mpsc::Sender<SimNetworkRequest>,
 }
 
 
-impl TestNetworkClient {
-    pub fn new(sender: mpsc::Sender<TestNetworkRequest>) -> Self {
-        TestNetworkClient {
+impl SimNetworkClient {
+    pub fn new(sender: mpsc::Sender<SimNetworkRequest>) -> Self {
+        SimNetworkClient {
             sender,
         }
     }
 
     #[allow(unused)]
     pub async fn listen(&mut self, net_address: NetAddress) 
-        -> Result<mpsc::Receiver<ConnPairVec>, TestNetworkClientError> {
+        -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
 
         let (response_sender, response_receiver) = oneshot::channel();
-        await!(self.sender.send(TestNetworkRequest::Listen((net_address, response_sender))))
-            .map_err(|_| TestNetworkClientError::ListenError)?;
+        await!(self.sender.send(SimNetworkRequest::Listen((net_address, response_sender))))
+            .map_err(|_| SimNetworkClientError::ListenError)?;
         await!(response_receiver)
-            .map_err(|_| TestNetworkClientError::ListenError)
+            .map_err(|_| SimNetworkClientError::ListenError)
     }
 }
 
-impl Clone for TestNetworkClient {
+impl Clone for SimNetworkClient {
     fn clone(&self) -> Self {
-        TestNetworkClient {
+        SimNetworkClient {
             sender: self.sender.clone(),
         }
     }
 }
 
-impl FutTransform for TestNetworkClient {
+impl FutTransform for SimNetworkClient {
     type Input = NetAddress;
     type Output = Option<ConnPairVec>;
 
@@ -98,7 +98,7 @@ impl FutTransform for TestNetworkClient {
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
         Box::pin(async move {
-            await!(self.sender.send(TestNetworkRequest::Connect((net_address, response_sender))))
+            await!(self.sender.send(SimNetworkRequest::Connect((net_address, response_sender))))
                 .ok()?;
             await!(response_receiver).ok()
         })
@@ -109,15 +109,15 @@ impl FutTransform for TestNetworkClient {
 /// A test util, simulating a network.
 /// Allows clients to listen on certain addresses and try to connect to certain addresses.
 /// No two listeners can listen on the same address.
-pub fn create_test_network<S>(spawner: &mut S) -> TestNetworkClient
+pub fn create_sim_network<S>(spawner: &mut S) -> SimNetworkClient
 where
     S: Spawn,
 {
 
     let (request_sender, incoming_requests) = mpsc::channel(0);
-    spawner.spawn(test_network_loop(incoming_requests)).unwrap();
+    spawner.spawn(sim_network_loop(incoming_requests)).unwrap();
 
-    TestNetworkClient::new(request_sender)
+    SimNetworkClient::new(request_sender)
 }
 
 
@@ -126,12 +126,12 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    async fn task_test_network_basic<S>(mut spawner: S) 
+    async fn task_sim_network_basic<S>(mut spawner: S) 
     where
         S: Spawn,
     {
 
-        let mut net_client1 = create_test_network(&mut spawner);
+        let mut net_client1 = create_sim_network(&mut spawner);
         let mut net_client2 = net_client1.clone();
         let mut net_client3 = net_client1.clone();
 
@@ -167,8 +167,8 @@ mod tests {
     }
 
     #[test]
-    fn test_test_network_basic() {
+    fn test_sim_network_basic() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_test_network_basic(thread_pool.clone()));
+        thread_pool.run(task_sim_network_basic(thread_pool.clone()));
     }
 }

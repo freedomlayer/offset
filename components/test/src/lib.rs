@@ -11,8 +11,10 @@
     warnings
 )]
 
-// #[macro_use]
+#[macro_use]
 extern crate log;
 
 #[cfg(test)]
-mod test_network;
+mod sim_network;
+#[cfg(test)]
+mod test_basic;
