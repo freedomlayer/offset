@@ -38,7 +38,8 @@ use proto::consts::{TICK_MS, MAX_FRAME_LENGTH};
 
 use net::{NetConnector, TcpListener};
 
-use bin::{load_identity_from_file, load_trusted_servers};
+use proto::file::identity::load_identity_from_file;
+use proto::file::index_server::load_trusted_servers;
 
 // TODO; Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.

@@ -37,7 +37,7 @@ use timer::create_timer;
 use relay::{net_relay_server, NetRelayServerError};
 use net::TcpListener;
 
-use bin::load_identity_from_file;
+use proto::file::identity::load_identity_from_file;
 
 // TODO; Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.

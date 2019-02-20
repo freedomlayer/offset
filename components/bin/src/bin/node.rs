@@ -43,7 +43,8 @@ use proto::net::messages::NetAddress;
 use net::{NetConnector, TcpListener};
 
 
-use bin::{load_identity_from_file, load_trusted_apps};
+use proto::file::identity::load_identity_from_file;
+use proto::file::app::load_trusted_apps;
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
