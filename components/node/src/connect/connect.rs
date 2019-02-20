@@ -19,7 +19,7 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 
-use super::node_connection::NodeConnection;
+pub use super::node_connection::NodeConnection;
 
 use version::VersionPrefix;
 use secure_channel::SecureChannel;
