@@ -5,16 +5,23 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![feature(unboxed_closures)]
+#![type_length_limit="4194304"]
 
 #![deny(
     trivial_numeric_casts,
     warnings
 )]
 
+#[cfg(test)]
 #[macro_use]
 extern crate log;
 
 #[cfg(test)]
 mod sim_network;
+
 #[cfg(test)]
 mod test_basic;
+
+#[cfg(test)]
+#[allow(unused)]
+mod utils;
