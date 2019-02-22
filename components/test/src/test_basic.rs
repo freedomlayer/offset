@@ -10,7 +10,8 @@ use timer::create_timer_incoming;
 use proto::app_server::messages::AppPermissions;
 
 use crate::utils::{create_node, create_app, SimDb,
-                    create_relay, create_index_server};
+                    create_relay, create_index_server,
+                    named_relay_address, named_index_server_address};
 use crate::sim_network::create_sim_network;
 
 
@@ -18,6 +19,7 @@ async fn task_basic<S>(mut spawner: S)
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
+    let _ = env_logger::init();
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
     let temp_dir = tempdir().unwrap();
@@ -29,7 +31,7 @@ where
     let sim_net_client = create_sim_network(&mut spawner);
 
     // Create timer_client:
-    let (_tick_sender, tick_receiver) = mpsc::channel(0);
+    let (tick_sender, tick_receiver) = mpsc::channel(0);
     let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
 
@@ -49,7 +51,7 @@ where
               trusted_apps,
               spawner.clone()));
 
-    let _app0 = await!(create_app(0,
+    let app0 = await!(create_app(0,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     0,
@@ -72,10 +74,10 @@ where
               trusted_apps,
               spawner.clone()));
 
-    let _app1 = await!(create_app(1,
+    let app1 = await!(create_app(1,
                     sim_net_client.clone(),
                     timer_client.clone(),
-                    0,
+                    1,
                     spawner.clone()));
 
     // Create relays:
@@ -96,7 +98,7 @@ where
     await!(create_index_server(2,
                              timer_client.clone(),
                              sim_net_client.clone(),
-                             vec![1,3],
+                             vec![0,1],
                              spawner.clone()));
 
     await!(create_index_server(0,
@@ -111,13 +113,19 @@ where
                              vec![2],
                              spawner.clone()));
 
+    let mut config0 = app0.config().unwrap();
+    let mut config1 = app1.config().unwrap();
+    // Configure relays:
+    await!(config0.add_relay(named_relay_address(0))).unwrap();
+    await!(config1.add_relay(named_relay_address(1))).unwrap();
+
+    // Configure index servers:
+    await!(config0.add_index_server(named_index_server_address(0))).unwrap();
+    await!(config1.add_index_server(named_index_server_address(1))).unwrap();
+
+    drop(tick_sender);
 
     unimplemented!();
-
-    /*
-    let (tick_sender, tick_receiver) = mpsc::channel(0);
-    let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
-    */
 
 }
 
