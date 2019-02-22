@@ -1,5 +1,5 @@
 use futures::task::{Spawn, SpawnExt};
-use futures::{Future, FutureExt, Stream, StreamExt, SinkExt};
+use futures::{select, Future, FutureExt, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
 use common::conn::{ConnPairVec, FutTransform};
@@ -10,7 +10,7 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use app_server::{IncomingAppConnection, app_server_loop};
+use app_server::{IncomingAppConnection, app_server_loop, AppServerError};
 use channeler::{spawn_channeler, ChannelerError};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
@@ -36,8 +36,35 @@ use crate::adapters::{EncRelayConnector, EncKeepaliveConnector};
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
+    ChannelerError(ChannelerError),
+    FunderError(FunderError),
+    IndexClientError(IndexClientError),
+    AppServerError(AppServerError),
 }
 
+impl From<ChannelerError> for NodeError {
+    fn from(e: ChannelerError) -> Self {
+        NodeError::ChannelerError(e)
+    }
+}
+
+impl From<FunderError> for NodeError {
+    fn from(e: FunderError) -> Self {
+        NodeError::FunderError(e)
+    }
+}
+
+impl From<IndexClientError> for NodeError {
+    fn from(e: IndexClientError) -> Self {
+        NodeError::IndexClientError(e)
+    }
+}
+
+impl From<AppServerError> for NodeError {
+    fn from(e: AppServerError) -> Self {
+        NodeError::AppServerError(e)
+    }
+}
 
 fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           local_public_key: PublicKey,
@@ -356,12 +383,11 @@ where
                 rng,
                 spawner))?;
 
-    // Returns a future that resolves after all components were closed:
-    let fut = channeler_handle
-        .join(funder_handle)
-        .join(app_server_handle)
-        .join(index_client_handle)
-        .map(|_| ());
-
-    Ok(await!(fut))
+    // Returns a future that resolves when the first component dies
+    Ok(select! {
+        res = channeler_handle.fuse() => res?,
+        res = funder_handle.fuse() => res?,
+        res = app_server_handle.fuse() => res?,
+        res = index_client_handle.fuse() => res?,
+    })
 }
