@@ -14,7 +14,8 @@ use crypto::crypto_rand::CryptoRandom;
 use proto::consts::{TICKS_TO_REKEY, MAX_OPERATIONS_IN_BATCH, 
     MAX_NODE_RELAYS, KEEPALIVE_TICKS};
 use proto::net::messages::NetAddress;
-use proto::app_server::messages::AppPermissions;
+use proto::app_server::messages::{AppPermissions, NamedRelayAddress};
+use proto::index_server::messages::NamedIndexServerAddress;
 
 use identity::{IdentityClient, create_identity};
 
@@ -165,6 +166,22 @@ fn index_server_server_address(index: u8) -> NetAddress {
 
 fn relay_address(index: u8) -> NetAddress {
     net_address(&format!("relay_{}", index))
+}
+
+pub fn named_relay_address(index: u8) -> NamedRelayAddress {
+    NamedRelayAddress {
+        public_key: get_relay_identity(index).get_public_key(),
+        address: relay_address(index),
+        name: format!("named_relay_{}", index),
+    }
+}
+
+pub fn named_index_server_address(index: u8) -> NamedIndexServerAddress {
+    NamedIndexServerAddress {
+        public_key: get_index_server_identity(index).get_public_key(),
+        address: index_server_client_address(index),
+        name: format!("named_index_server_{}", index),
+    }
 }
 
 pub async fn create_app<S>(index: u8,
