@@ -171,7 +171,7 @@ pub async fn create_app<S>(index: u8,
                     sim_network_client: SimNetworkClient,
                     timer_client: TimerClient,
                     node_index: u8,
-                    spawner: S) -> NodeConnection<impl CryptoRandom>
+                    spawner: S) -> NodeConnection<impl CryptoRandom + Clone>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
