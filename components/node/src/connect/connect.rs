@@ -142,7 +142,7 @@ pub async fn node_connect<C,R,S>(mut net_connector: C,
                                  timer_client: TimerClient,
                                  app_identity_client: IdentityClient,
                                  rng: R,
-                                 mut spawner: S) -> Result<NodeConnection<impl CryptoRandom>, NodeConnectError> 
+                                 mut spawner: S) -> Result<NodeConnection<R>, NodeConnectError> 
 where
     C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>>,
     R: CryptoRandom + Clone + 'static,
