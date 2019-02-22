@@ -328,7 +328,7 @@ async fn task_handler_pair_basic<'a>(identity_client1: &'a mut IdentityClient,
     // Node2 will not send the RequestFunds message to Node1, because he knows Node1 is
     // not ready:
     assert_eq!(outgoing_comms.len(), 0);
-    assert_eq!(dbg!(outgoing_control).len(), 2);
+    assert_eq!(outgoing_control.len(), 2);
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
