@@ -83,10 +83,38 @@ pub enum DirectionReport {
     Outgoing,
 }
 
+impl DirectionReport {
+    pub fn is_incoming(&self) -> bool {
+        if let DirectionReport::Incoming = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_outgoing(&self) -> bool {
+        if let DirectionReport::Outgoing = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
     Online,
     Offline,
+}
+
+impl FriendLivenessReport {
+    pub fn is_online(&self) -> bool {
+        if let FriendLivenessReport::Online = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
