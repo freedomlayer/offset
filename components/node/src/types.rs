@@ -9,7 +9,7 @@ use index_client::{IndexClientConfig, IndexClientConfigMutation};
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::IndexClientReport;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeMutation<B:Clone> {
     Funder(FunderMutation<B>),
     IndexClient(IndexClientConfigMutation<B>)
