@@ -5,7 +5,7 @@ use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, TryFutureExt};
 
-use crypto::identity::{Identity, 
+use crypto::identity::{PublicKey, Identity, 
     generate_pkcs8_key_pair, SoftwareEd25519Identity};
 
 use crypto::test_utils::DummyRandom;
@@ -14,7 +14,7 @@ use crypto::crypto_rand::CryptoRandom;
 use proto::consts::{TICKS_TO_REKEY, MAX_OPERATIONS_IN_BATCH, 
     MAX_NODE_RELAYS, KEEPALIVE_TICKS};
 use proto::net::messages::NetAddress;
-use proto::app_server::messages::{AppPermissions, NamedRelayAddress};
+use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use identity::{IdentityClient, create_identity};
@@ -152,36 +152,47 @@ impl SimDb {
     }
 }
 
-fn node_address(index: u8) -> NetAddress {
+fn listen_node_address(index: u8) -> NetAddress {
     net_address(&format!("node_{}", index))
 }
 
-fn index_server_client_address(index: u8) -> NetAddress {
+fn listen_index_server_client_address(index: u8) -> NetAddress {
     net_address(&format!("index_server_client_{}", index))
 }
 
-fn index_server_server_address(index: u8) -> NetAddress {
+fn listen_index_server_server_address(index: u8) -> NetAddress {
     net_address(&format!("index_server_server_{}", index))
 }
 
-fn relay_address(index: u8) -> NetAddress {
+fn listen_relay_address(index: u8) -> NetAddress {
     net_address(&format!("relay_{}", index))
 }
 
 pub fn named_relay_address(index: u8) -> NamedRelayAddress {
     NamedRelayAddress {
         public_key: get_relay_identity(index).get_public_key(),
-        address: relay_address(index),
+        address: listen_relay_address(index),
         name: format!("named_relay_{}", index),
+    }
+}
+
+pub fn relay_address(index: u8) -> RelayAddress {
+    RelayAddress {
+        public_key: get_relay_identity(index).get_public_key(),
+        address: listen_relay_address(index),
     }
 }
 
 pub fn named_index_server_address(index: u8) -> NamedIndexServerAddress {
     NamedIndexServerAddress {
         public_key: get_index_server_identity(index).get_public_key(),
-        address: index_server_client_address(index),
+        address: listen_index_server_client_address(index),
         name: format!("named_index_server_{}", index),
     }
+}
+
+pub fn node_public_key(index: u8) -> PublicKey {
+    get_node_identity(index).get_public_key()
 }
 
 pub async fn create_app<S>(index: u8,
@@ -200,7 +211,7 @@ where
     let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
     await!(node_connect(sim_network_client,
                  node_public_key,
-                 node_address(node_index),
+                 listen_node_address(node_index),
                  timer_client,
                  app_identity_client,
                  rng,
@@ -219,7 +230,7 @@ where
 
     let identity = get_node_identity(index);
     let identity_client = create_identity_client(identity, spawner.clone());
-    let listen_address = node_address(index);
+    let listen_address = listen_node_address(index);
     let incoming_app_raw_conns = await!(sim_network_client.listen(listen_address)).unwrap();
 
     // Translate application index to application public key:
@@ -257,8 +268,8 @@ where
 
     let identity = get_index_server_identity(index);
     let identity_client = create_identity_client(identity, spawner.clone());
-    let client_listen_address = index_server_client_address(index);
-    let server_listen_address = index_server_server_address(index);
+    let client_listen_address = listen_index_server_client_address(index);
+    let server_listen_address = listen_index_server_server_address(index);
 
     let incoming_client_raw_conns = await!(sim_network_client.listen(client_listen_address)).unwrap();
     let incoming_server_raw_conns = await!(sim_network_client.listen(server_listen_address)).unwrap();
@@ -267,7 +278,7 @@ where
     let trusted_servers = trusted_servers
         .into_iter()
         .map(|index| (get_index_server_identity(index).get_public_key(),
-                      index_server_server_address(index)))
+                      listen_index_server_server_address(index)))
         .collect::<HashMap<_,_>>();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x38, index]);
@@ -297,7 +308,7 @@ where
     let identity = get_relay_identity(index);
     let identity_client = create_identity_client(identity, spawner.clone());
 
-    let listen_address = relay_address(index);
+    let listen_address = listen_relay_address(index);
     let incoming_raw_conns = await!(sim_network_client.listen(listen_address)).unwrap();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x39, index]);
