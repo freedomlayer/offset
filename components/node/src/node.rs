@@ -138,7 +138,12 @@ where
                      NodeMutation::Funder(funder_mutation))
                 .collect::<Vec<_>>();
 
-            if let Err(_) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = await!(database_client.mutate(mutations)) {
+                error!("error in funder database adapter: {:?}", e);
+                return;
+            }
+            if let Err(e) = request.response_sender.send(()) {
+                error!("error in funder database adapter: {:?}", e);
                 return;
             }
         }
@@ -255,7 +260,12 @@ where
                      NodeMutation::IndexClient(index_client_mutation))
                 .collect::<Vec<_>>();
 
-            if let Err(_) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = await!(database_client.mutate(mutations)) {
+                error!("error in index_client database adapter: {:?}", e);
+                return;
+            }
+            if let Err(e) = request.response_sender.send(()) {
+                error!("error in index_client database adapter: {:?}", e);
                 return;
             }
         }
