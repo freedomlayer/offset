@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use futures::channel::{oneshot, mpsc};
 use futures::{future, StreamExt, SinkExt};
 use futures::executor::ThreadPool;
@@ -13,6 +14,7 @@ pub enum DatabaseError<ADE> {
 }
 
 // A request to apply mutations to the database
+#[derive(Debug)]
 pub struct DatabaseRequest<M> {
     pub mutations: Vec<M>,
     pub response_sender: oneshot::Sender<()>,
@@ -29,7 +31,10 @@ pub enum DatabaseClientError {
     ResponseCanceled,
 }
 
-impl<M> DatabaseClient<M> {
+impl<M> DatabaseClient<M> 
+where
+    M: Debug,
+{
     pub fn new(request_sender: mpsc::Sender<DatabaseRequest<M>>) -> Self {
         DatabaseClient {
             request_sender,
@@ -51,6 +56,7 @@ impl<M> DatabaseClient<M> {
         await!(request_done)
             .map_err(|_| DatabaseClientError::ResponseCanceled)?;
 
+
         Ok(())
     }
 }
@@ -60,7 +66,7 @@ pub async fn database_loop<AD>(mut atomic_db: AD,
                                 -> Result<AD, DatabaseError<AD::Error>>
 where
     AD: AtomicDb + Send + 'static,
-    AD::Mutation: Send + 'static,
+    AD::Mutation: Debug + Send + 'static,
     AD::Error: Send + 'static,
 {
     // We use an independent thread pool, to make sure our synchronous interaction
