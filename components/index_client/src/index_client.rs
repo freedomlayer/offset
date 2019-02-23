@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::Unpin;
 use std::collections::{VecDeque};
 
@@ -174,7 +175,7 @@ async fn send_full_state(mut seq_friends_client: SeqFriendsClient,
 
 impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S> 
 where
-    ISA: Eq + Clone + Send + 'static,
+    ISA: Debug + Eq + Clone + Send + 'static,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -629,7 +630,7 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,TS,S>(from_app_server: FAS,
                                timer_stream: TS,
                                spawner: S) -> Result<(), IndexClientError>
 where
-    ISA: Eq + Clone + Send + 'static,
+    ISA: Debug + Eq + Clone + Send + 'static,
     FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,

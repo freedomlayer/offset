@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use futures::{Future, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
@@ -120,7 +122,7 @@ pub async fn spawn_index_client<'a,ISA,C,R,S>(local_public_key: PublicKey,
                 mut spawner: S)
         -> Result<impl Future<Output=Result<(), IndexClientError>>, SpawnIndexClientError>
 where
-    ISA: Eq + Clone + Send + 'static,
+    ISA: Debug + Eq + Clone + Send + 'static,
     C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
