@@ -58,6 +58,7 @@ where
                     spawner.clone()));
 
 
+    /*
     // Create initial database for node 1:
     sim_db.init_db(1);
 
@@ -112,16 +113,19 @@ where
                              sim_net_client.clone(),
                              vec![2],
                              spawner.clone()));
+    */
 
     let mut config0 = app0.config().unwrap();
-    let mut config1 = app1.config().unwrap();
+    // let mut config1 = app1.config().unwrap();
     // Configure relays:
     await!(config0.add_relay(named_relay_address(0))).unwrap();
-    await!(config1.add_relay(named_relay_address(1))).unwrap();
+    // await!(config1.add_relay(named_relay_address(1))).unwrap();
 
+    /*
     // Configure index servers:
     await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
+    */
 
     drop(tick_sender);
 

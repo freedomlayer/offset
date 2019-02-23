@@ -20,6 +20,7 @@ extern crate log;
 mod sim_network;
 
 #[cfg(test)]
+#[allow(unused)]
 mod test_basic;
 
 #[cfg(test)]
