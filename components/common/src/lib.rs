@@ -31,3 +31,4 @@ pub mod mutable_state;
 pub mod transform_pool;
 pub mod state_service;
 pub mod multi_consumer;
+pub mod select_streams;
