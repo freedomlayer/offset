@@ -7,7 +7,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::ConnPair;
-use common::mutable_state::MutableState;
+// use common::mutable_state::MutableState;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl, 
