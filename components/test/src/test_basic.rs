@@ -3,15 +3,17 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
+use futures::SinkExt;
 
 use tempfile::tempdir;
 
-use timer::create_timer_incoming;
+use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
 
 use crate::utils::{create_node, create_app, SimDb,
                     create_relay, create_index_server,
-                    named_relay_address, named_index_server_address};
+                    relay_address, named_relay_address, 
+                    named_index_server_address, node_public_key};
 use crate::sim_network::create_sim_network;
 
 
@@ -31,7 +33,7 @@ where
     let sim_net_client = create_sim_network(&mut spawner);
 
     // Create timer_client:
-    let (tick_sender, tick_receiver) = mpsc::channel(0);
+    let (mut tick_sender, tick_receiver) = mpsc::channel(0);
     let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
 
@@ -58,7 +60,6 @@ where
                     spawner.clone()));
 
 
-    /*
     // Create initial database for node 1:
     sim_db.init_db(1);
 
@@ -113,21 +114,52 @@ where
                              sim_net_client.clone(),
                              vec![2],
                              spawner.clone()));
-    */
 
     let mut config0 = app0.config().unwrap();
-    // let mut config1 = app1.config().unwrap();
+    let mut config1 = app1.config().unwrap();
+    let mut report0 = app0.report();
+    let mut report1 = app1.report();
+
     // Configure relays:
     await!(config0.add_relay(named_relay_address(0))).unwrap();
-    // await!(config1.add_relay(named_relay_address(1))).unwrap();
+    await!(config1.add_relay(named_relay_address(1))).unwrap();
 
-    /*
     // Configure index servers:
     await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
-    */
 
-    drop(tick_sender);
+    // Wait some time:
+    for _ in 0 .. 0x100usize {
+        await!(tick_sender.send(())).unwrap();
+    }
+
+    // Node0: Add node1 as a friend:
+    await!(config0.add_friend(node_public_key(1),
+                              vec![relay_address(1)],
+                              String::from("node1"),
+                              100));
+
+    // Node1: Add node0 as a friend:
+    await!(config1.add_friend(node_public_key(0),
+                              vec![relay_address(0)],
+                              String::from("node0"),
+                              -100));
+
+    // Node0: Wait until node1 is online:
+    loop {
+        dbg!("Node0 iter");
+        await!(tick_sender.send(())).unwrap();
+        let (node_report, _receiver) = await!(report0.incoming_reports()).unwrap();
+        dbg!("Check friend exists:");
+        let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
+        dbg!("Check friend online:");
+        if friend_report.liveness.is_online() {
+            break;
+        }
+    }
 
     unimplemented!();
 
