@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::SinkExt;
+use futures::{StreamExt, SinkExt};
 
 use tempfile::tempdir;
 
@@ -61,6 +61,7 @@ where
                     spawner.clone()));
 
 
+    /*
     // Create initial database for node 1:
     sim_db.init_db(1);
 
@@ -115,11 +116,12 @@ where
                              sim_net_client.clone(),
                              vec![2],
                              spawner.clone()));
+    */
 
     let mut config0 = app0.config().unwrap();
-    let mut config1 = app1.config().unwrap();
+    // let mut config1 = app1.config().unwrap();
     let mut report0 = app0.report();
-    let mut report1 = app1.report();
+    // let mut report1 = app1.report();
 
     // Configure relays:
     // await!(config0.add_relay(named_relay_address(0))).unwrap();
@@ -134,6 +136,7 @@ where
         await!(tick_sender.send(())).unwrap();
     }
 
+    /*
     dbg!("Add node1 as a friend");
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
@@ -147,12 +150,18 @@ where
                               vec![relay_address(0)],
                               String::from("node0"),
                               -100));
+    */
 
     // Node0: Wait until node1 is online:
+    await!(tick_sender.send(())).unwrap();
+    let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
     loop {
         dbg!("Node0 iter");
-        await!(tick_sender.send(())).unwrap();
-        let (node_report, _receiver) = await!(report0.incoming_reports()).unwrap();
+        // Apply mutations:
+        let mutations = await!(mutations_receiver.next()).unwrap();
+        for mutation in mutations {
+            node_report.mutate(&mutation);
+        }
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
