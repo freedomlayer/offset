@@ -27,8 +27,7 @@ use crate::client_session::{SessionHandle, ControlSender};
 use crate::single_client::SingleClientControl;
 use crate::seq_friends::SeqFriendsClient;
 
-#[allow(unused)]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexClientConfig<ISA> {
     pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
 }

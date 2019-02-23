@@ -15,7 +15,7 @@ pub enum NodeMutation<B:Clone> {
     IndexClient(IndexClientConfigMutation<B>)
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeState<B:Clone> {
     pub funder_state: FunderState<B>,
     pub index_client_config: IndexClientConfig<B>,

@@ -88,7 +88,7 @@ where
 
 impl<S> AtomicDb for FileDb<S> 
 where 
-    S: Clone + Serialize + DeserializeOwned + MutableState,
+    S: Debug + Clone + Serialize + DeserializeOwned + MutableState,
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
 {
