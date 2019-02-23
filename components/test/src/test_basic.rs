@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{StreamExt, SinkExt};
+use futures::{future, StreamExt, SinkExt};
 
 use tempfile::tempdir;
 
@@ -131,8 +131,13 @@ where
     // await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
+    let (mut sender, mut receiver) = mpsc::channel(0);
     // Wait some time:
     for i in 0 .. 0x100usize {
+        for _ in 0 .. 0x300 {
+            await!(sender.send(())).unwrap();
+            await!(receiver.next()).unwrap();
+        }
         await!(tick_sender.send(())).unwrap();
     }
 
