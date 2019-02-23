@@ -16,6 +16,7 @@ use crate::utils::{create_node, create_app, SimDb,
                     named_index_server_address, node_public_key};
 use crate::sim_network::create_sim_network;
 
+const TIMER_CHANNEL_LEN: usize = 128;
 
 async fn task_basic<S>(mut spawner: S) 
 where
@@ -33,7 +34,7 @@ where
     let sim_net_client = create_sim_network(&mut spawner);
 
     // Create timer_client:
-    let (mut tick_sender, tick_receiver) = mpsc::channel(0);
+    let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
     let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
 
@@ -121,24 +122,26 @@ where
     let mut report1 = app1.report();
 
     // Configure relays:
-    await!(config0.add_relay(named_relay_address(0))).unwrap();
-    await!(config1.add_relay(named_relay_address(1))).unwrap();
+    // await!(config0.add_relay(named_relay_address(0))).unwrap();
+    // await!(config1.add_relay(named_relay_address(1))).unwrap();
 
     // Configure index servers:
-    await!(config0.add_index_server(named_index_server_address(0))).unwrap();
-    await!(config1.add_index_server(named_index_server_address(1))).unwrap();
+    // await!(config0.add_index_server(named_index_server_address(0))).unwrap();
+    // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
     // Wait some time:
-    for _ in 0 .. 0x100usize {
+    for i in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
     }
 
+    dbg!("Add node1 as a friend");
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
                               vec![relay_address(1)],
                               String::from("node1"),
                               100));
 
+    dbg!("Add node0 as a friend");
     // Node1: Add node0 as a friend:
     await!(config1.add_friend(node_public_key(0),
                               vec![relay_address(0)],
@@ -150,7 +153,6 @@ where
         dbg!("Node0 iter");
         await!(tick_sender.send(())).unwrap();
         let (node_report, _receiver) = await!(report0.incoming_reports()).unwrap();
-        dbg!("Check friend exists:");
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,

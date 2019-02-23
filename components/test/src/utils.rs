@@ -318,7 +318,7 @@ where
                      rng,
                      MAX_CONCURRENT_ENCRYPT,
                      spawner.clone())
-        .map_err(|e| error!("net_relay_address() error: {:?}", e))
+        .map_err(|e| error!("net_relay_server() error: {:?}", e))
         .map(|_| ());
 
     spawner.spawn(net_relay_server_fut).unwrap();

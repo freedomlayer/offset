@@ -8,6 +8,10 @@ use futures::task::{Spawn, SpawnExt};
 use common::conn::{ConnPairVec, FutTransform, BoxFuture};
 use proto::net::messages::NetAddress;
 
+/// Length of a connection channel.
+/// We might get a deadlock if this value is too small?
+const CHANNEL_SIZE: usize = 0;
+
 /// A helper function to create a net_address from a &str:
 pub fn net_address(from: &str) -> NetAddress {
     NetAddress::try_from(from.to_string()).unwrap()
@@ -29,15 +33,15 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                     // Someone is already listening on this address
                     continue;
                 }
-                let (conn_sender, conn_receiver) = mpsc::channel(0);
+                let (conn_sender, conn_receiver) = mpsc::channel(CHANNEL_SIZE);
                 if let Ok(_) = receiver_sender.send(conn_receiver) {
                     listeners.insert(listen_address, conn_sender);
                 }
             },
             SimNetworkRequest::Connect((connect_address, oneshot_sender)) => {
                 if let Some(mut conn_sender) = listeners.remove(&connect_address) {
-                    let (connect_sender, listen_receiver) = mpsc::channel(0);
-                    let (listen_sender, connect_receiver) = mpsc::channel(0);
+                    let (connect_sender, listen_receiver) = mpsc::channel(CHANNEL_SIZE);
+                    let (listen_sender, connect_receiver) = mpsc::channel(CHANNEL_SIZE);
 
                     if let Err(_) = await!(conn_sender.send((listen_sender, listen_receiver))) {
                         // Note that we dropped the listener's sender.
@@ -114,7 +118,7 @@ where
     S: Spawn,
 {
 
-    let (request_sender, incoming_requests) = mpsc::channel(0);
+    let (request_sender, incoming_requests) = mpsc::channel(CHANNEL_SIZE);
     spawner.spawn(sim_network_loop(incoming_requests)).unwrap();
 
     SimNetworkClient::new(request_sender)
