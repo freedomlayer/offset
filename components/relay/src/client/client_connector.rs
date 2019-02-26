@@ -1,8 +1,7 @@
 use crypto::identity::PublicKey;
 use futures::{FutureExt, SinkExt};
 
-use common::conn::{BoxFuture, 
-    ConnPair, FutTransform};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
 use proto::relay::messages::{InitConnection};
 use proto::relay::serialize::serialize_init_connection;
@@ -25,9 +24,8 @@ pub struct ClientConnector<C,FT> {
 impl<A,C,FT> ClientConnector<C,FT> 
 where
     A: 'static,
-    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>>,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
-                     Output=ConnPair<Vec<u8>,Vec<u8>>>,
+    C: FutTransform<Input=A,Output=Option<ConnPairVec>>,
+    FT: FutTransform<Input=ConnPairVec, Output=ConnPairVec>,
 {
     pub fn new(connector: C, 
                keepalive_transform: FT) -> ClientConnector<C,FT> {
@@ -39,7 +37,7 @@ where
     }
 
     async fn relay_connect(&mut self, relay_address: A, remote_public_key: PublicKey) 
-        -> Result<ConnPair<Vec<u8>,Vec<u8>>, ClientConnectorError> {
+        -> Result<ConnPairVec, ClientConnectorError> {
 
         let (mut sender, receiver) = await!(self.connector.transform(relay_address))
             .ok_or(ClientConnectorError::InnerConnectorError)?;
@@ -65,12 +63,11 @@ where
 impl<A,C,FT> FutTransform for ClientConnector<C,FT> 
 where
     A: Sync + Send + 'static,
-    C: FutTransform<Input=A,Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>,
-                     Output=ConnPair<Vec<u8>,Vec<u8>>> + Send,
+    C: FutTransform<Input=A,Output=Option<ConnPairVec>> + Send + Sync,
+    FT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Send,
 {
     type Input = (A, PublicKey);
-    type Output = Option<ConnPair<Vec<u8>,Vec<u8>>>;
+    type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, input: (A, PublicKey)) 
         -> BoxFuture<'_, Self::Output> {
