@@ -535,16 +535,18 @@ where
 
 
     pub async fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
+        if let ConnStatus::Connected(_) = self.conn_status {
+            // Send report:
+            let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(None);
+            let index_client_report_mutations = IndexClientReportMutations {
+                opt_app_request_id: None,
+                mutations: vec![index_client_report_mutation],
+            };
+            await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
+                .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+        }
         self.conn_status = ConnStatus::Empty(self.backoff_ticks);
-
-        // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(None);
-        let index_client_report_mutations = IndexClientReportMutations {
-            opt_app_request_id: None,
-            mutations: vec![index_client_report_mutation],
-        };
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)
+        Ok(())
     }
 
     pub async fn handle_response_routes(&mut self, request_id: Uid, 
