@@ -322,6 +322,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-test-preview"
+version = "0.3.0-alpha.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "futures-core-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-executor-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-util-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "futures-util-preview"
 version = "0.3.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -811,6 +822,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-test-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
@@ -1570,6 +1582,7 @@ dependencies = [
 "checksum futures-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)" = "f75490e3af40ae04948a939b044c7f6bc0ca2599cc83e4db5de68e43cf9451f3"
 "checksum futures-select-macro-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)" = "b5e90a1190c77bd279401cd247f1849ce9f4c74b37998088c11b1b038c5e4e3f"
 "checksum futures-sink-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)" = "955b7c0666e2fb468443007f2c0a1779e398f23a6bf8b0398033904cf6a1bc3f"
+"checksum futures-test-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)" = "9c82d9c2716a15474f23cea2fa47e567f0f5a182521830571a0ba36c4afe073c"
 "checksum futures-util-preview 0.3.0-alpha.12 (registry+https://github.com/rust-lang/crates.io-index)" = "d7d3d7a6f5a58d2aa9a26f76fdd581f73505f573bc63269e478daef28a0b23f8"
 "checksum humantime 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3ca7e5f2e110db35f93b837c81797f3714500b81d517bf20c431b16d3ca4f114"
 "checksum im 12.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0627d417829c1d763d602687634869f254fc79f7e22dea6c824dab993db857e4"
