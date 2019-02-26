@@ -61,8 +61,8 @@ async fn index_server<A,IS,IC,SC,R,S>(local_public_key: PublicKey,
                                 -> Result<(), IndexServerError>
 where
     A: Debug + Send + Clone + 'static,
-    IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
-    IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
+    IS: Stream<Item=(PublicKey, ServerConn)> + Unpin + Send,
+    IC: Stream<Item=(PublicKey, ClientConn)> + Unpin + Send,
     SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     R: CryptoRandom,
     S: Spawn + Clone + Send,

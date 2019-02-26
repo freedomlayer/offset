@@ -14,6 +14,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate common;
+
 mod graph;
 mod verifier;
 mod backoff_connector;
