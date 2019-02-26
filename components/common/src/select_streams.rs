@@ -62,6 +62,21 @@ pub fn select_streams<'a,T>(streams: Vec<BoxStream<'a,T>>) -> SelectStreams<'a,T
     }
 }
 
+
+#[macro_export]
+macro_rules! select_streams {
+    ( $( $x:expr ),* ) => {
+        {
+            let mut streams_vec: Vec<BoxStream<'_,_>> = Vec::new();
+            $(
+                streams_vec.push(Box::pin($x));
+            )*
+            select_streams(streams_vec)
+        }
+    };
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,8 +89,9 @@ mod tests {
         let s2 = stream::iter(vec![5,6,7,8,9u8]);
         let s3 = stream::iter(vec![10,11,12,13u8]);
 
-        let streams: Vec<BoxStream<'static, u8>> = vec![Box::pin(s1), Box::pin(s2), Box::pin(s3)];
-        let selected = select_streams(streams);
+        // let streams: Vec<BoxStream<'static, u8>> = vec![Box::pin(s1), Box::pin(s2), Box::pin(s3)];
+        // let selected = select_streams(streams);
+        let selected = select_streams![s1, s2, s3];
 
         let result = block_on(selected.collect::<Vec<u8>>());
         assert_eq!(result.len(), 4 + 5 + 4);
