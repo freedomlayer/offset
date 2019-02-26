@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::Unpin;
 use std::collections::{HashMap, HashSet};
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
@@ -60,6 +61,21 @@ enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
     TimerTick,
     TimerClosed,
 }
+
+impl<ML,KL,MA,KA,MC,KC> fmt::Debug for RelayServerEvent<ML,KL,MA,KA,MC,KC> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayServerEvent::IncomingConn(_) => write!(f, "RelayServerEvent::IncomingConn"),
+            RelayServerEvent::IncomingConnsClosed => write!(f, "RelayServerEvent::IncomingConnsClosed"),
+            RelayServerEvent::TunnelClosed(_) => write!(f, "RelayServerEvent::TunnelClosed"),
+            RelayServerEvent::ListenerMessage(_) => write!(f, "RelayServerEvent::ListenerMessage"),
+            RelayServerEvent::ListenerClosed(_) => write!(f, "RelayServerEvent::ListenerClosed"),
+            RelayServerEvent::TimerTick => write!(f, "RelayServerEvent::TimerTick"),
+            RelayServerEvent::TimerClosed => write!(f, "RelayServerEvent::TimerClosed"),
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub enum RelayServerError {
