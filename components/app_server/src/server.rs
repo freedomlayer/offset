@@ -7,6 +7,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::ConnPair;
+use common::select_streams::{select_streams, BoxStream};
 // use common::mutable_state::MutableState;
 use crypto::uid::Uid;
 
@@ -34,6 +35,7 @@ pub enum AppServerError {
     AllAppsClosed,
 }
 
+#[derive(Debug)]
 pub enum AppServerEvent<B:Clone> {
     IncomingConnection(IncomingAppConnection<B>),
     IncomingConnectionsClosed,
@@ -444,11 +446,11 @@ pub async fn app_server_loop<B,FF,TF,FIC,TIC,IC,S>(from_funder: FF,
                                                        mut spawner: S) -> Result<(), AppServerError>
 where
     B: Clone + PartialEq + Eq + Debug + Send + Sync + 'static,
-    FF: Stream<Item=FunderOutgoingControl<B>> + Unpin,
+    FF: Stream<Item=FunderOutgoingControl<B>> + Unpin + Send,
     TF: Sink<SinkItem=FunderIncomingControl<B>> + Unpin + Sync + Send,
-    FIC: Stream<Item=IndexClientToAppServer<B>> + Unpin,
+    FIC: Stream<Item=IndexClientToAppServer<B>> + Unpin + Send,
     TIC: Sink<SinkItem=AppServerToIndexClient<B>> + Unpin,
-    IC: Stream<Item=IncomingAppConnection<B>> + Unpin,
+    IC: Stream<Item=IncomingAppConnection<B>> + Unpin + Send,
     S: Spawn,
 {
 
@@ -474,10 +476,10 @@ where
         .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection))
         .chain(stream::once(future::ready(AppServerEvent::IncomingConnectionsClosed)));
 
-    let mut events = from_funder
-                    .select(from_index_client)
-                    .select(from_app_receiver)
-                    .select(incoming_connections);
+    let mut events = select_streams![from_funder,
+                                     from_index_client,
+                                     from_app_receiver,
+                                     incoming_connections];
 
     while let Some(event) = await!(events.next()) {
         match event {
