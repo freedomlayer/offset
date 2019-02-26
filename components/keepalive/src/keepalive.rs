@@ -5,6 +5,7 @@ use futures::task::{Spawn, SpawnExt};
 use timer::{TimerTick, TimerClient};
 
 use common::conn::{FutTransform, ConnPair, BoxFuture};
+use common::select_streams::{BoxStream, select_streams};
 
 use proto::keepalive::messages::KaMessage;
 use proto::keepalive::serialize::{serialize_ka_message, 
@@ -62,10 +63,10 @@ async fn inner_keepalive_loop<TR,FR,TU,FU,TS>(mut to_remote: TR, from_remote: FR
                            mut opt_event_sender: Option<mpsc::Sender<KeepAliveEvent>>) -> Result<(), KeepAliveError> 
 where
     TR: Sink<SinkItem=Vec<u8>> + Unpin,
-    FR: Stream<Item=Vec<u8>> + Unpin,
+    FR: Stream<Item=Vec<u8>> + Unpin + Send,
     TU: Sink<SinkItem=Vec<u8>> + Unpin,
-    FU: Stream<Item=Vec<u8>> + Unpin,
-    TS: Stream<Item=TimerTick> + Unpin,
+    FU: Stream<Item=Vec<u8>> + Unpin + Send,
+    TS: Stream<Item=TimerTick> + Unpin + Send,
 {
     let timer_stream = timer_stream
         .map(|_| KeepAliveEvent::TimerTick)
@@ -79,9 +80,9 @@ where
         .map(|vec| KeepAliveEvent::MessageFromUser(vec))
         .chain(stream::once(future::ready(KeepAliveEvent::UserChannelClosed)));
 
-    let mut events = timer_stream
-        .select(from_remote)
-        .select(from_user);
+    let mut events = select_streams![timer_stream,
+                                     from_remote,
+                                     from_user];
 
     // Amount of ticks remaining until we decide to close this connection (Because remote is idle):
     let mut ticks_to_close = keepalive_ticks;
