@@ -36,6 +36,7 @@ impl<'a,T> Stream for SelectStreams<'a,T> {
 
             // Make sure we don't poll the same stream twice in one cycle:
             if stream_keeper.polled {
+                self.stream_keepers.push_front(stream_keeper);
                 return Poll::Pending;
             }
             stream_keeper.polled = true;
