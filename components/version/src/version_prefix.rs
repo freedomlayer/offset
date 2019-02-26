@@ -53,11 +53,13 @@ where
             };
 
             if version_data.len() != 4 {
+                error!("Invalid version_data length");
                 return;
             }
 
             let remote_version = BigEndian::read_u32(&version_data);
             if remote_version != local_version {
+                error!("Invalid remote version: {}", remote_version);
                 return;
             }
 
