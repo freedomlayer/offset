@@ -7,6 +7,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 
 use common::conn::{FutTransform, ConnPairVec, BoxFuture};
+use common::select_streams::{BoxStream, select_streams};
 
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
@@ -126,7 +127,7 @@ where
         .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
 
     let mut cur_ticks_to_rekey = ticks_to_rekey;
-    let mut events = reader.select(from_user).select(timer_stream);
+    let mut events = select_streams![from_user, timer_stream];
 
     while let Some(event) = await!(events.next()) {
         match event {
