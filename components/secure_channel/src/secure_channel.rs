@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::marker::Unpin;
 use futures::{future, stream, Stream, StreamExt, 
     Sink, SinkExt, Future, FutureExt};
 use futures::task::{Spawn, SpawnExt};
@@ -46,8 +47,8 @@ async fn initial_exchange<EK, M: 'static,K: 'static,R: CryptoRandom + 'static>(m
                             -> Result<(ScState, K, M), SecureChannelError>
 where
     R: CryptoRandom + Clone,
-    M: Stream<Item=Vec<u8>> + std::marker::Unpin,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + Unpin,
 {
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
@@ -110,8 +111,8 @@ async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'stati
     -> Result<!, SecureChannelError>
 where
     R: CryptoRandom,
-    M: Stream<Item=Vec<u8>> + std::marker::Unpin,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin,
+    M: Stream<Item=Vec<u8>> + Unpin + Send,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + Unpin,
 {
     // TODO: How to perform greceful shutdown of sinks?
     // Is there a way to do it?
@@ -127,7 +128,7 @@ where
         .chain(stream::once(future::ready(SecureChannelEvent::ReceiverClosed)));
 
     let mut cur_ticks_to_rekey = ticks_to_rekey;
-    let mut events = select_streams![from_user, timer_stream];
+    let mut events = select_streams![reader, from_user, timer_stream];
 
     while let Some(event) = await!(events.next()) {
         match event {
@@ -191,8 +192,8 @@ async fn create_secure_channel<EK,M,K,R,S>(writer: K, reader: M,
     -> Result<(PublicKey, ConnPairVec), SecureChannelError>
 where
     EK: 'static,
-    M: Stream<Item=Vec<u8>> + std::marker::Unpin + std::marker::Send + 'static,
-    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + std::marker::Unpin + std::marker::Send + 'static,
+    M: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
+    K: Sink<SinkItem=Vec<u8>, SinkError=EK> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn,
 {
