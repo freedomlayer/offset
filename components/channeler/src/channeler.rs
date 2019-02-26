@@ -447,7 +447,7 @@ where
 
     let mut events = select_streams![event_receiver, from_funder];
 
-    while let Some(event) = dbg!(await!(events.next())) {
+    while let Some(event) = await!(events.next()) {
         match event {
             ChannelerEvent::FromFunder(funder_to_channeler) => 
                 await!(channeler.handle_from_funder(funder_to_channeler))?,
