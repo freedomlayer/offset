@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::channel::mpsc;
-use futures::task::{Spawn, LocalWaker};
+use futures::task::{Spawn, SpawnExt, LocalWaker};
 use futures::executor::ThreadPool;
 use futures::{Future, future, StreamExt, SinkExt, Poll};
 use futures_test::future::FutureTestExt;
@@ -18,7 +18,7 @@ use crate::utils::{create_node, create_app, SimDb,
                     named_index_server_address, node_public_key};
 use crate::sim_network::create_sim_network;
 
-const TIMER_CHANNEL_LEN: usize = 128;
+const TIMER_CHANNEL_LEN: usize = 0;
 
 
 // Based on:
@@ -75,6 +75,7 @@ where
         send_funds: true,
         config: true,
     });
+
     await!(create_node(0, 
               sim_db.clone(),
               timer_client.clone(),
@@ -89,7 +90,6 @@ where
                     spawner.clone()));
 
 
-    /*
     // Create initial database for node 1:
     sim_db.init_db(1);
 
@@ -123,6 +123,7 @@ where
                  sim_net_client.clone(),
                  spawner.clone()));
     
+    /*
     // Create three index servers:
     // 0 -- 2 -- 1
     // The only way for information to flow between the two index servers
@@ -147,53 +148,56 @@ where
     */
 
     let mut config0 = app0.config().unwrap();
-    // let mut config1 = app1.config().unwrap();
+    let mut config1 = app1.config().unwrap();
     let mut report0 = app0.report();
     // let mut report1 = app1.report();
 
     // Configure relays:
-    // await!(config0.add_relay(named_relay_address(0))).unwrap();
-    // await!(config1.add_relay(named_relay_address(1))).unwrap();
+    await!(config0.add_relay(named_relay_address(0))).unwrap();
+    await!(config1.add_relay(named_relay_address(1))).unwrap();
 
     // Configure index servers:
     // await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
+    dbg!("First wait");
     // Wait some time:
     for i in 0 .. 0x100usize {
-        // await!(Yield::new(0x100));
-        for _ in 0 .. 0x100 {
-            await!(future::ready(()).pending_once());
-        }
         await!(tick_sender.send(())).unwrap();
+        await!(Yield::new(0x10));
     }
 
-    /*
-    dbg!("Add node1 as a friend");
+    dbg!("0: Add friend");
+
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
                               vec![relay_address(1)],
                               String::from("node1"),
-                              100));
+                              100)).unwrap();
 
-    dbg!("Add node0 as a friend");
+    dbg!("1: Add friend");
     // Node1: Add node0 as a friend:
     await!(config1.add_friend(node_public_key(0),
                               vec![relay_address(0)],
                               String::from("node0"),
-                              -100));
-    */
+                              -100)).unwrap();
+
+    await!(config0.enable_friend(node_public_key(1))).unwrap();
+    await!(config1.enable_friend(node_public_key(0))).unwrap();
+
+    dbg!("Second wait");
+    // Wait some time:
+    for i in 0 .. 0x100usize {
+        await!(tick_sender.send(())).unwrap();
+        await!(Yield::new(0x10));
+    }
 
     // Node0: Wait until node1 is online:
     await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
     loop {
         dbg!("Node0 iter");
-        // Apply mutations:
-        let mutations = await!(mutations_receiver.next()).unwrap();
-        for mutation in mutations {
-            node_report.mutate(&mutation);
-        }
+
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
@@ -201,6 +205,12 @@ where
         dbg!("Check friend online:");
         if friend_report.liveness.is_online() {
             break;
+        }
+
+        // Apply mutations:
+        let mutations = dbg!(await!(mutations_receiver.next()).unwrap());
+        for mutation in mutations {
+            node_report.mutate(&mutation);
         }
     }
 
