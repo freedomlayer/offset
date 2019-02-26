@@ -70,7 +70,7 @@ fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           local_public_key: PublicKey,
                           identity_client: IdentityClient,
                           timer_client: TimerClient,
-                          net_connector: C,
+                          version_connector: C,
                           rng: R,
                           from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
@@ -94,7 +94,7 @@ where
         node_config.keepalive_ticks,
         spawner.clone());
 
-    let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), net_connector);
+    let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), version_connector);
 
     spawn_channeler(local_public_key,
                           timer_client,
@@ -318,7 +318,7 @@ pub async fn node<C,IA,R,S>(
                 timer_client: TimerClient,
                 node_state: NodeState<NetAddress>,
                 database_client: DatabaseClient<NodeMutation<NetAddress>>,
-                net_connector: C,
+                version_connector: C,
                 incoming_apps: IA,
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
@@ -342,7 +342,7 @@ where
                     local_public_key.clone(),
                     identity_client.clone(),
                     timer_client.clone(),
-                    net_connector.clone(),
+                    version_connector.clone(),
                     rng.clone(),
                     funder_to_channeler_receiver,
                     channeler_to_funder_sender,
@@ -389,7 +389,7 @@ where
                 database_client,
                 app_server_to_index_client_receiver,
                 index_client_to_app_server_sender,
-                net_connector,
+                version_connector,
                 rng,
                 spawner))?;
 
