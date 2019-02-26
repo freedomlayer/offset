@@ -150,7 +150,7 @@ where
     let mut config0 = app0.config().unwrap();
     let mut config1 = app1.config().unwrap();
     let mut report0 = app0.report();
-    // let mut report1 = app1.report();
+    let mut report1 = app1.report();
 
     // Configure relays:
     await!(config0.add_relay(named_relay_address(0))).unwrap();
@@ -196,13 +196,30 @@ where
     await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
     loop {
-        dbg!("Node0 iter");
 
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
         };
-        dbg!("Check friend online:");
+        if friend_report.liveness.is_online() {
+            break;
+        }
+
+        // Apply mutations:
+        let mutations = dbg!(await!(mutations_receiver.next()).unwrap());
+        for mutation in mutations {
+            node_report.mutate(&mutation);
+        }
+    }
+
+    // Node1: Wait until node0 is online:
+    await!(tick_sender.send(())).unwrap();
+    let (mut node_report, mut mutations_receiver) = await!(report1.incoming_reports()).unwrap();
+    loop {
+        let friend_report = match node_report.funder_report.friends.get(&node_public_key(0)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
         if friend_report.liveness.is_online() {
             break;
         }
