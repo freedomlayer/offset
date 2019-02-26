@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::pin::Pin;
 
 use futures::channel::mpsc;
-use futures::task::Spawn;
+use futures::task::{Spawn, LocalWaker};
 use futures::executor::ThreadPool;
-use futures::{future, StreamExt, SinkExt};
+use futures::{Future, future, StreamExt, SinkExt, Poll};
+use futures_test::future::FutureTestExt;
 
 use tempfile::tempdir;
 
@@ -17,6 +19,32 @@ use crate::utils::{create_node, create_app, SimDb,
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 128;
+
+
+// Based on:
+// - https://rust-lang-nursery.github.io/futures-api-docs/0.3.0-alpha.13/src/futures_test/future/pending_once.rs.html#14-17
+// - https://github.com/rust-lang-nursery/futures-rs/issues/869
+struct Yield(usize);
+
+impl Yield {
+    fn new(num_yields: usize) -> Self {
+        Yield(num_yields)
+    }
+}
+
+impl Future for Yield {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Self::Output> {
+        let count = &mut self.as_mut().0;
+        *count = count.saturating_sub(1);
+        if *count == 0 {
+            Poll::Ready(())
+        } else {
+            waker.wake();
+            Poll::Pending
+        }
+    }
+}
 
 async fn task_basic<S>(mut spawner: S) 
 where
@@ -131,12 +159,11 @@ where
     // await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
-    let (mut sender, mut receiver) = mpsc::channel(0);
     // Wait some time:
     for i in 0 .. 0x100usize {
-        for _ in 0 .. 0x300 {
-            await!(sender.send(())).unwrap();
-            await!(receiver.next()).unwrap();
+        // await!(Yield::new(0x100));
+        for _ in 0 .. 0x100 {
+            await!(future::ready(()).pending_once());
         }
         await!(tick_sender.send(())).unwrap();
     }
