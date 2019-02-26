@@ -14,7 +14,7 @@ pub const TICK_MS: usize = 1000;
 pub const TICKS_TO_REKEY: usize = 60 * 60 * (1000 / TICK_MS); // 1 hour
 
 /// If no message was sent for this amount of ticks, the connection will be closed
-pub const KEEPALIVE_TICKS: usize = 8;
+pub const KEEPALIVE_TICKS: usize = 0x20;
 
 /// Relay server: The amount of ticks to wait before a relay connection from a client
 /// sends identification of which type of connection it is.
