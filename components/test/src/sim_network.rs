@@ -17,6 +17,7 @@ pub fn net_address(from: &str) -> NetAddress {
     NetAddress::try_from(from.to_string()).unwrap()
 }
 
+#[derive(Debug)]
 pub enum SimNetworkRequest {
     Listen((NetAddress, oneshot::Sender<mpsc::Receiver<ConnPairVec>>)),
     Connect((NetAddress, oneshot::Sender<ConnPairVec>)),
@@ -29,6 +30,7 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
     while let Some(request) = await!(incoming_requests.next()) {
         match request {
             SimNetworkRequest::Listen((listen_address, receiver_sender)) => {
+                info!("SimNetworkRequest::Listen({:?})", listen_address);
                 if listeners.contains_key(&listen_address) {
                     // Someone is already listening on this address
                     continue;
@@ -39,6 +41,7 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                 }
             },
             SimNetworkRequest::Connect((connect_address, oneshot_sender)) => {
+                info!("SimNetworkRequest::Connect({:?})", connect_address);
                 if let Some(mut conn_sender) = listeners.remove(&connect_address) {
                     let (connect_sender, listen_receiver) = mpsc::channel(CHANNEL_SIZE);
                     let (listen_sender, connect_receiver) = mpsc::channel(CHANNEL_SIZE);
