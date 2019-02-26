@@ -28,6 +28,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::stream;
 use common::futures_compat::create_interval;
+use common::select_streams::{BoxStream, select_streams};
 
 
 #[derive(Debug, Eq, PartialEq)]
@@ -92,7 +93,7 @@ enum TimerEvent {
 
 async fn timer_loop<M>(incoming: M, from_client: mpsc::Receiver<TimerRequest>) -> Result<(), TimerError> 
 where
-    M: Stream<Item=()> + std::marker::Unpin,
+    M: Stream<Item=()> + std::marker::Unpin + Send,
 {
     let incoming = incoming.map(|_| TimerEvent::Incoming)
         .chain(stream::once(future::ready(TimerEvent::IncomingDone)));
@@ -100,7 +101,7 @@ where
         .chain(stream::once(future::ready(TimerEvent::RequestsDone)));
 
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
-    let mut events = incoming.select(from_client);
+    let mut events = select_streams![incoming, from_client];
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
     let mut requests_done = false;
 

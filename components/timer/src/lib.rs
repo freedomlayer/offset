@@ -12,6 +12,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate common;
+
 mod timer;
 pub mod utils;
 
