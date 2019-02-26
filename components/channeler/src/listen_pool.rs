@@ -8,6 +8,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{Listener, FutTransform};
+use common::select_streams::{BoxStream, select_streams};
 use common::access_control::AccessControlOp;
 use common::transform_pool::transform_pool_loop;
 
@@ -244,7 +245,7 @@ where
     RA: Clone + Eq + Hash + Send + Debug + 'static,
     L: Listener<Connection=(PublicKey, RawConn), 
         Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + 'static,
-    TS: Stream + Unpin,
+    TS: Stream + Unpin + Send,
     S: Spawn + Clone + Send + 'static,
 {
     
@@ -267,9 +268,9 @@ where
         .map(|_| LpEvent::<RA>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
-    let mut incoming_events = incoming_relay_closed
-        .select(incoming_config)
-        .select(timer_stream);
+    let mut incoming_events = select_streams![incoming_relay_closed,
+                                              incoming_config,
+                                              timer_stream];
 
     while let Some(event) = await!(incoming_events.next()) {
         match event {
