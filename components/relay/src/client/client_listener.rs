@@ -161,7 +161,7 @@ async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
                                 access_control: &'a mut AccessControlPk,
                                 incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
-                                keepalive_transform: FT,
+                                mut keepalive_transform: FT,
                                 conn_timeout_ticks: usize,
                                 timer_client: TimerClient,
                                 mut spawner: impl Spawn + Clone + Send + 'static,
@@ -179,6 +179,8 @@ where
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
+
+    let conn_pair = await!(keepalive_transform.transform(conn_pair));
 
     // A channel used by the accept_connection.
     // In case of failure to accept a connection, the public key of the rejected remote host will
@@ -200,7 +202,13 @@ where
 
     // Add deserialization for receiver:
     let receiver = receiver.map(|ser_incoming_connection| {
-        deserialize_incoming_connection(&ser_incoming_connection).ok()
+        match deserialize_incoming_connection(&dbg!(ser_incoming_connection)) {
+            Ok(incoming_connection) => Some(incoming_connection),
+            Err(e) => {
+                error!("Error deserializing incoming connection {:?}", e);
+                None
+            }
+        }
     }).take_while(|opt_incoming_connection| {
         future::ready(opt_incoming_connection.is_some())
     }).map(|opt| opt.unwrap());
