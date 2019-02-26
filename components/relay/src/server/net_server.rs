@@ -37,7 +37,7 @@ async fn relay_server<IC,S>(incoming_conns: IC,
                                 spawner: S) -> Result<(), RelayServerError>
 where
     S: Spawn + Clone + Send + 'static,
-    IC: Stream<Item=(PublicKey, ConnPairVec)> + Unpin + 'static,
+    IC: Stream<Item=(PublicKey, ConnPairVec)> + Unpin + Send + 'static,
 {
 
     let keepalive_transform = KeepAliveChannel::new(

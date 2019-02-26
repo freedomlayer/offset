@@ -7,6 +7,7 @@ use futures::task::{Spawn, SpawnExt};
 use timer::TimerClient;
 use crypto::identity::PublicKey;
 use common::futures_compat::send_to_sink;
+use common::select_streams::{BoxStream, select_streams};
 
 use proto::relay::messages::{RejectConnection, IncomingConnection};
 
@@ -137,7 +138,7 @@ where
     KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static, 
     MC: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
     KC: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
-    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
+    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin + Send,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -152,9 +153,9 @@ where
 
     let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent<_,_,_,_,_,_>>(0);
 
-    let mut relay_server_events = timer_stream
-        .select(incoming_conns)
-        .select(event_receiver);
+    let mut relay_server_events = select_streams![timer_stream,
+                                                    incoming_conns,
+                                                    event_receiver];
 
     let mut incoming_conns_closed = false;
     let mut listeners: HashMap<PublicKey, Listener<_,_>> = HashMap::new();
