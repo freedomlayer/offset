@@ -11,10 +11,10 @@
 )]
 
 #[macro_use]
-extern crate common;
+extern crate log;
 
 #[macro_use]
-extern crate log;
+extern crate common;
 
 mod channeler;
 mod types;
