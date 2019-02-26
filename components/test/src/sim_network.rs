@@ -38,6 +38,8 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                 let (conn_sender, conn_receiver) = mpsc::channel(CHANNEL_SIZE);
                 if let Ok(_) = receiver_sender.send(conn_receiver) {
                     listeners.insert(listen_address, conn_sender);
+                } else {
+                    error!("SimNetworkRequest::Listen: Request failed");
                 }
             },
             SimNetworkRequest::Connect((connect_address, oneshot_sender)) => {
@@ -48,6 +50,7 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
 
                     if let Err(_) = await!(conn_sender.send((listen_sender, listen_receiver))) {
                         // Note that we dropped the listener's sender.
+                        error!("SimNetworkRequest::Connect: Connection request failed");
                         continue;
                     }
 
