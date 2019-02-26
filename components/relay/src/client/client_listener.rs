@@ -16,6 +16,8 @@ use common::conn::{Listener, ConnPair,
 
 use timer::{TimerClient, TimerTick};
 use common::access_control::{AccessControl, AccessControlOp};
+use common::select_streams::{BoxStream, select_streams};
+
 
 type AccessControlPk = AccessControl<PublicKey>;
 type AccessControlOpPk = AccessControlOp<PublicKey>;
@@ -118,9 +120,9 @@ where
 
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
-    let opt_conn_pair = await!(connect_with_timeout(connector,
+    let opt_conn_pair = dbg!(await!(connect_with_timeout(connector,
                   conn_timeout_ticks,
-                  timer_stream));
+                  timer_stream)));
     let conn_pair = match opt_conn_pair {
         Some(conn_pair) => Ok(conn_pair),
         None => {
@@ -167,7 +169,7 @@ async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
     -> Result<(), ClientListenerError>
 where
     C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync + Clone + 'static,
-    IAC: Stream<Item=AccessControlOp<PublicKey>> + Unpin + 'static,
+    IAC: Stream<Item=AccessControlOp<PublicKey>> + Unpin + Send + 'static,
     CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
     FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
@@ -215,9 +217,9 @@ where
     let pending_reject_receiver = pending_reject_receiver
         .map(ClientListenerEvent::PendingReject);
 
-    let mut events = incoming_access_control
-        .select(server_receiver)
-        .select(pending_reject_receiver);
+    let mut events = select_streams![incoming_access_control, 
+                                      server_receiver,
+                                      pending_reject_receiver];
 
     while let Some(event) = await!(events.next()) {
         if let Some(ref mut event_sender) = opt_event_sender {
