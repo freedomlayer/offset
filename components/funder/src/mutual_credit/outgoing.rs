@@ -1,6 +1,6 @@
 use crypto::identity::verify_signature;
 
-use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
+use common::safe_arithmetic::SafeSignedArithmetic;
 use common::int_convert::usize_to_u32;
 
 use proto::funder::messages::{FriendTcOp, RequestSendFunds, 
@@ -150,7 +150,8 @@ impl OutgoingMc {
         let sub = balance.balance.checked_sub_unsigned(new_local_pending_debt)
             .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        if balance.local_max_debt.checked_sub_signed(sub).is_none() {
+        if sub.checked_add_unsigned(balance.local_max_debt)
+            .ok_or(QueueOperationError::CreditsCalcOverflow)? < 0 {
             return Err(QueueOperationError::InsufficientTrust);
         }
 
