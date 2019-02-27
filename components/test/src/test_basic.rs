@@ -123,7 +123,6 @@ where
                  sim_net_client.clone(),
                  spawner.clone()));
     
-    /*
     // Create three index servers:
     // 0 -- 2 -- 1
     // The only way for information to flow between the two index servers
@@ -133,6 +132,7 @@ where
                              sim_net_client.clone(),
                              vec![0,1],
                              spawner.clone()));
+
 
     await!(create_index_server(0,
                              timer_client.clone(),
@@ -145,7 +145,7 @@ where
                              sim_net_client.clone(),
                              vec![2],
                              spawner.clone()));
-    */
+
 
     let mut config0 = app0.config().unwrap();
     let mut config1 = app1.config().unwrap();
@@ -157,7 +157,7 @@ where
     await!(config1.add_relay(named_relay_address(1))).unwrap();
 
     // Configure index servers:
-    // await!(config0.add_index_server(named_index_server_address(0))).unwrap();
+    await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
     dbg!("First wait");
@@ -166,6 +166,7 @@ where
         await!(tick_sender.send(())).unwrap();
         await!(Yield::new(0x10));
     }
+    dbg!("Done first wait");
 
     dbg!("0: Add friend");
 
@@ -196,7 +197,7 @@ where
     await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
     loop {
-
+        dbg!("Node0 iter");
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
@@ -216,6 +217,7 @@ where
     await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report1.incoming_reports()).unwrap();
     loop {
+        dbg!("Node1 iter");
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(0)) {
             None => continue,
             Some(friend_report) => friend_report,
