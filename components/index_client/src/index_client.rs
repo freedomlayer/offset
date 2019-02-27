@@ -589,6 +589,7 @@ where
             server_connected.ticks_to_send_keepalive.saturating_sub(1);
 
         if server_connected.ticks_to_send_keepalive != 0 {
+            server_connected.opt_control_sender = Some(control_sender);
             return Ok(());
         }
 
