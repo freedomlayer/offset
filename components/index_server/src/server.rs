@@ -285,6 +285,10 @@ where
         for index_mutation in &mutations_update.index_mutations {
             match index_mutation {
                 IndexMutation::UpdateFriend(update_friend) => {
+                    info!("pk: {}, send: {}, recv: {}", update_friend.public_key[0],
+                                                        update_friend.send_capacity,
+                                                        update_friend.recv_capacity);
+
                     await!(self.graph_client.update_edge(mutations_update.node_public_key.clone(), 
                                                   update_friend.public_key.clone(),
                                                   (update_friend.send_capacity,
