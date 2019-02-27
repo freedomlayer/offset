@@ -33,7 +33,6 @@ enum SecureChannelError {
     HandleExchangeScStateError(ScStateError),
     UnexpectedRemotePublicKey,
     RequestTimerStreamError,
-    SomeReceiverClosed,
     FromUserError,
     TimerStreamError,
     HandleIncomingError,
@@ -108,7 +107,7 @@ async fn secure_channel_loop<EK, M: 'static,K: 'static, R: CryptoRandom + 'stati
                               rng: R,
                               ticks_to_rekey: usize,
                               mut timer_client: TimerClient)
-    -> Result<!, SecureChannelError>
+    -> Result<(), SecureChannelError>
 where
     R: CryptoRandom,
     M: Stream<Item=Vec<u8>> + Unpin + Send,
@@ -169,7 +168,7 @@ where
             SecureChannelEvent::ReceiverClosed => break,
         }
     }
-    Err(SecureChannelError::SomeReceiverClosed)
+    Ok(())
 }
 
 
