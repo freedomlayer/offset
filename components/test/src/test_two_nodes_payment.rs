@@ -50,7 +50,7 @@ impl Future for Yield {
     }
 }
 
-async fn task_basic<S>(mut spawner: S) 
+async fn task_two_nodes_payment<S>(mut spawner: S) 
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
@@ -308,7 +308,7 @@ where
 }
 
 #[test]
-fn test_basic() {
+fn test_two_nodes_payment() {
     let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_basic(thread_pool.clone()));
+    thread_pool.run(task_two_nodes_payment(thread_pool.clone()));
 }

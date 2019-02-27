@@ -21,7 +21,7 @@ mod sim_network;
 
 #[cfg(test)]
 #[allow(unused)]
-mod test_basic;
+mod test_two_nodes_payment;
 
 #[cfg(test)]
 #[allow(unused)]
