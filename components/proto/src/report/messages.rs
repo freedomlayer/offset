@@ -1,8 +1,10 @@
+use std::fmt::Debug;
 use std::collections::HashMap;
+
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
-use common::safe_arithmetic::SafeUnsignedArithmetic;
+use common::safe_arithmetic::{SafeUnsignedArithmetic, SafeSignedArithmetic};
 use common::mutable_state::MutableState;
 
 use crypto::identity::{PublicKey, Signature};
@@ -388,6 +390,7 @@ where
 // crate.
 
 // TODO: Maybe this logic shouldn't be here? Where should we move it to?
+// TODO: Add tests (Mostly for arithmetic stuff here)
 
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> (u128, u128) 
@@ -409,15 +412,15 @@ where
     let send_capacity = if tc_report.requests_status.remote == RequestsStatusReport::Closed {
         0
     } else {
-        balance.local_max_debt.saturating_sub(
-            balance.local_pending_debt.checked_sub_signed(balance.balance).unwrap())
+        balance.local_max_debt.saturating_add_signed(
+            balance.balance.checked_sub_unsigned(balance.local_pending_debt).unwrap())
     };
 
     let recv_capacity = if tc_report.requests_status.local == RequestsStatusReport::Closed {
         0
     } else {
-        balance.remote_max_debt.saturating_sub(
-            balance.remote_pending_debt.checked_add_signed(balance.balance).unwrap())
+        balance.remote_max_debt.saturating_sub_signed(
+            balance.balance.checked_add_unsigned(balance.remote_pending_debt).unwrap())
     };
 
     (send_capacity, recv_capacity)
@@ -442,10 +445,14 @@ where
 pub fn funder_report_mutation_to_index_mutation<B>(funder_report: &FunderReport<B>, 
                                                       funder_report_mutation: &FunderReportMutation<B>) -> Option<IndexMutation> 
 where
-    B: Clone,
+    B: Clone + Debug,
 {
 
     let create_update_friend = |public_key: &PublicKey| {
+        let opt_old_capacities = funder_report.friends
+            .get(public_key)
+            .map(|old_friend_report| calc_friend_capacities(&old_friend_report));
+
         let mut new_funder_report = funder_report.clone();
         new_funder_report.mutate(funder_report_mutation).unwrap();
         
@@ -453,13 +460,20 @@ where
             .get(public_key)
             .unwrap(); // We assert that a new friend was added
 
-        let (send_capacity, recv_capacity) = calc_friend_capacities(new_friend_report);
-        let update_friend = UpdateFriend {
-            public_key: public_key.clone(),
-            send_capacity,
-            recv_capacity,
-        };
-        IndexMutation::UpdateFriend(update_friend)
+        let new_capacities = calc_friend_capacities(new_friend_report);
+
+        // Return UpdateFriend if the new capacities are different than the old ones:
+        if opt_old_capacities != Some(new_capacities) {
+            let (send_capacity, recv_capacity) = new_capacities;
+            let update_friend = UpdateFriend {
+                public_key: public_key.clone(),
+                send_capacity,
+                recv_capacity,
+            };
+            Some(IndexMutation::UpdateFriend(update_friend))
+        } else {
+            None
+        }
     };
 
     match funder_report_mutation {
@@ -467,9 +481,9 @@ where
         FunderReportMutation::RemoveRelay(_) | 
         FunderReportMutation::SetNumReadyReceipts(_) => None,
         FunderReportMutation::AddFriend(add_friend_report) => 
-            Some(create_update_friend(&add_friend_report.friend_public_key)),
+            create_update_friend(&add_friend_report.friend_public_key),
         FunderReportMutation::RemoveFriend(public_key) => Some(IndexMutation::RemoveFriend(public_key.clone())),
         FunderReportMutation::FriendReportMutation((public_key, _friend_report_mutation)) =>
-            Some(create_update_friend(&public_key)),
+            create_update_friend(&public_key),
     }
 }
