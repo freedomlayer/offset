@@ -412,6 +412,7 @@ where
     let send_capacity = if tc_report.requests_status.remote == RequestsStatusReport::Closed {
         0
     } else {
+        // local_max_debt + balance - local_pending_debt
         balance.local_max_debt.saturating_add_signed(
             balance.balance.checked_sub_unsigned(balance.local_pending_debt).unwrap())
     };
