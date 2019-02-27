@@ -162,7 +162,10 @@ where
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_client_to_server(&data) {
                         Ok(message) => message,
-                        Err(_) => return,
+                        Err(_) => {
+                            error!("Error deserializing index_client_to_server");
+                            return
+                        },
                     };
                     if let Err(_) = await!(to_user_receiver.send(message)) {
                         return;
@@ -199,7 +202,10 @@ where
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_server_to_server(&data) {
                         Ok(message) => message,
-                        Err(_) => return,
+                        Err(_) => {
+                            error!("Error deserializing index_server_to_server");
+                            return
+                        },
                     };
                     if let Err(_) = await!(to_user_receiver.send(message)) {
                         return;
@@ -236,7 +242,10 @@ where
                 while let Some(data) = await!(receiver.next()) {
                     let message = match deserialize_index_server_to_server(&data) {
                         Ok(message) => message,
-                        Err(_) => return,
+                        Err(_) => {
+                            error!("Error deserializing index_server_to_server");
+                            return;
+                        },
                     };
                     if let Err(_) = await!(to_user_receiver.send(message)) {
                         return;
