@@ -9,6 +9,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use common::conn::FutTransform;
 use common::mutable_state::MutableState;
+use common::select_streams::{BoxStream, select_streams};
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
@@ -633,10 +634,10 @@ pub async fn index_client_loop<ISA,FAS,TAS,ICS,TS,S>(from_app_server: FAS,
                                spawner: S) -> Result<(), IndexClientError>
 where
     ISA: Debug + Eq + Clone + Send + 'static,
-    FAS: Stream<Item=AppServerToIndexClient<ISA>> + Unpin,
+    FAS: Stream<Item=AppServerToIndexClient<ISA>> + Send + Unpin,
     TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
-    TS: Stream + Unpin,
+    TS: Stream + Send + Unpin,
     S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
@@ -660,9 +661,7 @@ where
         .map(|app_server_to_index_client| IndexClientEvent::FromAppServer(app_server_to_index_client))
         .chain(stream::once(future::ready(IndexClientEvent::AppServerClosed)));
 
-    let mut events = event_receiver
-        .select(from_app_server)
-        .select(timer_stream);
+    let mut events = select_streams![event_receiver, from_app_server, timer_stream];
 
     while let Some(event) = await!(events.next()) {
         match event {
