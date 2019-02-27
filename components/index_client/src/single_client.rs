@@ -6,6 +6,7 @@ use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{oneshot, mpsc};
 
 use common::conn::ConnPair;
+use common::select_streams::{BoxStream, select_streams};
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 use crypto::uid::Uid;
 use crypto::hash::HashResult;
@@ -175,7 +176,7 @@ pub async fn single_client_loop<IC,R>(server_conn: ServerConn,
                      rng: R,
                      first_server_time_hash: HashResult) -> Result<(), SingleClientError>
 where
-    IC: Stream<Item=SingleClientControl> + Unpin,
+    IC: Stream<Item=SingleClientControl> + Send + Unpin,
     R: CryptoRandom,
 {
     let (to_server, from_server) = server_conn;
@@ -196,7 +197,7 @@ where
         .map(|single_client_control| SingleClientEvent::Control(single_client_control))
         .chain(stream::once(future::ready(SingleClientEvent::ControlClosed)));
 
-    let mut events = from_server.select(incoming_control);
+    let mut events = select_streams![from_server, incoming_control];
 
     while let Some(event) = await!(events.next()) {
         match event {
