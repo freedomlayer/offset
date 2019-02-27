@@ -11,6 +11,9 @@ use tempfile::tempdir;
 
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
+use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
+
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::utils::{create_node, create_app, SimDb,
                     create_relay, create_index_server,
@@ -19,6 +22,7 @@ use crate::utils::{create_node, create_app, SimDb,
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
+const YIELD_ITERS: usize = 0x1000;
 
 
 // Based on:
@@ -149,6 +153,13 @@ where
 
     let mut config0 = app0.config().unwrap();
     let mut config1 = app1.config().unwrap();
+
+    let mut routes0 = app0.routes().unwrap();
+    let mut routes1 = app1.routes().unwrap();
+
+    let mut send_funds0 = app0.send_funds().unwrap();
+    let mut send_funds1 = app1.send_funds().unwrap();
+
     let mut report0 = app0.report();
     let mut report1 = app1.report();
 
@@ -158,17 +169,13 @@ where
 
     // Configure index servers:
     await!(config0.add_index_server(named_index_server_address(0))).unwrap();
-    // await!(config1.add_index_server(named_index_server_address(1))).unwrap();
+    await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
-    dbg!("First wait");
     // Wait some time:
     for i in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(0x10));
+        await!(Yield::new(YIELD_ITERS));
     }
-    dbg!("Done first wait");
-
-    dbg!("0: Add friend");
 
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
@@ -176,7 +183,6 @@ where
                               String::from("node1"),
                               100)).unwrap();
 
-    dbg!("1: Add friend");
     // Node1: Add node0 as a friend:
     await!(config1.add_friend(node_public_key(0),
                               vec![relay_address(0)],
@@ -186,18 +192,15 @@ where
     await!(config0.enable_friend(node_public_key(1))).unwrap();
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
-    dbg!("Second wait");
     // Wait some time:
     for i in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(0x10));
+        await!(Yield::new(YIELD_ITERS));
     }
 
     // Node0: Wait until node1 is online:
-    await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
     loop {
-        dbg!("Node0 iter");
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
@@ -207,17 +210,16 @@ where
         }
 
         // Apply mutations:
-        let mutations = dbg!(await!(mutations_receiver.next()).unwrap());
+        let mutations = await!(mutations_receiver.next()).unwrap();
         for mutation in mutations {
             node_report.mutate(&mutation);
         }
     }
+    drop(mutations_receiver);
 
     // Node1: Wait until node0 is online:
-    await!(tick_sender.send(())).unwrap();
     let (mut node_report, mut mutations_receiver) = await!(report1.incoming_reports()).unwrap();
     loop {
-        dbg!("Node1 iter");
         let friend_report = match node_report.funder_report.friends.get(&node_public_key(0)) {
             None => continue,
             Some(friend_report) => friend_report,
@@ -227,13 +229,81 @@ where
         }
 
         // Apply mutations:
-        let mutations = dbg!(await!(mutations_receiver.next()).unwrap());
+        let mutations = await!(mutations_receiver.next()).unwrap();
         for mutation in mutations {
             node_report.mutate(&mutation);
         }
     }
+    drop(mutations_receiver);
 
-    unimplemented!();
+    await!(config0.open_friend(node_public_key(1))).unwrap();
+    await!(config1.open_friend(node_public_key(0))).unwrap();
+
+    // Wait some time, to let the index servers exchange information:
+    for i in 0 .. 0x100usize {
+        await!(tick_sender.send(())).unwrap();
+        await!(Yield::new(YIELD_ITERS));
+    }
+
+    // Node0: Send 10 credits to Node1:
+    // Node0: Request routes:
+    let mut routes_0_1 = await!(routes0.request_routes(20,
+                           node_public_key(0),
+                           node_public_key(1),
+                           None)).unwrap();
+
+    assert_eq!(routes_0_1.len(), 1);
+    let chosen_route_with_capacity = routes_0_1.pop().unwrap();
+    assert_eq!(chosen_route_with_capacity.capacity, 100);
+    let chosen_route = chosen_route_with_capacity.route;
+
+    let request_id = Uid::from(&[0x0; UID_LEN]);
+    let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
+    let dest_payment = 10;
+    let receipt = await!(send_funds0.request_send_funds(request_id,
+                                            chosen_route,
+                                            invoice_id,
+                                            dest_payment)).unwrap();
+
+    // Node0 allows node1 to have maximum debt of 100 
+    // (This should allow to node1 to pay back).
+    await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
+
+    // Allow some time for the index servers to be updated about the new state:
+    for i in 0 .. 0x100usize {
+        await!(tick_sender.send(())).unwrap();
+        await!(Yield::new(YIELD_ITERS));
+    }
+
+    // Node1: Send 5 credits to Node0:
+    let mut routes_1_0 = await!(routes0.request_routes(10,
+                           node_public_key(1),
+                           node_public_key(0),
+                           None)).unwrap();
+
+    assert_eq!(routes_1_0.len(), 1);
+    let chosen_route_with_capacity = routes_1_0.pop().unwrap();
+    assert_eq!(chosen_route_with_capacity.capacity, 10);
+    let chosen_route = chosen_route_with_capacity.route;
+
+    let request_id = Uid::from(&[0x1; UID_LEN]);
+    let invoice_id = InvoiceId::from(&[1; INVOICE_ID_LEN]);
+    let dest_payment = 5;
+    let receipt = await!(send_funds1.request_send_funds(request_id,
+                                            chosen_route.clone(),
+                                            invoice_id,
+                                            dest_payment)).unwrap();
+
+    // Node1 tries to send credits again: (6 credits):
+    // This payment should not work, because we do not have enough trust:
+    let request_id = Uid::from(&[0x2; UID_LEN]);
+    let invoice_id = InvoiceId::from(&[2; INVOICE_ID_LEN]);
+    let dest_payment = 6;
+    let res = await!(send_funds1.request_send_funds(request_id,
+                                            chosen_route.clone(),
+                                            invoice_id,
+                                            dest_payment));
+    assert!(res.is_err());
 
 }
 
