@@ -292,7 +292,7 @@ where
     // Send all possible messages according to SendCommands
     // TODO: Maybe we should output outgoing_comms instead of friend_messages and
     // outgoing_channeler_config. When we merge the two, we might be out of order!
-    let (friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
+    let (sender_outgoing_control, friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
                                       &mut m_state,
                                       &send_commands,
                                       max_operations_in_batch,
@@ -329,6 +329,7 @@ where
 
     // We always send the report mutations first through the outgoing control:
     outgoing_control.extend(handle_outgoing_control);
+    outgoing_control.extend(sender_outgoing_control);
 
     Ok(FunderHandlerOutput {
         funder_mutations,
