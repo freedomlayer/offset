@@ -163,7 +163,7 @@ pub async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServer
             None => return Err(SingleClientError::ServerClosed),
             Some(IndexServerToClient::TimeHash(time_hash)) => return Ok(time_hash),
             Some(index_server_to_client) => 
-                warn!("single_client_loop(): Received message {:?} before first time has", 
+                warn!("first_server_time_hash(): Received message {:?} before first time has", 
                       index_server_to_client),
         }
     }
