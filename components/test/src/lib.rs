@@ -12,6 +12,7 @@
     warnings
 )]
 
+
 #[cfg(test)]
 #[macro_use]
 extern crate log;
@@ -21,8 +22,8 @@ mod sim_network;
 
 #[cfg(test)]
 #[allow(unused)]
-mod test_two_nodes_payment;
-
-#[cfg(test)]
-#[allow(unused)]
 mod utils;
+
+// #[cfg(all(test, feature = "integration_tests"))]
+#[cfg(test)]
+mod tests;

@@ -5,6 +5,9 @@ authors = ["real <real@freedomlayer.org>"]
 
 edition = "2018"
 
+[features]
+integration_tests = []
+
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
