@@ -147,8 +147,7 @@ where
             return Err(PendingQueueError::MaxOperationsReached);
         }
 
-        let operation = dbg!(operation);
-        let mc_mutations = match dbg!(self.outgoing_mc.queue_operation(operation)) {
+        let mc_mutations = match self.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
             Err(QueueOperationError::RequestAlreadyExists) => {
                 warn!("Request already exists: {:?}", operation);
