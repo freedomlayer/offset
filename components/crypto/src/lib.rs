@@ -1,5 +1,3 @@
-#![feature(try_from)]
-
 #![deny(
     trivial_numeric_casts,
     warnings
