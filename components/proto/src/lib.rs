@@ -1,4 +1,3 @@
-#![feature(try_from)]
 #![feature(nll)]
 #![feature(never_type)]
 

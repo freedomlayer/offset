@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::collections::HashMap;
 
-use futures::task::{Spawn, SpawnExt, LocalWaker};
+use futures::task::{Spawn, SpawnExt, Waker};
 use futures::{future, Future, FutureExt, TryFutureExt, Poll};
 
 use crypto::identity::{PublicKey, Identity, 
@@ -62,7 +62,7 @@ impl Yield {
 
 impl Future for Yield {
     type Output = ();
-    fn poll(mut self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
         let count = &mut self.as_mut().0;
         *count = count.saturating_sub(1);
         if *count == 0 {

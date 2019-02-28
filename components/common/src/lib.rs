@@ -1,7 +1,6 @@
 #![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
 #![feature(generators)]
 #![feature(nll)]
-#![feature(try_from)]
 #![crate_type = "lib"] 
 
 #![deny(

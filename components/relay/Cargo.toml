@@ -17,5 +17,5 @@ version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 secure-channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 
 log = "0.4"
-futures-preview = "0.3.0-alpha.11"
+futures-preview = "0.3.0-alpha.13"
 

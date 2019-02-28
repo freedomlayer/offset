@@ -22,7 +22,7 @@ pub fn credits_on_success(node_index: u32,
         None
     } else {
         let dist = route_len.checked_sub(node_index)?.checked_sub(1)?;
-        u128::try_from(dist)?.checked_add(dest_payment)
+        u128::try_from(dist).ok()?.checked_add(dest_payment)
     }
 }
 
