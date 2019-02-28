@@ -52,8 +52,8 @@ impl<RA> LpConfigClient<RA> {
 
 #[derive(Debug)]
 enum ListenPoolError {
-    ConfigClosed,
-    TimerClosed,
+    // ConfigClosed,
+    // TimerClosed,
     SpawnError,
 }
 
@@ -276,12 +276,12 @@ where
         match event {
             LpEvent::Config(config) => 
                 await!(listen_pool.handle_config(config))?,
-            LpEvent::ConfigClosed => return Err(ListenPoolError::ConfigClosed),
+            LpEvent::ConfigClosed => break,
             LpEvent::RelayClosed(address) => 
                 listen_pool.handle_relay_closed(address)?,
             LpEvent::TimerTick => 
                 listen_pool.handle_timer_tick()?,
-            LpEvent::TimerClosed => return Err(ListenPoolError::TimerClosed),
+            LpEvent::TimerClosed => break,
         };
 
         // Used for debugging:
