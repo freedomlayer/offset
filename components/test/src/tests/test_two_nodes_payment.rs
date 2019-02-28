@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::pin::Pin;
 
 use futures::channel::mpsc;
-use futures::task::{Spawn, LocalWaker};
+use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{Future, StreamExt, SinkExt, Poll};
+use futures::{StreamExt, SinkExt};
 
 use tempfile::tempdir;
 
@@ -17,37 +16,11 @@ use crypto::uid::{Uid, UID_LEN};
 use crate::utils::{create_node, create_app, SimDb,
                     create_relay, create_index_server,
                     relay_address, named_relay_address, 
-                    named_index_server_address, node_public_key};
+                    named_index_server_address, node_public_key, Yield};
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 const YIELD_ITERS: usize = 0x1000;
-
-
-// Based on:
-// - https://rust-lang-nursery.github.io/futures-api-docs/0.3.0-alpha.13/src/futures_test/future/pending_once.rs.html#14-17
-// - https://github.com/rust-lang-nursery/futures-rs/issues/869
-struct Yield(usize);
-
-impl Yield {
-    fn new(num_yields: usize) -> Self {
-        Yield(num_yields)
-    }
-}
-
-impl Future for Yield {
-    type Output = ();
-    fn poll(mut self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Self::Output> {
-        let count = &mut self.as_mut().0;
-        *count = count.saturating_sub(1);
-        if *count == 0 {
-            Poll::Ready(())
-        } else {
-            waker.wake();
-            Poll::Pending
-        }
-    }
-}
 
 async fn task_two_nodes_payment<S>(mut spawner: S) 
 where
