@@ -1,1 +1,1 @@
-mod test_two_nodes_payment;
+mod two_nodes_payment;
