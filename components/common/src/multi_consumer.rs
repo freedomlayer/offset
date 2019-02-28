@@ -4,7 +4,6 @@ use futures::channel::{mpsc, oneshot};
 
 #[derive(Debug)]
 pub enum MultiConsumerError {
-    IncomingItemsClosed,
 }
 
 #[derive(Debug)]
@@ -104,7 +103,7 @@ where
                     return Ok(())
                 }
             },
-            Event::IncomingItemsClosed => return Err(MultiConsumerError::IncomingItemsClosed),
+            Event::IncomingItemsClosed => break,
             Event::IncomingRequest(request) => {
                 let (sender, receiver) = mpsc::channel(0);
                 if let Ok(_) = request.response_sender.send(receiver) {
