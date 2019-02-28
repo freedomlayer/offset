@@ -1,6 +1,6 @@
 use std::marker::Unpin;
 use core::pin::Pin;
-use futures::task::{Poll, LocalWaker};
+use futures::task::{Poll, Waker};
 use futures::{Future, Stream, StreamExt, Sink};
 
 struct OverwriteChannel<T,M,K> {
@@ -30,7 +30,7 @@ where
 {
     type Output = Result<(), K::SinkError>;
 
-    fn poll(mut self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, lw: &Waker) -> Poll<Self::Output> {
         let mut fself = Pin::new(&mut self);
         loop {
             let recv_progress = if let Some(mut receiver) = fself.opt_receiver.take() {
