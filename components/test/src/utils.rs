@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::collections::HashMap;
 
-use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, TryFutureExt};
 
@@ -29,8 +28,7 @@ use index_server::net_index_server;
 
 use timer::TimerClient;
 
-use crate::sim_network::{SimNetworkClient, create_sim_network, 
-    net_address};
+use crate::sim_network::{SimNetworkClient, net_address};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;

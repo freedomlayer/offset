@@ -21,7 +21,6 @@ extern crate log;
 mod sim_network;
 
 #[cfg(test)]
-#[allow(unused)]
 mod utils;
 
 // #[cfg(feature = "integration_tests")]
