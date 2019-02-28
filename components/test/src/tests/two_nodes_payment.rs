@@ -26,7 +26,6 @@ async fn task_two_nodes_payment<S>(mut spawner: S)
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let _ = env_logger::init();
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
     let temp_dir = tempdir().unwrap();
@@ -59,7 +58,7 @@ where
               trusted_apps,
               spawner.clone()));
 
-    let app0 = await!(create_app(0,
+    let mut app0 = await!(create_app(0,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     0,
@@ -82,7 +81,7 @@ where
               trusted_apps,
               spawner.clone()));
 
-    let app1 = await!(create_app(1,
+    let mut app1 = await!(create_app(1,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     1,
@@ -123,17 +122,17 @@ where
                              spawner.clone()));
 
 
-    let mut config0 = app0.config().unwrap();
-    let mut config1 = app1.config().unwrap();
+    let mut config0 = app0.config().unwrap().clone();
+    let mut config1 = app1.config().unwrap().clone();
 
-    let mut routes0 = app0.routes().unwrap();
-    let mut routes1 = app1.routes().unwrap();
+    let mut routes0 = app0.routes().unwrap().clone();
+    let mut routes1 = app1.routes().unwrap().clone();
 
-    let mut send_funds0 = app0.send_funds().unwrap();
-    let mut send_funds1 = app1.send_funds().unwrap();
+    let mut send_funds0 = app0.send_funds().unwrap().clone();
+    let mut send_funds1 = app1.send_funds().unwrap().clone();
 
-    let mut report0 = app0.report();
-    let mut report1 = app1.report();
+    let mut report0 = app0.report().clone();
+    let mut report1 = app1.report().clone();
 
     // Configure relays:
     await!(config0.add_relay(named_relay_address(0))).unwrap();
