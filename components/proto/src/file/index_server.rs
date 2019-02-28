@@ -8,8 +8,8 @@ use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
-use proto::net::messages::{NetAddressError, NetAddress};
-use proto::index_server::messages::IndexServerAddress;
+use crate::net::messages::{NetAddressError, NetAddress};
+use crate::index_server::messages::IndexServerAddress;
 
 #[derive(Debug)]
 pub enum IndexServerFileError {

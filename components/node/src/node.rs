@@ -1,5 +1,5 @@
 use futures::task::{Spawn, SpawnExt};
-use futures::{Future, FutureExt, Stream, StreamExt, SinkExt};
+use futures::{select, Future, FutureExt, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 
 use common::conn::{ConnPairVec, FutTransform};
@@ -10,7 +10,7 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use app_server::{IncomingAppConnection, app_server_loop};
+use app_server::{IncomingAppConnection, app_server_loop, AppServerError};
 use channeler::{spawn_channeler, ChannelerError};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
@@ -26,7 +26,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::net::messages::NetAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
-use proto::report::messages::funder_report_to_index_client_state;
+use proto::report::convert::funder_report_to_index_client_state;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
@@ -36,14 +36,41 @@ use crate::adapters::{EncRelayConnector, EncKeepaliveConnector};
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
+    ChannelerError(ChannelerError),
+    FunderError(FunderError),
+    IndexClientError(IndexClientError),
+    AppServerError(AppServerError),
 }
 
+impl From<ChannelerError> for NodeError {
+    fn from(e: ChannelerError) -> Self {
+        NodeError::ChannelerError(e)
+    }
+}
+
+impl From<FunderError> for NodeError {
+    fn from(e: FunderError) -> Self {
+        NodeError::FunderError(e)
+    }
+}
+
+impl From<IndexClientError> for NodeError {
+    fn from(e: IndexClientError) -> Self {
+        NodeError::IndexClientError(e)
+    }
+}
+
+impl From<AppServerError> for NodeError {
+    fn from(e: AppServerError) -> Self {
+        NodeError::AppServerError(e)
+    }
+}
 
 fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           local_public_key: PublicKey,
                           identity_client: IdentityClient,
                           timer_client: TimerClient,
-                          net_connector: C,
+                          version_connector: C,
                           rng: R,
                           from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
@@ -67,7 +94,7 @@ where
         node_config.keepalive_ticks,
         spawner.clone());
 
-    let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), net_connector);
+    let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), version_connector);
 
     spawn_channeler(local_public_key,
                           timer_client,
@@ -111,7 +138,12 @@ where
                      NodeMutation::Funder(funder_mutation))
                 .collect::<Vec<_>>();
 
-            if let Err(_) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = await!(database_client.mutate(mutations)) {
+                error!("error in funder database adapter: {:?}", e);
+                return;
+            }
+            if let Err(e) = request.response_sender.send(()) {
+                error!("error in funder database adapter: {:?}", e);
                 return;
             }
         }
@@ -228,7 +260,12 @@ where
                      NodeMutation::IndexClient(index_client_mutation))
                 .collect::<Vec<_>>();
 
-            if let Err(_) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = await!(database_client.mutate(mutations)) {
+                error!("error in index_client database adapter: {:?}", e);
+                return;
+            }
+            if let Err(e) = request.response_sender.send(()) {
+                error!("error in index_client database adapter: {:?}", e);
                 return;
             }
         }
@@ -281,7 +318,7 @@ pub async fn node<C,IA,R,S>(
                 timer_client: TimerClient,
                 node_state: NodeState<NetAddress>,
                 database_client: DatabaseClient<NodeMutation<NetAddress>>,
-                net_connector: C,
+                version_connector: C,
                 incoming_apps: IA,
                 rng: R,
                 mut spawner: S) -> Result<(), NodeError> 
@@ -305,7 +342,7 @@ where
                     local_public_key.clone(),
                     identity_client.clone(),
                     timer_client.clone(),
-                    net_connector.clone(),
+                    version_connector.clone(),
                     rng.clone(),
                     funder_to_channeler_receiver,
                     channeler_to_funder_sender,
@@ -352,16 +389,15 @@ where
                 database_client,
                 app_server_to_index_client_receiver,
                 index_client_to_app_server_sender,
-                net_connector,
+                version_connector,
                 rng,
                 spawner))?;
 
-    // Returns a future that resolves after all components were closed:
-    let fut = channeler_handle
-        .join(funder_handle)
-        .join(app_server_handle)
-        .join(index_client_handle)
-        .map(|_| ());
-
-    Ok(await!(fut))
+    // Returns a future that resolves when the first component dies
+    Ok(select! {
+        res = channeler_handle.fuse() => res?,
+        res = funder_handle.fuse() => res?,
+        res = app_server_handle.fuse() => res?,
+        res = index_client_handle.fuse() => res?,
+    })
 }

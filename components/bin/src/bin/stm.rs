@@ -27,9 +27,9 @@ use proto::app_server::messages::{RelayAddress, AppPermissions};
 use database::file_db::FileDb;
 use node::NodeState;
 
-use bin::{load_identity_from_file, store_identity_to_file, 
-    store_trusted_app_to_file, TrustedApp,
-    store_relay_to_file};
+use proto::file::identity::{load_identity_from_file, store_identity_to_file};
+use proto::file::app::{store_trusted_app_to_file, TrustedApp};
+use proto::file::relay::store_relay_to_file;
 
 #[derive(Debug)]
 enum InitNodeDbError {

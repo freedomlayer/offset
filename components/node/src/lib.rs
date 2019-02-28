@@ -10,7 +10,7 @@
     warnings
 )]
 
-// #[macro_use]
+#[macro_use]
 extern crate log;
 
 #[macro_use]
@@ -19,7 +19,9 @@ extern crate serde_derive;
 mod types;
 mod adapters;
 mod node;
+mod net_node;
+pub mod connect;
 
-pub use self::node::{node, NodeError};
+pub use self::net_node::{net_node, NetNodeError};
 pub use self::types::{NodeConfig, NodeState};
 pub use app_server::IncomingAppConnection;

@@ -10,6 +10,12 @@
     warnings
 )]
 
+#[macro_use]
+extern crate log;
+
+#[macro_use]
+extern crate common;
+
 mod channeler;
 mod types;
 mod listen_pool_state;
@@ -19,8 +25,7 @@ mod connector_utils;
 mod overwrite_channel;
 mod spawn;
 
-#[macro_use]
-extern crate log;
+
 
 pub use self::channeler::ChannelerError;
 pub use self::spawn::{spawn_channeler, SpawnChannelerError};

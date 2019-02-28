@@ -20,6 +20,11 @@ extern crate serde_derive;
 extern crate bytes;
 
 extern crate im;
+extern crate toml;
+extern crate base64;
+
+#[cfg(test)]
+extern crate tempfile;
 
 #[macro_use]
 pub mod macros;
@@ -35,8 +40,7 @@ pub mod index_server;
 pub mod index_client;
 pub mod report;
 pub mod net;
-// pub mod scheme;
-
+pub mod file;
 
 
 include_schema!(report_capnp, "report_capnp");

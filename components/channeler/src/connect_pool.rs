@@ -11,6 +11,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use timer::TimerClient;
 use common::conn::{FutTransform, BoxFuture};
+use common::select_streams::{BoxStream, select_streams};
 
 use crypto::identity::PublicKey;
 use crate::types::RawConn;
@@ -323,7 +324,7 @@ async fn connect_pool_loop<RA,ET,TS,C,S>(incoming_requests: mpsc::Receiver<CpCon
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
     C: FutTransform<Input=(RA, PublicKey), Output=Option<RawConn>> + Clone + Send + 'static,
-    TS: Stream + Unpin,
+    TS: Stream + Unpin + Send,
     ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<RawConn>> + Clone + Send + 'static,
     S: Spawn + Clone,
 {
@@ -351,10 +352,10 @@ where
         .map(|_| CpEvent::TimerTick)
         .chain(stream::once(future::ready(CpEvent::TimerClosed)));
 
-    let mut incoming_events = incoming_conn_done
-        .select(incoming_requests)
-        .select(incoming_config)
-        .select(incoming_ticks);
+    let mut incoming_events = select_streams![incoming_conn_done, 
+                                incoming_requests,
+                                incoming_config, 
+                                incoming_ticks];
 
     while let Some(event) = await!(incoming_events.next()) {
         match event {

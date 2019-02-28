@@ -1,3 +1,4 @@
+use std::fmt;
 use std::marker::Unpin;
 use std::collections::{HashMap, HashSet};
 use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, Sink, SinkExt};
@@ -7,6 +8,7 @@ use futures::task::{Spawn, SpawnExt};
 use timer::TimerClient;
 use crypto::identity::PublicKey;
 use common::futures_compat::send_to_sink;
+use common::select_streams::{BoxStream, select_streams};
 
 use proto::relay::messages::{RejectConnection, IncomingConnection};
 
@@ -60,12 +62,27 @@ enum RelayServerEvent<ML,KL,MA,KA,MC,KC> {
     TimerClosed,
 }
 
+impl<ML,KL,MA,KA,MC,KC> fmt::Debug for RelayServerEvent<ML,KL,MA,KA,MC,KC> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayServerEvent::IncomingConn(_) => write!(f, "RelayServerEvent::IncomingConn"),
+            RelayServerEvent::IncomingConnsClosed => write!(f, "RelayServerEvent::IncomingConnsClosed"),
+            RelayServerEvent::TunnelClosed(_) => write!(f, "RelayServerEvent::TunnelClosed"),
+            RelayServerEvent::ListenerMessage(_) => write!(f, "RelayServerEvent::ListenerMessage"),
+            RelayServerEvent::ListenerClosed(_) => write!(f, "RelayServerEvent::ListenerClosed"),
+            RelayServerEvent::TimerTick => write!(f, "RelayServerEvent::TimerTick"),
+            RelayServerEvent::TimerClosed => write!(f, "RelayServerEvent::TimerClosed"),
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub enum RelayServerError {
     IncomingConnsError,
     RequestTimerStreamError,
     TimerStreamError,
-    TimerClosedError,
+    // TimerClosedError,
     ListeningNotInProgress,
     NoPendingHalfTunnel,
     AlreadyListening,
@@ -137,7 +154,7 @@ where
     KA: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static, 
     MC: Stream<Item=Vec<u8>> + Unpin + Send + 'static,
     KC: Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin + Send + 'static,
-    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin,
+    S: Stream<Item=IncomingConn<ML,KL,MA,KA,MC,KC>> + Unpin + Send,
 {
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -152,9 +169,9 @@ where
 
     let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent<_,_,_,_,_,_>>(0);
 
-    let mut relay_server_events = timer_stream
-        .select(incoming_conns)
-        .select(event_receiver);
+    let mut relay_server_events = select_streams![timer_stream,
+                                                    incoming_conns,
+                                                    event_receiver];
 
     let mut incoming_conns_closed = false;
     let mut listeners: HashMap<PublicKey, Listener<_,_>> = HashMap::new();
@@ -273,7 +290,7 @@ where
                     });
                 }
             },
-            RelayServerEvent::TimerClosed => return Err(RelayServerError::TimerClosedError),
+            RelayServerEvent::TimerClosed => break,
         }
         if incoming_conns_closed && listeners.is_empty() {
             break;

@@ -10,6 +10,7 @@ use futures::channel::mpsc;
 
 use proto::funder::messages::{FunderToChanneler, ChannelerToFunder, ChannelerUpdateFriend};
 use common::conn::{Listener, FutTransform};
+use common::select_streams::{BoxStream, select_streams};
 use crypto::identity::{PublicKey, compare_public_key};
 
 use crate::types::RawConn;
@@ -409,7 +410,7 @@ pub async fn channeler_loop<FF,TF,RA,C,L,S>(
                         listener: L,
                         spawner: S) -> Result<(), ChannelerError>
 where
-    FF: Stream<Item=FunderToChanneler<RA>> + Unpin,
+    FF: Stream<Item=FunderToChanneler<RA>> + Send + Unpin,
     TF: Sink<SinkItem=ChannelerToFunder> + Send + Unpin,
     RA: Clone + Send + Sync + Debug + 'static,
     C: FutTransform<Input=PublicKey, Output=ConnectPoolControl<RA>> + Clone + Send + Sync + 'static,
@@ -444,7 +445,7 @@ where
         .map(|funder_to_channeler| ChannelerEvent::FromFunder(funder_to_channeler))
         .chain(stream::once(future::ready(ChannelerEvent::FunderClosed)));
 
-    let mut events = event_receiver.select(from_funder);
+    let mut events = select_streams![event_receiver, from_funder];
 
     while let Some(event) = await!(events.next()) {
         match event {

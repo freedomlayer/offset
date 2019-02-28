@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use futures::{Future, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
@@ -68,9 +70,13 @@ where
                 while let Some(data) = await!(data_receiver.next()) {
                     let message = match deserialize_index_server_to_client(&data) {
                         Ok(message) => message,
-                        Err(_) => return,
+                        Err(_) => {
+                            error!("deserialize index_server_to_client error");
+                            return;
+                        },
                     };
-                    if let Err(_) = await!(local_sender.send(message)) {
+                    if let Err(e) = await!(local_sender.send(message)) {
+                        error!("error sending to local_sender: {:?}", e);
                         return;
                     }
                 }
@@ -83,7 +89,8 @@ where
             let ser_fut = async move {
                 while let Some(message) = await!(local_receiver.next()) {
                     let data = serialize_index_client_to_server(&message);
-                    if let Err(_) = await!(data_sender.send(data)) {
+                    if let Err(e) = await!(data_sender.send(data)) {
+                        error!("error sending to data_sender: {:?}", e);
                         return;
                     }
                 }
@@ -120,7 +127,7 @@ pub async fn spawn_index_client<'a,ISA,C,R,S>(local_public_key: PublicKey,
                 mut spawner: S)
         -> Result<impl Future<Output=Result<(), IndexClientError>>, SpawnIndexClientError>
 where
-    ISA: Eq + Clone + Send + 'static,
+    ISA: Debug + Eq + Clone + Send + 'static,
     C: FutTransform<Input=IndexServerAddress<ISA>,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,

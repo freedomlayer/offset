@@ -21,67 +21,29 @@ use log::Level;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
-use futures::channel::mpsc;
-use futures::{FutureExt, TryFutureExt, StreamExt};
 
 use clap::{Arg, App};
 
-use common::conn::{Listener, FutTransform, ConnPairVec, BoxFuture};
+use common::conn::Listener;
 
-use crypto::identity::PublicKey;
 use crypto::crypto_rand::system_random;
 use identity::{create_identity, IdentityClient};
 
-use proto::consts::{TICK_MS, KEEPALIVE_TICKS, 
-    CONN_TIMEOUT_TICKS, TICKS_TO_REKEY, MAX_FRAME_LENGTH,
-    PROTOCOL_VERSION};
+use proto::consts::{TICK_MS, MAX_FRAME_LENGTH};
 
 use common::int_convert::usize_to_u64;
-use common::transform_pool::transform_pool_loop;
 
 use timer::create_timer;
-use relay::{relay_server, RelayServerError};
-use secure_channel::SecureChannel;
-use version::VersionPrefix;
+use relay::{net_relay_server, NetRelayServerError};
 use net::TcpListener;
 
-use bin::load_identity_from_file;
+use proto::file::identity::load_identity_from_file;
 
 // TODO; Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 
-
-/// Start a secure channel without knowing the identity of the remote
-/// side ahead of time.
-#[derive(Clone)]
-struct AnonSecureChannel<ET> {
-    encrypt_transform: ET,
-}
-
-impl<ET> AnonSecureChannel<ET> {
-    pub fn new(encrypt_transform: ET) -> Self {
-        AnonSecureChannel {
-            encrypt_transform,
-        }
-    }
-}
-
-impl<ET> FutTransform for AnonSecureChannel<ET> 
-where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),
-                     Output=Option<(PublicKey, ConnPairVec)>>,
-{
-    type Input = ConnPairVec;
-    type Output = Option<(PublicKey, ConnPairVec)>;
-
-    fn transform(&mut self, conn_pair: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        self.encrypt_transform.transform((None, conn_pair))
-    }
-}
 
 #[derive(Debug)]
 enum RelayServerBinError {
@@ -90,8 +52,7 @@ enum RelayServerBinError {
     LoadIdentityError,
     CreateIdentityError,
     CreateTimerError,
-    SpawnEncryptPoolError,
-    RelayServerError(RelayServerError),
+    NetRelayServerError(NetRelayServerError),
 }
 
 fn run() -> Result<(), RelayServerBinError> {
@@ -139,56 +100,20 @@ fn run() -> Result<(), RelayServerBinError> {
     let timer_client = create_timer(dur, thread_pool.clone()) 
         .map_err(|_| RelayServerBinError::CreateTimerError)?;
 
-    let version_transform = VersionPrefix::new(PROTOCOL_VERSION,
-                                               thread_pool.clone());
-
     let rng = system_random();
-    let encrypt_transform = SecureChannel::new(
-        identity_client,
-        rng,
-        timer_client.clone(),
-        TICKS_TO_REKEY,
-        thread_pool.clone());
-
 
     let tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
     let (_config_sender, incoming_raw_conns) = tcp_listener.listen(listen_socket_addr);
 
-
-    // TODO; How to get rid of Box::pin() here?
-    let incoming_ver_conns = Box::pin(incoming_raw_conns
-        .then(move |raw_conn| {
-            // TODO: A more efficient way to do this?
-            // We seem to have to clone version_transform for every connection
-            // to make the borrow checker happy.
-            let mut c_version_transform = version_transform.clone();
-            async move {
-                await!(c_version_transform.transform(raw_conn))
-            }
-        }));
-
-    let (enc_conns_sender, incoming_enc_conns) = mpsc::channel::<(PublicKey, ConnPairVec)>(0);
-
-    let enc_pool_fut = transform_pool_loop(
-            incoming_ver_conns,
-            enc_conns_sender,
-            AnonSecureChannel::new(encrypt_transform),
-            MAX_CONCURRENT_ENCRYPT,
-            thread_pool.clone())
-        .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
-        .map(|_| ());
-
-    thread_pool.spawn(enc_pool_fut)
-        .map_err(|_| RelayServerBinError::SpawnEncryptPoolError)?;
-
-    let relay_server_fut = relay_server(incoming_enc_conns,
-                timer_client,
-                CONN_TIMEOUT_TICKS,
-                KEEPALIVE_TICKS,
-                thread_pool.clone());
+    let relay_server_fut = net_relay_server(incoming_raw_conns,
+                             identity_client,
+                             timer_client,
+                             rng,
+                             MAX_CONCURRENT_ENCRYPT,
+                             thread_pool.clone());
 
     thread_pool.run(relay_server_fut)
-        .map_err(|e| RelayServerBinError::RelayServerError(e))
+        .map_err(|e| RelayServerBinError::NetRelayServerError(e))
 }
 
 fn main() {

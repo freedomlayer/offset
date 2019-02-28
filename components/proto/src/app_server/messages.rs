@@ -141,6 +141,24 @@ impl<B> AppToAppServer<B> {
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
+impl<B> NodeReport<B> 
+where
+    B: Eq + Clone,
+{
+    pub fn mutate(&mut self, mutation: &NodeReportMutation<B>)
+        -> Result<(), NodeReportMutateError> {
+
+        match mutation {
+            NodeReportMutation::Funder(mutation) => 
+                self.funder_report.mutate(mutation)
+                    .map_err(|_| NodeReportMutateError)?,
+            NodeReportMutation::IndexClient(mutation) => 
+                self.index_client_report.mutate(mutation),
+        };
+        Ok(())
+    }
+}
+
 
 impl<B> MutableState for NodeReport<B>
 where
@@ -152,14 +170,7 @@ where
     fn mutate(&mut self, mutation: &NodeReportMutation<B>)
         -> Result<(), NodeReportMutateError> {
 
-        match mutation {
-            NodeReportMutation::Funder(mutation) => 
-                self.funder_report.mutate(mutation)
-                    .map_err(|_| NodeReportMutateError)?,
-            NodeReportMutation::IndexClient(mutation) => 
-                self.index_client_report.mutate(mutation),
-        };
-        Ok(())
+        self.mutate(mutation)
     }
 }
 

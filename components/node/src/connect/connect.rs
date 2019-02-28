@@ -2,24 +2,28 @@ use futures::task::{Spawn, SpawnExt};
 use futures::channel::mpsc;
 use futures::{StreamExt, SinkExt};
 
-use common::conn::{ConnPair, ConnPairVec, FutTransform};
+use common::conn::{FutTransform, ConnPairVec, ConnPair};
+
+use proto::net::messages::NetAddress;
+use proto::app_server::serialize::{
+    serialize_app_to_app_server, 
+    deserialize_app_server_to_app, 
+    deserialize_app_permissions};
+use proto::consts::{PROTOCOL_VERSION, KEEPALIVE_TICKS, TICKS_TO_REKEY};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, 
+    AppToAppServer, NodeReport};
+
+use timer::TimerClient;
+
 use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
-use timer::TimerClient;
 
-use proto::app_server::messages::{AppToAppServer, AppServerToApp, 
-    AppPermissions, NodeReport};
-use proto::app_server::serialize::{deserialize_app_server_to_app,
-                                   serialize_app_to_app_server,
-                                   deserialize_app_permissions};
+pub use super::node_connection::NodeConnection;
 
-use proto::consts::{PROTOCOL_VERSION, TICKS_TO_REKEY, KEEPALIVE_TICKS};
-
-use secure_channel::SecureChannel;
 use version::VersionPrefix;
+use secure_channel::SecureChannel;
 use keepalive::KeepAliveChannel;
-
 
 pub type NodeConnectionTuple = (AppPermissions, NodeReport, 
                                 ConnPair<AppToAppServer,AppServerToApp>);
@@ -119,4 +123,43 @@ where
     });
 
     Ok((app_permissions, node_report, (user_sender, user_receiver)))
+}
+
+
+#[derive(Debug)]
+pub enum NodeConnectError {
+    /// Could not open network connection
+    NetConnectorError,
+    SetupConnectionError(SetupConnectionError),
+    CreateNodeConnectionError,
+}
+
+
+/// Connect to an offst node
+pub async fn node_connect<C,R,S>(mut net_connector: C,
+                                 node_public_key: PublicKey,
+                                 node_net_address: NetAddress,
+                                 timer_client: TimerClient,
+                                 app_identity_client: IdentityClient,
+                                 rng: R,
+                                 mut spawner: S) -> Result<NodeConnection<R>, NodeConnectError> 
+where
+    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>>,
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Send + Sync + Clone + 'static,
+{
+    let conn_pair = await!(net_connector.transform(node_net_address))
+        .ok_or(NodeConnectError::NetConnectorError)?;
+
+    let conn_tuple = await!(setup_connection(
+                conn_pair,
+                timer_client,
+                rng.clone(),
+                node_public_key,
+                app_identity_client,
+                spawner.clone()))
+        .map_err(|e| NodeConnectError::SetupConnectionError(e))?;
+
+    NodeConnection::new(conn_tuple, rng, &mut spawner)
+       .map_err(|_| NodeConnectError::CreateNodeConnectionError)
 }

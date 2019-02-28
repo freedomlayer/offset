@@ -3,7 +3,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use identity::{create_identity, IdentityClient};
 
-use bin::load_identity_from_file;
+use proto::file::identity::load_identity_from_file;
 
 #[derive(Debug)]
 pub enum IdentityFromFileError {

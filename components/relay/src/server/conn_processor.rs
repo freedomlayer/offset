@@ -4,7 +4,7 @@ use futures::{future,
     Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 
-use common::conn::{FutTransform, ConnPair, ConnPairVec};
+use common::conn::{FutTransform, ConnPairVec};
 
 use crypto::identity::PublicKey;
 use timer::TimerClient;
@@ -30,8 +30,7 @@ async fn dispatch_conn<FT>(sender: mpsc::Sender<Vec<u8>>,
                               impl Stream<Item=Vec<u8>> + Unpin,
                               impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 where
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>>,
+    FT: FutTransform<Input=ConnPairVec, Output=ConnPairVec>,
 {
 
     let (sender, receiver) = await!(keepalive_transform.transform((sender, receiver)));
@@ -80,13 +79,16 @@ async fn process_conn<FT>(sender: mpsc::Sender<Vec<u8>>,
                                           impl Sink<SinkItem=Vec<u8>,SinkError=()> + Unpin>>
 
 where
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>>,
+    FT: FutTransform<Input=ConnPairVec, Output=ConnPairVec>,
 {
     let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = await!(receiver.next()) {
-            await!(dispatch_conn(sender, receiver, public_key, first_msg, 
-                         keepalive_transform))
+            let dispatch_res = await!(dispatch_conn(sender, receiver, public_key, first_msg, 
+                         keepalive_transform));
+            if dispatch_res.is_none() {
+                error!("dispatch_conn() failure");
+            }
+            dispatch_res
         } else {
             None
         }

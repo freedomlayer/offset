@@ -14,7 +14,5 @@
 #[macro_use]
 extern crate log;
 
-mod setup_conn;
 pub mod identity;
 pub mod connect;
-mod node_connection;

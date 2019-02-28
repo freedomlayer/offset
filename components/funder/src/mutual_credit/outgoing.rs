@@ -140,11 +140,18 @@ impl OutgoingMc {
         let own_freeze_credits = credit_calc.credits_to_freeze(remote_index)
             .ok_or(QueueOperationError::CreditCalculatorFailure)?;
 
+        let balance = &self.mutual_credit.state().balance;
+
         // Make sure we can freeze the credits
-        let new_local_pending_debt = self.mutual_credit.state().balance.local_pending_debt
+        let new_local_pending_debt = balance.local_pending_debt
             .checked_add(own_freeze_credits).ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        if new_local_pending_debt > self.mutual_credit.state().balance.local_max_debt {
+        // Check that local_pending_debt - balance <= local_max_debt:
+        let sub = balance.balance.checked_sub_unsigned(new_local_pending_debt)
+            .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+
+        if sub.checked_add_unsigned(balance.local_max_debt)
+            .ok_or(QueueOperationError::CreditsCalcOverflow)? < 0 {
             return Err(QueueOperationError::InsufficientTrust);
         }
 

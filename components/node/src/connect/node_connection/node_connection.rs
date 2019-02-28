@@ -14,12 +14,12 @@ use common::state_service::{state_service, StateClient};
 use common::mutable_state::BatchMutable;
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 
-use crate::connect::NodeConnectionTuple;
-
 use super::report::AppReport;
 use super::config::AppConfig;
 use super::routes::AppRoutes;
 use super::send_funds::AppSendFunds;
+
+use crate::connect::connect::NodeConnectionTuple;
 
 #[derive(Debug)]
 pub enum NodeConnectionError {
@@ -59,7 +59,7 @@ where
             .map_err(|e| error!("state_service() error: {:?}", e))
             .map(|_| ());
         spawner.spawn(state_service_fut)
-            .map_err(|_| NodeConnectionError::SpawnError);
+            .map_err(|_| NodeConnectionError::SpawnError)?;
 
         let (mut incoming_routes_sender, incoming_routes) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -68,7 +68,7 @@ where
             .map_err(|e| error!("Routes multi_consumer_service() error: {:?}", e))
             .map(|_| ());
         spawner.spawn(routes_fut)
-                .map_err(|_| NodeConnectionError::SpawnError);
+                .map_err(|_| NodeConnectionError::SpawnError)?;
 
         let (mut incoming_send_funds_sender, incoming_send_funds) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -77,7 +77,7 @@ where
             .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
             .map(|_| ());
         spawner.spawn(send_funds_fut)
-                .map_err(|_| NodeConnectionError::SpawnError);
+                .map_err(|_| NodeConnectionError::SpawnError)?;
 
         let (mut incoming_done_app_requests_sender, incoming_done_app_requests) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -86,9 +86,9 @@ where
             .map_err(|e| error!("DoneAppRequests multi_consumer_service() error: {:?}", e))
             .map(|_| ());
         spawner.spawn(done_app_requests_fut)
-                .map_err(|_| NodeConnectionError::SpawnError);
+                .map_err(|_| NodeConnectionError::SpawnError)?;
         
-        async move {
+        spawner.spawn(async move {
             while let Some(message) = await!(receiver.next()) {
                 match message {
                     AppServerToApp::ResponseReceived(response_received) => {
@@ -111,7 +111,7 @@ where
                     },
                 }
             }
-        };
+        }).map_err(|_| NodeConnectionError::SpawnError)?;
 
         Ok(NodeConnection {
             sender,

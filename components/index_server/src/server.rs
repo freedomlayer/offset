@@ -8,6 +8,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{ConnPair, FutTransform};
+use common::select_streams::{select_streams, BoxStream};
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
@@ -284,6 +285,10 @@ where
         for index_mutation in &mutations_update.index_mutations {
             match index_mutation {
                 IndexMutation::UpdateFriend(update_friend) => {
+                    info!("pk: {}, send: {}, recv: {}", update_friend.public_key[0],
+                                                        update_friend.send_capacity,
+                                                        update_friend.recv_capacity);
+
                     await!(self.graph_client.update_edge(mutations_update.node_public_key.clone(), 
                                                   update_friend.public_key.clone(),
                                                   (update_friend.send_capacity,
@@ -402,12 +407,12 @@ pub async fn server_loop<A,IS,IC,SC,CMP,V,TS,S>(local_public_key: PublicKey,
                                  mut opt_debug_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerLoopError>
 where
     A: Clone + Send + std::fmt::Debug + 'static,
-    IS: Stream<Item=(PublicKey, ServerConn)> + Unpin,
-    IC: Stream<Item=(PublicKey, ClientConn)> + Unpin,
+    IS: Stream<Item=(PublicKey, ServerConn)> + Unpin + Send,
+    IC: Stream<Item=(PublicKey, ClientConn)> + Unpin + Send,
     SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     V: Verifier<Node=PublicKey, Neighbor=PublicKey, SessionId=Uid>,
-    CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering,
-    TS: Stream + Unpin,
+    CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering + Sync,
+    TS: Stream + Unpin + Send,
     S: Spawn + Send,
 {
 
@@ -443,10 +448,10 @@ where
     let timer_stream = timer_stream
         .map(|_| IndexServerEvent::TimerTick);
 
-    let mut events = event_receiver
-        .select(incoming_server_connections)
-        .select(incoming_client_connections)
-        .select(timer_stream);
+    let mut events = select_streams![event_receiver, 
+                        incoming_server_connections, 
+                        incoming_client_connections, 
+                        timer_stream];
 
     while let Some(event) = await!(events.next()) {
         match event {

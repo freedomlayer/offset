@@ -3,12 +3,13 @@ use std::io::prelude::*;
 use std::path::PathBuf;
 
 use std::fmt::Debug;
-use std::fs;
+use std::fs::File;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use serde_json;
+// use serde_json;
+use bincode;
 use atomicwrites;
 
 use common::mutable_state::MutableState;
@@ -16,10 +17,11 @@ use crate::atomic_db::AtomicDb;
 
 #[derive(Debug)]
 pub enum FileDbError<ME> {
+    OpenError(io::Error),
     ReadError(io::Error),
     WriteError(atomicwrites::Error<io::Error>),
-    DeserializeError(serde_json::error::Error),
-    SerializeError(serde_json::error::Error),
+    DeserializeError(bincode::Error),
+    SerializeError(bincode::Error),
     MutateError(ME),
     FileAlreadyExists,
 }
@@ -50,16 +52,16 @@ where
 
         // There is no file, we create a new file:
         // Serialize the state:
-        let serialized_str = serde_json::to_string(&initial_state)
+        let serialized_buff = bincode::serialize(&initial_state)
             .map_err(FileDbError::SerializeError)?;
         // Save the new state to file, atomically:
         let af = atomicwrites::AtomicFile::new(
             &path_buf, atomicwrites::AllowOverwrite);
         af.write(|fw| {
-            fw.write_all(serialized_str.as_bytes())
+            fw.write_all(&serialized_buff)
         }).map_err(FileDbError::WriteError)?;
 
-        let state: S = serde_json::from_str(&serialized_str)
+        let state: S = bincode::deserialize(&serialized_buff)
             .map_err(FileDbError::DeserializeError)?;
 
         Ok(FileDb {
@@ -72,10 +74,14 @@ where
     /// Returns an error if database file does not exist
     pub fn load(path_buf: PathBuf) -> Result<Self, FileDbError<S::MutateError>> {
 
-        let serialized_str = fs::read_to_string(&path_buf)
-                    .map_err(FileDbError::ReadError)?;
+        let mut f = File::open(&path_buf)
+            .map_err(FileDbError::OpenError)?;
+        // read the whole file
+        let mut serialized_buff = Vec::new();
+        f.read_to_end(&mut serialized_buff)
+            .map_err(FileDbError::ReadError)?;
 
-        let state: S = serde_json::from_str(&serialized_str)
+        let state: S = bincode::deserialize(&serialized_buff)
             .map_err(FileDbError::DeserializeError)?;
 
         Ok(FileDb {
@@ -88,7 +94,7 @@ where
 
 impl<S> AtomicDb for FileDb<S> 
 where 
-    S: Clone + Serialize + DeserializeOwned + MutableState,
+    S: Debug + Clone + Serialize + DeserializeOwned + MutableState,
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
 {
@@ -110,14 +116,14 @@ where
         }
 
         // Serialize the state:
-        let serialized_str = serde_json::to_string(&self.state)
+        let serialized_buff = bincode::serialize(&self.state)
             .map_err(FileDbError::SerializeError)?;
 
         // Save the new state to file, atomically:
         let af = atomicwrites::AtomicFile::new(
             &self.path_buf, atomicwrites::AllowOverwrite);
         af.write(|fw| {
-            fw.write_all(serialized_str.as_bytes())
+            fw.write_all(&serialized_buff)
         }).map_err(FileDbError::WriteError)?;
         
         Ok(())

@@ -11,11 +11,13 @@ use proto::relay::messages::{InitConnection, IncomingConnection, RejectConnectio
 use proto::relay::serialize::{serialize_init_connection,
     deserialize_incoming_connection, serialize_reject_connection};
 use common::int_convert::usize_to_u64;
-use common::conn::{Listener, ConnPair, 
+use common::conn::{Listener, ConnPairVec,
     ConstFutTransform, FutTransform};
 
 use timer::{TimerClient, TimerTick};
 use common::access_control::{AccessControl, AccessControlOp};
+use common::select_streams::{BoxStream, select_streams};
+
 
 type AccessControlPk = AccessControl<PublicKey>;
 type AccessControlOpPk = AccessControlOp<PublicKey>;
@@ -25,9 +27,9 @@ type AccessControlOpPk = AccessControlOp<PublicKey>;
 pub enum ClientListenerError {
     SendInitConnectionError,
     ConnectionFailure,
-    AccessControlClosed,
+    // AccessControlClosed,
     SendToServerError,
-    ServerClosed,
+    // ServerClosed,
     SpawnError,
 }
 
@@ -83,9 +85,9 @@ where
 
 async fn connect_with_timeout<C,TS>(mut connector: C,
                        conn_timeout_ticks: usize,
-                       timer_stream: TS) -> Option<ConnPair<Vec<u8>, Vec<u8>>>
+                       timer_stream: TS) -> Option<ConnPairVec>
 where
-    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send,
+    C: FutTransform<Input=(), Output=Option<ConnPairVec>> + Send,
     TS: Stream<Item=TimerTick> + Unpin,
 {
 
@@ -110,12 +112,11 @@ async fn accept_connection<C,CS,CSE,FT>(public_key: PublicKey,
                            conn_timeout_ticks: usize,
                            mut timer_client: TimerClient) -> Result<(), AcceptConnectionError> 
 where
-    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + 'static,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>>,
+    C: FutTransform<Input=(), Output=Option<ConnPairVec>> + Send,
+    CS: Sink<SinkItem=(PublicKey, ConnPairVec), SinkError=CSE> + Unpin + 'static,
+    FT: FutTransform<Input=ConnPairVec, 
+        Output=ConnPairVec>,
 {
-
     let timer_stream = await!(timer_client.request_timer_stream())
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
     let opt_conn_pair = await!(connect_with_timeout(connector,
@@ -159,24 +160,25 @@ async fn inner_client_listener<'a, C,IAC,CS,CSE,FT>(mut connector: C,
                                 access_control: &'a mut AccessControlPk,
                                 incoming_access_control: &'a mut IAC,
                                 connections_sender: CS,
-                                keepalive_transform: FT,
+                                mut keepalive_transform: FT,
                                 conn_timeout_ticks: usize,
                                 timer_client: TimerClient,
                                 mut spawner: impl Spawn + Clone + Send + 'static,
                                 mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>) 
     -> Result<(), ClientListenerError>
 where
-    C: FutTransform<Input=(), Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Send + Sync + Clone + 'static,
-    IAC: Stream<Item=AccessControlOp<PublicKey>> + Unpin + 'static,
-    CS: Sink<SinkItem=(PublicKey, ConnPair<Vec<u8>, Vec<u8>>), SinkError=CSE> + Unpin + Clone + Send + 'static,
+    C: FutTransform<Input=(), Output=Option<ConnPairVec>> + Send + Sync + Clone + 'static,
+    IAC: Stream<Item=AccessControlOp<PublicKey>> + Unpin + Send + 'static,
+    CS: Sink<SinkItem=(PublicKey, ConnPairVec), SinkError=CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
+    FT: FutTransform<Input=ConnPairVec, 
+        Output=ConnPairVec> + Clone + Send + 'static,
 {
     let conn_pair = match await!(connector.transform(())) {
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
+
 
     // A channel used by the accept_connection.
     // In case of failure to accept a connection, the public key of the rejected remote host will
@@ -189,6 +191,9 @@ where
     await!(sender.send(ser_init_connection))
         .map_err(|_| ClientListenerError::SendInitConnectionError)?;
 
+    let conn_pair = (sender, receiver);
+    let (sender, receiver) = await!(keepalive_transform.transform(conn_pair));
+
     // Add serialization for sender:
     let mut sender = sender
         .sink_map_err(|_| ())
@@ -198,7 +203,13 @@ where
 
     // Add deserialization for receiver:
     let receiver = receiver.map(|ser_incoming_connection| {
-        deserialize_incoming_connection(&ser_incoming_connection).ok()
+        match deserialize_incoming_connection(&ser_incoming_connection) {
+            Ok(incoming_connection) => Some(incoming_connection),
+            Err(e) => {
+                error!("Error deserializing incoming connection {:?}", e);
+                None
+            }
+        }
     }).take_while(|opt_incoming_connection| {
         future::ready(opt_incoming_connection.is_some())
     }).map(|opt| opt.unwrap());
@@ -215,9 +226,9 @@ where
     let pending_reject_receiver = pending_reject_receiver
         .map(ClientListenerEvent::PendingReject);
 
-    let mut events = incoming_access_control
-        .select(server_receiver)
-        .select(pending_reject_receiver);
+    let mut events = select_streams![incoming_access_control, 
+                                      server_receiver,
+                                      pending_reject_receiver];
 
     while let Some(event) = await!(events.next()) {
         if let Some(ref mut event_sender) = opt_event_sender {
@@ -252,9 +263,8 @@ where
                 await!(sender.send(RejectConnection { public_key }))
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             },
-            ClientListenerEvent::ServerClosed => return Err(ClientListenerError::ServerClosed),
-            ClientListenerEvent::AccessControlClosed =>
-                return Err(ClientListenerError::AccessControlClosed),
+            ClientListenerEvent::ServerClosed => break,
+            ClientListenerEvent::AccessControlClosed => break,
         }
     }
     Ok(())
@@ -290,17 +300,17 @@ impl<C,FT,S> ClientListener<C,FT,S> {
 impl <A,C,FT,S> Listener for ClientListener<C,FT,S> 
 where
     A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input=A, Output=Option<ConnPair<Vec<u8>,Vec<u8>>>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input=A, Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
-    FT: FutTransform<Input=ConnPair<Vec<u8>,Vec<u8>>, 
-        Output=ConnPair<Vec<u8>,Vec<u8>>> + Clone + Send + 'static,
+    FT: FutTransform<Input=ConnPairVec, 
+        Output=ConnPairVec> + Clone + Send + 'static,
 {
-    type Connection = (PublicKey, ConnPair<Vec<u8>, Vec<u8>>);
+    type Connection = (PublicKey, ConnPairVec);
     type Config = AccessControlOpPk;
     type Arg = (A, AccessControlPk);
 
     fn listen(self, arg: (A, AccessControlPk)) -> (mpsc::Sender<AccessControlOp<PublicKey>>, 
-                             mpsc::Receiver<(PublicKey, ConnPair<Vec<u8>, Vec<u8>>)>) {
+                             mpsc::Receiver<(PublicKey, ConnPairVec)>) {
 
         let (relay_address, mut access_control) = arg;
 

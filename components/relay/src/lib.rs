@@ -14,10 +14,13 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate common;
+
 mod server;
 mod client;
 
 pub use self::client::client_listener::ClientListener;
 pub use self::client::client_connector::ClientConnector;
-pub use self::server::spawn::{relay_server, RelayServerError};
+pub use self::server::net_server::{net_relay_server, NetRelayServerError};
 

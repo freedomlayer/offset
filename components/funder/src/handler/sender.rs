@@ -7,7 +7,8 @@ use crypto::identity::PublicKey;
 use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
-                                ChannelerUpdateFriend};
+                                ChannelerUpdateFriend, FunderOutgoingControl,
+                                ResponseSendFundsResult, RequestSendFunds, ResponseReceived};
 use proto::app_server::messages::RelayAddress;
 
 use identity::IdentityClient;
@@ -266,6 +267,7 @@ async fn send_friend_iter1<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
+                                       outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
                                        outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>)
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -348,6 +350,7 @@ where
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
     let _ = await!(collect_outgoing_move_token(m_state, 
                                                outgoing_channeler_config,
+                                               outgoing_control,
                                                friend_public_key, 
                                                pending_move_token,
                                                identity_client,
@@ -447,6 +450,39 @@ where
     Ok(())
 }
 
+/// Queue a user created request send funds message.
+/// This is different from forwarding a request_send_funds message, because there is no 
+/// pending request we need to cancel in case of failure, and no failure to be queued.
+/// Instead, we return a failure message back to the user.
+async fn queue_user_request_send_funds<'a,B>(m_state: &'a mut MutableFunderState<B>,
+                                            pending_move_token: &'a mut PendingMoveToken<B>,
+                                            request_send_funds: &'a RequestSendFunds,
+                                            outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>) 
+                                                -> Result<(), CollectOutgoingError> 
+where   
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+{
+
+    let operation = FriendTcOp::RequestSendFunds(request_send_funds.clone());
+    match pending_move_token.queue_operation(&operation, m_state) {
+        Ok(()) => return Ok(()),
+        Err(PendingQueueError::MaxOperationsReached) => {
+            pending_move_token.token_wanted = true;
+            // We will send this message next time we have the token:
+            return Err(CollectOutgoingError::MaxOperationsReached);
+        }
+        Err(PendingQueueError::InsufficientTrust) => {},
+    };
+
+    let response_received = ResponseReceived {
+        request_id: request_send_funds.request_id,
+        result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+    };
+    outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+
+    Ok(())
+}
+
 async fn response_op_to_friend_tc_op<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
                                      response_op: ResponseOp,
                                      mut identity_client: &'a mut IdentityClient,
@@ -477,6 +513,7 @@ where
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                                  outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
+                                                 mut outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<B>,
                                                  identity_client: &'a mut IdentityClient,
@@ -619,10 +656,10 @@ where
     // Send as many pending user requests as possible:
     let mut pending_user_requests = friend.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
-        let request_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        await!(queue_operation_or_failure(m_state,
-                                          pending_move_token,
-                                          &request_op))?;
+        await!(queue_user_request_send_funds(m_state,
+                                      pending_move_token,
+                                      &request_send_funds,
+                                      &mut outgoing_control))?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -743,12 +780,15 @@ pub async fn create_friend_messages<'a,B,R>(m_state: &'a mut MutableFunderState<
                         send_commands: &'a SendCommands,
                         max_operations_in_batch: usize,
                         identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> (Vec<OutgoingMessage<B>>, Vec<ChannelerConfig<RelayAddress<B>>>) 
+                        rng: &'a R) -> (Vec<FunderOutgoingControl<B>>,
+                                        Vec<OutgoingMessage<B>>, 
+                                        Vec<ChannelerConfig<RelayAddress<B>>>) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
 
+    let mut outgoing_control = Vec::new();
     let mut outgoing_messages = Vec::new();
     let mut outgoing_channeler_config = Vec::new();
     let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<B>> 
@@ -764,6 +804,7 @@ where
                                  rng,
                                  max_operations_in_batch,
                                  &mut outgoing_messages,
+                                 &mut outgoing_control,
                                  &mut outgoing_channeler_config));
     }
 
@@ -786,7 +827,7 @@ where
                                &mut outgoing_messages));
     }
 
-    (outgoing_messages, outgoing_channeler_config)
+    (outgoing_control, outgoing_messages, outgoing_channeler_config)
 }
 
 

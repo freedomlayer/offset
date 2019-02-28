@@ -11,7 +11,7 @@
     warnings
 )]
 
-// #[macro_use]
+#[macro_use]
 extern crate log;
 
 mod version_prefix;

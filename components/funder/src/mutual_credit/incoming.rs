@@ -204,10 +204,17 @@ fn process_request_send_funds(mutual_credit: &mut MutualCredit,
         .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
 
     // Make sure we can freeze the credits
-    let new_remote_pending_debt = mutual_credit.state().balance.remote_pending_debt
+    let balance = &mutual_credit.state().balance;
+
+    let new_remote_pending_debt = balance.remote_pending_debt
         .checked_add(own_freeze_credits).ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
-    if new_remote_pending_debt > mutual_credit.state().balance.remote_max_debt {
+    // Check that local_pending_debt - balance <= local_max_debt:
+    let add = balance.balance.checked_add_unsigned(new_remote_pending_debt)
+        .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
+
+    if add.checked_sub_unsigned(balance.remote_max_debt)
+        .ok_or(ProcessOperationError::CreditsCalcOverflow)? > 0 {
         return Err(ProcessOperationError::InsufficientTrust);
     }
 
