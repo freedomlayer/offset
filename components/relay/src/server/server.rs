@@ -82,7 +82,7 @@ pub enum RelayServerError {
     IncomingConnsError,
     RequestTimerStreamError,
     TimerStreamError,
-    TimerClosedError,
+    // TimerClosedError,
     ListeningNotInProgress,
     NoPendingHalfTunnel,
     AlreadyListening,
@@ -290,7 +290,7 @@ where
                     });
                 }
             },
-            RelayServerEvent::TimerClosed => return Err(RelayServerError::TimerClosedError),
+            RelayServerEvent::TimerClosed => break,
         }
         if incoming_conns_closed && listeners.is_empty() {
             break;
