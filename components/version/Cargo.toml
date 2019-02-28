@@ -10,6 +10,6 @@ edition = "2018"
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
 log = "0.4"
-futures-preview = "0.3.0-alpha.11"
+futures-preview = "0.3.0-alpha.13"
 
 byteorder = "1.1"

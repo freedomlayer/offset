@@ -21,7 +21,7 @@ untrusted = "0.6"
 
 bytes = "0.4"
 futures-cpupool = "0.1.8"
-futures-preview = "0.3.0-alpha.11"
+futures-preview = "0.3.0-alpha.13"
 
 num-bigint = "0.2.0"
 num-traits = "0.2.4"

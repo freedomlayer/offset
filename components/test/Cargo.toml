@@ -18,8 +18,8 @@ index_server = { path = "../index_server", version = "0.1.0" , package = "offst-
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 
-futures-preview = {version = "0.3.0-alpha.11", features = ["compat"] }
-futures-test-preview = {version = "0.3.0-alpha.11"}
+futures-preview = {version = "0.3.0-alpha.13", features = ["compat"] }
+futures-test-preview = {version = "0.3.0-alpha.13"}
 
 log = "0.4"
 
