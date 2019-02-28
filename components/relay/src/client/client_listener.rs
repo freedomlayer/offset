@@ -27,9 +27,9 @@ type AccessControlOpPk = AccessControlOp<PublicKey>;
 pub enum ClientListenerError {
     SendInitConnectionError,
     ConnectionFailure,
-    AccessControlClosed,
+    // AccessControlClosed,
     SendToServerError,
-    ServerClosed,
+    // ServerClosed,
     SpawnError,
 }
 
@@ -263,9 +263,8 @@ where
                 await!(sender.send(RejectConnection { public_key }))
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             },
-            ClientListenerEvent::ServerClosed => return Err(ClientListenerError::ServerClosed),
-            ClientListenerEvent::AccessControlClosed =>
-                return Err(ClientListenerError::AccessControlClosed),
+            ClientListenerEvent::ServerClosed => break,
+            ClientListenerEvent::AccessControlClosed => break,
         }
     }
     Ok(())
