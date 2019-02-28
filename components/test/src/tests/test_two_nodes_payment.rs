@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::pin::Pin;
 
 use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt, LocalWaker};
+use futures::task::{Spawn, LocalWaker};
 use futures::executor::ThreadPool;
-use futures::{Future, future, StreamExt, SinkExt, Poll};
-use futures_test::future::FutureTestExt;
+use futures::{Future, StreamExt, SinkExt, Poll};
 
 use tempfile::tempdir;
 
@@ -172,7 +171,7 @@ where
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
     // Wait some time:
-    for i in 0 .. 0x100usize {
+    for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
         await!(Yield::new(YIELD_ITERS));
     }
@@ -193,7 +192,7 @@ where
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
     // Wait some time:
-    for i in 0 .. 0x100usize {
+    for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
         await!(Yield::new(YIELD_ITERS));
     }
@@ -212,7 +211,7 @@ where
         // Apply mutations:
         let mutations = await!(mutations_receiver.next()).unwrap();
         for mutation in mutations {
-            node_report.mutate(&mutation);
+            node_report.mutate(&mutation).unwrap();
         }
     }
     drop(mutations_receiver);
@@ -231,7 +230,7 @@ where
         // Apply mutations:
         let mutations = await!(mutations_receiver.next()).unwrap();
         for mutation in mutations {
-            node_report.mutate(&mutation);
+            node_report.mutate(&mutation).unwrap();
         }
     }
     drop(mutations_receiver);
@@ -240,7 +239,7 @@ where
     await!(config1.open_friend(node_public_key(0))).unwrap();
 
     // Wait some time, to let the index servers exchange information:
-    for i in 0 .. 0x100usize {
+    for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
         await!(Yield::new(YIELD_ITERS));
     }
@@ -271,13 +270,13 @@ where
     await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
     // Allow some time for the index servers to be updated about the new state:
-    for i in 0 .. 0x100usize {
+    for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
         await!(Yield::new(YIELD_ITERS));
     }
 
     // Node1: Send 5 credits to Node0:
-    let mut routes_1_0 = await!(routes0.request_routes(10,
+    let mut routes_1_0 = await!(routes1.request_routes(10,
                            node_public_key(1),
                            node_public_key(0),
                            None)).unwrap();

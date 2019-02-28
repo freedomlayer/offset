@@ -24,6 +24,6 @@ mod sim_network;
 #[allow(unused)]
 mod utils;
 
-// #[cfg(all(test, feature = "integration_tests"))]
+// #[cfg(feature = "integration_tests")]
 #[cfg(test)]
 mod tests;
