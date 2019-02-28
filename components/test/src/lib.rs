@@ -23,6 +23,5 @@ mod sim_network;
 #[cfg(test)]
 mod utils;
 
-// #[cfg(feature = "integration_tests")]
 #[cfg(test)]
 mod tests;
