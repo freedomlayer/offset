@@ -15,7 +15,7 @@ use proto::keepalive::serialize::{serialize_ka_message,
 
 #[derive(Debug)]
 pub enum KeepAliveError {
-    TimerClosed,
+    // TimerClosed,
     RemoteTimeout,
     SendToUserError,
     SendToRemoteError,
@@ -125,7 +125,7 @@ where
                     ticks_to_send_keepalive = keepalive_ticks / 2;
                 }
             },
-            KeepAliveEvent::TimerClosed => return Err(KeepAliveError::TimerClosed),
+            KeepAliveEvent::TimerClosed => break,
             KeepAliveEvent::RemoteChannelClosed |
             KeepAliveEvent::UserChannelClosed => break,
         }
