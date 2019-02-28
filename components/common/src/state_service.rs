@@ -8,8 +8,6 @@ pub type StateResponse<ST,MU> = (ST, mpsc::Receiver<MU>);
 
 #[derive(Debug)]
 pub enum StateServiceError<E> {
-    IncomingRequestsClosed,
-    IncomingMutationsClosed,
     MutateError(E),
 }
 
@@ -116,7 +114,7 @@ where
                     return Ok(())
                 }
             },
-            Event::IncomingMutationsClosed => return Err(StateServiceError::IncomingMutationsClosed),
+            Event::IncomingMutationsClosed => break,
         }
     }
     Ok(())
