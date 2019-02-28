@@ -260,10 +260,11 @@ where
     let request_id = Uid::from(&[0x0; UID_LEN]);
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
     let dest_payment = 10;
-    let receipt = await!(send_funds0.request_send_funds(request_id,
+    let receipt = await!(send_funds0.request_send_funds(request_id.clone(),
                                             chosen_route,
                                             invoice_id,
                                             dest_payment)).unwrap();
+    await!(send_funds0.receipt_ack(request_id, receipt.clone())).unwrap();
 
     // Node0 allows node1 to have maximum debt of 100 
     // (This should allow to node1 to pay back).
@@ -291,8 +292,9 @@ where
     let dest_payment = 5;
     let receipt = await!(send_funds1.request_send_funds(request_id,
                                             chosen_route.clone(),
-                                            invoice_id,
+                                            invoice_id.clone(),
                                             dest_payment)).unwrap();
+    await!(send_funds1.receipt_ack(request_id, receipt.clone())).unwrap();
 
     // Node1 tries to send credits again: (6 credits):
     // This payment should not work, because we do not have enough trust:
