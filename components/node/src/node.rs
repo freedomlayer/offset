@@ -26,7 +26,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::net::messages::NetAddress;
 use proto::funder::serialize::{serialize_friend_message, 
     deserialize_friend_message};
-use proto::report::messages::funder_report_to_index_client_state;
+use proto::report::convert::funder_report_to_index_client_state;
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 
 use crate::types::{NodeMutation, NodeState, create_node_report, NodeConfig};
