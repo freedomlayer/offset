@@ -5,7 +5,7 @@ use core::pin::Pin;
 use futures;
 use futures::{Poll, Stream, StreamExt, Sink};
 use futures::io::{AsyncRead, AsyncWrite};
-use futures::task::LocalWaker;
+use futures::task::Waker;
 
 pub struct AsyncReader<M> {
     opt_receiver: Option<M>,
@@ -23,7 +23,7 @@ impl<M> AsyncReader<M> {
 
 
 impl<M> AsyncRead for AsyncReader<M> where M: Stream<Item=Vec<u8>> + std::marker::Unpin {
-    fn poll_read(&mut self, waker: &LocalWaker, mut buf: &mut [u8]) -> 
+    fn poll_read(&mut self, waker: &Waker, mut buf: &mut [u8]) -> 
         Poll<Result<usize, futures::io::Error>> {
 
 
@@ -86,7 +86,7 @@ impl<K,E> AsyncWriter<K,E> {
 
 
 impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> + std::marker::Unpin {
-    fn poll_write(&mut self, lw: &LocalWaker, mut buf: &[u8]) 
+    fn poll_write(&mut self, lw: &Waker, mut buf: &[u8]) 
         -> Poll<Result<usize, futures::io::Error>> {
 
         let mut sender = match self.opt_sender.take() {
@@ -131,7 +131,7 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
         }
     }
     
-    fn poll_flush(&mut self, lw: &LocalWaker) 
+    fn poll_flush(&mut self, lw: &Waker) 
         -> Poll<Result<(), futures::io::Error>> {
 
         let mut sender = match self.opt_sender.take() {
@@ -174,7 +174,7 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
         }
     }
 
-    fn poll_close(&mut self, lw: &LocalWaker) 
+    fn poll_close(&mut self, lw: &Waker) 
         -> Poll<Result<(), futures::io::Error>> {
 
         // TODO: Should we try to flush anything here?

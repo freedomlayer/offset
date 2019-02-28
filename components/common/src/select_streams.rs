@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::collections::VecDeque;
 use futures::{Stream, StreamExt, Poll};
-use futures::task::LocalWaker;
+use futures::task::Waker;
 
 pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item=T> + Send + 'a>>;
 
@@ -26,7 +26,7 @@ pub struct SelectStreams<'a,T> {
 impl<'a,T> Stream for SelectStreams<'a,T> {
     type Item = T;
 
-    fn poll_next(mut self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Option<Self::Item>> {
 
         for sk in &mut self.stream_keepers {
             sk.polled = false;
