@@ -245,10 +245,12 @@ where
 
     // Node0: Send 10 credits to Node1:
     // Node0: Request routes:
-    let mut _routes_0_4 = dbg!(await!(apps[0].routes().unwrap().request_routes(20,
+    let routes_0_4 = dbg!(await!(apps[0].routes().unwrap().request_routes(20,
                            node_public_key(0),
                            node_public_key(4),
                            None))).unwrap();
+
+    assert!(routes_0_4.len() > 0);
     /*
 
     assert_eq!(routes_0_1.len(), 1);
