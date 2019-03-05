@@ -276,6 +276,7 @@ where
              default_node_config(),
              get_trusted_apps,
              sim_db.load_db(index),
+             spawner.clone(), // trusted_apps_spawner
              spawner.clone(), // database_spawner
              spawner.clone())
         .map_err(|e| error!("net_node() error: {:?}", e))

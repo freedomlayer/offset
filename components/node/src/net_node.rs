@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::collections::HashMap;
 
-use futures::executor::ThreadPool;
 use futures::channel::mpsc;
 use futures::{future, FutureExt, TryFutureExt, 
     Stream, StreamExt, SinkExt};
@@ -42,48 +41,44 @@ pub enum NetNodeError {
 }
 
 #[derive(Clone)]
-struct AppConnTransform<VT,ET,KT,S,GT> {
+struct AppConnTransform<VT,ET,KT,GT,TS,S> {
     version_transform: VT, 
     encrypt_transform: ET, 
     keepalive_transform: KT,
-    spawner: S,
     get_trusted_apps: GT,
-    thread_pool: ThreadPool,
+    /// An extra spawner used for running get_trusted_apps:
+    trusted_apps_spawner: TS,
+    spawner: S,
 }
 
-impl<VT,ET,KT,S,GT> AppConnTransform<VT,ET,KT,S,GT> {
+impl<VT,ET,KT,GT,TS,S> AppConnTransform<VT,ET,KT,GT,TS,S> {
     fn new(version_transform: VT,
                encrypt_transform: ET,
                keepalive_transform: KT,
-               spawner: S,
-               get_trusted_apps: GT) -> Result<Self, NetNodeError> {
+               get_trusted_apps: GT,
+               trusted_apps_spawner: TS,
+               spawner: S) -> Self {
 
-        // Create a extra inner thread pool.
-        // We use another thread pool because we don't want to block
-        // the main thread pool when we are reading files from the filesystem.
-        // TODO: What is the idiomatic way to do this without having an extra ThreadPool?
-        let thread_pool = ThreadPool::new()
-            .map_err(|_| NetNodeError::CreateThreadPoolError)?;
-
-        Ok(AppConnTransform {
+        AppConnTransform {
             version_transform, 
             encrypt_transform, 
             keepalive_transform,
-            spawner,
             get_trusted_apps,
-            thread_pool,
-        })
+            trusted_apps_spawner,
+            spawner,
+        }
     }
 }
 
-impl<VT,ET,KT,S,GT> FutTransform for AppConnTransform<VT,ET,KT,S,GT> 
+impl<VT,ET,KT,GT,TS,S> FutTransform for AppConnTransform<VT,ET,KT,GT,TS,S> 
 where
     VT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Clone + Send,
     ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),
                      Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send,
     KT: FutTransform<Input=ConnPairVec, Output=ConnPairVec> + Clone + Send,
-    S: Spawn + Clone + Send,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
+    TS: Spawn + Clone + Send,
+    S: Spawn + Clone + Send,
 {
     type Input = ConnPairVec;
     type Output = Option<IncomingAppConnection<NetAddress>>;
@@ -100,11 +95,11 @@ where
             // Obtain permissions for app (Or reject it if not trusted):
             let c_get_trusted_apps = self.get_trusted_apps.clone();
 
-            // Obtain trusted apps using a separate thread pool:
+            // Obtain trusted apps using a separate spawner.
             // At this point we re-read the directory of all trusted apps.
-            // This could be slow, therefore we perform this operation on self.thread_pool
-            // and not on self.spawner, which is the main thread_pool for this program.
-            let trusted_apps_fut = self.thread_pool.spawn_with_handle(
+            // This could be slow, therefore we perform this operation on self.trusted_apps_spawner
+            // and not on self.spawner, which represents the main executor for this program.
+            let trusted_apps_fut = self.trusted_apps_spawner.spawn_with_handle(
                 future::lazy(move |_| (c_get_trusted_apps)())).ok()?;
             let trusted_apps = await!(trusted_apps_fut)?;
 
@@ -150,7 +145,7 @@ where
 
 
 
-pub async fn net_node<IAC,C,R,GT,AD,DS,S>(incoming_app_raw_conns: IAC,
+pub async fn net_node<IAC,C,R,GT,AD,DS,TS,S>(incoming_app_raw_conns: IAC,
                       net_connector: C,
                       timer_client: TimerClient,
                       identity_client: IdentityClient,
@@ -158,6 +153,7 @@ pub async fn net_node<IAC,C,R,GT,AD,DS,S>(incoming_app_raw_conns: IAC,
                       node_config: NodeConfig,
                       get_trusted_apps: GT,
                       atomic_db: AD,
+                      trusted_apps_spawner: TS,
                       database_spawner: DS,
                       mut spawner: S) -> Result<(), NetNodeError> 
 where
@@ -168,6 +164,7 @@ where
     AD: AtomicDb<State=NodeState<NetAddress>,Mutation=NodeMutation<NetAddress>> + Send + 'static,
     AD::Error: Send + Debug,
     DS: Spawn + Clone + Send + Sync + 'static,
+    TS: Spawn + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     // Wrap net connector with a version prefix:
@@ -222,8 +219,9 @@ where
         version_transform,
         encrypt_transform,
         keepalive_transform,
-        spawner.clone(),
-        get_trusted_apps)?;
+        get_trusted_apps,
+        trusted_apps_spawner,
+        spawner.clone());
 
     let (incoming_apps_sender, incoming_apps) = mpsc::channel(0);
 

@@ -127,8 +127,8 @@ fn run() -> Result<(), NodeBinError> {
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
-    // Create database thread pool:
-    let db_thread_pool = ThreadPool::new()
+    // Create thread pool for file system operations:
+    let file_system_thread_pool = ThreadPool::new()
         .map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // A thread pool for resolving network addresses:
@@ -210,7 +210,8 @@ fn run() -> Result<(), NodeBinError> {
                       node_config,
                       get_trusted_apps,
                       atomic_db,
-                      db_thread_pool,
+                      file_system_thread_pool.clone(),
+                      file_system_thread_pool.clone(),
                       thread_pool.clone());
 
     thread_pool.run(node_fut)
