@@ -80,6 +80,11 @@ impl Tracker {
     }
 }
 
+/// A wrapper for a spawner that tracks all spawned futures
+/// and detects whether any progress is possible.
+///
+/// This is useful for waiting until no more progress is possible
+/// for the futures spawned through this spawner.
 #[derive(Clone)]
 pub struct SpawnerWait<S> {
     spawner: S,
@@ -94,7 +99,8 @@ impl<S> SpawnerWait<S> {
         }
     }
 
-    pub fn wait_no_progress(&self) -> oneshot::Receiver<()> {
+    /// Wait until no more progress seems to be possible
+    pub fn wait(&self) -> oneshot::Receiver<()> {
         let mut tracker = self.arc_mutex_tracker.lock().unwrap();
         let (client_sender, client_receiver) = oneshot::channel();
         tracker.add_client(client_sender);
@@ -222,7 +228,7 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
 
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
-        let waiter = wspawner.wait_no_progress();
+        let waiter = wspawner.wait();
         wspawner.spawn(future::lazy(|_| ())).unwrap();
         thread_pool.run(waiter).unwrap();
     }
@@ -232,7 +238,7 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
 
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
-        let waiter = wspawner.wait_no_progress();
+        let waiter = wspawner.wait();
 
         let (mut a_sender, mut b_receiver) = mpsc::channel::<u32>(0);
         let (mut b_sender, mut a_receiver) = mpsc::channel::<u32>(0);
@@ -264,7 +270,7 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
 
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
-        let waiter = wspawner.wait_no_progress();
+        let waiter = wspawner.wait();
 
         let arc_mutex_res = Arc::new(Mutex::new(0usize));
 
@@ -318,7 +324,7 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
 
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
-        let waiter = wspawner.wait_no_progress();
+        let waiter = wspawner.wait();
 
         for _ in 0 .. 8 {
             wspawner.spawn(Yield::new(0x10)).unwrap();
