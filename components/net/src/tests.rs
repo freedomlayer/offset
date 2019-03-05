@@ -82,7 +82,7 @@ where
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
     let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
-    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone()).unwrap();
+    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone(), spawner.clone());
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 

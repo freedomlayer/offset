@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use futures::task::Spawn;
+use futures::executor::ThreadPool;
 
 use common::int_convert::usize_to_u64;
 
@@ -27,9 +28,11 @@ pub async fn connect<S>(node_public_key: PublicKey,
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    // A tcp connector, Used to connect to remote servers:
-    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, spawner.clone())
+    let resolve_thread_pool = ThreadPool::new()
         .map_err(|_| ConnectError)?;
+
+    // A tcp connector, Used to connect to remote servers:
+    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, spawner.clone());
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 

@@ -69,7 +69,6 @@ enum NodeBinError {
     ParseListenAddressError,
     LoadIdentityError,
     CreateThreadPoolError,
-    CreateNetConnectorError,
     CreateTimerError,
     LoadDbError,
     SpawnError,
@@ -132,6 +131,10 @@ fn run() -> Result<(), NodeBinError> {
     let db_thread_pool = ThreadPool::new()
         .map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
+    // A thread pool for resolving network addresses:
+    let resolve_thread_pool = ThreadPool::new()
+        .map_err(|_| NodeBinError::CreateThreadPoolError)?;
+
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
     thread_pool.spawn(identity_loop)
@@ -172,8 +175,7 @@ fn run() -> Result<(), NodeBinError> {
     };
 
     // A tcp connector, Used to connect to remote servers:
-    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, thread_pool.clone())
-        .map_err(|_| NodeBinError::CreateNetConnectorError)?;
+    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
 
     // Obtain secure cryptographic random:
     let rng = system_random();
