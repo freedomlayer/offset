@@ -128,6 +128,10 @@ fn run() -> Result<(), NodeBinError> {
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
+    // Create database thread pool:
+    let db_thread_pool = ThreadPool::new()
+        .map_err(|_| NodeBinError::CreateThreadPoolError)?;
+
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
     thread_pool.spawn(identity_loop)
@@ -204,6 +208,7 @@ fn run() -> Result<(), NodeBinError> {
                       node_config,
                       get_trusted_apps,
                       atomic_db,
+                      db_thread_pool,
                       thread_pool.clone());
 
     thread_pool.run(node_fut)

@@ -266,6 +266,8 @@ where
     let get_trusted_apps = move || Some(trusted_apps.clone());
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
+    // Note: we use the same spawner for testing purposes.
+    // Simulating the passage of time becomes more difficult if our code uses a few different executors.
     let net_node_fut = net_node(incoming_app_raw_conns,
              sim_network_client,
              timer_client,
@@ -274,6 +276,7 @@ where
              default_node_config(),
              get_trusted_apps,
              sim_db.load_db(index),
+             spawner.clone(), // database_spawner
              spawner.clone())
         .map_err(|e| error!("net_node() error: {:?}", e))
         .map(|_| ());

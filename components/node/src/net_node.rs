@@ -150,7 +150,7 @@ where
 
 
 
-pub async fn net_node<IAC,C,R,GT,AD,S>(incoming_app_raw_conns: IAC,
+pub async fn net_node<IAC,C,R,GT,AD,DS,S>(incoming_app_raw_conns: IAC,
                       net_connector: C,
                       timer_client: TimerClient,
                       identity_client: IdentityClient,
@@ -158,6 +158,7 @@ pub async fn net_node<IAC,C,R,GT,AD,S>(incoming_app_raw_conns: IAC,
                       node_config: NodeConfig,
                       get_trusted_apps: GT,
                       atomic_db: AD,
+                      database_spawner: DS,
                       mut spawner: S) -> Result<(), NetNodeError> 
 where
     IAC: Stream<Item=ConnPairVec> + Unpin + Send + 'static,
@@ -166,6 +167,7 @@ where
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
     AD: AtomicDb<State=NodeState<NetAddress>,Mutation=NodeMutation<NetAddress>> + Send + 'static,
     AD::Error: Send + Debug,
+    DS: Spawn + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     // Wrap net connector with a version prefix:
@@ -195,7 +197,7 @@ where
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
-    let loop_fut = database_loop(atomic_db, incoming_db_requests)
+    let loop_fut = database_loop(atomic_db, incoming_db_requests, database_spawner)
         .map_err(|e| error!("database_loop() error: {:?}", e))
         .map(|_| ());
     spawner.spawn(loop_fut)
