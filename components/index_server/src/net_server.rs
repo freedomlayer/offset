@@ -48,7 +48,7 @@ pub enum IndexServerError {
 
 /// Run an index server
 /// Will keep running until an error occurs.
-async fn index_server<A,IS,IC,SC,R,S>(local_public_key: PublicKey,
+async fn index_server<A,IS,IC,SC,R,GS,S>(local_public_key: PublicKey,
                            trusted_servers: HashMap<PublicKey, A>, 
                            incoming_server_connections: IS,
                            incoming_client_connections: IC,
@@ -57,6 +57,7 @@ async fn index_server<A,IS,IC,SC,R,S>(local_public_key: PublicKey,
                            ticks_to_live: usize,
                            backoff_ticks: usize,
                            rng: R,
+                           graph_service_spawner: GS,
                            spawner: S) 
                                 -> Result<(), IndexServerError>
 where
@@ -66,12 +67,15 @@ where
     SC: FutTransform<Input=(PublicKey, A), Output=Option<ServerConn>> + Clone + Send + 'static,
     R: CryptoRandom,
     S: Spawn + Clone + Send,
+    GS: Spawn + Send + 'static,
 {
 
     let verifier = SimpleVerifier::new(ticks_to_live, rng);
 
     let capacity_graph = SimpleCapacityGraph::new();
-    let graph_client = create_graph_service(capacity_graph, spawner.clone())
+    let graph_client = create_graph_service(capacity_graph, 
+                                            graph_service_spawner, 
+                                            spawner.clone())
         .map_err(|_| IndexServerError::CreateGraphServiceError)?;
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -276,7 +280,7 @@ pub enum NetIndexServerError {
 }
 
 
-pub async fn net_index_server<A,ICC,ISC,SC,R,S>(incoming_client_raw_conns: ICC,
+pub async fn net_index_server<A,ICC,ISC,SC,R,GS,S>(incoming_client_raw_conns: ICC,
                     incoming_server_raw_conns: ISC,
                     raw_server_net_connector: SC,
                     identity_client: IdentityClient,
@@ -285,6 +289,7 @@ pub async fn net_index_server<A,ICC,ISC,SC,R,S>(incoming_client_raw_conns: ICC,
                     trusted_servers: HashMap<PublicKey, A>,
                     max_concurrent_encrypt: usize,
                     backoff_ticks: usize,
+                    graph_service_spawner: GS,
                     mut spawner: S) -> Result<(), NetIndexServerError> 
 where
     A: Clone + Send + Debug + 'static,
@@ -292,6 +297,7 @@ where
     ICC: Stream<Item=ConnPairVec> + Unpin + Send + 'static,
     ISC: Stream<Item=ConnPairVec> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
+    GS: Spawn + Send + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
@@ -375,6 +381,7 @@ where
                    INDEX_NODE_TIMEOUT_TICKS,
                    backoff_ticks,
                    rng,
+                   graph_service_spawner,
                    spawner.clone()))
         .map_err(|e| NetIndexServerError::IndexServerError(e))
 }

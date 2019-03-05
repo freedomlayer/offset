@@ -309,6 +309,8 @@ where
         .collect::<HashMap<_,_>>();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x38, index]);
+    // We use the same spawner for both required spawners.
+    // We do this to make it easier to simulate the passage of time in tests.
     let net_index_server_fut = net_index_server(incoming_client_raw_conns,
                     incoming_server_raw_conns,
                     sim_network_client,
@@ -318,6 +320,7 @@ where
                     trusted_servers,
                     MAX_CONCURRENT_ENCRYPT,
                     BACKOFF_TICKS,
+                    spawner.clone(),
                     spawner.clone())
         .map_err(|e| error!("net_index_server()  error: {:?}", e))
         .map(|_| ());

@@ -1,4 +1,3 @@
-use futures::executor::ThreadPool;
 use futures::channel::{oneshot, mpsc};
 use futures::task::{Spawn, SpawnExt, SpawnError};
 use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
@@ -22,7 +21,6 @@ pub enum GraphRequest<N,C> {
 
 #[derive(Debug)]
 pub enum GraphServiceError {
-    CreateThreadPoolError,
     /// Failed to spawn to self ThreadPool
     LocalSpawnError,
 }
@@ -58,22 +56,22 @@ where
     }
 }
 
-async fn graph_service_loop<N,C,CG>(mut capacity_graph: CG,
-                                    mut incoming_requests: mpsc::Receiver<GraphRequest<N,C>>) 
+async fn graph_service_loop<N,C,CG,GS>(mut capacity_graph: CG,
+                                    mut incoming_requests: mpsc::Receiver<GraphRequest<N,C>>,
+                                    mut graph_service_spawner: GS) 
                                     -> Result<(), GraphServiceError>
 where
     N: Send + 'static,
     C: Send + 'static,
     CG: CapacityGraph<Node=N, Capacity=C> + Send + 'static,
+    GS: Spawn,
 {
-    // We create our own thread_pool to be used for long graph computations.
+    // We use a separate spawner to be used for long graph computations.
     // We don't want to block the external shared thread pool.
-    let mut thread_pool = ThreadPool::new()
-        .map_err(|_| GraphServiceError::CreateThreadPoolError)?;
 
     while let Some(graph_request) = await!(incoming_requests.next()) {
         // Run the graph computation over own pool:
-        let process_request_handle = thread_pool.spawn_with_handle(async move {
+        let process_request_handle = graph_service_spawner.spawn_with_handle(async move {
             process_request(&mut capacity_graph, graph_request);
             capacity_graph
         }).map_err(|_| GraphServiceError::LocalSpawnError)?;
@@ -163,20 +161,22 @@ impl<N,C> GraphClient<N,C> {
 
 /// Spawn a graph service, returning a GraphClient on success.
 /// GraphClient can be cloned to allow multiple clients.
-#[allow(unused)]
-pub fn create_graph_service<N,C,CG,S>(capacity_graph: CG, 
-                                  mut spawner: S) -> Result<GraphClient<N,C>, SpawnError>
+pub fn create_graph_service<N,C,CG,GS,S>(capacity_graph: CG, 
+                                      graph_service_spawner: GS,
+                                      mut spawner: S) -> Result<GraphClient<N,C>, SpawnError>
 where
     N: Send + 'static,
     C: Send + 'static,
     CG: CapacityGraph<Node=N, Capacity=C> + Send + 'static,
+    GS: Spawn + Send + 'static,
     S: Spawn,
 {
     let (requests_sender, requests_receiver) = mpsc::channel(0);
 
     let graph_service_loop_fut = graph_service_loop(
                                     capacity_graph,
-                                    requests_receiver)
+                                    requests_receiver,
+                                    graph_service_spawner)
         .map_err(|e| error!("graph_service_loop() error: {:?}", e))
         .map(|_| ());
 
@@ -196,8 +196,11 @@ mod tests {
     where
         S: Spawn,
     {
+        let graph_service_spawner = ThreadPool::new().unwrap();
         let capacity_graph = SimpleCapacityGraph::new();
-        let mut graph_client = create_graph_service(capacity_graph, spawner).unwrap();
+        let mut graph_client = create_graph_service(capacity_graph, 
+                                                    graph_service_spawner, 
+                                                    spawner).unwrap();
 
         await!(graph_client.update_edge(2u32, 5u32, (30, 5))).unwrap();
         await!(graph_client.update_edge(5, 2, (5, 30))).unwrap();

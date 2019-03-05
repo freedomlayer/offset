@@ -126,6 +126,10 @@ fn run() -> Result<(), IndexServerBinError> {
     let resolve_thread_pool = ThreadPool::new()
         .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
 
+    // A thread pool for graph computations:
+    let graph_service_thread_pool = ThreadPool::new()
+        .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
+
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
     thread_pool.spawn(identity_loop)
@@ -161,6 +165,7 @@ fn run() -> Result<(), IndexServerBinError> {
                     trusted_servers,
                     MAX_CONCURRENT_ENCRYPT,
                     BACKOFF_TICKS,
+                    graph_service_thread_pool,
                     thread_pool.clone());
 
     thread_pool.run(index_server_fut)
