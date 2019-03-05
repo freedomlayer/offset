@@ -10,7 +10,7 @@ use proto::net::messages::NetAddress;
 
 /// Length of a connection channel.
 /// We might get a deadlock if this value is too small?
-const CHANNEL_SIZE: usize = 0;
+const CHANNEL_SIZE: usize = 0x100;
 
 /// A helper function to create a net_address from a &str:
 pub fn net_address(from: &str) -> NetAddress {
