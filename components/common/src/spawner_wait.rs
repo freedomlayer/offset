@@ -5,7 +5,6 @@ use std::pin::Pin;
 
 use futures::task::{Spawn, SpawnError, Waker, ArcWake};
 use futures::future::FutureObj;
-use futures::channel::oneshot;
 use futures::{Poll, Future};
 
 /// Collect tracking information about calls to poll() over futures
@@ -20,7 +19,7 @@ struct Tracker {
     /// The id of the next spawned future:
     next_id: usize,
     /// Clients that wait for progress stop
-    clients: Vec<oneshot::Sender<()>>,
+    wakers: Vec<Waker>,
 }
 
 impl Tracker {
@@ -29,14 +28,14 @@ impl Tracker {
             pending: HashSet::new(),
             ongoing_polls: 0,
             next_id: 0,
-            clients: Vec::new(),
+            wakers: Vec::new(),
         }
     }
 
-    /// Add a client.
+    /// Add a waker of a waiting client.
     /// A client is notified when no progress is expected to be made, and then removed.
-    pub fn add_client(&mut self, client_sender: oneshot::Sender<()>) {
-        self.clients.push(client_sender);
+    pub fn add_waker(&mut self, waker: Waker) {
+        self.wakers.push(waker);
     }
 
     /// Get the next id for a spawned future.
@@ -59,6 +58,11 @@ impl Tracker {
         assert!(res);
     }
 
+    /// Is any progress possible?
+    pub fn progress_done(&self) -> bool {
+        self.pending.is_empty() && self.ongoing_polls == 0
+    }
+
     /// Mark the beginning of a call to poll.
     pub fn poll_begin(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_add(1).unwrap();
@@ -68,14 +72,14 @@ impl Tracker {
     /// If it seems like no progress is expected to happen, we notify all clients.
     pub fn poll_end(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_sub(1).unwrap();
-        if !self.pending.is_empty() || self.ongoing_polls > 0 {
+        if !self.progress_done() {
             return;
         }
 
         // No more progress can happen.
         // Notify all clients:
-        while let Some(client) = self.clients.pop() {
-            client.send(()).unwrap();
+        while let Some(waker) = self.wakers.pop() {
+            waker.wake();
         }
     }
 }
@@ -91,6 +95,40 @@ pub struct SpawnerWait<S> {
     arc_mutex_tracker: Arc<Mutex<Tracker>>,
 }
 
+/// A future that resolves when no more progress
+/// is possible
+pub struct ProgressDone {
+    arc_mutex_tracker: Arc<Mutex<Tracker>>,
+    waker_saved: bool,
+}
+
+impl ProgressDone {
+    fn new(arc_mutex_tracker: Arc<Mutex<Tracker>>) -> Self {
+        ProgressDone {
+            arc_mutex_tracker,
+            waker_saved: false,
+        }
+    }
+}
+
+impl Future for ProgressDone {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
+        let c_arc_mutex_tracker = self.arc_mutex_tracker.clone();
+        let mut tracker = c_arc_mutex_tracker.lock().unwrap();
+        if tracker.progress_done() {
+            Poll::Ready(())
+        } else {
+            if !self.waker_saved {
+                tracker.add_waker(waker.clone());
+                self.waker_saved = true;
+            }
+            Poll::Pending
+        }
+    }
+}
+
 impl<S> SpawnerWait<S> {
     pub fn new(spawner: S) -> Self {
         SpawnerWait {
@@ -100,11 +138,8 @@ impl<S> SpawnerWait<S> {
     }
 
     /// Wait until no more progress seems to be possible
-    pub fn wait(&self) -> oneshot::Receiver<()> {
-        let mut tracker = self.arc_mutex_tracker.lock().unwrap();
-        let (client_sender, client_receiver) = oneshot::channel();
-        tracker.add_client(client_sender);
-        client_receiver
+    pub fn wait(&self) -> ProgressDone {
+        ProgressDone::new(self.arc_mutex_tracker.clone())
     }
 }
 
@@ -132,8 +167,10 @@ impl ArcWakerWrapper {
 
 impl ArcWake for ArcWakerWrapper {
     fn wake(arc_self: &Arc<Self>) {
-        let mut tracker = arc_self.arc_mutex_tracker.lock().unwrap();
-        tracker.insert(arc_self.id);
+        {
+            let mut tracker = arc_self.arc_mutex_tracker.lock().unwrap();
+            tracker.insert(arc_self.id);
+        }
         arc_self.waker.wake()
     }
 }
@@ -174,7 +211,6 @@ where
     type Output = F::Output;
 
     fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
-
         // Remove our task from the pending set:
         {
             let mut tracker = self.arc_mutex_tracker.lock().unwrap();
@@ -230,7 +266,7 @@ mod tests {
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
         let waiter = wspawner.wait();
         wspawner.spawn(future::lazy(|_| ())).unwrap();
-        thread_pool.run(waiter).unwrap();
+        thread_pool.run(waiter);
     }
 
     #[test]
@@ -260,7 +296,7 @@ mod tests {
             *res_guard = true;
         }).unwrap();
 
-        thread_pool.run(waiter).unwrap();
+        thread_pool.run(waiter);
         let res_guard = arc_mutex_res.lock().unwrap();
         assert!(*res_guard);
     }
@@ -289,7 +325,7 @@ mod tests {
 
         }).unwrap();
 
-        thread_pool.run(waiter).unwrap();
+        thread_pool.run(waiter);
         let res_guard = arc_mutex_res.lock().unwrap();
         assert_eq!(*res_guard, 9);
     }
@@ -330,8 +366,24 @@ mod tests {
             wspawner.spawn(Yield::new(0x10)).unwrap();
         }
 
-        thread_pool.run(waiter).unwrap();
+        thread_pool.run(waiter);
     }
+
+    /*
+    // Nested wakers don't seem to work at this point.
+    
+    #[test]
+    fn test_inside_future() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+
+        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+
+        let c_wspawner = wspawner.clone();
+        let handle = wspawner.spawn_with_handle(c_wspawner.wait()).unwrap();
+
+        thread_pool.run(handle);
+    }
+    */
 }
 
 
