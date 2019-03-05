@@ -256,7 +256,7 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::SpawnExt;
     use futures::{future, StreamExt, SinkExt};
-    use futures::channel::mpsc;
+    use futures::channel::{mpsc, oneshot};
 
 
     #[test]
@@ -369,21 +369,51 @@ mod tests {
         thread_pool.run(waiter);
     }
 
-    /*
-    // Nested wakers don't seem to work at this point.
-    
     #[test]
-    fn test_inside_future() {
+    fn test_wait_inside_future() {
         let mut thread_pool = ThreadPool::new().unwrap();
 
         let mut wspawner = SpawnerWait::new(thread_pool.clone());
 
         let c_wspawner = wspawner.clone();
-        let handle = wspawner.spawn_with_handle(c_wspawner.wait()).unwrap();
 
-        thread_pool.run(handle);
+        let (mut a_sender, mut b_receiver) = mpsc::channel(0);
+        let (done_sender, done_receiver) = oneshot::channel();
+        let arc_mutex_res = Arc::new(Mutex::new(0usize));
+
+        // a:
+        thread_pool.spawn(async move {
+            // Channel has limited capacity:
+            let progress_done = c_wspawner.wait();
+            await!(a_sender.send(())).unwrap();
+            await!(progress_done);
+
+            done_sender.send(()).unwrap();
+        }).unwrap();
+
+        let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
+        // b:
+        wspawner.spawn(async move {
+            // First get a message from a:
+            await!(b_receiver.next()).unwrap();
+
+            // Channel has limited capacity:
+            let (mut sender, _receiver) = mpsc::channel::<u32>(8);
+
+            // We keep sending into the channel.
+            // At some point this loop should be stuck, because the channel is full.
+            loop {
+                await!(sender.send(0)).unwrap();
+                let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                *res_guard = res_guard.checked_add(1).unwrap();
+            }
+
+        }).unwrap();
+
+        thread_pool.run(done_receiver).unwrap();
+        let res_guard = arc_mutex_res.lock().unwrap();
+        assert_eq!(*res_guard, 9);
     }
-    */
 }
 
 
