@@ -7,6 +7,8 @@ use futures::{StreamExt, SinkExt};
 
 use tempfile::tempdir;
 
+use common::spawner_wait::SpawnerWait;
+
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
 use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
@@ -16,16 +18,19 @@ use crypto::uid::{Uid, UID_LEN};
 use crate::utils::{create_node, create_app, SimDb,
                     create_relay, create_index_server,
                     relay_address, named_relay_address, 
-                    named_index_server_address, node_public_key, Yield};
+                    named_index_server_address, node_public_key};
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
-const YIELD_ITERS: usize = 0x1000;
+// const YIELD_ITERS: usize = 0x1000;
 
-async fn task_two_nodes_payment<S>(mut spawner: S) 
+async fn task_two_nodes_payment<S>(spawner: S) 
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
+
+    let mut wspawner = SpawnerWait::new(spawner);
+
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
     let temp_dir = tempdir().unwrap();
@@ -34,11 +39,11 @@ where
     let sim_db = SimDb::new(temp_dir.path().to_path_buf());
 
     // A network simulator:
-    let sim_net_client = create_sim_network(&mut spawner);
+    let sim_net_client = create_sim_network(&mut wspawner);
 
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
-    let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+    let timer_client = create_timer_incoming(tick_receiver, wspawner.clone()).unwrap();
 
 
     // Create initial database for node 0:
@@ -56,13 +61,13 @@ where
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              spawner.clone()));
+              wspawner.clone()));
 
     let mut app0 = await!(create_app(0,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     0,
-                    spawner.clone()));
+                    wspawner.clone()));
 
 
     // Create initial database for node 1:
@@ -79,24 +84,24 @@ where
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              spawner.clone()));
+              wspawner.clone()));
 
     let mut app1 = await!(create_app(1,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     1,
-                    spawner.clone()));
+                    wspawner.clone()));
 
     // Create relays:
     await!(create_relay(0,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 spawner.clone()));
+                 wspawner.clone()));
 
     await!(create_relay(1,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 spawner.clone()));
+                 wspawner.clone()));
     
     // Create three index servers:
     // 0 -- 2 -- 1
@@ -106,20 +111,20 @@ where
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![0,1],
-                             spawner.clone()));
+                             wspawner.clone()));
 
 
     await!(create_index_server(0,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             spawner.clone()));
+                             wspawner.clone()));
 
     await!(create_index_server(1,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             spawner.clone()));
+                             wspawner.clone()));
 
 
     let mut config0 = app0.config().unwrap().clone();
@@ -145,7 +150,7 @@ where
     // Wait some time:
     for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
+        await!(wspawner.wait()).unwrap();
     }
 
     // Node0: Add node1 as a friend:
@@ -166,7 +171,7 @@ where
     // Wait some time:
     for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
+        await!(wspawner.wait()).unwrap();
     }
 
     // Node0: Wait until node1 is online:
@@ -213,7 +218,7 @@ where
     // Wait some time, to let the index servers exchange information:
     for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
+        await!(wspawner.wait()).unwrap();
     }
 
     // Node0: Send 10 credits to Node1:
@@ -244,7 +249,7 @@ where
     // Allow some time for the index servers to be updated about the new state:
     for _ in 0 .. 0x100usize {
         await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
+        await!(wspawner.wait()).unwrap();
     }
 
     // Node1: Send 5 credits to Node0:
