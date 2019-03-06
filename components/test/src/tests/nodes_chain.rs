@@ -26,7 +26,6 @@ async fn task_nodes_chain<S>(spawner: S)
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let _ = env_logger::init();
     let mut wspawner = SpawnerWait::new(spawner);
 
     // Create a temporary directory.
