@@ -99,7 +99,10 @@ where
     let mut fut_connect = connector.transform(()).fuse();
 
     select! {
-        _fut_timeout = fut_timeout => None,
+        _fut_timeout = fut_timeout => {
+            warn!("connection_with_timeout(): Timeout occured during connection attempt");
+            None
+        },
         fut_connect = fut_connect => fut_connect,
     }
 }
