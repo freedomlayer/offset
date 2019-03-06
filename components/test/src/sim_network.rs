@@ -56,7 +56,11 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
 
                     // Put the listener sender back in to the map:
                     listeners.insert(connect_address, conn_sender);
-                    let _ = oneshot_sender.send((connect_sender, connect_receiver));
+                    if let Err(_) = oneshot_sender.send((connect_sender, connect_receiver)) {
+                        warn!("SimNetworkRequest::Connect: Failure sending pair!");
+                    }
+                } else {
+                    warn!("Connection failed: No listeners at: {:?}", connect_address);
                 }
             },
         }
