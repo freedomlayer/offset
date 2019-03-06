@@ -36,6 +36,7 @@ where
             let mut version_data = Vec::new();
             version_data.write_u32::<BigEndian>(local_version).unwrap();
             if let Err(_) = await!(sender.send(version_data)) {
+                warn!("Failed to send version information");
                 return;
             }
             // Next send any other message from the user:
@@ -49,17 +50,20 @@ where
             // Expect version to be the first sent data:
             let version_data = match await!(receiver.next()) {
                 Some(version_data) => version_data,
-                _ => return,
+                _ => {
+                    warn!("Failed to receive version information");
+                    return;
+                }
             };
 
             if version_data.len() != 4 {
-                error!("Invalid version_data length");
+                warn!("Invalid version_data length");
                 return;
             }
 
             let remote_version = BigEndian::read_u32(&version_data);
             if remote_version != local_version {
-                error!("Invalid remote version: {}", remote_version);
+                warn!("Invalid remote version: {}", remote_version);
                 return;
             }
 
