@@ -119,12 +119,11 @@ impl Future for ProgressDone {
         let mut tracker = c_arc_mutex_tracker.lock().unwrap();
         if !self.waker_saved {
             if tracker.progress_done() {
-                Poll::Ready(())
-            } else {
-                tracker.add_waker(waker.clone());
-                self.waker_saved = true;
-                Poll::Pending
+                return Poll::Ready(());
             }
+            tracker.add_waker(waker.clone());
+            self.waker_saved = true;
+            Poll::Pending
         } else {
             assert!(tracker.progress_done());
             Poll::Ready(())
@@ -307,30 +306,31 @@ mod tests {
     #[test]
     fn test_channel_full() {
         let mut thread_pool = ThreadPool::new().unwrap();
+        for _ in 0 .. 0x10 {
+            let mut wspawner = SpawnerWait::new(thread_pool.clone());
+            let waiter = wspawner.wait();
 
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
-        let waiter = wspawner.wait();
+            let arc_mutex_res = Arc::new(Mutex::new(0usize));
 
-        let arc_mutex_res = Arc::new(Mutex::new(0usize));
+            let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
+            wspawner.spawn(async move {
+                // Channel has limited capacity:
+                let (mut sender, _receiver) = mpsc::channel::<u32>(8);
 
-        let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
-        wspawner.spawn(async move {
-            // Channel has limited capacity:
-            let (mut sender, _receiver) = mpsc::channel::<u32>(8);
+                // We keep sending into the channel.
+                // At some point this loop should be stuck, because the channel is full.
+                loop {
+                    await!(sender.send(0)).unwrap();
+                    let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                    *res_guard = res_guard.checked_add(1).unwrap();
+                }
 
-            // We keep sending into the channel.
-            // At some point this loop should be stuck, because the channel is full.
-            loop {
-                await!(sender.send(0)).unwrap();
-                let mut res_guard = c_arc_mutex_res.lock().unwrap();
-                *res_guard = res_guard.checked_add(1).unwrap();
-            }
+            }).unwrap();
 
-        }).unwrap();
-
-        thread_pool.run(waiter);
-        let res_guard = arc_mutex_res.lock().unwrap();
-        assert_eq!(*res_guard, 9);
+            thread_pool.run(waiter);
+            let res_guard = arc_mutex_res.lock().unwrap();
+            assert_eq!(*res_guard, 9);
+        }
     }
 
     // Based on:
@@ -384,16 +384,6 @@ mod tests {
         let (done_sender, done_receiver) = oneshot::channel();
         let arc_mutex_res = Arc::new(Mutex::new(0usize));
 
-        // a:
-        thread_pool.spawn(async move {
-            // Channel has limited capacity:
-            let progress_done = c_wspawner.wait();
-            await!(a_sender.send(())).unwrap();
-            await!(progress_done);
-
-            done_sender.send(()).unwrap();
-        }).unwrap();
-
         let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
         // b:
         wspawner.spawn(async move {
@@ -412,6 +402,17 @@ mod tests {
             }
 
         }).unwrap();
+
+        // a:
+        thread_pool.spawn(async move {
+            // Channel has limited capacity:
+            let progress_done = c_wspawner.wait();
+            await!(a_sender.send(())).unwrap();
+            await!(progress_done);
+
+            done_sender.send(()).unwrap();
+        }).unwrap();
+
 
         thread_pool.run(done_receiver).unwrap();
         let res_guard = arc_mutex_res.lock().unwrap();
