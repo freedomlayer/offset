@@ -1,15 +1,17 @@
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::collections::HashMap;
 
-use futures::task::{Spawn, SpawnExt, Waker};
-use futures::{future, Future, FutureExt, TryFutureExt, Poll};
+use futures::task::{Spawn, SpawnExt};
+use futures::{future, FutureExt, TryFutureExt, SinkExt};
+use futures::channel::mpsc;
 
 use crypto::identity::{PublicKey, Identity, 
     generate_pkcs8_key_pair, SoftwareEd25519Identity};
 
 use crypto::test_utils::DummyRandom;
 use crypto::crypto_rand::CryptoRandom;
+
+use common::spawner_wait::SpawnerWait;
 
 use proto::consts::{TICKS_TO_REKEY, MAX_OPERATIONS_IN_BATCH, 
     MAX_NODE_RELAYS, KEEPALIVE_TICKS};
@@ -49,6 +51,7 @@ const CONN_TIMEOUT_TICKS: usize = 0x8;
 /// going through the incoming connection transform at the same time
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
+/*
 // Based on:
 // - https://rust-lang-nursery.github.io/futures-api-docs/0.3.0-alpha.13/src/futures_test/future/pending_once.rs.html#14-17
 // - https://github.com/rust-lang-nursery/futures-rs/issues/869
@@ -73,6 +76,7 @@ impl Future for Yield {
         }
     }
 }
+*/
 
 fn gen_identity<R>(rng: &R) -> impl Identity 
 where
@@ -263,7 +267,9 @@ where
         .map(|(index, app_permissions)|
              (get_app_identity(index).get_public_key(), app_permissions))
         .collect::<HashMap<_,_>>();
-    let get_trusted_apps = move || Some(trusted_apps.clone());
+    let get_trusted_apps = move || {
+        Some(trusted_apps.clone())
+    };
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
     // Note: we use the same spawner for testing purposes.
@@ -353,5 +359,21 @@ where
         .map(|_| ());
 
     spawner.spawn(net_relay_server_fut).unwrap();
+}
+
+
+pub async fn advance_time<'a,S>(ticks: usize, 
+                tick_sender: &'a mut mpsc::Sender<()>, 
+                wspawner: &'a SpawnerWait<S>) 
+where
+    S: Spawn,
+{
+
+    await!(wspawner.wait());
+    for _ in 0 .. ticks {
+        let waiter = wspawner.wait();
+        await!(tick_sender.send(())).unwrap();
+        await!(waiter);
+    }
 }
 
