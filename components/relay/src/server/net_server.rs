@@ -101,7 +101,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub async fn net_relay_server<IRC,R,S>(incoming_raw_conns: IRC,
                              identity_client: IdentityClient,
                              timer_client: TimerClient,
