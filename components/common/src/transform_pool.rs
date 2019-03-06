@@ -46,6 +46,7 @@ where
         match event {
             TransformPoolEvent::Incoming(input_value) => {
                 if num_concurrent >= max_concurrent {
+                    warn!("transform_pool_loop: Dropping connection: max_concurrent exceeded");
                     // We drop the input value because we don't have any room to process it.
                     continue;
                 }
@@ -56,7 +57,7 @@ where
                 let fut = async move {
                     if let Some(output_value) = await!(c_transform.transform(input_value)) {
                         let _ = await!(c_outgoing.send(output_value));
-                        let _ = c_close_sender.send(());
+                        let _ = await!(c_close_sender.send(()));
                     }
                 };
                 spawner.spawn(fut)
@@ -69,6 +70,8 @@ where
     }
     Ok(())
 }
+
+// TODO: Add tests!
 
 /*
 
