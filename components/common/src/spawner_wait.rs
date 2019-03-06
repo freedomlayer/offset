@@ -117,14 +117,17 @@ impl Future for ProgressDone {
     fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
         let c_arc_mutex_tracker = self.arc_mutex_tracker.clone();
         let mut tracker = c_arc_mutex_tracker.lock().unwrap();
-        if tracker.progress_done() {
-            Poll::Ready(())
-        } else {
-            if !self.waker_saved {
+        if !self.waker_saved {
+            if tracker.progress_done() {
+                Poll::Ready(())
+            } else {
                 tracker.add_waker(waker.clone());
                 self.waker_saved = true;
+                Poll::Pending
             }
-            Poll::Pending
+        } else {
+            assert!(tracker.progress_done());
+            Poll::Ready(())
         }
     }
 }
