@@ -145,6 +145,7 @@ where
            timer_client.clone(),
            spawner.clone());
 
+    // TODO: Maybe use await! instead of spawn_with_handle() here?
     let channeler_fut = channeler_loop(
                             local_public_key,
                             from_funder,
