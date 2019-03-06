@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{StreamExt, SinkExt};
+use futures::StreamExt;
 
 use tempfile::tempdir;
 
@@ -18,7 +18,8 @@ use crypto::uid::{Uid, UID_LEN};
 use crate::utils::{create_node, create_app, SimDb,
                     create_relay, create_index_server,
                     relay_address, named_relay_address, 
-                    named_index_server_address, node_public_key};
+                    named_index_server_address, node_public_key,
+                    advance_time};
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
@@ -32,22 +33,8 @@ where
     let mut wspawner = SpawnerWait::new(spawner);
 
     // Create timer_client:
-    let (tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
+    let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
     let timer_client = create_timer_incoming(tick_receiver, wspawner.clone()).unwrap();
-
-    let c_wspawner = wspawner.clone();
-    let wait_ticks = move |ticks: usize| {
-        let c_wspawner = c_wspawner.clone();
-        let mut c_tick_sender = tick_sender.clone();
-        async move {
-            for _ in 0 .. ticks {
-                dbg!("begin tick iter");
-                await!(c_tick_sender.send(())).unwrap();
-                await!(c_wspawner.wait());
-                dbg!("end tick iter");
-            }
-        }
-    };
 
 
     // Create a temporary directory.
@@ -59,10 +46,6 @@ where
 
     // A network simulator:
     let sim_net_client = create_sim_network(&mut wspawner);
-
-    dbg!("First wait");
-    // Wait some time: (For DEBUG)
-    await!(wait_ticks(0x100));
 
     // Create initial database for node 0:
     sim_db.init_db(0);
@@ -80,7 +63,6 @@ where
               sim_net_client.clone(),
               trusted_apps,
               wspawner.clone()));
-
 
     let mut app0 = await!(create_app(0,
                     sim_net_client.clone(),
@@ -117,10 +99,6 @@ where
                  sim_net_client.clone(),
                  wspawner.clone()));
 
-    dbg!("Was here0.5");
-    // Wait some time: (For DEBUG)
-    await!(wait_ticks(0x100));
-    dbg!("Was here0.7");
 
     await!(create_relay(1,
                  timer_client.clone(),
@@ -172,10 +150,8 @@ where
     await!(config0.add_index_server(named_index_server_address(0))).unwrap();
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
-    dbg!("Was here2");
-
     // Wait some time:
-    await!(wait_ticks(0x100));
+    await!(advance_time(0x100, &mut tick_sender, &wspawner));
 
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
@@ -192,7 +168,7 @@ where
     await!(config0.enable_friend(node_public_key(1))).unwrap();
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
-    await!(wait_ticks(0x100));
+    await!(advance_time(0x100, &mut tick_sender, &wspawner));
 
     // Node0: Wait until node1 is online:
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
@@ -236,7 +212,7 @@ where
     await!(config1.open_friend(node_public_key(0))).unwrap();
 
     // Wait some time, to let the index servers exchange information:
-    await!(wait_ticks(0x100));
+    await!(advance_time(0x100, &mut tick_sender, &wspawner));
 
     // Node0: Send 10 credits to Node1:
     // Node0: Request routes:
@@ -264,7 +240,7 @@ where
     await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
     // Allow some time for the index servers to be updated about the new state:
-    await!(wait_ticks(0x100));
+    await!(advance_time(0x100, &mut tick_sender, &wspawner));
 
     // Node1: Send 5 credits to Node0:
     let mut routes_1_0 = await!(routes1.request_routes(10,
