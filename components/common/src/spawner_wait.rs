@@ -1,19 +1,25 @@
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::pin::Pin;
 
 use futures::task::{Spawn, SpawnError, Waker, ArcWake};
 use futures::future::FutureObj;
 use futures::{Poll, Future};
 
+use crate::caller_info::{get_caller_info, CallerInfo};
+
 /// Collect tracking information about calls to poll() over futures
 /// and wake() over wakers.
 /// The tracking information is used to determine if no more progress is expected to happen on the
 /// wrapped spawner.
 struct Tracker {
+    /// Debug information the spawned futures
+    info: HashMap<usize, CallerInfo>,
     /// Tasks that should be polled again:
     pending: HashSet<usize>,
+    /// Tasks that were done
+    done: HashSet<usize>,
     /// Number of ongoing polls:
     ongoing_polls: usize,
     /// The id of the next spawned future:
@@ -25,7 +31,9 @@ struct Tracker {
 impl Tracker {
     pub fn new() -> Self {
         Tracker {
+            info: HashMap::new(),
             pending: HashSet::new(),
+            done: HashSet::new(),
             ongoing_polls: 0,
             next_id: 0,
             wakers: Vec::new(),
@@ -46,16 +54,45 @@ impl Tracker {
         id
     }
 
+    /// Insert debugging information about a new spawned future
+    pub fn insert_info(&mut self, id: usize, caller_info: CallerInfo) {
+        self.info.insert(id, caller_info);
+    }
+
+    /// Set a spawned future to be done.
+    /// We do this if the future resolved to some value.
+    pub fn set_done(&mut self, id: usize) {
+        self.pending.remove(&id);
+        self.done.insert(id);
+    }
+
     /// Insert an id of a pending spawned future (We expect that it will
     /// be rescheduled later)
     pub fn insert(&mut self, id: usize) {
-        self.pending.insert(id);
+        assert!(self.info.contains_key(&id));
+        // Note: We would have expected that 
+        // it is not possible to wake up a future that already resolved,
+        // but it seems like it does happen when using spawn_with_handle() for some reason.
+        // This could be a bug.
+        //
+        // Ideally we should have:
+        //
+        // assert!(!self.done.contains(&id));
+        //
+        // Instead, we use this workaround for this problem:
+        if !self.done.contains(&id) {
+            self.pending.insert(id);
+        }
     }
 
     /// Remove a pending spawned future
     pub fn remove(&mut self, id: &usize) {
-        let res = self.pending.remove(id);
-        assert!(res);
+        if !self.done.contains(&id) {
+            let _res = self.pending.remove(id);
+            // TODO: How can this happen that we remove the same future id twice?
+            // We need to create a test case for this.
+            // assert!(res);
+        }
     }
 
     /// Is any progress possible?
@@ -72,6 +109,14 @@ impl Tracker {
     /// If it seems like no progress is expected to happen, we notify all clients.
     pub fn poll_end(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_sub(1).unwrap();
+        /*
+        println!("\n---------[poll_end]----------");
+        println!("onging_polls = {}", self.ongoing_polls);
+        for (id, caller_info) in self.get_pending_info() {
+            println!("id = {}", id);
+            println!("caller_info = {:?}", caller_info);
+        }
+        */
         if !self.progress_done() {
             return;
         }
@@ -81,6 +126,16 @@ impl Tracker {
         while let Some(waker) = self.wakers.pop() {
             waker.wake();
         }
+    }
+
+    /// Get information about all known pending futures
+    #[allow(unused)]
+    pub fn get_pending_info(&self) -> Vec<(usize, CallerInfo)> {
+        self.pending
+            .iter()
+            .map(|id| 
+                 (id.clone(), self.info.get(id).unwrap().clone()))
+            .collect()
     }
 }
 
@@ -189,11 +244,13 @@ struct FutureWrapper<F> {
 
 impl<F> FutureWrapper<F> {
     fn new(future: F, 
-           arc_mutex_tracker: Arc<Mutex<Tracker>>) -> Self {
+           arc_mutex_tracker: Arc<Mutex<Tracker>>,
+           caller_info: CallerInfo) -> Self {
 
         let id = {
             let mut tracker = arc_mutex_tracker.lock().unwrap();
             let id = tracker.next_id();
+            tracker.insert_info(id, caller_info);
             tracker.insert(id);
             id
         };
@@ -230,6 +287,11 @@ where
         {
             let mut tracker = self.arc_mutex_tracker.lock().unwrap();
             tracker.poll_end();
+            
+            // If the result is Ready, we set this task to be done (forever):
+            if let Poll::Ready(_) = res {
+                tracker.set_done(self.id);
+            }
         }
 
         res
@@ -245,8 +307,11 @@ where
         future: FutureObj<'static, ()>
     ) -> Result<(), SpawnError> {
 
+        // Get information about whoever called spawn_obj
+        let caller_info = get_caller_info(3).unwrap();
+
         let arc_mutex_tracker = Arc::clone(&self.arc_mutex_tracker);
-        let future_wrapper = FutureWrapper::new(future, arc_mutex_tracker);
+        let future_wrapper = FutureWrapper::new(future, arc_mutex_tracker, caller_info);
         let future_obj = FutureObj::new(Box::pin(future_wrapper));
         self.spawner.spawn_obj(future_obj)
     }
@@ -417,6 +482,21 @@ mod tests {
         thread_pool.run(done_receiver).unwrap();
         let res_guard = arc_mutex_res.lock().unwrap();
         assert_eq!(*res_guard, 9);
+    }
+
+    #[test]
+    fn test_spawn_with_handle() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+
+        let waiter = wspawner.wait();
+        let handle = wspawner.spawn_with_handle(
+            future::ready(0x1337u32)).unwrap();
+
+        // println!("Before run(handle)");
+        assert_eq!(thread_pool.run(handle), 0x1337u32);
+        // println!("Before run(waiter)");
+        thread_pool.run(waiter);
     }
 }
 
