@@ -303,6 +303,7 @@ where
         }
     }
 
+    /// Handle incoming connection from a remote friend
     async fn handle_connection(&mut self, 
                                friend_public_key: PublicKey, 
                                raw_conn: RawConn)
