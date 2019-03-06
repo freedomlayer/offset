@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{/*StreamExt, */ SinkExt};
 
 use tempfile::tempdir;
 
+use common::spawner_wait::SpawnerWait;
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
 // use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
@@ -14,19 +14,21 @@ use proto::app_server::messages::AppPermissions;
 // use crypto::uid::{Uid, UID_LEN};
 
 use crate::utils::{create_node, create_app, SimDb,
-                    create_relay, create_index_server,
+                    create_relay, /* create_index_server, */
                     relay_address, named_relay_address, 
-                    named_index_server_address, node_public_key, Yield};
+                    /* named_index_server_address,*/ node_public_key,
+                    advance_time};
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
-const YIELD_ITERS: usize = 0x1000;
 
-async fn task_nodes_chain<S>(mut spawner: S) 
+async fn task_nodes_chain<S>(spawner: S) 
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
     let _ = env_logger::init();
+    let mut wspawner = SpawnerWait::new(spawner);
+
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
     let temp_dir = tempdir().unwrap();
@@ -35,11 +37,11 @@ where
     let sim_db = SimDb::new(temp_dir.path().to_path_buf());
 
     // A network simulator:
-    let sim_net_client = create_sim_network(&mut spawner);
+    let sim_net_client = create_sim_network(&mut wspawner);
 
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
-    let timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+    let timer_client = create_timer_incoming(tick_receiver, wspawner.clone()).unwrap();
 
     let mut apps = Vec::new();
 
@@ -59,26 +61,27 @@ where
                   timer_client.clone(),
                   sim_net_client.clone(),
                   trusted_apps,
-                  spawner.clone()));
+                  wspawner.clone()));
 
         apps.push(await!(create_app(i,
                         sim_net_client.clone(),
                         timer_client.clone(),
                         i,
-                        spawner.clone())));
+                        wspawner.clone())));
     }
 
     // Create relays:
     await!(create_relay(0,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 spawner.clone()));
+                 wspawner.clone()));
 
     await!(create_relay(1,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 spawner.clone()));
+                 wspawner.clone()));
     
+    /*
     // Create three index servers:
     // 0 -- 2 -- 1
     // The only way for information to flow between the two index servers
@@ -87,23 +90,25 @@ where
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![0,1],
-                             spawner.clone()));
+                             wspawner.clone()));
 
 
     await!(create_index_server(0,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             spawner.clone()));
+                             wspawner.clone()));
 
     await!(create_index_server(1,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             spawner.clone()));
+                             wspawner.clone()));
 
+    */
 
     // Configure relays:
+
     await!(apps[0].config().unwrap().add_relay(named_relay_address(0))).unwrap();
     await!(apps[0].config().unwrap().add_relay(named_relay_address(1))).unwrap();
 
@@ -116,12 +121,14 @@ where
     await!(apps[4].config().unwrap().add_relay(named_relay_address(0))).unwrap();
     await!(apps[5].config().unwrap().add_relay(named_relay_address(1))).unwrap();
 
+    /*
     // Configure index servers:
     await!(apps[0].config().unwrap().add_index_server(named_index_server_address(0))).unwrap();
     await!(apps[0].config().unwrap().add_index_server(named_index_server_address(2))).unwrap();
 
     await!(apps[1].config().unwrap().add_index_server(named_index_server_address(1))).unwrap();
     await!(apps[2].config().unwrap().add_index_server(named_index_server_address(2))).unwrap();
+
     await!(apps[3].config().unwrap().add_index_server(named_index_server_address(0))).unwrap();
 
     await!(apps[4].config().unwrap().add_index_server(named_index_server_address(1))).unwrap();
@@ -129,20 +136,17 @@ where
 
     await!(apps[5].config().unwrap().add_index_server(named_index_server_address(2))).unwrap();
     await!(apps[5].config().unwrap().add_index_server(named_index_server_address(1))).unwrap();
+    */
 
 
     // Wait some time:
-    for _ in 0 .. 0x100usize {
-        await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
-    }
+    await!(advance_time(40, &mut tick_sender, &wspawner));
     /*
                        5
                        |
              0 -- 1 -- 2 -- 4
                   |
                   3
-    */
 
     // 0 --> 1
     await!(apps[0].config().unwrap().add_friend(node_public_key(1),
@@ -161,6 +165,7 @@ where
     await!(apps[1].config().unwrap().enable_friend(node_public_key(0))).unwrap();
     await!(apps[1].config().unwrap().open_friend(node_public_key(0))).unwrap();
     await!(apps[1].config().unwrap().set_friend_remote_max_debt(node_public_key(0), 100)).unwrap();
+    */
 
     // 1 --> 2
     await!(apps[1].config().unwrap().add_friend(node_public_key(2),
@@ -180,6 +185,7 @@ where
     await!(apps[2].config().unwrap().open_friend(node_public_key(1))).unwrap();
     await!(apps[2].config().unwrap().set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
+    /*
     // 1 --> 3
     await!(apps[1].config().unwrap().add_friend(node_public_key(3),
                               vec![relay_address(0)],
@@ -197,7 +203,9 @@ where
     await!(apps[3].config().unwrap().enable_friend(node_public_key(1))).unwrap();
     await!(apps[3].config().unwrap().open_friend(node_public_key(1))).unwrap();
     await!(apps[3].config().unwrap().set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
+    */
 
+    /*
     // 2 --> 5
     await!(apps[2].config().unwrap().add_friend(node_public_key(5),
                               vec![relay_address(1)],
@@ -207,6 +215,8 @@ where
     await!(apps[2].config().unwrap().open_friend(node_public_key(5))).unwrap();
     await!(apps[2].config().unwrap().set_friend_remote_max_debt(node_public_key(5), 100)).unwrap();
 
+    */
+
     // 5 --> 2
     await!(apps[5].config().unwrap().add_friend(node_public_key(2),
                               vec![relay_address(0)],
@@ -215,6 +225,8 @@ where
     await!(apps[5].config().unwrap().enable_friend(node_public_key(2))).unwrap();
     await!(apps[5].config().unwrap().open_friend(node_public_key(2))).unwrap();
     await!(apps[5].config().unwrap().set_friend_remote_max_debt(node_public_key(2), 100)).unwrap();
+
+    /*
 
     // 2 --> 4
     await!(apps[2].config().unwrap().add_friend(node_public_key(4),
@@ -230,27 +242,36 @@ where
     // Node4 will find out and remove it later.
     await!(apps[4].config().unwrap().add_friend(node_public_key(2),
                               vec![relay_address(0), relay_address(1)],
-                              String::from("node4"),
+                              String::from("node2"),
                               0)).unwrap();
     await!(apps[4].config().unwrap().enable_friend(node_public_key(2))).unwrap();
     await!(apps[4].config().unwrap().open_friend(node_public_key(2))).unwrap();
     await!(apps[4].config().unwrap().set_friend_remote_max_debt(node_public_key(2), 100)).unwrap();
+    */
 
 
     // Wait some time:
-    for _ in 0 .. 0x100usize {
-        await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
-    }
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
+    // Make sure that node1 sees node2 as online:
+    let (node_report, mutations_receiver) = await!(apps[1].report().incoming_reports()).unwrap();
+    drop(mutations_receiver);
+    let friend_report = match node_report.funder_report.friends.get(&node_public_key(2)) {
+        None => unreachable!(),
+        Some(friend_report) => friend_report,
+    };
+    assert!(friend_report.liveness.is_online());
+
+    /*
     // Node0: Send 10 credits to Node1:
     // Node0: Request routes:
-    let routes_0_4 = dbg!(await!(apps[0].routes().unwrap().request_routes(20,
-                           node_public_key(0),
-                           node_public_key(4),
+    let routes = dbg!(await!(apps[1].routes().unwrap().request_routes(20,
+                           node_public_key(1),
+                           node_public_key(2),
                            None))).unwrap();
 
-    assert!(routes_0_4.len() > 0);
+    assert!(routes.len() > 0);
+    */
     /*
 
     assert_eq!(routes_0_1.len(), 1);
