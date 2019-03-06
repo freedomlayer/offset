@@ -1,8 +1,6 @@
-#![allow(unused)]
-
 use std::marker::Unpin;
 use futures::{future, stream, Stream, StreamExt, 
-    Sink, SinkExt, Future, FutureExt};
+    Sink, SinkExt, FutureExt};
 use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
@@ -15,7 +13,7 @@ use crypto::crypto_rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use crate::state::{ScStateInitial, ScStateHalf, ScState, ScStateError};
+use crate::state::{ScStateInitial, ScState, ScStateError};
 use proto::secure_channel::serialize::{serialize_exchange_rand_nonce, deserialize_exchange_rand_nonce,
                         serialize_exchange_dh, deserialize_exchange_dh};
 use proto::secure_channel::messages::{EncryptedData, PlainData};
@@ -26,16 +24,14 @@ enum SecureChannelError {
     IdentityFailure,
     WriterError,
     ReaderClosed,
-    ReaderError,
     DeserializeRandNonceError,
     HandleExchangeRandNonceError(ScStateError),
     DeserializeExchangeScStateError,
     HandleExchangeScStateError(ScStateError),
     UnexpectedRemotePublicKey,
     RequestTimerStreamError,
-    FromUserError,
-    TimerStreamError,
     HandleIncomingError,
+    SpawnError,
 }
 
 
@@ -222,7 +218,8 @@ where
             error!("Secure Channel error: {:?}", e);
         }
     });
-    spawner.spawn(sc_loop_report_error);
+    spawner.spawn(sc_loop_report_error)
+        .map_err(|_| SecureChannelError::SpawnError)?;
 
     Ok((remote_public_key, (user_sender, user_receiver)))
 }
