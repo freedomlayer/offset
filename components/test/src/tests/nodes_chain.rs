@@ -9,14 +9,14 @@ use tempfile::tempdir;
 use common::spawner_wait::SpawnerWait;
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
-// use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
+use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 
-// use crypto::uid::{Uid, UID_LEN};
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::utils::{create_node, create_app, SimDb,
-                    create_relay, /* create_index_server, */
+                    create_relay, create_index_server,
                     relay_address, named_relay_address, 
-                    /* named_index_server_address,*/ node_public_key,
+                    named_index_server_address, node_public_key,
                     advance_time};
 use crate::sim_network::create_sim_network;
 
@@ -81,7 +81,6 @@ where
                  sim_net_client.clone(),
                  wspawner.clone()));
     
-    /*
     // Create three index servers:
     // 0 -- 2 -- 1
     // The only way for information to flow between the two index servers
@@ -105,7 +104,6 @@ where
                              vec![2],
                              wspawner.clone()));
 
-    */
 
     // Configure relays:
 
@@ -121,7 +119,6 @@ where
     await!(apps[4].config().unwrap().add_relay(named_relay_address(0))).unwrap();
     await!(apps[5].config().unwrap().add_relay(named_relay_address(1))).unwrap();
 
-    /*
     // Configure index servers:
     await!(apps[0].config().unwrap().add_index_server(named_index_server_address(0))).unwrap();
     await!(apps[0].config().unwrap().add_index_server(named_index_server_address(2))).unwrap();
@@ -136,17 +133,17 @@ where
 
     await!(apps[5].config().unwrap().add_index_server(named_index_server_address(2))).unwrap();
     await!(apps[5].config().unwrap().add_index_server(named_index_server_address(1))).unwrap();
-    */
 
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    // await!(advance_time(40, &mut tick_sender, &wspawner));
     /*
                        5
                        |
              0 -- 1 -- 2 -- 4
                   |
                   3
+    */
 
     // 0 --> 1
     await!(apps[0].config().unwrap().add_friend(node_public_key(1),
@@ -165,7 +162,6 @@ where
     await!(apps[1].config().unwrap().enable_friend(node_public_key(0))).unwrap();
     await!(apps[1].config().unwrap().open_friend(node_public_key(0))).unwrap();
     await!(apps[1].config().unwrap().set_friend_remote_max_debt(node_public_key(0), 100)).unwrap();
-    */
 
     // 1 --> 2
     await!(apps[1].config().unwrap().add_friend(node_public_key(2),
@@ -185,7 +181,6 @@ where
     await!(apps[2].config().unwrap().open_friend(node_public_key(1))).unwrap();
     await!(apps[2].config().unwrap().set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
-    /*
     // 1 --> 3
     await!(apps[1].config().unwrap().add_friend(node_public_key(3),
                               vec![relay_address(0)],
@@ -203,9 +198,7 @@ where
     await!(apps[3].config().unwrap().enable_friend(node_public_key(1))).unwrap();
     await!(apps[3].config().unwrap().open_friend(node_public_key(1))).unwrap();
     await!(apps[3].config().unwrap().set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
-    */
 
-    /*
     // 2 --> 5
     await!(apps[2].config().unwrap().add_friend(node_public_key(5),
                               vec![relay_address(1)],
@@ -215,8 +208,6 @@ where
     await!(apps[2].config().unwrap().open_friend(node_public_key(5))).unwrap();
     await!(apps[2].config().unwrap().set_friend_remote_max_debt(node_public_key(5), 100)).unwrap();
 
-    */
-
     // 5 --> 2
     await!(apps[5].config().unwrap().add_friend(node_public_key(2),
                               vec![relay_address(0)],
@@ -225,8 +216,6 @@ where
     await!(apps[5].config().unwrap().enable_friend(node_public_key(2))).unwrap();
     await!(apps[5].config().unwrap().open_friend(node_public_key(2))).unwrap();
     await!(apps[5].config().unwrap().set_friend_remote_max_debt(node_public_key(2), 100)).unwrap();
-
-    /*
 
     // 2 --> 4
     await!(apps[2].config().unwrap().add_friend(node_public_key(4),
@@ -247,7 +236,6 @@ where
     await!(apps[4].config().unwrap().enable_friend(node_public_key(2))).unwrap();
     await!(apps[4].config().unwrap().open_friend(node_public_key(2))).unwrap();
     await!(apps[4].config().unwrap().set_friend_remote_max_debt(node_public_key(2), 100)).unwrap();
-    */
 
 
     // Wait some time:
@@ -262,73 +250,54 @@ where
     };
     assert!(friend_report.liveness.is_online());
 
-    /*
-    // Node0: Send 10 credits to Node1:
+    
     // Node0: Request routes:
-    let routes = dbg!(await!(apps[1].routes().unwrap().request_routes(20,
-                           node_public_key(1),
-                           node_public_key(2),
-                           None))).unwrap();
+    let mut routes_0_4 = await!(apps[0].routes().unwrap().request_routes(20,
+                           node_public_key(0),
+                           node_public_key(4),
+                           None)).unwrap();
 
-    assert!(routes.len() > 0);
-    */
-    /*
+    assert!(routes_0_4.len() > 0);
 
-    assert_eq!(routes_0_1.len(), 1);
-    let chosen_route_with_capacity = routes_0_1.pop().unwrap();
+    // Node0: Send 10 credits to Node1:
+    let chosen_route_with_capacity = routes_0_4.pop().unwrap();
     assert_eq!(chosen_route_with_capacity.capacity, 100);
     let chosen_route = chosen_route_with_capacity.route;
 
     let request_id = Uid::from(&[0x0; UID_LEN]);
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
     let dest_payment = 10;
-    let receipt = await!(send_funds0.request_send_funds(request_id.clone(),
+    let receipt = await!(apps[0].send_funds().unwrap().request_send_funds(request_id.clone(),
                                             chosen_route,
                                             invoice_id,
                                             dest_payment)).unwrap();
-    await!(send_funds0.receipt_ack(request_id, receipt.clone())).unwrap();
+    await!(apps[0].send_funds().unwrap().receipt_ack(request_id, receipt.clone())).unwrap();
 
-    // Node0 allows node1 to have maximum debt of 100 
-    // (This should allow to node1 to pay back).
-    await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
+    // Wait some time:
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
-    // Allow some time for the index servers to be updated about the new state:
-    for _ in 0 .. 0x100usize {
-        await!(tick_sender.send(())).unwrap();
-        await!(Yield::new(YIELD_ITERS));
-    }
-
-    // Node1: Send 5 credits to Node0:
-    let mut routes_1_0 = await!(routes1.request_routes(10,
-                           node_public_key(1),
-                           node_public_key(0),
+    // Node0: Request routes:
+    let mut routes_5_3 = await!(apps[5].routes().unwrap().request_routes(20,
+                           node_public_key(5),
+                           node_public_key(3),
                            None)).unwrap();
 
-    assert_eq!(routes_1_0.len(), 1);
-    let chosen_route_with_capacity = routes_1_0.pop().unwrap();
-    assert_eq!(chosen_route_with_capacity.capacity, 10);
+    assert!(routes_5_3.len() > 0);
+
+
+    // Node5: Send 10 credits to Node3:
+    let chosen_route_with_capacity = routes_5_3.pop().unwrap();
+    dbg!(&chosen_route_with_capacity.capacity);
     let chosen_route = chosen_route_with_capacity.route;
 
     let request_id = Uid::from(&[0x1; UID_LEN]);
     let invoice_id = InvoiceId::from(&[1; INVOICE_ID_LEN]);
-    let dest_payment = 5;
-    let receipt = await!(send_funds1.request_send_funds(request_id,
-                                            chosen_route.clone(),
-                                            invoice_id.clone(),
-                                            dest_payment)).unwrap();
-    await!(send_funds1.receipt_ack(request_id, receipt.clone())).unwrap();
-
-    // Node1 tries to send credits again: (6 credits):
-    // This payment should not work, because we do not have enough trust:
-    let request_id = Uid::from(&[0x2; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[2; INVOICE_ID_LEN]);
-    let dest_payment = 6;
-    let res = await!(send_funds1.request_send_funds(request_id,
-                                            chosen_route.clone(),
+    let dest_payment = 10;
+    let receipt = await!(apps[5].send_funds().unwrap().request_send_funds(request_id.clone(),
+                                            chosen_route,
                                             invoice_id,
-                                            dest_payment));
-    assert!(res.is_err());
-    */
+                                            dest_payment)).unwrap();
+    await!(apps[5].send_funds().unwrap().receipt_ack(request_id, receipt.clone())).unwrap();
 
 }
 
