@@ -304,7 +304,7 @@ mod tests {
                        mut tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
 
-        let (public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
+        let (_public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
         await!(sender.send(vec![0,1,2,3,4,5])).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5,4,3]);
@@ -315,14 +315,14 @@ mod tests {
         }
         await!(sender.send(vec![0,1,2])).unwrap();
 
-        output_sender.send(true);
+        output_sender.send(true).unwrap();
     }
 
     async fn secure_channel2(fut_sc: impl Future<Output=Result<(PublicKey, ConnPairVec), SecureChannelError>> + 'static,
-                       tick_sender: mpsc::Sender<()>,
+                       _tick_sender: mpsc::Sender<()>,
                        output_sender: oneshot::Sender<bool>) {
 
-        let (public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
+        let (_public_key, (mut sender, mut receiver)) = await!(fut_sc).unwrap();
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2,3,4,5]);
         await!(sender.send(vec![5,4,3])).unwrap();
@@ -330,7 +330,7 @@ mod tests {
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![0,1,2]);
 
-        output_sender.send(true);
+        output_sender.send(true).unwrap();
     }
 
     #[test]
