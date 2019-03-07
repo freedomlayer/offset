@@ -109,12 +109,14 @@ impl Tracker {
     /// If it seems like no progress is expected to happen, we notify all clients.
     pub fn poll_end(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_sub(1).unwrap();
+        /*
         println!("\n---------[poll_end]----------");
         println!("onging_polls = {}", self.ongoing_polls);
         for (id, caller_info) in self.get_pending_info() {
             println!("id = {}", id);
             println!("caller_info = {:?}", caller_info);
         }
+        */
 
         if !self.progress_done() {
             return;
