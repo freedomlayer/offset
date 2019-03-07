@@ -172,16 +172,22 @@ where
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
         Box::pin(async move {
-            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
-            let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
-                                    to_user, from_user,
-                                    timer_stream,
-                                    self.keepalive_ticks,
-                                    None)
-                    .map_err(|e| error!("transform_keepalive(): inner_keepalive_loop() error: {:?}", e))
-                    .then(|_| future::ready(()));
+            if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
+                let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
+                                        to_user, from_user,
+                                        timer_stream,
+                                        self.keepalive_ticks,
+                                        None)
+                        .map_err(|e| error!("transform_keepalive(): inner_keepalive_loop() error: {:?}", e))
+                        .then(|_| future::ready(()));
 
-            self.spawner.spawn(keepalive_fut).unwrap();
+                self.spawner.spawn(keepalive_fut).unwrap();
+            } else {
+                // Note: In this case the user will notice there is an error when he tries to
+                // use the connection, because to_user, from_user are dropped
+                warn!("transform_keepalive(): Error requesting timer stream");
+            }
+
             (user_sender, user_receiver)
         })
     }
