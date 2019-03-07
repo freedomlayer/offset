@@ -9,13 +9,16 @@ use futures::{Poll, Future};
 
 use crate::caller_info::{get_caller_info, CallerInfo};
 
+
 /// Collect tracking information about calls to poll() over futures
 /// and wake() over wakers.
 /// The tracking information is used to determine if no more progress is expected to happen on the
 /// wrapped spawner.
 struct Tracker {
     /// Debug information the spawned futures
-    info: HashMap<usize, CallerInfo>,
+    info: HashMap<usize, Option<CallerInfo>>,
+    /// Should we print info?
+    print_info: bool,
     /// Tasks that should be polled again:
     pending: HashSet<usize>,
     /// Tasks that were done
@@ -29,9 +32,10 @@ struct Tracker {
 }
 
 impl Tracker {
-    pub fn new() -> Self {
+    pub fn new(print_info: bool) -> Self {
         Tracker {
             info: HashMap::new(),
+            print_info,
             pending: HashSet::new(),
             done: HashSet::new(),
             ongoing_polls: 0,
@@ -55,8 +59,8 @@ impl Tracker {
     }
 
     /// Insert debugging information about a new spawned future
-    pub fn insert_info(&mut self, id: usize, caller_info: CallerInfo) {
-        self.info.insert(id, caller_info);
+    pub fn insert_info(&mut self, id: usize, opt_caller_info: Option<CallerInfo>) {
+        self.info.insert(id, opt_caller_info);
     }
 
     /// Set a spawned future to be done.
@@ -109,14 +113,16 @@ impl Tracker {
     /// If it seems like no progress is expected to happen, we notify all clients.
     pub fn poll_end(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_sub(1).unwrap();
-        /*
-        println!("\n---------[poll_end]----------");
-        println!("onging_polls = {}", self.ongoing_polls);
-        for (id, caller_info) in self.get_pending_info() {
-            println!("id = {}", id);
-            println!("caller_info = {:?}", caller_info);
+
+        if self.print_info {
+            println!("\n---------[poll_end]----------");
+            println!("onging_polls = {}", self.ongoing_polls);
+            for (id, opt_caller_info) in self.get_pending_info() {
+                println!("id = {}", id);
+                println!("caller_info = {:?}", opt_caller_info);
+            }
         }
-        */
+
 
         if !self.progress_done() {
             return;
@@ -131,7 +137,7 @@ impl Tracker {
 
     /// Get information about all known pending futures
     #[allow(unused)]
-    pub fn get_pending_info(&self) -> Vec<(usize, CallerInfo)> {
+    pub fn get_pending_info(&self) -> Vec<(usize, Option<CallerInfo>)> {
         self.pending
             .iter()
             .map(|id| 
@@ -149,6 +155,8 @@ impl Tracker {
 pub struct SpawnerWait<S> {
     spawner: S,
     arc_mutex_tracker: Arc<Mutex<Tracker>>,
+    /// Collect information about spawned futures
+    collect_info: bool,
 }
 
 /// A future that resolves when no more progress
@@ -191,8 +199,16 @@ impl<S> SpawnerWait<S> {
     pub fn new(spawner: S) -> Self {
         SpawnerWait {
             spawner,
-            arc_mutex_tracker: Arc::new(Mutex::new(Tracker::new())),
+            arc_mutex_tracker: Arc::new(Mutex::new(Tracker::new(false))),
+            collect_info: false,
         }
+    }
+
+    /// Collect information about spawned futures
+    pub fn collect_info(mut self) -> Self {
+        self.collect_info = true;
+        self.arc_mutex_tracker = Arc::new(Mutex::new(Tracker::new(true)));
+        self
     }
 
     /// Wait until no more progress seems to be possible
@@ -246,12 +262,12 @@ struct FutureWrapper<F> {
 impl<F> FutureWrapper<F> {
     fn new(future: F, 
            arc_mutex_tracker: Arc<Mutex<Tracker>>,
-           caller_info: CallerInfo) -> Self {
+           opt_caller_info: Option<CallerInfo>) -> Self {
 
         let id = {
             let mut tracker = arc_mutex_tracker.lock().unwrap();
             let id = tracker.next_id();
-            tracker.insert_info(id, caller_info);
+            tracker.insert_info(id, opt_caller_info);
             tracker.insert(id);
             id
         };
@@ -299,6 +315,17 @@ where
     }
 }
 
+/// Get information about the original code that spawned this future.
+fn get_spawn_site_info() -> Option<CallerInfo> {
+    // Get information about whoever called spawn_obj
+    let pred = |caller_info: &CallerInfo| {
+        let name = &caller_info.name;
+        name.contains("SpawnExt::spawn") 
+        || name.contains("SpawnExt::spawn_with_handle")
+    };
+    get_caller_info(1, pred)
+}
+
 impl<S> Spawn for SpawnerWait<S>
 where
     S: Spawn,
@@ -308,12 +335,14 @@ where
         future: FutureObj<'static, ()>
     ) -> Result<(), SpawnError> {
 
-        // Get information about whoever called spawn_obj
-        let pred = |caller_info: &CallerInfo| caller_info.name.contains("::spawn_obj");
-        let caller_info = get_caller_info(2, pred).unwrap();
+        let opt_caller_info = if self.collect_info {
+            get_spawn_site_info()
+        } else {
+            None
+        };
 
         let arc_mutex_tracker = Arc::clone(&self.arc_mutex_tracker);
-        let future_wrapper = FutureWrapper::new(future, arc_mutex_tracker, caller_info);
+        let future_wrapper = FutureWrapper::new(future, arc_mutex_tracker, opt_caller_info);
         let future_obj = FutureObj::new(Box::pin(future_wrapper));
         self.spawner.spawn_obj(future_obj)
     }
