@@ -12,17 +12,17 @@ pub struct CallerInfo {
     pub lineno: u32,
 }
 
-fn symbol_to_caller_info(symbol: &Symbol) -> CallerInfo {
+fn symbol_to_caller_info(symbol: &Symbol) -> Option<CallerInfo> {
 
-    let name = format!("{}", symbol.name().unwrap());
-    let filename = symbol.filename().unwrap().to_path_buf();
-    let lineno = symbol.lineno().unwrap();
+    let name = format!("{}", symbol.name()?);
+    let filename = symbol.filename()?.to_path_buf();
+    let lineno = symbol.lineno()?;
 
-    CallerInfo {
+    Some(CallerInfo {
         name,
         filename,
         lineno,
-    }
+    })
 }
 
 /// Get information about the caller, `level` levels above a frame that satisfies some predicate
@@ -34,44 +34,44 @@ where
 
     // Have we already found our function in the stack trace?
     let mut pred_found = false;
-    let mut output = None;
+    let mut opt_caller_info = None;
 
     backtrace::trace(|frame| {
         let ip = frame.ip();
+
+        let mut opt_cur_caller_info = None;
+        backtrace::resolve(ip, |symbol| {
+            opt_cur_caller_info = symbol_to_caller_info(&symbol);
+        });
+
+        let cur_caller_info = match opt_cur_caller_info {
+            Some(cur_caller_info) => cur_caller_info,
+            None => {
+                opt_caller_info = None;
+                return false;
+            },
+        };
+
+        pred_found |= pred(&cur_caller_info);
         if !pred_found {
-            backtrace::resolve(ip, |symbol| {
-                // Check if this frame represents the current function:
-                // let name = format!("{}", symbol.name().unwrap());
-                let caller_info = symbol_to_caller_info(&symbol);
-                if pred(&caller_info) {
-                    pred_found = true;
-                }
-            });
-            return true; // Move on to next frame
+            // Move on to the next frame:
+            return true;
         }
 
-        // self frame was already found:
-
+        // Wanted frame was already found:
         if level > 0 {
             level = level.saturating_sub(1);
             // Move on to the next frame:
             return true;
         }
-
         // We got to the interesting frame:
 
-        backtrace::resolve(ip, |symbol| {
-            // The previous frame was this function.
-            // Get required info and return:
-            // let name = format!("{}", symbol.name().unwrap());
-            // let name = symbol.name().unwrap().as_str().unwrap().to_owned();
-
-            output = Some(symbol_to_caller_info(&symbol));
-        });
+        opt_caller_info = Some(cur_caller_info); 
 
         false // Stop iterating
     });
-    output
+
+    opt_caller_info
 }
 
 
@@ -85,7 +85,7 @@ mod tests {
         // Be careful: Adding new lines inside this test might break it, because 
         // line numbers are calculated:
         let cur_lineno = line!();
-        let caller_info = get_caller_info(0, |caller_info| caller_info.name.contains("get_caller_info")).unwrap();
+        let caller_info = get_caller_info(0, |caller_info| caller_info.name.contains("test_get_caller_info")).unwrap();
         assert!(caller_info.name.contains("test_get_caller_info"));
         assert_eq!(caller_info.lineno, cur_lineno + 1);
     }
