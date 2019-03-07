@@ -109,14 +109,13 @@ impl Tracker {
     /// If it seems like no progress is expected to happen, we notify all clients.
     pub fn poll_end(&mut self) {
         self.ongoing_polls = self.ongoing_polls.checked_sub(1).unwrap();
-        /*
         println!("\n---------[poll_end]----------");
         println!("onging_polls = {}", self.ongoing_polls);
         for (id, caller_info) in self.get_pending_info() {
             println!("id = {}", id);
             println!("caller_info = {:?}", caller_info);
         }
-        */
+
         if !self.progress_done() {
             return;
         }
@@ -308,7 +307,8 @@ where
     ) -> Result<(), SpawnError> {
 
         // Get information about whoever called spawn_obj
-        let caller_info = get_caller_info(3).unwrap();
+        let pred = |caller_info: &CallerInfo| caller_info.name.contains("::spawn_obj");
+        let caller_info = get_caller_info(2, pred).unwrap();
 
         let arc_mutex_tracker = Arc::clone(&self.arc_mutex_tracker);
         let future_wrapper = FutureWrapper::new(future, arc_mutex_tracker, caller_info);
