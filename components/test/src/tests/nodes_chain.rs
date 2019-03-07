@@ -286,7 +286,6 @@ where
 
     // Node5: Send 10 credits to Node3:
     let chosen_route_with_capacity = routes_5_3.pop().unwrap();
-    dbg!(&chosen_route_with_capacity.capacity);
     let chosen_route = chosen_route_with_capacity.route;
 
     let request_id = Uid::from(&[0x1; UID_LEN]);
