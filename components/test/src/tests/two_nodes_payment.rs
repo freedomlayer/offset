@@ -151,7 +151,7 @@ where
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
     // Wait some time:
-    await!(advance_time(0x100, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
@@ -168,7 +168,7 @@ where
     await!(config0.enable_friend(node_public_key(1))).unwrap();
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
-    await!(advance_time(0x100, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
     // Node0: Wait until node1 is online:
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
@@ -212,7 +212,7 @@ where
     await!(config1.open_friend(node_public_key(0))).unwrap();
 
     // Wait some time, to let the index servers exchange information:
-    await!(advance_time(0x100, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
     // Node0: Send 10 credits to Node1:
     // Node0: Request routes:
@@ -240,7 +240,7 @@ where
     await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
     // Allow some time for the index servers to be updated about the new state:
-    await!(advance_time(0x100, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &wspawner));
 
     // Node1: Send 5 credits to Node0:
     let mut routes_1_0 = await!(routes1.request_routes(10,
