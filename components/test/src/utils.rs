@@ -11,7 +11,7 @@ use crypto::identity::{PublicKey, Identity,
 use crypto::test_utils::DummyRandom;
 use crypto::crypto_rand::CryptoRandom;
 
-use common::spawner_wait::SpawnerWait;
+use common::wait_spawner::WaitSpawner;
 
 use proto::consts::{TICKS_TO_REKEY, MAX_OPERATIONS_IN_BATCH, 
     MAX_NODE_RELAYS, KEEPALIVE_TICKS};
@@ -364,7 +364,7 @@ where
 
 pub async fn advance_time<'a,S>(ticks: usize, 
                 tick_sender: &'a mut mpsc::Sender<()>, 
-                wspawner: &'a SpawnerWait<S>) 
+                wspawner: &'a WaitSpawner<S>) 
 where
     S: Spawn,
 {

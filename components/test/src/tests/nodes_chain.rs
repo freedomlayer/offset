@@ -6,7 +6,7 @@ use futures::executor::ThreadPool;
 
 use tempfile::tempdir;
 
-use common::spawner_wait::SpawnerWait;
+use common::wait_spawner::WaitSpawner;
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
 use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
@@ -26,7 +26,7 @@ async fn task_nodes_chain<S>(spawner: S)
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let mut wspawner = SpawnerWait::new(spawner);
+    let mut wspawner = WaitSpawner::new(spawner);
 
     // Create a temporary directory.
     // Should be deleted when gets out of scope:

@@ -7,7 +7,7 @@ use futures::StreamExt;
 
 use tempfile::tempdir;
 
-use common::spawner_wait::SpawnerWait;
+use common::wait_spawner::WaitSpawner;
 
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
@@ -30,7 +30,7 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
 
-    let mut wspawner = SpawnerWait::new(spawner);
+    let mut wspawner = WaitSpawner::new(spawner);
 
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);

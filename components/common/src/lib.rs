@@ -31,5 +31,5 @@ pub mod transform_pool;
 pub mod state_service;
 pub mod multi_consumer;
 pub mod select_streams;
-pub mod spawner_wait;
+pub mod wait_spawner;
 pub mod caller_info;

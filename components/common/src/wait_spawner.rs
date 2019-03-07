@@ -152,7 +152,7 @@ impl Tracker {
 /// This is useful for waiting until no more progress is possible
 /// for the futures spawned through this spawner.
 #[derive(Clone)]
-pub struct SpawnerWait<S> {
+pub struct WaitSpawner<S> {
     spawner: S,
     arc_mutex_tracker: Arc<Mutex<Tracker>>,
     /// Collect information about spawned futures
@@ -195,9 +195,9 @@ impl Future for ProgressDone {
     }
 }
 
-impl<S> SpawnerWait<S> {
+impl<S> WaitSpawner<S> {
     pub fn new(spawner: S) -> Self {
-        SpawnerWait {
+        WaitSpawner {
             spawner,
             arc_mutex_tracker: Arc::new(Mutex::new(Tracker::new(false))),
             collect_info: false,
@@ -326,7 +326,7 @@ fn get_spawn_site_info() -> Option<CallerInfo> {
     get_caller_info(1, pred)
 }
 
-impl<S> Spawn for SpawnerWait<S>
+impl<S> Spawn for WaitSpawner<S>
 where
     S: Spawn,
 {
@@ -361,7 +361,7 @@ mod tests {
     fn test_one_future() {
         let mut thread_pool = ThreadPool::new().unwrap();
 
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
         let waiter = wspawner.wait();
         wspawner.spawn(future::lazy(|_| ())).unwrap();
         thread_pool.run(waiter);
@@ -371,7 +371,7 @@ mod tests {
     fn test_two_futures() {
         let mut thread_pool = ThreadPool::new().unwrap();
 
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
         let waiter = wspawner.wait();
 
         let (mut a_sender, mut b_receiver) = mpsc::channel::<u32>(0);
@@ -403,7 +403,7 @@ mod tests {
     fn test_channel_full() {
         let mut thread_pool = ThreadPool::new().unwrap();
         for _ in 0 .. 0x10 {
-            let mut wspawner = SpawnerWait::new(thread_pool.clone());
+            let mut wspawner = WaitSpawner::new(thread_pool.clone());
             let waiter = wspawner.wait();
 
             let arc_mutex_res = Arc::new(Mutex::new(0usize));
@@ -458,7 +458,7 @@ mod tests {
     fn test_yield() {
         let mut thread_pool = ThreadPool::new().unwrap();
 
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
         let waiter = wspawner.wait();
 
         for _ in 0 .. 8 {
@@ -472,7 +472,7 @@ mod tests {
     fn test_wait_inside_future() {
         let mut thread_pool = ThreadPool::new().unwrap();
 
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
 
         let c_wspawner = wspawner.clone();
 
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn test_spawn_with_handle() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        let mut wspawner = SpawnerWait::new(thread_pool.clone());
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
 
         let waiter = wspawner.wait();
         let handle = wspawner.spawn_with_handle(
@@ -530,5 +530,3 @@ mod tests {
         thread_pool.run(waiter);
     }
 }
-
-
