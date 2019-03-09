@@ -359,7 +359,7 @@ mod tests {
     use super::*;
     use futures::executor::ThreadPool;
     use futures::task::SpawnExt;
-    use futures::{future, StreamExt, SinkExt};
+    use futures::{future, FutureExt, StreamExt, SinkExt};
     use futures::channel::{mpsc, oneshot};
 
 
@@ -530,9 +530,26 @@ mod tests {
         let handle = wspawner.spawn_with_handle(
             future::ready(0x1337u32)).unwrap();
 
-        // println!("Before run(handle)");
         assert_eq!(thread_pool.run(handle), 0x1337u32);
-        // println!("Before run(waiter)");
+        thread_pool.run(waiter);
+    }
+
+    #[test]
+    fn test_custom_made_spawn_with_handle() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        let mut wspawner = WaitSpawner::new(thread_pool.clone());
+
+        let waiter = wspawner.wait();
+        let (sender, receiver) = oneshot::channel();
+        wspawner.spawn(
+            future::ready(0x1337u32)
+                .map(|_| {
+                    sender.send(()).unwrap();
+                })
+                .map(|_| ())
+            ).unwrap();
+
+        assert_eq!(thread_pool.run(receiver), Ok(()));
         thread_pool.run(waiter);
     }
 }
