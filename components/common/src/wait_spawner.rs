@@ -318,12 +318,18 @@ where
 /// Get information about the original code that spawned this future.
 fn get_spawn_site_info() -> Option<CallerInfo> {
     // Get information about whoever called spawn_obj
-    let pred = |caller_info: &CallerInfo| {
-        let name = &caller_info.name;
-        name.contains("SpawnExt::spawn") 
-        || name.contains("SpawnExt::spawn_with_handle")
-    };
-    get_caller_info(1, pred)
+    let spawn_with_handle_pred = |caller_info: &CallerInfo|
+        caller_info.name.contains("SpawnExt::spawn_with_handle::");
+    let spawn_pred = |caller_info: &CallerInfo|
+        caller_info.name.contains("SpawnExt::spawn::");
+
+    let opt_spawn_with_handle = get_caller_info(1, spawn_with_handle_pred);
+    if opt_spawn_with_handle.is_some() {
+        return opt_spawn_with_handle
+    }
+
+    get_caller_info(1, spawn_pred)
+
 }
 
 impl<S> Spawn for WaitSpawner<S>
