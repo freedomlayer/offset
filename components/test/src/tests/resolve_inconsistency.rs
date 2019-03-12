@@ -15,8 +15,6 @@ use crate::utils::{create_node, create_app, SimDb,
                     named_relay_address, node_public_key,
                     advance_time};
 
-// use node::connect::AppReport;
-
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
