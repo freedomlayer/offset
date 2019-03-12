@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 
 use futures::task::{Spawn, SpawnExt};
+use futures::future::RemoteHandle;
 use futures::{future, FutureExt, TryFutureExt, SinkExt};
 use futures::channel::mpsc;
 
@@ -255,7 +256,7 @@ pub async fn create_node<S>(index: u8,
               timer_client: TimerClient,
               mut sim_network_client: SimNetworkClient,
               trusted_apps: HashMap<u8, AppPermissions>,
-              mut spawner: S) 
+              mut spawner: S) -> RemoteHandle<()>
 where
     S: Spawn + Send + Sync + Clone + 'static,
 { 
@@ -292,7 +293,7 @@ where
         .map_err(|e| error!("net_node() error: {:?}", e))
         .map(|_| ());
 
-    spawner.spawn(net_node_fut).unwrap();
+    spawner.spawn_with_handle(net_node_fut).unwrap()
 }
 
 pub async fn create_index_server<S>(index: u8,

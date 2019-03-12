@@ -55,7 +55,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              test_executor.clone()));
+              test_executor.clone())).forget();
 
     let mut app0 = await!(create_app(0,
                     sim_net_client.clone(),
@@ -78,7 +78,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              test_executor.clone()));
+              test_executor.clone())).forget();
 
     let mut app1 = await!(create_app(1,
                     sim_net_client.clone(),

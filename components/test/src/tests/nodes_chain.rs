@@ -54,7 +54,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
                   timer_client.clone(),
                   sim_net_client.clone(),
                   trusted_apps,
-                  test_executor.clone()));
+                  test_executor.clone())).forget();
 
         apps.push(await!(create_app(i,
                         sim_net_client.clone(),
