@@ -10,7 +10,7 @@ use proto::net::messages::NetAddress;
 
 /// Length of a connection channel.
 /// We might get a deadlock if this value is too small?
-const CHANNEL_SIZE: usize = 0;
+const CHANNEL_SIZE: usize = 0x100;
 
 /// A helper function to create a net_address from a &str:
 pub fn net_address(from: &str) -> NetAddress {
@@ -31,10 +31,15 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
         match request {
             SimNetworkRequest::Listen((listen_address, receiver_sender)) => {
                 info!("SimNetworkRequest::Listen({:?})", listen_address);
-                if listeners.contains_key(&listen_address) {
-                    // Someone is already listening on this address
-                    continue;
+                if let Some(cur_sender) = listeners.remove(&listen_address) {
+                    if !cur_sender.is_closed() {
+                        // Someone is already listening on this address
+                        warn!("SimNetworkRequest::Listen: Listen address: {:?} is in use", listen_address);
+                        listeners.insert(listen_address, cur_sender);
+                        continue;
+                    }
                 }
+
                 let (conn_sender, conn_receiver) = mpsc::channel(CHANNEL_SIZE);
                 if let Ok(_) = receiver_sender.send(conn_receiver) {
                     listeners.insert(listen_address, conn_sender);
@@ -56,16 +61,22 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
 
                     // Put the listener sender back in to the map:
                     listeners.insert(connect_address, conn_sender);
-                    let _ = oneshot_sender.send((connect_sender, connect_receiver));
+                    if let Err(_) = oneshot_sender.send((connect_sender, connect_receiver)) {
+                        warn!("SimNetworkRequest::Connect: Failure sending pair!");
+                    }
+                } else {
+                    warn!("Connection failed: No listeners at: {:?}", connect_address);
                 }
             },
         }
     }
+    info!("sim_network_loop() closed");
 }
 
 #[derive(Debug)]
 pub enum SimNetworkClientError {
-    ListenError,
+    SendRequestError,
+    ReceiveResponseError,
 }
 
 pub struct SimNetworkClient {
@@ -80,15 +91,14 @@ impl SimNetworkClient {
         }
     }
 
-    #[allow(unused)]
     pub async fn listen(&mut self, net_address: NetAddress) 
         -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
 
         let (response_sender, response_receiver) = oneshot::channel();
         await!(self.sender.send(SimNetworkRequest::Listen((net_address, response_sender))))
-            .map_err(|_| SimNetworkClientError::ListenError)?;
+            .map_err(|_| SimNetworkClientError::SendRequestError)?;
         await!(response_receiver)
-            .map_err(|_| SimNetworkClientError::ListenError)
+            .map_err(|_| SimNetworkClientError::ReceiveResponseError)
     }
 }
 

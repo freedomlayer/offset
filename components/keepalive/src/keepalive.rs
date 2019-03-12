@@ -17,10 +17,7 @@ use proto::keepalive::serialize::{serialize_ka_message,
 pub enum KeepAliveError {
     // TimerClosed,
     RemoteTimeout,
-    SendToUserError,
-    SendToRemoteError,
     DeserializeError,
-
 }
 
 #[derive(Debug, Clone)]
@@ -100,15 +97,19 @@ where
                     .map_err(|_| KeepAliveError::DeserializeError)?;
                 ticks_to_close = keepalive_ticks;
                 if let KaMessage::Message(message) = ka_message {
-                    await!(to_user.send(message))
-                        .map_err(|_| KeepAliveError::SendToUserError)?;
+                    if let Err(_) = await!(to_user.send(message)) {
+                        warn!("keepalive_loop(): Can not send to local side");
+                        break;
+                    }
                 }
             },
             KeepAliveEvent::MessageFromUser(message) => {
                 let ka_message = KaMessage::Message(message);
                 let ser_ka_message = serialize_ka_message(&ka_message);
-                await!(to_remote.send(ser_ka_message))
-                    .map_err(|_| KeepAliveError::SendToRemoteError)?;
+                if let Err(_) = await!(to_remote.send(ser_ka_message)) {
+                    warn!("keepalive_loop(): Can not send to remote side");
+                    break;
+                }
                 ticks_to_send_keepalive = keepalive_ticks / 2;
             },
             KeepAliveEvent::TimerTick => {
@@ -120,12 +121,14 @@ where
                 if ticks_to_send_keepalive == 0 {
                     let ka_message = KaMessage::KeepAlive;
                     let ser_ka_message = serialize_ka_message(&ka_message);
-                    await!(to_remote.send(ser_ka_message))
-                        .map_err(|_| KeepAliveError::SendToRemoteError)?;
+                    if let Err(_) = await!(to_remote.send(ser_ka_message)) {
+                        warn!("Keepalive_loop(): Can not send to remote side");
+                        break;
+                    }
                     ticks_to_send_keepalive = keepalive_ticks / 2;
                 }
             },
-            KeepAliveEvent::TimerClosed => break,
+            KeepAliveEvent::TimerClosed |
             KeepAliveEvent::RemoteChannelClosed |
             KeepAliveEvent::UserChannelClosed => break,
         }
@@ -169,16 +172,22 @@ where
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
         Box::pin(async move {
-            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
-            let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
-                                    to_user, from_user,
-                                    timer_stream,
-                                    self.keepalive_ticks,
-                                    None)
-                    .map_err(|e| error!("[KeepAlive] inner_keepalive_loop() error: {:?}", e))
-                    .then(|_| future::ready(()));
+            if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
+                let keepalive_fut = inner_keepalive_loop(to_remote, from_remote,
+                                        to_user, from_user,
+                                        timer_stream,
+                                        self.keepalive_ticks,
+                                        None)
+                        .map_err(|e| error!("transform_keepalive(): inner_keepalive_loop() error: {:?}", e))
+                        .then(|_| future::ready(()));
 
-            self.spawner.spawn(keepalive_fut).unwrap();
+                self.spawner.spawn(keepalive_fut).unwrap();
+            } else {
+                // Note: In this case the user will notice there is an error when he tries to
+                // use the connection, because to_user, from_user are dropped
+                warn!("transform_keepalive(): Error requesting timer stream");
+            }
+
             (user_sender, user_receiver)
         })
     }

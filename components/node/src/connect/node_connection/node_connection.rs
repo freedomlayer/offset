@@ -2,12 +2,8 @@ use futures::{FutureExt, TryFutureExt, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
-use proto::app_server::messages::{AppToAppServer, AppServerToApp,
-    AppPermissions, NodeReport, NodeReportMutation};
-use proto::funder::messages::ResponseReceived;
-use proto::index_client::messages::ClientResponseRoutes;
+use proto::app_server::messages::AppServerToApp;
 
-use crypto::uid::Uid;
 use crypto::crypto_rand::CryptoRandom;
 
 use common::state_service::{state_service, StateClient};
@@ -28,12 +24,18 @@ pub enum NodeConnectionError {
 
 #[derive(Clone)]
 pub struct NodeConnection<R> {
+    /*
     sender: mpsc::Sender<AppToAppServer>,
     app_permissions: AppPermissions,
     report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>,
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     send_funds_mc: MultiConsumerClient<ResponseReceived>,
     done_app_requests_mc: MultiConsumerClient<Uid>,
+    */
+    report: AppReport,
+    opt_config: Option<AppConfig<R>>,
+    opt_routes: Option<AppRoutes<R>>,
+    opt_send_funds: Option<AppSendFunds<R>>,
     rng: R,
 }
 
@@ -113,46 +115,53 @@ where
             }
         }).map_err(|_| NodeConnectionError::SpawnError)?;
 
+        let opt_config = if app_permissions.config {
+            Some(AppConfig::new(sender.clone(),
+                               done_app_requests_mc.clone(),
+                               rng.clone()))
+        } else {
+            None
+        };
+
+        let opt_routes = if app_permissions.routes {
+            Some(AppRoutes::new(sender.clone(),
+                                routes_mc.clone(),
+                                rng.clone()))
+        } else {
+            None
+        };
+
+        let opt_send_funds = if app_permissions.send_funds {
+            Some(AppSendFunds::new(sender.clone(),
+                                    send_funds_mc.clone(),
+                                    done_app_requests_mc.clone(),
+                                    rng.clone()))
+        } else {
+            None
+        };
+
         Ok(NodeConnection {
-            sender,
-            app_permissions,
-            report_client,
-            routes_mc,
-            send_funds_mc,
-            done_app_requests_mc,
+            report: AppReport::new(report_client.clone()),
+            opt_config,
+            opt_routes,
+            opt_send_funds,
             rng,
         })
     }
 
-    pub fn report(&self) -> AppReport {
-        AppReport::new(self.report_client.clone())
+    pub fn report(&mut self) -> &mut AppReport {
+        &mut self.report
     }
 
-    pub fn config(&self) -> Option<AppConfig<R>> {
-        if !self.app_permissions.config {
-            return None;
-        }
-        Some(AppConfig::new(self.sender.clone(),
-                           self.done_app_requests_mc.clone(),
-                           self.rng.clone()))
+    pub fn config(&mut self) -> Option<&mut AppConfig<R>> {
+        self.opt_config.as_mut()
     }
 
-    pub fn routes(&self) -> Option<AppRoutes<R>> {
-        if !self.app_permissions.routes {
-            return None;
-        }
-        Some(AppRoutes::new(self.sender.clone(),
-                            self.routes_mc.clone(),
-                            self.rng.clone()))
+    pub fn routes(&mut self) -> Option<&mut AppRoutes<R>> {
+        self.opt_routes.as_mut()
     }
 
-    pub fn send_funds(&self) -> Option<AppSendFunds<R>> {
-        if !self.app_permissions.send_funds {
-            return None;
-        }
-        Some(AppSendFunds::new(self.sender.clone(),
-                                self.send_funds_mc.clone(),
-                                self.done_app_requests_mc.clone(),
-                                self.rng.clone()))
+    pub fn send_funds(&mut self) -> Option<&mut AppSendFunds<R>> {
+        self.opt_send_funds.as_mut()
     }
 }

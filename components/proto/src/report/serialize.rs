@@ -364,7 +364,7 @@ fn ser_relays_transition(relays_transition: &(ImVec<NamedRelayAddress<NetAddress
 
     let mut before_last_sent_builder = relays_transition_builder
         .reborrow()
-        .init_before_last_sent(usize_to_u32(last_sent.len()).unwrap());
+        .init_before_last_sent(usize_to_u32(before_last_sent.len()).unwrap());
 
     for (index, named_relay_address) in before_last_sent.iter().enumerate() {
         let mut named_relay_address_builder = before_last_sent_builder.reborrow().get(usize_to_u32(index).unwrap());

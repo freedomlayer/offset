@@ -4,41 +4,31 @@ use futures::task::Spawn;
 use proto::net::messages::NetAddress;
 
 use crate::tcp_connector::TcpConnector;
-use crate::resolver::{Resolver, ResolverError};
-
-#[derive(Debug)]
-pub enum NetConnectorError {
-    ResolverError(ResolverError),
-}
-
-impl From<ResolverError> for NetConnectorError {
-    fn from(e: ResolverError) -> Self {
-        NetConnectorError::ResolverError(e)
-    }
-}
+use crate::resolver::{Resolver};
 
 
 #[derive(Clone)]
-pub struct NetConnector<S> {
-    resolver: Resolver,
+pub struct NetConnector<S,RS> {
+    resolver: Resolver<RS>,
     tcp_connector: TcpConnector<S>,
 }
 
-impl<S> NetConnector<S> {
-    #[allow(unused)]
+impl<S,RS> NetConnector<S,RS> {
     pub fn new(max_frame_length: usize,
-           spawner: S) -> Result<Self, NetConnectorError> {
+           resolve_spawner: RS,
+           spawner: S) -> Self {
 
-        Ok(NetConnector {
-            resolver: Resolver::new()?,
+        NetConnector {
+            resolver: Resolver::new(resolve_spawner),
             tcp_connector: TcpConnector::new(max_frame_length, spawner),
-        })
+        }
     }
 }
 
-impl<S> FutTransform for NetConnector<S> 
+impl<S,RS> FutTransform for NetConnector<S,RS> 
 where
     S: Spawn + Send,
+    RS: Spawn + Send,
 {
     type Input = NetAddress;
     type Output = Option<ConnPairVec>;

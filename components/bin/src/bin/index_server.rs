@@ -52,7 +52,6 @@ pub const BACKOFF_TICKS: usize = 0x8;
 enum IndexServerBinError {
     CreateThreadPoolError,
     CreateTimerError,
-    CreateNetConnectorError,
     NetIndexServerError(NetIndexServerError),
     ParseClientListenAddressError,
     ParseServerListenAddressError,
@@ -123,6 +122,14 @@ fn run() -> Result<(), IndexServerBinError> {
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
 
+    // A thread pool for blocking computations:
+    let resolve_thread_pool = ThreadPool::new()
+        .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
+
+    // A thread pool for graph computations:
+    let graph_service_thread_pool = ThreadPool::new()
+        .map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
+
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
     thread_pool.spawn(identity_loop)
@@ -144,8 +151,7 @@ fn run() -> Result<(), IndexServerBinError> {
     let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(server_listen_socket_addr);
 
     // A tcp connector, Used to connect to remote servers:
-    let raw_server_net_connector = NetConnector::new(MAX_FRAME_LENGTH, thread_pool.clone())
-        .map_err(|_| IndexServerBinError::CreateNetConnectorError)?;
+    let raw_server_net_connector = NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
 
 
     let rng = system_random();
@@ -159,6 +165,7 @@ fn run() -> Result<(), IndexServerBinError> {
                     trusted_servers,
                     MAX_CONCURRENT_ENCRYPT,
                     BACKOFF_TICKS,
+                    graph_service_thread_pool,
                     thread_pool.clone());
 
     thread_pool.run(index_server_fut)

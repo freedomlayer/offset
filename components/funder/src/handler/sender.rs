@@ -1,5 +1,5 @@
 use std::fmt::Debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use common::canonical_serialize::CanonicalSerialize;
 
@@ -8,7 +8,7 @@ use crypto::crypto_rand::{RandValue, CryptoRandom};
 
 use proto::funder::messages::{FriendTcOp, FriendMessage, RequestsStatus, MoveTokenRequest,
                                 ChannelerUpdateFriend, FunderOutgoingControl,
-                                ResponseSendFundsResult, RequestSendFunds, ResponseReceived};
+                                ResponseSendFundsResult, ResponseReceived};
 use proto::app_server::messages::RelayAddress;
 
 use identity::IdentityClient;
@@ -23,8 +23,8 @@ use crate::friend::{FriendMutation, ResponseOp,
 use crate::token_channel::{TokenChannel, TcMutation, TcDirection, SetDirection};
 
 use crate::state::{FunderMutation, FunderState};
-
-use crate::handler::handler::{MutableFunderState};
+use crate::ephemeral::Ephemeral;
+use crate::handler::handler::{MutableFunderState, find_request_origin};
 
 
 #[derive(Debug, Clone)]
@@ -266,6 +266,7 @@ async fn send_friend_iter1<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                        identity_client: &'a mut IdentityClient,
                                        rng: &'a R,
                                        max_operations_in_batch: usize,
+                                       failure_public_keys: &'a mut HashSet<PublicKey>,
                                        mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
                                        outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
                                        outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>)
@@ -351,6 +352,7 @@ where
     let _ = await!(collect_outgoing_move_token(m_state, 
                                                outgoing_channeler_config,
                                                outgoing_control,
+                                               failure_public_keys,
                                                friend_public_key, 
                                                pending_move_token,
                                                identity_client,
@@ -415,8 +417,13 @@ where
     false
 }
 
+/// Queue an operation to a PendingMoveToken.
+/// On failure, queue a failure to the relevant friend, 
+/// or (if we are the origin of the request): send a failure through the control
 async fn queue_operation_or_failure<'a,B>(m_state: &'a mut MutableFunderState<B>,
                                             pending_move_token: &'a mut PendingMoveToken<B>,
+                                            failure_public_keys: &'a mut HashSet<PublicKey>,
+                                            outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
                                             operation: &'a FriendTcOp) -> Result<(), CollectOutgoingError> 
 where   
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -441,15 +448,34 @@ where
 
     // We are here if an error occured. 
     // We cancel the request:
-    let pending_request = create_pending_request(request_send_funds);
-    let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
-    let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
-    let funder_mutation = FunderMutation::FriendMutation((pending_move_token.friend_public_key.clone(), friend_mutation));
-    m_state.mutate(funder_mutation);
+
+    match find_request_origin(m_state.state(), &request_send_funds.request_id).cloned() {
+        Some(origin_public_key) => {
+            // The friend with public key `origin_public_key` is the origin of this request.
+            // We send him back a failure message:
+            let pending_request = create_pending_request(request_send_funds);
+            let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
+            let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+            let funder_mutation = FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+
+            failure_public_keys.insert(origin_public_key.clone());
+        },
+        None => {
+            // We are the origin of this request
+            let response_received = ResponseReceived {
+                request_id: request_send_funds.request_id,
+                result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+            };
+            outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+        },
+    }
+
 
     Ok(())
 }
 
+/*
 /// Queue a user created request send funds message.
 /// This is different from forwarding a request_send_funds message, because there is no 
 /// pending request we need to cancel in case of failure, and no failure to be queued.
@@ -482,6 +508,7 @@ where
 
     Ok(())
 }
+*/
 
 async fn response_op_to_friend_tc_op<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
                                      response_op: ResponseOp,
@@ -513,7 +540,8 @@ where
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
 async fn collect_outgoing_move_token<'a,B,R>(m_state: &'a mut MutableFunderState<B>,
                                                  outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
-                                                 mut outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
+                                                 outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
+                                                 failure_public_keys: &'a mut HashSet<PublicKey>,
                                                  friend_public_key: &'a PublicKey,
                                                  pending_move_token: &'a mut PendingMoveToken<B>,
                                                  identity_client: &'a mut IdentityClient,
@@ -593,6 +621,8 @@ where
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
         await!(queue_operation_or_failure(m_state,
                                           pending_move_token,
+                                          failure_public_keys,
+                                          outgoing_control,
                                           &operation))?;
     }
 
@@ -617,6 +647,8 @@ where
         };
         await!(queue_operation_or_failure(m_state,
                                           pending_move_token,
+                                          failure_public_keys,
+                                          outgoing_control,
                                           &friend_op))?;
     }
 
@@ -629,6 +661,8 @@ where
                                                             identity_client, rng));
         await!(queue_operation_or_failure(m_state,
                                           pending_move_token,
+                                          failure_public_keys,
+                                          outgoing_control,
                                           &pending_op))?;
 
         let friend_mutation = FriendMutation::PopFrontPendingResponse;
@@ -645,6 +679,8 @@ where
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
         await!(queue_operation_or_failure(m_state,
                                           pending_move_token,
+                                          failure_public_keys,
+                                          outgoing_control,
                                           &pending_op))?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -656,10 +692,12 @@ where
     // Send as many pending user requests as possible:
     let mut pending_user_requests = friend.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
-        await!(queue_user_request_send_funds(m_state,
-                                      pending_move_token,
-                                      &request_send_funds,
-                                      &mut outgoing_control))?;
+        let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
+        await!(queue_operation_or_failure(m_state,
+                                          pending_move_token,
+                                          failure_public_keys,
+                                          outgoing_control,
+                                          &pending_op))?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation = FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -690,8 +728,13 @@ where
                                                             pending_response,
                                                             identity_client,
                                                             rng));
+        // TODO: Find a more elegant way to do this:
+        let mut dummy_failure_public_keys = HashSet::new();
+        let mut dummy_outgoing_control = Vec::new();
         await!(queue_operation_or_failure(m_state,
                                           pending_move_token,
+                                          &mut dummy_failure_public_keys,
+                                          &mut dummy_outgoing_control,
                                           &pending_op))?;
 
         let friend_mutation = FriendMutation::PopFrontPendingResponse;
@@ -775,14 +818,58 @@ where
 }
 
 
+fn init_failure_pending_move_token<B>(m_state: &mut MutableFunderState<B>, 
+                                      ephemeral: &Ephemeral,
+                                      max_operations_in_batch: usize,
+                                      failure_public_keys: &HashSet<PublicKey>,
+                                      pending_move_tokens: &mut HashMap<PublicKey, PendingMoveToken<B>>) 
+where
+    B: Clone + Eq + CanonicalSerialize + Debug,
+{
+
+    let pending_move_token_keys = pending_move_tokens.keys().cloned().collect::<HashSet<_>>();
+    for friend_public_key in failure_public_keys {
+        // Make sure that this friend is ready,
+        // and that it doesn't already have a PendingMoveToken:
+
+        if !ephemeral.liveness.is_online(&friend_public_key)
+            || pending_move_token_keys.contains(&friend_public_key) {
+            continue;
+        }
+
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+
+        // We expect that this friend has a consistent channel,
+        // because we just attempted to forward a request that originated from
+        // this friend.
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        let tc_incoming = match &token_channel.get_direction() {
+            TcDirection::Outgoing(_) => continue,
+            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        };
+        let outgoing_mc = tc_incoming.begin_outgoing_move_token();
+
+        let may_send_empty = false;
+        let pending_move_token = PendingMoveToken::new(friend_public_key.clone(), 
+                                                       outgoing_mc,
+                                                       max_operations_in_batch,
+                                                       may_send_empty);
+        pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
+    }
+}
+
 /// Send all possible messages according to SendCommands
 pub async fn create_friend_messages<'a,B,R>(m_state: &'a mut MutableFunderState<B>, 
-                        send_commands: &'a SendCommands,
-                        max_operations_in_batch: usize,
-                        identity_client: &'a mut IdentityClient,
-                        rng: &'a R) -> (Vec<FunderOutgoingControl<B>>,
-                                        Vec<OutgoingMessage<B>>, 
-                                        Vec<ChannelerConfig<RelayAddress<B>>>) 
+                                            ephemeral: &'a Ephemeral,
+                                            send_commands: &'a SendCommands,
+                                            max_operations_in_batch: usize,
+                                            identity_client: &'a mut IdentityClient,
+                                            rng: &'a R) -> (Vec<FunderOutgoingControl<B>>,
+                                                            Vec<OutgoingMessage<B>>, 
+                                                            Vec<ChannelerConfig<RelayAddress<B>>>) 
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
@@ -795,7 +882,11 @@ where
         = HashMap::new();
 
     // First iteration:
+    let mut failure_public_keys = HashSet::new();
     for (friend_public_key, friend_send_commands) in &send_commands.send_commands {
+        if !ephemeral.liveness.is_online(friend_public_key) {
+            continue;
+        }
         await!(send_friend_iter1(m_state, 
                                  friend_public_key,
                                  friend_send_commands,
@@ -803,13 +894,23 @@ where
                                  identity_client,
                                  rng,
                                  max_operations_in_batch,
+                                 &mut failure_public_keys,
                                  &mut outgoing_messages,
                                  &mut outgoing_control,
                                  &mut outgoing_channeler_config));
     }
 
+    // Create PendingMoveToken-s for all the friends that were queued
+    // new pending messages during `send_friend_iter1`:
+    init_failure_pending_move_token(m_state,
+                                    ephemeral,
+                                    max_operations_in_batch,
+                                    &failure_public_keys,
+                                    &mut pending_move_tokens);
+
     // Second iteration (Attempt to queue failures created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
+        assert!(ephemeral.liveness.is_online(&friend_public_key));
         let _ = await!(append_failures_to_move_token(m_state,
                                                      friend_public_key, 
                                                      pending_move_token,
@@ -819,6 +920,7 @@ where
 
     // Send all pending move tokens:
     for (friend_public_key, pending_move_token) in pending_move_tokens.into_iter() {
+        assert!(ephemeral.liveness.is_online(&friend_public_key));
         await!(send_move_token(m_state, 
                                friend_public_key, 
                                pending_move_token, 

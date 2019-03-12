@@ -226,7 +226,8 @@ where
                                       public_key.clone(),
                                       incoming_accept,
                                       tunnel_closed_sender,
-                                      spawner.clone());
+                                      spawner.clone())
+                            .map_err(|e| warn!("handle_accept() error: {:?}", e));
                     },
                     IncomingConnInner::Connect(incoming_connect) => {
                         let listener = match listeners.get_mut(&incoming_connect.connect_public_key) {

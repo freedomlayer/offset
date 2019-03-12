@@ -294,6 +294,7 @@ where
     // outgoing_channeler_config. When we merge the two, we might be out of order!
     let (sender_outgoing_control, friend_messages, outgoing_channeler_config) = await!(create_friend_messages(
                                       &mut m_state,
+                                      m_ephemeral.ephemeral(),
                                       &send_commands,
                                       max_operations_in_batch,
                                       identity_client,

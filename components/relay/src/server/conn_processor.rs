@@ -86,7 +86,7 @@ where
             let dispatch_res = await!(dispatch_conn(sender, receiver, public_key, first_msg, 
                          keepalive_transform));
             if dispatch_res.is_none() {
-                error!("dispatch_conn() failure");
+                warn!("process_conn(): dispatch_conn() failure");
             }
             dispatch_res
         } else {
@@ -95,7 +95,11 @@ where
     });
 
     let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-    await!(future_timeout(fut_receiver, timer_stream, conn_timeout_ticks))?
+    let res = await!(future_timeout(fut_receiver, timer_stream, conn_timeout_ticks))?;
+    if res.is_none() {
+        warn!("process_conn(): timeout occured");
+    }
+    res
 }
 
 

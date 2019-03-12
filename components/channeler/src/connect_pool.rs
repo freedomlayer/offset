@@ -70,9 +70,6 @@ impl CpConnectClient {
 #[derive(Debug)]
 pub enum ConnectPoolError {
     SpawnError,
-    ConnectRequestClosed,
-    ConfigRequestClosed,
-    TimerClosed,
     MultipleConnectRequests,
 }
 
@@ -361,13 +358,13 @@ where
         match event {
             CpEvent::ConnectRequest(connect_request) => 
                 connect_pool.handle_connect_request(connect_request)?,
-            CpEvent::ConnectRequestClosed => return Err(ConnectPoolError::ConnectRequestClosed),
+            CpEvent::ConnectRequestClosed => break,
             CpEvent::ConfigRequest(config) => 
                 connect_pool.handle_config_request(config)?,
-            CpEvent::ConfigRequestClosed => return Err(ConnectPoolError::ConfigRequestClosed),
+            CpEvent::ConfigRequestClosed => break,
             CpEvent::TimerTick => 
                 connect_pool.handle_timer_tick()?,
-            CpEvent::TimerClosed => return Err(ConnectPoolError::TimerClosed),
+            CpEvent::TimerClosed => break,
             CpEvent::ConnectAttemptDone(opt_conn) => 
                 connect_pool.handle_connect_attempt_done(opt_conn),
         }

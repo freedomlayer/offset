@@ -16,6 +16,7 @@ use proto::funder::messages::{AddFriend, SetFriendRelays, SetFriendRemoteMaxDebt
 #[derive(Debug)]
 pub struct AppConfigError;
 
+#[derive(Clone)]
 pub struct AppConfig<R> {
     sender: mpsc::Sender<AppToAppServer>,
     done_app_requests_mc: MultiConsumerClient<Uid>,

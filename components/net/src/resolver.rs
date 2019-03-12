@@ -1,32 +1,28 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
 use futures::future;
-use futures::task::SpawnExt;
-use futures::executor::ThreadPool;
+use futures::task::{Spawn, SpawnExt};
 
 use common::conn::{FutTransform, BoxFuture};
 use proto::net::messages::NetAddress;
 
-#[derive(Debug)]
-pub enum ResolverError {
-    CreateThreadPoolError,
-}
-
 #[derive(Clone)]
-pub struct Resolver {
-    thread_pool: ThreadPool,
+pub struct Resolver<S> {
+    spawner: S,
 }
 
-impl Resolver {
-    pub fn new() -> Result<Self, ResolverError> {
-        Ok(Resolver {
-            thread_pool: ThreadPool::new()
-                .map_err(|_| ResolverError::CreateThreadPoolError)?,
-        })
+impl<S> Resolver<S> {
+    pub fn new(spawner: S) -> Self {
+        Resolver {
+            spawner,
+        }
     }
 }
 
-impl FutTransform for Resolver {
+impl<S> FutTransform for Resolver<S> 
+where
+    S: Spawn,
+{
     type Input = NetAddress;
     type Output = Vec<SocketAddr>;
 
@@ -40,7 +36,7 @@ impl FutTransform for Resolver {
                 Vec::new()
             }
         });
-        match self.thread_pool.spawn_with_handle(resolve_fut) {
+        match self.spawner.spawn_with_handle(resolve_fut) {
             Ok(resolve_res_fut) => Box::pin(resolve_res_fut),
             Err(_) => Box::pin(future::ready(Vec::new())),
         }
@@ -57,7 +53,8 @@ mod tests {
     #[test]
     fn test_resolver_numeric_v4() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        let mut resolver = Resolver::new().unwrap();
+        let net_thread_pool = ThreadPool::new().unwrap();
+        let mut resolver = Resolver::new(net_thread_pool);
         let res_vec = thread_pool.run(resolver.transform("127.0.0.1:1337".to_owned().try_into().unwrap()));
 
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
@@ -68,7 +65,8 @@ mod tests {
     #[test]
     fn test_resolver_numeric_v6() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        let mut resolver = Resolver::new().unwrap();
+        let net_thread_pool = ThreadPool::new().unwrap();
+        let mut resolver = Resolver::new(net_thread_pool);
         let res_vec = thread_pool.run(resolver.transform("::1:1338".to_owned().try_into().unwrap()));
 
         let loopback = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1);
@@ -79,7 +77,8 @@ mod tests {
     #[test]
     fn test_resolver_localhost_v4() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        let mut resolver = Resolver::new().unwrap();
+        let net_thread_pool = ThreadPool::new().unwrap();
+        let mut resolver = Resolver::new(net_thread_pool);
         let res_vec = thread_pool.run(resolver.transform("localhost:1339".to_owned().try_into().unwrap()));
 
         let loopback = Ipv4Addr::new(127, 0, 0, 1);

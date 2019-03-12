@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 use futures::channel::{oneshot, mpsc};
 use futures::{future, StreamExt, SinkExt};
-use futures::executor::ThreadPool;
-use futures::task::SpawnExt;
+use futures::task::{Spawn, SpawnExt};
 
 use crate::atomic_db::AtomicDb;
 
@@ -10,7 +9,6 @@ use crate::atomic_db::AtomicDb;
 pub enum DatabaseError<ADE> {
     AtomicDbError(ADE),
     SpawnError,
-    CreateThreadPoolError,
 }
 
 // A request to apply mutations to the database
@@ -61,20 +59,20 @@ where
     }
 }
 
-pub async fn database_loop<AD>(mut atomic_db: AD, 
-                               mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>)
+pub async fn database_loop<AD,S>(mut atomic_db: AD, 
+                               mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>,
+                               mut database_spawner: S)
                                 -> Result<AD, DatabaseError<AD::Error>>
 where
     AD: AtomicDb + Send + 'static,
     AD::Mutation: Debug + Send + 'static,
     AD::Error: Send + 'static,
+    S: Spawn,
 {
-    // We use an independent thread pool, to make sure our synchronous interaction
+    // We use an independent spawner (`database_spawner`) to make sure our synchronous interaction
     // with the database doesn't block the rest of the main thread loop.
     // TODO: Maybe there will be a better way to do this in the future (Possibly a future version
     // of Tokio that has this feature)
-    let mut thread_pool = ThreadPool::new()
-        .map_err(|_| DatabaseError::CreateThreadPoolError)?;
 
     while let Some(database_request) = await!(incoming_requests.next()) {
         let DatabaseRequest {mutations, response_sender} = database_request;
@@ -83,7 +81,7 @@ where
                 .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
             Ok(atomic_db)
         });
-        let handle = thread_pool.spawn_with_handle(mutate_fut)
+        let handle = database_spawner.spawn_with_handle(mutate_fut)
             .map_err(|_| DatabaseError::SpawnError)?;
 
         atomic_db = await!(handle)?;
@@ -163,11 +161,11 @@ mod tests {
 
     async fn task_database_loop_basic<S>(mut spawner: S) 
     where
-        S: Spawn,
+        S: Spawn + Clone + Send + 'static,
     {
         let atomic_db = DummyAtomicDb::new();
         let (request_sender, incoming_requests) = mpsc::channel(0);
-        let loop_fut = database_loop(atomic_db, incoming_requests);
+        let loop_fut = database_loop(atomic_db, incoming_requests, spawner.clone());
         let loop_res_fut = spawner.spawn_with_handle(loop_fut).unwrap();
 
         let mut db_client = DatabaseClient::new(request_sender);

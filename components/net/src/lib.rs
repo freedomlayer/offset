@@ -22,5 +22,5 @@ mod net_connector;
 #[cfg(test)]
 mod tests;
 
-pub use self::net_connector::{NetConnector, NetConnectorError};
+pub use self::net_connector::NetConnector;
 pub use self::tcp_listener::TcpListener;
