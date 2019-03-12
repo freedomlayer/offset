@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use futures::channel::mpsc;
-use futures::task::Spawn;
-use futures::executor::ThreadPool;
 
 use tempfile::tempdir;
 
-use common::wait_spawner::WaitSpawner;
+use common::test_executor::TestExecutor;
+
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
 use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
@@ -22,12 +21,7 @@ use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
-async fn task_nodes_chain<S>(spawner: S) 
-where
-    S: Spawn + Clone + Send + Sync + 'static,
-{
-    let mut wspawner = WaitSpawner::new(spawner);
-
+async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
     let temp_dir = tempdir().unwrap();
@@ -36,11 +30,11 @@ where
     let sim_db = SimDb::new(temp_dir.path().to_path_buf());
 
     // A network simulator:
-    let sim_net_client = create_sim_network(&mut wspawner);
+    let sim_net_client = create_sim_network(&mut test_executor);
 
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
-    let timer_client = create_timer_incoming(tick_receiver, wspawner.clone()).unwrap();
+    let timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
     let mut apps = Vec::new();
 
@@ -60,25 +54,25 @@ where
                   timer_client.clone(),
                   sim_net_client.clone(),
                   trusted_apps,
-                  wspawner.clone()));
+                  test_executor.clone()));
 
         apps.push(await!(create_app(i,
                         sim_net_client.clone(),
                         timer_client.clone(),
                         i,
-                        wspawner.clone())));
+                        test_executor.clone())));
     }
 
     // Create relays:
     await!(create_relay(0,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 wspawner.clone()));
+                 test_executor.clone()));
 
     await!(create_relay(1,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 wspawner.clone()));
+                 test_executor.clone()));
     
     // Create three index servers:
     // 0 -- 2 -- 1
@@ -88,20 +82,20 @@ where
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![0,1],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
 
     await!(create_index_server(0,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
     await!(create_index_server(1,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
 
     // Configure relays:
@@ -135,7 +129,7 @@ where
 
 
     // Wait some time:
-    // await!(advance_time(40, &mut tick_sender, &wspawner));
+    // await!(advance_time(40, &mut tick_sender, &test_executor));
     /*
                        5
                        |
@@ -238,7 +232,7 @@ where
 
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Make sure that node1 sees node2 as online:
     let (node_report, mutations_receiver) = await!(apps[1].report().incoming_reports()).unwrap();
@@ -273,7 +267,7 @@ where
     await!(apps[0].send_funds().unwrap().receipt_ack(request_id, receipt.clone())).unwrap();
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Node0: Request routes:
     let mut routes_5_3 = await!(apps[5].routes().unwrap().request_routes(20,
@@ -301,7 +295,8 @@ where
 
 #[test]
 fn test_nodes_chain() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_nodes_chain(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_nodes_chain(test_executor.clone()));
+    assert!(res.is_output());
 }
 

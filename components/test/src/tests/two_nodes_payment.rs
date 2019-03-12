@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use futures::channel::mpsc;
-use futures::task::Spawn;
-use futures::executor::ThreadPool;
 use futures::StreamExt;
 
 use tempfile::tempdir;
 
-use common::wait_spawner::WaitSpawner;
+// use common::wait_spawner::WaitSpawner;
+use common::test_executor::TestExecutor;
 
 use timer::{create_timer_incoming};
 use proto::app_server::messages::AppPermissions;
@@ -25,16 +24,11 @@ use crate::sim_network::create_sim_network;
 const TIMER_CHANNEL_LEN: usize = 0;
 // const YIELD_ITERS: usize = 0x1000;
 
-async fn task_two_nodes_payment<S>(spawner: S) 
-where
-    S: Spawn + Clone + Send + Sync + 'static,
-{
-
-    let mut wspawner = WaitSpawner::new(spawner);
+async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
-    let timer_client = create_timer_incoming(tick_receiver, wspawner.clone()).unwrap();
+    let timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
 
     // Create a temporary directory.
@@ -45,7 +39,7 @@ where
     let sim_db = SimDb::new(temp_dir.path().to_path_buf());
 
     // A network simulator:
-    let sim_net_client = create_sim_network(&mut wspawner);
+    let sim_net_client = create_sim_network(&mut test_executor);
 
     // Create initial database for node 0:
     sim_db.init_db(0);
@@ -62,13 +56,13 @@ where
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              wspawner.clone()));
+              test_executor.clone()));
 
     let mut app0 = await!(create_app(0,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     0,
-                    wspawner.clone()));
+                    test_executor.clone()));
 
 
     // Create initial database for node 1:
@@ -85,25 +79,25 @@ where
               timer_client.clone(),
               sim_net_client.clone(),
               trusted_apps,
-              wspawner.clone()));
+              test_executor.clone()));
 
     let mut app1 = await!(create_app(1,
                     sim_net_client.clone(),
                     timer_client.clone(),
                     1,
-                    wspawner.clone()));
+                    test_executor.clone()));
 
     // Create relays:
     await!(create_relay(0,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 wspawner.clone()));
+                 test_executor.clone()));
 
 
     await!(create_relay(1,
                  timer_client.clone(),
                  sim_net_client.clone(),
-                 wspawner.clone()));
+                 test_executor.clone()));
 
     
     // Create three index servers:
@@ -114,20 +108,20 @@ where
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![0,1],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
 
     await!(create_index_server(0,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
     await!(create_index_server(1,
                              timer_client.clone(),
                              sim_net_client.clone(),
                              vec![2],
-                             wspawner.clone()));
+                             test_executor.clone()));
 
 
     let mut config0 = app0.config().unwrap().clone();
@@ -151,7 +145,7 @@ where
     await!(config1.add_index_server(named_index_server_address(1))).unwrap();
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Node0: Add node1 as a friend:
     await!(config0.add_friend(node_public_key(1),
@@ -168,7 +162,7 @@ where
     await!(config0.enable_friend(node_public_key(1))).unwrap();
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Node0: Wait until node1 is online:
     let (mut node_report, mut mutations_receiver) = await!(report0.incoming_reports()).unwrap();
@@ -212,7 +206,7 @@ where
     await!(config1.open_friend(node_public_key(0))).unwrap();
 
     // Wait some time, to let the index servers exchange information:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Node0: Send 10 credits to Node1:
     // Node0: Request routes:
@@ -240,7 +234,7 @@ where
     await!(config0.set_friend_remote_max_debt(node_public_key(1), 100)).unwrap();
 
     // Allow some time for the index servers to be updated about the new state:
-    await!(advance_time(40, &mut tick_sender, &wspawner));
+    await!(advance_time(40, &mut tick_sender, &test_executor));
 
     // Node1: Send 5 credits to Node0:
     let mut routes_1_0 = await!(routes1.request_routes(10,
@@ -277,6 +271,7 @@ where
 
 #[test]
 fn test_two_nodes_payment() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_two_nodes_payment(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_two_nodes_payment(test_executor.clone()));
+    assert!(res.is_output());
 }

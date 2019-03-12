@@ -11,7 +11,7 @@ use crypto::identity::{PublicKey, Identity,
 use crypto::test_utils::DummyRandom;
 use crypto::crypto_rand::CryptoRandom;
 
-use common::wait_spawner::WaitSpawner;
+use common::test_executor::TestExecutor;
 
 use proto::consts::{TICKS_TO_REKEY, MAX_OPERATIONS_IN_BATCH, 
     MAX_NODE_RELAYS, KEEPALIVE_TICKS};
@@ -362,18 +362,13 @@ where
 }
 
 
-pub async fn advance_time<'a,S>(ticks: usize, 
+pub async fn advance_time<'a>(ticks: usize, 
                 tick_sender: &'a mut mpsc::Sender<()>, 
-                wspawner: &'a WaitSpawner<S>) 
-where
-    S: Spawn,
-{
-
-    await!(wspawner.wait());
+                test_executor: &'a TestExecutor) {
+    await!(test_executor.wait());
     for _ in 0 .. ticks {
-        let waiter = wspawner.wait();
         await!(tick_sender.send(())).unwrap();
-        await!(waiter);
+        await!(test_executor.wait());
     }
 }
 
