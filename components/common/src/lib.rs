@@ -32,5 +32,5 @@ pub mod state_service;
 pub mod multi_consumer;
 pub mod select_streams;
 pub mod caller_info;
-pub mod wait_spawner;
+// pub mod wait_spawner;
 pub mod test_executor;
