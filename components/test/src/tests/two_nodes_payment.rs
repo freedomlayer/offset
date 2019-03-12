@@ -22,7 +22,6 @@ use crate::utils::{create_node, create_app, SimDb,
 use crate::sim_network::create_sim_network;
 
 const TIMER_CHANNEL_LEN: usize = 0;
-// const YIELD_ITERS: usize = 0x1000;
 
 async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
