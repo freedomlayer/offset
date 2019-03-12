@@ -235,7 +235,9 @@ where
         .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
         .map(|_| ());
 
-    spawner.spawn(pool_fut)
+    // We spawn with handle here to make sure that this
+    // future is dropped when this async function ends.
+    let _pool_handle = spawner.spawn_with_handle(pool_fut)
         .map_err(|_| NetNodeError::SpawnError)?;
     
     await!(node(
