@@ -5,7 +5,6 @@ use futures::StreamExt;
 
 use tempfile::tempdir;
 
-// use common::wait_spawner::WaitSpawner;
 use common::test_executor::TestExecutor;
 
 use timer::{create_timer_incoming};

@@ -4,7 +4,6 @@ use futures::channel::mpsc;
 
 use tempfile::tempdir;
 
-// use common::wait_spawner::WaitSpawner;
 use common::test_executor::TestExecutor;
 
 use timer::{create_timer_incoming};
@@ -207,7 +206,6 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
                     test_executor.clone()));
 
     let mut report1 = app1.report().clone();
-    // let mut _config1 = app1.config().unwrap().clone();
 
     await!(advance_time(40, &mut tick_sender, &test_executor));
 
