@@ -31,10 +31,15 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
         match request {
             SimNetworkRequest::Listen((listen_address, receiver_sender)) => {
                 info!("SimNetworkRequest::Listen({:?})", listen_address);
-                if listeners.contains_key(&listen_address) {
-                    // Someone is already listening on this address
-                    continue;
+                if let Some(cur_sender) = listeners.remove(&listen_address) {
+                    if !cur_sender.is_closed() {
+                        // Someone is already listening on this address
+                        warn!("SimNetworkRequest::Listen: Listen address: {:?} is in use", listen_address);
+                        listeners.insert(listen_address, cur_sender);
+                        continue;
+                    }
                 }
+
                 let (conn_sender, conn_receiver) = mpsc::channel(CHANNEL_SIZE);
                 if let Ok(_) = receiver_sender.send(conn_receiver) {
                     listeners.insert(listen_address, conn_sender);
@@ -65,11 +70,13 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
             },
         }
     }
+    info!("sim_network_loop() closed");
 }
 
 #[derive(Debug)]
 pub enum SimNetworkClientError {
-    ListenError,
+    SendRequestError,
+    ReceiveResponseError,
 }
 
 pub struct SimNetworkClient {
@@ -84,15 +91,14 @@ impl SimNetworkClient {
         }
     }
 
-    #[allow(unused)]
     pub async fn listen(&mut self, net_address: NetAddress) 
         -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
 
         let (response_sender, response_receiver) = oneshot::channel();
         await!(self.sender.send(SimNetworkRequest::Listen((net_address, response_sender))))
-            .map_err(|_| SimNetworkClientError::ListenError)?;
+            .map_err(|_| SimNetworkClientError::SendRequestError)?;
         await!(response_receiver)
-            .map_err(|_| SimNetworkClientError::ListenError)
+            .map_err(|_| SimNetworkClientError::ReceiveResponseError)
     }
 }
 
