@@ -223,6 +223,10 @@ pub fn node_public_key(index: u8) -> PublicKey {
     get_node_identity(index).get_public_key()
 }
 
+pub fn relay_public_key(index: u8) -> PublicKey {
+    get_relay_identity(index).get_public_key()
+}
+
 pub async fn create_app<S>(index: u8,
                     sim_network_client: SimNetworkClient,
                     timer_client: TimerClient,
