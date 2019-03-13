@@ -35,8 +35,8 @@ pub mod report {
         FriendReportMutation, AddFriendReport, FunderReportMutation, 
         FunderReportMutations, FunderReportMutateError};
 
-    use proto::app_server::messages::{NodeReport, NodeReportMutation};
-    use proto::index_client::messages::{IndexClientReport, AddIndexServer, IndexClientReportMutation};
+    pub use proto::app_server::messages::{NodeReport, NodeReportMutation};
+    pub use proto::index_client::messages::{IndexClientReport, AddIndexServer, IndexClientReportMutation};
 }
 
 pub mod invoice {
