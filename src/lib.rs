@@ -8,6 +8,8 @@
     warnings
 )]
 
+#[macro_use] extern crate prettytable;
+
 pub mod info;
 pub mod config;
 pub mod funds;
