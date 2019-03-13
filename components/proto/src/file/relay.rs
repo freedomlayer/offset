@@ -24,9 +24,9 @@ pub enum RelayFileError {
 
 /// A helper structure for serialize and deserializing RelayAddress.
 #[derive(Serialize, Deserialize)]
-struct RelayFile {
-    public_key: String,
-    address: String,
+pub struct RelayFile {
+    pub public_key: String,
+    pub address: String,
 }
 
 impl From<io::Error> for RelayFileError {
