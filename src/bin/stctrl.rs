@@ -214,8 +214,8 @@ where
                                        .help("Initial balance with friend")
                                        .required(true)))
 
-                              .subcommand(SubCommand::with_name("update-friend")
-                                  .about("update a friend")
+                              .subcommand(SubCommand::with_name("set-friend-relays")
+                                  .about("Set a friend's relays")
                                   .arg(Arg::with_name("friend_file")
                                        .short("f")
                                        .long("friend")

@@ -25,6 +25,8 @@ pub enum ConfigError {
     ParseBalanceError,
     FriendFileNotFound,
     LoadFriendFromFileError,
+    FriendPublicKeyMismatch,
+    FriendNameNotFound,
 }
 
 async fn config_add_relay<'a>(matches: &'a ArgMatches<'a>, 
@@ -161,10 +163,43 @@ async fn config_add_friend<'a>(matches: &'a ArgMatches<'a>,
     Ok(())
 }
 
-async fn config_update_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                  _app_config: AppConfig,
-                                  _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_set_friend_relays<'a>(matches: &'a ArgMatches<'a>, 
+                                  mut app_config: AppConfig,
+                                  node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_file = matches.value_of("friend_file").unwrap();
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    // Search for the friend:
+    let mut opt_friend_public_key = None;
+    for (friend_public_key, friend_report) in node_report.funder_report.friends {
+        if friend_report.name == friend_name {
+            opt_friend_public_key = Some(friend_public_key);
+        }
+    }
+
+    let friend_public_key = opt_friend_public_key
+        .ok_or(ConfigError::FriendNameNotFound)?;
+
+    let friend_pathbuf = PathBuf::from(friend_file);
+    if !friend_pathbuf.exists() {
+        return Err(ConfigError::FriendFileNotFound);
+    }
+
+    let friend_address = load_friend_from_file(&friend_pathbuf)
+        .map_err(|_| ConfigError::LoadFriendFromFileError)?;
+
+    // Just in case, make sure that the the friend we know with this name
+    // has the same public key as inside the provided file.
+    if friend_address.public_key != friend_public_key {
+        return Err(ConfigError::FriendPublicKeyMismatch);
+    }
+
+    await!(app_config.set_friend_relays(friend_public_key, 
+                             friend_address.relays))
+        .map_err(|_| ConfigError::AppConfigError)?;
+
+    Ok(())
 }
 
 async fn config_remove_friend<'a>(_matches: &'a ArgMatches<'a>, 
@@ -228,7 +263,7 @@ pub async fn config<'a>(matches: &'a ArgMatches<'a>, mut node_connection: NodeCo
         ("add-index", Some(matches)) => await!(config_add_index(matches, app_config, node_report))?,
         ("remove-index", Some(matches)) => await!(config_remove_index(matches, app_config, node_report))?,
         ("add-friend", Some(matches)) => await!(config_add_friend(matches, app_config, node_report))?,
-        ("update-friend", Some(matches)) => await!(config_update_friend(matches, app_config, node_report))?,
+        ("set-friend-relays", Some(matches)) => await!(config_set_friend_relays(matches, app_config, node_report))?,
         ("remove-friend", Some(matches)) => await!(config_remove_friend(matches, app_config, node_report))?,
         ("enable-friend", Some(matches)) => await!(config_enable_friend(matches, app_config, node_report))?,
         ("disable-friend", Some(matches)) => await!(config_disable_friend(matches, app_config, node_report))?,
