@@ -4,9 +4,8 @@ use std::fs::{self, File};
 use std::path::Path;
 
 use toml;
-use base64::{self, URL_SAFE_NO_PAD};
-
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crate::file::pk_string::{public_key_to_string, 
+    string_to_public_key, PkStringError};
 
 use crate::net::messages::NetAddressError;
 use crate::node::types::NodeAddress;
@@ -16,7 +15,7 @@ pub enum NodeFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    Base64DecodeError(base64::DecodeError),
+    PkStringError,
     ParseSocketAddrError,
     InvalidPublicKey,
     NetAddressError(NetAddressError),
@@ -47,9 +46,9 @@ impl From<toml::ser::Error> for NodeFileError {
     }
 }
 
-impl From<base64::DecodeError> for NodeFileError {
-    fn from(e: base64::DecodeError) -> Self {
-        NodeFileError::Base64DecodeError(e)
+impl From<PkStringError> for NodeFileError {
+    fn from(_e: PkStringError) -> Self {
+        NodeFileError::PkStringError
     }
 }
 
@@ -66,14 +65,7 @@ pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
     let node_file: NodeFile = toml::from_str(&data)?;
 
     // Decode public key:
-    let public_key_vec = base64::decode_config(&node_file.public_key, URL_SAFE_NO_PAD)?;
-    // TODO: A more idiomatic way to do this?
-    if public_key_vec.len() != PUBLIC_KEY_LEN {
-        return Err(NodeFileError::InvalidPublicKey);
-    }
-    let mut public_key_array = [0u8; PUBLIC_KEY_LEN];
-    public_key_array.copy_from_slice(&public_key_vec[0 .. PUBLIC_KEY_LEN]);
-    let public_key = PublicKey::from(&public_key_array);
+    let public_key = string_to_public_key(&node_file.public_key)?;
 
     Ok(NodeAddress {
         public_key,
@@ -89,7 +81,7 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path)
     let NodeAddress {ref public_key, ref address} = node_address;
 
     let node_file = NodeFile {
-        public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
+        public_key: public_key_to_string(&public_key),
         address: address.as_str().to_string(),
     };
 
@@ -105,6 +97,8 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path)
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     #[test]
     fn test_node_file_basic() {
