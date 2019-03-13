@@ -25,7 +25,8 @@ pub use self::identity::{identity_from_file, IdentityFromFileError};
 pub use self::connect::{connect, ConnectError};
 pub use node::connect::{AppReport, AppConfig, 
     AppRoutes, AppSendFunds, NodeConnection};
-pub use proto::app_server::messages::AppPermissions;
+pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress};
+pub use proto::index_server::messages::NamedIndexServerAddress;
 
 
 // TODO: Possibly reduce what we export from report in the future?
