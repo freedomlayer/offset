@@ -24,7 +24,7 @@ pub struct ConnectError;
 pub async fn connect<S>(node_public_key: PublicKey,
                      node_net_address: NetAddress,
                      app_identity_client: IdentityClient,
-                     spawner: S) -> Result<NodeConnection<impl CryptoRandom>, ConnectError>
+                     spawner: S) -> Result<NodeConnection, ConnectError>
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
