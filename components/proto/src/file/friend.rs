@@ -17,8 +17,8 @@ use crate::file::relay::RelayFile;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendAddress {
-    public_key: PublicKey,
-    relays: Vec<RelayAddress>,
+    pub public_key: PublicKey,
+    pub relays: Vec<RelayAddress>,
 }
 
 #[derive(Debug)]
