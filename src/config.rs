@@ -4,7 +4,8 @@ use clap::ArgMatches;
 
 use app::{NodeConnection, AppConfig, 
     NamedRelayAddress, NamedIndexServerAddress, 
-    load_relay_from_file, load_index_server_from_file};
+    load_relay_from_file, load_index_server_from_file,
+    load_friend_from_file};
 use app::report::NodeReport;
 
 #[derive(Debug)]
@@ -20,6 +21,10 @@ pub enum ConfigError {
     IndexNameAlreadyExists,
     IndexFileNotFound,
     LoadIndexFromFileError,
+    FriendNameAlreadyExists,
+    ParseBalanceError,
+    FriendFileNotFound,
+    LoadFriendFromFileError,
 }
 
 async fn config_add_relay<'a>(matches: &'a ArgMatches<'a>, 
@@ -124,10 +129,36 @@ async fn config_remove_index<'a>(matches: &'a ArgMatches<'a>,
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_add_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                               _app_config: AppConfig,
-                               _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_add_friend<'a>(matches: &'a ArgMatches<'a>, 
+                               mut app_config: AppConfig,
+                               node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_file = matches.value_of("friend_file").unwrap();
+    let friend_name = matches.value_of("friend_name").unwrap();
+    let friend_balance_str = matches.value_of("friend_balance").unwrap();
+    let friend_balance = friend_balance_str.parse::<i128>()
+        .map_err(|_| ConfigError::ParseBalanceError)?;
+
+    for (_friend_public_key, friend_report) in node_report.funder_report.friends {
+        if friend_report.name == friend_name {
+            return Err(ConfigError::FriendNameAlreadyExists);
+        }
+    }
+
+    let friend_pathbuf = PathBuf::from(friend_file);
+    if !friend_pathbuf.exists() {
+        return Err(ConfigError::FriendFileNotFound);
+    }
+
+    let friend_address = load_friend_from_file(&friend_pathbuf)
+        .map_err(|_| ConfigError::LoadFriendFromFileError)?;
+
+    await!(app_config.add_friend(friend_address.public_key,
+                          friend_address.relays,
+                          friend_name.to_owned(),
+                          friend_balance))
+        .map_err(|_| ConfigError::AppConfigError)?;
+    Ok(())
 }
 
 async fn config_update_friend<'a>(_matches: &'a ArgMatches<'a>, 

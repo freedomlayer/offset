@@ -181,7 +181,7 @@ where
                                        .short("n")
                                        .long("name")
                                        .value_name("index_name")
-                                       .help("index server name")
+                                       .help("Index server name")
                                        .required(true)))
 
                               .subcommand(SubCommand::with_name("remove-index")
@@ -190,7 +190,7 @@ where
                                        .short("n")
                                        .long("name")
                                        .value_name("index_name")
-                                       .help("index server name")
+                                       .help("Index server name")
                                        .required(true)))
 
                               .subcommand(SubCommand::with_name("add-friend")
@@ -206,6 +206,12 @@ where
                                        .long("name")
                                        .value_name("friend_name")
                                        .help("friend name")
+                                       .required(true))
+                                  .arg(Arg::with_name("friend_balance")
+                                       .short("b")
+                                       .long("balance")
+                                       .value_name("friend_balance")
+                                       .help("Initial balance with friend")
                                        .required(true)))
 
                               .subcommand(SubCommand::with_name("update-friend")
