@@ -324,7 +324,7 @@ where
         },
     };
 
-    if idfile_pathbuf.exists() {
+    if !idfile_pathbuf.exists() {
         return Err(StCtrlError::IdFileDoesNotExist);
     }
 
@@ -340,7 +340,7 @@ where
         },
     };
 
-    if node_ticket_pathbuf.exists() {
+    if !node_ticket_pathbuf.exists() {
         return Err(StCtrlError::NodeTicketFileDoesNotExist);
     }
 
