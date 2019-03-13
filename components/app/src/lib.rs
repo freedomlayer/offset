@@ -17,6 +17,7 @@ mod identity;
 mod connect;
 pub mod uid;
 
+pub use proto::file::node::load_node_from_file;
 pub use self::identity::{identity_from_file, IdentityFromFileError};
 pub use self::connect::{connect, ConnectError};
 pub use node::connect::{AppReport, AppConfig, 
