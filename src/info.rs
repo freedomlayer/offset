@@ -137,6 +137,10 @@ pub async fn info_last_friend_token<'a>(_matches: &'a ArgMatches<'a>,
                                     _app_report: AppReport) -> Result<(), InfoError> {
     // TODO: Should possibly export a file
     unimplemented!();
+    /*
+    let idfile = matches.value_of("idfile").unwrap();
+    let output = matches.value_of("output").unwrap();
+    */
 }
 
 /// Get an approximate value for mutual balance with a friend.
@@ -167,11 +171,6 @@ pub async fn info<'a>(matches: &'a ArgMatches<'a>,
                       mut node_connection: NodeConnection) -> Result<(), InfoError> {
 
     let app_report = node_connection.report().clone();
-
-    /*
-    let idfile = matches.value_of("idfile").unwrap();
-    let output = matches.value_of("output").unwrap();
-    */
 
     match matches.subcommand() {
         ("relays", Some(_matches)) => await!(info_relays(app_report))?,
