@@ -3,9 +3,10 @@ use std::fs::{self, File};
 use std::path::Path;
 
 use toml;
-use base64::{self, URL_SAFE_NO_PAD};
+use crate::file::pk_string::{public_key_to_string, 
+    string_to_public_key, PkStringError};
 
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crypto::identity::PublicKey;
 use crate::app_server::messages::AppPermissions;
 
 #[derive(Debug)]
@@ -13,7 +14,7 @@ pub enum AppFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    Base64DecodeError(base64::DecodeError),
+    PkStringError,
     InvalidPublicKey,
 }
 
@@ -49,9 +50,9 @@ impl From<toml::ser::Error> for AppFileError {
     }
 }
 
-impl From<base64::DecodeError> for AppFileError {
-    fn from(e: base64::DecodeError) -> Self {
-        AppFileError::Base64DecodeError(e)
+impl From<PkStringError> for AppFileError {
+    fn from(_e: PkStringError) -> Self {
+        AppFileError::PkStringError
     }
 }
 
@@ -61,15 +62,7 @@ pub fn load_trusted_app_from_file(path: &Path) -> Result<TrustedApp, AppFileErro
     let data = fs::read_to_string(&path)?;
     let trusted_app_file: TrustedAppFile = toml::from_str(&data)?;
 
-    // Decode public key:
-    let public_key_vec = base64::decode_config(&trusted_app_file.public_key, URL_SAFE_NO_PAD)?;
-    // TODO: A more idiomatic way to do this?
-    if public_key_vec.len() != PUBLIC_KEY_LEN {
-        return Err(AppFileError::InvalidPublicKey);
-    }
-    let mut public_key_array = [0u8; PUBLIC_KEY_LEN];
-    public_key_array.copy_from_slice(&public_key_vec[0 .. PUBLIC_KEY_LEN]);
-    let public_key = PublicKey::from(&public_key_array);
+    let public_key = string_to_public_key(&trusted_app_file.public_key)?;
 
     Ok(TrustedApp {
         public_key,
@@ -84,7 +77,7 @@ pub fn store_trusted_app_to_file(trusted_app: &TrustedApp, path: &Path)
     let TrustedApp {ref public_key, ref permissions} = trusted_app;
 
     let trusted_app_file = TrustedAppFile {
-        public_key: base64::encode_config(&public_key, URL_SAFE_NO_PAD),
+        public_key: public_key_to_string(&public_key),
         permissions: permissions.clone(),
     };
 
@@ -113,7 +106,9 @@ pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedApp>, AppFileErro
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use tempfile::tempdir;
+    use crypto::identity::PUBLIC_KEY_LEN;
 
     #[test]
     fn test_store_load_trusted_app() {
