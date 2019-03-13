@@ -1,6 +1,10 @@
+use std::path::PathBuf;
+
 use clap::ArgMatches;
 
-use app::{NodeConnection, AppConfig};
+use app::{NodeConnection, AppConfig, 
+    NamedRelayAddress, NamedIndexServerAddress, 
+    load_relay_from_file, load_index_server_from_file};
 use app::report::NodeReport;
 
 #[derive(Debug)]
@@ -8,24 +12,96 @@ pub enum ConfigError {
     /// No permissions to configure node
     NoPermissions,
     GetReportError,
+    RelayNameAlreadyExists,
+    RelayFileNotFound,
+    LoadRelayFromFileError,
+    AppConfigError,
+    RelayNameNotFound,
+    IndexNameAlreadyExists,
+    IndexFileNotFound,
+    LoadIndexFromFileError,
 }
 
-async fn config_add_relay<'a>(_matches: &'a ArgMatches<'a>, 
-                              _app_config: AppConfig,
-                              _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_add_relay<'a>(matches: &'a ArgMatches<'a>, 
+                              mut app_config: AppConfig,
+                              node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let relay_file = matches.value_of("relay_file").unwrap();
+    let relay_name = matches.value_of("relay_name").unwrap();
+
+    for named_relay_address in node_report.funder_report.relays {
+        if named_relay_address.name == relay_name {
+            return Err(ConfigError::RelayNameAlreadyExists);
+        }
+    }
+
+    let relay_pathbuf = PathBuf::from(relay_file);
+    if !relay_pathbuf.exists() {
+        return Err(ConfigError::RelayFileNotFound);
+    }
+
+    let relay_address = load_relay_from_file(&relay_pathbuf)
+        .map_err(|_| ConfigError::LoadRelayFromFileError)?;
+
+    let named_relay_address = NamedRelayAddress {
+        public_key: relay_address.public_key,
+        address: relay_address.address,
+        name: relay_name.to_owned(),
+    };
+
+    await!(app_config.add_relay(named_relay_address))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_remove_relay<'a>(_matches: &'a ArgMatches<'a>, 
-                                 _app_config: AppConfig,
-                                 _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_remove_relay<'a>(matches: &'a ArgMatches<'a>, 
+                                 mut app_config: AppConfig,
+                                 node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let relay_name = matches.value_of("relay_name").unwrap();
+
+    let mut opt_relay_public_key = None;
+    for named_relay_address in node_report.funder_report.relays {
+        if named_relay_address.name == relay_name {
+            opt_relay_public_key = Some(named_relay_address.public_key.clone());
+        }
+    }
+
+    let relay_public_key = opt_relay_public_key
+        .ok_or(ConfigError::RelayNameNotFound)?;
+
+    await!(app_config.remove_relay(relay_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_add_index<'a>(_matches: &'a ArgMatches<'a>, 
-                              _app_config: AppConfig,
-                              _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_add_index<'a>(matches: &'a ArgMatches<'a>, 
+                              mut app_config: AppConfig,
+                              node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let index_file = matches.value_of("index_file").unwrap();
+    let index_name = matches.value_of("index_name").unwrap();
+
+    for named_index_server_address in node_report.index_client_report.index_servers {
+        if named_index_server_address.name == index_name {
+            return Err(ConfigError::IndexNameAlreadyExists);
+        }
+    }
+
+    let index_pathbuf = PathBuf::from(index_file);
+    if !index_pathbuf.exists() {
+        return Err(ConfigError::IndexFileNotFound);
+    }
+
+    let index_server_address = load_index_server_from_file(&index_pathbuf)
+        .map_err(|_| ConfigError::LoadIndexFromFileError)?;
+
+    let named_index_server_address = NamedIndexServerAddress {
+        public_key: index_server_address.public_key,
+        address: index_server_address.address,
+        name: index_name.to_owned(),
+    };
+
+    await!(app_config.add_index_server(named_index_server_address))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
 async fn config_remove_index<'a>(_matches: &'a ArgMatches<'a>, 
