@@ -33,6 +33,7 @@ const STCTRL_ID_FILE: &str = "STCTRL_ID_FILE";
 const STCTRL_NODE_TICKET_FILE: &str = "STCTRL_NODE_TICKET_FILE";
 
 
+#[derive(Debug)]
 enum StCtrlError {
     CreateThreadPoolError,
     MissingIdFileArgument,

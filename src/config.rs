@@ -2,6 +2,7 @@ use clap::ArgMatches;
 
 use app::NodeConnection;
 
+#[derive(Debug)]
 pub enum ConfigError {
 }
 
