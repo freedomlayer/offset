@@ -135,6 +135,7 @@ pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
 
 pub async fn info_last_friend_token<'a>(_matches: &'a ArgMatches<'a>, 
                                     _app_report: AppReport) -> Result<(), InfoError> {
+    // TODO: Should possibly export a file
     unimplemented!();
 }
 
