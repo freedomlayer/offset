@@ -26,7 +26,7 @@ use stctrl::info::{info, InfoError};
 use stctrl::config::{config, ConfigError};
 use stctrl::funds::{funds, FundsError};
 
-use app::{identity_from_file, load_node_from_file};
+use app::{connect, identity_from_file, load_node_from_file};
 
 
 const STCTRL_ID_FILE: &str = "STCTRL_ID_FILE";
@@ -40,6 +40,8 @@ enum StCtrlError {
     MissingNodeTicketArgument,
     NodeTicketFileDoesNotExist,
     InvalidNodeTicketFile,
+    SpawnIdentityServiceError,
+    ConnectionError,
     InfoError(InfoError),
     ConfigError(ConfigError),
     FundsError(FundsError),
@@ -95,6 +97,7 @@ where
         .map_err(|_| StCtrlError::CreateThreadPoolError)?;
 
     let matches = App::new("stctrl: offST ConTRoL")
+                          // TOOD: Does this setting work for recursive subcommands?
                           .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
@@ -340,21 +343,28 @@ where
         return Err(StCtrlError::NodeTicketFileDoesNotExist);
     }
 
+    // Get node information from file:
     let node_address = load_node_from_file(&node_ticket_pathbuf)
         .map_err(|_| StCtrlError::InvalidNodeTicketFile)?;
 
-
     // Spawn identity service:
-    let identity_client = identity_from_file(&idfile_pathbuf, thread_pool.clone());
-
+    let app_identity_client = identity_from_file(&idfile_pathbuf, thread_pool.clone())
+        .map_err(|_| StCtrlError::SpawnIdentityServiceError)?;
 
 
     let c_thread_pool = thread_pool.clone();
     thread_pool.run(async move {
+        // Connect to node:
+        let node_connection = await!(connect(node_address.public_key,
+                            node_address.address,
+                            app_identity_client,
+                            c_thread_pool.clone()))
+            .map_err(|_| StCtrlError::ConnectionError)?;
+
         Ok(match matches.subcommand() {
-            ("info", Some(matches)) => await!(info(matches, c_thread_pool.clone()))?,
-            ("config", Some(matches)) => await!(config(matches, c_thread_pool.clone()))?,
-            ("funds", Some(matches)) => await!(funds(matches, c_thread_pool.clone()))?,
+            ("info", Some(matches)) => await!(info(matches, node_connection))?,
+            ("config", Some(matches)) => await!(config(matches, node_connection))?,
+            ("funds", Some(matches)) => await!(funds(matches, node_connection))?,
             _ => unreachable!(),
         })
     })

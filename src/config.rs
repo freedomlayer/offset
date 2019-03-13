@@ -1,12 +1,10 @@
-use futures::task::Spawn;
 use clap::ArgMatches;
+
+use app::NodeConnection;
 
 pub enum ConfigError {
 }
 
-pub async fn config<'a, S>(_matches: &'a ArgMatches<'a>, _spawner: S) -> Result<(), ConfigError> 
-where
-    S: Spawn,
-{
+pub async fn config<'a>(_matches: &'a ArgMatches<'a>, _node_connection: NodeConnection) -> Result<(), ConfigError> {
     unimplemented!();
 }

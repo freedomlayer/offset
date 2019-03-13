@@ -1,13 +1,10 @@
-use futures::task::Spawn;
 use clap::ArgMatches;
 
+use app::NodeConnection;
 
 pub enum FundsError {
 }
 
-pub async fn funds<'a, S>(_matches: &'a ArgMatches<'a>, _spawner: S) -> Result<(), FundsError> 
-where
-    S: Spawn,
-{
+pub async fn funds<'a>(_matches: &'a ArgMatches<'a>, _node_connection: NodeConnection) -> Result<(), FundsError> {
     unimplemented!();
 }
