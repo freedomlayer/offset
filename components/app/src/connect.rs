@@ -15,7 +15,8 @@ use identity::IdentityClient;
 use timer::create_timer;
 use net::NetConnector;
 
-use node::connect::{node_connect, NodeConnection};
+use node::connect::node_connect;
+pub use node::connect::NodeConnection;
 
 #[derive(Debug)]
 pub struct ConnectError;

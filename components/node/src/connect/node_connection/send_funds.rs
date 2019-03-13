@@ -3,7 +3,7 @@ use futures::channel::mpsc;
 use common::multi_consumer::MultiConsumerClient;
 
 use crypto::uid::Uid;
-use crypto::crypto_rand::CryptoRandom;
+use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 use crypto::identity::PublicKey;
 
 use proto::app_server::messages::{AppToAppServer, AppRequest};
@@ -27,7 +27,7 @@ pub enum SendFundsError {
 pub struct ReceiptAckError;
 
 #[derive(Clone)]
-pub struct AppSendFunds<R> {
+pub struct AppSendFunds<R=OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
     send_funds_mc: MultiConsumerClient<ResponseReceived>,
     done_app_requests_mc: MultiConsumerClient<Uid>,

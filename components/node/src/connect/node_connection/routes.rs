@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use common::multi_consumer::MultiConsumerClient;
 
 use crypto::identity::PublicKey;
-use crypto::crypto_rand::CryptoRandom;
+use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppToAppServer, AppRequest};
@@ -15,7 +15,7 @@ use proto::index_server::messages::{RequestRoutes, RouteWithCapacity};
 pub struct AppRoutesError;
 
 #[derive(Clone)]
-pub struct AppRoutes<R> {
+pub struct AppRoutes<R=OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     rng: R,
