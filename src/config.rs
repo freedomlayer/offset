@@ -104,10 +104,24 @@ async fn config_add_index<'a>(matches: &'a ArgMatches<'a>,
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_remove_index<'a>(_matches: &'a ArgMatches<'a>, 
-                                 _app_config: AppConfig,
-                                 _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_remove_index<'a>(matches: &'a ArgMatches<'a>, 
+                                 mut app_config: AppConfig,
+                                 node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let index_name = matches.value_of("index_name").unwrap();
+
+    let mut opt_index_public_key = None;
+    for named_index_server_address in node_report.index_client_report.index_servers {
+        if named_index_server_address.name == index_name {
+            opt_index_public_key = Some(named_index_server_address.public_key.clone());
+        }
+    }
+
+    let index_public_key = opt_index_public_key
+        .ok_or(ConfigError::RelayNameNotFound)?;
+
+    await!(app_config.remove_index_server(index_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
 async fn config_add_friend<'a>(_matches: &'a ArgMatches<'a>, 
