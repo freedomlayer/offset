@@ -20,6 +20,7 @@ pub mod uid;
 pub use proto::file::node::load_node_from_file;
 pub use proto::file::pk_string::public_key_to_string;
 pub use proto::file::relay::load_relay_from_file;
+pub use proto::file::index_server::load_index_server_from_file;
 
 pub use self::identity::{identity_from_file, IdentityFromFileError};
 pub use self::connect::{connect, ConnectError};
