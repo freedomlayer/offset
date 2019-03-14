@@ -46,7 +46,8 @@ where
 
         let listener = match TokioTcpListener::bind(&socket_addr) {
             Ok(listener) => listener,
-            Err(_) => {
+            Err(e) => {
+                warn!("Failed listening on {:?}: {:?}", socket_addr, e);
                 // Return empty channels:
                 return (config_sender, conn_receiver);
             }
