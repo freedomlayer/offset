@@ -8,8 +8,7 @@
     warnings
 )]
 
-// #[macro_use]
-extern crate log;
+#[macro_use] extern crate log;
 
 // use std::convert::TryInto;
 use std::path::PathBuf;
@@ -382,6 +381,8 @@ fn run() -> Result<(), StCtrlError> {
     })
 }
 
-
 fn main() {
+    if let Err(e) = run() {
+        error!("run() error: {:?}", e);
+    }
 }
