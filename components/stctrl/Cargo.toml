@@ -16,7 +16,7 @@ path = "src/bin/stctrl.rs"
 [dependencies]
 
 
-app = { git = "https://github.com/freedomlayer/offst", branch = "real/feat/app-interface2", package="offst-app" }
+app = { path = "../app", version = "0.1.0", package = "offst-app" }
 
 
 clap = "2.32.0"

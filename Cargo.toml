@@ -20,6 +20,7 @@ members = [
   "components/net",
   "components/version",
   "components/bin",
+  "components/stctrl",
   "components/app",
   "components/test",
 ]
