@@ -18,7 +18,6 @@ use std::env;
 use log::Level;
 
 use futures::executor::ThreadPool;
-use futures::task::Spawn;
 
 use clap::{Arg, App, AppSettings, SubCommand /*, ArgMatches */};
 
@@ -88,11 +87,8 @@ fn env_stctrl_node_ticket_file() -> Option<PathBuf> {
 }
 
 
-#[allow(unused)]
-fn run<S>(spawner: S) -> Result<(), StCtrlError> 
-where
-    S: Spawn,
-{
+fn run() -> Result<(), StCtrlError> {
+
     simple_logger::init_with_level(Level::Warn).unwrap();
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| StCtrlError::CreateThreadPoolError)?;
@@ -140,7 +136,16 @@ where
                                        .required(true)))
 
                               .subcommand(SubCommand::with_name("balance")
-                                  .about("Display current balance")))
+                                  .about("Display current balance"))
+
+                              .subcommand(SubCommand::with_name("export-ticket")
+                                  .about("Export a ticket of this node's contact information"))
+                                  .arg(Arg::with_name("output_file")
+                                       .short("o")
+                                       .long("output")
+                                       .value_name("output_file")
+                                       .help("output node ticket file path")
+                                       .required(true)))
 
                           /* ------------[Config] ------------- */
                           .subcommand(SubCommand::with_name("config")

@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use clap::ArgMatches;
 use prettytable::Table;
 
-use app::{NodeConnection, AppReport, public_key_to_string};
+use app::{NodeConnection, AppReport, public_key_to_string,
+            store_friend_to_file, FriendAddress, RelayAddress};
 use app::report::{NodeReport, 
     FriendReport, ChannelStatusReport,
     FriendStatusReport};
@@ -11,6 +14,8 @@ use app::report::{NodeReport,
 pub enum InfoError {
     GetReportError,
     BalanceOverflow,
+    OutputFileAlreadyExists,
+    StoreNodeToFileError,
 }
 
 /// Get a most recently known node report:
@@ -167,6 +172,35 @@ pub async fn info_balance(mut app_report: AppReport) -> Result<(), InfoError> {
     Ok(())
 }
 
+pub async fn info_export_ticket<'a>(matches: &'a ArgMatches<'a>, 
+                                mut app_report: AppReport) -> Result<(), InfoError> {
+
+    let output_file = matches.value_of("output_file").unwrap();
+    let output_pathbuf = PathBuf::from(output_file);
+
+    if output_pathbuf.exists() {
+        return Err(InfoError::OutputFileAlreadyExists);
+    }
+
+    let report = await!(get_report(&mut app_report))?;
+    let relays: Vec<RelayAddress> = report
+        .funder_report
+        .relays
+        .into_iter()
+        .map(|relay| relay.into())
+        .collect();
+
+    let node_address = FriendAddress {
+        public_key: report.funder_report.local_public_key.clone(),
+        relays,
+    };
+
+    store_friend_to_file(&node_address, &output_pathbuf)
+        .map_err(|_| InfoError::StoreNodeToFileError)?;
+
+    Ok(())
+}
+
 pub async fn info<'a>(matches: &'a ArgMatches<'a>, 
                       mut node_connection: NodeConnection) -> Result<(), InfoError> {
 
@@ -178,6 +212,7 @@ pub async fn info<'a>(matches: &'a ArgMatches<'a>,
         ("friends", Some(_matches)) => await!(info_friends(app_report))?,
         ("last-friend-token", Some(matches)) => await!(info_last_friend_token(matches, app_report))?,
         ("balance", Some(_matches)) => await!(info_balance(app_report))?,
+        ("export-ticket", Some(matches)) => await!(info_export_ticket(matches, app_report))?,
         _ => unreachable!(),
     }
 
