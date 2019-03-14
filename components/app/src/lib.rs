@@ -51,4 +51,10 @@ pub mod invoice {
     pub use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 }
 
+pub mod route {
+    use proto::index_server::messages::RouteWithCapacity;
+    use proto::funder::messages::FriendsRoute;
+
+}
+
 pub use crypto::identity::PublicKey;
