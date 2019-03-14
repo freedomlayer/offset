@@ -376,17 +376,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures-test-preview"
-version = "0.3.0-alpha.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "futures-core-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-executor-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-util-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "pin-utils 0.1.0-alpha.4 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "futures-util-preview"
 version = "0.3.0-alpha.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -592,76 +581,80 @@ dependencies = [
 [[package]]
 name = "offst-app"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-bin 0.1.0",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offst-bin 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-net 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-node 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-app-server"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 12.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-bin"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-server 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-database 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-index-server 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-net 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-node 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-relay 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-channeler"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-relay 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-common"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "backtrace 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -675,11 +668,12 @@ dependencies = [
 [[package]]
 name = "offst-crypto"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.13.0-alpha4 (git+https://github.com/freedomlayer/ring?branch=real/version-0.13.0-alpha4)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -690,6 +684,7 @@ dependencies = [
 [[package]]
 name = "offst-database"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "atomicwrites 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -697,15 +692,15 @@ dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 12.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-funder"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "atomicwrites 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -717,11 +712,11 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-database 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -732,25 +727,27 @@ dependencies = [
 [[package]]
 name = "offst-identity"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-index-client"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-database 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -758,66 +755,70 @@ dependencies = [
 [[package]]
 name = "offst-index-server"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-keepalive 0.1.0",
- "offst-proto 0.1.0",
- "offst-secure-channel 0.1.0",
- "offst-timer 0.1.0",
- "offst-version 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-keepalive 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-secure-channel 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-version 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-keepalive"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-net"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-proto 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "tokio 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-node"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app-server 0.1.0",
- "offst-channeler 0.1.0",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-funder 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-client 0.1.0",
- "offst-keepalive 0.1.0",
- "offst-net 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-secure-channel 0.1.0",
- "offst-timer 0.1.0",
- "offst-version 0.1.0",
+ "offst-app-server 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-channeler 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-database 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-funder 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-index-client 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-keepalive 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-net 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-relay 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-secure-channel 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-version 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -825,6 +826,7 @@ dependencies = [
 [[package]]
 name = "offst-proto"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -832,85 +834,67 @@ dependencies = [
  "capnp 0.9.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "capnpc 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 12.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-relay"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-keepalive 0.1.0",
- "offst-proto 0.1.0",
- "offst-secure-channel 0.1.0",
- "offst-timer 0.1.0",
- "offst-version 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-keepalive 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-secure-channel 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-version 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-secure-channel"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
+ "offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "offst-test"
-version = "0.1.0"
-dependencies = [
- "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-test-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-server 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-timer 0.1.0",
- "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "offst-timer"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
 name = "offst-version"
 version = "0.1.0"
+source = "git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2#53b487ac1e76d283d302fd24a3efecaec910bc15"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
 ]
 
 [[package]]
@@ -1292,7 +1276,7 @@ dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app 0.1.0",
+ "offst-app 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)",
  "prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1319,19 +1303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "remove_dir_all 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "tempfile"
-version = "3.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "cfg-if 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "redox_syscall 0.1.51 (registry+https://github.com/rust-lang/crates.io-index)",
- "remove_dir_all 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1713,7 +1684,6 @@ dependencies = [
 "checksum futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)" = "7faf4ac82e295643b1562a524004ef41b62e8f2de42d5506f037eaad68abe111"
 "checksum futures-select-macro-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)" = "3bd59b75bb2c86cda47c00d71bf520683a6831751648458540db330e25627c91"
 "checksum futures-sink-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)" = "8a9be0748d742f1f5f61a9b65e2de0e815de9c05343cea1ceae74062df3f55fe"
-"checksum futures-test-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)" = "3c19d2f3a5990ab1d68fb3c1c0ec86318b32e02809df14e7cdec2829569f2a1b"
 "checksum futures-util-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)" = "88b0edcc082d39a3379a96eb670c9b6b28689cd753cc351fb2c0a4739e4a1f97"
 "checksum humantime 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3ca7e5f2e110db35f93b837c81797f3714500b81d517bf20c431b16d3ca4f114"
 "checksum im 12.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "efe5ea3ac18d45fedbd8f586f9059848d7a986542b7ecf92c7c946b3853d443f"
@@ -1737,6 +1707,25 @@ dependencies = [
 "checksum num-integer 0.1.39 (registry+https://github.com/rust-lang/crates.io-index)" = "e83d528d2677f0518c570baf2b7abdcf0cd2d248860b68507bdcb3e91d4c0cea"
 "checksum num-traits 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)" = "0b3a5d7cc97d6d30d8b9bc8fa19bf45349ffe46241e8816f50f62f6d6aaabee1"
 "checksum num_cpus 1.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1a23f0ed30a54abaa0c7e83b1d2d87ada7c3c23078d1d87815af3e3b6385fbba"
+"checksum offst-app 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-app-server 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-bin 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-channeler 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-common 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-crypto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-database 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-funder 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-identity 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-index-client 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-index-server 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-keepalive 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-net 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-node 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-proto 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-relay 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-secure-channel 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-timer 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
+"checksum offst-version 0.1.0 (git+https://github.com/freedomlayer/offst?branch=real/feat/app-interface2)" = "<none>"
 "checksum owning_ref 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "49a4b8ea2179e6a2e27411d3bca09ca6dd630821cf6894c6c7c8467a8ee7ef13"
 "checksum parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab41b4aed082705d1056416ae4468b6ea99d52599ecf3169b00088d43113e337"
 "checksum parking_lot_core 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "94c8c7923936b28d546dfd14d4472eaf34c99b14e1c973a32b3e6d4eb04298c9"
@@ -1785,7 +1774,6 @@ dependencies = [
 "checksum strsim 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bb4f380125926a99e52bc279241539c018323fab05ad6368b56f93d9369ff550"
 "checksum syn 0.15.29 (registry+https://github.com/rust-lang/crates.io-index)" = "1825685f977249735d510a242a6727b46efe914bb67e38d30c071b1b72b1d5c2"
 "checksum tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-"checksum tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)" = "b86c784c88d98c801132806dadd3819ed29d8600836c4088e855cdf3e178ed8a"
 "checksum term 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5e6b677dd1e8214ea1ef4297f85dbcbed8e8cdddb561040cc998ca2551c37561"
 "checksum termcolor 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4096add70612622289f2fdcdbd5086dc81c1e2675e6ae58d6c4f62a16c6d7f2f"
 "checksum termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "689a3bdfaab439fd92bc87df5c4c78417d3cbe537487274e9b0b2dce76e92096"
