@@ -6,7 +6,7 @@ use app::{NodeConnection, AppConfig,
     NamedRelayAddress, NamedIndexServerAddress, 
     load_relay_from_file, load_index_server_from_file,
     load_friend_from_file, PublicKey};
-use app::report::NodeReport;
+use app::report::{NodeReport, ChannelStatusReport};
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -27,6 +27,9 @@ pub enum ConfigError {
     LoadFriendFromFileError,
     FriendPublicKeyMismatch,
     FriendNameNotFound,
+    ParseMaxDebtError,
+    ChannelNotInconsistent,
+    UnknownRemoteResetTerms,
 }
 
 async fn config_add_relay<'a>(matches: &'a ArgMatches<'a>, 
@@ -138,6 +141,7 @@ async fn config_add_friend<'a>(matches: &'a ArgMatches<'a>,
     let friend_file = matches.value_of("friend_file").unwrap();
     let friend_name = matches.value_of("friend_name").unwrap();
     let friend_balance_str = matches.value_of("friend_balance").unwrap();
+
     let friend_balance = friend_balance_str.parse::<i128>()
         .map_err(|_| ConfigError::ParseBalanceError)?;
 
@@ -276,16 +280,56 @@ async fn config_close_friend<'a>(matches: &'a ArgMatches<'a>,
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_set_friend_max_debt<'a>(_matches: &'a ArgMatches<'a>, 
-                                        _app_config: AppConfig,
-                                        _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_set_friend_max_debt<'a>(matches: &'a ArgMatches<'a>, 
+                                        mut app_config: AppConfig,
+                                        node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+    let max_debt_str = matches.value_of("max_debt").unwrap();
+
+    let max_debt = max_debt_str.parse::<u128>()
+        .map_err(|_| ConfigError::ParseMaxDebtError)?;
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.set_friend_remote_max_debt(friend_public_key, max_debt))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_reset_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                 _app_config: AppConfig,
-                                 _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_reset_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                 mut app_config: AppConfig,
+                                 node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let mut opt_friend_pk_report = None;
+    for (friend_public_key, friend_report) in &node_report.funder_report.friends {
+        if friend_report.name == friend_name {
+            opt_friend_pk_report = Some((friend_public_key, friend_report));
+        }
+    }
+
+    let (friend_public_key, friend_report) = opt_friend_pk_report
+        .ok_or(ConfigError::FriendNameNotFound)?;
+
+    // Obtain the reset token 
+    // (Required as a proof that we already received the remote reset terms):
+    let reset_token = match &friend_report.channel_status {
+        ChannelStatusReport::Consistent(_) =>
+            return Err(ConfigError::ChannelNotInconsistent),
+        ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
+            if let Some(remote_reset_terms) = &channel_inconsistent_report.opt_remote_reset_terms {
+                &remote_reset_terms.reset_token
+            } else {
+                return Err(ConfigError::UnknownRemoteResetTerms);
+            }
+        },
+    };
+
+    await!(app_config.reset_friend_channel(friend_public_key.clone(), reset_token.clone()))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
 pub async fn config<'a>(matches: &'a ArgMatches<'a>, mut node_connection: NodeConnection) -> Result<(), ConfigError> {
