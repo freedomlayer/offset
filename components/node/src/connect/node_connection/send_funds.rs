@@ -10,6 +10,7 @@ use proto::app_server::messages::{AppToAppServer, AppRequest};
 use proto::funder::messages::{ResponseReceived, ResponseSendFundsResult,
     FriendsRoute, InvoiceId, UserRequestSendFunds, ReceiptAck, Receipt};
 
+// TODO; Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
 pub enum SendFundsError {
     /// A local error occured when trying to send funds.
