@@ -3,7 +3,7 @@ use ring::rand::SecureRandom;
 
 pub const UID_LEN: usize = 16;
 
-/// An Universally Unique Identifier (UUID).
+// An Universally Unique Identifier (UUID).
 define_fixed_bytes!(Uid, UID_LEN);
 
 impl Copy for Uid {}

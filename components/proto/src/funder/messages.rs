@@ -50,7 +50,7 @@ pub enum ChannelerToFunder {
 
 pub const INVOICE_ID_LEN: usize = 32;
 
-/// The universal unique identifier of an invoice.
+// The universal unique identifier of an invoice.
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
