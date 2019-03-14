@@ -93,6 +93,8 @@ pub enum SpawnChannelerError {
     SpawnError,
 }
 
+// TODO: Possibly rename this function and module, as the channeler future 
+// is not spawned here.
 pub async fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
                           timer_client: TimerClient,
                           backoff_ticks: usize,
