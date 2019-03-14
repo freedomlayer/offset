@@ -138,13 +138,13 @@ fn run() -> Result<(), StCtrlError> {
                                   .about("Display current balance"))
 
                               .subcommand(SubCommand::with_name("export-ticket")
-                                  .about("Export a ticket of this node's contact information"))
+                                  .about("Export a ticket of this node's contact information")
                                   .arg(Arg::with_name("output_file")
                                        .short("o")
                                        .long("output")
                                        .value_name("output_file")
                                        .help("output node ticket file path")
-                                       .required(true)))
+                                       .required(true))))
 
                           /* ------------[Config] ------------- */
                           .subcommand(SubCommand::with_name("config")
