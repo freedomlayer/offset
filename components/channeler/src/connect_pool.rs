@@ -358,13 +358,22 @@ where
         match event {
             CpEvent::ConnectRequest(connect_request) => 
                 connect_pool.handle_connect_request(connect_request)?,
-            CpEvent::ConnectRequestClosed => break,
+            CpEvent::ConnectRequestClosed => {
+                warn!("connect_pool_loop(): connect request closed");
+                break;
+            },
             CpEvent::ConfigRequest(config) => 
                 connect_pool.handle_config_request(config)?,
-            CpEvent::ConfigRequestClosed => break,
+            CpEvent::ConfigRequestClosed => {
+                warn!("connect_pool_loop(): config request closed");
+                break;
+            },
             CpEvent::TimerTick => 
                 connect_pool.handle_timer_tick()?,
-            CpEvent::TimerClosed => break,
+            CpEvent::TimerClosed => {
+                warn!("connect_pool_loop(): timer closed");
+                break;
+            },
             CpEvent::ConnectAttemptDone(opt_conn) => 
                 connect_pool.handle_connect_attempt_done(opt_conn),
         }
@@ -372,6 +381,7 @@ where
             let _ = await!(event_sender.send(()));
         }
     }
+    warn!("connect_pool_loop() exit");
     Ok(())
 }
 
