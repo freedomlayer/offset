@@ -10,16 +10,16 @@ name = "bin"
 path = "src/lib.rs"
 
 [[bin]]
-name = "relay_server"
-path = "src/bin/relay_server.rs"
+name = "strelay"
+path = "src/bin/strelay.rs"
 
 [[bin]]
-name = "index_server"
-path = "src/bin/index_server.rs"
+name = "stindex"
+path = "src/bin/stindex.rs"
 
 [[bin]]
-name = "node"
-path = "src/bin/node.rs"
+name = "stnode"
+path = "src/bin/stnode.rs"
 
 [[bin]]
 # OffST Manager
