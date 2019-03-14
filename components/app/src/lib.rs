@@ -24,13 +24,14 @@ pub use proto::file::relay::load_relay_from_file;
 pub use proto::file::index_server::load_index_server_from_file;
 pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
 
-pub use self::identity::{identity_from_file, IdentityFromFileError};
-pub use self::connect::{connect, ConnectError};
-pub use node::connect::{AppReport, AppConfig, 
-    AppRoutes, AppSendFunds, NodeConnection};
 pub use proto::app_server::messages::{AppPermissions, RelayAddress, NamedRelayAddress};
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
+pub use node::connect::{AppReport, AppConfig, 
+    AppRoutes, AppSendFunds, NodeConnection};
+
+pub use self::identity::{identity_from_file, IdentityFromFileError};
+pub use self::connect::{connect, ConnectError};
 
 // TODO: Possibly reduce what we export from report in the future?
 pub mod report {
@@ -49,3 +50,5 @@ pub mod report {
 pub mod invoice {
     pub use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 }
+
+pub use crypto::identity::PublicKey;
