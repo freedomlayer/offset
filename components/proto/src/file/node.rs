@@ -59,7 +59,6 @@ impl From<NetAddressError> for NodeFileError {
 }
 
 /// Load NodeAddress from a file
-#[allow(unused)]
 pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
     let data = fs::read_to_string(&path)?;
     let node_file: NodeFile = toml::from_str(&data)?;
