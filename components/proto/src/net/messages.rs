@@ -1,3 +1,4 @@
+use std::fmt;
 use std::convert::TryFrom;
 // use byteorder::{WriteBytesExt, BigEndian};
 use common::canonical_serialize::CanonicalSerialize;
@@ -10,6 +11,12 @@ pub struct NetAddress(String);
 impl NetAddress {
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Display for NetAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

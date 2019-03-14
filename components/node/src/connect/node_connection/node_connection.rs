@@ -4,7 +4,7 @@ use futures::task::{Spawn, SpawnExt};
 
 use proto::app_server::messages::AppServerToApp;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 
 use common::state_service::{state_service, StateClient};
 use common::mutable_state::BatchMutable;
@@ -22,16 +22,10 @@ pub enum NodeConnectionError {
     SpawnError,
 }
 
+// TODO: Do we need a way to close this connection?
+// Is it closed on Drop?
 #[derive(Clone)]
-pub struct NodeConnection<R> {
-    /*
-    sender: mpsc::Sender<AppToAppServer>,
-    app_permissions: AppPermissions,
-    report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>,
-    routes_mc: MultiConsumerClient<ClientResponseRoutes>,
-    send_funds_mc: MultiConsumerClient<ResponseReceived>,
-    done_app_requests_mc: MultiConsumerClient<Uid>,
-    */
+pub struct NodeConnection<R=OffstSystemRandom> {
     report: AppReport,
     opt_config: Option<AppConfig<R>>,
     opt_routes: Option<AppRoutes<R>>,

@@ -22,6 +22,8 @@ use crypto::identity::{generate_pkcs8_key_pair, Identity};
 
 use proto::net::messages::{NetAddress, NetAddressError};
 use proto::app_server::messages::{RelayAddress, AppPermissions};
+use proto::index_server::messages::IndexServerAddress;
+use proto::node::types::NodeAddress;
 
 use database::file_db::FileDb;
 use node::NodeState;
@@ -29,6 +31,8 @@ use node::NodeState;
 use proto::file::identity::{load_identity_from_file, store_identity_to_file};
 use proto::file::app::{store_trusted_app_to_file, TrustedApp};
 use proto::file::relay::store_relay_to_file;
+use proto::file::index_server::store_index_server_to_file;
+use proto::file::node::store_node_to_file;
 
 #[derive(Debug)]
 enum InitNodeDbError {
@@ -168,7 +172,7 @@ fn relay_ticket(matches: &ArgMatches) -> Result<(), RelayTicketError> {
 enum IndexTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    StoreRelayFileError,
+    StoreIndexFileError,
     NetAddressError(NetAddressError),
 }
 
@@ -197,13 +201,55 @@ fn index_ticket(matches: &ArgMatches) -> Result<(), IndexTicketError> {
 
     let address_str = matches.value_of("address").unwrap();
 
-    let relay_address = RelayAddress {
+    let index_address = IndexServerAddress {
         public_key,
         address: address_str.to_owned().try_into()?,
     };
 
-    store_relay_to_file(&relay_address, &output_path)
-        .map_err(|_| IndexTicketError::StoreRelayFileError)
+    store_index_server_to_file(&index_address, &output_path)
+        .map_err(|_| IndexTicketError::StoreIndexFileError)
+}
+
+#[derive(Debug)]
+enum NodeTicketError {
+    OutputAlreadyExists,
+    LoadIdentityError,
+    StoreNodeFileError,
+    NetAddressError(NetAddressError),
+}
+
+impl From<NetAddressError> for NodeTicketError {
+    fn from(e: NetAddressError) -> Self {
+        NodeTicketError::NetAddressError(e)
+    }
+}
+
+/// Create a node ticket
+/// The ticket can be fed into a node application
+fn node_ticket(matches: &ArgMatches) -> Result<(), NodeTicketError> {
+    let idfile = matches.value_of("idfile").unwrap();
+    let output = matches.value_of("output").unwrap();
+
+    // Make sure that output_path does not exist.
+    let output_path = Path::new(output);
+    if output_path.exists() {
+        return Err(NodeTicketError::OutputAlreadyExists);
+    }
+
+    // Parse identity file:
+    let identity = load_identity_from_file(Path::new(&idfile))
+        .map_err(|_| NodeTicketError::LoadIdentityError)?;
+    let public_key = identity.get_public_key();
+
+    let address_str = matches.value_of("address").unwrap();
+
+    let node_address = NodeAddress {
+        public_key,
+        address: address_str.to_owned().try_into()?,
+    };
+
+    store_node_to_file(&node_address, &output_path)
+        .map_err(|_| NodeTicketError::StoreNodeFileError)
 }
 
 #[derive(Debug)]
@@ -213,6 +259,7 @@ enum StmError {
     AppTicketError(AppTicketError),
     RelayTicketError(RelayTicketError),
     IndexTicketError(IndexTicketError),
+    NodeTicketError(NodeTicketError),
 }
 
 impl From<InitNodeDbError> for StmError {
@@ -242,6 +289,12 @@ impl From<RelayTicketError> for StmError {
 impl From<IndexTicketError> for StmError {
     fn from(e: IndexTicketError) -> Self {
         StmError::IndexTicketError(e)
+    }
+}
+
+impl From<NodeTicketError> for StmError {
+    fn from(e: NodeTicketError) -> Self {
+        StmError::NodeTicketError(e)
     }
 }
 
@@ -288,21 +341,14 @@ fn run() -> Result<(), StmError> {
                                    .value_name("output")
                                    .help("Application ticket output file path")
                                    .required(true))
-                              .arg(Arg::with_name("preports")
-                                   .long("preports")
-                                   .value_name("preports")
-                                   .help("Permission to receive reports"))
                               .arg(Arg::with_name("proutes")
                                    .long("proutes")
-                                   .value_name("proutes")
                                    .help("Permission to request reports"))
                               .arg(Arg::with_name("pfunds")
                                    .long("pfunds")
-                                   .value_name("pfunds")
                                    .help("Permission to send funds"))
                               .arg(Arg::with_name("pconfig")
                                    .long("pconfig")
-                                   .value_name("pconfig")
                                    .help("Permission to change configuration")))
                           .subcommand(SubCommand::with_name("relay-ticket")
                               .about("Create a relay ticket")
@@ -344,6 +390,26 @@ fn run() -> Result<(), StmError> {
                                    .value_name("output")
                                    .help("Index server ticket output file path")
                                    .required(true)))
+                          .subcommand(SubCommand::with_name("node-ticket")
+                              .about("Create a node server ticket")
+                              .arg(Arg::with_name("idfile")
+                                   .short("i")
+                                   .long("idfile")
+                                   .value_name("idfile")
+                                   .help("identity file path")
+                                   .required(true))
+                              .arg(Arg::with_name("address")
+                                   .short("a")
+                                   .long("address")
+                                   .value_name("address")
+                                   .help("Public address of the node server")
+                                   .required(true))
+                              .arg(Arg::with_name("output")
+                                   .short("o")
+                                   .long("output")
+                                   .value_name("output")
+                                   .help("Node server ticket output file path")
+                                   .required(true)))
                           .get_matches();
 
     Ok(match matches.subcommand() {
@@ -352,6 +418,7 @@ fn run() -> Result<(), StmError> {
         ("app-ticket", Some(matches)) => app_ticket(matches)?,
         ("relay-ticket", Some(matches)) => relay_ticket(matches)?,
         ("index-ticket", Some(matches)) => index_ticket(matches)?,
+        ("node-ticket", Some(matches)) => node_ticket(matches)?,
         _ => unreachable!(),
     })
 }

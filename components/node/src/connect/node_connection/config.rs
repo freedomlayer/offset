@@ -5,7 +5,7 @@ use common::multi_consumer::MultiConsumerClient;
 
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
-use crypto::crypto_rand::CryptoRandom;
+use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 
 use proto::app_server::messages::{AppToAppServer, RelayAddress, 
     NamedRelayAddress, AppRequest};
@@ -17,7 +17,7 @@ use proto::funder::messages::{AddFriend, SetFriendRelays, SetFriendRemoteMaxDebt
 pub struct AppConfigError;
 
 #[derive(Clone)]
-pub struct AppConfig<R> {
+pub struct AppConfig<R=OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
     done_app_requests_mc: MultiConsumerClient<Uid>,
     rng: R,
