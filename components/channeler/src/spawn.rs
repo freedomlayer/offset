@@ -2,8 +2,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt};
-use futures::{Future};
+use futures::task::Spawn;
 
 use common::conn::{FutTransform, ConnPairVec, BoxFuture};
 use timer::TimerClient;
@@ -94,7 +93,7 @@ pub enum SpawnChannelerError {
     SpawnError,
 }
 
-pub fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
+pub async fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
                           timer_client: TimerClient,
                           backoff_ticks: usize,
                           conn_timeout_ticks: usize,
@@ -104,8 +103,8 @@ pub fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
                           keepalive_transform: KT,
                           from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
-                          mut spawner: S) 
-    -> Result<impl Future<Output=Result<(), ChannelerError>>, SpawnChannelerError>
+                          spawner: S) 
+    -> Result<(), ChannelerError>
 
 where
     RA: Eq + Hash + Clone + Send + Sync + Debug + 'static,
@@ -146,14 +145,11 @@ where
            spawner.clone());
 
     // TODO: Maybe use await! instead of spawn_with_handle() here?
-    let channeler_fut = channeler_loop(
-                            local_public_key,
-                            from_funder,
-                            to_funder,
-                            pool_connector,
-                            pool_listener,
-                            spawner.clone());
-
-    spawner.spawn_with_handle(channeler_fut)
-        .map_err(|_| SpawnChannelerError::SpawnError)
+    await!(channeler_loop(
+            local_public_key,
+            from_funder,
+            to_funder,
+            pool_connector,
+            pool_listener,
+            spawner.clone()))
 }

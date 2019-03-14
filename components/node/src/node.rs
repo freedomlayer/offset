@@ -74,7 +74,7 @@ fn node_spawn_channeler<C,R,S>(node_config: &NodeConfig,
                           rng: R,
                           from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
                           to_funder: mpsc::Sender<ChannelerToFunder>,
-                          spawner: S) 
+                          mut spawner: S) 
     -> Result<impl Future<Output=Result<(), ChannelerError>>, NodeError>
 
 where
@@ -96,7 +96,7 @@ where
 
     let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), version_connector);
 
-    spawn_channeler(local_public_key,
+    spawner.spawn_with_handle(spawn_channeler(local_public_key,
                           timer_client,
                           node_config.backoff_ticks,
                           node_config.conn_timeout_ticks,
@@ -106,7 +106,7 @@ where
                           keepalive_transform,
                           from_funder,
                           to_funder,
-                          spawner)
+                          spawner.clone()))
         .map_err(|_| NodeError::SpawnError)
 }
 
