@@ -22,9 +22,9 @@ name = "stnode"
 path = "src/bin/stnode.rs"
 
 [[bin]]
-# OffST Manager
-name = "stm"
-path = "src/bin/stm.rs"
+# OffST ManaGeR
+name = "stmgr"
+path = "src/bin/stmgr.rs"
 
 [dependencies]
 

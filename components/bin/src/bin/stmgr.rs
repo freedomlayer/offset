@@ -300,7 +300,7 @@ impl From<NodeTicketError> for StmError {
 
 fn run() -> Result<(), StmError> {
     simple_logger::init_with_level(Level::Warn).unwrap();
-    let matches = App::new("STM: offST Manager")
+    let matches = App::new("stmgr: offST ManaGeR")
                           .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
