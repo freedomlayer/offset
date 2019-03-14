@@ -404,7 +404,6 @@ where
 }
 
 
-#[allow(unused)]
 pub async fn channeler_loop<FF,TF,RA,C,L,S>(
                         local_public_key: PublicKey,
                         from_funder: FF, 
