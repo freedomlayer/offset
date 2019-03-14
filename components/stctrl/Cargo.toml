@@ -1,0 +1,26 @@
+[package]
+name = "stctrl"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+edition = "2018"
+
+
+[lib]
+name = "stctrl"
+path = "src/lib.rs"
+
+[[bin]]
+name = "stctrl"
+path = "src/bin/stctrl.rs"
+
+[dependencies]
+
+
+app = { git = "https://github.com/freedomlayer/offst", branch = "real/feat/app-interface2", package="offst-app" }
+
+
+clap = "2.32.0"
+log = "0.4"
+simple_logger = "1.0.1"
+futures-preview = "0.3.0-alpha.13"
+prettytable-rs = "0.8.0"
