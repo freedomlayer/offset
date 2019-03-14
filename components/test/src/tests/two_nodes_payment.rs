@@ -157,7 +157,15 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
                               String::from("node0"),
                               -100)).unwrap();
 
+    // Node0: Enable/Disable/Enable node1:
     await!(config0.enable_friend(node_public_key(1))).unwrap();
+    await!(advance_time(10, &mut tick_sender, &test_executor));
+    await!(config0.disable_friend(node_public_key(1))).unwrap();
+    await!(advance_time(10, &mut tick_sender, &test_executor));
+    await!(config0.enable_friend(node_public_key(1))).unwrap();
+    await!(advance_time(10, &mut tick_sender, &test_executor));
+
+    // Node1: Enable node0:
     await!(config1.enable_friend(node_public_key(0))).unwrap();
 
     await!(advance_time(40, &mut tick_sender, &test_executor));
