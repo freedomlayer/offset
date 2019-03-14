@@ -107,7 +107,7 @@ fn run() -> Result<(), StCtrlError> {
                                .required(false))
                           // STCTRL_NODE_TICKET_FILE
                           .arg(Arg::with_name("node_ticket")
-                               .short("t")
+                               .short("T")
                                .long("ticket")
                                .value_name("node_ticket")
                                .help("Node ticket file path")
