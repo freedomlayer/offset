@@ -5,7 +5,7 @@ use clap::ArgMatches;
 use app::{NodeConnection, AppConfig, 
     NamedRelayAddress, NamedIndexServerAddress, 
     load_relay_from_file, load_index_server_from_file,
-    load_friend_from_file};
+    load_friend_from_file, PublicKey};
 use app::report::NodeReport;
 
 #[derive(Debug)]
@@ -163,6 +163,17 @@ async fn config_add_friend<'a>(matches: &'a ArgMatches<'a>,
     Ok(())
 }
 
+/// Find a friend's public key given his name
+fn friend_public_key_by_name<'a>(node_report: &'a NodeReport, friend_name: &str) -> Option<&'a PublicKey> {
+    // Search for the friend:
+    for (friend_public_key, friend_report) in &node_report.funder_report.friends {
+        if friend_report.name == friend_name {
+            return Some(friend_public_key)
+        }
+    }
+    None
+}
+
 async fn config_set_friend_relays<'a>(matches: &'a ArgMatches<'a>, 
                                   mut app_config: AppConfig,
                                   node_report: NodeReport) -> Result<(), ConfigError> {
@@ -170,16 +181,9 @@ async fn config_set_friend_relays<'a>(matches: &'a ArgMatches<'a>,
     let friend_file = matches.value_of("friend_file").unwrap();
     let friend_name = matches.value_of("friend_name").unwrap();
 
-    // Search for the friend:
-    let mut opt_friend_public_key = None;
-    for (friend_public_key, friend_report) in node_report.funder_report.friends {
-        if friend_report.name == friend_name {
-            opt_friend_public_key = Some(friend_public_key);
-        }
-    }
-
-    let friend_public_key = opt_friend_public_key
-        .ok_or(ConfigError::FriendNameNotFound)?;
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
 
     let friend_pathbuf = PathBuf::from(friend_file);
     if !friend_pathbuf.exists() {
@@ -202,34 +206,74 @@ async fn config_set_friend_relays<'a>(matches: &'a ArgMatches<'a>,
     Ok(())
 }
 
-async fn config_remove_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                  _app_config: AppConfig,
-                                  _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_remove_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                  mut app_config: AppConfig,
+                                  node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.remove_friend(friend_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_enable_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                  _app_config: AppConfig,
-                                  _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_enable_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                  mut app_config: AppConfig,
+                                  node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.enable_friend(friend_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_disable_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                   _app_config: AppConfig,
-                                   _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_disable_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                   mut app_config: AppConfig,
+                                   node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.disable_friend(friend_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_open_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                _app_config: AppConfig,
-                                _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_open_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                mut app_config: AppConfig,
+                                node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.open_friend(friend_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_close_friend<'a>(_matches: &'a ArgMatches<'a>, 
-                                 _app_config: AppConfig,
-                                 _node_report: NodeReport) -> Result<(), ConfigError> {
-    unimplemented!();
+async fn config_close_friend<'a>(matches: &'a ArgMatches<'a>, 
+                                 mut app_config: AppConfig,
+                                 node_report: NodeReport) -> Result<(), ConfigError> {
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+
+    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    await!(app_config.close_friend(friend_public_key))
+        .map_err(|_| ConfigError::AppConfigError)
 }
 
 async fn config_set_friend_max_debt<'a>(_matches: &'a ArgMatches<'a>, 
