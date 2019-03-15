@@ -93,7 +93,6 @@ fn run() -> Result<(), StCtrlError> {
         .map_err(|_| StCtrlError::CreateThreadPoolError)?;
 
     let matches = App::new("stctrl: offST ConTRoL")
-                          // TOOD: Does this setting work for recursive subcommands?
                           .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
@@ -115,6 +114,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Info] ------------- */
                           .subcommand(SubCommand::with_name("info")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("show offst node information")
                               .subcommand(SubCommand::with_name("relays")
                                   .about("Show all configured relays"))
@@ -148,6 +148,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Config] ------------- */
                           .subcommand(SubCommand::with_name("config")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("configure offst node")
                               .subcommand(SubCommand::with_name("add-relay")
                                   .about("Add a relay")
@@ -305,6 +306,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Funds] ------------- */
                           .subcommand(SubCommand::with_name("funds")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("configure offst node")
                               .subcommand(SubCommand::with_name("send")
                                   .about("Send funds to a remote destination")
