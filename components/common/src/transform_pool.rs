@@ -1,4 +1,4 @@
-use futures::{Stream, StreamExt, Sink, SinkExt};
+use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 
@@ -12,6 +12,7 @@ pub enum TransformPoolLoopError {
 
 enum TransformPoolEvent<I> {
     Incoming(I),
+    IncomingClosed,
     TransformDone,
 }
 
@@ -34,7 +35,8 @@ where
     S: Spawn,
 {
     let incoming = incoming
-        .map(|input_value| TransformPoolEvent::Incoming(input_value));
+        .map(|input_value| TransformPoolEvent::Incoming(input_value))
+        .chain(stream::once(future::ready(TransformPoolEvent::IncomingClosed)));
 
     let (close_sender, close_receiver) = mpsc::channel::<()>(0);
     let close_receiver = close_receiver
@@ -42,6 +44,7 @@ where
 
     let mut incoming_events = incoming.select(close_receiver);
     let mut num_concurrent: usize = 0;
+    let mut incoming_closed = false;
     while let Some(event) = await!(incoming_events.next()) {
         match event {
             TransformPoolEvent::Incoming(input_value) => {
@@ -63,9 +66,15 @@ where
                 spawner.spawn(fut)
                     .map_err(|_| TransformPoolLoopError::SpawnError)?;
             },
+            TransformPoolEvent::IncomingClosed => {
+                incoming_closed = true;
+            },
             TransformPoolEvent::TransformDone => {
                 num_concurrent = num_concurrent.checked_sub(1).unwrap();
             },
+        }
+        if incoming_closed && num_concurrent == 0 {
+            break;
         }
     }
     Ok(())
