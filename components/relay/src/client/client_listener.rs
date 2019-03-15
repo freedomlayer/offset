@@ -335,7 +335,7 @@ where
                                  self.timer_client,
                                  self.spawner,
                                  None)
-                        .map_err(|e| error!("inner_client_listener() error: {:?}", e))
+                        .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
                         .map(|_| ()))
         };
 
