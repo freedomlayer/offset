@@ -178,7 +178,7 @@ where
                                         timer_stream,
                                         self.keepalive_ticks,
                                         None)
-                        .map_err(|e| error!("transform_keepalive(): inner_keepalive_loop() error: {:?}", e))
+                        .map_err(|e| warn!("transform_keepalive(): inner_keepalive_loop() error: {:?}", e))
                         .then(|_| future::ready(()));
 
                 self.spawner.spawn(keepalive_fut).unwrap();
