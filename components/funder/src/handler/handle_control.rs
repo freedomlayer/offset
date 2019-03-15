@@ -339,6 +339,7 @@ where
     // Make sure that friend exists:
     let friend = m_state.state().friends.get(&set_friend_relays.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
+    let friend_status = friend.status.clone();
 
 
     // If the newly proposed address is the same as the old one,
@@ -354,14 +355,16 @@ where
         (set_friend_relays.friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
 
-    // Notify Channeler to change the friend's address:
-    let update_friend = ChannelerUpdateFriend {
-        friend_public_key: set_friend_relays.friend_public_key.clone(),
-        friend_relays: set_friend_relays.relays.clone(),
-        local_relays,
-    };
-    let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
-    outgoing_channeler_config.push(channeler_config);
+    if let FriendStatus::Enabled = friend_status {
+        // Notify Channeler to change the friend's address:
+        let update_friend = ChannelerUpdateFriend {
+            friend_public_key: set_friend_relays.friend_public_key.clone(),
+            friend_relays: set_friend_relays.relays.clone(),
+            local_relays,
+        };
+        let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
+        outgoing_channeler_config.push(channeler_config);
+    }
 
     Ok(())
 }
