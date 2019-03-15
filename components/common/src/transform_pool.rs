@@ -60,8 +60,8 @@ where
                 let fut = async move {
                     if let Some(output_value) = await!(c_transform.transform(input_value)) {
                         let _ = await!(c_outgoing.send(output_value));
-                        let _ = await!(c_close_sender.send(()));
                     }
+                    let _ = await!(c_close_sender.send(()));
                 };
                 spawner.spawn(fut)
                     .map_err(|_| TransformPoolLoopError::SpawnError)?;
