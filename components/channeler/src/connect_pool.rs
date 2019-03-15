@@ -187,6 +187,7 @@ where
 
         let address = match self.addresses.pop_front() {
             None => {
+                // We can't connect yet, because we don't know of any address.
                 self.status = CpStatus::Waiting((0, connect_request.response_sender));
                 return Ok(());
             },
