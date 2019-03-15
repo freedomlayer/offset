@@ -51,9 +51,17 @@ where
                    timer_client.clone(),
                    conn_timeout_ticks));
 
+    // TODO:
+    // This is a hack to avoid having the relay client
+    // disconnect from the relay server too early because of the underlying keepalive.
+    // We should find a more elegant way to solve this problem.
+    let half_tunnel_ticks = keepalive_ticks / 2;
+    assert!(half_tunnel_ticks < keepalive_ticks);
+    assert!(half_tunnel_ticks > 0);
+
     await!(relay_server_loop(timer_client,
                               processed_conns,
-                              keepalive_ticks,
+                              half_tunnel_ticks,
                               spawner))
 
 }
