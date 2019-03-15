@@ -15,7 +15,6 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 
 use clap::{Arg, App, AppSettings, SubCommand, ArgMatches};
-use log::Level;
 
 use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
@@ -299,7 +298,7 @@ impl From<NodeTicketError> for StmError {
 }
 
 fn run() -> Result<(), StmError> {
-    simple_logger::init_with_level(Level::Warn).unwrap();
+    env_logger::init();
     let matches = App::new("stmgr: offST ManaGeR")
                           .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")

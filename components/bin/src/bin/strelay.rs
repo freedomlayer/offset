@@ -16,8 +16,6 @@ use std::time::Duration;
 use std::net::SocketAddr;
 use std::path::Path;
 
-use log::Level;
-
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
@@ -55,7 +53,7 @@ enum RelayServerBinError {
 }
 
 fn run() -> Result<(), RelayServerBinError> {
-    simple_logger::init_with_level(Level::Warn).unwrap();
+    env_logger::init();
     let matches = App::new("Offst Relay Server")
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")

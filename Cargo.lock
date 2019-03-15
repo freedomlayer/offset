@@ -626,6 +626,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
@@ -640,7 +641,6 @@ dependencies = [
  "offst-timer 0.1.0",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
- "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1290,11 +1290,11 @@ name = "stctrl"
 version = "0.1.0"
 dependencies = [
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-app 0.1.0",
  "prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "simple_logger 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

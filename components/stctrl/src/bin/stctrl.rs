@@ -14,7 +14,7 @@
 use std::path::PathBuf;
 use std::env;
 
-use log::Level;
+// use log::Level;
 
 use futures::executor::ThreadPool;
 
@@ -87,8 +87,9 @@ fn env_stctrl_node_ticket_file() -> Option<PathBuf> {
 
 
 fn run() -> Result<(), StCtrlError> {
+    // simple_logger::init_with_level(Level::Info).unwrap();
+    env_logger::init();
 
-    simple_logger::init_with_level(Level::Warn).unwrap();
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| StCtrlError::CreateThreadPoolError)?;
 

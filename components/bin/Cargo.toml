@@ -46,7 +46,7 @@ base64 = "0.10.1"
 
 clap = "2.32.0"
 log = "0.4"
-simple_logger = "1.0.1"
+env_logger = "0.6.0"
 futures-preview = "0.3.0-alpha.13"
 
 [dev-dependencies]
