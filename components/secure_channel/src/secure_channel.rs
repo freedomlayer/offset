@@ -161,7 +161,10 @@ where
                     .map_err(|_| SecureChannelError::WriterError)?;
                 cur_ticks_to_rekey = ticks_to_rekey;
             },
-            SecureChannelEvent::ReceiverClosed => break,
+            SecureChannelEvent::ReceiverClosed => {
+                info!("secure_channel_loop(): ReceiverClosed");
+                break;
+            },
         }
     }
     Ok(())
