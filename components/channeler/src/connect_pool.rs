@@ -281,6 +281,8 @@ where
             if let Some(address) = self.addresses.pop_front() {
                 let canceler = self.create_conn_attempt(address.clone())?;
                 self.status = CpStatus::Connecting((address, canceler, response_sender));
+            } else {
+                self.status = CpStatus::Waiting((self.backoff_ticks, response_sender));
             }
         } else {
             self.status = CpStatus::Waiting((backoff_ticks, response_sender));
