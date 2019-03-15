@@ -118,6 +118,8 @@ enum IndexServerEvent {
     ClientClosed(PublicKey),
     ClientMutationsUpdate(MutationsUpdate),
     TimerTick,
+    ClientListenerClosed,
+    ServerListenerClosed,
 }
 
 /*
@@ -440,10 +442,12 @@ where
     let incoming_server_connections = incoming_server_connections
         .filter(|(server_public_key, _server_conn)| 
                 future::ready(c_compare_public_key(&c_local_public_key, &server_public_key) == Ordering::Less))
-        .map(|server_connection| IndexServerEvent::ServerConnection(server_connection));
+        .map(|server_connection| IndexServerEvent::ServerConnection(server_connection))
+        .chain(stream::once(future::ready(IndexServerEvent::ServerListenerClosed)));
 
     let incoming_client_connections = incoming_client_connections
-        .map(|client_connection| IndexServerEvent::ClientConnection(client_connection));
+        .map(|client_connection| IndexServerEvent::ClientConnection(client_connection))
+        .chain(stream::once(future::ready(IndexServerEvent::ClientListenerClosed)));
 
     let timer_stream = timer_stream
         .map(|_| IndexServerEvent::TimerTick);
@@ -547,6 +551,14 @@ where
                 }
             },
             IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
+            IndexServerEvent::ClientListenerClosed => {
+                warn!("server_loop() client listener closed!");
+                break;
+            },
+            IndexServerEvent::ServerListenerClosed => {
+                warn!("server_loop() server listener closed!");
+                break;
+            }
         }
         // debug_event_sender is used to control the order of events during testing.
         // This is useful to have deterministic test results.
