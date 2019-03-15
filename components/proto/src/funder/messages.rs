@@ -318,8 +318,8 @@ impl CanonicalSerialize for Receipt {
 
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatus {
-    Enabled = 1,
-    Disabled = 0,
+    Enabled,
+    Disabled,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
