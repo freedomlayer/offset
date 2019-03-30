@@ -21,7 +21,6 @@ use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
 use clap::{Arg, App};
-use log::Level;
 
 use common::int_convert::usize_to_u64;
 use common::conn::Listener;
@@ -77,7 +76,7 @@ enum NodeBinError {
 
 
 fn run() -> Result<(), NodeBinError> {
-    simple_logger::init_with_level(Level::Warn).unwrap();
+    env_logger::init();
     let matches = App::new("Offst Node")
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")

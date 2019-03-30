@@ -71,7 +71,9 @@ where
         };
         // If spawning fails, the user will find out when he tries to read
         // from user_receiver.
-        let _ = self.spawner.spawn(receiver_fut);
+        if let Err(e) = self.spawner.spawn(receiver_fut) {
+            error!("VersionPrefix::spawn_prefix(): spawn() failed: {:?}", e);
+        }
 
         (user_sender, user_receiver)
     }

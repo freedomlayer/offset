@@ -14,7 +14,7 @@
 use std::path::PathBuf;
 use std::env;
 
-use log::Level;
+// use log::Level;
 
 use futures::executor::ThreadPool;
 
@@ -87,13 +87,13 @@ fn env_stctrl_node_ticket_file() -> Option<PathBuf> {
 
 
 fn run() -> Result<(), StCtrlError> {
+    // simple_logger::init_with_level(Level::Info).unwrap();
+    env_logger::init();
 
-    simple_logger::init_with_level(Level::Warn).unwrap();
     let mut thread_pool = ThreadPool::new()
         .map_err(|_| StCtrlError::CreateThreadPoolError)?;
 
     let matches = App::new("stctrl: offST ConTRoL")
-                          // TOOD: Does this setting work for recursive subcommands?
                           .setting(AppSettings::SubcommandRequiredElseHelp)
                           .version("0.1.0")
                           .author("real <real@freedomlayer.org>")
@@ -115,6 +115,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Info] ------------- */
                           .subcommand(SubCommand::with_name("info")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("show offst node information")
                               .subcommand(SubCommand::with_name("relays")
                                   .about("Show all configured relays"))
@@ -148,6 +149,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Config] ------------- */
                           .subcommand(SubCommand::with_name("config")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("configure offst node")
                               .subcommand(SubCommand::with_name("add-relay")
                                   .about("Add a relay")
@@ -305,6 +307,7 @@ fn run() -> Result<(), StCtrlError> {
 
                           /* ------------[Funds] ------------- */
                           .subcommand(SubCommand::with_name("funds")
+                              .setting(AppSettings::SubcommandRequiredElseHelp)
                               .about("configure offst node")
                               .subcommand(SubCommand::with_name("send")
                                   .about("Send funds to a remote destination")

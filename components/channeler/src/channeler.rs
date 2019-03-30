@@ -202,10 +202,12 @@ where
             let event = match await!(c_connect_client.connect()) {
                 Ok(raw_conn) =>
                     ChannelerEvent::Connection((c_friend_public_key, raw_conn)),
-                Err(_) => 
+                Err(e) => {
+                    warn!("connect_out_friend(): connect() error: {:?}", e);
                     // This should only happen if there was a real problem
                     // with the connector.
-                    ChannelerEvent::ConnectorClosed,
+                    ChannelerEvent::ConnectorClosed
+                },
             };
             let _ = await!(c_event_sender.send(event));
         };
@@ -402,7 +404,6 @@ where
 }
 
 
-#[allow(unused)]
 pub async fn channeler_loop<FF,TF,RA,C,L,S>(
                         local_public_key: PublicKey,
                         from_funder: FF, 

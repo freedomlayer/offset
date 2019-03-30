@@ -10,21 +10,21 @@ name = "bin"
 path = "src/lib.rs"
 
 [[bin]]
-name = "relay_server"
-path = "src/bin/relay_server.rs"
+name = "strelay"
+path = "src/bin/strelay.rs"
 
 [[bin]]
-name = "index_server"
-path = "src/bin/index_server.rs"
+name = "stindex"
+path = "src/bin/stindex.rs"
 
 [[bin]]
-name = "node"
-path = "src/bin/node.rs"
+name = "stnode"
+path = "src/bin/stnode.rs"
 
 [[bin]]
-# OffST Manager
-name = "stm"
-path = "src/bin/stm.rs"
+# OffST ManaGeR
+name = "stmgr"
+path = "src/bin/stmgr.rs"
 
 [dependencies]
 
@@ -46,7 +46,7 @@ base64 = "0.10.1"
 
 clap = "2.32.0"
 log = "0.4"
-simple_logger = "1.0.1"
+env_logger = "0.6.0"
 futures-preview = "0.3.0-alpha.13"
 
 [dev-dependencies]

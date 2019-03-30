@@ -84,7 +84,9 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(tc_report) => {
             res += "[Consistent]\n";
-            res += &format!("balance = {}", tc_report.balance.balance);
+            res += &format!("balance = {}\n", tc_report.balance.balance);
+            res += &format!("local_requests = {:?}\n", tc_report.requests_status.local);
+            res += &format!("remote_requests = {:?}", tc_report.requests_status.remote);
         },
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             res += "[Inconsistent]\n";

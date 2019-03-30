@@ -145,7 +145,7 @@ where
  
 pub async fn relay_server_loop<ML,KL,MA,KA,MC,KC,S>(mut timer_client: TimerClient, 
                 incoming_conns: S,
-                keepalive_ticks: usize,
+                half_tunnel_ticks: usize,
                 mut spawner: impl Spawn + Clone) -> Result<(), RelayServerError> 
 where
     ML: Stream<Item=RejectConnection> + Unpin + Send + 'static,
@@ -242,7 +242,7 @@ where
                         let half_tunnel = HalfTunnel {
                             conn_pair: ConnPair::new(incoming_connect.receiver, 
                                                      incoming_connect.sender),
-                            ticks_to_close: keepalive_ticks,
+                            ticks_to_close: half_tunnel_ticks,
                         };
                         if let Some(sender) = &mut listener.opt_sender {
                             // Try to send a message to listener about new pending connection:
@@ -321,11 +321,11 @@ mod tests {
 
         let (mut outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
 
-        let keepalive_ticks: usize = 16;
+        let half_tunnel_ticks: usize = 16;
 
         let fut_relay_server = relay_server_loop(timer_client,
                      incoming_conns,
-                     keepalive_ticks,
+                     half_tunnel_ticks,
                      spawner.clone());
 
         spawner.spawn(
@@ -428,11 +428,11 @@ mod tests {
 
         let (mut outgoing_conns, incoming_conns) = mpsc::channel::<_>(0);
 
-        let keepalive_ticks: usize = 16;
+        let half_tunnel_ticks: usize = 16;
 
         let fut_relay_server = relay_server_loop(timer_client,
                      incoming_conns,
-                     keepalive_ticks,
+                     half_tunnel_ticks,
                      spawner.clone());
 
         spawner.spawn(

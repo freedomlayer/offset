@@ -335,7 +335,7 @@ where
                                  self.timer_client,
                                  self.spawner,
                                  None)
-                        .map_err(|e| error!("inner_client_listener() error: {:?}", e))
+                        .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
                         .map(|_| ()))
         };
 
@@ -511,7 +511,7 @@ mod tests {
                               timer_client,
                               c_spawner,
                               Some(event_sender)))
-        }.map_err(|e| error!("inner_client_listener error: {:?}",e))
+        }.map_err(|e| warn!("inner_client_listener error: {:?}",e))
         .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();

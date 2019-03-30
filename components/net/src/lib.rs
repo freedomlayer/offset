@@ -10,8 +10,7 @@
     warnings
 )]
 
-// #[macro_use]
-extern crate log;
+#[macro_use] extern crate log;
 
 mod types;
 mod utils;
