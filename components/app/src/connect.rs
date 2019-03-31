@@ -39,7 +39,6 @@ where
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
     let timer_client = create_timer(dur, spawner.clone()).map_err(|_| ConnectError)?;
 
-    // TODO: Is it safe to create a new `system_random` every time?
     // Obtain secure cryptographic random:
     let rng = system_random();
 
