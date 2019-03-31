@@ -15,6 +15,6 @@ pub struct RejectConnection {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IncomingConnection  {
+pub struct IncomingConnection {
     pub public_key: PublicKey,
 }

@@ -3,26 +3,27 @@ use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use crate::funder::messages::{UserRequestSendFunds, ResponseReceived,
-                            ReceiptAck, AddFriend, SetFriendRelays, 
-                            SetFriendName, SetFriendRemoteMaxDebt, ResetFriendChannel};
-use crate::report::messages::{FunderReport, FunderReportMutation};
-use crate::index_client::messages::{IndexClientReport, 
-    IndexClientReportMutation, ClientResponseRoutes};
-use crate::index_server::messages::{RequestRoutes, NamedIndexServerAddress};
+use crate::funder::messages::{
+    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, SetFriendName, SetFriendRelays,
+    SetFriendRemoteMaxDebt, UserRequestSendFunds,
+};
+use crate::index_client::messages::{
+    ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
+};
+use crate::index_server::messages::{NamedIndexServerAddress, RequestRoutes};
 use crate::net::messages::NetAddress;
-
+use crate::report::messages::{FunderReport, FunderReportMutation};
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct NamedRelayAddress<B=NetAddress> {
+pub struct NamedRelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RelayAddress<B=NetAddress> {
+pub struct RelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
 }
@@ -36,7 +37,7 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
     }
 }
 
-impl<B> CanonicalSerialize for RelayAddress<B> 
+impl<B> CanonicalSerialize for RelayAddress<B>
 where
     B: CanonicalSerialize,
 {
@@ -48,10 +49,9 @@ where
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<B=NetAddress> 
-where   
+pub struct NodeReport<B = NetAddress>
+where
     B: Clone,
 {
     pub funder_report: FunderReport<B>,
@@ -59,7 +59,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<B=NetAddress> 
+pub enum NodeReportMutation<B = NetAddress>
 where
     B: Clone,
 {
@@ -68,7 +68,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReportMutations<B=NetAddress> 
+pub struct ReportMutations<B = NetAddress>
 where
     B: Clone,
 {
@@ -77,7 +77,7 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<B=NetAddress> 
+pub enum AppServerToApp<B = NetAddress>
 where
     B: Clone,
 {
@@ -90,13 +90,13 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum NamedRelaysMutation<B=NetAddress> {
+pub enum NamedRelaysMutation<B = NetAddress> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppRequest<B=NetAddress> {
+pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
@@ -121,15 +121,13 @@ pub enum AppRequest<B=NetAddress> {
     RemoveIndexServer(PublicKey),
 }
 #[derive(Debug, PartialEq, Eq)]
-pub struct AppToAppServer<B=NetAddress> {
+pub struct AppToAppServer<B = NetAddress> {
     pub app_request_id: Uid,
     pub app_request: AppRequest<B>,
 }
 
 impl<B> AppToAppServer<B> {
-    pub fn new(app_request_id: Uid,
-               app_request: AppRequest<B>) -> Self {
-
+    pub fn new(app_request_id: Uid, app_request: AppRequest<B>) -> Self {
         AppToAppServer {
             app_request_id,
             app_request,
@@ -137,28 +135,27 @@ impl<B> AppToAppServer<B> {
     }
 }
 
-
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
-impl<B> NodeReport<B> 
+impl<B> NodeReport<B>
 where
     B: Eq + Clone,
 {
-    pub fn mutate(&mut self, mutation: &NodeReportMutation<B>)
-        -> Result<(), NodeReportMutateError> {
-
+    pub fn mutate(
+        &mut self,
+        mutation: &NodeReportMutation<B>,
+    ) -> Result<(), NodeReportMutateError> {
         match mutation {
-            NodeReportMutation::Funder(mutation) => 
-                self.funder_report.mutate(mutation)
-                    .map_err(|_| NodeReportMutateError)?,
-            NodeReportMutation::IndexClient(mutation) => 
-                self.index_client_report.mutate(mutation),
+            NodeReportMutation::Funder(mutation) => self
+                .funder_report
+                .mutate(mutation)
+                .map_err(|_| NodeReportMutateError)?,
+            NodeReportMutation::IndexClient(mutation) => self.index_client_report.mutate(mutation),
         };
         Ok(())
     }
 }
-
 
 impl<B> MutableState for NodeReport<B>
 where
@@ -167,9 +164,7 @@ where
     type Mutation = NodeReportMutation<B>;
     type MutateError = NodeReportMutateError;
 
-    fn mutate(&mut self, mutation: &NodeReportMutation<B>)
-        -> Result<(), NodeReportMutateError> {
-
+    fn mutate(&mut self, mutation: &NodeReportMutation<B>) -> Result<(), NodeReportMutateError> {
         self.mutate(mutation)
     }
 }

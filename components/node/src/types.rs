@@ -1,27 +1,27 @@
-use common::mutable_state::MutableState;
 use common::canonical_serialize::CanonicalSerialize;
+use common::mutable_state::MutableState;
 
 use crypto::identity::PublicKey;
-use funder::{FunderState, FunderMutation};
 use funder::report::create_initial_report;
+use funder::{FunderMutation, FunderState};
 use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
 use proto::app_server::messages::NodeReport;
 use proto::index_client::messages::IndexClientReport;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum NodeMutation<B:Clone> {
+pub enum NodeMutation<B: Clone> {
     Funder(FunderMutation<B>),
-    IndexClient(IndexClientConfigMutation<B>)
+    IndexClient(IndexClientConfigMutation<B>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeState<B:Clone> {
+pub struct NodeState<B: Clone> {
     pub funder_state: FunderState<B>,
     pub index_client_config: IndexClientConfig<B>,
 }
 
-impl<B> NodeState<B> 
+impl<B> NodeState<B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -33,11 +33,10 @@ where
     }
 }
 
-
 #[derive(Debug)]
 pub struct NodeMutateError;
 
-impl<B> MutableState for NodeState<B> 
+impl<B> MutableState for NodeState<B>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize,
 {
@@ -49,15 +48,14 @@ where
             NodeMutation::Funder(funder_mutation) => {
                 self.funder_state.mutate(funder_mutation);
                 Ok(())
-            },
-            NodeMutation::IndexClient(index_client_mutation) => {
-                self.index_client_config.mutate(index_client_mutation)
-                    .map_err(|_| NodeMutateError)
-            },
+            }
+            NodeMutation::IndexClient(index_client_mutation) => self
+                .index_client_config
+                .mutate(index_client_mutation)
+                .map_err(|_| NodeMutateError),
         }
     }
 }
-
 
 /// Create an initial IndexClientReport, based on an IndexClientConfig
 fn create_index_client_report<B>(index_client_config: &IndexClientConfig<B>) -> IndexClientReport<B>
@@ -71,9 +69,8 @@ where
     }
 }
 
-
 /// Create an initial NodeReport, based on a NodeState
-pub fn create_node_report<B>(node_state: &NodeState<B>) -> NodeReport<B> 
+pub fn create_node_report<B>(node_state: &NodeState<B>) -> NodeReport<B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -82,7 +79,6 @@ where
         index_client_report: create_index_client_report(&node_state.index_client_config),
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
@@ -111,4 +107,3 @@ pub struct NodeConfig {
     /// for incoming app connections
     pub max_concurrent_incoming_apps: usize,
 }
-

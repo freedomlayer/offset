@@ -1,12 +1,11 @@
-use futures::channel::oneshot;
 use crypto::identity::{PublicKey, Signature};
-
+use futures::channel::oneshot;
 
 /// The response from security module client to security module.
 pub enum ToIdentity {
     /// Request to sign a message.
     RequestSignature {
-        message:         Vec<u8>,
+        message: Vec<u8>,
         response_sender: oneshot::Sender<ResponseSignature>,
     },
     /// Request the identity public key.

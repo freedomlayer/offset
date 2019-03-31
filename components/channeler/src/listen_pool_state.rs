@@ -1,17 +1,17 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-pub struct Relay<P,ST> {
+pub struct Relay<P, ST> {
     pub friends: HashSet<P>,
     pub status: ST,
 }
 
-pub struct ListenPoolState<RA,P,ST> {
-    pub relays: HashMap<RA, Relay<P,ST>>,
+pub struct ListenPoolState<RA, P, ST> {
+    pub relays: HashMap<RA, Relay<P, ST>>,
     local_addresses: HashSet<RA>,
 }
 
-impl<RA,P,ST> ListenPoolState<RA,P,ST> 
+impl<RA, P, ST> ListenPoolState<RA, P, ST>
 where
     RA: Hash + Eq + Clone,
     P: Hash + Eq + Clone,
@@ -27,13 +27,8 @@ where
     /// Returns directions to spawn relays (relay_friends, relay_addresses)
     /// For each address in relay_addresses, we should spawn a new relay with relay_friends as
     /// friends.
-    pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) 
-        -> (HashSet<P>, Vec<RA>) {
-
-        self.local_addresses = local_addresses
-            .iter()
-            .cloned()
-            .collect::<HashSet<_>>();
+    pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) -> (HashSet<P>, Vec<RA>) {
+        self.local_addresses = local_addresses.iter().cloned().collect::<HashSet<_>>();
 
         // Remove relays that we don't need to listen to anymore:
         // This should disconnect from those relays automatically:
@@ -68,9 +63,11 @@ where
     /// - relays_add is a list of relays to add the friend to.
     /// - relays_remove is a list of relays to remove the friend from.
     /// - relays_spawn is a list of new relays to spawn
-    pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<RA>)
-                -> (Vec<RA>, Vec<RA>, Vec<RA>) {
-
+    pub fn update_friend(
+        &mut self,
+        friend_public_key: P,
+        addresses: Vec<RA>,
+    ) -> (Vec<RA>, Vec<RA>, Vec<RA>) {
         let mut relays_add = Vec::new();
         let mut relays_remove = Vec::new();
         let mut relays_spawn = Vec::new();
@@ -91,10 +88,10 @@ where
                     }
                     relays_add.push(address.clone());
                     relay.friends.insert(friend_public_key.clone());
-                },
+                }
                 None => {
                     relays_spawn.push(address.clone());
-                },
+                }
             }
         }
 
@@ -168,11 +165,11 @@ mod tests {
 
     #[derive(Debug)]
     struct Status;
-    
-    /// A util struct that simulates the usage of ListenPoolState.
-    struct ListenPoolStateWrap<RA,P>(ListenPoolState<RA,P,Status>);
 
-    impl<RA,P> ListenPoolStateWrap<RA,P> 
+    /// A util struct that simulates the usage of ListenPoolState.
+    struct ListenPoolStateWrap<RA, P>(ListenPoolState<RA, P, Status>);
+
+    impl<RA, P> ListenPoolStateWrap<RA, P>
     where
         RA: Hash + Eq + Clone,
         P: Hash + Eq + Clone,
@@ -181,32 +178,40 @@ mod tests {
             ListenPoolStateWrap(ListenPoolState::new())
         }
 
-        pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) 
-            -> (HashSet<P>, Vec<RA>) {
+        pub fn set_local_addresses(&mut self, local_addresses: Vec<RA>) -> (HashSet<P>, Vec<RA>) {
             let (friends, relay_addresses) = self.0.set_local_addresses(local_addresses);
             for address in &relay_addresses {
-                let res = self.0.relays.insert(address.clone(), Relay { 
-                    friends: friends.clone(), 
-                    status: Status,
-                });
+                let res = self.0.relays.insert(
+                    address.clone(),
+                    Relay {
+                        friends: friends.clone(),
+                        status: Status,
+                    },
+                );
                 assert!(res.is_none());
             }
             (friends, relay_addresses)
         }
 
-        pub fn update_friend(&mut self, friend_public_key: P, addresses: Vec<RA>)
-                    -> (Vec<RA>, Vec<RA>, Vec<RA>) {
-
-            let (relays_add, relays_remove, relays_spawn) = self.0.update_friend(friend_public_key.clone(), addresses);
+        pub fn update_friend(
+            &mut self,
+            friend_public_key: P,
+            addresses: Vec<RA>,
+        ) -> (Vec<RA>, Vec<RA>, Vec<RA>) {
+            let (relays_add, relays_remove, relays_spawn) =
+                self.0.update_friend(friend_public_key.clone(), addresses);
 
             let mut friends = HashSet::new();
             friends.insert(friend_public_key.clone());
 
             for address in &relays_spawn {
-                let res = self.0.relays.insert(address.clone(), Relay { 
-                    friends: friends.clone(), 
-                    status: Status,
-                });
+                let res = self.0.relays.insert(
+                    address.clone(),
+                    Relay {
+                        friends: friends.clone(),
+                        status: Status,
+                    },
+                );
                 assert!(res.is_none());
             }
             (relays_add, relays_remove, relays_spawn)
@@ -242,14 +247,16 @@ mod tests {
         let mut lps = ListenPoolStateWrap::<u32, u64>::new();
         let _ = lps.set_local_addresses(vec![0u32, 1u32, 2u32]);
 
-        let (mut relays_add, relays_remove, mut relays_spawn) = lps.update_friend(100u64, vec![1u32, 2u32, 3u32]);
+        let (mut relays_add, relays_remove, mut relays_spawn) =
+            lps.update_friend(100u64, vec![1u32, 2u32, 3u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32]);
         assert!(relays_remove.is_empty());
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![3u32]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(100u64, vec![4u32]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(100u64, vec![4u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![]);
         relays_remove.sort();
@@ -257,7 +264,8 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![4u32]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(100u64, vec![0u32, 4u32, 5u32, 6u32]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(100u64, vec![0u32, 4u32, 5u32, 6u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![]);
         relays_remove.sort();
@@ -265,7 +273,8 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![5u32, 6u32]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(200u64, vec![0u32, 3u32, 4u32, 5u32, 6u32]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(200u64, vec![0u32, 3u32, 4u32, 5u32, 6u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32, 4u32, 5u32, 6u32]);
         relays_remove.sort();
@@ -273,7 +282,8 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![3u32]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(300u64, vec![7u32]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(300u64, vec![7u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32]);
         relays_remove.sort();
@@ -281,7 +291,8 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![7u32]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(400u64, vec![7u32]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(400u64, vec![7u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32, 7u32]);
         relays_remove.sort();
@@ -289,7 +300,8 @@ mod tests {
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![]);
 
-        let (mut relays_add, mut relays_remove, mut relays_spawn) = lps.update_friend(300u64, vec![]);
+        let (mut relays_add, mut relays_remove, mut relays_spawn) =
+            lps.update_friend(300u64, vec![]);
         relays_add.sort();
         assert_eq!(relays_add, vec![]);
         relays_remove.sort();
@@ -303,13 +315,13 @@ mod tests {
         let mut lps = ListenPoolStateWrap::<u32, u64>::new();
         let _ = lps.set_local_addresses(vec![0u32, 1u32, 2u32]);
 
-        let (mut relays_add, relays_remove, mut relays_spawn) = lps.update_friend(100u64, vec![2u32, 3u32, 4u32]);
+        let (mut relays_add, relays_remove, mut relays_spawn) =
+            lps.update_friend(100u64, vec![2u32, 3u32, 4u32]);
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32]);
         assert!(relays_remove.is_empty());
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![3u32, 4u32]);
-
 
         let mut relays_remove = lps.remove_friend(&100u64);
         relays_remove.sort();

@@ -1,24 +1,22 @@
 use futures::task::Spawn;
 
-use common::conn::{ConnPairVec, FutTransform, BoxFuture};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
 use crypto::identity::PublicKey;
 
 use proto::app_server::messages::RelayAddress;
-use proto::net::messages::NetAddress;
 use proto::index_server::messages::IndexServerAddress;
+use proto::net::messages::NetAddress;
 
 #[derive(Clone)]
 /// Open an encrypted connection to a relay endpoint
-pub struct EncRelayConnector<ET,C> {
+pub struct EncRelayConnector<ET, C> {
     encrypt_transform: ET,
     net_connector: C,
 }
 
-impl<ET,C> EncRelayConnector<ET,C> {
-    pub fn new(encrypt_transform: ET,
-               net_connector: C) -> Self {
-
+impl<ET, C> EncRelayConnector<ET, C> {
+    pub fn new(encrypt_transform: ET, net_connector: C) -> Self {
         EncRelayConnector {
             encrypt_transform,
             net_connector,
@@ -26,42 +24,45 @@ impl<ET,C> EncRelayConnector<ET,C> {
     }
 }
 
-impl<ET,C> FutTransform for EncRelayConnector<ET,C> 
+impl<ET, C> FutTransform for EncRelayConnector<ET, C>
 where
-    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send,
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send,
+    ET: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Send,
 {
     type Input = RelayAddress;
     type Output = Option<ConnPairVec>;
 
-    fn transform(&mut self, relay_address: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
-            let (_public_key, conn_pair) = await!(self.encrypt_transform.transform((Some(relay_address.public_key), conn_pair)))?;
-            Some(conn_pair)
-        })
+    fn transform(&mut self, relay_address: Self::Input) -> BoxFuture<'_, Self::Output> {
+        Box::pin(
+            async move {
+                let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
+                let (_public_key, conn_pair) = await!(self
+                    .encrypt_transform
+                    .transform((Some(relay_address.public_key), conn_pair)))?;
+                Some(conn_pair)
+            },
+        )
     }
 }
 
-
-
 #[derive(Clone)]
-pub struct EncKeepaliveConnector<ET,KT,C,S> {
+pub struct EncKeepaliveConnector<ET, KT, C, S> {
     encrypt_transform: ET,
     keepalive_transform: KT,
     net_connector: C,
     spawner: S,
 }
 
-
-impl<ET,KT,C,S> EncKeepaliveConnector<ET,KT,C,S> {
-    pub fn new(encrypt_transform: ET,
-               keepalive_transform: KT,
-               net_connector: C,
-               spawner: S) -> Self {
-
+impl<ET, KT, C, S> EncKeepaliveConnector<ET, KT, C, S> {
+    pub fn new(
+        encrypt_transform: ET,
+        keepalive_transform: KT,
+        net_connector: C,
+        spawner: S,
+    ) -> Self {
         EncKeepaliveConnector {
             encrypt_transform,
             keepalive_transform,
@@ -71,24 +72,28 @@ impl<ET,KT,C,S> EncKeepaliveConnector<ET,KT,C,S> {
     }
 }
 
-impl<ET,KT,C,S> FutTransform for EncKeepaliveConnector<ET,KT,C,S> 
+impl<ET, KT, C, S> FutTransform for EncKeepaliveConnector<ET, KT, C, S>
 where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
-    KT: FutTransform<Input=ConnPairVec,Output=ConnPairVec> + Send,
-    C: FutTransform<Input=NetAddress,Output=Option<ConnPairVec>> + Clone + Send,
+    ET: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Send,
+    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send,
     S: Spawn + Send,
 {
     type Input = IndexServerAddress<NetAddress>;
     type Output = Option<ConnPairVec>;
 
-    fn transform(&mut self, index_server_address: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
-        Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
-            let (_public_key, conn_pair) = await!(self.encrypt_transform.transform((Some(index_server_address.public_key), conn_pair)))?;
-            Some(await!(self.keepalive_transform.transform(conn_pair)))
-        })
+    fn transform(&mut self, index_server_address: Self::Input) -> BoxFuture<'_, Self::Output> {
+        Box::pin(
+            async move {
+                let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
+                let (_public_key, conn_pair) = await!(self
+                    .encrypt_transform
+                    .transform((Some(index_server_address.public_key), conn_pair)))?;
+                Some(await!(self.keepalive_transform.transform(conn_pair)))
+            },
+        )
     }
 }
-

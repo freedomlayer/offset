@@ -3,15 +3,14 @@ use im::vector::Vector as ImVec;
 
 use common::mutable_state::MutableState;
 
-use crypto::identity::{PublicKey, Signature};
-use crypto::hash::HashResult;
 use crypto::crypto_rand::RandValue;
+use crypto::hash::HashResult;
+use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
-use crate::funder::messages::{RequestsStatus, FriendStatus};
-use crate::app_server::messages::{RelayAddress, NamedRelayAddress};
+use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
+use crate::funder::messages::{FriendStatus, RequestsStatus};
 use crate::net::messages::NetAddress;
-
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
@@ -28,7 +27,7 @@ pub struct MoveTokenHashedReport {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalRelaysReport<B=NetAddress> 
+pub enum SentLocalRelaysReport<B = NetAddress>
 where
     B: Clone,
 {
@@ -48,7 +47,6 @@ pub enum RequestsStatusReport {
     Open,
     Closed,
 }
-
 
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct McRequestsStatusReport {
@@ -141,14 +139,14 @@ pub enum ChannelStatusReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FriendReport<B=NetAddress> 
-where   
+pub struct FriendReport<B = NetAddress>
+where
     B: Clone,
 {
     pub name: String,
     pub remote_relays: Vec<RelayAddress<B>>,
     pub sent_local_relays: SentLocalRelaysReport<B>,
-    // Last message signed by the remote side. 
+    // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub liveness: FriendLivenessReport, // is the friend online/offline?
@@ -160,7 +158,7 @@ where
     // Pending operations to be sent to the token channel.
     pub status: FriendStatusReport,
     pub num_pending_user_requests: u64,
-    // Request that the user has sent to this neighbor, 
+    // Request that the user has sent to this neighbor,
     // but have not been processed yet. Bounded in size.
 }
 
@@ -168,7 +166,7 @@ where
 /// It contains the information the Funder exposes to the user apps of the Offst node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
-pub struct FunderReport<B=NetAddress> 
+pub struct FunderReport<B = NetAddress>
 where
     B: Clone,
 {
@@ -179,7 +177,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FriendReportMutation<B=NetAddress> 
+pub enum FriendReportMutation<B = NetAddress>
 where
     B: Clone,
 {
@@ -198,7 +196,7 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AddFriendReport<B=NetAddress> {
+pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
@@ -207,10 +205,9 @@ pub struct AddFriendReport<B=NetAddress> {
     pub channel_status: ChannelStatusReport,
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderReportMutation<B=NetAddress> 
-where   
+pub enum FunderReportMutation<B = NetAddress>
+where
     B: Clone,
 {
     AddRelay(NamedRelayAddress<B>),
@@ -227,7 +224,6 @@ pub struct FunderReportMutations<B: Clone> {
     pub mutations: Vec<FunderReportMutation<B>>,
 }
 
-
 impl From<&FriendStatus> for FriendStatusReport {
     fn from(friend_status: &FriendStatus) -> FriendStatusReport {
         match friend_status {
@@ -236,7 +232,6 @@ impl From<&FriendStatus> for FriendStatusReport {
         }
     }
 }
-
 
 impl From<&RequestsStatus> for RequestsStatusReport {
     fn from(requests_status: &RequestsStatus) -> RequestsStatusReport {
@@ -253,8 +248,7 @@ pub enum FunderReportMutateError {
     FriendAlreadyExists,
 }
 
-
-impl<B> MutableState for FriendReport<B> 
+impl<B> MutableState for FriendReport<B>
 where
     B: Clone,
 {
@@ -265,110 +259,119 @@ where
         match mutation {
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
-            },
+            }
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
-            },
+            }
             FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) => {
                 self.sent_local_relays = sent_local_relays_report.clone();
-            },
+            }
             FriendReportMutation::SetChannelStatus(channel_status_report) => {
                 self.channel_status = channel_status_report.clone();
-            },
+            }
             FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
-            },
+            }
             FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
-            },
+            }
             FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
                 self.num_pending_responses = *num_pending_responses;
-            },
+            }
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
                 self.num_pending_requests = *num_pending_requests;
-            },
+            }
             FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
-            },
+            }
             FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
                 self.num_pending_user_requests = *num_pending_user_requests;
-            },
+            }
             FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) => {
                 self.opt_last_incoming_move_token = opt_last_incoming_move_token.clone();
-            },
+            }
             FriendReportMutation::SetLiveness(friend_liveness_report) => {
                 self.liveness = friend_liveness_report.clone();
-            },
+            }
         };
         Ok(())
     }
 }
 
-
-impl<B> MutableState for FunderReport<B> 
-where   
+impl<B> MutableState for FunderReport<B>
+where
     B: Clone,
 {
     type Mutation = FunderReportMutation<B>;
     type MutateError = FunderReportMutateError;
 
-    fn mutate(&mut self, mutation: &Self::Mutation) 
-        -> Result<(), Self::MutateError> {
-
+    fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
             FunderReportMutation::AddRelay(named_relay_address) => {
                 // Remove duplicates:
-                self.relays.retain(|cur_named_relay_address|
-                                   cur_named_relay_address.public_key != named_relay_address.public_key);
+                self.relays.retain(|cur_named_relay_address| {
+                    cur_named_relay_address.public_key != named_relay_address.public_key
+                });
                 // Insert:
                 self.relays.push_back(named_relay_address.clone());
                 Ok(())
-            },
+            }
             FunderReportMutation::RemoveRelay(public_key) => {
-                self.relays.retain(|cur_named_relay_address|
-                                   &cur_named_relay_address.public_key != public_key);
+                self.relays.retain(|cur_named_relay_address| {
+                    &cur_named_relay_address.public_key != public_key
+                });
                 Ok(())
-            },
+            }
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
                     remote_relays: add_friend_report.relays.clone(),
                     sent_local_relays: SentLocalRelaysReport::NeverSent,
-                    opt_last_incoming_move_token: add_friend_report.opt_last_incoming_move_token.clone(),
+                    opt_last_incoming_move_token: add_friend_report
+                        .opt_last_incoming_move_token
+                        .clone(),
                     liveness: FriendLivenessReport::Offline,
                     channel_status: add_friend_report.channel_status.clone(),
                     wanted_remote_max_debt: 0,
-                    wanted_local_requests_status: RequestsStatusReport::from(&RequestsStatus::Closed),
+                    wanted_local_requests_status: RequestsStatusReport::from(
+                        &RequestsStatus::Closed,
+                    ),
                     num_pending_responses: 0,
                     num_pending_requests: 0,
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                     num_pending_user_requests: 0,
                 };
-                if let Some(_) = self.friends.insert(
-                    add_friend_report.friend_public_key.clone(), friend_report) {
-
+                if let Some(_) = self
+                    .friends
+                    .insert(add_friend_report.friend_public_key.clone(), friend_report)
+                {
                     Err(FunderReportMutateError::FriendAlreadyExists)
                 } else {
                     Ok(())
                 }
-            },
+            }
             FunderReportMutation::RemoveFriend(friend_public_key) => {
                 if let None = self.friends.remove(&friend_public_key) {
                     Err(FunderReportMutateError::FriendDoesNotExist)
                 } else {
                     Ok(())
                 }
-            },
-            FunderReportMutation::FriendReportMutation((friend_public_key, friend_report_mutation)) => {
-                let friend = self.friends.get_mut(friend_public_key)
+            }
+            FunderReportMutation::FriendReportMutation((
+                friend_public_key,
+                friend_report_mutation,
+            )) => {
+                let friend = self
+                    .friends
+                    .get_mut(friend_public_key)
                     .ok_or(FunderReportMutateError::FriendDoesNotExist)?;
                 friend.mutate(friend_report_mutation)?;
                 Ok(())
-            },
+            }
             FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
                 self.num_ready_receipts = *num_ready_receipts;
                 Ok(())
-            },
+            }
         }
     }
 }

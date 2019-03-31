@@ -1,22 +1,22 @@
+use std::collections::HashSet;
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::fmt::Debug;
-use std::collections::HashSet;
 
-use futures::{future, FutureExt, TryFutureExt, stream, Stream, StreamExt, SinkExt};
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
+use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{Listener, FutTransform};
-use common::select_streams::{BoxStream, select_streams};
 use common::access_control::AccessControlOp;
+use common::conn::{FutTransform, Listener};
+use common::select_streams::{select_streams, BoxStream};
 use common::transform_pool::transform_pool_loop;
 
 use timer::TimerClient;
 
-use crypto::identity::PublicKey;
-use crate::types::{RawConn, AccessControlPk, AccessControlOpPk};
 use crate::listen_pool_state::{ListenPoolState, Relay};
+use crate::types::{AccessControlOpPk, AccessControlPk, RawConn};
+use crypto::identity::PublicKey;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LpConfig<RA> {
@@ -70,10 +70,8 @@ enum RelayStatus {
     Connected(mpsc::Sender<AccessControlOpPk>),
 }
 
-
-
-struct ListenPool<RA,L,S> {
-    state: ListenPoolState<RA,PublicKey,RelayStatus>,
+struct ListenPool<RA, L, S> {
+    state: ListenPoolState<RA, PublicKey, RelayStatus>,
     plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
     relay_closed_sender: mpsc::Sender<RA>,
     listener: L,
@@ -81,19 +79,24 @@ struct ListenPool<RA,L,S> {
     spawner: S,
 }
 
-impl<RA,L,S> ListenPool<RA,L,S> 
+impl<RA, L, S> ListenPool<RA, L, S>
 where
     RA: Hash + Eq + Clone + Send + Debug + 'static,
-    L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + 'static,
+    L: Listener<
+            Connection = (PublicKey, RawConn),
+            Config = AccessControlOpPk,
+            Arg = (RA, AccessControlPk),
+        > + Clone
+        + 'static,
     S: Spawn + Clone,
 {
-    pub fn new(plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
-               relay_closed_sender: mpsc::Sender<RA>,
-               listener: L,
-               backoff_ticks: usize,
-               spawner: S) -> Self {
-
+    pub fn new(
+        plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
+        relay_closed_sender: mpsc::Sender<RA>,
+        listener: L,
+        backoff_ticks: usize,
+        spawner: S,
+    ) -> Self {
         ListenPool {
             state: ListenPoolState::new(),
             plain_conn_sender,
@@ -104,9 +107,11 @@ where
         }
     }
 
-    fn spawn_listen(&self, address: RA, relay_friends: &HashSet<PublicKey>) 
-        -> Result<mpsc::Sender<AccessControlOpPk>, ListenPoolError> {
-
+    fn spawn_listen(
+        &self,
+        address: RA,
+        relay_friends: &HashSet<PublicKey>,
+    ) -> Result<mpsc::Sender<AccessControlOpPk>, ListenPoolError> {
         // Fill in access_control:
         let mut access_control = AccessControlPk::new();
 
@@ -114,8 +119,10 @@ where
             access_control.apply_op(AccessControlOp::Add(friend_public_key.clone()));
         }
 
-        let (access_control_sender, mut connections_receiver) = 
-            self.listener.clone().listen((address.clone(), access_control));
+        let (access_control_sender, mut connections_receiver) = self
+            .listener
+            .clone()
+            .listen((address.clone(), access_control));
         // TODO: Do we need the listener.clone() here? Maybe Listen doesn't need to take ownership
         // over self?
 
@@ -126,7 +133,9 @@ where
             // Notify that this listener was closed:
             let _ = await!(c_relay_closed_sender.send(address));
         };
-        self.spawner.clone().spawn(send_fut)
+        self.spawner
+            .clone()
+            .spawn(send_fut)
             .map_err(|_| ListenPoolError::SpawnError)?;
 
         Ok(access_control_sender)
@@ -137,22 +146,26 @@ where
             LpConfig::SetLocalAddresses(local_addresses) => {
                 let (relay_friends, addresses) = self.state.set_local_addresses(local_addresses);
                 for address in addresses {
-                    let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
+                    let access_control_sender =
+                        self.spawn_listen(address.clone(), &relay_friends)?;
                     let relay = Relay {
                         friends: relay_friends.clone(),
                         status: RelayStatus::Connected(access_control_sender),
                     };
                     self.state.relays.insert(address, relay);
                 }
-            },
+            }
             LpConfig::UpdateFriend((friend_public_key, addresses)) => {
-                let (relays_add, relays_remove, relays_spawn) = self.state.update_friend(friend_public_key.clone(), addresses);
+                let (relays_add, relays_remove, relays_spawn) = self
+                    .state
+                    .update_friend(friend_public_key.clone(), addresses);
 
                 for address in relays_add {
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender.send(AccessControlOp::Add(friend_public_key.clone())));
+                            let _ = await!(access_control_sender
+                                .send(AccessControlOp::Add(friend_public_key.clone())));
                         }
                     }
                 }
@@ -161,7 +174,8 @@ where
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
+                            let _ = await!(access_control_sender
+                                .send(AccessControlOp::Remove(friend_public_key.clone())));
                         }
                     }
                 }
@@ -169,14 +183,15 @@ where
                 for address in relays_spawn {
                     let mut relay_friends = HashSet::new();
                     relay_friends.insert(friend_public_key.clone());
-                    let access_control_sender = self.spawn_listen(address.clone(), &relay_friends)?;
+                    let access_control_sender =
+                        self.spawn_listen(address.clone(), &relay_friends)?;
                     let relay = Relay {
                         friends: relay_friends,
                         status: RelayStatus::Connected(access_control_sender),
                     };
                     self.state.relays.insert(address.clone(), relay);
                 }
-            },
+            }
             LpConfig::RemoveFriend(friend_public_key) => {
                 let remove_relays = self.state.remove_friend(&friend_public_key);
 
@@ -184,18 +199,17 @@ where
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender.send(AccessControlOp::Remove(friend_public_key.clone())));
+                            let _ = await!(access_control_sender
+                                .send(AccessControlOp::Remove(friend_public_key.clone())));
                         }
                     }
                 }
-            },
+            }
         };
         Ok(())
     }
 
-    pub fn handle_relay_closed(&mut self,
-                           address: RA) -> Result<(), ListenPoolError> {
-
+    pub fn handle_relay_closed(&mut self, address: RA) -> Result<(), ListenPoolError> {
         let relay = match self.state.relays.get_mut(&address) {
             Some(relay) => relay,
             None => return Ok(()), // TODO: Could this happen?
@@ -215,8 +229,8 @@ where
                         continue;
                     }
                     spawn_addresses.push(address.clone());
-                },
-                RelayStatus::Connected(_access_control_sender) => {}, // Nothing to do
+                }
+                RelayStatus::Connected(_access_control_sender) => {} // Nothing to do
             }
         }
 
@@ -232,33 +246,37 @@ where
     }
 }
 
-
-async fn listen_pool_loop<RA,L,TS,S>(incoming_config: mpsc::Receiver<LpConfig<RA>>,
-                                    outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
-                                    listener: L,
-                                    backoff_ticks: usize,
-                                    timer_stream: TS,
-                                    spawner: S,
-                                    mut opt_event_sender: Option<mpsc::Sender<()>>) 
-                        -> Result<(), ListenPoolError>
+async fn listen_pool_loop<RA, L, TS, S>(
+    incoming_config: mpsc::Receiver<LpConfig<RA>>,
+    outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
+    listener: L,
+    backoff_ticks: usize,
+    timer_stream: TS,
+    spawner: S,
+    mut opt_event_sender: Option<mpsc::Sender<()>>,
+) -> Result<(), ListenPoolError>
 where
     RA: Clone + Eq + Hash + Send + Debug + 'static,
-    L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + 'static,
+    L: Listener<
+            Connection = (PublicKey, RawConn),
+            Config = AccessControlOpPk,
+            Arg = (RA, AccessControlPk),
+        > + Clone
+        + 'static,
     TS: Stream + Unpin + Send,
     S: Spawn + Clone + Send + 'static,
 {
-    
     let (relay_closed_sender, relay_closed_receiver) = mpsc::channel(0);
 
-    let mut listen_pool = ListenPool::<RA,L,S>::new(outgoing_plain_conns,
-                                                   relay_closed_sender,
-                                                   listener,
-                                                   backoff_ticks,
-                                                   spawner);
+    let mut listen_pool = ListenPool::<RA, L, S>::new(
+        outgoing_plain_conns,
+        relay_closed_sender,
+        listener,
+        backoff_ticks,
+        spawner,
+    );
 
-    let incoming_relay_closed = relay_closed_receiver
-        .map(|address| LpEvent::RelayClosed(address));
+    let incoming_relay_closed = relay_closed_receiver.map(|address| LpEvent::RelayClosed(address));
 
     let incoming_config = incoming_config
         .map(|config| LpEvent::Config(config))
@@ -268,19 +286,14 @@ where
         .map(|_| LpEvent::<RA>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
-    let mut incoming_events = select_streams![incoming_relay_closed,
-                                              incoming_config,
-                                              timer_stream];
+    let mut incoming_events = select_streams![incoming_relay_closed, incoming_config, timer_stream];
 
     while let Some(event) = await!(incoming_events.next()) {
         match event {
-            LpEvent::Config(config) => 
-                await!(listen_pool.handle_config(config))?,
+            LpEvent::Config(config) => await!(listen_pool.handle_config(config))?,
             LpEvent::ConfigClosed => break,
-            LpEvent::RelayClosed(address) => 
-                listen_pool.handle_relay_closed(address)?,
-            LpEvent::TimerTick => 
-                listen_pool.handle_timer_tick()?,
+            LpEvent::RelayClosed(address) => listen_pool.handle_relay_closed(address)?,
+            LpEvent::TimerTick => listen_pool.handle_timer_tick()?,
             LpEvent::TimerClosed => break,
         };
 
@@ -292,9 +305,8 @@ where
     Ok(())
 }
 
-
 #[derive(Clone)]
-pub struct PoolListener<RA,L,ET,S> {
+pub struct PoolListener<RA, L, ET, S> {
     listener: L,
     encrypt_transform: ET,
     max_concurrent_encrypt: usize,
@@ -304,14 +316,15 @@ pub struct PoolListener<RA,L,ET,S> {
     phantom_b: PhantomData<RA>,
 }
 
-impl<RA,L,ET,S> PoolListener<RA,L,ET,S> {
-    pub fn new(listener: L,
-           encrypt_transform: ET,
-           max_concurrent_encrypt: usize,
-           backoff_ticks: usize,
-           timer_client: TimerClient,
-           spawner: S) -> Self {
-
+impl<RA, L, ET, S> PoolListener<RA, L, ET, S> {
+    pub fn new(
+        listener: L,
+        encrypt_transform: ET,
+        max_concurrent_encrypt: usize,
+        backoff_ticks: usize,
+        timer_client: TimerClient,
+        spawner: S,
+    ) -> Self {
         PoolListener {
             listener,
             encrypt_transform,
@@ -324,23 +337,30 @@ impl<RA,L,ET,S> PoolListener<RA,L,ET,S> {
     }
 }
 
-
-impl<RA,L,ET,S> Listener for PoolListener<RA,L,ET,S> 
+impl<RA, L, ET, S> Listener for PoolListener<RA, L, ET, S>
 where
     RA: Clone + Eq + Hash + Send + Sync + Debug + 'static,
-    L: Listener<Connection=(PublicKey, RawConn), 
-        Config=AccessControlOpPk, Arg=(RA, AccessControlPk)> + Clone + Send + 'static,
-    ET: FutTransform<Input=(PublicKey, RawConn), Output=Option<(PublicKey, RawConn)>> + Clone + Send + 'static,
+    L: Listener<
+            Connection = (PublicKey, RawConn),
+            Config = AccessControlOpPk,
+            Arg = (RA, AccessControlPk),
+        > + Clone
+        + Send
+        + 'static,
+    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<(PublicKey, RawConn)>>
+        + Clone
+        + Send
+        + 'static,
     S: Spawn + Clone + Send + 'static,
-
 {
     type Connection = (PublicKey, RawConn);
     type Config = LpConfig<RA>;
     type Arg = ();
 
-    fn listen(mut self, _arg: Self::Arg) -> (mpsc::Sender<Self::Config>, 
-                             mpsc::Receiver<Self::Connection>) {
-
+    fn listen(
+        mut self,
+        _arg: Self::Arg,
+    ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
         let (config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_conns, incoming_conns) = mpsc::channel(0);
 
@@ -353,16 +373,18 @@ where
 
         // Connections encryptor:
         let (plain_conn_sender, incoming_plain_conn) = mpsc::channel(0);
-        let enc_loop_fut = transform_pool_loop(incoming_plain_conn,
-                            outgoing_conns,
-                            c_encrypt_transform,
-                            c_max_concurrent_encrypt,
-                            c_spawner.clone())
-            .map_err(|e| error!("transform_pool_loop: {:?}", e))
-            .map(|_| ());
+        let enc_loop_fut = transform_pool_loop(
+            incoming_plain_conn,
+            outgoing_conns,
+            c_encrypt_transform,
+            c_max_concurrent_encrypt,
+            c_spawner.clone(),
+        )
+        .map_err(|e| error!("transform_pool_loop: {:?}", e))
+        .map(|_| ());
 
         if c_spawner.spawn(enc_loop_fut).is_err() {
-            return (config_sender, incoming_conns)
+            return (config_sender, incoming_conns);
         }
 
         let loop_fut = async move {
@@ -372,7 +394,7 @@ where
                 Err(_) => {
                     error!("PoolListener::listen(): Failed to obtain timer stream!");
                     return;
-                },
+                }
             };
 
             let res = await!(listen_pool_loop(
@@ -382,8 +404,9 @@ where
                 c_backoff_ticks,
                 timer_stream,
                 c_spawner,
-                None));
-            
+                None
+            ));
+
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);
             }
@@ -397,25 +420,24 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
     use futures::channel::mpsc;
+    use futures::executor::ThreadPool;
 
     use crypto::identity::PUBLIC_KEY_LEN;
 
-    use timer::{dummy_timer_multi_sender, TimerTick};
     use common::dummy_listener::DummyListener;
+    use timer::{dummy_timer_multi_sender, TimerTick};
 
-    async fn task_listen_pool_loop_set_local_addresses<S>(mut spawner: S) 
+    async fn task_listen_pool_loop_set_local_addresses<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
         // Create a mock time service:
-        let (mut tick_sender_receiver, mut timer_client) 
-            = dummy_timer_multi_sender(spawner.clone());
+        let (mut tick_sender_receiver, mut timer_client) =
+            dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
@@ -428,15 +450,17 @@ mod tests {
         let listener = DummyListener::new(listen_req_sender, spawner.clone());
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
-        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
-                         outgoing_plain_conns,
-                         listener,
-                         backoff_ticks,
-                         timer_stream,
-                         spawner.clone(),
-                         Some(event_sender))
-            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
-            .map(|_| ());
+        let fut_loop = listen_pool_loop::<u32, _, _, _>(
+            incoming_config,
+            outgoing_plain_conns,
+            listener,
+            backoff_ticks,
+            timer_stream,
+            spawner.clone(),
+            Some(event_sender),
+        )
+        .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+        .map(|_| ());
 
         spawner.spawn(fut_loop).unwrap();
 
@@ -454,11 +478,13 @@ mod tests {
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
 
         // Send a few connections:
-        for _ in 0 .. 5usize {
+        for _ in 0..5usize {
             let (_local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, _local_receiver) = mpsc::channel(0);
-            await!(listen_req0.conn_sender.send(
-                    (pk_b.clone(), (remote_sender, remote_receiver)))).unwrap();
+            await!(listen_req0
+                .conn_sender
+                .send((pk_b.clone(), (remote_sender, remote_receiver))))
+            .unwrap();
 
             let (pk, _conn) = await!(incoming_plain_conns.next()).unwrap();
             assert_eq!(pk, pk_b);
@@ -470,7 +496,6 @@ mod tests {
 
         observed_addresses.sort();
         assert_eq!(local_addresses, observed_addresses);
-
 
         // Reduce the set of local addresses to only contain 0x1u32:
         await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x1u32]))).unwrap();
@@ -487,20 +512,21 @@ mod tests {
     #[test]
     fn test_listen_pool_loop_set_local_addresses() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_set_local_addresses(thread_pool.clone()));
+        thread_pool.run(task_listen_pool_loop_set_local_addresses(
+            thread_pool.clone(),
+        ));
     }
 
+    // ----------------------------------------------------------------
+    // ----------------------------------------------------------------
 
-    // ----------------------------------------------------------------
-    // ----------------------------------------------------------------
-    
-    async fn task_listen_pool_loop_backoff_ticks<S>(mut spawner: S) 
+    async fn task_listen_pool_loop_backoff_ticks<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
         // Create a mock time service:
-        let (mut tick_sender_receiver, mut timer_client) 
-            = dummy_timer_multi_sender(spawner.clone());
+        let (mut tick_sender_receiver, mut timer_client) =
+            dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
@@ -513,22 +539,24 @@ mod tests {
         let listener = DummyListener::new(listen_req_sender, spawner.clone());
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
-        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
-                         outgoing_plain_conns,
-                         listener,
-                         backoff_ticks,
-                         timer_stream,
-                         spawner.clone(),
-                         Some(event_sender))
-            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
-            .map(|_| ());
+        let fut_loop = listen_pool_loop::<u32, _, _, _>(
+            incoming_config,
+            outgoing_plain_conns,
+            listener,
+            backoff_ticks,
+            timer_stream,
+            spawner.clone(),
+            Some(event_sender),
+        )
+        .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+        .map(|_| ());
 
         spawner.spawn(fut_loop).unwrap();
 
         await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32]))).unwrap();
         await!(event_receiver.next()).unwrap();
 
-        for _ in 0 .. 5 {
+        for _ in 0..5 {
             let listen_req = await!(listen_req_receiver.next()).unwrap();
             let (ref relay_address, _) = listen_req.arg;
             assert_eq!(*relay_address, 0);
@@ -538,7 +566,7 @@ mod tests {
             await!(event_receiver.next()).unwrap();
 
             // Wait until backoff_ticks time passes:
-            for _ in 0 .. backoff_ticks {
+            for _ in 0..backoff_ticks {
                 await!(tick_sender.send(TimerTick)).unwrap();
                 await!(event_receiver.next()).unwrap();
             }
@@ -558,13 +586,13 @@ mod tests {
     // ------------------------------------------------------
     // ------------------------------------------------------
 
-    async fn task_listen_pool_loop_update_remove_friend<S>(mut spawner: S) 
+    async fn task_listen_pool_loop_update_remove_friend<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
         // Create a mock time service:
-        let (mut tick_sender_receiver, mut timer_client) 
-            = dummy_timer_multi_sender(spawner.clone());
+        let (mut tick_sender_receiver, mut timer_client) =
+            dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
@@ -577,15 +605,17 @@ mod tests {
         let listener = DummyListener::new(listen_req_sender, spawner.clone());
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
-        let fut_loop = listen_pool_loop::<u32,_,_,_>(incoming_config,
-                         outgoing_plain_conns,
-                         listener,
-                         backoff_ticks,
-                         timer_stream,
-                         spawner.clone(),
-                         Some(event_sender))
-            .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
-            .map(|_| ());
+        let fut_loop = listen_pool_loop::<u32, _, _, _>(
+            incoming_config,
+            outgoing_plain_conns,
+            listener,
+            backoff_ticks,
+            timer_stream,
+            spawner.clone(),
+            Some(event_sender),
+        )
+        .map_err(|e| error!("listen_pool_loop() error: {:?}", e))
+        .map(|_| ());
 
         spawner.spawn(fut_loop).unwrap();
 
@@ -625,7 +655,8 @@ mod tests {
 
         let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
 
-        await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32])))).unwrap();
+        await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32]))))
+            .unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Connection to relay 3u32 is opened:
@@ -660,6 +691,8 @@ mod tests {
     #[test]
     fn test_listen_pool_loop_update_remove_friend() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_update_remove_friend(thread_pool.clone()));
+        thread_pool.run(task_listen_pool_loop_update_remove_friend(
+            thread_pool.clone(),
+        ));
     }
 }

@@ -1,17 +1,16 @@
-use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
+use std::fmt::Debug;
 
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
-use crate::types::{IncomingLivenessMessage};
+use crate::types::IncomingLivenessMessage;
 
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
-use crate::handler::handler::{MutableFunderState, MutableEphemeral};
+use crate::handler::canceler::{cancel_pending_requests, cancel_pending_user_requests};
+use crate::handler::handler::{MutableEphemeral, MutableFunderState};
 use crate::handler::sender::SendCommands;
-use crate::handler::canceler::{cancel_pending_requests, 
-                                cancel_pending_user_requests};
 
 #[derive(Debug)]
 pub enum HandleLivenessError {
@@ -20,16 +19,16 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<B>(m_state: &mut MutableFunderState<B>,
-                                    m_ephemeral: &mut MutableEphemeral,
-                                    send_commands: &mut SendCommands,
-                                    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-                                    liveness_message: IncomingLivenessMessage)
-    -> Result<(), HandleLivenessError> 
+pub fn handle_liveness_message<B>(
+    m_state: &mut MutableFunderState<B>,
+    m_ephemeral: &mut MutableEphemeral,
+    send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    liveness_message: IncomingLivenessMessage,
+) -> Result<(), HandleLivenessError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-
     match liveness_message {
         IncomingLivenessMessage::Online(friend_public_key) => {
             // Find friend:
@@ -42,7 +41,11 @@ where
                 FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
             }?;
 
-            if m_ephemeral.ephemeral().liveness.is_online(&friend_public_key) {
+            if m_ephemeral
+                .ephemeral()
+                .liveness
+                .is_online(&friend_public_key)
+            {
                 return Err(HandleLivenessError::FriendAlreadyOnline);
             }
 
@@ -51,7 +54,7 @@ where
             let liveness_mutation = LivenessMutation::SetOnline(friend_public_key.clone());
             let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
             m_ephemeral.mutate(ephemeral_mutation);
-        },
+        }
         IncomingLivenessMessage::Offline(friend_public_key) => {
             // Find friend:
             let friend = match m_state.state().friends.get(&friend_public_key) {
@@ -67,20 +70,12 @@ where
             m_ephemeral.mutate(ephemeral_mutation);
 
             // Cancel all messages pending for this friend:
-            cancel_pending_requests(
-                m_state, 
-                send_commands,
-                outgoing_control,
-                &friend_public_key);
-            cancel_pending_user_requests(
-                m_state,
-                outgoing_control,
-                &friend_public_key);
-        },
+            cancel_pending_requests(m_state, send_commands, outgoing_control, &friend_public_key);
+            cancel_pending_user_requests(m_state, outgoing_control, &friend_public_key);
+        }
     };
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -88,24 +83,22 @@ mod tests {
 
     use std::cmp::Ordering;
 
-    use proto::funder::messages::{FriendStatus, AddFriend};
+    use crypto::identity::{
+        compare_public_key, generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity,
+    };
     use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair, compare_public_key,
-                            Identity};
+    use proto::funder::messages::{AddFriend, FriendStatus};
 
-    use crate::state::{FunderState, FunderMutation};
     use crate::ephemeral::Ephemeral;
-    use crate::friend::{FriendMutation, ChannelStatus};
+    use crate::friend::{ChannelStatus, FriendMutation};
+    use crate::state::{FunderMutation, FunderState};
 
-    use crate::handler::handler::{MutableFunderState, MutableEphemeral};
-    use crate::handler::sender::{SendCommands};
+    use crate::handler::handler::{MutableEphemeral, MutableFunderState};
+    use crate::handler::sender::SendCommands;
     use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
-
 
     #[test]
     fn test_handle_liveness_basic() {
-
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_pkcs8_key_pair(&rng1);
         let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -117,11 +110,12 @@ mod tests {
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
 
-        let (_local_identity, local_pk, _remote_identity, remote_pk) = if compare_public_key(&pk1, &pk2) == Ordering::Less {
-            (identity1, pk1, identity2, pk2)
-        } else {
-            (identity2, pk2, identity1, pk1)
-        };
+        let (_local_identity, local_pk, _remote_identity, remote_pk) =
+            if compare_public_key(&pk1, &pk2) == Ordering::Less {
+                (identity1, pk1, identity2, pk2)
+            } else {
+                (identity2, pk2, identity1, pk1)
+            };
 
         let relays = vec![dummy_named_relay_address(0)];
         let mut state = FunderState::<u32>::new(local_pk, relays);
@@ -157,11 +151,14 @@ mod tests {
         let liveness_message = IncomingLivenessMessage::Online(remote_pk.clone());
 
         // Remote side got online:
-        handle_liveness_message(&mut m_state,
-                                &mut m_ephemeral,
-                                &mut send_commands,
-                                &mut outgoing_control,
-                                liveness_message).unwrap();
+        handle_liveness_message(
+            &mut m_state,
+            &mut m_ephemeral,
+            &mut send_commands,
+            &mut outgoing_control,
+            liveness_message,
+        )
+        .unwrap();
 
         let (_initial_state, funder_mutations, _final_state) = m_state.done();
         let (ephemeral_mutations, final_ephemeral_state) = m_ephemeral.done();

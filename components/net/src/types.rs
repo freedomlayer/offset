@@ -12,7 +12,7 @@ pub fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {
         },
         TcpAddress::V6(tcp_address_v6) => {
             let segments = &tcp_address_v6.segments;
-            let ipv4_addr = Ipv6Addr::new(segments[0], segments[1], segments[2], segments[3], 
+            let ipv4_addr = Ipv6Addr::new(segments[0], segments[1], segments[2], segments[3],
                                           segments[4], segments[5], segments[6], segments[7]);
             SocketAddr::new(IpAddr::V6(ipv4_addr), tcp_address_v6.port)
         },

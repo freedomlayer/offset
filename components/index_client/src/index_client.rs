@@ -1,32 +1,30 @@
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::Unpin;
-use std::collections::{VecDeque};
 
-use futures::{select, future, FutureExt, TryFutureExt, 
-    stream, Stream, StreamExt, Sink, SinkExt};
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
+use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::FutTransform;
 use common::mutable_state::MutableState;
-use common::select_streams::{BoxStream, select_streams};
+use common::select_streams::{select_streams, BoxStream};
 
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use database::DatabaseClient;
 
-use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer,
-                                    IndexMutation,
-                                    ResponseRoutesResult, ClientResponseRoutes,
-                                    RequestRoutes,
-                                    IndexClientReportMutation, IndexClientRequest,
-                                    IndexClientReportMutations};
+use proto::index_client::messages::{
+    AppServerToIndexClient, ClientResponseRoutes, IndexClientReportMutation,
+    IndexClientReportMutations, IndexClientRequest, IndexClientToAppServer, IndexMutation,
+    RequestRoutes, ResponseRoutesResult,
+};
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
-use crate::client_session::{SessionHandle, ControlSender};
-use crate::single_client::SingleClientControl;
+use crate::client_session::{ControlSender, SessionHandle};
 use crate::seq_friends::SeqFriendsClient;
+use crate::single_client::SingleClientControl;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexClientConfig<ISA> {
@@ -47,8 +45,7 @@ pub enum IndexClientConfigMutation<ISA> {
     RemoveIndexServer(PublicKey),
 }
 
-
-impl<ISA> MutableState for IndexClientConfig<ISA> 
+impl<ISA> MutableState for IndexClientConfig<ISA>
 where
     ISA: Clone + PartialEq + Eq,
 {
@@ -59,19 +56,20 @@ where
         match mutation {
             IndexClientConfigMutation::AddIndexServer(named_index_server_address) => {
                 // Remove first, to avoid duplicates:
-                self.index_servers.retain(|cur_named_index_server_address| 
-                                          cur_named_index_server_address.public_key != named_index_server_address.public_key);
+                self.index_servers.retain(|cur_named_index_server_address| {
+                    cur_named_index_server_address.public_key
+                        != named_index_server_address.public_key
+                });
                 self.index_servers.push(named_index_server_address.clone());
-            },
+            }
             IndexClientConfigMutation::RemoveIndexServer(public_key) => {
-                self.index_servers.retain(|named_index_server| 
-                                          &named_index_server.public_key != public_key);
-            },
+                self.index_servers
+                    .retain(|named_index_server| &named_index_server.public_key != public_key);
+            }
         };
         Ok(())
     }
 }
-
 
 #[derive(Debug)]
 struct ServerConnecting<ISA> {
@@ -79,12 +77,11 @@ struct ServerConnecting<ISA> {
     opt_cancel_sender: Option<oneshot::Sender<()>>,
 }
 
-
 #[derive(Debug)]
 struct ServerConnected<ISA> {
     index_server: IndexServerAddress<ISA>,
     opt_control_sender: Option<ControlSender>,
-    /// A oneshot for closing the connection 
+    /// A oneshot for closing the connection
     /// (closing opt_control_sender is not enough, because send_full_state() task also has a
     /// sender)
     opt_cancel_sender: Option<oneshot::Sender<()>>,
@@ -120,14 +117,13 @@ enum IndexClientEvent<ISA> {
     TimerTick,
 }
 
-
-struct IndexClient<ISA,TAS,ICS,S> {
+struct IndexClient<ISA, TAS, ICS, S> {
     event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
     to_app_server: TAS,
     /// A cyclic list of index server addresses.
     /// The next index server to be used is the one on the front:
     // TODO: Why not use IndexClientConfig as state here?
-    // We perform the mutations implicitly in the implementation of IndexClient. 
+    // We perform the mutations implicitly in the implementation of IndexClient.
     index_servers: VecDeque<IndexServerAddress<ISA>>,
     seq_friends_client: SeqFriendsClient,
     index_client_session: ICS,
@@ -140,13 +136,13 @@ struct IndexClient<ISA,TAS,ICS,S> {
     spawner: S,
 }
 
-/// Send our full friends state as mutations to the server. 
+/// Send our full friends state as mutations to the server.
 /// We do this in a separate task so that we don't block user requests or incoming funder reports.
-async fn send_full_state(mut seq_friends_client: SeqFriendsClient, 
-                         mut control_sender: ControlSender) -> Result<(), IndexClientError> {
-
-    await!(seq_friends_client.reset_countdown())
-        .map_err(|_| IndexClientError::SeqFriendsError)?;
+async fn send_full_state(
+    mut seq_friends_client: SeqFriendsClient,
+    mut control_sender: ControlSender,
+) -> Result<(), IndexClientError> {
+    await!(seq_friends_client.reset_countdown()).map_err(|_| IndexClientError::SeqFriendsError)?;
 
     loop {
         let next_update_res = await!(seq_friends_client.next_update())
@@ -173,31 +169,36 @@ async fn send_full_state(mut seq_friends_client: SeqFriendsClient,
     Ok(())
 }
 
-impl<ISA,TAS,ICS,S> IndexClient<ISA,TAS,ICS,S> 
+impl<ISA, TAS, ICS, S> IndexClient<ISA, TAS, ICS, S>
 where
     ISA: Debug + Eq + Clone + Send + 'static,
-    TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    TAS: Sink<SinkItem = IndexClientToAppServer<ISA>> + Unpin,
+    ICS: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<SessionHandle>>
+        + Clone
+        + Send
+        + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    pub fn new(event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
-               to_app_server: TAS,
-               index_client_config: IndexClientConfig<ISA>,
-               seq_friends_client: SeqFriendsClient,
-               index_client_session: ICS,
-               max_open_requests: usize,
-               keepalive_ticks: usize,
-               backoff_ticks: usize,
-               db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
-               spawner: S) -> Self { 
-
-        let index_servers = index_client_config.index_servers
-                .into_iter()
-                .map(|named_index_server| IndexServerAddress {
-                    public_key: named_index_server.public_key,
-                    address: named_index_server.address,
-                })
-                .collect::<VecDeque<_>>();
+    pub fn new(
+        event_sender: mpsc::Sender<IndexClientEvent<ISA>>,
+        to_app_server: TAS,
+        index_client_config: IndexClientConfig<ISA>,
+        seq_friends_client: SeqFriendsClient,
+        index_client_session: ICS,
+        max_open_requests: usize,
+        keepalive_ticks: usize,
+        backoff_ticks: usize,
+        db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
+        spawner: S,
+    ) -> Self {
+        let index_servers = index_client_config
+            .index_servers
+            .into_iter()
+            .map(|named_index_server| IndexServerAddress {
+                public_key: named_index_server.public_key,
+                address: named_index_server.address,
+            })
+            .collect::<VecDeque<_>>();
 
         IndexClient {
             event_sender,
@@ -253,32 +254,36 @@ where
         let (sfs_done_sender, sfs_done_receiver) = oneshot::channel::<()>();
 
         // TODO: Can we remove the Box::pin() from here? How?
-        let connect_fut = Box::pin(async move {
-            let res = await!(c_index_client_session.transform(index_server))?;
-            let (control_sender, close_receiver) = res;
+        let connect_fut = Box::pin(
+            async move {
+                let res = await!(c_index_client_session.transform(index_server))?;
+                let (control_sender, close_receiver) = res;
 
-            let c_control_sender = control_sender.clone();
-            let send_full_state_cancellable_fut = async move {
-                let send_full_state_fut = Box::pin(
-                    send_full_state(c_seq_friends_client, c_control_sender)
-                        .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
-                        .map(|_| {
-                            let _ = sfs_done_sender.send(());
-                        })
-                );
+                let c_control_sender = control_sender.clone();
+                let send_full_state_cancellable_fut = async move {
+                    let send_full_state_fut = Box::pin(
+                        send_full_state(c_seq_friends_client, c_control_sender)
+                            .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
+                            .map(|_| {
+                                let _ = sfs_done_sender.send(());
+                            }),
+                    );
 
-                select! {
-                    _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
-                    _ = send_full_state_fut.fuse() => (),
+                    select! {
+                        _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
+                        _ = send_full_state_fut.fuse() => (),
+                    };
                 };
-            };
 
-            c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
+                c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
 
-            let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
-            let _ = await!(close_receiver);
-            Some(())
-        });
+                let _ = await!(
+                    c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender))
+                );
+                let _ = await!(close_receiver);
+                Some(())
+            },
+        );
 
         let mut c_event_sender = self.event_sender.clone();
         let cancellable_fut = async move {
@@ -288,7 +293,7 @@ where
                 _ = cancel_receiver.fuse() => (),
             };
             // Connection was closed or cancelled:
-            
+
             // Cancel send_full_state() task:
             let _ = sfs_cancel_sender.send(());
             // Wait until send_full_state() task is done:
@@ -298,44 +303,62 @@ where
             let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
         };
 
-        self.spawner.spawn(cancellable_fut)
+        self.spawner
+            .spawn(cancellable_fut)
             .map_err(|_| IndexClientError::SpawnError)
     }
 
-    pub async fn return_response_routes_failure(&mut self, request_id: Uid) 
-                                            -> Result<(), IndexClientError> {
-
+    pub async fn return_response_routes_failure(
+        &mut self,
+        request_id: Uid,
+    ) -> Result<(), IndexClientError> {
         let client_response_routes = ClientResponseRoutes {
             request_id,
             result: ResponseRoutesResult::Failure,
         };
-        return await!(self.to_app_server.send(IndexClientToAppServer::ResponseRoutes(client_response_routes)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)
+        return await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ResponseRoutes(
+                client_response_routes
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed);
     }
 
-    pub async fn handle_from_app_server_add_index_server(&mut self, 
-                                                         app_request_id: Uid,
-                                                         named_index_server_address: NamedIndexServerAddress<ISA>) 
-                                                            -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_add_index_server(
+        &mut self,
+        app_request_id: Uid,
+        named_index_server_address: NamedIndexServerAddress<ISA>,
+    ) -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.db_client.mutate(vec![IndexClientConfigMutation::AddIndexServer(named_index_server_address.clone())]))
-            .map_err(|_| IndexClientError::DatabaseError)?;
+        await!(self
+            .db_client
+            .mutate(vec![IndexClientConfigMutation::AddIndexServer(
+                named_index_server_address.clone()
+            )]))
+        .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
         // To avoid duplicates, we try to remove it from the list first:
-        self.index_servers.retain(|index_server| index_server.public_key != named_index_server_address.public_key);
+        self.index_servers.retain(|index_server| {
+            index_server.public_key != named_index_server_address.public_key
+        });
 
         let index_server = IndexServerAddress::from(named_index_server_address.clone());
         self.index_servers.push_back(index_server);
 
         // Send report to AppServer:
-        let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address.clone());
+        let index_client_report_mutation =
+            IndexClientReportMutation::AddIndexServer(named_index_server_address.clone());
         let index_client_report_mutations = IndexClientReportMutations {
             opt_app_request_id: Some(app_request_id),
             mutations: vec![index_client_report_mutation],
         };
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+        await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ReportMutations(
+                index_client_report_mutations
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         if let ConnStatus::Empty(_) = self.conn_status {
         } else {
@@ -346,58 +369,73 @@ where
         self.try_connect_to_server()
     }
 
-    pub async fn handle_from_app_server_remove_index_server(&mut self, 
-                                                            app_request_id: Uid,
-                                                            public_key: PublicKey) 
-                                                            -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_remove_index_server(
+        &mut self,
+        app_request_id: Uid,
+        public_key: PublicKey,
+    ) -> Result<(), IndexClientError> {
         // Update database:
-        await!(self.db_client.mutate(vec![IndexClientConfigMutation::RemoveIndexServer(public_key.clone())]))
-            .map_err(|_| IndexClientError::DatabaseError)?;
+        await!(self
+            .db_client
+            .mutate(vec![IndexClientConfigMutation::RemoveIndexServer(
+                public_key.clone()
+            )]))
+        .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Remove address:
-        self.index_servers.retain(|index_server| index_server.public_key != public_key);
+        self.index_servers
+            .retain(|index_server| index_server.public_key != public_key);
 
         // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::RemoveIndexServer(public_key.clone());
+        let index_client_report_mutation =
+            IndexClientReportMutation::RemoveIndexServer(public_key.clone());
         let index_client_report_mutations = IndexClientReportMutations {
             opt_app_request_id: Some(app_request_id),
             mutations: vec![index_client_report_mutation],
         };
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+        await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ReportMutations(
+                index_client_report_mutations
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         // Disconnect a current server connection if it uses the removed address:
         match &mut self.conn_status {
-            ConnStatus::Empty(_) => {}, // Nothing to do here
+            ConnStatus::Empty(_) => {} // Nothing to do here
             ConnStatus::Connecting(server_connecting) => {
                 if server_connecting.index_server.public_key == public_key {
                     if let Some(cancel_sender) = server_connecting.opt_cancel_sender.take() {
                         let _ = cancel_sender.send(());
                     }
                 }
-            },
+            }
             ConnStatus::Connected(server_connected) => {
                 if server_connected.index_server.public_key == public_key {
                     server_connected.opt_control_sender.take();
                     server_connected.opt_cancel_sender.take();
                 }
-            },
+            }
         }
         Ok(())
     }
 
-    pub async fn handle_from_app_server_request_routes(&mut self, 
-                                                       app_request_id: Uid,
-                                                       request_routes: RequestRoutes) 
-                                                                -> Result<(), IndexClientError> {
-
+    pub async fn handle_from_app_server_request_routes(
+        &mut self,
+        app_request_id: Uid,
+        request_routes: RequestRoutes,
+    ) -> Result<(), IndexClientError> {
         // Send empty report (Indicates that we received the request):
         let index_client_report_mutations = IndexClientReportMutations {
             opt_app_request_id: Some(app_request_id),
             mutations: Vec::new(),
         };
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+        await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ReportMutations(
+                index_client_report_mutations
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         if self.num_open_requests >= self.max_open_requests {
             return await!(self.return_response_routes_failure(request_routes.request_id));
@@ -405,8 +443,9 @@ where
 
         // Check server connection status:
         let mut server_connected = match &mut self.conn_status {
-            ConnStatus::Empty(_) |
-            ConnStatus::Connecting(_) => return await!(self.return_response_routes_failure(request_routes.request_id)),
+            ConnStatus::Empty(_) | ConnStatus::Connecting(_) => {
+                return await!(self.return_response_routes_failure(request_routes.request_id))
+            }
             ConnStatus::Connected(server_connected) => server_connected,
         };
 
@@ -414,10 +453,11 @@ where
             Some(control_sender) => control_sender,
             None => return await!(self.return_response_routes_failure(request_routes.request_id)),
         };
-        
+
         let c_request_id = request_routes.request_id.clone();
         let (response_sender, response_receiver) = oneshot::channel();
-        let single_client_control = SingleClientControl::RequestRoutes((request_routes, response_sender));
+        let single_client_control =
+            SingleClientControl::RequestRoutes((request_routes, response_sender));
 
         match await!(control_sender.send(single_client_control)) {
             Ok(()) => server_connected.opt_control_sender = Some(control_sender),
@@ -431,16 +471,22 @@ where
                 Err(_) => ResponseRoutesResult::Failure,
             };
             // TODO: Should report error here if failure occurs?
-            let _ = await!(c_event_sender.send(IndexClientEvent::ResponseRoutes((c_request_id, response_routes_result))));
+            let _ = await!(c_event_sender.send(IndexClientEvent::ResponseRoutes((
+                c_request_id,
+                response_routes_result
+            ))));
         };
 
         self.num_open_requests = self.num_open_requests.saturating_add(1);
-        self.spawner.spawn(request_fut)
+        self.spawner
+            .spawn(request_fut)
             .map_err(|_| IndexClientError::SpawnError)
     }
 
-    pub async fn handle_from_app_server_apply_mutations(&mut self, mut mutations: Vec<IndexMutation>) 
-                                                                        -> Result<(), IndexClientError> {
+    pub async fn handle_from_app_server_apply_mutations(
+        &mut self,
+        mut mutations: Vec<IndexMutation>,
+    ) -> Result<(), IndexClientError> {
         // Update state:
         for mutation in &mutations {
             await!(self.seq_friends_client.mutate(mutation.clone()))
@@ -449,8 +495,7 @@ where
 
         // Check if server is ready:
         let server_connected = match &mut self.conn_status {
-            ConnStatus::Empty(_) |
-            ConnStatus::Connecting(_) => return Ok(()), // Server is not ready
+            ConnStatus::Empty(_) | ConnStatus::Connecting(_) => return Ok(()), // Server is not ready
             ConnStatus::Connected(server_connected) => server_connected,
         };
 
@@ -479,40 +524,48 @@ where
         Ok(())
     }
 
-    pub async fn handle_from_app_server(&mut self, 
-                                  app_server_to_index_client: AppServerToIndexClient<ISA>) 
-                                    -> Result<(), IndexClientError> {
-
+    pub async fn handle_from_app_server(
+        &mut self,
+        app_server_to_index_client: AppServerToIndexClient<ISA>,
+    ) -> Result<(), IndexClientError> {
         match app_server_to_index_client {
-            AppServerToIndexClient::AppRequest((app_request_id, index_client_request)) => 
+            AppServerToIndexClient::AppRequest((app_request_id, index_client_request)) => {
                 match index_client_request {
-                    IndexClientRequest::AddIndexServer(add_index_server) => 
-                        await!(self.handle_from_app_server_add_index_server(app_request_id, add_index_server)),
-                    IndexClientRequest::RemoveIndexServer(public_key) =>
-                        await!(self.handle_from_app_server_remove_index_server(app_request_id, public_key)),
-                    IndexClientRequest::RequestRoutes(request_routes) =>
-                        await!(self.handle_from_app_server_request_routes(app_request_id, request_routes)),
-                },
-            AppServerToIndexClient::ApplyMutations(mutations) =>
-                await!(self.handle_from_app_server_apply_mutations(mutations)),
+                    IndexClientRequest::AddIndexServer(add_index_server) => await!(self
+                        .handle_from_app_server_add_index_server(app_request_id, add_index_server)),
+                    IndexClientRequest::RemoveIndexServer(public_key) => {
+                        await!(self
+                            .handle_from_app_server_remove_index_server(app_request_id, public_key))
+                    }
+                    IndexClientRequest::RequestRoutes(request_routes) => {
+                        await!(self
+                            .handle_from_app_server_request_routes(app_request_id, request_routes))
+                    }
+                }
+            }
+            AppServerToIndexClient::ApplyMutations(mutations) => {
+                await!(self.handle_from_app_server_apply_mutations(mutations))
+            }
         }
     }
 
-
-    pub async fn handle_index_server_connected(&mut self, control_sender: ControlSender) 
-        -> Result<(), IndexClientError> {
-
+    pub async fn handle_index_server_connected(
+        &mut self,
+        control_sender: ControlSender,
+    ) -> Result<(), IndexClientError> {
         let (index_server, opt_cancel_sender) = match &mut self.conn_status {
             ConnStatus::Empty(_) => {
                 error!("Did not attempt to connect!");
                 return Ok(());
-            },
+            }
             ConnStatus::Connected(_) => {
                 error!("Already connected to server!");
                 return Ok(());
             }
-            ConnStatus::Connecting(server_connecting) => 
-                (server_connecting.index_server.clone(), server_connecting.opt_cancel_sender.take()),
+            ConnStatus::Connecting(server_connecting) => (
+                server_connecting.index_server.clone(),
+                server_connecting.opt_cancel_sender.take(),
+            ),
         };
 
         self.conn_status = ConnStatus::Connected(ServerConnected {
@@ -523,17 +576,21 @@ where
         });
 
         // Send report:
-        let index_client_report_mutation = IndexClientReportMutation::SetConnectedServer(Some(index_server.public_key.clone()));
+        let index_client_report_mutation =
+            IndexClientReportMutation::SetConnectedServer(Some(index_server.public_key.clone()));
         let index_client_report_mutations = IndexClientReportMutations {
             opt_app_request_id: None,
             mutations: vec![index_client_report_mutation],
         };
-        await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+        await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ReportMutations(
+                index_client_report_mutations
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         Ok(())
     }
-
 
     pub async fn handle_index_server_closed(&mut self) -> Result<(), IndexClientError> {
         if let ConnStatus::Connected(_) = self.conn_status {
@@ -543,17 +600,22 @@ where
                 opt_app_request_id: None,
                 mutations: vec![index_client_report_mutation],
             };
-            await!(self.to_app_server.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations)))
-                .map_err(|_| IndexClientError::SendToAppServerFailed)?;
+            await!(self
+                .to_app_server
+                .send(IndexClientToAppServer::ReportMutations(
+                    index_client_report_mutations
+                )))
+            .map_err(|_| IndexClientError::SendToAppServerFailed)?;
         }
         self.conn_status = ConnStatus::Empty(self.backoff_ticks);
         Ok(())
     }
 
-    pub async fn handle_response_routes(&mut self, request_id: Uid, 
-                                        response_routes_result: ResponseRoutesResult) 
-                                            -> Result<(), IndexClientError> {
-
+    pub async fn handle_response_routes(
+        &mut self,
+        request_id: Uid,
+        response_routes_result: ResponseRoutesResult,
+    ) -> Result<(), IndexClientError> {
         self.num_open_requests = self.num_open_requests.checked_sub(1).unwrap();
 
         let client_response_routes = ClientResponseRoutes {
@@ -561,12 +623,15 @@ where
             result: response_routes_result,
         };
 
-        await!(self.to_app_server.send(IndexClientToAppServer::ResponseRoutes(client_response_routes)))
-            .map_err(|_| IndexClientError::SendToAppServerFailed)
+        await!(self
+            .to_app_server
+            .send(IndexClientToAppServer::ResponseRoutes(
+                client_response_routes
+            )))
+        .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
     pub async fn handle_timer_tick(&mut self) -> Result<(), IndexClientError> {
-
         // Make sure that we are connected to any server:
         let server_connected: &mut ServerConnected<ISA> = match self.conn_status {
             ConnStatus::Empty(ref mut ticks_to_reconnect) => {
@@ -576,7 +641,7 @@ where
                     self.try_connect_to_server()?;
                 }
                 return Ok(());
-            },
+            }
             ConnStatus::Connecting(_) => return Ok(()), // Not connected to server
             ConnStatus::Connected(ref mut server_connected) => server_connected,
         };
@@ -586,7 +651,7 @@ where
             None => return Ok(()), // Not connected to server
         };
 
-        server_connected.ticks_to_send_keepalive = 
+        server_connected.ticks_to_send_keepalive =
             server_connected.ticks_to_send_keepalive.saturating_sub(1);
 
         if server_connected.ticks_to_send_keepalive != 0 {
@@ -621,63 +686,75 @@ where
 }
 
 #[allow(unused)]
-pub async fn index_client_loop<ISA,FAS,TAS,ICS,TS,S>(from_app_server: FAS,
-                               to_app_server: TAS,
-                               index_client_config: IndexClientConfig<ISA>,
-                               seq_friends_client: SeqFriendsClient,
-                               index_client_session: ICS,
-                               max_open_requests: usize,
-                               keepalive_ticks: usize,
-                               backoff_ticks: usize,
-                               db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
-                               timer_stream: TS,
-                               spawner: S) -> Result<(), IndexClientError>
+pub async fn index_client_loop<ISA, FAS, TAS, ICS, TS, S>(
+    from_app_server: FAS,
+    to_app_server: TAS,
+    index_client_config: IndexClientConfig<ISA>,
+    seq_friends_client: SeqFriendsClient,
+    index_client_session: ICS,
+    max_open_requests: usize,
+    keepalive_ticks: usize,
+    backoff_ticks: usize,
+    db_client: DatabaseClient<IndexClientConfigMutation<ISA>>,
+    timer_stream: TS,
+    spawner: S,
+) -> Result<(), IndexClientError>
 where
     ISA: Debug + Eq + Clone + Send + 'static,
-    FAS: Stream<Item=AppServerToIndexClient<ISA>> + Send + Unpin,
-    TAS: Sink<SinkItem=IndexClientToAppServer<ISA>> + Unpin,
-    ICS: FutTransform<Input=IndexServerAddress<ISA>, Output=Option<SessionHandle>> + Clone + Send + 'static,
+    FAS: Stream<Item = AppServerToIndexClient<ISA>> + Send + Unpin,
+    TAS: Sink<SinkItem = IndexClientToAppServer<ISA>> + Unpin,
+    ICS: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<SessionHandle>>
+        + Clone
+        + Send
+        + 'static,
     TS: Stream + Send + Unpin,
     S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
-    let mut index_client = IndexClient::new(event_sender, 
-                                            to_app_server,
-                                            index_client_config,
-                                            seq_friends_client,
-                                            index_client_session,
-                                            max_open_requests, 
-                                            keepalive_ticks,
-                                            backoff_ticks,
-                                            db_client,
-                                            spawner);
-    
+    let mut index_client = IndexClient::new(
+        event_sender,
+        to_app_server,
+        index_client_config,
+        seq_friends_client,
+        index_client_session,
+        max_open_requests,
+        keepalive_ticks,
+        backoff_ticks,
+        db_client,
+        spawner,
+    );
+
     index_client.try_connect_to_server()?;
 
-    let timer_stream = timer_stream
-        .map(|_| IndexClientEvent::TimerTick);
+    let timer_stream = timer_stream.map(|_| IndexClientEvent::TimerTick);
 
     let from_app_server = from_app_server
-        .map(|app_server_to_index_client| IndexClientEvent::FromAppServer(app_server_to_index_client))
-        .chain(stream::once(future::ready(IndexClientEvent::AppServerClosed)));
+        .map(|app_server_to_index_client| {
+            IndexClientEvent::FromAppServer(app_server_to_index_client)
+        })
+        .chain(stream::once(future::ready(
+            IndexClientEvent::AppServerClosed,
+        )));
 
     let mut events = select_streams![event_receiver, from_app_server, timer_stream];
 
     while let Some(event) = await!(events.next()) {
         match event {
-            IndexClientEvent::FromAppServer(app_server_to_index_client) =>
-                await!(index_client.handle_from_app_server(app_server_to_index_client))?,
+            IndexClientEvent::FromAppServer(app_server_to_index_client) => {
+                await!(index_client.handle_from_app_server(app_server_to_index_client))?
+            }
             IndexClientEvent::AppServerClosed => return Err(IndexClientError::AppServerClosed),
-            IndexClientEvent::IndexServerConnected(control_sender) => 
-                await!(index_client.handle_index_server_connected(control_sender))?,
-            IndexClientEvent::IndexServerClosed =>
-                await!(index_client.handle_index_server_closed())?,
-            IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) =>
-                await!(index_client.handle_response_routes(request_id, response_routes_result))?,
-            IndexClientEvent::TimerTick =>
-                await!(index_client.handle_timer_tick())?,
+            IndexClientEvent::IndexServerConnected(control_sender) => {
+                await!(index_client.handle_index_server_connected(control_sender))?
+            }
+            IndexClientEvent::IndexServerClosed => {
+                await!(index_client.handle_index_server_closed())?
+            }
+            IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) => {
+                await!(index_client.handle_response_routes(request_id, response_routes_result))?
+            }
+            IndexClientEvent::TimerTick => await!(index_client.handle_timer_tick())?,
         };
     }
     Ok(())
 }
-

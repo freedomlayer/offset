@@ -5,15 +5,15 @@ use std::path::PathBuf;
 use std::fmt::Debug;
 use std::fs::File;
 
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 // use serde_json;
-use bincode;
 use atomicwrites;
+use bincode;
 
-use common::mutable_state::MutableState;
 use crate::atomic_db::AtomicDb;
+use common::mutable_state::MutableState;
 
 #[derive(Debug)]
 pub enum FileDbError<ME> {
@@ -26,14 +26,12 @@ pub enum FileDbError<ME> {
     FileAlreadyExists,
 }
 
-
 pub struct FileDb<S> {
     /// Connection to the database
     path_buf: PathBuf,
     /// Current state represented by the database:
     state: S,
 }
-
 
 impl<S> FileDb<S>
 where
@@ -43,57 +41,47 @@ where
 {
     /// Create a new database file from an initial state
     /// Aborts if destination file already exists
-    pub fn create(path_buf: PathBuf, initial_state: S) 
-        -> Result<Self, FileDbError<S::MutateError>> {
-
+    pub fn create(
+        path_buf: PathBuf,
+        initial_state: S,
+    ) -> Result<Self, FileDbError<S::MutateError>> {
         if path_buf.exists() {
             return Err(FileDbError::FileAlreadyExists);
         }
 
         // There is no file, we create a new file:
         // Serialize the state:
-        let serialized_buff = bincode::serialize(&initial_state)
-            .map_err(FileDbError::SerializeError)?;
+        let serialized_buff =
+            bincode::serialize(&initial_state).map_err(FileDbError::SerializeError)?;
         // Save the new state to file, atomically:
-        let af = atomicwrites::AtomicFile::new(
-            &path_buf, atomicwrites::AllowOverwrite);
-        af.write(|fw| {
-            fw.write_all(&serialized_buff)
-        }).map_err(FileDbError::WriteError)?;
+        let af = atomicwrites::AtomicFile::new(&path_buf, atomicwrites::AllowOverwrite);
+        af.write(|fw| fw.write_all(&serialized_buff))
+            .map_err(FileDbError::WriteError)?;
 
-        let state: S = bincode::deserialize(&serialized_buff)
-            .map_err(FileDbError::DeserializeError)?;
+        let state: S =
+            bincode::deserialize(&serialized_buff).map_err(FileDbError::DeserializeError)?;
 
-        Ok(FileDb {
-            path_buf,
-            state,
-        })
+        Ok(FileDb { path_buf, state })
     }
 
     /// Load an existing database from file
     /// Returns an error if database file does not exist
     pub fn load(path_buf: PathBuf) -> Result<Self, FileDbError<S::MutateError>> {
-
-        let mut f = File::open(&path_buf)
-            .map_err(FileDbError::OpenError)?;
+        let mut f = File::open(&path_buf).map_err(FileDbError::OpenError)?;
         // read the whole file
         let mut serialized_buff = Vec::new();
         f.read_to_end(&mut serialized_buff)
             .map_err(FileDbError::ReadError)?;
 
-        let state: S = bincode::deserialize(&serialized_buff)
-            .map_err(FileDbError::DeserializeError)?;
+        let state: S =
+            bincode::deserialize(&serialized_buff).map_err(FileDbError::DeserializeError)?;
 
-        Ok(FileDb {
-            path_buf,
-            state,
-        })
+        Ok(FileDb { path_buf, state })
     }
 }
 
-
-impl<S> AtomicDb for FileDb<S> 
-where 
+impl<S> AtomicDb for FileDb<S>
+where
     S: Debug + Clone + Serialize + DeserializeOwned + MutableState,
     S::Mutation: Clone + Serialize + DeserializeOwned,
     S::MutateError: Debug,
@@ -111,21 +99,20 @@ where
     fn mutate_db(&mut self, mutations: &[Self::Mutation]) -> Result<(), Self::Error> {
         // Apply all mutations to state:
         for mutation in mutations.iter() {
-            self.state.mutate(mutation)
+            self.state
+                .mutate(mutation)
                 .map_err(|mutate_error| FileDbError::MutateError(mutate_error))?;
         }
 
         // Serialize the state:
-        let serialized_buff = bincode::serialize(&self.state)
-            .map_err(FileDbError::SerializeError)?;
+        let serialized_buff =
+            bincode::serialize(&self.state).map_err(FileDbError::SerializeError)?;
 
         // Save the new state to file, atomically:
-        let af = atomicwrites::AtomicFile::new(
-            &self.path_buf, atomicwrites::AllowOverwrite);
-        af.write(|fw| {
-            fw.write_all(&serialized_buff)
-        }).map_err(FileDbError::WriteError)?;
-        
+        let af = atomicwrites::AtomicFile::new(&self.path_buf, atomicwrites::AllowOverwrite);
+        af.write(|fw| fw.write_all(&serialized_buff))
+            .map_err(FileDbError::WriteError)?;
+
         Ok(())
     }
 }
@@ -143,9 +130,7 @@ mod tests {
 
     impl DummyState {
         pub fn new(x: u32) -> Self {
-            DummyState {
-                x,
-            }
+            DummyState { x }
         }
     }
 
@@ -153,7 +138,7 @@ mod tests {
     #[derive(Debug, Serialize, Deserialize, Clone)]
     enum DummyMutation {
         Inc,
-        Dec
+        Dec,
     }
 
     #[derive(Debug)]
@@ -167,10 +152,10 @@ mod tests {
             match mutation {
                 DummyMutation::Inc => {
                     self.x = self.x.saturating_add(1);
-                },
+                }
                 DummyMutation::Dec => {
                     self.x = self.x.saturating_sub(1);
-                },
+                }
             };
             Ok(())
         }
@@ -190,16 +175,16 @@ mod tests {
         let initial_state = DummyState::new(0);
         let mut file_db = FileDb::<DummyState>::create(file_path.clone(), initial_state).unwrap();
 
-        file_db.mutate_db(&[DummyMutation::Inc, 
-                         DummyMutation::Inc,
-                         DummyMutation::Dec]).unwrap();
+        file_db
+            .mutate_db(&[DummyMutation::Inc, DummyMutation::Inc, DummyMutation::Dec])
+            .unwrap();
 
         let state = file_db.get_state();
         assert_eq!(state.x, 1);
 
-        file_db.mutate_db(&[DummyMutation::Inc, 
-                         DummyMutation::Inc,
-                         DummyMutation::Dec]).unwrap();
+        file_db
+            .mutate_db(&[DummyMutation::Inc, DummyMutation::Inc, DummyMutation::Dec])
+            .unwrap();
 
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
@@ -210,7 +195,6 @@ mod tests {
         let file_db = FileDb::<DummyState>::load(file_path.clone()).unwrap();
         let state = file_db.get_state();
         assert_eq!(state.x, 2);
-
 
         // We should not be able to accidentally erase our state:
         let initial_state = DummyState::new(0);

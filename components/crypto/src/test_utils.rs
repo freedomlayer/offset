@@ -1,11 +1,10 @@
 use std::cell::RefCell;
-use std::sync::Mutex;
 use std::clone::Clone;
+use std::sync::Mutex;
 
-use rand::{self, StdRng, RngCore};
-use ring::{error::Unspecified, rand::SecureRandom};
 use crypto_rand::CryptoRandom;
-
+use rand::{self, RngCore, StdRng};
+use ring::{error::Unspecified, rand::SecureRandom};
 
 pub struct DummyRandom {
     inner: Mutex<RefCell<StdRng>>,
@@ -15,7 +14,9 @@ impl Clone for DummyRandom {
     fn clone(&self) -> Self {
         let guard = self.inner.lock().unwrap();
         let rng = (*guard).clone();
-        DummyRandom { inner: Mutex::new(rng) }
+        DummyRandom {
+            inner: Mutex::new(rng),
+        }
     }
 }
 
@@ -24,7 +25,7 @@ impl DummyRandom {
         let mut rng_seed: [u8; 32] = [0; 32];
         // We copy as many seed bytes as we have as seed into rng_seed
         // If seed.len() > 32, clone_from_slice will panic.
-        rng_seed[.. seed.len()].clone_from_slice(seed);
+        rng_seed[..seed.len()].clone_from_slice(seed);
         let rng = rand::SeedableRng::from_seed(rng_seed);
 
         DummyRandom {
@@ -43,5 +44,3 @@ impl SecureRandom for DummyRandom {
 }
 
 impl CryptoRandom for DummyRandom {}
-
-

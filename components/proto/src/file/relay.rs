@@ -1,15 +1,13 @@
 use std::convert::TryInto;
-use std::io::{self, Write};
 use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
 
+use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 use toml;
-use crate::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
 
-
-use crate::net::messages::NetAddressError;
 use crate::app_server::messages::RelayAddress;
+use crate::net::messages::NetAddressError;
 
 #[derive(Debug)]
 pub enum RelayFileError {
@@ -74,12 +72,15 @@ pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError>
     })
 }
 
-
 /// Store RelayAddress to file
-pub fn store_relay_to_file(relay_address: &RelayAddress, path: &Path)
-    -> Result<(), RelayFileError> {
-
-    let RelayAddress {ref public_key, ref address} = relay_address;
+pub fn store_relay_to_file(
+    relay_address: &RelayAddress,
+    path: &Path,
+) -> Result<(), RelayFileError> {
+    let RelayAddress {
+        ref public_key,
+        ref address,
+    } = relay_address;
 
     let relay_file = RelayFile {
         public_key: public_key_to_string(&public_key),
@@ -103,10 +104,13 @@ mod tests {
 
     #[test]
     fn test_relay_file_basic() {
-        let relay_file: RelayFile = toml::from_str(r#"
+        let relay_file: RelayFile = toml::from_str(
+            r#"
             public_key = 'public_key_string'
             address = 'address_string'
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_eq!(relay_file.public_key, "public_key_string");
         assert_eq!(relay_file.address, "address_string");
@@ -129,5 +133,3 @@ mod tests {
         assert_eq!(relay_address, relay_address2);
     }
 }
-
-

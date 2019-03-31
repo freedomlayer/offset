@@ -1,44 +1,41 @@
+use crate::conn::{BoxFuture, FutTransform};
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
-use crate::conn::{FutTransform, BoxFuture};
 
-
-pub struct ConnRequest<A,O> {
+pub struct ConnRequest<A, O> {
     pub address: A,
     response_sender: oneshot::Sender<O>,
 }
 
-impl<A,O> ConnRequest<A,O> {
+impl<A, O> ConnRequest<A, O> {
     pub fn reply(self, response: O) {
         self.response_sender.send(response).ok().unwrap();
     }
 }
 
 /// A connector that contains only one pre-created connection.
-pub struct DummyConnector<A,O> {
-    req_sender: mpsc::Sender<ConnRequest<A,O>>,
+pub struct DummyConnector<A, O> {
+    req_sender: mpsc::Sender<ConnRequest<A, O>>,
 }
 
-impl<A,O> DummyConnector<A,O> {
-    pub fn new(req_sender: mpsc::Sender<ConnRequest<A,O>>) -> Self {
-        DummyConnector { 
-            req_sender,
-        }
+impl<A, O> DummyConnector<A, O> {
+    pub fn new(req_sender: mpsc::Sender<ConnRequest<A, O>>) -> Self {
+        DummyConnector { req_sender }
     }
 }
 
 // TODO: Why didn't the automatic #[derive(Clone)] works for DummyListener?
 // Seemed like it had a problem with having config_receiver inside ListenRequest.
 // This is a workaround for this issue:
-impl<A,O> Clone for DummyConnector<A,O> {
-    fn clone(&self) -> DummyConnector<A,O> {
+impl<A, O> Clone for DummyConnector<A, O> {
+    fn clone(&self) -> DummyConnector<A, O> {
         DummyConnector {
             req_sender: self.req_sender.clone(),
         }
     }
 }
 
-impl<A,O> FutTransform for DummyConnector<A,O> 
+impl<A, O> FutTransform for DummyConnector<A, O>
 where
     O: Send,
     A: Send + Sync,
@@ -60,4 +57,3 @@ where
         Box::pin(fut_conn_pair)
     }
 }
-

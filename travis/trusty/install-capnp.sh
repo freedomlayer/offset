@@ -14,4 +14,3 @@ if [ ! -d "$HOME/capnp/lib" ]; then
 fi
 
 sudo ln -s ${CAPNP_INSTALL_PREFIX}/bin/capnp /usr/local/bin/capnp
-

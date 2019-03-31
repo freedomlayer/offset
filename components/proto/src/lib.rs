@@ -1,13 +1,9 @@
 #![feature(nll)]
 #![feature(never_type)]
+#![deny(trivial_numeric_casts, warnings)]
 
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
-
-extern crate capnp;
 extern crate byteorder;
+extern crate capnp;
 
 #[macro_use]
 extern crate common;
@@ -18,30 +14,29 @@ extern crate serde;
 extern crate serde_derive;
 extern crate bytes;
 
+extern crate base64;
 extern crate im;
 extern crate toml;
-extern crate base64;
 
 #[cfg(test)]
 extern crate tempfile;
 
 #[macro_use]
 pub mod macros;
-pub mod consts;
-pub mod capnp_common;
-pub mod relay;
-pub mod secure_channel;
-pub mod funder;
-pub mod keepalive;
-pub mod serialize;
 pub mod app_server;
-pub mod index_server;
+pub mod capnp_common;
+pub mod consts;
+pub mod file;
+pub mod funder;
 pub mod index_client;
-pub mod report;
+pub mod index_server;
+pub mod keepalive;
 pub mod net;
 pub mod node;
-pub mod file;
-
+pub mod relay;
+pub mod report;
+pub mod secure_channel;
+pub mod serialize;
 
 include_schema!(report_capnp, "report_capnp");
 include_schema!(app_server_capnp, "app_server_capnp");

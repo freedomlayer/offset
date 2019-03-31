@@ -15,7 +15,7 @@ echo "[target.$TARGET]" > .cargo/config
 echo "linker= \"$CC\"" >> .cargo/config
 
 # Install clippy, according to:
-# https://internals.rust-lang.org/t/clippy-is-available-as-a-rustup-component/7967 
+# https://internals.rust-lang.org/t/clippy-is-available-as-a-rustup-component/7967
 rustup update
 rustup component add clippy-preview
 

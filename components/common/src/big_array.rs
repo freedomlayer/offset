@@ -1,11 +1,10 @@
-
 // Based on https://stackoverflow.com/questions/48782047/binary-deserialization-of-u8-128
 // Answer by dtoInay
 
+use serde::de::{Deserialize, Deserializer, Error, SeqAccess, Visitor};
+use serde::ser::{Serialize, SerializeTuple, Serializer};
 use std::fmt;
 use std::marker::PhantomData;
-use serde::ser::{Serialize, Serializer, SerializeTuple};
-use serde::de::{Deserialize, Deserializer, Visitor, SeqAccess, Error};
 
 /// This code is required to be able to Serialize and Deserialize arrays of size larger than 64.
 /// This feature is required for serializing the Signature type, which is of size 64.
@@ -13,9 +12,11 @@ use serde::de::{Deserialize, Deserializer, Visitor, SeqAccess, Error};
 /// crate.
 pub trait BigArray<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer;
+    where
+        S: Serializer;
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>;
+    where
+        D: Deserializer<'de>;
 }
 
 macro_rules! big_array {

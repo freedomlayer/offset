@@ -1,9 +1,10 @@
 use std::u32;
 
-
-#[cfg(any(target_pointer_width = "8",
-          target_pointer_width = "16",
-          target_pointer_width = "32"))]
+#[cfg(any(
+    target_pointer_width = "8",
+    target_pointer_width = "16",
+    target_pointer_width = "32"
+))]
 pub fn usize_to_u32(num: usize) -> Option<u32> {
     Some(a as u32)
 }
@@ -19,21 +20,20 @@ pub fn usize_to_u32(num: usize) -> Option<u32> {
 
 // TODO: Possibly make this function constant?
 // TODO: Possibly replace Option<u64> with u64 in the future?
-#[cfg(any(target_pointer_width = "8", 
-          target_pointer_width = "16", 
-          target_pointer_width = "32",
-          target_pointer_width = "64"))]
+#[cfg(any(
+    target_pointer_width = "8",
+    target_pointer_width = "16",
+    target_pointer_width = "32",
+    target_pointer_width = "64"
+))]
 pub fn usize_to_u64(num: usize) -> Option<u64> {
     Some(num as u64)
 }
 
-
-#[cfg(any(target_pointer_width = "32",
-          target_pointer_width = "64"))]
+#[cfg(any(target_pointer_width = "32", target_pointer_width = "64"))]
 pub fn u32_to_usize(num: u32) -> Option<usize> {
     Some(num as usize)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -51,7 +51,10 @@ mod tests {
     fn test_usize_to_u64() {
         assert_eq!(usize_to_u64(0usize), Some(0u64));
         assert_eq!(usize_to_u64(1usize), Some(1u64));
-        assert_eq!(usize_to_u64(0xffff_ffff_ffff_ffff_usize), Some(0xffff_ffff_ffff_ffffu64));
+        assert_eq!(
+            usize_to_u64(0xffff_ffff_ffff_ffff_usize),
+            Some(0xffff_ffff_ffff_ffffu64)
+        );
     }
 
     #[test]

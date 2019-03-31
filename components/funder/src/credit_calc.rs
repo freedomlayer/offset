@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 // use utils::int_convert::usize_to_u32;
 
-// TODO: Why do we take node_index and route_len as u32? 
+// TODO: Why do we take node_index and route_len as u32?
 // Possibly change this in the future?
 
 /// Amount of credit paid to a node that sent a valid Response
@@ -15,9 +15,7 @@ use std::convert::TryFrom;
 /// In the example above, num_nodes = 5, node_index = 1 for the node C.
 /// Upon any overflow (u128) this function will return None.
 ///
-pub fn credits_on_success(node_index: u32, 
-                          route_len: u32,
-                          dest_payment: u128) -> Option<u128> {
+pub fn credits_on_success(node_index: u32, route_len: u32, dest_payment: u128) -> Option<u128> {
     if node_index == 0 {
         None
     } else {
@@ -26,13 +24,11 @@ pub fn credits_on_success(node_index: u32,
     }
 }
 
-
 /// The amount of credits paid to a node in case of failure.
 ///
 pub fn credits_on_failure() -> Option<u128> {
     Some(0)
 }
-
 
 /// Compute the amount of credits we need to freeze when sending a request to a node which is
 /// nodes_to_dest nodes from the destination.
@@ -44,16 +40,13 @@ pub fn credits_on_failure() -> Option<u128> {
 ///
 /// node_index:        0       1        2         3        4
 ///
-/// In the above example, if we plan to send a message from C to D, 
+/// In the above example, if we plan to send a message from C to D,
 /// we should have node_index = 2 in order to calculate the amount of credits C should freeze.
 /// ```
 ///
-pub fn credits_to_freeze(node_index: u32, 
-                         route_len: u32,
-                         dest_payment: u128) -> Option<u128> {
+pub fn credits_to_freeze(node_index: u32, route_len: u32, dest_payment: u128) -> Option<u128> {
     credits_on_success(node_index, route_len, dest_payment)
 }
-
 
 /// A credit calculator object that is wired to work with a specific request.
 pub struct CreditCalculator {
@@ -62,16 +55,14 @@ pub struct CreditCalculator {
 }
 
 impl CreditCalculator {
-    pub fn new(route_len: u32,
-               dest_payment: u128) -> Self {
-
+    pub fn new(route_len: u32, dest_payment: u128) -> Self {
         CreditCalculator {
             route_len,
-            dest_payment
+            dest_payment,
         }
     }
 
-    /// Amount of credits node <index-1> should freeze when sending 
+    /// Amount of credits node <index-1> should freeze when sending
     /// a request message to node <index>
     /// Source node has index 0. Destination node has index route_len - 1.
     pub fn credits_to_freeze(&self, node_index: u32) -> Option<u128> {
@@ -93,19 +84,17 @@ impl CreditCalculator {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     // use num_traits::PrimInt;
     // use std::cmp;
 
-
     // TODO: Add tests for CreditCalculator.
 
     /*
     fn is_linear<F,N,M>(f: F, begin: N, end: N) -> bool
-    where 
+    where
         F: Fn(N) -> M,
         N: PrimInt,
         M: PrimInt,
@@ -135,11 +124,11 @@ mod tests {
 
         // First index is paid the most, and the last node on the route gets the least. Payment is
         // telescopic:
-        for node_index in 1 .. route_len {
+        for node_index in 1..route_len {
             let credits = credits_on_success(node_index, route_len, dest_payment);
             match opt_old_credits {
-                None => {},
-                Some(old_credits) => {assert!(old_credits > credits)},
+                None => {}
+                Some(old_credits) => assert!(old_credits > credits),
             };
             opt_old_credits = Some(credits);
         }
@@ -152,11 +141,10 @@ mod tests {
 
         // First index is paid the most, and the last node on the route gets the least. Payment is
         // telescopic:
-        for node_index in 1 .. route_len {
+        for node_index in 1..route_len {
             let success_credits = credits_on_success(node_index, route_len, dest_payment);
             let freeze_credits = credits_to_freeze(node_index, route_len, dest_payment);
             assert!(freeze_credits >= success_credits);
         }
     }
 }
-

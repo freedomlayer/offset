@@ -1,9 +1,9 @@
 use std::iter;
 
 use ring;
-use ring::aead::{open_in_place, seal_in_place, CHACHA20_POLY1305, OpeningKey, SealingKey};
+use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey, CHACHA20_POLY1305};
 
-use super::{CryptoError, increase_nonce};
+use super::{increase_nonce, CryptoError};
 
 pub const SYMMETRIC_KEY_LEN: usize = 32;
 // Length of tag for CHACHA20_POLY1305
@@ -22,8 +22,8 @@ pub struct EncryptNonceCounter {
 
 impl EncryptNonceCounter {
     pub fn new() -> Self {
-        EncryptNonceCounter { 
-            inner: EncryptNonce([0_u8; ENC_NONCE_LEN])
+        EncryptNonceCounter {
+            inner: EncryptNonce([0_u8; ENC_NONCE_LEN]),
         }
     }
 
@@ -108,10 +108,9 @@ impl Decryptor {
             Ok(slice) => {
                 let _ = self.nonce_counter.next_nonce();
                 Ok(slice.to_vec())
-            },
+            }
             Err(ring::error::Unspecified) => Err(CryptoError),
         }
-        
     }
 }
 

@@ -1,35 +1,32 @@
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![deny(trivial_numeric_casts, warnings)]
 
-extern crate ring;
 extern crate bytes;
+extern crate ring;
 #[macro_use]
 extern crate common;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
-extern crate rand;
 extern crate byteorder;
+extern crate rand;
 
+pub mod crypto_rand;
 pub mod dh;
 pub mod hash;
 pub mod identity;
-pub mod crypto_rand;
+pub mod nonce_window;
 pub mod sym_encrypt;
 pub mod test_utils;
 pub mod uid;
-pub mod nonce_window;
-
-
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CryptoError;
 
 impl From<::ring::error::Unspecified> for CryptoError {
-    fn from(_: ::ring::error::Unspecified) -> CryptoError { CryptoError }
+    fn from(_: ::ring::error::Unspecified) -> CryptoError {
+        CryptoError
+    }
 }
 
 impl ::std::fmt::Display for CryptoError {
@@ -40,12 +37,15 @@ impl ::std::fmt::Display for CryptoError {
 
 impl ::std::error::Error for CryptoError {
     #[inline]
-    fn description(&self) -> &str { "crypto error" }
+    fn description(&self) -> &str {
+        "crypto error"
+    }
 
     #[inline]
-    fn cause(&self) -> Option<&::std::error::Error> { None }
+    fn cause(&self) -> Option<&::std::error::Error> {
+        None
+    }
 }
-
 
 /// Increase the bytes represented number by 1.
 ///

@@ -1,5 +1,5 @@
-use std::fmt;
 use ring::rand::SecureRandom;
+use std::fmt;
 
 pub const UID_LEN: usize = 16;
 
@@ -18,7 +18,8 @@ impl Uid {
 
     /// Formatting for `Debug` and `Display`.
     fn format(&self) -> String {
-        let upper_hex = self.as_ref()
+        let upper_hex = self
+            .as_ref()
             .iter()
             .map(|byte| format!("{:02X}", byte))
             .collect::<Vec<_>>();

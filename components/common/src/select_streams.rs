@@ -1,17 +1,17 @@
-use std::pin::Pin;
-use std::collections::VecDeque;
-use futures::{Stream, StreamExt, Poll};
 use futures::task::Waker;
+use futures::{Poll, Stream, StreamExt};
+use std::collections::VecDeque;
+use std::pin::Pin;
 
-pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item=T> + Send + 'a>>;
+pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
 
 struct StreamKeeper<'a, T> {
     stream: BoxStream<'a, T>,
     polled: bool,
 }
 
-impl<'a,T> StreamKeeper<'a,T> {
-    fn new(stream: BoxStream<'a,T>) -> Self {
+impl<'a, T> StreamKeeper<'a, T> {
+    fn new(stream: BoxStream<'a, T>) -> Self {
         StreamKeeper {
             stream,
             polled: false,
@@ -19,21 +19,19 @@ impl<'a,T> StreamKeeper<'a,T> {
     }
 }
 
-pub struct SelectStreams<'a,T> {
-    stream_keepers: VecDeque<StreamKeeper<'a,T>>
+pub struct SelectStreams<'a, T> {
+    stream_keepers: VecDeque<StreamKeeper<'a, T>>,
 }
 
-impl<'a,T> Stream for SelectStreams<'a,T> {
+impl<'a, T> Stream for SelectStreams<'a, T> {
     type Item = T;
 
     fn poll_next(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Option<Self::Item>> {
-
         for sk in &mut self.stream_keepers {
             sk.polled = false;
         }
 
         while let Some(mut stream_keeper) = self.stream_keepers.pop_front() {
-
             // Make sure we don't poll the same stream twice in one cycle:
             if stream_keeper.polled {
                 self.stream_keepers.push_front(stream_keeper);
@@ -44,11 +42,11 @@ impl<'a,T> Stream for SelectStreams<'a,T> {
             match stream_keeper.stream.poll_next_unpin(waker) {
                 Poll::Pending => {
                     self.stream_keepers.push_back(stream_keeper);
-                },
+                }
                 Poll::Ready(Some(t)) => {
                     self.stream_keepers.push_back(stream_keeper);
                     return Poll::Ready(Some(t));
-                },
+                }
                 Poll::Ready(None) => {}
             }
         }
@@ -57,12 +55,11 @@ impl<'a,T> Stream for SelectStreams<'a,T> {
     }
 }
 
-pub fn select_streams<'a,T>(streams: Vec<BoxStream<'a,T>>) -> SelectStreams<'a,T> {
-    SelectStreams { 
+pub fn select_streams<'a, T>(streams: Vec<BoxStream<'a, T>>) -> SelectStreams<'a, T> {
+    SelectStreams {
         stream_keepers: streams.into_iter().map(StreamKeeper::new).collect(),
     }
 }
-
 
 #[macro_export]
 macro_rules! select_streams {
@@ -77,18 +74,17 @@ macro_rules! select_streams {
     };
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::stream;
     use futures::executor::block_on;
+    use futures::stream;
 
     #[test]
     fn test_select_stream_basic() {
-        let s1 = stream::iter(vec![1,2,3,4u8]);
-        let s2 = stream::iter(vec![5,6,7,8,9u8]);
-        let s3 = stream::iter(vec![10,11,12,13u8]);
+        let s1 = stream::iter(vec![1, 2, 3, 4u8]);
+        let s2 = stream::iter(vec![5, 6, 7, 8, 9u8]);
+        let s3 = stream::iter(vec![10, 11, 12, 13u8]);
 
         // let streams: Vec<BoxStream<'static, u8>> = vec![Box::pin(s1), Box::pin(s2), Box::pin(s3)];
         // let selected = select_streams(streams);

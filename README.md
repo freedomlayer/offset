@@ -28,11 +28,11 @@ Also, we need the Rust development toolchain.
 
 - Install Rust development toolchain, we recommend [rustup](https://rustup.rs).
 - Install SQLite3:
-    - On Ubuntu, run: `sudo apt install libsqlite3-dev`
-    - On MacOS SQLite3 is part of the system
+  - On Ubuntu, run: `sudo apt install libsqlite3-dev`
+  - On MacOS SQLite3 is part of the system
 - Install capnproto:
-    - On Ubuntu, run: `sudo apt install capnproto`
-    - On MacOS, run: `brew install canpnp`
+  - On Ubuntu, run: `sudo apt install capnproto`
+  - On MacOS, run: `brew install canpnp`
 
 ### Pinned toolchain version
 

@@ -14,14 +14,11 @@ struct Ratchet<U> {
     pub cur_ticks_to_live: usize,
 }
 
-impl<U> Ratchet<U> 
+impl<U> Ratchet<U>
 where
     U: std::cmp::Eq + Clone,
 {
-    pub fn new(session_id: U,
-           counter: u64,
-           ticks_to_live: usize) -> Self {
-
+    pub fn new(session_id: U, counter: u64, ticks_to_live: usize) -> Self {
         let cur_ticks_to_live = ticks_to_live;
         Ratchet {
             session_id,
@@ -36,7 +33,7 @@ where
             self.session_id = session_id.clone();
             self.counter = counter;
             return true;
-        } 
+        }
         // self.session_id == session_id:
         if self.counter < counter {
             self.counter = counter;
@@ -60,12 +57,12 @@ where
     }
 }
 
-pub struct RatchetPool<N,U> {
+pub struct RatchetPool<N, U> {
     ratchets: HashMap<N, Ratchet<U>>,
     ratchet_ticks_to_live: usize,
 }
 
-impl<N,U> RatchetPool<N,U> 
+impl<N, U> RatchetPool<N, U>
 where
     N: std::cmp::Eq + std::hash::Hash + Clone,
     U: std::cmp::Eq + Clone,
@@ -95,12 +92,10 @@ where
     pub fn update(&mut self, node: &N, session_id: &U, counter: u64) -> bool {
         let ratchet = match self.ratchets.get_mut(node) {
             None => {
-                let ratchet = Ratchet::new(session_id.clone(), 
-                                                counter,
-                                                self.ratchet_ticks_to_live);
+                let ratchet = Ratchet::new(session_id.clone(), counter, self.ratchet_ticks_to_live);
                 self.ratchets.insert(node.clone(), ratchet);
                 return true;
-            },
+            }
             Some(ratchet) => ratchet,
         };
         ratchet.update(session_id, counter)
@@ -118,39 +113,39 @@ mod tests {
         let ticks_to_live = 8;
 
         let mut ratchet = Ratchet::new(session_id, counter, ticks_to_live);
-        for _ in 0 .. 16 {
+        for _ in 0..16 {
             counter += 1;
             assert!(ratchet.update(&session_id, counter));
         }
 
         // Can not use the old messages for replay:
-        for i in 0 .. 16 {
+        for i in 0..16 {
             assert!(!ratchet.update(&session_id, i));
         }
 
         // Changing session_id = 1u128:
         session_id = 1u128;
         counter = 0;
-        for _ in 0 .. 16 {
+        for _ in 0..16 {
             counter += 1;
             assert!(ratchet.update(&session_id, counter));
         }
 
         // Can not use the old messages for replay:
-        for i in 0 .. 16 {
+        for i in 0..16 {
             assert!(!ratchet.update(&session_id, i));
         }
 
         // Going back to session_id == 0u128:
         session_id = 0u128;
         counter = 0;
-        for _ in 0 .. 16 {
+        for _ in 0..16 {
             counter += 1;
             assert!(ratchet.update(&session_id, counter));
         }
 
         // Can not use the old messages for replay:
-        for i in 0 .. 16 {
+        for i in 0..16 {
             assert!(!ratchet.update(&session_id, i));
         }
     }
@@ -164,15 +159,15 @@ mod tests {
 
         // Successful updates should reset the ratchet's `cur_ticks_to_live`:
         assert!(ratchet.update(&session_id, 1));
-        for i in 0 .. 7 {
+        for i in 0..7 {
             assert_eq!(ratchet.tick(), 7 - i);
         }
         assert!(ratchet.update(&session_id, 2));
-        for i in 0 .. 7 {
+        for i in 0..7 {
             assert_eq!(ratchet.tick(), 7 - i);
         }
         assert!(ratchet.update(&session_id, 3));
-        for i in 0 .. 7 {
+        for i in 0..7 {
             assert_eq!(ratchet.tick(), 7 - i);
         }
 
@@ -184,7 +179,6 @@ mod tests {
         assert!(ratchet.update(&session_id, 4));
         assert_eq!(ratchet.tick(), 7);
     }
-
 
     #[test]
     fn test_ratchet_pool_basic() {
@@ -222,16 +216,16 @@ mod tests {
         assert!(ratchet_pool.update(&0u128, &0u128, 0));
         assert!(ratchet_pool.update(&1u128, &5u128, 100));
 
-        for _ in 0 .. 4 {
+        for _ in 0..4 {
             assert_eq!(ratchet_pool.tick(), vec![]);
         }
         assert!(ratchet_pool.update(&1u128, &5u128, 101));
-        for _ in 0 .. 3 {
+        for _ in 0..3 {
             assert_eq!(ratchet_pool.tick(), vec![]);
         }
         assert_eq!(ratchet_pool.tick(), vec![0u128]);
 
-        // We expect that node 0u128 was removed, 
+        // We expect that node 0u128 was removed,
         // but node 1u128 was not removed:
 
         // A proof that node 0u128 removed:
@@ -241,4 +235,3 @@ mod tests {
         assert!(!ratchet_pool.update(&1u128, &5u128, 101));
     }
 }
-

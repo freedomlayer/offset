@@ -1,10 +1,10 @@
 use std::marker::PhantomData;
 
-use common::conn::{FutTransform, BoxFuture};
-use timer::TimerClient;
+use common::conn::{BoxFuture, FutTransform};
 use timer::utils::sleep_ticks;
+use timer::TimerClient;
 
-pub struct BackoffConnector<I,O,C> {
+pub struct BackoffConnector<I, O, C> {
     connector: C,
     timer_client: TimerClient,
     backoff_ticks: usize,
@@ -12,12 +12,11 @@ pub struct BackoffConnector<I,O,C> {
     phantom_o: PhantomData<O>,
 }
 
-
 // Automatic Derive(Clone) doesn't work for BackoffConnector,
 // possibly because of the I and O in the phantom data structs?
 // We implement our own clone here:
-impl<I,O,C> Clone for BackoffConnector<I,O,C> 
-where   
+impl<I, O, C> Clone for BackoffConnector<I, O, C>
+where
     C: Clone,
 {
     fn clone(&self) -> Self {
@@ -31,16 +30,13 @@ where
     }
 }
 
-impl<I,O,C> BackoffConnector<I,O,C> 
+impl<I, O, C> BackoffConnector<I, O, C>
 where
-    C: FutTransform<Input=I, Output=Option<O>> + Clone,
+    C: FutTransform<Input = I, Output = Option<O>> + Clone,
 {
-    pub fn new(connector: C,
-               timer_client: TimerClient,
-               backoff_ticks: usize) -> Self {
-
+    pub fn new(connector: C, timer_client: TimerClient, backoff_ticks: usize) -> Self {
         BackoffConnector {
-            connector, 
+            connector,
             timer_client,
             backoff_ticks,
             phantom_i: PhantomData,
@@ -49,28 +45,32 @@ where
     }
 }
 
-impl<I,O,C> FutTransform for BackoffConnector<I,O,C> 
+impl<I, O, C> FutTransform for BackoffConnector<I, O, C>
 where
     I: Send + Clone,
     O: Send,
-    C: FutTransform<Input=I, Output=Option<O>> + Clone + Send,
+    C: FutTransform<Input = I, Output = Option<O>> + Clone + Send,
 {
     type Input = I;
     type Output = Option<O>;
 
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let mut c_self = self.clone();
-        Box::pin(async move {
-            loop {
-                if let Some(output) = await!(c_self.connector.transform(input.clone())) {
-                    return Some(output);
+        Box::pin(
+            async move {
+                loop {
+                    if let Some(output) = await!(c_self.connector.transform(input.clone())) {
+                        return Some(output);
+                    }
+                    // Wait before we attempt to reconnect:
+                    await!(sleep_ticks(
+                        c_self.backoff_ticks,
+                        c_self.timer_client.clone()
+                    ))
+                    .ok()?;
                 }
-                // Wait before we attempt to reconnect:
-                await!(sleep_ticks(c_self.backoff_ticks, c_self.timer_client.clone())).ok()?;
-            }
-        })
+            },
+        )
     }
 }
 
@@ -78,16 +78,16 @@ where
 mod tests {
     use super::*;
 
-    use futures::executor::ThreadPool;
     use futures::channel::mpsc;
-    use futures::{FutureExt, StreamExt, SinkExt};
+    use futures::executor::ThreadPool;
     use futures::task::Spawn;
+    use futures::{FutureExt, SinkExt, StreamExt};
 
-    use common::dummy_connector::DummyConnector;
     use common::conn::ConnPairVec;
+    use common::dummy_connector::DummyConnector;
     use timer::{dummy_timer_multi_sender, TimerTick};
 
-    async fn task_backoff_connector_basic<S>(spawner: S) 
+    async fn task_backoff_connector_basic<S>(spawner: S)
     where
         S: Spawn,
     {
@@ -98,19 +98,18 @@ mod tests {
 
         let backoff_ticks = 8;
 
-        let mut backoff_connector = BackoffConnector::new(dummy_connector, 
-                                                      timer_client,
-                                                      backoff_ticks);
+        let mut backoff_connector =
+            BackoffConnector::new(dummy_connector, timer_client, backoff_ticks);
 
-        let (opt_conn, _) = await!(backoff_connector.transform(10u32)
-            .join(async move {
+        let (opt_conn, _) = await!(backoff_connector.transform(10u32).join(
+            async move {
                 // Connection attempt fails for the first 5 times:
-                for _ in 0 .. 5usize {
+                for _ in 0..5usize {
                     let req = await!(req_receiver.next()).unwrap();
                     assert_eq!(req.address, 10u32);
                     req.reply(None); // Connection failed
                     let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
-                    for _ in 0 .. 8usize {
+                    for _ in 0..8usize {
                         await!(tick_sender.send(TimerTick)).unwrap();
                     }
                 }
@@ -120,12 +119,13 @@ mod tests {
                 // Finally we let the connection attempt succeed.
                 // Return a dummy channel:
                 let (sender, receiver) = mpsc::channel(0);
-                req.reply(Some((sender, receiver))); 
-            }));
+                req.reply(Some((sender, receiver)));
+            }
+        ));
 
         let (mut sender, mut receiver) = opt_conn.unwrap();
-        await!(sender.send(vec![1,2,3])).unwrap();
-        assert_eq!(await!(receiver.next()).unwrap(), vec![1,2,3]);
+        await!(sender.send(vec![1, 2, 3])).unwrap();
+        assert_eq!(await!(receiver.next()).unwrap(), vec![1, 2, 3]);
     }
 
     #[test]

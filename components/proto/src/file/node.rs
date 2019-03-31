@@ -1,11 +1,10 @@
 use std::convert::TryInto;
-use std::io::{self, Write};
 use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
 
+use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 use toml;
-use crate::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
 
 use crate::net::messages::NetAddressError;
 use crate::node::types::NodeAddress;
@@ -72,12 +71,12 @@ pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
     })
 }
 
-
 /// Store NodeAddress to file
-pub fn store_node_to_file(node_address: &NodeAddress, path: &Path)
-    -> Result<(), NodeFileError> {
-
-    let NodeAddress {ref public_key, ref address} = node_address;
+pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(), NodeFileError> {
+    let NodeAddress {
+        ref public_key,
+        ref address,
+    } = node_address;
 
     let node_file = NodeFile {
         public_key: public_key_to_string(&public_key),
@@ -101,10 +100,13 @@ mod tests {
 
     #[test]
     fn test_node_file_basic() {
-        let node_file: NodeFile = toml::from_str(r#"
+        let node_file: NodeFile = toml::from_str(
+            r#"
             public_key = 'public_key_string'
             address = 'address_string'
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_eq!(node_file.public_key, "public_key_string");
         assert_eq!(node_file.address, "address_string");
@@ -127,6 +129,3 @@ mod tests {
         assert_eq!(node_address, node_address2);
     }
 }
-
-
-

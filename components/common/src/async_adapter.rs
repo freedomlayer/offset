@@ -1,11 +1,11 @@
-use std::{cmp, mem};
-use std::marker::PhantomData;
 use core::pin::Pin;
+use std::marker::PhantomData;
+use std::{cmp, mem};
 
 use futures;
-use futures::{Poll, Stream, StreamExt, Sink};
 use futures::io::{AsyncRead, AsyncWrite};
 use futures::task::Waker;
+use futures::{Poll, Sink, Stream, StreamExt};
 
 pub struct AsyncReader<M> {
     opt_receiver: Option<M>,
@@ -21,19 +21,22 @@ impl<M> AsyncReader<M> {
     }
 }
 
-
-impl<M> AsyncRead for AsyncReader<M> where M: Stream<Item=Vec<u8>> + std::marker::Unpin {
-    fn poll_read(&mut self, waker: &Waker, mut buf: &mut [u8]) -> 
-        Poll<Result<usize, futures::io::Error>> {
-
-
+impl<M> AsyncRead for AsyncReader<M>
+where
+    M: Stream<Item = Vec<u8>> + std::marker::Unpin,
+{
+    fn poll_read(
+        &mut self,
+        waker: &Waker,
+        mut buf: &mut [u8],
+    ) -> Poll<Result<usize, futures::io::Error>> {
         let mut total_read = 0; // Total amount of bytes read
         loop {
             // pending_in --> buf (As many bytes as possible)
             let min_len = cmp::min(buf.len(), self.pending_in.len());
-            buf[.. min_len].copy_from_slice(&self.pending_in[.. min_len]);
-            let _ = self.pending_in.drain(.. min_len);
-            buf = &mut buf[min_len ..];
+            buf[..min_len].copy_from_slice(&self.pending_in[..min_len]);
+            let _ = self.pending_in.drain(..min_len);
+            buf = &mut buf[min_len..];
             total_read += min_len;
 
             if buf.is_empty() {
@@ -46,7 +49,7 @@ impl<M> AsyncRead for AsyncReader<M> where M: Stream<Item=Vec<u8>> + std::marker
                         Poll::Ready(Some(data)) => {
                             self.opt_receiver = Some(receiver);
                             self.pending_in = data;
-                        },
+                        }
                         Poll::Ready(None) => return Poll::Ready(Ok(total_read)), // End of incoming data
                         Poll::Pending => {
                             self.opt_receiver = Some(receiver);
@@ -55,25 +58,23 @@ impl<M> AsyncRead for AsyncReader<M> where M: Stream<Item=Vec<u8>> + std::marker
                             } else {
                                 return Poll::Pending;
                             }
-                        },
+                        }
                     };
-                },
+                }
                 None => return Poll::Ready(Ok(total_read)),
             }
         }
     }
 }
 
-
-pub struct AsyncWriter<K,E> {
+pub struct AsyncWriter<K, E> {
     opt_sender: Option<K>,
     pending_out: Vec<u8>,
     max_frame_len: usize,
     phantom_error: PhantomData<E>,
 }
 
-
-impl<K,E> AsyncWriter<K,E> {
+impl<K, E> AsyncWriter<K, E> {
     pub fn new(sender: K, max_frame_len: usize) -> Self {
         AsyncWriter {
             opt_sender: Some(sender),
@@ -84,11 +85,15 @@ impl<K,E> AsyncWriter<K,E> {
     }
 }
 
-
-impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkError=E> + std::marker::Unpin {
-    fn poll_write(&mut self, lw: &Waker, mut buf: &[u8]) 
-        -> Poll<Result<usize, futures::io::Error>> {
-
+impl<K, E> AsyncWrite for AsyncWriter<K, E>
+where
+    K: Sink<SinkItem = Vec<u8>, SinkError = E> + std::marker::Unpin,
+{
+    fn poll_write(
+        &mut self,
+        lw: &Waker,
+        mut buf: &[u8],
+    ) -> Poll<Result<usize, futures::io::Error>> {
         let mut sender = match self.opt_sender.take() {
             Some(sender) => sender,
             None => return Poll::Pending,
@@ -102,21 +107,28 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
             }
 
             // Buffer as much as possible:
-            let free_bytes = self.max_frame_len.checked_sub(self.pending_out.len()).unwrap();
+            let free_bytes = self
+                .max_frame_len
+                .checked_sub(self.pending_out.len())
+                .unwrap();
             let min_len = cmp::min(buf.len(), free_bytes);
-            self.pending_out.extend_from_slice(&buf[.. min_len]);
-            buf = &buf[min_len ..];
+            self.pending_out.extend_from_slice(&buf[..min_len]);
+            buf = &buf[min_len..];
             total_write += min_len;
 
             match Pin::new(&mut sender).poll_ready(lw) {
                 Poll::Ready(Ok(())) => {
                     let pending_out = mem::replace(&mut self.pending_out, Vec::new());
                     match Pin::new(&mut sender).start_send(pending_out) {
-                        Ok(()) => {},
-                        Err(_) => return Poll::Ready(Err(futures::io::Error::new(
-                                futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                        Ok(()) => {}
+                        Err(_) => {
+                            return Poll::Ready(Err(futures::io::Error::new(
+                                futures::io::ErrorKind::BrokenPipe,
+                                "BrokenPipe",
+                            )))
+                        }
                     };
-                },
+                }
                 Poll::Pending => {
                     self.opt_sender = Some(sender);
                     if total_write > 0 {
@@ -124,20 +136,26 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
                     } else {
                         return Poll::Pending;
                     }
-                },
-                Poll::Ready(Err(_)) => return Poll::Ready(Err(futures::io::Error::new(
-                        futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                }
+                Poll::Ready(Err(_)) => {
+                    return Poll::Ready(Err(futures::io::Error::new(
+                        futures::io::ErrorKind::BrokenPipe,
+                        "BrokenPipe",
+                    )))
+                }
             };
         }
     }
-    
-    fn poll_flush(&mut self, lw: &Waker) 
-        -> Poll<Result<(), futures::io::Error>> {
 
+    fn poll_flush(&mut self, lw: &Waker) -> Poll<Result<(), futures::io::Error>> {
         let mut sender = match self.opt_sender.take() {
             Some(sender) => sender,
-            None => return Poll::Ready(Err(futures::io::Error::new(
-                    futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+            None => {
+                return Poll::Ready(Err(futures::io::Error::new(
+                    futures::io::ErrorKind::BrokenPipe,
+                    "BrokenPipe",
+                )))
+            }
         };
 
         // Try to send whatever pending bytes we have:
@@ -146,17 +164,25 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
                 Poll::Ready(Ok(())) => {
                     let pending_out = mem::replace(&mut self.pending_out, Vec::new());
                     match Pin::new(&mut sender).start_send(pending_out) {
-                        Ok(()) => {},
-                        Err(_) => return Poll::Ready(Err(futures::io::Error::new(
-                            futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                        Ok(()) => {}
+                        Err(_) => {
+                            return Poll::Ready(Err(futures::io::Error::new(
+                                futures::io::ErrorKind::BrokenPipe,
+                                "BrokenPipe",
+                            )))
+                        }
                     }
-                },
+                }
                 Poll::Pending => {
                     self.opt_sender = Some(sender);
                     return Poll::Pending;
-                },
-                Poll::Ready(Err(_)) => return Poll::Ready(Err(futures::io::Error::new(
-                        futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                }
+                Poll::Ready(Err(_)) => {
+                    return Poll::Ready(Err(futures::io::Error::new(
+                        futures::io::ErrorKind::BrokenPipe,
+                        "BrokenPipe",
+                    )))
+                }
             }
         }
 
@@ -164,25 +190,29 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
             Poll::Ready(Ok(())) => {
                 self.opt_sender = Some(sender);
                 Poll::Ready(Ok(()))
-            },
+            }
             Poll::Pending => {
                 self.opt_sender = Some(sender);
                 Poll::Pending
-            },
+            }
             Poll::Ready(Err(_)) => Poll::Ready(Err(futures::io::Error::new(
-                    futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                futures::io::ErrorKind::BrokenPipe,
+                "BrokenPipe",
+            ))),
         }
     }
 
-    fn poll_close(&mut self, lw: &Waker) 
-        -> Poll<Result<(), futures::io::Error>> {
-
+    fn poll_close(&mut self, lw: &Waker) -> Poll<Result<(), futures::io::Error>> {
         // TODO: Should we try to flush anything here?
 
         let mut sender = match self.opt_sender.take() {
             Some(sender) => sender,
-            None => return Poll::Ready(Err(futures::io::Error::new(
-                    futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+            None => {
+                return Poll::Ready(Err(futures::io::Error::new(
+                    futures::io::ErrorKind::BrokenPipe,
+                    "BrokenPipe",
+                )))
+            }
         };
 
         match Pin::new(&mut sender).poll_close(lw) {
@@ -190,9 +220,11 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
             Poll::Pending => {
                 self.opt_sender = Some(sender);
                 Poll::Pending
-            },
+            }
             Poll::Ready(Err(_)) => Poll::Ready(Err(futures::io::Error::new(
-                    futures::io::ErrorKind::BrokenPipe, "BrokenPipe"))),
+                futures::io::ErrorKind::BrokenPipe,
+                "BrokenPipe",
+            ))),
         }
     }
 }
@@ -201,15 +233,15 @@ impl<K,E> AsyncWrite for AsyncWriter<K,E> where K: Sink<SinkItem=Vec<u8>, SinkEr
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::SinkExt;
     use futures::executor::LocalPool;
     use futures::io::{AsyncReadExt, AsyncWriteExt};
+    use futures::SinkExt;
 
     // TODO: Tests here are very basic.
     // More tests are required.
 
     /*
-    async fn plain_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + std::marker::Unpin + 'static, 
+    async fn plain_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + std::marker::Unpin + 'static,
                      reader_done_send: oneshot::Sender<bool>)  {
         let mut vec = vec![0u8,0,0,0x90];
         vec.extend(vec![0; 0x90]);
@@ -221,7 +253,7 @@ mod tests {
         reader_done_send.send(true);
     }
 
-    async fn frames_receiver(receiver: impl Stream<Item=Vec<u8>> + std::marker::Unpin + 'static, 
+    async fn frames_receiver(receiver: impl Stream<Item=Vec<u8>> + std::marker::Unpin + 'static,
                        writer_done_send: oneshot::Sender<bool>)  {
         let (opt_data, receiver) = await!(receiver.into_future());
         assert_eq!(opt_data.unwrap(), vec![0; 0x90]);
@@ -251,14 +283,14 @@ mod tests {
         assert_eq!(true, local_pool.run_until(writer_done_recv).unwrap());
     }
 
-    async fn frames_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + std::marker::Unpin + 'static, 
+    async fn frames_sender(sender: impl Sink<SinkItem=Vec<u8>, SinkError=()> + std::marker::Unpin + 'static,
                      reader_done_send: oneshot::Sender<bool>) {
         await!(sender.send(vec![0; 0x90])).unwrap();
         await!(sender.send(vec![1; 0x75])).unwrap();
         reader_done_send.send(true);
     }
 
-    async fn plain_receiver(mut receiver: impl Stream<Item=Vec<u8>> + std::marker::Unpin + 'static, 
+    async fn plain_receiver(mut receiver: impl Stream<Item=Vec<u8>> + std::marker::Unpin + 'static,
                        writer_done_send: oneshot::Sender<bool>) {
 
         let mut total_buf = Vec::new();
@@ -339,20 +371,18 @@ mod tests {
         assert_eq!(expected_buf, total_buf);
     }
 
-
     #[test]
     fn test_basic_async_write() {
         let mut local_pool = LocalPool::new();
         local_pool.run_until(task_basic_async_write());
     }
 
-
     async fn task_basic_async_read() {
         // We use a channel with a large buffer so that we don't need two tasks to run this test.
         let (mut sender, receiver) = mpsc::channel::<Vec<u8>>(100);
         let mut async_reader = AsyncReader::new(receiver);
 
-        for i in 0 .. 20 {
+        for i in 0..20 {
             await!(sender.send(vec![i; 0x10])).unwrap();
         }
         drop(sender);
@@ -367,13 +397,12 @@ mod tests {
         }
 
         let mut expected_buf = Vec::new();
-        for i in 0 .. 20 {
+        for i in 0..20 {
             expected_buf.extend(vec![i; 0x10]);
         }
 
         assert_eq!(&expected_buf[..], &total_buf[..]);
     }
-
 
     #[test]
     fn test_basic_async_read() {

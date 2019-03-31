@@ -1,15 +1,16 @@
-use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
+use std::fmt::Debug;
 
-use proto::funder::messages::{FriendStatus, ChannelerUpdateFriend};
 use proto::app_server::messages::RelayAddress;
+use proto::funder::messages::{ChannelerUpdateFriend, FriendStatus};
 
-use crate::types::ChannelerConfig;
 use crate::handler::handler::MutableFunderState;
+use crate::types::ChannelerConfig;
 
-pub fn handle_init<B>(m_state: &MutableFunderState<B>,
-                      outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>) 
-where
+pub fn handle_init<B>(
+    m_state: &MutableFunderState<B>,
+    outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
     let mut enabled_friends = Vec::new();
@@ -22,7 +23,7 @@ where
                     local_relays: friend.sent_local_relays.to_vec(),
                 };
                 enabled_friends.push(channeler_add_friend);
-            },
+            }
             FriendStatus::Disabled => continue,
         };
     }
@@ -33,9 +34,10 @@ where
     // let report = create_report(&self.state, &self.ephemeral);
     // self.add_outgoing_control(FunderOutgoingControl::Report(report));
 
-
     // Notify Channeler about current address:
-    let relays = m_state.state().relays
+    let relays = m_state
+        .state()
+        .relays
         .iter()
         .cloned()
         .map(RelayAddress::from)
@@ -49,23 +51,21 @@ where
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
     use proto::funder::messages::AddFriend;
-    use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
 
-    use crate::state::{FunderState, FunderMutation};
     use crate::friend::FriendMutation;
+    use crate::state::{FunderMutation, FunderState};
 
     use crate::handler::handler::MutableFunderState;
     use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
     fn test_handle_init_basic() {
-
         // let local_pk = await!(identity_client.request_public_key()).unwrap();
         let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
         let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
@@ -88,11 +88,9 @@ mod tests {
         let funder_mutation = FunderMutation::FriendMutation((pk_b.clone(), friend_mutation));
         state.mutate(&funder_mutation);
 
-
         let mut m_state = MutableFunderState::new(state);
         let mut outgoing_channeler_config = Vec::new();
-        handle_init(&mut m_state,
-                    &mut outgoing_channeler_config);
+        handle_init(&mut m_state, &mut outgoing_channeler_config);
 
         let (_iinitial_state, mutations, _final_state) = m_state.done();
         assert!(mutations.is_empty());
@@ -106,7 +104,7 @@ mod tests {
         match channeler_config {
             ChannelerConfig::SetRelays(cur_relays) => {
                 assert_eq!(cur_relays, vec![dummy_relay_address(0)]);
-            },
+            }
             _ => unreachable!(),
         };
 
@@ -114,9 +112,12 @@ mod tests {
         let channeler_config = outgoing_channeler_config.remove(0);
         match channeler_config {
             ChannelerConfig::UpdateFriend(channeler_update_friend) => {
-                assert_eq!(channeler_update_friend.friend_relays, vec![dummy_relay_address(3)]);
+                assert_eq!(
+                    channeler_update_friend.friend_relays,
+                    vec![dummy_relay_address(3)]
+                );
                 assert_eq!(channeler_update_friend.friend_public_key, pk_b);
-            },
+            }
             _ => unreachable!(),
         };
     }

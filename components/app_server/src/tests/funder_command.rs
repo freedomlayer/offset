@@ -1,25 +1,30 @@
-use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
-use futures::task::Spawn;
 use futures::executor::ThreadPool;
+use futures::task::Spawn;
+use futures::{SinkExt, StreamExt};
 
 use crypto::uid::{Uid, UID_LEN};
 
-use proto::funder::messages::{FunderOutgoingControl, FunderControl};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, NodeReportMutation,
-                                    AppPermissions, AppRequest};
+use proto::app_server::messages::{
+    AppPermissions, AppRequest, AppServerToApp, AppToAppServer, NodeReportMutation,
+};
+use proto::funder::messages::{FunderControl, FunderOutgoingControl};
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 
-use super::utils::{spawn_dummy_app_server, dummy_named_relay_address};
+use super::utils::{dummy_named_relay_address, spawn_dummy_app_server};
 
-async fn task_app_server_loop_funder_command<S>(spawner: S) 
+async fn task_app_server_loop_funder_command<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-
-    let (mut funder_sender, mut funder_receiver,
-         _index_client_sender, _index_client_receiver,
-         mut connections_sender, initial_node_report) = spawn_dummy_app_server(spawner.clone());
+    let (
+        mut funder_sender,
+        mut funder_receiver,
+        _index_client_sender,
+        _index_client_receiver,
+        mut connections_sender,
+        initial_node_report,
+    ) = spawn_dummy_app_server(spawner.clone());
 
     let (mut app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
@@ -41,8 +46,10 @@ where
     };
 
     // Send a command through the app:
-    let funder_command = AppToAppServer::new(Uid::from(&[22; UID_LEN]),
-                AppRequest::AddRelay(dummy_named_relay_address(0)));
+    let funder_command = AppToAppServer::new(
+        Uid::from(&[22; UID_LEN]),
+        AppRequest::AddRelay(dummy_named_relay_address(0)),
+    );
     await!(app_sender.send(funder_command)).unwrap();
 
     // SetRelays command should be forwarded to the Funder:
@@ -59,22 +66,27 @@ where
         opt_app_request_id: Some(Uid::from(&[22; UID_LEN])),
         mutations,
     };
-    await!(funder_sender.send(FunderOutgoingControl::ReportMutations(funder_report_mutations))).unwrap();
+    await!(funder_sender.send(FunderOutgoingControl::ReportMutations(
+        funder_report_mutations
+    )))
+    .unwrap();
 
     let to_app_message = await!(app_receiver.next()).unwrap();
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
-            assert_eq!(report_mutations.opt_app_request_id, Some(Uid::from(&[22; UID_LEN])));
+            assert_eq!(
+                report_mutations.opt_app_request_id,
+                Some(Uid::from(&[22; UID_LEN]))
+            );
             assert_eq!(report_mutations.mutations.len(), 1);
             let report_mutation = &report_mutations.mutations[0];
             match report_mutation {
                 NodeReportMutation::Funder(received_funder_report_mutation) => {
-                    assert_eq!(received_funder_report_mutation, 
-                               &funder_report_mutation);
-                },
+                    assert_eq!(received_funder_report_mutation, &funder_report_mutation);
+                }
                 _ => unreachable!(),
             }
-        },
+        }
         _ => unreachable!(),
     }
 }
@@ -84,4 +96,3 @@ fn test_app_server_loop_funder_command() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_app_server_loop_funder_command(thread_pool.clone()));
 }
-

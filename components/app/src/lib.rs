@@ -2,49 +2,44 @@
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
-
+#![deny(trivial_numeric_casts, warnings)]
 #![allow(unused)]
 
 #[macro_use]
 extern crate log;
 
-mod identity;
 mod connect;
+mod identity;
 pub mod uid;
 
-pub use proto::file::node::load_node_from_file;
-pub use proto::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
-pub use proto::file::relay::load_relay_from_file;
-pub use proto::file::index_server::load_index_server_from_file;
 pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
+pub use proto::file::index_server::load_index_server_from_file;
+pub use proto::file::node::load_node_from_file;
+pub use proto::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
+pub use proto::file::relay::load_relay_from_file;
 
-pub use proto::app_server::messages::{AppPermissions, RelayAddress, NamedRelayAddress};
+pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
-pub use node::connect::{AppReport, AppConfig, 
-    AppRoutes, AppSendFunds, NodeConnection};
+pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
 
-pub use self::identity::{identity_from_file, IdentityFromFileError};
 pub use self::connect::{connect, ConnectError};
+pub use self::identity::{identity_from_file, IdentityFromFileError};
 
 // TODO: Possibly reduce what we export from report in the future?
 pub mod report {
-    pub use proto::report::messages::{ChannelStatusReport,
-        MoveTokenHashedReport, SentLocalRelaysReport,
-        FriendStatusReport, RequestsStatusReport, McRequestsStatusReport,
-        McBalanceReport, DirectionReport, FriendLivenessReport, TcReport,
-        ResetTermsReport, ChannelInconsistentReport, FriendReport, FunderReport,
-        FriendReportMutation, AddFriendReport, FunderReportMutation, 
-        FunderReportMutations, FunderReportMutateError};
+    pub use proto::report::messages::{
+        AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, DirectionReport,
+        FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
+        FunderReportMutateError, FunderReportMutation, FunderReportMutations, McBalanceReport,
+        McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
+        SentLocalRelaysReport, TcReport,
+    };
 
     pub use proto::app_server::messages::{NodeReport, NodeReportMutation};
-    pub use proto::index_client::messages::{IndexClientReport, AddIndexServer, IndexClientReportMutation};
+    pub use proto::index_client::messages::{
+        AddIndexServer, IndexClientReport, IndexClientReportMutation,
+    };
 }
 
 pub mod invoice {
@@ -52,8 +47,8 @@ pub mod invoice {
 }
 
 pub mod route {
-    pub use proto::index_server::messages::RouteWithCapacity;
     pub use proto::funder::messages::FriendsRoute;
+    pub use proto::index_server::messages::RouteWithCapacity;
 
 }
 

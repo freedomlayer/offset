@@ -1,13 +1,13 @@
 #![allow(unused)]
 
-use std::mem;
-use std::sync::{Arc, Mutex};
 use std::collections::{HashMap, HashSet};
+use std::mem;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 
-use futures::task::{Spawn, SpawnError, Waker, ArcWake};
 use futures::future::{self, FutureObj};
-use futures::{Poll, Future};
+use futures::task::{ArcWake, Spawn, SpawnError, Waker};
+use futures::{Future, Poll};
 
 // use crate::caller_info::{get_caller_info, CallerInfo};
 
@@ -15,7 +15,7 @@ struct TestExecutorInner {
     /// The id that will be given to the next registered future:
     next_id: usize,
     /// Futures in progress:
-    futures: HashMap<usize, Pin<Box<dyn Future<Output=()> + Send>>>,
+    futures: HashMap<usize, Pin<Box<dyn Future<Output = ()> + Send>>>,
     /// id of current future being polled:
     opt_polled_id: Option<usize>,
     /// Next set of futures we need to wake:
@@ -37,7 +37,8 @@ impl TestExecutorInner {
     }
 
     fn add_wake(&mut self, future_id: usize) {
-        self.new_wakes.retain(|cur_future_id| cur_future_id != &future_id);
+        self.new_wakes
+            .retain(|cur_future_id| cur_future_id != &future_id);
         self.new_wakes.push(future_id);
     }
 }
@@ -48,9 +49,7 @@ struct TestWaker {
 }
 
 impl TestWaker {
-    fn new(future_id: usize,
-           arc_mutex_inner: Arc<Mutex<TestExecutorInner>>) -> Self {
-
+    fn new(future_id: usize, arc_mutex_inner: Arc<Mutex<TestExecutorInner>>) -> Self {
         TestWaker {
             future_id,
             arc_mutex_inner,
@@ -65,7 +64,6 @@ impl ArcWake for TestWaker {
         inner.add_wake(arc_self.future_id);
     }
 }
-
 
 #[derive(Clone)]
 pub struct TestExecutor {
@@ -86,7 +84,6 @@ impl TestExecutor {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunOutput<T> {
     /// Output has returned
@@ -96,7 +93,6 @@ pub enum RunOutput<T> {
 }
 
 impl<T> RunOutput<T> {
-
     /// Returns output if RunOutput contains an output
     pub fn output(self) -> Option<T> {
         match self {
@@ -123,9 +119,7 @@ pub struct WaitFuture {
 
 impl WaitFuture {
     fn new() -> Self {
-        WaitFuture {
-            was_polled: false,
-        }
+        WaitFuture { was_polled: false }
     }
 }
 
@@ -144,9 +138,7 @@ impl Future for WaitFuture {
     }
 }
 
-
 impl TestExecutor {
-
     /// Perform one iteration of polling all futures that needs to be awaken.
     /// If the local future is resolved, we return its output.
     fn poll_future(&self, future_id: usize, waker: &Waker) {
@@ -177,16 +169,18 @@ impl TestExecutor {
                 // Put the future back:
                 let mut inner = self.arc_mutex_inner.lock().unwrap();
                 inner.futures.insert(future_id, future);
-            },
-            Poll::Ready(()) => {},
+            }
+            Poll::Ready(()) => {}
         };
     }
 
     /// Perform one iteration of polling all futures that needs to be awaken.
     /// If the local future is resolved, we return its output.
-    fn wake_iter_local_future<F>(&self, 
-                                 local_future_id: usize, 
-                                 local_future: &mut Pin<Box<F>>) -> Option<F::Output>
+    fn wake_iter_local_future<F>(
+        &self,
+        local_future_id: usize,
+        local_future: &mut Pin<Box<F>>,
+    ) -> Option<F::Output>
     where
         F: Future,
     {
@@ -210,7 +204,7 @@ impl TestExecutor {
             let waker = self.create_waker(future_id);
             if future_id == local_future_id {
                 // Woken future is our local future:
-                
+
                 // Mark current future being polled:
                 {
                     let mut inner = self.arc_mutex_inner.lock().unwrap();
@@ -250,7 +244,9 @@ impl TestExecutor {
         let mut boxed_local_future = Box::pin(local_future);
 
         loop {
-            if let Some(local_output) = self.wake_iter_local_future(local_future_id, &mut boxed_local_future) {
+            if let Some(local_output) =
+                self.wake_iter_local_future(local_future_id, &mut boxed_local_future)
+            {
                 return RunOutput::Output(local_output);
             }
             {
@@ -275,8 +271,7 @@ impl TestExecutor {
         }
 
         match inner.opt_polled_id {
-            Some(polled_id) =>
-                inner.opt_waiter_id = Some(polled_id),
+            Some(polled_id) => inner.opt_waiter_id = Some(polled_id),
             None => panic!("wait() called from outside a future"),
         };
 
@@ -322,13 +317,8 @@ impl TestExecutor {
 }
 
 impl Spawn for TestExecutor {
-
     /// Spawn a new future
-    fn spawn_obj(
-        &mut self, 
-        future: FutureObj<'static, ()>
-    ) -> Result<(), SpawnError> {
-
+    fn spawn_obj(&mut self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
         let mut inner = self.arc_mutex_inner.lock().unwrap();
 
         // Obtain an id for the future:
@@ -345,13 +335,12 @@ impl Spawn for TestExecutor {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::channel::{mpsc, oneshot};
     use futures::task::SpawnExt;
-    use futures::channel::{oneshot, mpsc};
-    use futures::{StreamExt, SinkExt};
+    use futures::{SinkExt, StreamExt};
 
     #[test]
     fn test_lazy_future() {
@@ -367,9 +356,11 @@ mod tests {
 
         let (sender, receiver) = oneshot::channel();
 
-        let res = test_executor.spawn(async move {
-            sender.send(());
-        });
+        let res = test_executor.spawn(
+            async move {
+                sender.send(());
+            },
+        );
 
         let res = test_executor.run(receiver);
         assert_eq!(res.output().unwrap().unwrap(), ());
@@ -382,31 +373,35 @@ mod tests {
         let (mut init_sender, mut init_receiver) = oneshot::channel();
         let arc_mutex_res = Arc::new(Mutex::new(false));
 
-
         let c_arc_mutex_res = arc_mutex_res.clone();
-        test_executor.spawn(async move {
-            await!(init_receiver).unwrap();
+        test_executor
+            .spawn(
+                async move {
+                    await!(init_receiver).unwrap();
 
-            let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
-            await!(a_sender.send(0)).unwrap();
-            assert_eq!(await!(a_receiver.next()).unwrap(), 0);
+                    let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
+                    await!(a_sender.send(0)).unwrap();
+                    assert_eq!(await!(a_receiver.next()).unwrap(), 0);
 
-            let mut res_guard = c_arc_mutex_res.lock().unwrap();
-            *res_guard = true;
-        }).unwrap();
+                    let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                    *res_guard = true;
+                },
+            )
+            .unwrap();
 
         let mut c_test_executor = test_executor.clone();
-        let res = test_executor.run(async move {
-            init_sender.send(()).unwrap();
-            await!(c_test_executor.wait());
-            0x1337
-        });
+        let res = test_executor.run(
+            async move {
+                init_sender.send(()).unwrap();
+                await!(c_test_executor.wait());
+                0x1337
+            },
+        );
 
         assert_eq!(res.output().unwrap(), 0x1337);
 
         let res_guard = arc_mutex_res.lock().unwrap();
         assert!(*res_guard);
-
     }
 
     // Based on:
@@ -438,14 +433,16 @@ mod tests {
     fn test_yield() {
         let mut test_executor = TestExecutor::new();
 
-        for _ in 0 .. 8 {
+        for _ in 0..8 {
             test_executor.spawn(Yield::new(0x10)).unwrap();
         }
 
         let mut c_test_executor = test_executor.clone();
-        test_executor.run(async move {
-            await!(c_test_executor.wait());
-        });
+        test_executor.run(
+            async move {
+                await!(c_test_executor.wait());
+            },
+        );
     }
 
     #[test]
@@ -454,19 +451,22 @@ mod tests {
 
         let arc_mutex_res = Arc::new(Mutex::new(0usize));
         let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
-        test_executor.spawn(async move {
-            // Channel has limited capacity:
-            let (mut sender, _receiver) = mpsc::channel::<u32>(8);
+        test_executor
+            .spawn(
+                async move {
+                    // Channel has limited capacity:
+                    let (mut sender, _receiver) = mpsc::channel::<u32>(8);
 
-            // We keep sending into the channel.
-            // At some point this loop should be stuck, because the channel is full.
-            loop {
-                await!(sender.send(0)).unwrap();
-                let mut res_guard = c_arc_mutex_res.lock().unwrap();
-                *res_guard = res_guard.checked_add(1).unwrap();
-            }
-
-        }).unwrap();
+                    // We keep sending into the channel.
+                    // At some point this loop should be stuck, because the channel is full.
+                    loop {
+                        await!(sender.send(0)).unwrap();
+                        let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                        *res_guard = res_guard.checked_add(1).unwrap();
+                    }
+                },
+            )
+            .unwrap();
 
         test_executor.run_until_no_progress();
         let res_guard = arc_mutex_res.lock().unwrap();
@@ -477,8 +477,9 @@ mod tests {
     fn test_spawn_with_handle() {
         let mut test_executor = TestExecutor::new();
 
-        let handle = test_executor.spawn_with_handle(
-            future::ready(0x1337u32)).unwrap();
+        let handle = test_executor
+            .spawn_with_handle(future::ready(0x1337u32))
+            .unwrap();
 
         assert_eq!(test_executor.run(handle).output().unwrap(), 0x1337u32);
         test_executor.run_until_no_progress();

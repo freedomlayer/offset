@@ -1,19 +1,19 @@
-use std::fmt::Debug;
 use im::vector::Vector as ImVec;
+use std::fmt::Debug;
 
 use crypto::identity::PublicKey;
 
-use common::safe_arithmetic::SafeUnsignedArithmetic;
 use common::canonical_serialize::CanonicalSerialize;
+use common::safe_arithmetic::SafeUnsignedArithmetic;
 
-use proto::funder::messages::{RequestSendFunds,
-    ResponseSendFunds, FailureSendFunds, ResetTerms,
-    FriendStatus, RequestsStatus, PendingRequest};
-use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
+use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
+use proto::funder::messages::{
+    FailureSendFunds, FriendStatus, PendingRequest, RequestSendFunds, RequestsStatus, ResetTerms,
+    ResponseSendFunds,
+};
 
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
-
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
@@ -24,7 +24,7 @@ pub enum ResponseOp {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SentLocalRelays<B> 
+pub enum SentLocalRelays<B>
 where
     B: Clone,
 {
@@ -33,7 +33,7 @@ where
     LastSent(ImVec<NamedRelayAddress<B>>),
 }
 
-impl<B> SentLocalRelays<B> 
+impl<B> SentLocalRelays<B>
 where
     B: Clone + Debug,
 {
@@ -53,17 +53,15 @@ where
                 relays.sort_by_key(|relay_address| relay_address.public_key.clone());
                 relays.dedup_by_key(|relay_address| relay_address.public_key.clone());
                 relays
-            },
-            SentLocalRelays::LastSent(last_address) =>
-                last_address
-                    .iter()
-                    .cloned()
-                    .map(|named_relay_address| named_relay_address.into())
-                    .collect::<Vec<_>>()
+            }
+            SentLocalRelays::LastSent(last_address) => last_address
+                .iter()
+                .cloned()
+                .map(|named_relay_address| named_relay_address.into())
+                .collect::<Vec<_>>(),
         }
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FriendMutation<B: Clone> {
@@ -97,16 +95,18 @@ pub enum ChannelStatus<B> {
     Consistent(TokenChannel<B>),
 }
 
-impl<B> ChannelStatus<B> 
+impl<B> ChannelStatus<B>
 where
     B: Clone + CanonicalSerialize,
 {
     pub fn get_last_incoming_move_token_hashed(&self) -> Option<MoveTokenHashed> {
         match &self {
-            ChannelStatus::Inconsistent(channel_inconsistent) => 
-                channel_inconsistent.opt_last_incoming_move_token.clone(),
-            ChannelStatus::Consistent(token_channel) => 
-                token_channel.get_last_incoming_move_token_hashed().cloned(),
+            ChannelStatus::Inconsistent(channel_inconsistent) => {
+                channel_inconsistent.opt_last_incoming_move_token.clone()
+            }
+            ChannelStatus::Consistent(token_channel) => {
+                token_channel.get_last_incoming_move_token_hashed().cloned()
+            }
         }
     }
 }
@@ -126,21 +126,21 @@ pub struct FriendState<B: Clone> {
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
     pub pending_user_requests: ImVec<RequestSendFunds>,
-    // Request that the user has sent to this neighbor, 
+    // Request that the user has sent to this neighbor,
     // but have not been processed yet. Bounded in size.
 }
 
-
-impl<B> FriendState<B> 
+impl<B> FriendState<B>
 where
     B: Clone + CanonicalSerialize,
 {
-    pub fn new(local_public_key: &PublicKey,
-               remote_public_key: &PublicKey,
-               remote_relays: Vec<RelayAddress<B>>,
-               name: String,
-               balance: i128) -> Self {
-
+    pub fn new(
+        local_public_key: &PublicKey,
+        remote_public_key: &PublicKey,
+        remote_relays: Vec<RelayAddress<B>>,
+        name: String,
+        balance: i128,
+    ) -> Self {
         let token_channel = TokenChannel::new(local_public_key, remote_public_key, balance);
 
         FriendState {
@@ -181,64 +181,67 @@ where
     ///
     pub fn get_shared_credits(&self) -> u128 {
         let balance = match &self.channel_status {
-            ChannelStatus::Consistent(token_channel) =>
-                &token_channel.get_mutual_credit().state().balance,
+            ChannelStatus::Consistent(token_channel) => {
+                &token_channel.get_mutual_credit().state().balance
+            }
             ChannelStatus::Inconsistent(_channel_inconsistent) => return 0,
         };
-        balance.local_max_debt.saturating_add_signed(balance.balance)
+        balance
+            .local_max_debt
+            .saturating_add_signed(balance.balance)
     }
 
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<B>) {
         match friend_mutation {
-            FriendMutation::TcMutation(tc_mutation) => {
-                match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut token_channel) =>
-                        token_channel.mutate(tc_mutation),
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
+            FriendMutation::TcMutation(tc_mutation) => match &mut self.channel_status {
+                ChannelStatus::Consistent(ref mut token_channel) => {
+                    token_channel.mutate(tc_mutation)
                 }
+                ChannelStatus::Inconsistent(_) => unreachable!(),
             },
             FriendMutation::SetInconsistent(channel_inconsistent) => {
                 self.channel_status = ChannelStatus::Inconsistent(channel_inconsistent.clone());
-            },
+            }
             FriendMutation::SetConsistent(token_channel) => {
                 self.channel_status = ChannelStatus::Consistent(token_channel.clone());
-            },
+            }
             FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
                 self.wanted_remote_max_debt = *wanted_remote_max_debt;
-            },
+            }
             FriendMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
-            },
+            }
             FriendMutation::PushBackPendingRequest(request_send_funds) => {
                 self.pending_requests.push_back(request_send_funds.clone());
-            },
+            }
             FriendMutation::PopFrontPendingRequest => {
                 let _ = self.pending_requests.pop_front();
-            },
+            }
             FriendMutation::PushBackPendingResponse(response_op) => {
                 self.pending_responses.push_back(response_op.clone());
-            },
+            }
             FriendMutation::PopFrontPendingResponse => {
                 let _ = self.pending_responses.pop_front();
-            },
+            }
             FriendMutation::PushBackPendingUserRequest(request_send_funds) => {
-                self.pending_user_requests.push_back(request_send_funds.clone());
-            },
+                self.pending_user_requests
+                    .push_back(request_send_funds.clone());
+            }
             FriendMutation::PopFrontPendingUserRequest => {
                 let _ = self.pending_user_requests.pop_front();
-            },
+            }
             FriendMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
-            },
+            }
             FriendMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
-            },
+            }
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
-            },
+            }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();
-            },
+            }
         }
     }
 }

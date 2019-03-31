@@ -1,5 +1,5 @@
-use std::path::Path;
 use futures::task::{Spawn, SpawnExt};
+use std::path::Path;
 
 use identity::{create_identity, IdentityClient};
 
@@ -11,20 +11,20 @@ pub enum IdentityFromFileError {
     CreateIdentityError,
 }
 
-pub fn identity_from_file<S>(idfile_path: &Path, 
-                            mut spawner: S) 
-            -> Result<IdentityClient, IdentityFromFileError>  
+pub fn identity_from_file<S>(
+    idfile_path: &Path,
+    mut spawner: S,
+) -> Result<IdentityClient, IdentityFromFileError>
 where
     S: Spawn,
 {
-
-    let identity = load_identity_from_file(idfile_path)
-        .map_err(|_| IdentityFromFileError::LoadFileError)?;
+    let identity =
+        load_identity_from_file(idfile_path).map_err(|_| IdentityFromFileError::LoadFileError)?;
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
-    spawner.spawn(identity_loop)
+    spawner
+        .spawn(identity_loop)
         .map_err(|_| IdentityFromFileError::CreateIdentityError)?;
     Ok(IdentityClient::new(sender))
 }
-

@@ -1,11 +1,11 @@
-use std::convert::TryFrom;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use futures::channel::{mpsc, oneshot};
-use futures::{StreamExt, SinkExt};
 use futures::task::{Spawn, SpawnExt};
+use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPairVec, FutTransform, BoxFuture};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use proto::net::messages::NetAddress;
 
 /// Length of a connection channel.
@@ -24,7 +24,6 @@ pub enum SimNetworkRequest {
 }
 
 pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRequest>) {
-
     let mut listeners: HashMap<NetAddress, mpsc::Sender<ConnPairVec>> = HashMap::new();
 
     while let Some(request) = await!(incoming_requests.next()) {
@@ -34,7 +33,10 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                 if let Some(cur_sender) = listeners.remove(&listen_address) {
                     if !cur_sender.is_closed() {
                         // Someone is already listening on this address
-                        warn!("SimNetworkRequest::Listen: Listen address: {:?} is in use", listen_address);
+                        warn!(
+                            "SimNetworkRequest::Listen: Listen address: {:?} is in use",
+                            listen_address
+                        );
                         listeners.insert(listen_address, cur_sender);
                         continue;
                     }
@@ -46,7 +48,7 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                 } else {
                     warn!("SimNetworkRequest::Listen: Request failed");
                 }
-            },
+            }
             SimNetworkRequest::Connect((connect_address, oneshot_sender)) => {
                 info!("SimNetworkRequest::Connect({:?})", connect_address);
                 if let Some(mut conn_sender) = listeners.remove(&connect_address) {
@@ -67,7 +69,7 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                 } else {
                     warn!("Connection failed: No listeners at: {:?}", connect_address);
                 }
-            },
+            }
         }
     }
     info!("sim_network_loop() closed");
@@ -83,22 +85,21 @@ pub struct SimNetworkClient {
     sender: mpsc::Sender<SimNetworkRequest>,
 }
 
-
 impl SimNetworkClient {
     pub fn new(sender: mpsc::Sender<SimNetworkRequest>) -> Self {
-        SimNetworkClient {
-            sender,
-        }
+        SimNetworkClient { sender }
     }
 
-    pub async fn listen(&mut self, net_address: NetAddress) 
-        -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
-
+    pub async fn listen(
+        &mut self,
+        net_address: NetAddress,
+    ) -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
-        await!(self.sender.send(SimNetworkRequest::Listen((net_address, response_sender))))
-            .map_err(|_| SimNetworkClientError::SendRequestError)?;
-        await!(response_receiver)
-            .map_err(|_| SimNetworkClientError::ReceiveResponseError)
+        await!(self
+            .sender
+            .send(SimNetworkRequest::Listen((net_address, response_sender))))
+        .map_err(|_| SimNetworkClientError::SendRequestError)?;
+        await!(response_receiver).map_err(|_| SimNetworkClientError::ReceiveResponseError)
     }
 }
 
@@ -117,11 +118,15 @@ impl FutTransform for SimNetworkClient {
     #[allow(unused)]
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
-        Box::pin(async move {
-            await!(self.sender.send(SimNetworkRequest::Connect((net_address, response_sender))))
+        Box::pin(
+            async move {
+                await!(self
+                    .sender
+                    .send(SimNetworkRequest::Connect((net_address, response_sender))))
                 .ok()?;
-            await!(response_receiver).ok()
-        })
+                await!(response_receiver).ok()
+            },
+        )
     }
 }
 
@@ -133,24 +138,21 @@ pub fn create_sim_network<S>(spawner: &mut S) -> SimNetworkClient
 where
     S: Spawn,
 {
-
     let (request_sender, incoming_requests) = mpsc::channel(CHANNEL_SIZE);
     spawner.spawn(sim_network_loop(incoming_requests)).unwrap();
 
     SimNetworkClient::new(request_sender)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    async fn task_sim_network_basic<S>(mut spawner: S) 
+    async fn task_sim_network_basic<S>(mut spawner: S)
     where
         S: Spawn,
     {
-
         let mut net_client1 = create_sim_network(&mut spawner);
         let mut net_client2 = net_client1.clone();
         let mut net_client3 = net_client1.clone();
@@ -158,27 +160,28 @@ mod tests {
         let mut incoming1 = await!(net_client1.listen(net_address("net_client1"))).unwrap();
         let mut incoming2 = await!(net_client2.listen(net_address("net_client2"))).unwrap();
 
-
-        for _ in 0 .. 3 {
-            let (mut sender3, mut receiver3) = await!(net_client3.transform(net_address("net_client1"))).unwrap();
+        for _ in 0..3 {
+            let (mut sender3, mut receiver3) =
+                await!(net_client3.transform(net_address("net_client1"))).unwrap();
             let (mut sender1, mut receiver1) = await!(incoming1.next()).unwrap();
 
-            await!(sender1.send(vec![1,2,3])).unwrap();
-            assert_eq!(await!(receiver3.next()), Some(vec![1,2,3]));
+            await!(sender1.send(vec![1, 2, 3])).unwrap();
+            assert_eq!(await!(receiver3.next()), Some(vec![1, 2, 3]));
 
-            await!(sender3.send(vec![3,2,1])).unwrap();
-            assert_eq!(await!(receiver1.next()), Some(vec![3,2,1]));
+            await!(sender3.send(vec![3, 2, 1])).unwrap();
+            assert_eq!(await!(receiver1.next()), Some(vec![3, 2, 1]));
         }
 
-        for _ in 0 .. 3 {
-            let (mut sender3, mut receiver3) = await!(net_client3.transform(net_address("net_client2"))).unwrap();
+        for _ in 0..3 {
+            let (mut sender3, mut receiver3) =
+                await!(net_client3.transform(net_address("net_client2"))).unwrap();
             let (mut sender2, mut receiver2) = await!(incoming2.next()).unwrap();
 
-            await!(sender2.send(vec![1,2,3])).unwrap();
-            assert_eq!(await!(receiver3.next()), Some(vec![1,2,3]));
+            await!(sender2.send(vec![1, 2, 3])).unwrap();
+            assert_eq!(await!(receiver3.next()), Some(vec![1, 2, 3]));
 
-            await!(sender3.send(vec![3,2,1])).unwrap();
-            assert_eq!(await!(receiver2.next()), Some(vec![3,2,1]));
+            await!(sender3.send(vec![3, 2, 1])).unwrap();
+            assert_eq!(await!(receiver2.next()), Some(vec![3, 2, 1]));
         }
 
         drop(incoming2);

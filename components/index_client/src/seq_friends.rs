@@ -1,6 +1,6 @@
-use futures::{StreamExt, SinkExt};
-use futures::task::{SpawnError, Spawn, SpawnExt};
-use futures::channel::{oneshot, mpsc};
+use futures::channel::{mpsc, oneshot};
+use futures::task::{Spawn, SpawnError, SpawnExt};
+use futures::{SinkExt, StreamExt};
 
 use crypto::identity::PublicKey;
 use proto::index_client::messages::{IndexMutation, UpdateFriend};
@@ -26,9 +26,7 @@ pub struct SeqFriendsClient {
     requests_sender: mpsc::Sender<SeqFriendsRequest>,
 }
 
-
-fn apply_index_mutation(seq_friends: &mut SeqFriends,
-                            index_mutation: &IndexMutation) {
+fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMutation) {
     match index_mutation {
         IndexMutation::UpdateFriend(update_friend) => {
             let capacity_pair = (update_friend.send_capacity, update_friend.recv_capacity);
@@ -36,84 +34,81 @@ fn apply_index_mutation(seq_friends: &mut SeqFriends,
         }
         IndexMutation::RemoveFriend(public_key) => {
             let _ = seq_friends.remove(public_key);
-        },
+        }
     }
 }
 
-
-async fn seq_friends_loop(mut seq_friends: SeqFriends,
-                          mut requests_receiver: mpsc::Receiver<SeqFriendsRequest>) {
-
+async fn seq_friends_loop(
+    mut seq_friends: SeqFriends,
+    mut requests_receiver: mpsc::Receiver<SeqFriendsRequest>,
+) {
     while let Some(request) = await!(requests_receiver.next()) {
         match request {
             SeqFriendsRequest::Mutate(index_mutation, response_sender) => {
                 apply_index_mutation(&mut seq_friends, &index_mutation);
                 let _ = response_sender.send(());
-            },
+            }
             SeqFriendsRequest::ResetCountdown(response_sender) => {
                 let _ = response_sender.send(seq_friends.reset_countdown());
-            },
+            }
             SeqFriendsRequest::NextUpdate(response_sender) => {
-                let update_friend = seq_friends.next()
-                    .map(|(cycle_countdown, (public_key, capacities))| {
-                        let (send_capacity, recv_capacity) = capacities;
-                        let update_friend = UpdateFriend {
-                            public_key,
-                            send_capacity,
-                            recv_capacity,
-                        };
-                        (cycle_countdown, update_friend)
-                    });
+                let update_friend =
+                    seq_friends
+                        .next()
+                        .map(|(cycle_countdown, (public_key, capacities))| {
+                            let (send_capacity, recv_capacity) = capacities;
+                            let update_friend = UpdateFriend {
+                                public_key,
+                                send_capacity,
+                                recv_capacity,
+                            };
+                            (cycle_countdown, update_friend)
+                        });
                 let _ = response_sender.send(update_friend);
-            },
+            }
         }
     }
 }
 
-
 impl SeqFriendsClient {
     pub fn new(requests_sender: mpsc::Sender<SeqFriendsRequest>) -> Self {
-        SeqFriendsClient {
-            requests_sender,
-        }
+        SeqFriendsClient { requests_sender }
     }
 
-    pub async fn mutate(&mut self, index_mutation: IndexMutation) 
-        -> Result<(), SeqFriendsClientError> {
-
+    pub async fn mutate(
+        &mut self,
+        index_mutation: IndexMutation,
+    ) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::Mutate(index_mutation, sender);
         await!(self.requests_sender.send(request))
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver)
-           .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
-    pub async fn reset_countdown(&mut self)
-        -> Result<(), SeqFriendsClientError> {
-
+    pub async fn reset_countdown(&mut self) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::ResetCountdown(sender);
         await!(self.requests_sender.send(request))
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver)
-           .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
-    pub async fn next_update(&mut self)
-        -> Result<Option<(usize, UpdateFriend)>, SeqFriendsClientError> {
-
+    pub async fn next_update(
+        &mut self,
+    ) -> Result<Option<(usize, UpdateFriend)>, SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::NextUpdate(sender);
         await!(self.requests_sender.send(request))
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver)
-           .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 }
 
-pub fn create_seq_friends_service<S>(seq_friends: SeqFriends,
-                                    mut spawner: S) -> Result<SeqFriendsClient, SpawnError> 
+pub fn create_seq_friends_service<S>(
+    seq_friends: SeqFriends,
+    mut spawner: S,
+) -> Result<SeqFriendsClient, SpawnError>
 where
     S: Spawn,
 {

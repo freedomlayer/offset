@@ -1,24 +1,22 @@
-use std::marker::Unpin;
 use std::collections::HashMap;
+use std::marker::Unpin;
 
-
-use futures::{future, stream, Stream, StreamExt, Sink, SinkExt};
-use futures::channel::{oneshot, mpsc};
+use futures::channel::{mpsc, oneshot};
+use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
 use common::conn::ConnPair;
-use common::select_streams::{BoxStream, select_streams};
-use crypto::crypto_rand::{RandValue, CryptoRandom};
-use crypto::uid::Uid;
+use common::select_streams::{select_streams, BoxStream};
+use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
+use crypto::uid::Uid;
 
 use identity::IdentityClient;
 
-use proto::index_server::messages::{IndexServerToClient, 
-    IndexClientToServer, 
-    ResponseRoutes, RouteWithCapacity, MutationsUpdate,
-    IndexMutation,
-    RequestRoutes};
+use proto::index_server::messages::{
+    IndexClientToServer, IndexMutation, IndexServerToClient, MutationsUpdate, RequestRoutes,
+    ResponseRoutes, RouteWithCapacity,
+};
 
 pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 
@@ -45,7 +43,7 @@ enum SingleClientEvent {
     ControlClosed,
 }
 
-struct SingleClient<TS,R> {
+struct SingleClient<TS, R> {
     local_public_key: PublicKey,
     identity_client: IdentityClient,
     rng: R,
@@ -59,18 +57,19 @@ struct SingleClient<TS,R> {
     open_requests: HashMap<Uid, oneshot::Sender<Vec<RouteWithCapacity>>>,
 }
 
-impl<TS,R> SingleClient<TS,R> 
+impl<TS, R> SingleClient<TS, R>
 where
-    TS: Sink<SinkItem=IndexClientToServer> + Unpin,
+    TS: Sink<SinkItem = IndexClientToServer> + Unpin,
     R: CryptoRandom,
 {
-    pub fn new(local_public_key: PublicKey, 
-               identity_client: IdentityClient, 
-               rng: R,
-               to_server: TS,
-               session_id: Uid,
-               server_time_hash: HashResult) -> Self {
-
+    pub fn new(
+        local_public_key: PublicKey,
+        identity_client: IdentityClient,
+        rng: R,
+        to_server: TS,
+        session_id: Uid,
+        server_time_hash: HashResult,
+    ) -> Self {
         SingleClient {
             local_public_key,
             identity_client,
@@ -84,10 +83,10 @@ where
     }
 
     /// Handle a message coming from the server
-    pub async fn handle_server_message(&mut self,
-                                       index_server_to_client: IndexServerToClient) 
-        -> Result<(), SingleClientError> {
-
+    pub async fn handle_server_message(
+        &mut self,
+        index_server_to_client: IndexServerToClient,
+    ) -> Result<(), SingleClientError> {
         match index_server_to_client {
             IndexServerToClient::TimeHash(time_hash) => self.server_time_hash = time_hash,
             IndexServerToClient::ResponseRoutes(response_routes) => {
@@ -95,33 +94,40 @@ where
                 let request_sender = match self.open_requests.remove(&request_id) {
                     Some(request_sender) => request_sender,
                     None => {
-                        warn!("Received a response for unrecognized request_id: {:?}", &request_id);
+                        warn!(
+                            "Received a response for unrecognized request_id: {:?}",
+                            &request_id
+                        );
                         return Ok(());
-                    },
+                    }
                 };
                 if let Err(_) = request_sender.send(routes) {
-                    warn!("Failed to return response for request_id: {:?} ", &request_id);
+                    warn!(
+                        "Failed to return response for request_id: {:?} ",
+                        &request_id
+                    );
                 }
-            },
+            }
         }
         Ok(())
     }
 
     /// Handle a control message (from the IndexClient code)
-    pub async fn handle_control_message(&mut self, 
-                                        single_client_control: SingleClientControl)
-        -> Result<(), SingleClientError> {
-
+    pub async fn handle_control_message(
+        &mut self,
+        single_client_control: SingleClientControl,
+    ) -> Result<(), SingleClientError> {
         match single_client_control {
             SingleClientControl::RequestRoutes((request_routes, response_sender)) => {
                 // Add a new open request:
-                self.open_requests.insert(request_routes.request_id.clone(), response_sender);
+                self.open_requests
+                    .insert(request_routes.request_id.clone(), response_sender);
 
                 // Send request to server:
                 let to_server_message = IndexClientToServer::RequestRoutes(request_routes);
                 await!(self.to_server.send(to_server_message))
                     .map_err(|_| SingleClientError::SendToServerError)?;
-            },
+            }
             SingleClientControl::SendMutations(index_mutations) => {
                 let mut mutations_update = MutationsUpdate {
                     node_public_key: self.local_public_key.clone(),
@@ -134,60 +140,68 @@ where
                 };
 
                 // Calculate signature:
-                mutations_update.signature = await!(
-                    self.identity_client.request_signature(mutations_update.signature_buff()))
-                    .map_err(|_| SingleClientError::RequestSignatureFailed)?;
+                mutations_update.signature = await!(self
+                    .identity_client
+                    .request_signature(mutations_update.signature_buff()))
+                .map_err(|_| SingleClientError::RequestSignatureFailed)?;
 
                 // Advance counter:
                 // We assume that the counter will never reach the wrapping point, because it is of
                 // size at least 64 bits, but we still add an error here, just in case.
-                self.counter = self.counter.checked_add(1)
+                self.counter = self
+                    .counter
+                    .checked_add(1)
                     .ok_or(SingleClientError::CounterOverflow)?;
 
                 // Send MutationsUpdate to server:
                 let to_server_message = IndexClientToServer::MutationsUpdate(mutations_update);
                 await!(self.to_server.send(to_server_message))
                     .map_err(|_| SingleClientError::SendToServerError)?;
-            },
+            }
         }
         Ok(())
     }
 }
 
 /// Wait for the first time hash sent from the server.
-pub async fn first_server_time_hash(from_server: &mut mpsc::Receiver<IndexServerToClient>)
-    -> Result<HashResult, SingleClientError> {
-
+pub async fn first_server_time_hash(
+    from_server: &mut mpsc::Receiver<IndexServerToClient>,
+) -> Result<HashResult, SingleClientError> {
     loop {
         match await!(from_server.next()) {
             None => return Err(SingleClientError::ServerClosed),
             Some(IndexServerToClient::TimeHash(time_hash)) => return Ok(time_hash),
-            Some(index_server_to_client) => 
-                warn!("first_server_time_hash(): Received message {:?} before first time has", 
-                      index_server_to_client),
+            Some(index_server_to_client) => warn!(
+                "first_server_time_hash(): Received message {:?} before first time has",
+                index_server_to_client
+            ),
         }
     }
 }
 
-pub async fn single_client_loop<IC,R>(server_conn: ServerConn,
-                     incoming_control: IC,
-                     local_public_key: PublicKey,
-                     identity_client: IdentityClient,
-                     rng: R,
-                     first_server_time_hash: HashResult) -> Result<(), SingleClientError>
+pub async fn single_client_loop<IC, R>(
+    server_conn: ServerConn,
+    incoming_control: IC,
+    local_public_key: PublicKey,
+    identity_client: IdentityClient,
+    rng: R,
+    first_server_time_hash: HashResult,
+) -> Result<(), SingleClientError>
 where
-    IC: Stream<Item=SingleClientControl> + Send + Unpin,
+    IC: Stream<Item = SingleClientControl> + Send + Unpin,
     R: CryptoRandom,
 {
     let (to_server, from_server) = server_conn;
 
     let session_id = Uid::new(&rng);
-    let mut single_client = SingleClient::new(local_public_key, 
-                                              identity_client,
-                                              rng,
-                                              to_server,
-                                              session_id,
-                                              first_server_time_hash);
+    let mut single_client = SingleClient::new(
+        local_public_key,
+        identity_client,
+        rng,
+        to_server,
+        session_id,
+        first_server_time_hash,
+    );
 
     let from_server = from_server
         .map(|index_server_to_client| SingleClientEvent::FromServer(index_server_to_client))
@@ -195,23 +209,26 @@ where
 
     let incoming_control = incoming_control
         .map(|single_client_control| SingleClientEvent::Control(single_client_control))
-        .chain(stream::once(future::ready(SingleClientEvent::ControlClosed)));
+        .chain(stream::once(future::ready(
+            SingleClientEvent::ControlClosed,
+        )));
 
     let mut events = select_streams![from_server, incoming_control];
 
     while let Some(event) = await!(events.next()) {
         match event {
-            SingleClientEvent::FromServer(index_server_to_client) => 
-                await!(single_client.handle_server_message(index_server_to_client))?,
+            SingleClientEvent::FromServer(index_server_to_client) => {
+                await!(single_client.handle_server_message(index_server_to_client))?
+            }
             SingleClientEvent::ServerClosed => return Err(SingleClientError::ServerClosed),
-            SingleClientEvent::Control(index_client_control) => 
-                await!(single_client.handle_control_message(index_client_control))?,
+            SingleClientEvent::Control(index_client_control) => {
+                await!(single_client.handle_control_message(index_client_control))?
+            }
             SingleClientEvent::ControlClosed => return Err(SingleClientError::ControlClosed),
         }
     }
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -221,10 +238,10 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
 
+    use crypto::identity::{
+        generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
+    };
     use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity, 
-        generate_pkcs8_key_pair, Identity,
-        PUBLIC_KEY_LEN};
     use crypto::uid::UID_LEN;
 
     use identity::create_identity;
@@ -235,7 +252,7 @@ mod tests {
 
         let fut_send = to_server.send(IndexServerToClient::TimeHash(time_hash.clone()));
         let fut_time_hash = first_server_time_hash(&mut from_server);
-        
+
         let (_, res_time_hash) = await!(fut_send.join(fut_time_hash));
         assert_eq!(res_time_hash.unwrap(), time_hash);
     }
@@ -252,7 +269,7 @@ mod tests {
         drop(to_server);
 
         let fut_time_hash = first_server_time_hash(&mut from_server);
-        
+
         let res_time_hash = await!(fut_time_hash);
         assert_eq!(res_time_hash, Err(SingleClientError::ServerClosed));
     }
@@ -263,7 +280,7 @@ mod tests {
         thread_pool.run(task_first_server_time_hash_server_closed());
     }
 
-    async fn task_single_client_loop_basic<S>(mut spawner: S) 
+    async fn task_single_client_loop_basic<S>(mut spawner: S)
     where
         S: Spawn,
     {
@@ -280,24 +297,25 @@ mod tests {
         spawner.spawn(identity_server.map(|_| ())).unwrap();
         let identity_client = IdentityClient::new(requests_sender);
 
-
         let server_conn = (client_sender, client_receiver);
         let rng = DummyRandom::new(&[2u8]);
         let first_server_time_hash = HashResult::from(&[1; HASH_RESULT_LEN]);
 
-        let loop_fut = single_client_loop(server_conn,
-                           incoming_control,
-                           local_public_key.clone(),
-                           identity_client,
-                           rng,
-                           first_server_time_hash)
-            .map_err(|e| error!("single_client_loop() error: {:?}", e))
-            .map(|_| ());
+        let loop_fut = single_client_loop(
+            server_conn,
+            incoming_control,
+            local_public_key.clone(),
+            identity_client,
+            rng,
+            first_server_time_hash,
+        )
+        .map_err(|e| error!("single_client_loop() error: {:?}", e))
+        .map(|_| ());
 
         spawner.spawn(loop_fut).unwrap();
 
         // Send some time hashes from server:
-        for i in 2 .. 8 {
+        for i in 2..8 {
             let time_hash = HashResult::from(&[i; HASH_RESULT_LEN]);
             await!(server_sender.send(IndexServerToClient::TimeHash(time_hash))).unwrap();
         }
@@ -312,7 +330,7 @@ mod tests {
         };
 
         let (response_sender, response_receiver) = oneshot::channel();
-        let single_client_control = 
+        let single_client_control =
             SingleClientControl::RequestRoutes((request_routes.clone(), response_sender));
 
         await!(control_sender.send(single_client_control)).unwrap();
@@ -322,7 +340,7 @@ mod tests {
         match index_client_to_server {
             IndexClientToServer::RequestRoutes(sent_request_routes) => {
                 assert_eq!(request_routes, sent_request_routes);
-            },
+            }
             _ => unreachable!(),
         };
 
@@ -332,15 +350,15 @@ mod tests {
             routes: vec![], // No suitable routes were found
         };
 
-        await!(server_sender.send(
-                IndexServerToClient::ResponseRoutes(response_routes.clone()))).unwrap();
+        await!(server_sender.send(IndexServerToClient::ResponseRoutes(response_routes.clone())))
+            .unwrap();
 
         // Client receives response routes:
         let routes = await!(response_receiver).unwrap();
         assert_eq!(routes, vec![]);
 
-
-        for iter in 0 .. 3 { // Counter should increment every time
+        for iter in 0..3 {
+            // Counter should increment every time
             // Send mutations:
             await!(control_sender.send(SingleClientControl::SendMutations(vec![]))).unwrap();
 
@@ -351,12 +369,14 @@ mod tests {
                     assert_eq!(mutations_update.node_public_key, local_public_key);
                     assert_eq!(mutations_update.index_mutations, vec![]);
                     // Counter should match iter:
-                    assert_eq!(mutations_update.counter, iter); 
-                    assert_eq!(mutations_update.time_hash, 
-                               HashResult::from(&[7; HASH_RESULT_LEN]));
+                    assert_eq!(mutations_update.counter, iter);
+                    assert_eq!(
+                        mutations_update.time_hash,
+                        HashResult::from(&[7; HASH_RESULT_LEN])
+                    );
 
                     assert!(mutations_update.verify_signature());
-                },
+                }
                 _ => unreachable!(),
             };
         }
@@ -368,5 +388,3 @@ mod tests {
         thread_pool.run(task_single_client_loop_basic(thread_pool.clone()));
     }
 }
-
-

@@ -1,9 +1,8 @@
-use std::fmt;
 use std::convert::TryFrom;
+use std::fmt;
 // use byteorder::{WriteBytesExt, BigEndian};
-use common::canonical_serialize::CanonicalSerialize;
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
-
+use common::canonical_serialize::CanonicalSerialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct NetAddress(String);

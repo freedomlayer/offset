@@ -1,17 +1,16 @@
 use std::marker::PhantomData;
 
-use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use super::verifier::Verifier;
+use crypto::hash::{HashResult, HASH_RESULT_LEN};
 
-
-pub struct DummyVerifier<N,B,U> {
+pub struct DummyVerifier<N, B, U> {
     phantom_n: PhantomData<N>,
     phantom_b: PhantomData<B>,
     phantom_u: PhantomData<U>,
     hash_vec: Vec<HashResult>,
 }
 
-impl<N,B,U> DummyVerifier<N,B,U> {
+impl<N, B, U> DummyVerifier<N, B, U> {
     #[allow(unused)]
     pub fn new() -> Self {
         Self {
@@ -20,25 +19,28 @@ impl<N,B,U> DummyVerifier<N,B,U> {
             phantom_u: PhantomData,
             // verify() method requires to return a borrowed slice, therefore
             // we need to keep a real vector:
-            hash_vec: vec![HashResult::from(&[0; HASH_RESULT_LEN]),
-                           HashResult::from(&[1; HASH_RESULT_LEN]),
-                           HashResult::from(&[2; HASH_RESULT_LEN])],
+            hash_vec: vec![
+                HashResult::from(&[0; HASH_RESULT_LEN]),
+                HashResult::from(&[1; HASH_RESULT_LEN]),
+                HashResult::from(&[2; HASH_RESULT_LEN]),
+            ],
         }
     }
 }
 
-impl<N,B,U> Verifier for DummyVerifier<N,B,U> {
+impl<N, B, U> Verifier for DummyVerifier<N, B, U> {
     type Node = N;
     type Neighbor = B;
     type SessionId = U;
 
-    fn verify(&mut self, 
-               _origin_tick_hash: &HashResult,
-               _expansion_chain: &[&[HashResult]],
-               _node: &N,
-               _session_id: &U,
-               _counter: u64) -> Option<&[HashResult]> {
-        
+    fn verify(
+        &mut self,
+        _origin_tick_hash: &HashResult,
+        _expansion_chain: &[&[HashResult]],
+        _node: &N,
+        _session_id: &U,
+        _counter: u64,
+    ) -> Option<&[HashResult]> {
         // Everything is successfully verified:
         Some(&self.hash_vec)
     }

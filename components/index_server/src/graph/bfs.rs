@@ -1,13 +1,13 @@
-use std::{cmp, hash};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::{cmp, hash};
 
-fn bfs_loop<'c,I,N,F>(src: &'c N, dst: &'c N, get_neighbors: F) -> Option<HashMap<N,Option<N>>>
+fn bfs_loop<'c, I, N, F>(src: &'c N, dst: &'c N, get_neighbors: F) -> Option<HashMap<N, Option<N>>>
 where
-    I: Iterator<Item=&'c N>,
+    I: Iterator<Item = &'c N>,
     F: Fn(&N) -> I,
     N: Clone + cmp::Eq + hash::Hash,
 {
-    let mut backtrack: HashMap<N,Option<N>> = HashMap::new();
+    let mut backtrack: HashMap<N, Option<N>> = HashMap::new();
     let mut visited: HashSet<N> = HashSet::new();
     let mut queue: VecDeque<N> = VecDeque::new();
 
@@ -31,7 +31,7 @@ where
     None
 }
 
-fn bfs_backtrack<N>(dst: &N, backtrack: &HashMap<N, Option<N>>) -> Option<Vec<N>> 
+fn bfs_backtrack<N>(dst: &N, backtrack: &HashMap<N, Option<N>>) -> Option<Vec<N>>
 where
     N: Clone + cmp::Eq + hash::Hash,
 {
@@ -49,10 +49,9 @@ where
     Some(route)
 }
 
-
-pub fn bfs<'c,I,N,F>(src: &'c N, dst: &'c N, get_neighbors: F) -> Option<Vec<N>>
+pub fn bfs<'c, I, N, F>(src: &'c N, dst: &'c N, get_neighbors: F) -> Option<Vec<N>>
 where
-    I: Iterator<Item=&'c N>,
+    I: Iterator<Item = &'c N>,
     F: Fn(&N) -> I,
     N: Clone + cmp::Eq + hash::Hash,
 {
@@ -73,7 +72,7 @@ mod tests {
          *     \-- 6 -- 8 -- 9 -- 10
          *                   \-- 11
          *
-        */
+         */
         backtrack.insert(3, None);
         backtrack.insert(4, Some(3));
         backtrack.insert(5, Some(3));
@@ -85,7 +84,7 @@ mod tests {
         backtrack.insert(11, Some(9));
 
         let opt_route = bfs_backtrack(&11, &backtrack);
-        assert_eq!(opt_route.unwrap(), vec![3,6,8,9,11]);
+        assert_eq!(opt_route.unwrap(), vec![3, 6, 8, 9, 11]);
     }
 
     #[test]
@@ -120,26 +119,29 @@ mod tests {
         graph.insert(0u32, vec![1u32]);
         graph.insert(1, vec![2]);
         graph.insert(2, vec![3]);
-        graph.insert(3, vec![0,4]);
-        graph.insert(4, vec![5,6]);
+        graph.insert(3, vec![0, 4]);
+        graph.insert(4, vec![5, 6]);
         graph.insert(5, vec![]);
-        graph.insert(6, vec![7,8]);
+        graph.insert(6, vec![7, 8]);
         graph.insert(7, vec![6]);
         graph.insert(8, vec![9]);
         graph.insert(9, vec![]);
 
         let get_neighbors = |node: &u32| graph.get(&node).unwrap().iter();
-        assert_eq!(bfs(&0,&1,get_neighbors), Some(vec![0,1]));
-        assert_eq!(bfs(&1,&0,get_neighbors), Some(vec![1,2,3,0]));
+        assert_eq!(bfs(&0, &1, get_neighbors), Some(vec![0, 1]));
+        assert_eq!(bfs(&1, &0, get_neighbors), Some(vec![1, 2, 3, 0]));
 
-        assert_eq!(bfs(&0,&9,get_neighbors), Some(vec![0,1,2,3,4,6,8,9]));
+        assert_eq!(
+            bfs(&0, &9, get_neighbors),
+            Some(vec![0, 1, 2, 3, 4, 6, 8, 9])
+        );
 
-        assert_eq!(bfs(&8,&6,get_neighbors), None);
-        assert_eq!(bfs(&9,&8,get_neighbors), None);
-        assert_eq!(bfs(&5,&4,get_neighbors), None);
-        assert_eq!(bfs(&4,&3,get_neighbors), None);
+        assert_eq!(bfs(&8, &6, get_neighbors), None);
+        assert_eq!(bfs(&9, &8, get_neighbors), None);
+        assert_eq!(bfs(&5, &4, get_neighbors), None);
+        assert_eq!(bfs(&4, &3, get_neighbors), None);
 
-        assert_eq!(bfs(&6,&7,get_neighbors), Some(vec![6,7]));
-        assert_eq!(bfs(&7,&6,get_neighbors), Some(vec![7,6]));
+        assert_eq!(bfs(&6, &7, get_neighbors), Some(vec![6, 7]));
+        assert_eq!(bfs(&7, &6, get_neighbors), Some(vec![7, 6]));
     }
 }

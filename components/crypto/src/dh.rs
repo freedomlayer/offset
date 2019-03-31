@@ -1,13 +1,13 @@
 extern crate untrusted;
 
-use ring::digest;
 use ring::agreement::{self, EphemeralPrivateKey};
-use ring::rand::SecureRandom;
+use ring::digest;
 use ring::hkdf::extract_and_expand;
 use ring::hmac::SigningKey;
+use ring::rand::SecureRandom;
 
-use super::CryptoError;
 use super::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
+use super::CryptoError;
 
 pub const SALT_LEN: usize = 32;
 pub const DH_PUBLIC_KEY_LEN: usize = 32;
@@ -33,7 +33,10 @@ pub struct DhPrivateKey(EphemeralPrivateKey);
 impl DhPrivateKey {
     /// Create a new ephemeral private key.
     pub fn new<R: SecureRandom>(rng: &R) -> Result<DhPrivateKey, CryptoError> {
-        Ok(DhPrivateKey(EphemeralPrivateKey::generate(&agreement::X25519, rng)?))
+        Ok(DhPrivateKey(EphemeralPrivateKey::generate(
+            &agreement::X25519,
+            rng,
+        )?))
     }
 
     /// Compute public key from our private key.
@@ -77,15 +80,16 @@ impl DhPrivateKey {
             self.0,
             &agreement::X25519,
             u_remote_public_key,
-            CryptoError, kdf,
+            CryptoError,
+            kdf,
         )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::test_utils::DummyRandom;
+    use super::*;
 
     #[test]
     fn test_new_salt() {
@@ -110,17 +114,13 @@ mod tests {
 
         // Each side derives the symmetric key from the remote's public key
         // and the salt:
-        let (send_key_a, recv_key_a) = dh_private_a.derive_symmetric_key(
-            public_key_b,
-            salt_a.clone(),
-            salt_b.clone(),
-        ).unwrap();
+        let (send_key_a, recv_key_a) = dh_private_a
+            .derive_symmetric_key(public_key_b, salt_a.clone(), salt_b.clone())
+            .unwrap();
 
-        let (send_key_b, recv_key_b) = dh_private_b.derive_symmetric_key(
-            public_key_a,
-            salt_b,
-            salt_a,
-        ).unwrap();
+        let (send_key_b, recv_key_b) = dh_private_b
+            .derive_symmetric_key(public_key_a, salt_b, salt_a)
+            .unwrap();
 
         // Both sides should get the same derived symmetric key:
         assert_eq!(send_key_a, recv_key_b);

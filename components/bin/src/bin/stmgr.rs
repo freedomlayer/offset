@@ -2,11 +2,7 @@
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![deny(trivial_numeric_casts, warnings)]
 
 #[macro_use]
 extern crate log;
@@ -14,24 +10,24 @@ extern crate log;
 use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 
-use clap::{Arg, App, AppSettings, SubCommand, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
 
-use proto::net::messages::{NetAddress, NetAddressError};
-use proto::app_server::messages::{RelayAddress, AppPermissions};
+use proto::app_server::messages::{AppPermissions, RelayAddress};
 use proto::index_server::messages::IndexServerAddress;
+use proto::net::messages::{NetAddress, NetAddressError};
 use proto::node::types::NodeAddress;
 
 use database::file_db::FileDb;
 use node::NodeState;
 
-use proto::file::identity::{load_identity_from_file, store_identity_to_file};
 use proto::file::app::{store_trusted_app_to_file, TrustedApp};
-use proto::file::relay::store_relay_to_file;
+use proto::file::identity::{load_identity_from_file, store_identity_to_file};
 use proto::file::index_server::store_index_server_to_file;
 use proto::file::node::store_node_to_file;
+use proto::file::relay::store_relay_to_file;
 
 #[derive(Debug)]
 enum InitNodeDbError {
@@ -76,8 +72,7 @@ fn gen_identity(matches: &ArgMatches) -> Result<(), GenIdentityError> {
     let pkcs8 = generate_pkcs8_key_pair(&rng);
     let output_path = Path::new(matches.value_of("output").unwrap());
 
-    store_identity_to_file(pkcs8, output_path)
-        .map_err(|_| GenIdentityError::StoreToFileError)
+    store_identity_to_file(pkcs8, output_path).map_err(|_| GenIdentityError::StoreToFileError)
 }
 
 #[derive(Debug)]
@@ -92,7 +87,7 @@ enum AppTicketError {
 /// - public key
 /// - application permissions
 ///
-/// The app ticket is used to authorize an application to 
+/// The app ticket is used to authorize an application to
 /// connect to a running node.
 fn app_ticket(matches: &ArgMatches) -> Result<(), AppTicketError> {
     let idfile = matches.value_of("idfile").unwrap();
@@ -247,8 +242,7 @@ fn node_ticket(matches: &ArgMatches) -> Result<(), NodeTicketError> {
         address: address_str.to_owned().try_into()?,
     };
 
-    store_node_to_file(&node_address, &output_path)
-        .map_err(|_| NodeTicketError::StoreNodeFileError)
+    store_node_to_file(&node_address, &output_path).map_err(|_| NodeTicketError::StoreNodeFileError)
 }
 
 #[derive(Debug)]
@@ -300,116 +294,162 @@ impl From<NodeTicketError> for StmError {
 fn run() -> Result<(), StmError> {
     env_logger::init();
     let matches = App::new("stmgr: offST ManaGeR")
-                          .setting(AppSettings::SubcommandRequiredElseHelp)
-                          .version("0.1.0")
-                          .author("real <real@freedomlayer.org>")
-                          .about("Performs Offst related management operations")
-                          .subcommand(SubCommand::with_name("init-node-db")
-                              .about("Initialize a new (empty) node database")
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Database output file path")
-                                   .required(true))
-                              .arg(Arg::with_name("idfile")
-                                   .short("i")
-                                   .long("idfile")
-                                   .value_name("idfile")
-                                   .help("identity file path")
-                                   .required(true)))
-                          .subcommand(SubCommand::with_name("gen-ident")
-                              .about("Randomly generate a new identity file")
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Identity file output file path")
-                                   .required(true)))
-                          .subcommand(SubCommand::with_name("app-ticket")
-                              .about("Create an application ticket")
-                              .arg(Arg::with_name("idfile")
-                                   .short("i")
-                                   .long("idfile")
-                                   .value_name("idfile")
-                                   .help("identity file path")
-                                   .required(true))
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Application ticket output file path")
-                                   .required(true))
-                              .arg(Arg::with_name("proutes")
-                                   .long("proutes")
-                                   .help("Permission to request reports"))
-                              .arg(Arg::with_name("pfunds")
-                                   .long("pfunds")
-                                   .help("Permission to send funds"))
-                              .arg(Arg::with_name("pconfig")
-                                   .long("pconfig")
-                                   .help("Permission to change configuration")))
-                          .subcommand(SubCommand::with_name("relay-ticket")
-                              .about("Create a relay ticket")
-                              .arg(Arg::with_name("idfile")
-                                   .short("i")
-                                   .long("idfile")
-                                   .value_name("idfile")
-                                   .help("identity file path")
-                                   .required(true))
-                              .arg(Arg::with_name("address")
-                                   .short("a")
-                                   .long("address")
-                                   .value_name("address")
-                                   .help("Public address of the relay")
-                                   .required(true))
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Relay ticket output file path")
-                                   .required(true)))
-                          .subcommand(SubCommand::with_name("index-ticket")
-                              .about("Create an index server ticket")
-                              .arg(Arg::with_name("idfile")
-                                   .short("i")
-                                   .long("idfile")
-                                   .value_name("idfile")
-                                   .help("identity file path")
-                                   .required(true))
-                              .arg(Arg::with_name("address")
-                                   .short("a")
-                                   .long("address")
-                                   .value_name("address")
-                                   .help("Public address of the index server")
-                                   .required(true))
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Index server ticket output file path")
-                                   .required(true)))
-                          .subcommand(SubCommand::with_name("node-ticket")
-                              .about("Create a node server ticket")
-                              .arg(Arg::with_name("idfile")
-                                   .short("i")
-                                   .long("idfile")
-                                   .value_name("idfile")
-                                   .help("identity file path")
-                                   .required(true))
-                              .arg(Arg::with_name("address")
-                                   .short("a")
-                                   .long("address")
-                                   .value_name("address")
-                                   .help("Public address of the node server")
-                                   .required(true))
-                              .arg(Arg::with_name("output")
-                                   .short("o")
-                                   .long("output")
-                                   .value_name("output")
-                                   .help("Node server ticket output file path")
-                                   .required(true)))
-                          .get_matches();
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .version("0.1.0")
+        .author("real <real@freedomlayer.org>")
+        .about("Performs Offst related management operations")
+        .subcommand(
+            SubCommand::with_name("init-node-db")
+                .about("Initialize a new (empty) node database")
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Database output file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("idfile")
+                        .short("i")
+                        .long("idfile")
+                        .value_name("idfile")
+                        .help("identity file path")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("gen-ident")
+                .about("Randomly generate a new identity file")
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Identity file output file path")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("app-ticket")
+                .about("Create an application ticket")
+                .arg(
+                    Arg::with_name("idfile")
+                        .short("i")
+                        .long("idfile")
+                        .value_name("idfile")
+                        .help("identity file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Application ticket output file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("proutes")
+                        .long("proutes")
+                        .help("Permission to request reports"),
+                )
+                .arg(
+                    Arg::with_name("pfunds")
+                        .long("pfunds")
+                        .help("Permission to send funds"),
+                )
+                .arg(
+                    Arg::with_name("pconfig")
+                        .long("pconfig")
+                        .help("Permission to change configuration"),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("relay-ticket")
+                .about("Create a relay ticket")
+                .arg(
+                    Arg::with_name("idfile")
+                        .short("i")
+                        .long("idfile")
+                        .value_name("idfile")
+                        .help("identity file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("address")
+                        .short("a")
+                        .long("address")
+                        .value_name("address")
+                        .help("Public address of the relay")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Relay ticket output file path")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("index-ticket")
+                .about("Create an index server ticket")
+                .arg(
+                    Arg::with_name("idfile")
+                        .short("i")
+                        .long("idfile")
+                        .value_name("idfile")
+                        .help("identity file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("address")
+                        .short("a")
+                        .long("address")
+                        .value_name("address")
+                        .help("Public address of the index server")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Index server ticket output file path")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("node-ticket")
+                .about("Create a node server ticket")
+                .arg(
+                    Arg::with_name("idfile")
+                        .short("i")
+                        .long("idfile")
+                        .value_name("idfile")
+                        .help("identity file path")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("address")
+                        .short("a")
+                        .long("address")
+                        .value_name("address")
+                        .help("Public address of the node server")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("output")
+                        .help("Node server ticket output file path")
+                        .required(true),
+                ),
+        )
+        .get_matches();
 
     Ok(match matches.subcommand() {
         ("init-node-db", Some(matches)) => init_node_db(matches)?,
@@ -427,4 +467,3 @@ fn main() {
         error!("run() error: {:?}", e);
     }
 }
-

@@ -1,26 +1,31 @@
-use std::io;
 use capnp;
 use capnp::serialize_packed;
 use dh_capnp;
+use std::io;
 
-use crate::capnp_common::{write_public_key, read_public_key,
-                        write_rand_nonce, read_rand_nonce,
-                        read_dh_public_key, write_dh_public_key,
-                        write_salt, read_salt,
-                        write_signature, read_signature};
+use crate::capnp_common::{
+    read_dh_public_key, read_public_key, read_rand_nonce, read_salt, read_signature,
+    write_dh_public_key, write_public_key, write_rand_nonce, write_salt, write_signature,
+};
 
 use crate::serialize::SerializeError;
 
-use super::messages::{PlainData, ChannelMessage, ChannelContent, 
-    ExchangeRandNonce, ExchangeDh, Rekey};
-
+use super::messages::{
+    ChannelContent, ChannelMessage, ExchangeDh, ExchangeRandNonce, PlainData, Rekey,
+};
 
 pub fn serialize_exchange_rand_nonce(exchange_rand_nonce: &ExchangeRandNonce) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::exchange_rand_nonce::Builder>();
 
-    write_rand_nonce(&exchange_rand_nonce.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
-    write_public_key(&exchange_rand_nonce.public_key, &mut msg.reborrow().get_public_key().unwrap());
+    write_rand_nonce(
+        &exchange_rand_nonce.rand_nonce,
+        &mut msg.reborrow().get_rand_nonce().unwrap(),
+    );
+    write_public_key(
+        &exchange_rand_nonce.public_key,
+        &mut msg.reborrow().get_public_key().unwrap(),
+    );
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
@@ -29,7 +34,8 @@ pub fn serialize_exchange_rand_nonce(exchange_rand_nonce: &ExchangeRandNonce) ->
 
 pub fn deserialize_exchange_rand_nonce(data: &[u8]) -> Result<ExchangeRandNonce, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_rand_nonce::Reader>()?;
 
     let rand_nonce = read_rand_nonce(&msg.get_rand_nonce()?)?;
@@ -41,15 +47,26 @@ pub fn deserialize_exchange_rand_nonce(data: &[u8]) -> Result<ExchangeRandNonce,
     })
 }
 
-
 pub fn serialize_exchange_dh(exchange_dh: &ExchangeDh) -> Vec<u8> {
     let mut builder = capnp::message::Builder::new_default();
     let mut msg = builder.init_root::<dh_capnp::exchange_dh::Builder>();
 
-    write_dh_public_key(&exchange_dh.dh_public_key, &mut msg.reborrow().get_dh_public_key().unwrap());
-    write_rand_nonce(&exchange_dh.rand_nonce, &mut msg.reborrow().get_rand_nonce().unwrap());
-    write_salt(&exchange_dh.key_salt, &mut msg.reborrow().get_key_salt().unwrap());
-    write_signature(&exchange_dh.signature, &mut msg.reborrow().get_signature().unwrap());
+    write_dh_public_key(
+        &exchange_dh.dh_public_key,
+        &mut msg.reborrow().get_dh_public_key().unwrap(),
+    );
+    write_rand_nonce(
+        &exchange_dh.rand_nonce,
+        &mut msg.reborrow().get_rand_nonce().unwrap(),
+    );
+    write_salt(
+        &exchange_dh.key_salt,
+        &mut msg.reborrow().get_key_salt().unwrap(),
+    );
+    write_signature(
+        &exchange_dh.signature,
+        &mut msg.reborrow().get_signature().unwrap(),
+    );
 
     let mut serialized_msg = Vec::new();
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
@@ -58,7 +75,8 @@ pub fn serialize_exchange_dh(exchange_dh: &ExchangeDh) -> Vec<u8> {
 
 pub fn deserialize_exchange_dh(data: &[u8]) -> Result<ExchangeDh, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::exchange_dh::Reader>()?;
 
     let dh_public_key = read_dh_public_key(&msg.get_dh_public_key()?)?;
@@ -79,28 +97,35 @@ pub fn serialize_channel_message(channel_message: &ChannelMessage) -> Vec<u8> {
     let mut msg = builder.init_root::<dh_capnp::channel_message::Builder>();
     let mut serialized_msg = Vec::new();
 
-    msg.reborrow().set_rand_padding(&channel_message.rand_padding);
+    msg.reborrow()
+        .set_rand_padding(&channel_message.rand_padding);
     let mut content_msg = msg.reborrow().get_content();
 
     match &channel_message.content {
         ChannelContent::Rekey(rekey) => {
             let mut rekey_msg = content_msg.init_rekey();
-            write_dh_public_key(&rekey.dh_public_key, &mut rekey_msg.reborrow().get_dh_public_key().unwrap());
-            write_salt(&rekey.key_salt, &mut rekey_msg.reborrow().get_key_salt().unwrap());
-        },
+            write_dh_public_key(
+                &rekey.dh_public_key,
+                &mut rekey_msg.reborrow().get_dh_public_key().unwrap(),
+            );
+            write_salt(
+                &rekey.key_salt,
+                &mut rekey_msg.reborrow().get_key_salt().unwrap(),
+            );
+        }
         ChannelContent::User(PlainData(plain_data)) => {
             content_msg.set_user(plain_data);
-        },
+        }
     };
 
     serialize_packed::write_message(&mut serialized_msg, &builder).unwrap();
     serialized_msg
 }
 
-
 pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<dh_capnp::channel_message::Reader>()?;
 
     let rand_padding = msg.get_rand_padding()?.to_vec();
@@ -113,8 +138,10 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, Serial
                 dh_public_key,
                 key_salt,
             })
-        },
-        Ok(dh_capnp::channel_message::content::User(data)) => ChannelContent::User(PlainData(data?.to_vec())),
+        }
+        Ok(dh_capnp::channel_message::content::User(data)) => {
+            ChannelContent::User(PlainData(data?.to_vec()))
+        }
         Err(e) => return Err(SerializeError::NotInSchema(e)),
     };
 
@@ -124,18 +151,16 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, Serial
     })
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::crypto_rand::RAND_VALUE_LEN;
-    use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
-    use crypto::dh::{SALT_LEN, DH_PUBLIC_KEY_LEN};
-    use std::convert::TryFrom;
-    use crypto::identity::{PublicKey, Signature};
     use crypto::crypto_rand::RandValue;
+    use crypto::crypto_rand::RAND_VALUE_LEN;
     use crypto::dh::{DhPublicKey, Salt};
+    use crypto::dh::{DH_PUBLIC_KEY_LEN, SALT_LEN};
+    use crypto::identity::{PublicKey, Signature};
+    use crypto::identity::{PUBLIC_KEY_LEN, SIGNATURE_LEN};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_serialize_exchange_rand_nonce() {
@@ -169,7 +194,7 @@ mod tests {
         };
         let content = ChannelContent::Rekey(rekey);
         let msg = ChannelMessage {
-            rand_padding: vec![1,2,3,4,5,6],
+            rand_padding: vec![1, 2, 3, 4, 5, 6],
             content,
         };
         let serialized = serialize_channel_message(&msg);

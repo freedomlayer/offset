@@ -1,6 +1,6 @@
-use std::io;
-use capnp;
 use crate::net::messages::NetAddressError;
+use capnp;
+use std::io;
 
 #[derive(Debug)]
 pub enum SerializeError {
@@ -9,7 +9,6 @@ pub enum SerializeError {
     IoError(io::Error),
     NetAddressError(NetAddressError),
 }
-
 
 impl From<capnp::Error> for SerializeError {
     fn from(e: capnp::Error) -> SerializeError {

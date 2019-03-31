@@ -4,18 +4,17 @@ use std::hash::Hash;
 use futures::channel::mpsc;
 use futures::task::Spawn;
 
-use common::conn::{FutTransform, ConnPairVec, BoxFuture};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use timer::TimerClient;
 
 use crypto::identity::PublicKey;
 
-use relay::{ClientListener, ClientConnector};
+use relay::{ClientConnector, ClientListener};
 
-use proto::funder::messages::{FunderToChanneler, ChannelerToFunder};
 use crate::channeler::{channeler_loop, ChannelerError};
 use crate::connect_pool::PoolConnector;
 use crate::listen_pool::PoolListener;
-
+use proto::funder::messages::{ChannelerToFunder, FunderToChanneler};
 
 /// A connection style encrypt transform.
 /// Does not return the public key of the remote side, because we already know it.
@@ -26,30 +25,31 @@ pub struct ConnectEncryptTransform<ET> {
 
 impl<ET> ConnectEncryptTransform<ET> {
     pub fn new(encrypt_transform: ET) -> Self {
-
-        ConnectEncryptTransform {
-            encrypt_transform,
-        }
+        ConnectEncryptTransform { encrypt_transform }
     }
 }
 
-impl<ET> FutTransform for ConnectEncryptTransform<ET> 
+impl<ET> FutTransform for ConnectEncryptTransform<ET>
 where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
+    ET: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Send,
 {
     type Input = (PublicKey, ConnPairVec);
     type Output = Option<ConnPairVec>;
 
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (public_key, conn_pair) = input;
 
-        Box::pin(async move {
-            let (_public_key, conn_pair) = await!(
-                self.encrypt_transform.transform((Some(public_key), conn_pair)))?;
-            Some(conn_pair)
-        })
+        Box::pin(
+            async move {
+                let (_public_key, conn_pair) = await!(self
+                    .encrypt_transform
+                    .transform((Some(public_key), conn_pair)))?;
+                Some(conn_pair)
+            },
+        )
     }
 }
 
@@ -62,96 +62,105 @@ pub struct ListenEncryptTransform<ET> {
 
 impl<ET> ListenEncryptTransform<ET> {
     pub fn new(encrypt_transform: ET) -> Self {
-
-        ListenEncryptTransform {
-            encrypt_transform,
-        }
+        ListenEncryptTransform { encrypt_transform }
     }
 }
 
-impl<ET> FutTransform for ListenEncryptTransform<ET> 
+impl<ET> FutTransform for ListenEncryptTransform<ET>
 where
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Send,
+    ET: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Send,
 {
     type Input = (PublicKey, ConnPairVec);
     type Output = Option<(PublicKey, ConnPairVec)>;
 
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (public_key, conn_pair) = input;
 
-        Box::pin(async move {
-            await!(self.encrypt_transform.transform((Some(public_key), conn_pair)))
-        })
+        Box::pin(
+            async move {
+                await!(self
+                    .encrypt_transform
+                    .transform((Some(public_key), conn_pair)))
+            },
+        )
     }
 }
-
 
 #[derive(Debug)]
 pub enum SpawnChannelerError {
     SpawnError,
 }
 
-// TODO: Possibly rename this function and module, as the channeler future 
+// TODO: Possibly rename this function and module, as the channeler future
 // is not spawned here.
-pub async fn spawn_channeler<RA,C,ET,KT,S>(local_public_key: PublicKey,
-                          timer_client: TimerClient,
-                          backoff_ticks: usize,
-                          conn_timeout_ticks: usize,
-                          max_concurrent_encrypt: usize,
-                          enc_relay_connector: C,
-                          encrypt_transform: ET,
-                          keepalive_transform: KT,
-                          from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
-                          to_funder: mpsc::Sender<ChannelerToFunder>,
-                          spawner: S) 
-    -> Result<(), ChannelerError>
-
+pub async fn spawn_channeler<RA, C, ET, KT, S>(
+    local_public_key: PublicKey,
+    timer_client: TimerClient,
+    backoff_ticks: usize,
+    conn_timeout_ticks: usize,
+    max_concurrent_encrypt: usize,
+    enc_relay_connector: C,
+    encrypt_transform: ET,
+    keepalive_transform: KT,
+    from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
+    to_funder: mpsc::Sender<ChannelerToFunder>,
+    spawner: S,
+) -> Result<(), ChannelerError>
 where
     RA: Eq + Hash + Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input=RA,Output=Option<ConnPairVec>> + Clone + Send + Sync + 'static,
-    ET: FutTransform<Input=(Option<PublicKey>, ConnPairVec),Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send + Sync + 'static,
-    KT: FutTransform<Input=ConnPairVec,Output=ConnPairVec> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = RA, Output = Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    ET: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + Sync
+        + 'static,
+    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
+    let client_connector =
+        ClientConnector::new(enc_relay_connector.clone(), keepalive_transform.clone());
 
-    let client_connector = ClientConnector::new(enc_relay_connector.clone(), 
-                                                keepalive_transform.clone());
-
-    let connect_encrypt_transform = ConnectEncryptTransform::new(
-        encrypt_transform.clone());
+    let connect_encrypt_transform = ConnectEncryptTransform::new(encrypt_transform.clone());
 
     let pool_connector = PoolConnector::new(
-           timer_client.clone(),
-           client_connector.clone(),
-           connect_encrypt_transform,
-           backoff_ticks,
-           spawner.clone());
+        timer_client.clone(),
+        client_connector.clone(),
+        connect_encrypt_transform,
+        backoff_ticks,
+        spawner.clone(),
+    );
 
     let client_listener = ClientListener::new(
-           enc_relay_connector,
-           keepalive_transform.clone(),
-           conn_timeout_ticks,
-           timer_client.clone(),
-           spawner.clone());
+        enc_relay_connector,
+        keepalive_transform.clone(),
+        conn_timeout_ticks,
+        timer_client.clone(),
+        spawner.clone(),
+    );
 
-    let listen_encrypt_transform = ListenEncryptTransform::new(
-        encrypt_transform.clone());
+    let listen_encrypt_transform = ListenEncryptTransform::new(encrypt_transform.clone());
 
-    let pool_listener = PoolListener::<RA,_,_,_>::new(client_listener,
-           listen_encrypt_transform,
-           max_concurrent_encrypt,
-           backoff_ticks,
-           timer_client.clone(),
-           spawner.clone());
+    let pool_listener = PoolListener::<RA, _, _, _>::new(
+        client_listener,
+        listen_encrypt_transform,
+        max_concurrent_encrypt,
+        backoff_ticks,
+        timer_client.clone(),
+        spawner.clone(),
+    );
 
     // TODO: Maybe use await! instead of spawn_with_handle() here?
     await!(channeler_loop(
-            local_public_key,
-            from_funder,
-            to_funder,
-            pool_connector,
-            pool_listener,
-            spawner.clone()))
+        local_public_key,
+        from_funder,
+        to_funder,
+        pool_connector,
+        pool_listener,
+        spawner.clone()
+    ))
 }

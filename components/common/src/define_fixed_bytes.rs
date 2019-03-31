@@ -1,7 +1,9 @@
 #[macro_export]
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
-        #[derive(Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+        #[derive(
+            Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+        )]
         pub struct $name([u8; $len]);
 
         impl $name {
@@ -68,4 +70,3 @@ macro_rules! define_fixed_bytes {
         }
     };
 }
-

@@ -1,19 +1,19 @@
 extern crate untrusted;
 
-use std::cmp::Ordering;
 use ring::signature;
+use std::cmp::Ordering;
 
 use super::CryptoError;
-use common::big_array::BigArray;
 use crate::crypto_rand::CryptoRandom;
 use crate::hash::sha_512_256;
+use common::big_array::BigArray;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
-#[derive(Clone, Serialize, Deserialize)] 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
 
 /// Check if one public key is "lower" than another.
@@ -35,7 +35,7 @@ impl From<[u8; SIGNATURE_LEN]> for Signature {
 }
 
 /// Generate a pkcs8 key pair
-pub fn generate_pkcs8_key_pair<R: CryptoRandom>(rng: &R) -> [u8; 85]  {
+pub fn generate_pkcs8_key_pair<R: CryptoRandom>(rng: &R) -> [u8; 85] {
     ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap()
 }
 
@@ -56,9 +56,7 @@ pub struct SoftwareEd25519Identity {
 
 impl SoftwareEd25519Identity {
     pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, CryptoError> {
-        let key_pair = signature::Ed25519KeyPair::from_pkcs8(
-            untrusted::Input::from(pkcs8_bytes)
-        )?;
+        let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(pkcs8_bytes))?;
 
         Ok(SoftwareEd25519Identity { key_pair })
     }

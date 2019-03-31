@@ -21,11 +21,11 @@ pub struct EncryptedConnector<C,R,S> {
 
 
 /// Turns a connector into a connector that yields encrypted connections.
-/// Addresses are changed from A into (PublicKey, A), 
+/// Addresses are changed from A into (PublicKey, A),
 /// where public_key is the identity of the remot side.
 impl<C,R,S> EncryptedConnector<C,R,S> {
     #[allow(unused)]
-    pub fn new(connector: C, 
+    pub fn new(connector: C,
                identity_client: IdentityClient,
                rng: R,
                timer_client: TimerClient,
@@ -61,7 +61,7 @@ where
         let fut = async move {
             let (plain_sender, plain_receiver) = await!(self.connector.connect(address))?;
             let (sender, receiver) = await!(create_secure_channel(
-                                      plain_sender, plain_receiver, 
+                                      plain_sender, plain_receiver,
                                       self.identity_client.clone(),
                                       Some(public_key.clone()),
                                       self.rng.clone(),

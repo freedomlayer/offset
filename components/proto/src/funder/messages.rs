@@ -1,19 +1,17 @@
+use byteorder::{BigEndian, WriteBytesExt};
 use std::collections::HashSet;
-use byteorder::{WriteBytesExt, BigEndian};
 
-use crypto::identity::{PublicKey, Signature};
 use crypto::crypto_rand::RandValue;
-use crypto::uid::Uid;
 use crypto::hash::{self, HashResult};
+use crypto::identity::{PublicKey, Signature};
+use crypto::uid::Uid;
 
-
-use common::int_convert::{usize_to_u64};
-use common::canonical_serialize::CanonicalSerialize;
-use crate::report::messages::{FunderReportMutations};
-use crate::consts::MAX_ROUTE_LEN;
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
+use crate::consts::MAX_ROUTE_LEN;
 use crate::net::messages::NetAddress;
-
+use crate::report::messages::FunderReportMutations;
+use common::canonical_serialize::CanonicalSerialize;
+use common::int_convert::usize_to_u64;
 
 #[derive(Debug)]
 pub struct ChannelerUpdateFriend<RA> {
@@ -21,7 +19,7 @@ pub struct ChannelerUpdateFriend<RA> {
     /// We should try to connect to this address:
     pub friend_relays: Vec<RA>,
     /// We should be listening on this address:
-    pub local_relays: Vec<RA>, 
+    pub local_relays: Vec<RA>,
 }
 
 #[derive(Debug)]
@@ -29,7 +27,7 @@ pub enum FunderToChanneler<RA> {
     /// Send a message to a friend
     Message((PublicKey, Vec<u8>)), // (friend_public_key, message)
     /// Set address for relay used by local node
-    SetRelays(Vec<RA>), 
+    SetRelays(Vec<RA>),
     /// Request to add a new friend or update friend's information
     UpdateFriend(ChannelerUpdateFriend<RA>),
     /// Request to remove a friend
@@ -58,7 +56,6 @@ pub struct FriendsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
-
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
@@ -67,23 +64,20 @@ pub struct RequestSendFunds {
     pub invoice_id: InvoiceId,
 }
 
-
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds<S=Signature> {
+pub struct ResponseSendFunds<S = Signature> {
     pub request_id: Uid,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
 
-
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds<S=Signature> {
+pub struct FailureSendFunds<S = Signature> {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
-
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
@@ -96,7 +90,7 @@ pub enum FriendTcOp {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<B=NetAddress,S=Signature> {
+pub struct MoveToken<B = NetAddress, S = Signature> {
     pub operations: Vec<FriendTcOp>,
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub old_token: Signature,
@@ -119,15 +113,14 @@ pub struct ResetTerms {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Debug)]
-pub struct MoveTokenRequest<B=NetAddress> {
+pub struct MoveTokenRequest<B = NetAddress> {
     pub friend_move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
 
-
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<B=NetAddress> {
+pub enum FriendMessage<B = NetAddress> {
     MoveTokenRequest(MoveTokenRequest<B>),
     InconsistencyError(ResetTerms),
 }
@@ -157,18 +150,17 @@ pub struct PendingRequest {
     pub invoice_id: InvoiceId,
 }
 
-
-
 // ==================================================================
 // ==================================================================
-
 
 impl CanonicalSerialize for RequestSendFunds {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
-        res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.dest_payment)
+            .unwrap();
         res_bytes
     }
 }
@@ -182,7 +174,6 @@ impl CanonicalSerialize for ResponseSendFunds {
         res_bytes
     }
 }
-
 
 impl CanonicalSerialize for FailureSendFunds {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -200,7 +191,7 @@ impl CanonicalSerialize for FriendTcOp {
         match self {
             FriendTcOp::EnableRequests => {
                 res_bytes.push(0u8);
-            },
+            }
             FriendTcOp::DisableRequests => {
                 res_bytes.push(1u8);
             }
@@ -220,7 +211,6 @@ impl CanonicalSerialize for FriendTcOp {
                 res_bytes.push(5u8);
                 res_bytes.append(&mut failure_send_funds.canonical_serialize())
             }
-            
         }
         res_bytes
     }
@@ -229,8 +219,9 @@ impl CanonicalSerialize for FriendTcOp {
 impl CanonicalSerialize for FriendsRoute {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.write_u64::<BigEndian>(
-            usize_to_u64(self.public_keys.len()).unwrap()).unwrap();
+        res_bytes
+            .write_u64::<BigEndian>(usize_to_u64(self.public_keys.len()).unwrap())
+            .unwrap();
         for public_key in &self.public_keys {
             res_bytes.extend_from_slice(public_key);
         }
@@ -253,7 +244,7 @@ impl FriendsRoute {
         }
 
         let mut seen = HashSet::new();
-        for public_key in &self.public_keys[.. self.public_keys.len() - 1] {
+        for public_key in &self.public_keys[..self.public_keys.len() - 1] {
             if !seen.insert(public_key.clone()) {
                 return false;
             }
@@ -271,8 +262,8 @@ impl FriendsRoute {
     /// Find two consecutive public keys (pk1, pk2) inside a friends route.
     pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<usize> {
         let pks = &self.public_keys;
-        for i in 0 ..= pks.len().checked_sub(2)? {
-            if pk1 == &pks[i] && pk2 == &pks[i+1] {
+        for i in 0..=pks.len().checked_sub(2)? {
+            if pk1 == &pks[i] && pk2 == &pks[i + 1] {
                 return Some(i);
             }
         }
@@ -288,7 +279,7 @@ impl FriendsRoute {
     /// source is considered to be index 0.
     /// dest is considered to be the last index.
     ///
-    /// Note that the returned index does not map directly to an 
+    /// Note that the returned index does not map directly to an
     /// index of self.route_links vector.
     pub fn pk_to_index(&self, public_key: &PublicKey) -> Option<usize> {
         self.public_keys
@@ -307,7 +298,9 @@ impl CanonicalSerialize for Receipt {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.response_hash);
         res_bytes.extend_from_slice(&self.invoice_id);
-        res_bytes.write_u128::<BigEndian>(self.dest_payment).unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.dest_payment)
+            .unwrap();
         res_bytes.extend_from_slice(&self.signature);
         res_bytes
     }
@@ -339,7 +332,7 @@ impl RequestsStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AddFriend<B=NetAddress> {
+pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
@@ -376,7 +369,7 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendRelays<B=NetAddress> {
+pub struct SetFriendRelays<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
 }
@@ -395,7 +388,6 @@ pub struct UserRequestSendFunds {
     pub invoice_id: InvoiceId,
     pub dest_payment: u128,
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReceiptAck {
@@ -426,9 +418,7 @@ pub struct FunderIncomingControl<B> {
 }
 
 impl<B> FunderIncomingControl<B> {
-    pub fn new(app_request_id: Uid,
-           funder_control: FunderControl<B>) -> Self {
-
+    pub fn new(app_request_id: Uid, funder_control: FunderControl<B>) -> Self {
         FunderIncomingControl {
             app_request_id,
             funder_control,
@@ -461,7 +451,6 @@ pub enum ResponseSendFundsResult {
     Success(Receipt),
     Failure(PublicKey), // Reporting public key.
 }
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResponseReceived {
