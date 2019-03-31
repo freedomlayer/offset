@@ -104,13 +104,10 @@ where
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>> + Clone,
 {
     // TODO; How to remove this Box::pin?
-    let connect_fut = Box::pin(
-        async move {
-            let raw_conn =
-                await!(client_connector.transform((address, friend_public_key.clone())))?;
-            await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
-        },
-    );
+    let connect_fut = Box::pin(async move {
+        let raw_conn = await!(client_connector.transform((address, friend_public_key.clone())))?;
+        await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
+    });
 
     // We either finish connecting, or got canceled in the middle:
     select! {
@@ -492,21 +489,19 @@ where
     type Output = ConnectPoolControl<RA>;
 
     fn transform(&mut self, friend_public_key: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(
-            async move {
-                // TODO: Should we keep the unwrap()-s here?
-                let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
-                create_connect_pool(
-                    timer_stream,
-                    self.encrypt_transform.clone(),
-                    friend_public_key,
-                    self.backoff_ticks,
-                    self.client_connector.clone(),
-                    self.spawner.clone(),
-                )
-                .unwrap()
-            },
-        )
+        Box::pin(async move {
+            // TODO: Should we keep the unwrap()-s here?
+            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
+            create_connect_pool(
+                timer_stream,
+                self.encrypt_transform.clone(),
+                friend_public_key,
+                self.backoff_ticks,
+                self.client_connector.clone(),
+                self.spawner.clone(),
+            )
+            .unwrap()
+        })
     }
 }
 

@@ -87,70 +87,63 @@ where
     type Output = Option<IncomingAppConnection<NetAddress>>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(
-            async move {
-                // Version perfix:
-                let ver_conn = await!(self.version_transform.transform(conn_pair));
-                // Encrypt:
-                let (public_key, enc_conn) =
-                    await!(self.encrypt_transform.transform((None, ver_conn)))?;
+        Box::pin(async move {
+            // Version perfix:
+            let ver_conn = await!(self.version_transform.transform(conn_pair));
+            // Encrypt:
+            let (public_key, enc_conn) =
+                await!(self.encrypt_transform.transform((None, ver_conn)))?;
 
-                // Obtain permissions for app (Or reject it if not trusted):
-                let c_get_trusted_apps = self.get_trusted_apps.clone();
+            // Obtain permissions for app (Or reject it if not trusted):
+            let c_get_trusted_apps = self.get_trusted_apps.clone();
 
-                // Obtain trusted apps using a separate spawner.
-                // At this point we re-read the directory of all trusted apps.
-                // This could be slow, therefore we perform this operation on self.trusted_apps_spawner
-                // and not on self.spawner, which represents the main executor for this program.
-                let trusted_apps_fut = self
-                    .trusted_apps_spawner
-                    .spawn_with_handle(future::lazy(move |_| (c_get_trusted_apps)()))
-                    .ok()?;
-                let trusted_apps = await!(trusted_apps_fut)?;
+            // Obtain trusted apps using a separate spawner.
+            // At this point we re-read the directory of all trusted apps.
+            // This could be slow, therefore we perform this operation on self.trusted_apps_spawner
+            // and not on self.spawner, which represents the main executor for this program.
+            let trusted_apps_fut = self
+                .trusted_apps_spawner
+                .spawn_with_handle(future::lazy(move |_| (c_get_trusted_apps)()))
+                .ok()?;
+            let trusted_apps = await!(trusted_apps_fut)?;
 
-                let app_permissions = trusted_apps.get(&public_key)?;
+            let app_permissions = trusted_apps.get(&public_key)?;
 
-                // Keepalive wrapper:
-                let (mut sender, mut receiver) =
-                    await!(self.keepalive_transform.transform(enc_conn));
+            // Keepalive wrapper:
+            let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
 
-                // Tell app about its permissions: (TODO: Is this required?)
-                await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
+            // Tell app about its permissions: (TODO: Is this required?)
+            await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
 
-                // serialization:
-                let (user_sender, mut from_user_sender) = mpsc::channel(0);
-                let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+            // serialization:
+            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-                // Deserialize received data
-                let _ = self.spawner.spawn(
-                    async move {
-                        while let Some(data) = await!(receiver.next()) {
-                            let message = match deserialize_app_to_app_server(&data) {
-                                Ok(message) => message,
-                                Err(_) => return,
-                            };
-                            if let Err(_) = await!(to_user_receiver.send(message)) {
-                                return;
-                            }
-                        }
-                    },
-                );
+            // Deserialize received data
+            let _ = self.spawner.spawn(async move {
+                while let Some(data) = await!(receiver.next()) {
+                    let message = match deserialize_app_to_app_server(&data) {
+                        Ok(message) => message,
+                        Err(_) => return,
+                    };
+                    if let Err(_) = await!(to_user_receiver.send(message)) {
+                        return;
+                    }
+                }
+            });
 
-                // Serialize sent data:
-                let _ = self.spawner.spawn(
-                    async move {
-                        while let Some(message) = await!(from_user_sender.next()) {
-                            let data = serialize_app_server_to_app(&message);
-                            if let Err(_) = await!(sender.send(data)) {
-                                return;
-                            }
-                        }
-                    },
-                );
+            // Serialize sent data:
+            let _ = self.spawner.spawn(async move {
+                while let Some(message) = await!(from_user_sender.next()) {
+                    let data = serialize_app_server_to_app(&message);
+                    if let Err(_) = await!(sender.send(data)) {
+                        return;
+                    }
+                }
+            });
 
-                Some((app_permissions.clone(), (user_sender, user_receiver)))
-            },
-        )
+            Some((app_permissions.clone(), (user_sender, user_receiver)))
+        })
     }
 }
 
@@ -190,12 +183,10 @@ where
     let version_connector = FuncFutTransform::new(move |address| {
         let mut c_net_connector = net_connector.clone();
         let mut c_version_transform = c_version_transform.clone();
-        Box::pin(
-            async move {
-                let conn_pair = await!(c_net_connector.transform(address))?;
-                Some(await!(c_version_transform.transform(conn_pair)))
-            },
-        )
+        Box::pin(async move {
+            let conn_pair = await!(c_net_connector.transform(address))?;
+            Some(await!(c_version_transform.transform(conn_pair)))
+        })
     });
 
     let local_public_key = await!(identity_client.request_public_key())

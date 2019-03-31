@@ -62,26 +62,22 @@ where
     let (mut to_user_receiver, user_receiver) = mpsc::channel::<T>(0);
 
     // Forward user_sender:
-    let _ = spawner.spawn(
-        async move {
-            while let Some(data) = await!(from_user_sender.next()) {
-                if let Err(_) = await!(user_sender_03.send(Ok(data))) {
-                    return;
-                }
+    let _ = spawner.spawn(async move {
+        while let Some(data) = await!(from_user_sender.next()) {
+            if let Err(_) = await!(user_sender_03.send(Ok(data))) {
+                return;
             }
-        },
-    );
+        }
+    });
 
     // Forward user_receiver:
-    let _ = spawner.spawn(
-        async move {
-            while let Some(Ok(data)) = await!(user_receiver_03.next()) {
-                if let Err(_) = await!(to_user_receiver.send(data)) {
-                    return;
-                }
+    let _ = spawner.spawn(async move {
+        while let Some(Ok(data)) = await!(user_receiver_03.next()) {
+            if let Err(_) = await!(to_user_receiver.send(data)) {
+                return;
             }
-        },
-    );
+        }
+    });
 
     (user_sender, user_receiver)
 }

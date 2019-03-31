@@ -254,36 +254,33 @@ where
         let (sfs_done_sender, sfs_done_receiver) = oneshot::channel::<()>();
 
         // TODO: Can we remove the Box::pin() from here? How?
-        let connect_fut = Box::pin(
-            async move {
-                let res = await!(c_index_client_session.transform(index_server))?;
-                let (control_sender, close_receiver) = res;
+        let connect_fut = Box::pin(async move {
+            let res = await!(c_index_client_session.transform(index_server))?;
+            let (control_sender, close_receiver) = res;
 
-                let c_control_sender = control_sender.clone();
-                let send_full_state_cancellable_fut = async move {
-                    let send_full_state_fut = Box::pin(
-                        send_full_state(c_seq_friends_client, c_control_sender)
-                            .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
-                            .map(|_| {
-                                let _ = sfs_done_sender.send(());
-                            }),
-                    );
-
-                    select! {
-                        _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
-                        _ = send_full_state_fut.fuse() => (),
-                    };
-                };
-
-                c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
-
-                let _ = await!(
-                    c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender))
+            let c_control_sender = control_sender.clone();
+            let send_full_state_cancellable_fut = async move {
+                let send_full_state_fut = Box::pin(
+                    send_full_state(c_seq_friends_client, c_control_sender)
+                        .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
+                        .map(|_| {
+                            let _ = sfs_done_sender.send(());
+                        }),
                 );
-                let _ = await!(close_receiver);
-                Some(())
-            },
-        );
+
+                select! {
+                    _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
+                    _ = send_full_state_fut.fuse() => (),
+                };
+            };
+
+            c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
+
+            let _ =
+                await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
+            let _ = await!(close_receiver);
+            Some(())
+        });
 
         let mut c_event_sender = self.event_sender.clone();
         let cancellable_fut = async move {

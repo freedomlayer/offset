@@ -93,40 +93,33 @@ where
             .map_err(|_| NodeConnectionError::SpawnError)?;
 
         spawner
-            .spawn(
-                async move {
-                    while let Some(message) = await!(receiver.next()) {
-                        match message {
-                            AppServerToApp::ResponseReceived(response_received) => {
-                                let _ = await!(incoming_send_funds_sender.send(response_received));
-                            }
-                            AppServerToApp::Report(_node_report) => {
-                                // TODO: Maybe somehow redesign the type AppServerToApp
-                                // so that we don't have this edge case?
-                                error!(
-                                    "Received unexpected AppServerToApp::Report message. Aborting."
-                                );
-                                return;
-                            }
-                            AppServerToApp::ReportMutations(node_report_mutations) => {
+            .spawn(async move {
+                while let Some(message) = await!(receiver.next()) {
+                    match message {
+                        AppServerToApp::ResponseReceived(response_received) => {
+                            let _ = await!(incoming_send_funds_sender.send(response_received));
+                        }
+                        AppServerToApp::Report(_node_report) => {
+                            // TODO: Maybe somehow redesign the type AppServerToApp
+                            // so that we don't have this edge case?
+                            error!("Received unexpected AppServerToApp::Report message. Aborting.");
+                            return;
+                        }
+                        AppServerToApp::ReportMutations(node_report_mutations) => {
+                            let _ = await!(
+                                incoming_mutations_sender.send(node_report_mutations.mutations)
+                            );
+                            if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
                                 let _ =
-                                    await!(incoming_mutations_sender
-                                        .send(node_report_mutations.mutations));
-                                if let Some(app_request_id) =
-                                    node_report_mutations.opt_app_request_id
-                                {
-                                    let _ = await!(
-                                        incoming_done_app_requests_sender.send(app_request_id)
-                                    );
-                                }
-                            }
-                            AppServerToApp::ResponseRoutes(client_response_routes) => {
-                                let _ = await!(incoming_routes_sender.send(client_response_routes));
+                                    await!(incoming_done_app_requests_sender.send(app_request_id));
                             }
                         }
+                        AppServerToApp::ResponseRoutes(client_response_routes) => {
+                            let _ = await!(incoming_routes_sender.send(client_response_routes));
+                        }
                     }
-                },
-            )
+                }
+            })
             .map_err(|_| NodeConnectionError::SpawnError)?;
 
         let opt_config = if app_permissions.config {

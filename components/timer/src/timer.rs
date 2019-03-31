@@ -165,16 +165,14 @@ pub fn dummy_timer_multi_sender(
     let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
     let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
     spawner
-        .spawn(
-            async move {
-                while let Some(timer_request) = await!(request_receiver.next()) {
-                    let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
+        .spawn(async move {
+            while let Some(timer_request) = await!(request_receiver.next()) {
+                let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
 
-                    await!(tick_sender_sender.send(tick_sender)).unwrap();
-                    timer_request.response_sender.send(tick_receiver).unwrap();
-                }
-            },
-        )
+                await!(tick_sender_sender.send(tick_sender)).unwrap();
+                timer_request.response_sender.send(tick_receiver).unwrap();
+            }
+        })
         .unwrap();
 
     (tick_sender_receiver, TimerClient::new(request_sender))

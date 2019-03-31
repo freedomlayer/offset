@@ -520,11 +520,9 @@ where
 
                 index_server
                     .spawner
-                    .spawn(
-                        async move {
-                            let _ = await!(c_event_sender.send_all(&mut receiver));
-                        },
-                    )
+                    .spawn(async move {
+                        let _ = await!(c_event_sender.send_all(&mut receiver));
+                    })
                     .map_err(|_| ServerLoopError::SpawnError)?;
 
                 index_server

@@ -356,11 +356,9 @@ mod tests {
 
         let (sender, receiver) = oneshot::channel();
 
-        let res = test_executor.spawn(
-            async move {
-                sender.send(());
-            },
-        );
+        let res = test_executor.spawn(async move {
+            sender.send(());
+        });
 
         let res = test_executor.run(receiver);
         assert_eq!(res.output().unwrap().unwrap(), ());
@@ -375,28 +373,24 @@ mod tests {
 
         let c_arc_mutex_res = arc_mutex_res.clone();
         test_executor
-            .spawn(
-                async move {
-                    await!(init_receiver).unwrap();
+            .spawn(async move {
+                await!(init_receiver).unwrap();
 
-                    let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
-                    await!(a_sender.send(0)).unwrap();
-                    assert_eq!(await!(a_receiver.next()).unwrap(), 0);
+                let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
+                await!(a_sender.send(0)).unwrap();
+                assert_eq!(await!(a_receiver.next()).unwrap(), 0);
 
-                    let mut res_guard = c_arc_mutex_res.lock().unwrap();
-                    *res_guard = true;
-                },
-            )
+                let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                *res_guard = true;
+            })
             .unwrap();
 
         let mut c_test_executor = test_executor.clone();
-        let res = test_executor.run(
-            async move {
-                init_sender.send(()).unwrap();
-                await!(c_test_executor.wait());
-                0x1337
-            },
-        );
+        let res = test_executor.run(async move {
+            init_sender.send(()).unwrap();
+            await!(c_test_executor.wait());
+            0x1337
+        });
 
         assert_eq!(res.output().unwrap(), 0x1337);
 
@@ -438,11 +432,9 @@ mod tests {
         }
 
         let mut c_test_executor = test_executor.clone();
-        test_executor.run(
-            async move {
-                await!(c_test_executor.wait());
-            },
-        );
+        test_executor.run(async move {
+            await!(c_test_executor.wait());
+        });
     }
 
     #[test]
@@ -452,20 +444,18 @@ mod tests {
         let arc_mutex_res = Arc::new(Mutex::new(0usize));
         let c_arc_mutex_res = Arc::clone(&arc_mutex_res);
         test_executor
-            .spawn(
-                async move {
-                    // Channel has limited capacity:
-                    let (mut sender, _receiver) = mpsc::channel::<u32>(8);
+            .spawn(async move {
+                // Channel has limited capacity:
+                let (mut sender, _receiver) = mpsc::channel::<u32>(8);
 
-                    // We keep sending into the channel.
-                    // At some point this loop should be stuck, because the channel is full.
-                    loop {
-                        await!(sender.send(0)).unwrap();
-                        let mut res_guard = c_arc_mutex_res.lock().unwrap();
-                        *res_guard = res_guard.checked_add(1).unwrap();
-                    }
-                },
-            )
+                // We keep sending into the channel.
+                // At some point this loop should be stuck, because the channel is full.
+                loop {
+                    await!(sender.send(0)).unwrap();
+                    let mut res_guard = c_arc_mutex_res.lock().unwrap();
+                    *res_guard = res_guard.checked_add(1).unwrap();
+                }
+            })
             .unwrap();
 
         test_executor.run_until_no_progress();
