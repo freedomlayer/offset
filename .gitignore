@@ -8,3 +8,5 @@ target/
 *.iws
 dataSources/
 .idea/
+
+.vscode/
