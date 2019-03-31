@@ -550,7 +550,7 @@ mod tests {
         await!(config_client.config(addresses.clone())).unwrap();
 
         // Addresses that we have seen an attempt to connect to:
-        let mut observed_addreses = Vec::new();
+        let mut observed_addresses = Vec::new();
 
         // Connect and handle the connection request at the same time
         let connect_fut = connect_client.connect();
@@ -560,7 +560,7 @@ mod tests {
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
             let (address, pk) = &conn_request.address;
-            observed_addreses.push(address.clone());
+            observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
             conn_request.reply(Some((local_sender, local_receiver)));
@@ -581,7 +581,7 @@ mod tests {
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
             let (address, pk) = &conn_request.address;
-            observed_addreses.push(address.clone());
+            observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
             conn_request.reply(Some((local_sender, local_receiver)));
@@ -602,7 +602,7 @@ mod tests {
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
             let (address, pk) = &conn_request.address;
-            observed_addreses.push(address.clone());
+            observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
             conn_request.reply(Some((local_sender, local_receiver)));
@@ -616,7 +616,7 @@ mod tests {
         drop(local_conn);
 
         // There should be exactly 3 observed addresses:
-        let unique_observed = observed_addreses.iter().cloned().collect::<HashSet<_>>();
+        let unique_observed = observed_addresses.iter().cloned().collect::<HashSet<_>>();
         assert_eq!(unique_observed.len(), 3);
 
         // Request a new connection:
@@ -630,7 +630,7 @@ mod tests {
             // This time the first observed_address should be attempted again:
             let (address, pk) = &conn_request.address;
             assert_eq!(pk, &pk_b);
-            assert_eq!(address, &observed_addreses[0]);
+            assert_eq!(address, &observed_addresses[0]);
 
             conn_request.reply(Some((local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
@@ -667,7 +667,7 @@ mod tests {
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
 
-        // Used for debugginging the loop:
+        // Used for debugging the loop:
         let (event_sender, mut event_receiver) = mpsc::channel(0);
 
         let (request_sender, incoming_requests) = mpsc::channel(0);
@@ -705,7 +705,7 @@ mod tests {
         await!(event_receiver.next()).unwrap();
 
         // Addresses that we have seen an attempt to connect to:
-        let mut observed_addreses = Vec::new();
+        let mut observed_addresses = Vec::new();
 
         // Connect and handle the connection request at the same time
         let connect_fut = connect_client.connect();
@@ -715,7 +715,7 @@ mod tests {
                 let conn_request = await!(conn_request_receiver.next()).unwrap();
 
                 let (address, pk) = &conn_request.address;
-                observed_addreses.push(address.clone());
+                observed_addresses.push(address.clone());
                 assert_eq!(pk, &pk_b);
 
                 // Connection attempt failed:
@@ -739,7 +739,7 @@ mod tests {
             // This time the first observed_address should be attempted again:
             let (address, pk) = &conn_request.address;
             assert_eq!(pk, &pk_b);
-            assert_eq!(address, &observed_addreses[0]);
+            assert_eq!(address, &observed_addresses[0]);
 
             conn_request.reply(Some((local_sender, local_receiver)));
             await!(event_receiver.next()).unwrap(); // connection attempt done event

@@ -74,7 +74,7 @@ impl Tracker {
     /// be rescheduled later)
     pub fn insert(&mut self, id: usize) {
         assert!(self.info.contains_key(&id));
-        // Note: We would have expected that 
+        // Note: We would have expected that
         // it is not possible to wake up a future that already resolved,
         // but it seems like it does happen when using spawn_with_handle() for some reason.
         // This could be a bug.
@@ -140,7 +140,7 @@ impl Tracker {
     pub fn get_pending_info(&self) -> Vec<(usize, Option<CallerInfo>)> {
         self.pending
             .iter()
-            .map(|id| 
+            .map(|id|
                  (id.clone(), self.info.get(id).unwrap().clone()))
             .collect()
     }
@@ -227,7 +227,7 @@ struct ArcWakerWrapper {
 }
 
 impl ArcWakerWrapper {
-    pub fn new(waker: Waker, 
+    pub fn new(waker: Waker,
                id: usize,
                arc_mutex_tracker: Arc<Mutex<Tracker>>) -> Self {
 
@@ -260,7 +260,7 @@ struct FutureWrapper<F> {
 }
 
 impl<F> FutureWrapper<F> {
-    fn new(future: F, 
+    fn new(future: F,
            arc_mutex_tracker: Arc<Mutex<Tracker>>,
            opt_caller_info: Option<CallerInfo>) -> Self {
 
@@ -280,7 +280,7 @@ impl<F> FutureWrapper<F> {
     }
 }
 
-impl<F> Future for FutureWrapper<F> 
+impl<F> Future for FutureWrapper<F>
 where
     F: Future,
 {
@@ -294,7 +294,7 @@ where
             tracker.remove(&self.id);
         }
 
-        let arc_waker_wrapper = ArcWakerWrapper::new(waker.clone(), 
+        let arc_waker_wrapper = ArcWakerWrapper::new(waker.clone(),
                                          self.id,
                                          self.arc_mutex_tracker.clone());
         let waker_wrapper = ArcWake::into_waker(Arc::new(arc_waker_wrapper));
@@ -304,7 +304,7 @@ where
         {
             let mut tracker = self.arc_mutex_tracker.lock().unwrap();
             tracker.poll_end();
-            
+
             // If the result is Ready, we set this task to be done (forever):
             if let Poll::Ready(_) = res {
                 tracker.set_done(self.id);
@@ -337,7 +337,7 @@ where
     S: Spawn,
 {
     fn spawn_obj(
-        &mut self, 
+        &mut self,
         future: FutureObj<'static, ()>
     ) -> Result<(), SpawnError> {
 

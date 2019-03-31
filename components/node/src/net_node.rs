@@ -88,7 +88,7 @@ where
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            // Version perfix:
+            // Version prefix:
             let ver_conn = await!(self.version_transform.transform(conn_pair));
             // Encrypt:
             let (public_key, enc_conn) =

@@ -97,7 +97,7 @@ where
 
     select! {
         _fut_timeout = fut_timeout => {
-            warn!("connection_with_timeout(): Timeout occured during connection attempt");
+            warn!("connection_with_timeout(): Timeout occurred during connection attempt");
             None
         },
         fut_connect = fut_connect => fut_connect,

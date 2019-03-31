@@ -458,7 +458,7 @@ where
     // This leaves IndexClient in "Connecting" state, where it is not yet connected to a server.
     //
     // During the "Connecting" state we expect that IndexClient
-    // will drop ApplyMuatations messages:
+    // will drop ApplyMutations messages:
 
     let update_friend = UpdateFriend {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),

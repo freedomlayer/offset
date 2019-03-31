@@ -6,6 +6,7 @@
 #![feature(unboxed_closures)]
 #![type_length_limit = "8388608"]
 #![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[cfg(test)]
 #[macro_use]

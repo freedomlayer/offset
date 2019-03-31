@@ -65,7 +65,7 @@ struct MutationsUpdate {
         indexMutations @1: List(IndexMutation);
         # List of mutations to relationships with direct friends.
         timeHash @2: Hash;
-        # A time hash (Given by the server previously). 
+        # A time hash (Given by the server previously).
         # This is used as time, proving that this message was signed recently.
         sessionId @3: Uid;
         # A randomly generated sessionId. The counter is related to this session Id.
@@ -76,11 +76,11 @@ struct MutationsUpdate {
         randNonce @5: RandNonce;
         # Rand nonce, used as a security measure for the next signature.
         signature @6: Signature;
-        # signature(sha_512_256("MUTATIONS_UPDATE") || 
+        # signature(sha_512_256("MUTATIONS_UPDATE") ||
         #           nodePublicKey ||
-        #           mutation || 
-        #           timeHash || 
-        #           counter || 
+        #           mutation ||
+        #           timeHash ||
+        #           counter ||
         #           randNonce)
 }
 

@@ -229,7 +229,7 @@ where
     m_state.mutate(funder_mutation);
 }
 
-/// This is a violent operation, as it removes all the known state with the remote friend.  
+/// This is a violent operation, as it removes all the known state with the remote friend.
 /// An inconsistency will occur if the friend is added again.
 fn control_remove_friend<B>(
     m_state: &mut MutableFunderState<B>,
@@ -495,7 +495,7 @@ where
         ChannelStatus::Consistent(token_channel) => token_channel,
     };
 
-    // Check if there is an onging request with the same request_id with this specific friend:
+    // Check if there is an ongoing request with the same request_id with this specific friend:
     if token_channel
         .get_mutual_credit()
         .state()
@@ -572,7 +572,7 @@ where
 
     // Make sure that the provided signature matches the one we have at the ready receipt.
     // We do this to make sure the user doesn't send a receipt ack before he actually got the
-    // receipt (The user can not predit the receipt_signature ahead of time)
+    // receipt (the user can not predict the receipt_signature ahead of time)
     if receipt_ack.receipt_signature != receipt.signature {
         return Err(HandleControlError::ReceiptSignatureMismatch);
     }

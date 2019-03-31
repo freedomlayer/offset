@@ -151,7 +151,7 @@ impl ScStateHalf {
 }
 
 pub struct HandleIncomingOutput {
-    pub rekey_occured: bool,
+    pub rekey_occurred: bool,
     pub opt_send_message: Option<EncryptedData>,
     pub opt_incoming_message: Option<PlainData>,
 }
@@ -283,7 +283,7 @@ impl ScState {
 
                 self.sender = new_sender;
                 Ok(HandleIncomingOutput {
-                    rekey_occured: true,
+                    rekey_occurred: true,
                     opt_send_message: Some(rekey_data),
                     opt_incoming_message: None,
                 })
@@ -303,7 +303,7 @@ impl ScState {
                     Decryptor::new(&recv_key).map_err(|_| ScStateError::CreateDecryptorFailure)?;
                 self.opt_old_receiver = Some(mem::replace(&mut self.receiver, new_receiver));
                 Ok(HandleIncomingOutput {
-                    rekey_occured: true,
+                    rekey_occurred: true,
                     opt_send_message: None,
                     opt_incoming_message: None,
                 })
@@ -320,7 +320,7 @@ impl ScState {
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::Rekey(rekey) => self.handle_incoming_rekey(rekey, rng),
             ChannelContent::User(content) => Ok(HandleIncomingOutput {
-                rekey_occured: false,
+                rekey_occurred: false,
                 opt_send_message: None,
                 opt_incoming_message: Some(content),
             }),
@@ -387,7 +387,7 @@ mod tests {
             let plain_data = PlainData(vec![0, 1, 2, 3, 4, i as u8]);
             let enc_data = sc_state1.create_outgoing(&plain_data, rng1);
             let incoming_output = sc_state2.handle_incoming(&enc_data, rng2).unwrap();
-            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.rekey_occurred, false);
             assert_eq!(incoming_output.opt_send_message, None);
             assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
         }
@@ -397,7 +397,7 @@ mod tests {
             let plain_data = PlainData(vec![0, 1, 2, 3, 4, i as u8]);
             let enc_data = sc_state2.create_outgoing(&plain_data, rng2);
             let incoming_output = sc_state1.handle_incoming(&enc_data, rng1).unwrap();
-            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.rekey_occurred, false);
             assert_eq!(incoming_output.opt_send_message, None);
             assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
         }
@@ -411,12 +411,12 @@ mod tests {
     ) {
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
         let incoming_output = sc_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
-        assert_eq!(incoming_output.rekey_occured, true);
+        assert_eq!(incoming_output.rekey_occurred, true);
         let rekey_enc_data2 = incoming_output.opt_send_message.unwrap();
         assert_eq!(incoming_output.opt_incoming_message, None);
 
         let incoming_output = sc_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
-        assert_eq!(incoming_output.rekey_occured, true);
+        assert_eq!(incoming_output.rekey_occurred, true);
         assert_eq!(incoming_output.opt_send_message, None);
         assert_eq!(incoming_output.opt_incoming_message, None);
     }
@@ -433,11 +433,11 @@ mod tests {
         let incoming_output1 = sc_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
         let incoming_output2 = sc_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
 
-        assert_eq!(incoming_output1.rekey_occured, true);
+        assert_eq!(incoming_output1.rekey_occurred, true);
         assert_eq!(incoming_output1.opt_send_message, None);
         assert_eq!(incoming_output1.opt_incoming_message, None);
 
-        assert_eq!(incoming_output2.rekey_occured, true);
+        assert_eq!(incoming_output2.rekey_occurred, true);
         assert_eq!(incoming_output2.opt_send_message, None);
         assert_eq!(incoming_output2.opt_incoming_message, None);
     }

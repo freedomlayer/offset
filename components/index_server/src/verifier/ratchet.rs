@@ -5,7 +5,7 @@ struct Ratchet<U> {
     pub session_id: U,
     /// Incrementing counter, making sure that mutations are received in the correct order.
     /// For a new session, the counter should begin from 0 and increment by 1 for every MutationsUpdate message.
-    /// When a new connection is established, a new sesionId should be randomly generated.
+    /// When a new connection is established, a new sessionId should be randomly generated.
     pub counter: u64,
     /// Initial value for cur_ticks_to_live
     pub ticks_to_live: usize,
@@ -171,7 +171,7 @@ mod tests {
             assert_eq!(ratchet.tick(), 7 - i);
         }
 
-        // Unsucessful update does not affect the ratchet's `cur_ticks_to_live`:
+        // Unsuccessful update does not affect the ratchet's `cur_ticks_to_live`:
         assert!(!ratchet.update(&session_id, 3));
         assert_eq!(ratchet.tick(), 0);
 

@@ -50,7 +50,7 @@ impl<N, B, U> Verifier for DummyVerifier<N, B, U> {
         (HashResult::from(&[0; HASH_RESULT_LEN]), Vec::new())
     }
 
-    fn neighbor_tick(&mut self, _n_eighbor: B, _tick_hash: HashResult) -> Option<HashResult> {
+    fn neighbor_tick(&mut self, _neighbor: B, _tick_hash: HashResult) -> Option<HashResult> {
         // Nothing happens
         None
     }

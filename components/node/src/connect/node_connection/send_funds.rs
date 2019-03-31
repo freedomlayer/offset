@@ -15,13 +15,13 @@ use proto::funder::messages::{
 // TODO; Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
 pub enum SendFundsError {
-    /// A local error occured when trying to send funds.
+    /// A local error occurred when trying to send funds.
     /// (Connectivity error)
     LocalError,
-    /// A remote error occured when trying to send funds.
+    /// A remote error occurred when trying to send funds.
     /// (Not enough credits, Some node cancelled along the route)
     RemoteError(PublicKey),
-    /// The request was issued, but no response was received.  
+    /// The request was issued, but no response was received.
     /// The request should be saved (By the caller) and resent at another time.
     NoResponse,
 }

@@ -92,7 +92,7 @@ mod tests {
         let mut outgoing_channeler_config = Vec::new();
         handle_init(&mut m_state, &mut outgoing_channeler_config);
 
-        let (_iinitial_state, mutations, _final_state) = m_state.done();
+        let (_initial_state, mutations, _final_state) = m_state.done();
         assert!(mutations.is_empty());
         // TODO: Check equality?
         // assert_eq!(initial_state, final_state);

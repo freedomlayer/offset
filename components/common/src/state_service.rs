@@ -99,7 +99,7 @@ where
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
                     if let Ok(_) = await!(sender.send(mutation.clone())) {
-                        // We only retain the sender if no error have occured:
+                        // We only retain the sender if no error have occurred:
                         new_senders.push(sender)
                     }
                 }

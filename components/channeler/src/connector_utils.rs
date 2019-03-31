@@ -22,7 +22,7 @@ pub struct EncryptedConnector<C,R,S> {
 
 /// Turns a connector into a connector that yields encrypted connections.
 /// Addresses are changed from A into (PublicKey, A),
-/// where public_key is the identity of the remot side.
+/// where public_key is the identity of the remote side.
 impl<C,R,S> EncryptedConnector<C,R,S> {
     #[allow(unused)]
     pub fn new(connector: C,

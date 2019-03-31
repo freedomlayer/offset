@@ -106,7 +106,7 @@ where
     M: Stream<Item = Vec<u8>> + Unpin + Send,
     K: Sink<SinkItem = Vec<u8>, SinkError = EK> + Unpin,
 {
-    // TODO: How to perform greceful shutdown of sinks?
+    // TODO: How to perform graceful shutdown of sinks?
     // Is there a way to do it?
 
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -137,7 +137,7 @@ where
                 let hi_output = dh_state
                     .handle_incoming(&EncryptedData(data), &rng)
                     .map_err(|_| SecureChannelError::HandleIncomingError)?;
-                if hi_output.rekey_occured {
+                if hi_output.rekey_occurred {
                     cur_ticks_to_rekey = ticks_to_rekey;
                 }
                 if let Some(send_message) = hi_output.opt_send_message {
@@ -326,7 +326,7 @@ mod tests {
         let data = await!(receiver.next()).unwrap();
         assert_eq!(data, vec![5, 4, 3]);
 
-        // Move time forward, to cause rekying:
+        // Move time forward, to cause rekeying:
         for _ in 0_usize..20 {
             await!(tick_sender.send(())).unwrap();
         }

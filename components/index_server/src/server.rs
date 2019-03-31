@@ -246,7 +246,7 @@ where
         }
 
         // Make sure that the signature is fresh, and that the message is not out of order:
-        // TODO: Maybe change signature to take a slice of slices intead of having to clone hashes
+        // TODO: Maybe change signature to take a slice of slices instead of having to clone hashes
         // below? Requires change to Verifier trait interface.
         let expansion_chain = forward_mutations_update
             .time_proof_chain

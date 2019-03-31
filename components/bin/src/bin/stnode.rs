@@ -3,6 +3,7 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
@@ -172,7 +173,7 @@ fn run() -> Result<(), NodeBinError> {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
-        /// Maximum amount of incoming app connectinos we set up at the same time
+        /// Maximum amount of incoming app connections we set up at the same time
         max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
     };
 

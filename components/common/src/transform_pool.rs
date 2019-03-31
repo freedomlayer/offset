@@ -15,8 +15,8 @@ enum TransformPoolEvent<I> {
     TransformDone,
 }
 
-/// Transform a stream of incoming items to outgoing items.  
-/// The transformation is asynchronus, therefore outgoing items
+/// Transform a stream of incoming items to outgoing items.
+/// The transformation is asynchronous, therefore outgoing items
 /// might not be in the same order in which the incoming items entered.
 ///
 /// max_concurrent is the maximum amount of concurrent transformations.

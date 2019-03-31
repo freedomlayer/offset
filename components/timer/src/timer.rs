@@ -21,6 +21,7 @@
 //! [futures-timer]: https://github.com/alexcrichton/futures-timer
 
 // #![deny(warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};

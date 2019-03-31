@@ -109,7 +109,7 @@ where
         conn_timeout_ticks
     ))?;
     if res.is_none() {
-        warn!("process_conn(): timeout occured");
+        warn!("process_conn(): timeout occurred");
     }
     res
 }

@@ -12,8 +12,8 @@ use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
 use crate::types::create_pending_request;
 
-/// Processes outgoing fundss for a token channel.
-/// Used to batch as many fundss as possible.
+/// Processes outgoing funds for a token channel.
+/// Used to batch as many funds as possible.
 pub struct OutgoingMc {
     mutual_credit: MutualCredit,
 }
@@ -37,7 +37,7 @@ pub enum QueueOperationError {
     RemoteRequestsClosed,
 }
 
-/// A wrapper over a token channel, accumulating fundss to be sent as one transcation.
+/// A wrapper over a token channel, accumulating funds to be sent as one transaction.
 impl OutgoingMc {
     pub fn new(mutual_credit: &MutualCredit) -> OutgoingMc {
         OutgoingMc {

@@ -463,7 +463,7 @@ where
         incoming_listen_conns.map(|pk_conn| ChannelerEvent::Connection(pk_conn));
     let send_listen_conns_fut = async move {
         let _ = await!(c_event_sender.send_all(&mut incoming_listen_conns));
-        // If we reach here it means an error occured.
+        // If we reach here it means an error occurred.
         let _ = await!(c_event_sender.send(ChannelerEvent::ListenerClosed));
     };
     channeler

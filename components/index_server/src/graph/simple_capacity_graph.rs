@@ -6,7 +6,7 @@ use super::capacity_graph::{CapacityEdge, CapacityGraph};
 use super::utils::{option_to_vec, OptionIterator};
 
 /// Amount of ticks an edge could live regardless of coupon collector's approximation.
-/// This is useful to allow the first edges build (nlog(n) is very small for small n).
+/// This is useful to allow the first edges build (n*log(n) is very small for small n).
 const BASE_MAX_EDGE_AGE: u128 = 16;
 
 struct Edge {

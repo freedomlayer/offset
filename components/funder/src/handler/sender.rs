@@ -118,7 +118,7 @@ struct PendingMoveToken<B> {
     token_wanted: bool,
     max_operations_in_batch: usize,
     /// Can we send this move token with empty operations list
-    /// and empty opt_local_adderess?
+    /// and empty opt_local_address?
     may_send_empty: bool,
 }
 
@@ -464,7 +464,7 @@ where
         _ => unreachable!(),
     };
 
-    // We are here if an error occured.
+    // We are here if an error occurred.
     // We cancel the request:
 
     match find_request_origin(m_state.state(), &request_send_funds.request_id).cloned() {
@@ -582,10 +582,10 @@ where
     - Check if last sent local address is up to date.
     - Collect as many operations as possible (Not more than max ops per batch)
         1. Responses (response, failure)
-        2. Pending requets
+        2. Pending requests
         3. User pending requests
     - When adding requests, check the following:
-        - Valid by freezeguard.
+        - Valid by freeze guard.
         - Valid from credits point of view.
     - If a request is not valid, Pass it as a failure message to
         relevant friend.

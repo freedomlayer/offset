@@ -245,7 +245,7 @@ fn handle_failure_send_funds<B>(
     match find_request_origin(m_state.state(), &failure_send_funds.request_id).cloned() {
         None => {
             // We are the origin of this request, and we got a failure
-            // We should pass it back to crypter.
+            // We should pass it back to encryptor.
 
             let response_send_funds_result =
                 ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);

@@ -13,7 +13,7 @@ struct InitConnection {
         accept @1: PublicKey;
         # Accepting connection from <PublicKey>
         connect @2: PublicKey;
-        # Request for a connection to <PublicKey> 
+        # Request for a connection to <PublicKey>
     }
 }
 

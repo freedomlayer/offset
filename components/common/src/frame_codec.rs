@@ -97,7 +97,7 @@ impl Decoder for FrameCodec {
                         if frame_length > MAX_FRAME_LEN {
                             return Err(FrameCodecError::ReceivedFrameLenTooLarge);
                         }
-                        
+
                         self.state = FrameCodecState::CollectingFrame {
                             length: frame_length,
                             accum_frame: Vec::new(),

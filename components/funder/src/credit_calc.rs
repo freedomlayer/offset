@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 /// Amount of credit paid to a node that sent a valid Response
 ///
 /// ```text
-///    B  --  (C)  --   D   --   E   --   F   
+///    B  --  (C)  --   D   --   E   --   F
 /// ```
 ///
 /// In the example above, num_nodes = 5, node_index = 1 for the node C.
@@ -36,7 +36,7 @@ pub fn credits_on_failure() -> Option<u128> {
 /// ```text
 ///                           req      req      req
 ///                           res      res      res      res
-///                    B  --   C   --  (D)   --   E   --   F   
+///                    B  --   C   --  (D)   --   E   --   F
 ///
 /// node_index:        0       1        2         3        4
 ///

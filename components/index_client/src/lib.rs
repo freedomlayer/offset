@@ -4,6 +4,7 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
