@@ -38,7 +38,7 @@ pub struct FreezeGuard {
     // ```
     // A could be any node, B must be a friend of this Offst node.
     frozen_to: ImHashMap<PublicKey, FriendFreezeGuard>,
-    //                         ^ B                 
+    //                         ^ B
 }
 
 #[derive(Debug)]
@@ -75,7 +75,7 @@ impl FreezeGuard {
 
     // TODO: Should be moved outside of this structure implementation.
     // The only public function that allows mutation FreezeGuard should be mutate.
-    pub fn load_funder_state<A>(mut self, funder_state: &FunderState<A>) -> FreezeGuard 
+    pub fn load_funder_state<A>(mut self, funder_state: &FunderState<A>) -> FreezeGuard
     where
         A: CanonicalSerialize + Clone,
     {
@@ -124,7 +124,7 @@ impl FreezeGuard {
         // Iterate over all nodes from the beginning of the route until our index:
         for node_index in 0 ..= my_index {
             let node_public_key = route.index_to_pk(node_index).unwrap();
-            
+
             let next_node_index = usize_to_u32(node_index.checked_add(1).unwrap()).unwrap();
             let credits_to_freeze = credit_calc.credits_to_freeze(next_node_index).unwrap();
             let routes_map = friend_freeze_guard
@@ -171,7 +171,7 @@ impl FreezeGuard {
             let node_public_key = route
                 .index_to_pk(node_index)
                 .unwrap();
-            
+
             let next_node_index = usize_to_u32(node_index.checked_add(1).unwrap()).unwrap();
             let credits_to_freeze = credit_calc.credits_to_freeze(next_node_index).unwrap();
             let routes_map = friend_freeze_guard
@@ -225,8 +225,8 @@ impl FreezeGuard {
     /// X is the local public key. B is a direct friend of X.
     /// For any node Y along the route from A to X, we make sure that B does not freeze too many
     /// credits for this node. In other words, we save Y from freezing too many credits for B.
-    pub fn verify_freezing_links(&self, route: &FriendsRoute, 
-                                 dest_payment: u128, 
+    pub fn verify_freezing_links(&self, route: &FriendsRoute,
+                                 dest_payment: u128,
                                  freeze_links: &[FreezeLink]) -> Option<()> {
         assert!(freeze_links.len().checked_add(1).unwrap() <= route.len());
         let my_index = route.pk_to_index(&self.local_public_key).unwrap();
@@ -246,7 +246,7 @@ impl FreezeGuard {
             let mut allowed_credits: BigUint = first_freeze_link.shared_credits.into();
             for freeze_link in &freeze_links[
                 node_findex .. freeze_links.len()] {
-                
+
                 allowed_credits = match freeze_link.usable_ratio {
                     Ratio::One => allowed_credits,
                     Ratio::Numerator(num) => {
@@ -255,7 +255,7 @@ impl FreezeGuard {
                     },
                 };
             }
-            
+
             let subroute = &route
                 .public_keys[node_findex ..= next_index];
             let old_frozen = self.get_frozen(subroute);
@@ -298,7 +298,7 @@ mod tests {
         let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 19);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -310,7 +310,7 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(credit_freeze(4,19,3), guard_frozen);
 
-        freeze_guard.sub_frozen_credit(&FriendsRoute 
+        freeze_guard.sub_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 19);
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
         assert_eq!(guard_frozen, 0);
@@ -334,9 +334,9 @@ mod tests {
         let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -348,7 +348,7 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(credit_freeze(4,11,3) + credit_freeze(3,17,2), guard_frozen);
 
-        freeze_guard.sub_frozen_credit(&FriendsRoute 
+        freeze_guard.sub_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -360,7 +360,7 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(credit_freeze(3,17,2), guard_frozen);
 
-        freeze_guard.sub_frozen_credit(&FriendsRoute 
+        freeze_guard.sub_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -388,9 +388,9 @@ mod tests {
         let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -405,7 +405,7 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(credit_freeze(4,11,3) + credit_freeze(4,17,3), guard_frozen);
 
-        freeze_guard.sub_frozen_credit(&FriendsRoute 
+        freeze_guard.sub_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -420,7 +420,7 @@ mod tests {
         let guard_frozen = freeze_guard.get_frozen(&[pk_c.clone(), pk_d.clone()]);
         assert_eq!(credit_freeze(4,11,3), guard_frozen);
 
-        freeze_guard.sub_frozen_credit(&FriendsRoute 
+        freeze_guard.sub_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
 
         let guard_frozen = freeze_guard.get_frozen(&[pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]);
@@ -448,9 +448,9 @@ mod tests {
         let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_a.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 11);
-        freeze_guard.add_frozen_credit(&FriendsRoute 
+        freeze_guard.add_frozen_credit(&FriendsRoute
                                        {public_keys: vec![pk_e.clone(), pk_b.clone(), pk_c.clone(), pk_d.clone()]}, 17);
 
         let frozen_b = freeze_guard.get_frozen(&[pk_b.clone(), pk_c.clone(), pk_d.clone()]);

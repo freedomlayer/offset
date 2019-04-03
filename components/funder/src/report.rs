@@ -1,42 +1,36 @@
 use im::hashmap::HashMap as ImHashMap;
 
-use common::int_convert::usize_to_u64;
 use common::canonical_serialize::CanonicalSerialize;
+use common::int_convert::usize_to_u64;
 
-use proto::report::messages::{DirectionReport, FriendLivenessReport, 
-    TcReport, ResetTermsReport, ChannelInconsistentReport, ChannelStatusReport, FriendReport,
-    FunderReport, FriendReportMutation, AddFriendReport, FunderReportMutation,
-    McRequestsStatusReport, McBalanceReport, RequestsStatusReport, FriendStatusReport,
-    MoveTokenHashedReport, SentLocalRelaysReport};
+use proto::report::messages::{
+    AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, DirectionReport,
+    FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
+    FunderReportMutation, McBalanceReport, McRequestsStatusReport, MoveTokenHashedReport,
+    RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
+};
 
 use crate::types::MoveTokenHashed;
 
-use crate::friend::{FriendState, ChannelStatus, FriendMutation, 
-    SentLocalRelays};
-use crate::state::{FunderState, FunderMutation};
-use crate::mutual_credit::types::{McBalance, McRequestsStatus};
-use crate::token_channel::{TokenChannel, TcDirection, TcMutation}; 
-use crate::liveness::LivenessMutation;
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
+use crate::friend::{ChannelStatus, FriendMutation, FriendState, SentLocalRelays};
+use crate::liveness::LivenessMutation;
+use crate::mutual_credit::types::{McBalance, McRequestsStatus};
+use crate::state::{FunderMutation, FunderState};
+use crate::token_channel::{TcDirection, TcMutation, TokenChannel};
 
-
-
-impl<B> Into<SentLocalRelaysReport<B>> for &SentLocalRelays<B> 
+impl<B> Into<SentLocalRelaysReport<B>> for &SentLocalRelays<B>
 where
     B: Clone,
 {
     fn into(self) -> SentLocalRelaysReport<B> {
         match self {
-            SentLocalRelays::NeverSent => 
-                SentLocalRelaysReport::NeverSent,
-            SentLocalRelays::Transition(t) => 
-                SentLocalRelaysReport::Transition(t.clone()),
-            SentLocalRelays::LastSent(address) => 
-                SentLocalRelaysReport::LastSent(address.clone()),
+            SentLocalRelays::NeverSent => SentLocalRelaysReport::NeverSent,
+            SentLocalRelays::Transition(t) => SentLocalRelaysReport::Transition(t.clone()),
+            SentLocalRelays::LastSent(address) => SentLocalRelaysReport::LastSent(address.clone()),
         }
     }
 }
-
 
 impl From<&McRequestsStatus> for McRequestsStatusReport {
     fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
@@ -76,7 +70,7 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl<B> From<&TokenChannel<B>> for TcReport 
+impl<B> From<&TokenChannel<B>> for TcReport
 where
     B: Clone + CanonicalSerialize,
 {
@@ -90,8 +84,20 @@ where
             direction,
             balance: McBalanceReport::from(&mutual_credit_state.balance),
             requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
-            num_local_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_local_requests.len()).unwrap(),
-            num_remote_pending_requests: usize_to_u64(mutual_credit_state.pending_requests.pending_remote_requests.len()).unwrap(),
+            num_local_pending_requests: usize_to_u64(
+                mutual_credit_state
+                    .pending_requests
+                    .pending_local_requests
+                    .len(),
+            )
+            .unwrap(),
+            num_remote_pending_requests: usize_to_u64(
+                mutual_credit_state
+                    .pending_requests
+                    .pending_remote_requests
+                    .len(),
+            )
+            .unwrap(),
         }
     }
 }
@@ -103,28 +109,32 @@ where
     fn from(channel_status: &ChannelStatus<B>) -> ChannelStatusReport {
         match channel_status {
             ChannelStatus::Inconsistent(channel_inconsistent) => {
-                let opt_remote_reset_terms = channel_inconsistent.opt_remote_reset_terms
+                let opt_remote_reset_terms = channel_inconsistent
+                    .opt_remote_reset_terms
                     .clone()
-                    .map(|remote_reset_terms|
-                        ResetTermsReport {
-                            reset_token: remote_reset_terms.reset_token.clone(),
-                            balance_for_reset: remote_reset_terms.balance_for_reset,
-                        }
-                    );
+                    .map(|remote_reset_terms| ResetTermsReport {
+                        reset_token: remote_reset_terms.reset_token.clone(),
+                        balance_for_reset: remote_reset_terms.balance_for_reset,
+                    });
                 let channel_inconsistent_report = ChannelInconsistentReport {
-                    local_reset_terms_balance: channel_inconsistent.local_reset_terms.balance_for_reset,
+                    local_reset_terms_balance: channel_inconsistent
+                        .local_reset_terms
+                        .balance_for_reset,
                     opt_remote_reset_terms,
                 };
                 ChannelStatusReport::Inconsistent(channel_inconsistent_report)
-            },
-            ChannelStatus::Consistent(token_channel) =>
-                ChannelStatusReport::Consistent(TcReport::from(token_channel)),
+            }
+            ChannelStatus::Consistent(token_channel) => {
+                ChannelStatusReport::Consistent(TcReport::from(token_channel))
+            }
         }
     }
 }
 
-fn create_friend_report<B>(friend_state: &FriendState<B>, friend_liveness: &FriendLivenessReport) 
-        -> FriendReport<B> 
+fn create_friend_report<B>(
+    friend_state: &FriendState<B>,
+    friend_liveness: &FriendLivenessReport,
+) -> FriendReport<B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -134,12 +144,16 @@ where
         name: friend_state.name.clone(),
         remote_relays: friend_state.remote_relays.clone(),
         sent_local_relays: (&friend_state.sent_local_relays).into(),
-        opt_last_incoming_move_token: friend_state.channel_status.get_last_incoming_move_token_hashed()
+        opt_last_incoming_move_token: friend_state
+            .channel_status
+            .get_last_incoming_move_token_hashed()
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
         channel_status,
         wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
-        wanted_local_requests_status: RequestsStatusReport::from(&friend_state.wanted_local_requests_status),
+        wanted_local_requests_status: RequestsStatusReport::from(
+            &friend_state.wanted_local_requests_status,
+        ),
         num_pending_requests: usize_to_u64(friend_state.pending_requests.len()).unwrap(),
         num_pending_responses: usize_to_u64(friend_state.pending_responses.len()).unwrap(),
         status: FriendStatusReport::from(&friend_state.status),
@@ -147,8 +161,7 @@ where
     }
 }
 
-pub fn create_report<B>(funder_state: &FunderState<B>, ephemeral: &Ephemeral) 
-    -> FunderReport<B> 
+pub fn create_report<B>(funder_state: &FunderState<B>, ephemeral: &Ephemeral) -> FunderReport<B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -170,78 +183,103 @@ where
     }
 }
 
-pub fn create_initial_report<B>(funder_state: &FunderState<B>) 
-    -> FunderReport<B> 
+pub fn create_initial_report<B>(funder_state: &FunderState<B>) -> FunderReport<B>
 where
     B: Clone + CanonicalSerialize,
 {
     create_report(funder_state, &Ephemeral::new())
 }
 
-
-pub fn friend_mutation_to_report_mutations<B>(friend_mutation: &FriendMutation<B>,
-                                           friend: &FriendState<B>) 
-    -> Vec<FriendReportMutation<B>> 
+pub fn friend_mutation_to_report_mutations<B>(
+    friend_mutation: &FriendMutation<B>,
+    friend: &FriendState<B>,
+) -> Vec<FriendReportMutation<B>>
 where
     B: Clone + CanonicalSerialize,
 {
-
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
     match friend_mutation {
-        FriendMutation::TcMutation(tc_mutation) => {
-            match tc_mutation {
-                TcMutation::McMutation(_) |
-                TcMutation::SetDirection(_) => {
-                    let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
-                    let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
-                    let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
-                        friend_after.channel_status.get_last_incoming_move_token_hashed()
-                            .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)));
-                    vec![set_channel_status, set_last_incoming_move_token]
-                },
+        FriendMutation::TcMutation(tc_mutation) => match tc_mutation {
+            TcMutation::McMutation(_) | TcMutation::SetDirection(_) => {
+                let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
+                let set_channel_status =
+                    FriendReportMutation::SetChannelStatus(channel_status_report);
+                let set_last_incoming_move_token =
+                    FriendReportMutation::SetOptLastIncomingMoveToken(
+                        friend_after
+                            .channel_status
+                            .get_last_incoming_move_token_hashed()
+                            .map(|move_token_hashed| {
+                                MoveTokenHashedReport::from(&move_token_hashed)
+                            }),
+                    );
+                vec![set_channel_status, set_last_incoming_move_token]
             }
         },
-        FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) =>
-            vec![FriendReportMutation::SetWantedRemoteMaxDebt(*wanted_remote_max_debt)],
-        FriendMutation::SetWantedLocalRequestsStatus(requests_status) => 
-            vec![FriendReportMutation::SetWantedLocalRequestsStatus(RequestsStatusReport::from(requests_status))],
-        FriendMutation::PushBackPendingRequest(_request_send_funds) =>
+        FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
+            vec![FriendReportMutation::SetWantedRemoteMaxDebt(
+                *wanted_remote_max_debt,
+            )]
+        }
+        FriendMutation::SetWantedLocalRequestsStatus(requests_status) => {
+            vec![FriendReportMutation::SetWantedLocalRequestsStatus(
+                RequestsStatusReport::from(requests_status),
+            )]
+        }
+        FriendMutation::PushBackPendingRequest(_request_send_funds) => {
             vec![FriendReportMutation::SetNumPendingRequests(
-                    usize_to_u64(friend_after.pending_requests.len()).unwrap())],
-        FriendMutation::PopFrontPendingRequest =>
+                usize_to_u64(friend_after.pending_requests.len()).unwrap(),
+            )]
+        }
+        FriendMutation::PopFrontPendingRequest => {
             vec![FriendReportMutation::SetNumPendingRequests(
-                    usize_to_u64(friend_after.pending_requests.len()).unwrap())],
-        FriendMutation::PushBackPendingResponse(_response_op) =>
+                usize_to_u64(friend_after.pending_requests.len()).unwrap(),
+            )]
+        }
+        FriendMutation::PushBackPendingResponse(_response_op) => {
             vec![FriendReportMutation::SetNumPendingResponses(
-                    usize_to_u64(friend_after.pending_responses.len()).unwrap())],
-        FriendMutation::PopFrontPendingResponse => 
+                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+            )]
+        }
+        FriendMutation::PopFrontPendingResponse => {
             vec![FriendReportMutation::SetNumPendingResponses(
-                    usize_to_u64(friend_after.pending_responses.len()).unwrap())],
-        FriendMutation::PushBackPendingUserRequest(_request_send_funds) =>
+                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+            )]
+        }
+        FriendMutation::PushBackPendingUserRequest(_request_send_funds) => {
             vec![FriendReportMutation::SetNumPendingUserRequests(
-                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
-        FriendMutation::PopFrontPendingUserRequest => 
+                usize_to_u64(friend_after.pending_user_requests.len()).unwrap(),
+            )]
+        }
+        FriendMutation::PopFrontPendingUserRequest => {
             vec![FriendReportMutation::SetNumPendingUserRequests(
-                    usize_to_u64(friend_after.pending_user_requests.len()).unwrap())],
-        FriendMutation::SetStatus(friend_status) => 
-            vec![FriendReportMutation::SetStatus(FriendStatusReport::from(friend_status))],
-        FriendMutation::SetRemoteRelays(remote_relays) =>
-            vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())],
-        FriendMutation::SetName(name) =>
-            vec![FriendReportMutation::SetName(name.clone())],
-        FriendMutation::SetSentLocalRelays(sent_local_relays) =>
-            vec![FriendReportMutation::SetSentLocalRelays(sent_local_relays.into())],
-        FriendMutation::SetInconsistent(_) |
-        FriendMutation::SetConsistent(_) => {
+                usize_to_u64(friend_after.pending_user_requests.len()).unwrap(),
+            )]
+        }
+        FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(
+            FriendStatusReport::from(friend_status),
+        )],
+        FriendMutation::SetRemoteRelays(remote_relays) => {
+            vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())]
+        }
+        FriendMutation::SetName(name) => vec![FriendReportMutation::SetName(name.clone())],
+        FriendMutation::SetSentLocalRelays(sent_local_relays) => {
+            vec![FriendReportMutation::SetSentLocalRelays(
+                sent_local_relays.into(),
+            )]
+        }
+        FriendMutation::SetInconsistent(_) | FriendMutation::SetConsistent(_) => {
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
-            let opt_move_token_hashed_report = friend_after.channel_status.get_last_incoming_move_token_hashed()
+            let opt_move_token_hashed_report = friend_after
+                .channel_status
+                .get_last_incoming_move_token_hashed()
                 .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed));
-            let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
-                opt_move_token_hashed_report);
+            let set_last_incoming_move_token =
+                FriendReportMutation::SetOptLastIncomingMoveToken(opt_move_token_hashed_report);
             vec![set_channel_status, set_last_incoming_move_token]
-        },
+        }
     }
 }
 
@@ -252,13 +290,13 @@ where
 ///
 /// In the future if we simplify Funder's mutations, we might be able discard the `funder_state`
 /// argument here.
-pub fn funder_mutation_to_report_mutations<B>(funder_mutation: &FunderMutation<B>,
-                                           funder_state: &FunderState<B>) 
-    -> Vec<FunderReportMutation<B>> 
-where   
+pub fn funder_mutation_to_report_mutations<B>(
+    funder_mutation: &FunderMutation<B>,
+    funder_state: &FunderState<B>,
+) -> Vec<FunderReportMutation<B>>
+where
     B: Clone + CanonicalSerialize,
 {
-
     let mut funder_state_after = funder_state.clone();
     funder_state_after.mutate(funder_mutation);
     match funder_mutation {
@@ -266,66 +304,88 @@ where
             let friend = funder_state.friends.get(public_key).unwrap();
             friend_mutation_to_report_mutations(&friend_mutation, &friend)
                 .into_iter()
-                .map(|friend_report_mutation| 
-                     FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation)))
+                .map(|friend_report_mutation| {
+                    FunderReportMutation::FriendReportMutation((
+                        public_key.clone(),
+                        friend_report_mutation,
+                    ))
+                })
                 .collect::<Vec<_>>()
-        },
-        FunderMutation::AddRelay(named_relay_address) =>
-            vec![FunderReportMutation::AddRelay(named_relay_address.clone())],
-        FunderMutation::RemoveRelay(public_key) =>
-            vec![FunderReportMutation::RemoveRelay(public_key.clone())],
+        }
+        FunderMutation::AddRelay(named_relay_address) => {
+            vec![FunderReportMutation::AddRelay(named_relay_address.clone())]
+        }
+        FunderMutation::RemoveRelay(public_key) => {
+            vec![FunderReportMutation::RemoveRelay(public_key.clone())]
+        }
         FunderMutation::AddFriend(add_friend) => {
-            let friend_after = funder_state_after.friends.get(&add_friend.friend_public_key).unwrap();
+            let friend_after = funder_state_after
+                .friends
+                .get(&add_friend.friend_public_key)
+                .unwrap();
             let add_friend_report = AddFriendReport {
                 friend_public_key: add_friend.friend_public_key.clone(),
                 name: add_friend.name.clone(),
                 relays: add_friend.relays.clone(),
                 balance: add_friend.balance.clone(), // Initial balance
-                opt_last_incoming_move_token: friend_after.channel_status.get_last_incoming_move_token_hashed()
+                opt_last_incoming_move_token: friend_after
+                    .channel_status
+                    .get_last_incoming_move_token_hashed()
                     .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
                 channel_status: ChannelStatusReport::from(&friend_after.channel_status),
             };
             vec![FunderReportMutation::AddFriend(add_friend_report)]
-        },
+        }
         FunderMutation::RemoveFriend(friend_public_key) => {
-            vec![FunderReportMutation::RemoveFriend(friend_public_key.clone())]
-        },
+            vec![FunderReportMutation::RemoveFriend(
+                friend_public_key.clone(),
+            )]
+        }
         FunderMutation::AddReceipt((_uid, _receipt)) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(
+                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
+                )]
             } else {
                 Vec::new()
             }
-        },
+        }
         FunderMutation::RemoveReceipt(_uid) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(usize_to_u64(funder_state_after.ready_receipts.len()).unwrap())]
+                vec![FunderReportMutation::SetNumReadyReceipts(
+                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
+                )]
             } else {
                 Vec::new()
             }
-        },
+        }
     }
 }
 
-pub fn ephemeral_mutation_to_report_mutations<B>(ephemeral_mutation: &EphemeralMutation) 
-                -> Vec<FunderReportMutation<B>> 
+pub fn ephemeral_mutation_to_report_mutations<B>(
+    ephemeral_mutation: &EphemeralMutation,
+) -> Vec<FunderReportMutation<B>>
 where
     B: Clone,
 {
-
     match ephemeral_mutation {
-        EphemeralMutation::LivenessMutation(liveness_mutation) => {
-            match liveness_mutation {
-                LivenessMutation::SetOnline(public_key) => {
-                    let friend_report_mutation = FriendReportMutation::SetLiveness(FriendLivenessReport::Online);
-                    vec![FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation))]
-                },
-                LivenessMutation::SetOffline(public_key) => {
-                    let friend_report_mutation = FriendReportMutation::SetLiveness(FriendLivenessReport::Offline);
-                    vec![FunderReportMutation::FriendReportMutation((public_key.clone(), friend_report_mutation))]
-                },
+        EphemeralMutation::LivenessMutation(liveness_mutation) => match liveness_mutation {
+            LivenessMutation::SetOnline(public_key) => {
+                let friend_report_mutation =
+                    FriendReportMutation::SetLiveness(FriendLivenessReport::Online);
+                vec![FunderReportMutation::FriendReportMutation((
+                    public_key.clone(),
+                    friend_report_mutation,
+                ))]
+            }
+            LivenessMutation::SetOffline(public_key) => {
+                let friend_report_mutation =
+                    FriendReportMutation::SetLiveness(FriendLivenessReport::Offline);
+                vec![FunderReportMutation::FriendReportMutation((
+                    public_key.clone(),
+                    friend_report_mutation,
+                ))]
             }
         },
     }
 }
-

@@ -82,7 +82,6 @@ impl NonceWindow {
     }
 }
 
-
 /// Logical left shift of the bits.
 #[inline]
 fn shift_left(blocks: &mut Vec<u64>, nbits: usize) {

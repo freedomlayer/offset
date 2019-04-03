@@ -1,4 +1,3 @@
-
 /// An iterator that wraps an optional iterator.
 /// If the optional iterator exists, OptionIterator will behave exactly like the underlying
 /// iterator. Otherwise, it will immediately return None.
@@ -10,9 +9,9 @@ pub struct OptionIterator<I> {
     opt_iterator: Option<I>,
 }
 
-impl<I,T> Iterator for OptionIterator<I> 
+impl<I, T> Iterator for OptionIterator<I>
 where
-    I: Iterator<Item=T>,
+    I: Iterator<Item = T>,
 {
     type Item = T;
     fn next(&mut self) -> Option<T> {
@@ -25,12 +24,9 @@ where
 
 impl<I> OptionIterator<I> {
     pub fn new(opt_iterator: Option<I>) -> OptionIterator<I> {
-        OptionIterator {
-            opt_iterator,
-        }
+        OptionIterator { opt_iterator }
     }
 }
-
 
 /// Util function to convert Option<T> to Vec<T>.
 /// Some(t) => vec![t], None => vec![]
@@ -40,6 +36,5 @@ pub fn option_to_vec<T>(opt_t: Option<T>) -> Vec<T> {
         None => vec![],
     }
 }
-
 
 // TODO: add tests

@@ -1,31 +1,32 @@
-use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
-use futures::task::Spawn;
 use futures::executor::ThreadPool;
+use futures::task::Spawn;
+use futures::{SinkExt, StreamExt};
 
-
-use crypto::uid::Uid;
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crypto::uid::Uid;
 use crypto::uid::UID_LEN;
 
-use proto::funder::messages::{FunderOutgoingControl,
-                                UserRequestSendFunds, FriendsRoute, 
-                                InvoiceId, INVOICE_ID_LEN, ResponseReceived, 
-                                ResponseSendFundsResult, FunderControl};
-use proto::app_server::messages::{AppServerToApp, AppToAppServer, 
-    AppPermissions, AppRequest};
+use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
+use proto::funder::messages::{
+    FriendsRoute, FunderControl, FunderOutgoingControl, InvoiceId, ResponseReceived,
+    ResponseSendFundsResult, UserRequestSendFunds, INVOICE_ID_LEN,
+};
 
 use super::utils::spawn_dummy_app_server;
 
-
-async fn task_app_server_loop_request_send_funds<S>(spawner: S) 
+async fn task_app_server_loop_request_send_funds<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-
-    let (mut funder_sender, mut funder_receiver,
-         _index_client_sender, _index_client_receiver,
-         mut connections_sender, _initial_node_report) = spawn_dummy_app_server(spawner.clone());
+    let (
+        mut funder_sender,
+        mut funder_receiver,
+        _index_client_sender,
+        _index_client_receiver,
+        mut connections_sender,
+        _initial_node_report,
+    ) = spawn_dummy_app_server(spawner.clone());
 
     // Connect two apps:
     let (mut app_sender0, app_server_receiver) = mpsc::channel(0);
@@ -48,7 +49,6 @@ where
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
 
-
     // The apps should receive the current node report as the first message:
     let _to_app_message = await!(app_receiver0.next()).unwrap();
     let _to_app_message = await!(app_receiver1.next()).unwrap();
@@ -58,21 +58,29 @@ where
 
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute { public_keys: vec![pk_e.clone(), pk_f.clone()] },
+        route: FriendsRoute {
+            public_keys: vec![pk_e.clone(), pk_f.clone()],
+        },
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
 
-    let to_app_server = AppToAppServer::new(Uid::from(&[22; UID_LEN]),
-                                            AppRequest::RequestSendFunds(user_request_send_funds.clone()));
+    let to_app_server = AppToAppServer::new(
+        Uid::from(&[22; UID_LEN]),
+        AppRequest::RequestSendFunds(user_request_send_funds.clone()),
+    );
     await!(app_sender0.send(to_app_server)).unwrap();
 
     // RequestRoutes command should be forwarded to IndexClient:
     let funder_incoming_control = await!(funder_receiver.next()).unwrap();
-    assert_eq!(funder_incoming_control.app_request_id, Uid::from(&[22; UID_LEN]));
+    assert_eq!(
+        funder_incoming_control.app_request_id,
+        Uid::from(&[22; UID_LEN])
+    );
     match funder_incoming_control.funder_control {
-        FunderControl::RequestSendFunds(received_user_request_send_funds) => 
-            assert_eq!(received_user_request_send_funds, user_request_send_funds),
+        FunderControl::RequestSendFunds(received_user_request_send_funds) => {
+            assert_eq!(received_user_request_send_funds, user_request_send_funds)
+        }
         _ => unreachable!(),
     };
 
@@ -92,13 +100,16 @@ where
         request_id: Uid::from(&[3; UID_LEN]),
         result: ResponseSendFundsResult::Failure(pk_e.clone()),
     };
-    await!(funder_sender.send(FunderOutgoingControl::ResponseReceived(response_received.clone()))).unwrap();
+    await!(funder_sender.send(FunderOutgoingControl::ResponseReceived(
+        response_received.clone()
+    )))
+    .unwrap();
 
     let to_app_message = await!(app_receiver0.next()).unwrap();
     match to_app_message {
         AppServerToApp::ResponseReceived(obtained_response_received) => {
             assert_eq!(obtained_response_received, response_received);
-        },
+        }
         _ => unreachable!(),
     }
     // We shouldn't get an incoming message at app1:

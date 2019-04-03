@@ -1,18 +1,18 @@
-use futures::{future, stream, StreamExt, SinkExt};
 use futures::channel::{mpsc, oneshot};
+use futures::{future, stream, SinkExt, StreamExt};
 
 use crate::mutable_state::MutableState;
 
 /// A present state and a receiver of future mutations
-pub type StateResponse<ST,MU> = (ST, mpsc::Receiver<MU>);
+pub type StateResponse<ST, MU> = (ST, mpsc::Receiver<MU>);
 
 #[derive(Debug)]
 pub enum StateServiceError<E> {
     MutateError(E),
 }
 
-pub struct StateRequest<ST,MU> {
-    response_sender: oneshot::Sender<StateResponse<ST,MU>>
+pub struct StateRequest<ST, MU> {
+    response_sender: oneshot::Sender<StateResponse<ST, MU>>,
 }
 
 #[derive(Debug)]
@@ -21,11 +21,11 @@ pub enum StateClientError {
     ReceiveResponseError,
 }
 
-pub struct StateClient<ST,MU> {
-    request_sender: mpsc::Sender<StateRequest<ST,MU>>,
+pub struct StateClient<ST, MU> {
+    request_sender: mpsc::Sender<StateRequest<ST, MU>>,
 }
 
-impl<ST,MU> Clone for StateClient<ST,MU> {
+impl<ST, MU> Clone for StateClient<ST, MU> {
     fn clone(&self) -> Self {
         StateClient {
             request_sender: self.request_sender.clone(),
@@ -33,44 +33,39 @@ impl<ST,MU> Clone for StateClient<ST,MU> {
     }
 }
 
-impl<ST,MU> StateClient<ST,MU> {
-    pub fn new(request_sender: mpsc::Sender<StateRequest<ST,MU>>) -> Self {
-        StateClient {
-            request_sender,
-        }
+impl<ST, MU> StateClient<ST, MU> {
+    pub fn new(request_sender: mpsc::Sender<StateRequest<ST, MU>>) -> Self {
+        StateClient { request_sender }
     }
 
-    pub async fn request_state(&mut self) -> Result<StateResponse<ST,MU>, StateClientError> {
+    pub async fn request_state(&mut self) -> Result<StateResponse<ST, MU>, StateClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
-        let state_request = StateRequest {
-            response_sender,
-        };
+        let state_request = StateRequest { response_sender };
 
         await!(self.request_sender.send(state_request))
             .map_err(|_| StateClientError::SendRequestError)?;
 
-        Ok(await!(response_receiver)
-            .map_err(|_| StateClientError::ReceiveResponseError)?)
+        Ok(await!(response_receiver).map_err(|_| StateClientError::ReceiveResponseError)?)
     }
 }
 
-enum Event<ST,MU> {
-    IncomingRequest(StateRequest<ST,MU>),
+enum Event<ST, MU> {
+    IncomingRequest(StateRequest<ST, MU>),
     IncomingRequestsClosed,
     IncomingMutation(MU),
     IncomingMutationsClosed,
 }
 
-
 /// Maintain a state according to initial state and incoming mutations.
 /// Serve the current state and incoming mutations to clients
-pub async fn state_service<ST,MU,E>(incoming_requests: mpsc::Receiver<StateRequest<ST,MU>>,
-                                  mut state: ST,
-                                  incoming_mutations: mpsc::Receiver<MU>) 
-                            -> Result<(), StateServiceError<E>>
+pub async fn state_service<ST, MU, E>(
+    incoming_requests: mpsc::Receiver<StateRequest<ST, MU>>,
+    mut state: ST,
+    incoming_mutations: mpsc::Receiver<MU>,
+) -> Result<(), StateServiceError<E>>
 where
     MU: Clone,
-    ST: MutableState<Mutation=MU,MutateError=E> + Clone,
+    ST: MutableState<Mutation = MU, MutateError = E> + Clone,
 {
     let incoming_requests = incoming_requests
         .map(|request| Event::IncomingRequest(request))
@@ -92,18 +87,19 @@ where
                 if let Ok(_) = request.response_sender.send((state.clone(), receiver)) {
                     senders.push(sender);
                 }
-            },
+            }
             Event::IncomingRequestsClosed => incoming_requests_closed = true,
             Event::IncomingMutation(mutation) => {
                 // Mutate state:
-                state.mutate(&mutation)
+                state
+                    .mutate(&mutation)
                     .map_err(|e| StateServiceError::MutateError(e))?;
 
                 // Update all clients about state change:
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
                     if let Ok(_) = await!(sender.send(mutation.clone())) {
-                        // We only retain the sender if no error have occured:
+                        // We only retain the sender if no error have occurred:
                         new_senders.push(sender)
                     }
                 }
@@ -111,14 +107,13 @@ where
                 if senders.is_empty() && incoming_requests_closed {
                     // If all clients closed and no more requests can be received,
                     // we close the service:
-                    return Ok(())
+                    return Ok(());
                 }
-            },
+            }
             Event::IncomingMutationsClosed => break,
         }
     }
     Ok(())
 }
-
 
 // TODO: Add tests

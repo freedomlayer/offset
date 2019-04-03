@@ -6,14 +6,15 @@ use im::hashmap::HashMap as ImHashMap;
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
-use proto::funder::messages::{FunderOutgoingControl, FunderIncomingControl};
-use proto::report::messages::FunderReport;
-use proto::app_server::messages::{NodeReport, NamedRelayAddress};
-use proto::index_client::messages::{IndexClientToAppServer, 
-    AppServerToIndexClient, IndexClientReport};
+use proto::app_server::messages::{NamedRelayAddress, NodeReport};
+use proto::funder::messages::{FunderIncomingControl, FunderOutgoingControl};
+use proto::index_client::messages::{
+    AppServerToIndexClient, IndexClientReport, IndexClientToAppServer,
+};
 use proto::index_server::messages::NamedIndexServerAddress;
+use proto::report::messages::FunderReport;
 
-use crate::server::{IncomingAppConnection, app_server_loop};
+use crate::server::{app_server_loop, IncomingAppConnection};
 
 /// A helper function to quickly create a dummy NamedRelayAddress.
 pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
@@ -34,13 +35,16 @@ pub fn dummy_relay_address(index: u8) -> RelayAddress<u32> {
 /// A test util function.
 /// Spawns an app server loop and returns all relevant channels
 /// used for control or communication.
-pub fn spawn_dummy_app_server<S>(mut spawner: S) -> 
-    (mpsc::Sender<FunderOutgoingControl<u32>>,
-     mpsc::Receiver<FunderIncomingControl<u32>>,
-     mpsc::Sender<IndexClientToAppServer<u32>>,
-     mpsc::Receiver<AppServerToIndexClient<u32>>,
-     mpsc::Sender<IncomingAppConnection<u32>>,
-     NodeReport<u32>)
+pub fn spawn_dummy_app_server<S>(
+    mut spawner: S,
+) -> (
+    mpsc::Sender<FunderOutgoingControl<u32>>,
+    mpsc::Receiver<FunderIncomingControl<u32>>,
+    mpsc::Sender<IndexClientToAppServer<u32>>,
+    mpsc::Receiver<AppServerToIndexClient<u32>>,
+    mpsc::Sender<IncomingAppConnection<u32>>,
+    NodeReport<u32>,
+)
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -55,19 +59,21 @@ where
     // Create a dummy initial_node_report:
     let funder_report = FunderReport {
         local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-        relays: vec![dummy_named_relay_address(0), dummy_named_relay_address(1)].into_iter().collect(),
+        relays: vec![dummy_named_relay_address(0), dummy_named_relay_address(1)]
+            .into_iter()
+            .collect(),
         friends: ImHashMap::new(),
         num_ready_receipts: 0,
     };
 
     let server100 = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]), 
+        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
         address: 100u32,
         name: "server100".to_owned(),
     };
 
     let server101 = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]), 
+        public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
         address: 101u32,
         name: "server101".to_owned(),
     };
@@ -82,20 +88,26 @@ where
         index_client_report,
     };
 
-    let fut_loop = app_server_loop(from_funder,
-                    to_funder,
-                    from_index_client,
-                    to_index_client,
-                    incoming_connections,
-                    initial_node_report.clone(),
-                    spawner.clone())
-        .map_err(|e| error!("app_server_loop() error: {:?}", e))
-        .map(|_| ());
+    let fut_loop = app_server_loop(
+        from_funder,
+        to_funder,
+        from_index_client,
+        to_index_client,
+        incoming_connections,
+        initial_node_report.clone(),
+        spawner.clone(),
+    )
+    .map_err(|e| error!("app_server_loop() error: {:?}", e))
+    .map(|_| ());
 
     spawner.spawn(fut_loop).unwrap();
 
-    (funder_sender, funder_receiver,
-     index_client_sender, index_client_receiver,
-     connections_sender, initial_node_report)
+    (
+        funder_sender,
+        funder_receiver,
+        index_client_sender,
+        index_client_receiver,
+        connections_sender,
+        initial_node_report,
+    )
 }
-

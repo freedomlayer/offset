@@ -1,5 +1,5 @@
-use crypto::hash::{sha_512_256, HashResult};
 use crypto::crypto_rand::RandValue;
+use crypto::hash::{sha_512_256, HashResult};
 
 use std::collections::{HashMap, VecDeque};
 
@@ -30,7 +30,7 @@ fn hash_hashes(hashes: &[HashResult]) -> HashResult {
     sha_512_256(&bytes_to_hash)
 }
 
-impl<N> HashClock<N> 
+impl<N> HashClock<N>
 where
     N: std::hash::Hash + std::cmp::Eq + Clone,
 {
@@ -90,22 +90,26 @@ where
 
     /// Given a tick hash (that was created in this HashClock), create a hash proof for a neighbor.
     pub fn get_expansion(&self, tick_hash: &HashResult) -> Option<&[HashResult]> {
-        self.last_ticks_map.get(tick_hash).map(|expansion| &expansion[..])
+        self.last_ticks_map
+            .get(tick_hash)
+            .map(|expansion| &expansion[..])
     }
 
     /// Verify a chain of hash proof links.
-    /// Each link shows that a certain hash is composed from a list of hashes. 
-    /// Eventually one of those hashes is a tick_hash created at this HashClock. 
+    /// Each link shows that a certain hash is composed from a list of hashes.
+    /// Eventually one of those hashes is a tick_hash created at this HashClock.
     /// This proves that the `origin_tick_hash` is recent.
-    pub fn verify_expansion_chain(&self, origin_tick_hash: &HashResult, expansion_chain: &[&[HashResult]]) 
-        -> Option<&HashResult> {
-
+    pub fn verify_expansion_chain(
+        &self,
+        origin_tick_hash: &HashResult,
+        expansion_chain: &[&[HashResult]],
+    ) -> Option<&HashResult> {
         /*                       +-/hash0    +-/hash0    +-/hash0
          *  `origin_tick_hash` --+  hash1    |  hash1    |  hash1 -- found in `last_ticks_map`
          *                       |  hash2 ---+  hash2    +-\hash2
          *                       +-\hash3    |  hash3 ---+
          *                                   +-\hash4
-        */
+         */
 
         // Add origin_tick_hash as a list of 1 hashes in the beginning of hash_proof_chain.
         // This allows dealing with some edge cases more smoothly.
@@ -123,7 +127,7 @@ where
             .map(|hashes| hash_hashes(hashes))
             .collect::<Vec<_>>();
 
-        for i in 0 .. hash_res.len() {
+        for i in 0..hash_res.len() {
             if !ex_expansion_chain[i].contains(&hash_res[i]) {
                 return None;
             }
@@ -132,7 +136,7 @@ where
         for hash in ex_expansion_chain.last().unwrap().iter() {
             match self.last_ticks_map.get_key_value(hash) {
                 Some((hash, _)) => return Some(hash),
-                None => {},
+                None => {}
             };
         }
         None
@@ -151,20 +155,19 @@ mod tests {
 
     #[test]
     fn test_hash_clock_basic() {
-
         let last_ticks_max_len = 4;
 
         let mut hash_clocks = Vec::new();
-        for _ in 0 .. 4 {
+        for _ in 0..4 {
             hash_clocks.push(HashClock::new(last_ticks_max_len));
         }
 
         // Some iterations of communication between the participants:
-        for iter in 0 .. 8 {
-            for j in 0 .. hash_clocks.len() {
+        for iter in 0..8 {
+            for j in 0..hash_clocks.len() {
                 let rand_value = RandValue::from(&[iter as u8; RAND_VALUE_LEN]);
                 let tick_hash = hash_clocks[j].tick(rand_value);
-                for k in 0 .. hash_clocks.len() {
+                for k in 0..hash_clocks.len() {
                     if k == j {
                         continue;
                     }
@@ -174,25 +177,33 @@ mod tests {
         }
 
         let origin_tick_hash = hash_clocks[0].get_neighbor_hash(&1).unwrap().clone();
-        let tick_hash1 = hash_clocks[1].verify_expansion_chain(&origin_tick_hash, &[]).unwrap();
+        let tick_hash1 = hash_clocks[1]
+            .verify_expansion_chain(&origin_tick_hash, &[])
+            .unwrap();
 
         let expansion1 = hash_clocks[1].get_expansion(&tick_hash1).unwrap().to_vec();
-        let tick_hash2 = hash_clocks[2].verify_expansion_chain(&origin_tick_hash, &[&expansion1]).unwrap();
+        let tick_hash2 = hash_clocks[2]
+            .verify_expansion_chain(&origin_tick_hash, &[&expansion1])
+            .unwrap();
 
         let expansion2 = hash_clocks[2].get_expansion(&tick_hash2).unwrap().to_vec();
-        let tick_hash3 = hash_clocks[3].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2]).unwrap();
+        let tick_hash3 = hash_clocks[3]
+            .verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2])
+            .unwrap();
 
         let expansion3 = hash_clocks[3].get_expansion(&tick_hash3).unwrap().to_vec();
-        let _tick_hash3 = hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).unwrap();
-
+        let _tick_hash3 = hash_clocks[0]
+            .verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3])
+            .unwrap();
 
         // Everything is forgotten after `last_ticks_max_len` ticks:
-        for iter in 0 .. last_ticks_max_len {
+        for iter in 0..last_ticks_max_len {
             let rand_value = RandValue::from(&[iter as u8; RAND_VALUE_LEN]);
             hash_clocks[0].tick(rand_value);
         }
 
-        assert!(hash_clocks[0].verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3]).is_none());
+        assert!(hash_clocks[0]
+            .verify_expansion_chain(&origin_tick_hash, &[&expansion1, &expansion2, &expansion3])
+            .is_none());
     }
 }
-

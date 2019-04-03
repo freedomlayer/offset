@@ -11,7 +11,7 @@ pub struct AccessControl<T: std::cmp::Eq + std::hash::Hash> {
     allowed: HashSet<T>,
 }
 
-impl<T> AccessControl<T> 
+impl<T> AccessControl<T>
 where
     T: std::cmp::Eq + std::hash::Hash,
 {
@@ -37,7 +37,6 @@ where
         self.allowed.contains(item)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -78,4 +77,3 @@ mod tests {
         assert!(!ac.is_allowed(&b_public_key));
     }
 }
-

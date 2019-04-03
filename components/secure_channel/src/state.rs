@@ -1,17 +1,17 @@
-use std::mem;
 use byteorder::{BigEndian, ByteOrder};
+use std::mem;
 
-use crypto::crypto_rand::{RandValue, CryptoRandom};
-use crypto::identity::{PublicKey, Signature, verify_signature};
+use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::dh::{DhPrivateKey, Salt};
-use crypto::sym_encrypt::{Encryptor, Decryptor};
+use crypto::identity::{verify_signature, PublicKey, Signature};
+use crypto::sym_encrypt::{Decryptor, Encryptor};
 use identity::IdentityClient;
-use proto::secure_channel::messages::{ExchangeRandNonce, ExchangeDh, ChannelContent,
-                    EncryptedData, PlainData, ChannelMessage, Rekey};
-use proto::secure_channel::serialize::{serialize_channel_message, deserialize_channel_message};
+use proto::secure_channel::messages::{
+    ChannelContent, ChannelMessage, EncryptedData, ExchangeDh, ExchangeRandNonce, PlainData, Rekey,
+};
+use proto::secure_channel::serialize::{deserialize_channel_message, serialize_channel_message};
 
 const MAX_RAND_PADDING: u16 = 0x100;
-
 
 #[derive(Debug)]
 pub enum ScStateError {
@@ -41,7 +41,6 @@ pub struct ScStateHalf {
     local_salt: Salt,
 }
 
-
 struct PendingRekey {
     local_dh_private_key: DhPrivateKey,
     local_salt: Salt,
@@ -54,16 +53,17 @@ pub struct ScState {
     sender: Encryptor,
     receiver: Decryptor,
     /// We might have an old receiver from the last rekeying.
-    /// We will remove it upon receipt of the first successful incoming 
+    /// We will remove it upon receipt of the first successful incoming
     /// messages for the new receiver.
     opt_old_receiver: Option<Decryptor>,
     opt_pending_rekey: Option<PendingRekey>,
 }
 
-
-
 impl ScStateInitial {
-    pub fn new<R: CryptoRandom>(local_public_key: &PublicKey, rng: &R) -> (ScStateInitial, ExchangeRandNonce) {
+    pub fn new<R: CryptoRandom>(
+        local_public_key: &PublicKey,
+        rng: &R,
+    ) -> (ScStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::new(rng);
 
         let sc_state_initial = ScStateInitial {
@@ -77,17 +77,18 @@ impl ScStateInitial {
         (sc_state_initial, exchange_rand_nonce)
     }
 
-    pub async fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(self, 
-                                                             exchange_rand_nonce: ExchangeRandNonce, 
-                                                             identity_client: IdentityClient, rng: R) 
-                                                            -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
-
-        let dh_private_key = DhPrivateKey::new(&rng)
-            .map_err(|_| ScStateError::PrivateKeyGenFailure)?;
-        let dh_public_key = dh_private_key.compute_public_key()
-                .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;;
-        let local_salt = Salt::new(&rng)
-            .map_err(|_| ScStateError::SaltGenFailure)?;
+    pub async fn handle_exchange_rand_nonce<R: CryptoRandom + 'static>(
+        self,
+        exchange_rand_nonce: ExchangeRandNonce,
+        identity_client: IdentityClient,
+        rng: R,
+    ) -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
+        let dh_private_key =
+            DhPrivateKey::new(&rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
+        let dh_public_key = dh_private_key
+            .compute_public_key()
+            .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;;
+        let local_salt = Salt::new(&rng).map_err(|_| ScStateError::SaltGenFailure)?;
 
         let sc_state_half = ScStateHalf {
             remote_public_key: exchange_rand_nonce.public_key,
@@ -103,8 +104,8 @@ impl ScStateInitial {
             key_salt: local_salt,
             signature: Signature::zero(),
         };
-        exchange_dh.signature = await!(identity_client.request_signature(exchange_dh.signature_buffer()))
-            .unwrap();
+        exchange_dh.signature =
+            await!(identity_client.request_signature(exchange_dh.signature_buffer())).unwrap();
 
         Ok((sc_state_half, exchange_dh))
     }
@@ -128,17 +129,19 @@ impl ScStateHalf {
     pub fn handle_exchange_dh(self, exchange_dh: ExchangeDh) -> Result<ScState, ScStateError> {
         self.verify_exchange_dh(&exchange_dh)?;
 
-        let (send_key, recv_key) = self.dh_private_key.derive_symmetric_key(
-            exchange_dh.dh_public_key,
-            self.local_salt,
-            exchange_dh.key_salt)
+        let (send_key, recv_key) = self
+            .dh_private_key
+            .derive_symmetric_key(
+                exchange_dh.dh_public_key,
+                self.local_salt,
+                exchange_dh.key_salt,
+            )
             .map_err(|_| ScStateError::KeyDerivationFailure)?;
 
         Ok(ScState {
             local_public_key: self.local_public_key,
             remote_public_key: self.remote_public_key,
-            sender: Encryptor::new(&send_key)
-                .map_err(|_| ScStateError::CreateEncryptorFailure)?,
+            sender: Encryptor::new(&send_key).map_err(|_| ScStateError::CreateEncryptorFailure)?,
             receiver: Decryptor::new(&recv_key)
                 .map_err(|_| ScStateError::CreateDecryptorFailure)?,
             opt_old_receiver: None,
@@ -148,14 +151,17 @@ impl ScStateHalf {
 }
 
 pub struct HandleIncomingOutput {
-    pub rekey_occured: bool,
+    pub rekey_occurred: bool,
     pub opt_send_message: Option<EncryptedData>,
     pub opt_incoming_message: Option<PlainData>,
 }
 
-
 impl ScState {
-    fn encrypt_outgoing<R: CryptoRandom>(&mut self, channel_content: ChannelContent, rng: &R) -> EncryptedData {
+    fn encrypt_outgoing<R: CryptoRandom>(
+        &mut self,
+        channel_content: ChannelContent,
+        rng: &R,
+    ) -> EncryptedData {
         let channel_message = ChannelMessage {
             rand_padding: self.gen_rand_padding(rng),
             content: channel_content,
@@ -175,24 +181,32 @@ impl ScState {
             }
         };
 
-        let data = self.receiver.decrypt(&enc_data.0)
+        let data = self
+            .receiver
+            .decrypt(&enc_data.0)
             .map_err(|_| ScStateError::DecryptionFailure)?;
         self.opt_old_receiver = None;
         Ok(PlainData(data))
     }
 
-
     /// Decrypt an incoming message
-    fn decrypt_incoming(&mut self, enc_data: &EncryptedData) -> Result<ChannelContent, ScStateError> {
+    fn decrypt_incoming(
+        &mut self,
+        enc_data: &EncryptedData,
+    ) -> Result<ChannelContent, ScStateError> {
         let data = self.try_decrypt(enc_data)?.0;
-        let channel_message = deserialize_channel_message(&data)
-            .map_err(|_| ScStateError::DeserializeError)?;
+        let channel_message =
+            deserialize_channel_message(&data).map_err(|_| ScStateError::DeserializeError)?;
 
         Ok(channel_message.content)
     }
 
     /// Create an outgoing encrypted message
-    pub fn create_outgoing<R: CryptoRandom>(&mut self, plain_data: &PlainData, rng: &R) -> EncryptedData {
+    pub fn create_outgoing<R: CryptoRandom>(
+        &mut self,
+        plain_data: &PlainData,
+        rng: &R,
+    ) -> EncryptedData {
         let content = ChannelContent::User(plain_data.clone());
         self.encrypt_outgoing(content, rng)
     }
@@ -215,7 +229,10 @@ impl ScState {
     }
 
     /// Initiate rekeying. Outputs an encrypted message to send to remote side.
-    pub fn create_rekey<R: CryptoRandom>(&mut self, rng: &R) -> Result<EncryptedData, ScStateError> {
+    pub fn create_rekey<R: CryptoRandom>(
+        &mut self,
+        rng: &R,
+    ) -> Result<EncryptedData, ScStateError> {
         if self.opt_pending_rekey.is_some() {
             return Err(ScStateError::RekeyInProgress);
         }
@@ -235,71 +252,78 @@ impl ScState {
         Ok(self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng))
     }
 
-    fn handle_incoming_rekey<R: CryptoRandom>(&mut self, rekey: Rekey, rng: &R) 
-        -> Result<HandleIncomingOutput, ScStateError> {
-
+    fn handle_incoming_rekey<R: CryptoRandom>(
+        &mut self,
+        rekey: Rekey,
+        rng: &R,
+    ) -> Result<HandleIncomingOutput, ScStateError> {
         match self.opt_pending_rekey.take() {
             None => {
                 let dh_private_key = DhPrivateKey::new(rng).unwrap();
                 let local_salt = Salt::new(rng).unwrap();
                 let dh_public_key = dh_private_key.compute_public_key().unwrap();
 
-                let (send_key, recv_key) = dh_private_key.derive_symmetric_key(
-                    rekey.dh_public_key,
-                    local_salt.clone(),
-                    rekey.key_salt)
+                let (send_key, recv_key) = dh_private_key
+                    .derive_symmetric_key(rekey.dh_public_key, local_salt.clone(), rekey.key_salt)
                     .map_err(|_| ScStateError::KeyDerivationFailure)?;
 
-                let new_sender = Encryptor::new(&send_key)
-                    .map_err(|_| ScStateError::CreateEncryptorFailure)?;
-                let new_receiver = Decryptor::new(&recv_key)
-                    .map_err(|_| ScStateError::CreateDecryptorFailure)?;
+                let new_sender =
+                    Encryptor::new(&send_key).map_err(|_| ScStateError::CreateEncryptorFailure)?;
+                let new_receiver =
+                    Decryptor::new(&recv_key).map_err(|_| ScStateError::CreateDecryptorFailure)?;
 
                 self.opt_old_receiver = Some(mem::replace(&mut self.receiver, new_receiver));
 
                 // Create our Rekey message using the old sender:
                 let rekey = Rekey {
                     dh_public_key,
-                    key_salt: local_salt
+                    key_salt: local_salt,
                 };
                 let rekey_data = self.encrypt_outgoing(ChannelContent::Rekey(rekey), rng);
 
                 self.sender = new_sender;
                 Ok(HandleIncomingOutput {
-                    rekey_occured: true,
+                    rekey_occurred: true,
                     opt_send_message: Some(rekey_data),
                     opt_incoming_message: None,
                 })
-            },
+            }
             Some(pending_rekey) => {
-                let (send_key, recv_key) = pending_rekey.local_dh_private_key.derive_symmetric_key(
-                    rekey.dh_public_key,
-                    pending_rekey.local_salt,
-                    rekey.key_salt)
+                let (send_key, recv_key) = pending_rekey
+                    .local_dh_private_key
+                    .derive_symmetric_key(
+                        rekey.dh_public_key,
+                        pending_rekey.local_salt,
+                        rekey.key_salt,
+                    )
                     .map_err(|_| ScStateError::KeyDerivationFailure)?;
-                self.sender = Encryptor::new(&send_key)
-                    .map_err(|_| ScStateError::CreateEncryptorFailure)?;
-                let new_receiver = Decryptor::new(&recv_key)
-                    .map_err(|_| ScStateError::CreateDecryptorFailure)?;
+                self.sender =
+                    Encryptor::new(&send_key).map_err(|_| ScStateError::CreateEncryptorFailure)?;
+                let new_receiver =
+                    Decryptor::new(&recv_key).map_err(|_| ScStateError::CreateDecryptorFailure)?;
                 self.opt_old_receiver = Some(mem::replace(&mut self.receiver, new_receiver));
                 Ok(HandleIncomingOutput {
-                    rekey_occured: true,
+                    rekey_occurred: true,
                     opt_send_message: None,
                     opt_incoming_message: None,
                 })
-            },
+            }
         }
     }
 
     /// Handle an incoming encrypted message
-    pub fn handle_incoming<R: CryptoRandom>(&mut self, enc_data: &EncryptedData, rng: &R) 
-        -> Result<HandleIncomingOutput, ScStateError> {
-
+    pub fn handle_incoming<R: CryptoRandom>(
+        &mut self,
+        enc_data: &EncryptedData,
+        rng: &R,
+    ) -> Result<HandleIncomingOutput, ScStateError> {
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::Rekey(rekey) => self.handle_incoming_rekey(rekey, rng),
-            ChannelContent::User(content) => 
-                Ok(HandleIncomingOutput { rekey_occured: false, 
-                    opt_send_message: None, opt_incoming_message: Some(content) }),
+            ChannelContent::User(content) => Ok(HandleIncomingOutput {
+                rekey_occurred: false,
+                opt_send_message: None,
+                opt_incoming_message: Some(content),
+            }),
         }
     }
 
@@ -309,90 +333,111 @@ impl ScState {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     // use tokio_core::reactor::Core;
-    use futures::{future, FutureExt};
+    use crypto::identity::{generate_pkcs8_key_pair, SoftwareEd25519Identity};
+    use crypto::test_utils::DummyRandom;
     use futures::executor::ThreadPool;
     use futures::task::SpawnExt;
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity, generate_pkcs8_key_pair};
+    use futures::{future, FutureExt};
     use identity::create_identity;
     use identity::IdentityClient;
 
-    async fn run_basic_sc_state(identity_client1: IdentityClient, identity_client2: IdentityClient) -> Result<(ScState, ScState),()> {
+    async fn run_basic_sc_state(
+        identity_client1: IdentityClient,
+        identity_client2: IdentityClient,
+    ) -> Result<(ScState, ScState), ()> {
         let rng1 = DummyRandom::new(&[1u8]);
         let rng2 = DummyRandom::new(&[2u8]);
         let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
         let local_public_key2 = await!(identity_client2.request_public_key()).unwrap();
-        let (sc_state_initial1, exchange_rand_nonce1) = ScStateInitial::new(&local_public_key1, &rng1);
-        let (sc_state_initial2, exchange_rand_nonce2) = ScStateInitial::new(&local_public_key2, &rng2);
+        let (sc_state_initial1, exchange_rand_nonce1) =
+            ScStateInitial::new(&local_public_key1, &rng1);
+        let (sc_state_initial2, exchange_rand_nonce2) =
+            ScStateInitial::new(&local_public_key2, &rng2);
 
-        let (sc_state_half1, exchange_dh1) = 
-            await!(sc_state_initial1.handle_exchange_rand_nonce(exchange_rand_nonce2, identity_client1.clone(), rng1.clone())).unwrap();
-        let (sc_state_half2, exchange_dh2) = 
-            await!(sc_state_initial2.handle_exchange_rand_nonce(exchange_rand_nonce1, identity_client2.clone(), rng2.clone())).unwrap();
-        
+        let (sc_state_half1, exchange_dh1) = await!(sc_state_initial1.handle_exchange_rand_nonce(
+            exchange_rand_nonce2,
+            identity_client1.clone(),
+            rng1.clone()
+        ))
+        .unwrap();
+        let (sc_state_half2, exchange_dh2) = await!(sc_state_initial2.handle_exchange_rand_nonce(
+            exchange_rand_nonce1,
+            identity_client2.clone(),
+            rng2.clone()
+        ))
+        .unwrap();
+
         let sc_state1 = sc_state_half1.handle_exchange_dh(exchange_dh2).unwrap();
         let sc_state2 = sc_state_half2.handle_exchange_dh(exchange_dh1).unwrap();
         Ok((sc_state1, sc_state2))
     }
 
-    fn send_recv_messages<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
-                                           rng1: &R, rng2: &R) {
+    fn send_recv_messages<R: CryptoRandom>(
+        sc_state1: &mut ScState,
+        sc_state2: &mut ScState,
+        rng1: &R,
+        rng2: &R,
+    ) {
         // Send a few messages 1 -> 2
-        for i in 0 .. 5 {
-            let plain_data = PlainData(vec![0,1,2,3,4,i as u8]);
-            let enc_data = sc_state1.create_outgoing(&plain_data,rng1);
+        for i in 0..5 {
+            let plain_data = PlainData(vec![0, 1, 2, 3, 4, i as u8]);
+            let enc_data = sc_state1.create_outgoing(&plain_data, rng1);
             let incoming_output = sc_state2.handle_incoming(&enc_data, rng2).unwrap();
-            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.rekey_occurred, false);
             assert_eq!(incoming_output.opt_send_message, None);
             assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
         }
 
         // Send a few messages 2 -> 1:
-        for i in 0 .. 5 {
-            let plain_data = PlainData(vec![0,1,2,3,4,i as u8]);
-            let enc_data = sc_state2.create_outgoing(&plain_data,rng2);
+        for i in 0..5 {
+            let plain_data = PlainData(vec![0, 1, 2, 3, 4, i as u8]);
+            let enc_data = sc_state2.create_outgoing(&plain_data, rng2);
             let incoming_output = sc_state1.handle_incoming(&enc_data, rng1).unwrap();
-            assert_eq!(incoming_output.rekey_occured, false);
+            assert_eq!(incoming_output.rekey_occurred, false);
             assert_eq!(incoming_output.opt_send_message, None);
             assert_eq!(incoming_output.opt_incoming_message.unwrap(), plain_data);
         }
     }
 
-
-    fn rekey_sequential<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
-                                           rng1: &R, rng2: &R) {
-
+    fn rekey_sequential<R: CryptoRandom>(
+        sc_state1: &mut ScState,
+        sc_state2: &mut ScState,
+        rng1: &R,
+        rng2: &R,
+    ) {
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
         let incoming_output = sc_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
-        assert_eq!(incoming_output.rekey_occured, true);
+        assert_eq!(incoming_output.rekey_occurred, true);
         let rekey_enc_data2 = incoming_output.opt_send_message.unwrap();
         assert_eq!(incoming_output.opt_incoming_message, None);
 
         let incoming_output = sc_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
-        assert_eq!(incoming_output.rekey_occured, true);
+        assert_eq!(incoming_output.rekey_occurred, true);
         assert_eq!(incoming_output.opt_send_message, None);
         assert_eq!(incoming_output.opt_incoming_message, None);
     }
 
-    fn rekey_simultaneous<R: CryptoRandom>(sc_state1: &mut ScState, sc_state2: &mut ScState, 
-                                           rng1: &R, rng2: &R) {
-
+    fn rekey_simultaneous<R: CryptoRandom>(
+        sc_state1: &mut ScState,
+        sc_state2: &mut ScState,
+        rng1: &R,
+        rng2: &R,
+    ) {
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
         let rekey_enc_data2 = sc_state2.create_rekey(rng2).unwrap();
 
         let incoming_output1 = sc_state1.handle_incoming(&rekey_enc_data2, rng1).unwrap();
         let incoming_output2 = sc_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
 
-        assert_eq!(incoming_output1.rekey_occured, true);
+        assert_eq!(incoming_output1.rekey_occurred, true);
         assert_eq!(incoming_output1.opt_send_message, None);
         assert_eq!(incoming_output1.opt_incoming_message, None);
 
-        assert_eq!(incoming_output2.rekey_occured, true);
+        assert_eq!(incoming_output2.rekey_occurred, true);
         assert_eq!(incoming_output2.opt_send_message, None);
         assert_eq!(incoming_output2.opt_incoming_message, None);
     }
@@ -412,11 +457,16 @@ mod tests {
 
         // Start the Identity service:
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.spawn(identity_server1.then(|_| future::ready(()))).unwrap();
-        thread_pool.spawn(identity_server2.then(|_| future::ready(()))).unwrap();
+        thread_pool
+            .spawn(identity_server1.then(|_| future::ready(())))
+            .unwrap();
+        thread_pool
+            .spawn(identity_server2.then(|_| future::ready(())))
+            .unwrap();
 
-        let (sc_state1, sc_state2) = 
-            thread_pool.run(run_basic_sc_state(identity_client1, identity_client2)).unwrap();
+        let (sc_state1, sc_state2) = thread_pool
+            .run(run_basic_sc_state(identity_client1, identity_client2))
+            .unwrap();
 
         (sc_state1, sc_state2, rng1, rng2)
     }
@@ -432,7 +482,7 @@ mod tests {
     }
     // TODO: Add tests:
     // - Test the usage of old receiver
-    // - Test error cases 
+    // - Test error cases
     //   - deserialize error
     //   - create_rekey() twice
 }

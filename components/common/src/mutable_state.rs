@@ -1,4 +1,3 @@
-
 pub trait MutableState {
     type Mutation;
     type MutateError;
@@ -11,9 +10,9 @@ pub trait MutableState {
 #[derive(Debug, Clone)]
 pub struct BatchMutable<T>(pub T);
 
-impl<T,M,E> MutableState for BatchMutable<T>
+impl<T, M, E> MutableState for BatchMutable<T>
 where
-    T: MutableState<Mutation=M,MutateError=E>,
+    T: MutableState<Mutation = M, MutateError = E>,
 {
     type Mutation = Vec<M>;
     type MutateError = E;

@@ -1,7 +1,7 @@
-use std::fmt::Debug;
-use futures::channel::{oneshot, mpsc};
-use futures::{future, StreamExt, SinkExt};
+use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
+use futures::{future, SinkExt, StreamExt};
+use std::fmt::Debug;
 
 use crate::atomic_db::AtomicDb;
 
@@ -29,18 +29,15 @@ pub enum DatabaseClientError {
     ResponseCanceled,
 }
 
-impl<M> DatabaseClient<M> 
+impl<M> DatabaseClient<M>
 where
     M: Debug,
 {
     pub fn new(request_sender: mpsc::Sender<DatabaseRequest<M>>) -> Self {
-        DatabaseClient {
-            request_sender,
-        }
+        DatabaseClient { request_sender }
     }
 
     pub async fn mutate(&mut self, mutations: Vec<M>) -> Result<(), DatabaseClientError> {
-
         let (response_sender, request_done) = oneshot::channel();
         let database_request = DatabaseRequest {
             mutations,
@@ -51,18 +48,17 @@ where
             .map_err(|_| DatabaseClientError::SendError)?;
 
         // Wait for ack from the service:
-        await!(request_done)
-            .map_err(|_| DatabaseClientError::ResponseCanceled)?;
-
+        await!(request_done).map_err(|_| DatabaseClientError::ResponseCanceled)?;
 
         Ok(())
     }
 }
 
-pub async fn database_loop<AD,S>(mut atomic_db: AD, 
-                               mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>,
-                               mut database_spawner: S)
-                                -> Result<AD, DatabaseError<AD::Error>>
+pub async fn database_loop<AD, S>(
+    mut atomic_db: AD,
+    mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>,
+    mut database_spawner: S,
+) -> Result<AD, DatabaseError<AD::Error>>
 where
     AD: AtomicDb + Send + 'static,
     AD::Mutation: Debug + Send + 'static,
@@ -75,13 +71,18 @@ where
     // of Tokio that has this feature)
 
     while let Some(database_request) = await!(incoming_requests.next()) {
-        let DatabaseRequest {mutations, response_sender} = database_request;
+        let DatabaseRequest {
+            mutations,
+            response_sender,
+        } = database_request;
         let mutate_fut = future::lazy(move |_| {
-            atomic_db.mutate_db(&mutations[..])
+            atomic_db
+                .mutate_db(&mutations[..])
                 .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
             Ok(atomic_db)
         });
-        let handle = database_spawner.spawn_with_handle(mutate_fut)
+        let handle = database_spawner
+            .spawn_with_handle(mutate_fut)
             .map_err(|_| DatabaseError::SpawnError)?;
 
         atomic_db = await!(handle)?;
@@ -92,7 +93,6 @@ where
     // Return the current state
     Ok(atomic_db)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -108,9 +108,7 @@ mod tests {
 
     impl DummyState {
         pub fn new() -> Self {
-            DummyState {
-                x: 0u32,
-            }
+            DummyState { x: 0u32 }
         }
     }
 
@@ -118,7 +116,7 @@ mod tests {
     #[derive(Debug)]
     enum DummyMutation {
         Inc,
-        Dec
+        Dec,
     }
 
     /// A dummy AtomicDb (used for testing)
@@ -149,17 +147,17 @@ mod tests {
                 match mutation {
                     DummyMutation::Inc => {
                         self.dummy_state.x = self.dummy_state.x.saturating_add(1);
-                    },
+                    }
                     DummyMutation::Dec => {
                         self.dummy_state.x = self.dummy_state.x.saturating_sub(1);
-                    },
+                    }
                 };
             }
             Ok(())
         }
     }
 
-    async fn task_database_loop_basic<S>(mut spawner: S) 
+    async fn task_database_loop_basic<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -169,13 +167,19 @@ mod tests {
         let loop_res_fut = spawner.spawn_with_handle(loop_fut).unwrap();
 
         let mut db_client = DatabaseClient::new(request_sender);
-        await!(db_client.mutate(vec![DummyMutation::Inc, 
-                              DummyMutation::Inc,
-                              DummyMutation::Dec])).unwrap();
+        await!(db_client.mutate(vec![
+            DummyMutation::Inc,
+            DummyMutation::Inc,
+            DummyMutation::Dec
+        ]))
+        .unwrap();
 
-        await!(db_client.mutate(vec![DummyMutation::Inc, 
-                              DummyMutation::Inc,
-                              DummyMutation::Dec])).unwrap();
+        await!(db_client.mutate(vec![
+            DummyMutation::Inc,
+            DummyMutation::Inc,
+            DummyMutation::Dec
+        ]))
+        .unwrap();
 
         // Droping the only client should close the loop:
         drop(db_client);

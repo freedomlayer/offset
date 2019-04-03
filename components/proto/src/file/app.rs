@@ -1,13 +1,12 @@
-use std::io::{self, Write};
 use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
 
+use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 use toml;
-use crate::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
 
-use crypto::identity::PublicKey;
 use crate::app_server::messages::AppPermissions;
+use crypto::identity::PublicKey;
 
 #[derive(Debug)]
 pub enum AppFileError {
@@ -17,7 +16,6 @@ pub enum AppFileError {
     PkStringError,
     InvalidPublicKey,
 }
-
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,7 +54,6 @@ impl From<PkStringError> for AppFileError {
     }
 }
 
-
 /// Load a TrustedApp from a file
 pub fn load_trusted_app_from_file(path: &Path) -> Result<TrustedApp, AppFileError> {
     let data = fs::read_to_string(&path)?;
@@ -71,10 +68,14 @@ pub fn load_trusted_app_from_file(path: &Path) -> Result<TrustedApp, AppFileErro
 }
 
 /// Store TrustedApp to a file
-pub fn store_trusted_app_to_file(trusted_app: &TrustedApp, path: &Path)
-    -> Result<(), AppFileError> {
-
-    let TrustedApp {ref public_key, ref permissions} = trusted_app;
+pub fn store_trusted_app_to_file(
+    trusted_app: &TrustedApp,
+    path: &Path,
+) -> Result<(), AppFileError> {
+    let TrustedApp {
+        ref public_key,
+        ref permissions,
+    } = trusted_app;
 
     let trusted_app_file = TrustedAppFile {
         public_key: public_key_to_string(&public_key),
@@ -107,8 +108,8 @@ pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedApp>, AppFileErro
 mod tests {
     use super::*;
 
-    use tempfile::tempdir;
     use crypto::identity::PUBLIC_KEY_LEN;
+    use tempfile::tempdir;
 
     #[test]
     fn test_store_load_trusted_app() {

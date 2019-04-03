@@ -1,10 +1,10 @@
-use common::conn::{FutTransform, BoxFuture, ConnPairVec};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
-use futures::compat::{Future01CompatExt};
+use futures::compat::Future01CompatExt;
 use futures::task::Spawn;
 
-use tokio::net::TcpStream;
 use std::net::SocketAddr;
+use tokio::net::TcpStream;
 
 use crate::utils::tcp_stream_to_conn_pair;
 
@@ -15,9 +15,7 @@ pub struct TcpConnector<S> {
 }
 
 impl<S> TcpConnector<S> {
-    pub fn new(max_frame_length: usize,
-           spawner: S) -> Self {
-
+    pub fn new(max_frame_length: usize, spawner: S) -> Self {
         TcpConnector {
             max_frame_length,
             spawner,
@@ -25,26 +23,22 @@ impl<S> TcpConnector<S> {
     }
 }
 
-
-impl<S> FutTransform for TcpConnector<S> 
+impl<S> FutTransform for TcpConnector<S>
 where
     S: Spawn + Send,
 {
     type Input = SocketAddr;
     type Output = Option<ConnPairVec>;
 
-    fn transform(&mut self, socket_addr: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, socket_addr: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let tcp_stream = await!(TcpStream::connect(&socket_addr).compat())
-                .ok()?;
+            let tcp_stream = await!(TcpStream::connect(&socket_addr).compat()).ok()?;
 
-            Some(tcp_stream_to_conn_pair(tcp_stream,
-                                           self.max_frame_length,
-                                           &mut self.spawner))
-
+            Some(tcp_stream_to_conn_pair(
+                tcp_stream,
+                self.max_frame_length,
+                &mut self.spawner,
+            ))
         })
     }
 }
-

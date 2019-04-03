@@ -1,15 +1,14 @@
 use im::hashmap::HashMap as ImHashMap;
 
+use common::safe_arithmetic::SafeSignedArithmetic;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
-use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{PendingRequest, RequestsStatus};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
-
 
 // TODO: Rename this to McIdents
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -87,7 +86,6 @@ impl McRequestsStatus {
     }
 }
 
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MutualCreditState {
     pub idents: McIdents,
@@ -116,12 +114,12 @@ pub enum McMutation {
     SetRemotePendingDebt(u128),
 }
 
-
 impl MutualCredit {
-    pub fn new(local_public_key: &PublicKey, 
-           remote_public_key: &PublicKey, 
-           balance: i128) -> MutualCredit {
-
+    pub fn new(
+        local_public_key: &PublicKey,
+        remote_public_key: &PublicKey,
+        balance: i128,
+    ) -> MutualCredit {
         MutualCredit {
             state: MutualCreditState {
                 idents: McIdents {
@@ -131,14 +129,16 @@ impl MutualCredit {
                 balance: McBalance::new(balance),
                 pending_requests: McPendingRequests::new(),
                 requests_status: McRequestsStatus::new(),
-            }
+            },
         }
     }
 
     /// Calculate required balance for reset.
     /// This would be current balance plus additional future profits.
     pub fn balance_for_reset(&self) -> i128 {
-        self.state.balance.balance
+        self.state
+            .balance
+            .balance
             .checked_add_unsigned(self.state.balance.remote_pending_debt)
             .expect("Overflow when calculating balance_for_reset")
         // TODO: Is this the correct formula?
@@ -153,28 +153,37 @@ impl MutualCredit {
 
     pub fn mutate(&mut self, tc_mutation: &McMutation) {
         match tc_mutation {
-            McMutation::SetLocalRequestsStatus(requests_status) => 
-                self.set_local_requests_status(requests_status.clone()),
-            McMutation::SetRemoteRequestsStatus(requests_status) => 
-                self.set_remote_requests_status(requests_status.clone()),
-            McMutation::SetLocalMaxDebt(proposed_max_debt) => 
-                self.set_local_max_debt(*proposed_max_debt),
-            McMutation::SetRemoteMaxDebt(proposed_max_debt) => 
-                self.set_remote_max_debt(*proposed_max_debt),
-            McMutation::SetBalance(balance) => 
-                self.set_balance(*balance),
-            McMutation::InsertLocalPendingRequest(pending_friend_request) =>
-                self.insert_local_pending_request(pending_friend_request),
-            McMutation::RemoveLocalPendingRequest(request_id) =>
-                self.remove_local_pending_request(request_id),
-            McMutation::InsertRemotePendingRequest(pending_friend_request) =>
-                self.insert_remote_pending_request(pending_friend_request),
-            McMutation::RemoveRemotePendingRequest(request_id) =>
-                self.remove_remote_pending_request(request_id),
-            McMutation::SetLocalPendingDebt(local_pending_debt) =>
-                self.set_local_pending_debt(*local_pending_debt),
-            McMutation::SetRemotePendingDebt(remote_pending_debt) =>
-                self.set_remote_pending_debt(*remote_pending_debt),
+            McMutation::SetLocalRequestsStatus(requests_status) => {
+                self.set_local_requests_status(requests_status.clone())
+            }
+            McMutation::SetRemoteRequestsStatus(requests_status) => {
+                self.set_remote_requests_status(requests_status.clone())
+            }
+            McMutation::SetLocalMaxDebt(proposed_max_debt) => {
+                self.set_local_max_debt(*proposed_max_debt)
+            }
+            McMutation::SetRemoteMaxDebt(proposed_max_debt) => {
+                self.set_remote_max_debt(*proposed_max_debt)
+            }
+            McMutation::SetBalance(balance) => self.set_balance(*balance),
+            McMutation::InsertLocalPendingRequest(pending_friend_request) => {
+                self.insert_local_pending_request(pending_friend_request)
+            }
+            McMutation::RemoveLocalPendingRequest(request_id) => {
+                self.remove_local_pending_request(request_id)
+            }
+            McMutation::InsertRemotePendingRequest(pending_friend_request) => {
+                self.insert_remote_pending_request(pending_friend_request)
+            }
+            McMutation::RemoveRemotePendingRequest(request_id) => {
+                self.remove_remote_pending_request(request_id)
+            }
+            McMutation::SetLocalPendingDebt(local_pending_debt) => {
+                self.set_local_pending_debt(*local_pending_debt)
+            }
+            McMutation::SetRemotePendingDebt(remote_pending_debt) => {
+                self.set_remote_pending_debt(*remote_pending_debt)
+            }
         }
     }
 
@@ -186,7 +195,7 @@ impl MutualCredit {
         self.state.requests_status.remote = requests_status;
     }
 
-    fn set_remote_max_debt(&mut self, proposed_max_debt: u128) { 
+    fn set_remote_max_debt(&mut self, proposed_max_debt: u128) {
         self.state.balance.remote_max_debt = proposed_max_debt;
     }
 
@@ -201,29 +210,36 @@ impl MutualCredit {
     fn insert_remote_pending_request(&mut self, pending_friend_request: &PendingRequest) {
         self.state.pending_requests.pending_remote_requests.insert(
             pending_friend_request.request_id,
-            pending_friend_request.clone());
+            pending_friend_request.clone(),
+        );
     }
 
     fn remove_remote_pending_request(&mut self, request_id: &Uid) {
-        let _ = self.state.pending_requests.pending_remote_requests.remove(
-            request_id);
+        let _ = self
+            .state
+            .pending_requests
+            .pending_remote_requests
+            .remove(request_id);
     }
 
     fn insert_local_pending_request(&mut self, pending_friend_request: &PendingRequest) {
         self.state.pending_requests.pending_local_requests.insert(
             pending_friend_request.request_id,
-            pending_friend_request.clone());
+            pending_friend_request.clone(),
+        );
     }
 
     fn remove_local_pending_request(&mut self, request_id: &Uid) {
-        let _ = self.state.pending_requests.pending_local_requests.remove(
-            request_id);
+        let _ = self
+            .state
+            .pending_requests
+            .pending_local_requests
+            .remove(request_id);
     }
 
     fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) {
         self.state.balance.remote_pending_debt = remote_pending_debt;
     }
-
 
     fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
         self.state.balance.local_pending_debt = local_pending_debt;

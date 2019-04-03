@@ -33,7 +33,6 @@ highest priority.
     with numbers (addition, subtraction, multiplication, safe casting etc.).
     Always prefer those over checking inequalities manually.
 
-
 ### Async tips
 
 - Async code is hard to read and hard to test, therefore it should be used only
@@ -41,7 +40,7 @@ highest priority.
 - If you have to use async code, try to separate all the synchronous logic into
     a separate state machine that is easy to test and easy to reason about.
 - "Send the sender" trick: If component C sends a request to component D and
-    waits for a response, C should first create a mpsc::oneshot() and keep the
+    waits for a response, C should first create a `mpsc::oneshot()` and keep the
     receiving end. Then C sends the message to D, together with the sending end
     of the oneshot. Upon receipt, D will process the message, and send the
     response through the sending end of the oneshot.
@@ -50,7 +49,7 @@ highest priority.
 
 When writing your code, always think about how you are going to test it.
 If you think that testing your code will be difficult, try to come up with a
-differnet design that will make testing easier.
+different design that will make testing easier.
 
 Always make sure that your tests are deterministic. If a test is not
 deterministic, it can sometimes fail and sometimes succeed. A failure for a non
@@ -61,4 +60,3 @@ number generator with a deterministic seed.
 
 Do not rely on time in your tests. Time is not deterministic. Whenever time is
 required in your code, use a Stream of ticks instead.
-

@@ -1,13 +1,13 @@
-use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
+use futures::{SinkExt, StreamExt};
 
 use common::multi_consumer::MultiConsumerClient;
 
-use crypto::identity::PublicKey;
 use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
+use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::app_server::messages::{AppToAppServer, AppRequest};
+use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use proto::index_server::messages::{RequestRoutes, RouteWithCapacity};
 
@@ -15,7 +15,7 @@ use proto::index_server::messages::{RequestRoutes, RouteWithCapacity};
 pub struct AppRoutesError;
 
 #[derive(Clone)]
-pub struct AppRoutes<R=OffstSystemRandom> {
+pub struct AppRoutes<R = OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
     routes_mc: MultiConsumerClient<ClientResponseRoutes>,
     rng: R,
@@ -24,7 +24,7 @@ pub struct AppRoutes<R=OffstSystemRandom> {
 /*
 pub struct RequestRoutes {
     pub request_id: Uid,
-    /// Wanted capacity for the route. 
+    /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
     pub capacity: u128,
     pub source: PublicKey,
@@ -48,14 +48,15 @@ pub struct ClientResponseRoutes {
 
 */
 
-impl<R> AppRoutes<R> 
+impl<R> AppRoutes<R>
 where
     R: CryptoRandom,
 {
-    pub (super) fn new(sender: mpsc::Sender<AppToAppServer>,
-               routes_mc: MultiConsumerClient<ClientResponseRoutes>,
-               rng: R) -> Self {
-
+    pub(super) fn new(
+        sender: mpsc::Sender<AppToAppServer>,
+        routes_mc: MultiConsumerClient<ClientResponseRoutes>,
+        rng: R,
+    ) -> Self {
         AppRoutes {
             sender,
             routes_mc,
@@ -63,13 +64,13 @@ where
         }
     }
 
-    pub async fn request_routes(&mut self,
-                                capacity: u128,
-                                source: PublicKey,
-                                destination: PublicKey,
-                                opt_exclude: Option<(PublicKey, PublicKey)>)
-                                    -> Result<Vec<RouteWithCapacity>, AppRoutesError>  {
-
+    pub async fn request_routes(
+        &mut self,
+        capacity: u128,
+        source: PublicKey,
+        destination: PublicKey,
+        opt_exclude: Option<(PublicKey, PublicKey)>,
+    ) -> Result<Vec<RouteWithCapacity>, AppRoutesError> {
         let request_routes_id = Uid::new(&self.rng);
         let request_routes = RequestRoutes {
             request_id: request_routes_id,
@@ -83,12 +84,11 @@ where
         let to_app_server = AppToAppServer::new(Uid::new(&self.rng), app_request);
 
         // Start listening for incoming response routes messages:
-        let mut incoming_routes = await!(self.routes_mc.request_stream())
-            .map_err(|_| AppRoutesError)?;
+        let mut incoming_routes =
+            await!(self.routes_mc.request_stream()).map_err(|_| AppRoutesError)?;
 
         // Send our request to offst node:
-        await!(self.sender.send(to_app_server))
-            .map_err(|_| AppRoutesError)?;
+        await!(self.sender.send(to_app_server)).map_err(|_| AppRoutesError)?;
 
         while let Some(client_response_routes) = await!(incoming_routes.next()) {
             if client_response_routes.request_id != request_routes_id {
@@ -96,7 +96,9 @@ where
                 continue;
             }
             match client_response_routes.result {
-                ResponseRoutesResult::Success(routes_with_capacity) => return Ok(routes_with_capacity),
+                ResponseRoutesResult::Success(routes_with_capacity) => {
+                    return Ok(routes_with_capacity)
+                }
                 ResponseRoutesResult::Failure => return Err(AppRoutesError),
             }
         }

@@ -1,13 +1,11 @@
-use std::io;
+use crate::capnp_common::{read_public_key, write_public_key};
 use capnp;
 use capnp::serialize_packed;
-use crate::capnp_common::{write_public_key,
-                        read_public_key};
+use std::io;
 
 use relay_capnp;
 
-use super::messages::{InitConnection, 
-    RejectConnection, IncomingConnection};
+use super::messages::{IncomingConnection, InitConnection, RejectConnection};
 
 use crate::serialize::SerializeError;
 
@@ -24,7 +22,7 @@ pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
         InitConnection::Connect(public_key) => {
             let mut connect = msg.init_connect();
             write_public_key(&public_key, &mut connect);
-        },
+        }
     }
 
     let mut serialized_msg = Vec::new();
@@ -34,20 +32,20 @@ pub fn serialize_init_connection(init_connection: &InitConnection) -> Vec<u8> {
 
 pub fn deserialize_init_connection(data: &[u8]) -> Result<InitConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::init_connection::Reader>()?;
 
     match msg.which() {
-        Ok(relay_capnp::init_connection::Listen(())) => 
-           Ok(InitConnection::Listen),
+        Ok(relay_capnp::init_connection::Listen(())) => Ok(InitConnection::Listen),
         Ok(relay_capnp::init_connection::Accept(public_key)) => {
             let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Accept(public_key))
-        },
+        }
         Ok(relay_capnp::init_connection::Connect(public_key)) => {
             let public_key = read_public_key(&(public_key?))?;
             Ok(InitConnection::Connect(public_key))
-        },
+        }
         Err(e) => Err(SerializeError::NotInSchema(e)),
     }
 }
@@ -65,7 +63,8 @@ pub fn serialize_reject_connection(reject_connection: &RejectConnection) -> Vec<
 
 pub fn deserialize_reject_connection(data: &[u8]) -> Result<RejectConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::reject_connection::Reader>()?;
 
     let public_key = read_public_key(&(msg.get_public_key()?))?;
@@ -85,7 +84,8 @@ pub fn serialize_incoming_connection(incoming_connection: &IncomingConnection) -
 
 pub fn deserialize_incoming_connection(data: &[u8]) -> Result<IncomingConnection, SerializeError> {
     let mut cursor = io::Cursor::new(data);
-    let reader = serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
+    let reader =
+        serialize_packed::read_message(&mut cursor, ::capnp::message::ReaderOptions::new())?;
     let msg = reader.get_root::<relay_capnp::incoming_connection::Reader>()?;
 
     let public_key = read_public_key(&(msg.get_public_key()?))?;
@@ -95,9 +95,9 @@ pub fn deserialize_incoming_connection(data: &[u8]) -> Result<IncomingConnection
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crypto::identity::PublicKey;
     use crypto::identity::PUBLIC_KEY_LEN;
     use std::convert::TryFrom;
-    use crypto::identity::PublicKey;
 
     #[test]
     fn test_serialize_init_connection() {
@@ -137,4 +137,3 @@ mod tests {
         assert_eq!(msg, msg2);
     }
 }
-

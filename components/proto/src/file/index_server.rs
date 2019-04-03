@@ -1,15 +1,14 @@
 use std::convert::TryInto;
-use std::io::{self, Write};
 use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
 
 use toml;
 
-use crate::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
+use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 
-use crate::net::messages::{NetAddressError, NetAddress};
 use crate::index_server::messages::IndexServerAddress;
+use crate::net::messages::{NetAddress, NetAddressError};
 
 #[derive(Debug)]
 pub enum IndexServerFileError {
@@ -60,7 +59,9 @@ impl From<NetAddressError> for IndexServerFileError {
 }
 
 /// Load IndexServer from a file
-pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress<NetAddress>, IndexServerFileError> {
+pub fn load_index_server_from_file(
+    path: &Path,
+) -> Result<IndexServerAddress<NetAddress>, IndexServerFileError> {
     let data = fs::read_to_string(&path)?;
     let index_server_file: IndexServerFile = toml::from_str(&data)?;
 
@@ -72,12 +73,15 @@ pub fn load_index_server_from_file(path: &Path) -> Result<IndexServerAddress<Net
     })
 }
 
-
 /// Store IndexServer to file
-pub fn store_index_server_to_file(index_server: &IndexServerAddress<NetAddress>, path: &Path)
-    -> Result<(), IndexServerFileError> {
-
-    let IndexServerAddress {ref public_key, ref address} = index_server;
+pub fn store_index_server_to_file(
+    index_server: &IndexServerAddress<NetAddress>,
+    path: &Path,
+) -> Result<(), IndexServerFileError> {
+    let IndexServerAddress {
+        ref public_key,
+        ref address,
+    } = index_server;
 
     let index_server_file = IndexServerFile {
         public_key: public_key_to_string(&public_key),
@@ -92,11 +96,11 @@ pub fn store_index_server_to_file(index_server: &IndexServerAddress<NetAddress>,
     Ok(())
 }
 
-
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
-pub fn load_trusted_servers(dir_path: &Path) 
-    -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerFileError> {
+pub fn load_trusted_servers(
+    dir_path: &Path,
+) -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerFileError> {
     let mut res_trusted = Vec::new();
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
@@ -109,8 +113,6 @@ pub fn load_trusted_servers(dir_path: &Path)
     Ok(res_trusted)
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,10 +122,13 @@ mod tests {
 
     #[test]
     fn test_index_server_file_basic() {
-        let index_server_file: IndexServerFile = toml::from_str(r#"
+        let index_server_file: IndexServerFile = toml::from_str(
+            r#"
             public_key = 'public_key_string'
             address = 'localhost:1337'
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         assert_eq!(index_server_file.public_key, "public_key_string");
         assert_eq!(index_server_file.address, "localhost:1337");
@@ -146,7 +151,6 @@ mod tests {
         assert_eq!(index_server_address, index_server_address2);
     }
 
-
     #[test]
     fn test_load_trusted_index_servers() {
         // Create a temporary directory:
@@ -166,14 +170,12 @@ mod tests {
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
 
-
         let file_path = dir.path().join("index_server_address_file_c");
         let index_server_address = IndexServerAddress {
             public_key: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
             address: "127.0.0.1:1002".to_owned().try_into().unwrap(),
         };
         store_index_server_to_file(&index_server_address, &file_path).unwrap();
-
 
         let trusted_servers = load_trusted_servers(&dir.path()).unwrap();
         assert_eq!(trusted_servers.len(), 3);
@@ -184,9 +186,13 @@ mod tests {
             .collect::<Vec<_>>();
         addresses.sort();
 
-        assert_eq!(addresses, vec!["127.0.0.1:1000".to_owned().try_into().unwrap(),
-                                   "127.0.0.1:1001".to_owned().try_into().unwrap(),
-                                   "127.0.0.1:1002".to_owned().try_into().unwrap()]);
+        assert_eq!(
+            addresses,
+            vec![
+                "127.0.0.1:1000".to_owned().try_into().unwrap(),
+                "127.0.0.1:1001".to_owned().try_into().unwrap(),
+                "127.0.0.1:1002".to_owned().try_into().unwrap()
+            ]
+        );
     }
 }
-

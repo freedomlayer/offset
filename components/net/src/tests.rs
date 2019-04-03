@@ -1,19 +1,18 @@
 use std::convert::TryInto;
-use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use futures::task::Spawn;
 use futures::executor::ThreadPool;
-use futures::{StreamExt, SinkExt};
+use futures::task::Spawn;
+use futures::{SinkExt, StreamExt};
 
-use common::conn::{Listener, FutTransform};
+use common::conn::{FutTransform, Listener};
 use proto::net::messages::NetAddress;
 
+use crate::net_connector::NetConnector;
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
-use crate::net_connector::NetConnector;
 
-use tokio::net::{TcpListener as TokioTcpListener};
-
+use tokio::net::TcpListener as TokioTcpListener;
 
 /// Get an available port we can listen on
 fn get_available_port_v4() -> u16 {
@@ -28,7 +27,7 @@ fn get_available_port_v4() -> u16 {
 
 const TEST_MAX_FRAME_LEN: usize = 0x100;
 
-async fn task_tcp_client_server_v4<S>(spawner: S) 
+async fn task_tcp_client_server_v4<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -41,15 +40,16 @@ where
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
-    for _ in 0 .. 5 {
-        let (mut client_sender, mut client_receiver) = await!(tcp_connector.transform(socket_addr.clone())).unwrap();
+    for _ in 0..5 {
+        let (mut client_sender, mut client_receiver) =
+            await!(tcp_connector.transform(socket_addr.clone())).unwrap();
         let (mut server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
 
-        await!(client_sender.send(vec![1,2,3])).unwrap();
-        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1,2,3]);
+        await!(client_sender.send(vec![1, 2, 3])).unwrap();
+        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1, 2, 3]);
 
-        await!(server_sender.send(vec![3,2,1])).unwrap();
-        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3,2,1]);
+        await!(server_sender.send(vec![3, 2, 1])).unwrap();
+        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3, 2, 1]);
     }
 
     /*
@@ -71,9 +71,7 @@ fn test_tcp_client_server_v4() {
     thread_pool.run(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
-
-
-async fn task_net_connector_v4_basic<S>(spawner: S) 
+async fn task_net_connector_v4_basic<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -88,15 +86,16 @@ where
 
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
-    for _ in 0 .. 5 {
-        let (mut client_sender, mut client_receiver) = await!(net_connector.transform(net_address.clone())).unwrap();
+    for _ in 0..5 {
+        let (mut client_sender, mut client_receiver) =
+            await!(net_connector.transform(net_address.clone())).unwrap();
         let (mut server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
 
-        await!(client_sender.send(vec![1,2,3])).unwrap();
-        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1,2,3]);
+        await!(client_sender.send(vec![1, 2, 3])).unwrap();
+        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1, 2, 3]);
 
-        await!(server_sender.send(vec![3,2,1])).unwrap();
-        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3,2,1]);
+        await!(server_sender.send(vec![3, 2, 1])).unwrap();
+        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3, 2, 1]);
     }
 }
 

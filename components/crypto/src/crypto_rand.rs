@@ -1,16 +1,15 @@
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::ops::Deref;
+use std::sync::Arc;
 
-use ring::rand::{SecureRandom, SystemRandom};
 use ring::error::Unspecified;
+use ring::rand::{SecureRandom, SystemRandom};
 
 pub const RAND_VALUE_LEN: usize = 16;
 
 define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
 
 pub trait CryptoRandom: SecureRandom + Sync + Send {}
-
 
 pub struct RngContainer<R> {
     arc_rng: Arc<R>,
@@ -32,17 +31,13 @@ impl<R> Clone for RngContainer<R> {
     }
 }
 
-
 impl<R: SecureRandom> SecureRandom for RngContainer<R> {
     fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
         (*self.arc_rng).fill(dest)
     }
 }
 
-impl<R: SecureRandom> CryptoRandom for RngContainer<R> 
-where
-    R: Sync + Send,
-{}
+impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
 
 impl<R> Deref for RngContainer<R> {
     type Target = R;
@@ -58,7 +53,6 @@ pub type OffstSystemRandom = RngContainer<SystemRandom>;
 pub fn system_random() -> OffstSystemRandom {
     RngContainer::new(SystemRandom::new())
 }
-
 
 impl RandValue {
     pub fn new<R: CryptoRandom>(crypt_rng: &R) -> Self {
@@ -133,8 +127,8 @@ impl RandValuesStore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::test_utils::DummyRandom;
+    use super::*;
 
     #[test]
     fn test_rand_values_store() {

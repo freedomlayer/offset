@@ -1,5 +1,5 @@
-use im::hashset::HashSet as ImHashSet;
 use crypto::identity::PublicKey;
+use im::hashset::HashSet as ImHashSet;
 
 #[derive(Clone)]
 pub struct Liveness {
@@ -12,7 +12,6 @@ pub enum LivenessMutation {
     SetOffline(PublicKey),
 }
 
-
 impl Liveness {
     pub fn new() -> Liveness {
         Liveness {
@@ -24,10 +23,10 @@ impl Liveness {
         match mutation {
             LivenessMutation::SetOnline(public_key) => {
                 self.friends.insert(public_key.clone());
-            },
+            }
             LivenessMutation::SetOffline(public_key) => {
                 let _ = self.friends.remove(public_key);
-            },
+            }
         }
     }
 
@@ -36,11 +35,10 @@ impl Liveness {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{PUBLIC_KEY_LEN};
+    use crypto::identity::PUBLIC_KEY_LEN;
 
     #[test]
     fn test_liveness_basic() {

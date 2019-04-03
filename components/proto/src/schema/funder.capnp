@@ -33,14 +33,14 @@ struct MoveToken {
         # Having this information here is useful if this message is later presented as a proof
         # of communication between the two sides.
         inconsistencyCounter @6: UInt64;
-        # Amount of inconsistencies that have occured so far. Begins from 0,
+        # Amount of inconsistencies that have occurred so far. Begins from 0,
         # and increases every time an inconsistency was resolved.
         moveTokenCounter @7: CustomUInt128;
         # Amount of MoveToken messages in this token channel. Begins from 0,
         # and increases every time a MoveToken message increases. This number
         # is shared for both sides of the token channel.
         balance @8 : CustomInt128;
-        # Balance between the two parties in the token channel. This number could be 
+        # Balance between the two parties in the token channel. This number could be
         # deduced by each of the parties only by looking at the operations
         # field. We put the balance here to make sure it is signed by the
         # sending party, allowing the receiving party to use
@@ -106,7 +106,7 @@ struct Ratio128 {
 }
 
 
-struct RequestSendFundsOp { 
+struct RequestSendFundsOp {
         requestId @0: Uid;
         route @1: FriendsRoute;
         destPayment @2: CustomUInt128;
@@ -139,7 +139,7 @@ struct FailureSendFundsOp {
         # Signature{key=recipientKey}(
         #   sha512/256("FUND_FAILURE") ||
         #   requestId ||
-        #   sha512/256(route) || 
+        #   sha512/256(route) ||
         #   destPayment ||
         #   invoiceId ||
         #   reportingPublicKey ||
@@ -158,4 +158,3 @@ struct FriendOperation {
                 failureSendFunds @5: FailureSendFundsOp;
         }
 }
-

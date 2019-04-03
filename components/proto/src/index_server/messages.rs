@@ -1,17 +1,16 @@
+use crypto::crypto_rand::RandValue;
+use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
-use crypto::hash::HashResult;
-use crypto::crypto_rand::RandValue;
 
 use crate::funder::messages::FriendsRoute;
 use crate::net::messages::NetAddress;
-
 
 /// IndexClient -> IndexServer
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
-    /// Wanted capacity for the route. 
+    /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
     pub capacity: u128,
     pub source: PublicKey,
@@ -44,7 +43,6 @@ pub struct UpdateFriend {
     pub recv_capacity: u128,
 }
 
-
 /// IndexClient -> IndexServer
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexMutation {
@@ -57,8 +55,8 @@ pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
     pub node_public_key: PublicKey,
     /// List of mutations to relationships with direct friends.
-    pub index_mutations : Vec<IndexMutation>,
-    /// A time hash (Given by the server previously). 
+    pub index_mutations: Vec<IndexMutation>,
+    /// A time hash (Given by the server previously).
     /// This is used as time, proving that this message was signed recently.
     pub time_hash: HashResult,
     /// A randomly generated sessionId. The counter is related to this session Id.
@@ -69,11 +67,11 @@ pub struct MutationsUpdate {
     pub counter: u64,
     /// Rand nonce, used as a security measure for the next signature.
     pub rand_nonce: RandValue,
-    /// signature(sha_512_256("MUTATIONS_UPDATE") || 
+    /// signature(sha_512_256("MUTATIONS_UPDATE") ||
     ///           nodePublicKey ||
-    ///           mutation || 
-    ///           timeHash || 
-    ///           counter || 
+    ///           mutation ||
+    ///           timeHash ||
+    ///           counter ||
     ///           randNonce)
     pub signature: Signature,
 }
@@ -102,13 +100,11 @@ pub enum IndexServerToClient {
     ResponseRoutes(ResponseRoutes),
 }
 
-
 #[derive(Debug)]
 pub enum IndexClientToServer {
     MutationsUpdate(MutationsUpdate),
     RequestRoutes(RequestRoutes),
 }
-
 
 #[derive(Debug)]
 pub enum IndexServerToServer {
@@ -120,14 +116,14 @@ pub enum IndexServerToServer {
 // ----------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamedIndexServerAddress<ISA=NetAddress> {
+pub struct NamedIndexServerAddress<ISA = NetAddress> {
     pub public_key: PublicKey,
     pub address: ISA,
     pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IndexServerAddress<ISA=NetAddress> {
+pub struct IndexServerAddress<ISA = NetAddress> {
     pub public_key: PublicKey,
     pub address: ISA,
 }

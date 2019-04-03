@@ -1,26 +1,30 @@
-use futures::{StreamExt, SinkExt};
 use futures::channel::mpsc;
-use futures::task::Spawn;
 use futures::executor::ThreadPool;
+use futures::task::Spawn;
+use futures::{SinkExt, StreamExt};
 
-use crypto::identity::{PUBLIC_KEY_LEN, PublicKey};
+use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
-use proto::app_server::messages::{AppServerToApp, AppPermissions};
-use proto::index_client::messages::{IndexClientToAppServer, 
-    IndexClientReportMutation, IndexClientReportMutations};
+use proto::app_server::messages::{AppPermissions, AppServerToApp};
+use proto::index_client::messages::{
+    IndexClientReportMutation, IndexClientReportMutations, IndexClientToAppServer,
+};
 use proto::index_server::messages::NamedIndexServerAddress;
 
 use super::utils::spawn_dummy_app_server;
 
-
-async fn task_app_server_loop_all_apps_closed<S>(spawner: S) 
+async fn task_app_server_loop_all_apps_closed<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-
-    let (_funder_sender, mut funder_receiver,
-         mut index_client_sender, mut index_client_receiver,
-         mut connections_sender, initial_node_report) = spawn_dummy_app_server(spawner.clone());
+    let (
+        _funder_sender,
+        mut funder_receiver,
+        mut index_client_sender,
+        mut index_client_receiver,
+        mut connections_sender,
+        initial_node_report,
+    ) = spawn_dummy_app_server(spawner.clone());
 
     let (app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
@@ -49,15 +53,21 @@ where
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
-    let index_client_report_mutation = IndexClientReportMutation::AddIndexServer(named_index_server_address);
+    let index_client_report_mutation =
+        IndexClientReportMutation::AddIndexServer(named_index_server_address);
     let mutations = vec![index_client_report_mutation.clone()];
     let index_client_report_mutations = IndexClientReportMutations {
         opt_app_request_id: None,
         mutations,
     };
-    await!(index_client_sender.send(IndexClientToAppServer::ReportMutations(index_client_report_mutations))).unwrap();
+    await!(
+        index_client_sender.send(IndexClientToAppServer::ReportMutations(
+            index_client_report_mutations
+        ))
+    )
+    .unwrap();
 
-    let _to_app_message = await!(app_receiver.next()).unwrap(); 
+    let _to_app_message = await!(app_receiver.next()).unwrap();
 
     // Last app disconnects:
     drop(app_sender);
@@ -73,4 +83,3 @@ fn test_app_server_loop_index_all_apps_closed() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_app_server_loop_all_apps_closed(thread_pool.clone()));
 }
-

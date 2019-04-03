@@ -1,24 +1,24 @@
-use futures::FutureExt;
-use futures::task::{Spawn, SpawnExt};
 use futures::channel::{mpsc, oneshot};
+use futures::task::{Spawn, SpawnExt};
+use futures::FutureExt;
 
-use crypto::identity::PublicKey;
 use crypto::crypto_rand::CryptoRandom;
+use crypto::identity::PublicKey;
 
 use identity::IdentityClient;
 
 use common::conn::{BoxFuture, FutTransform};
 
-use crate::single_client::{ServerConn, SingleClientControl,
-                        first_server_time_hash, single_client_loop, 
-                        SingleClientError};
+use crate::single_client::{
+    first_server_time_hash, single_client_loop, ServerConn, SingleClientControl, SingleClientError,
+};
 
 pub type ControlSender = mpsc::Sender<SingleClientControl>;
 pub type CloseReceiver = oneshot::Receiver<Result<(), SingleClientError>>;
 pub type SessionHandle = (ControlSender, CloseReceiver);
 
 #[derive(Clone)]
-pub struct IndexClientSession<C,R,S> {
+pub struct IndexClientSession<C, R, S> {
     connector: C,
     local_public_key: PublicKey,
     identity_client: IdentityClient,
@@ -26,21 +26,21 @@ pub struct IndexClientSession<C,R,S> {
     spawner: S,
 }
 
-impl<ISA,C,R,S> IndexClientSession<C,R,S> 
+impl<ISA, C, R, S> IndexClientSession<C, R, S>
 where
     ISA: Send + 'static,
-    C: FutTransform<Input=ISA, Output=Option<ServerConn>> + Send,
+    C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
     R: CryptoRandom + Clone + 'static,
 {
-
     #[allow(unused)]
-    pub fn new(connector: C,
-               local_public_key: PublicKey,
-               identity_client: IdentityClient,
-               rng: R,
-               spawner: S) -> Self {
-
+    pub fn new(
+        connector: C,
+        local_public_key: PublicKey,
+        identity_client: IdentityClient,
+        rng: R,
+        spawner: S,
+    ) -> Self {
         IndexClientSession {
             connector,
             local_public_key,
@@ -58,27 +58,29 @@ where
 
         let (close_sender, close_receiver) = oneshot::channel();
 
-        let single_client_fut = single_client_loop((to_server, from_server),
-                           incoming_control,
-                           self.local_public_key.clone(),
-                           self.identity_client.clone(),
-                           self.rng.clone(),
-                           first_time_hash)
-            .map(|res| { 
-                if let Err(res) = close_sender.send(res) {
-                    error!("Failed to send result from single_client_loop(): {:?}", res);
-                }
-            });
+        let single_client_fut = single_client_loop(
+            (to_server, from_server),
+            incoming_control,
+            self.local_public_key.clone(),
+            self.identity_client.clone(),
+            self.rng.clone(),
+            first_time_hash,
+        )
+        .map(|res| {
+            if let Err(res) = close_sender.send(res) {
+                error!("Failed to send result from single_client_loop(): {:?}", res);
+            }
+        });
 
         self.spawner.spawn(single_client_fut).ok()?;
         Some((control_sender, close_receiver))
     }
 }
 
-impl<ISA,C,R,S> FutTransform for IndexClientSession<C,R,S> 
+impl<ISA, C, R, S> FutTransform for IndexClientSession<C, R, S>
 where
     ISA: Send + 'static,
-    C: FutTransform<Input=ISA, Output=Option<ServerConn>> + Send,
+    C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
     R: CryptoRandom + Clone + 'static,
 {
@@ -87,9 +89,7 @@ where
     /// A pair: control sender, and a receiver that notifies about disconnection.
     type Output = Option<SessionHandle>;
 
-    fn transform(&mut self, index_server_address: Self::Input) 
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, index_server_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(self.connect(index_server_address))
     }
 }
@@ -98,21 +98,20 @@ where
 mod tests {
     use super::*;
 
-    use futures::{StreamExt, SinkExt};
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
+    use futures::{SinkExt, StreamExt};
 
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{SoftwareEd25519Identity, 
-        generate_pkcs8_key_pair, Identity};
     use crypto::hash::{HashResult, HASH_RESULT_LEN};
+    use crypto::identity::{generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity};
+    use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;
 
     use common::dummy_connector::DummyConnector;
     use proto::index_server::messages::IndexServerToClient;
 
-    async fn task_index_client_session_basic<S>(mut spawner: S) 
+    async fn task_index_client_session_basic<S>(mut spawner: S)
     where
         S: Spawn + Clone + Send,
     {
@@ -126,15 +125,15 @@ mod tests {
         let identity_client = IdentityClient::new(requests_sender);
 
         let (connector_sender, mut connector_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::<u32,_>::new(connector_sender);
+        let connector = DummyConnector::<u32, _>::new(connector_sender);
 
         let mut index_client_session = IndexClientSession::new(
-               connector,
-               local_public_key,
-               identity_client,
-               rng,
-               spawner.clone());
-
+            connector,
+            local_public_key,
+            identity_client,
+            rng,
+            spawner.clone(),
+        );
 
         let (server_sender, client_receiver) = mpsc::channel(0);
         let (client_sender, _server_receiver) = mpsc::channel(0);
@@ -165,4 +164,3 @@ mod tests {
         thread_pool.run(task_index_client_session_basic(thread_pool.clone()));
     }
 }
-

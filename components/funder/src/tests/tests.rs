@@ -4,17 +4,14 @@ use futures::task::Spawn;
 use crypto::identity::PublicKey;
 use crypto::uid::{Uid, UID_LEN};
 
-use proto::funder::messages::{FriendsRoute, InvoiceId, INVOICE_ID_LEN,
-                            FunderIncomingControl, FriendStatus,
-                            RequestsStatus, UserRequestSendFunds,
-                            ReceiptAck, ResetFriendChannel,
-                            ResponseSendFundsResult,
-                            FunderControl};
-use proto::report::messages::{FunderReport, ChannelStatusReport};
+use proto::funder::messages::{
+    FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, InvoiceId, ReceiptAck,
+    RequestsStatus, ResetFriendChannel, ResponseSendFundsResult, UserRequestSendFunds,
+    INVOICE_ID_LEN,
+};
+use proto::report::messages::{ChannelStatusReport, FunderReport};
 
-use super::utils::{create_node_controls, dummy_relay_address, dummy_named_relay_address};
-
-
+use super::utils::{create_node_controls, dummy_named_relay_address, dummy_relay_address};
 
 async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     let num_nodes = 2;
@@ -47,19 +44,22 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].wait_until_ready(&public_keys[1]));
     await!(node_controls[1].wait_until_ready(&public_keys[0]));
 
-
     // Send credits 0 --> 1
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute { public_keys: vec![
-            node_controls[0].public_key.clone(), 
-            node_controls[1].public_key.clone()] },
+        route: FriendsRoute {
+            public_keys: vec![
+                node_controls[0].public_key.clone(),
+                node_controls[1].public_key.clone(),
+            ],
+        },
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 5,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[40; UID_LEN]),
-        FunderControl::RequestSendFunds(user_request_send_funds));
+        FunderControl::RequestSendFunds(user_request_send_funds),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
 
@@ -75,7 +75,8 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[41; UID_LEN]),
-        FunderControl::ReceiptAck(receipt_ack));
+        FunderControl::ReceiptAck(receipt_ack),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
 
     let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
@@ -83,23 +84,22 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
 
     // Verify expected balances:
     let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&public_keys[1]).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => return false,
-       };
-       tc_report.balance.balance == 3
+        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
+        };
+        tc_report.balance.balance == 3
     };
     await!(node_controls[0].recv_until(pred));
 
-
     let pred = |report: &FunderReport<_>| {
-       let friend = report.friends.get(&public_keys[0]).unwrap();
-       let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => return false,
-       };
-       tc_report.balance.balance == -3
+        let friend = report.friends.get(&public_keys[0]).unwrap();
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
+        };
+        tc_report.balance.balance == -3
     };
     await!(node_controls[1].recv_until(pred));
 }
@@ -109,7 +109,6 @@ fn test_funder_basic() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_basic(thread_pool.clone()));
 }
-
 
 async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'static) {
     /*
@@ -159,16 +158,20 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     // Send credits 0 --> 2
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute { public_keys: vec![
-            public_keys[0].clone(), 
-            public_keys[1].clone(), 
-            public_keys[2].clone()] },
+        route: FriendsRoute {
+            public_keys: vec![
+                public_keys[0].clone(),
+                public_keys[1].clone(),
+                public_keys[2].clone(),
+            ],
+        },
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[42; UID_LEN]),
-        FunderControl::RequestSendFunds(user_request_send_funds));
+        FunderControl::RequestSendFunds(user_request_send_funds),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
@@ -184,7 +187,8 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[43; UID_LEN]),
-        FunderControl::ReceiptAck(receipt_ack));
+        FunderControl::ReceiptAck(receipt_ack),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
 
     let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
@@ -197,8 +201,8 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
             Some(friend) => friend,
         };
         let tc_report = match &friend.channel_status {
-           ChannelStatusReport::Consistent(tc_report) => tc_report,
-           _ => return false,
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
         };
         tc_report.balance.balance == -6 + 20
     };
@@ -258,21 +262,24 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[0].wait_until_ready(&public_keys[1]));
     await!(node_controls[1].wait_until_ready(&public_keys[2]));
 
-
     // Send credits 0 --> 2
     let user_request_send_funds = UserRequestSendFunds {
         request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute { public_keys: vec![
-            public_keys[0].clone(), 
-            public_keys[1].clone(), 
-            public_keys[2].clone(),
-            public_keys[3].clone()] },
+        route: FriendsRoute {
+            public_keys: vec![
+                public_keys[0].clone(),
+                public_keys[1].clone(),
+                public_keys[2].clone(),
+                public_keys[3].clone(),
+            ],
+        },
         invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
         dest_payment: 20,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[44; UID_LEN]),
-        FunderControl::RequestSendFunds(user_request_send_funds));
+        FunderControl::RequestSendFunds(user_request_send_funds),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
     let response_received = await!(node_controls[0].recv_until_response()).unwrap();
     assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
@@ -283,10 +290,14 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
 
     assert_eq!(reporting_public_key, public_keys[2]);
 
-    let friend = node_controls[2].report.friends.get(&public_keys[1]).unwrap();
+    let friend = node_controls[2]
+        .report
+        .friends
+        .get(&public_keys[1])
+        .unwrap();
     let tc_report = match &friend.channel_status {
-       ChannelStatusReport::Consistent(tc_report) => tc_report,
-       _ => unreachable!(),
+        ChannelStatusReport::Consistent(tc_report) => tc_report,
+        _ => unreachable!(),
     };
     assert_eq!(tc_report.balance.balance, -6);
 }
@@ -324,8 +335,9 @@ where
         let friend = report.friends.get(&public_keys[1]).unwrap();
         let channel_inconsistent_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(_) => return false,
-            ChannelStatusReport::Inconsistent(channel_inconsistent_report) => 
+            ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
                 channel_inconsistent_report
+            }
         };
         if channel_inconsistent_report.local_reset_terms_balance != 20 {
             return false;
@@ -342,11 +354,16 @@ where
     // ---------------------
 
     // Obtain reset terms:
-    let friend = node_controls[0].report.friends.get(&public_keys[1]).unwrap();
+    let friend = node_controls[0]
+        .report
+        .friends
+        .get(&public_keys[1])
+        .unwrap();
     let channel_inconsistent_report = match &friend.channel_status {
         ChannelStatusReport::Consistent(_) => unreachable!(),
-        ChannelStatusReport::Inconsistent(channel_inconsistent_report) => 
+        ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             channel_inconsistent_report
+        }
     };
     let reset_terms_report = match &channel_inconsistent_report.opt_remote_reset_terms {
         Some(reset_terms_report) => reset_terms_report,
@@ -359,7 +376,8 @@ where
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[45; UID_LEN]),
-        FunderControl::ResetFriendChannel(reset_friend_channel));
+        FunderControl::ResetFriendChannel(reset_friend_channel),
+    );
     await!(node_controls[0].send(incoming_control_message)).unwrap();
 
     // Wait until channel is consistent with the correct balance:
@@ -410,10 +428,8 @@ async fn task_funder_add_relay(spawner: impl Spawn + Clone + Send + 'static) {
     await!(node_controls[0].remove_relay(named_relay.public_key));
 }
 
-
 #[test]
 fn test_funder_add_relay() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_add_relay(thread_pool.clone()));
 }
-

@@ -1,10 +1,10 @@
-use futures::{Future, TryFutureExt};
 use futures::channel::{mpsc, oneshot};
+use futures::{Future, TryFutureExt};
 
-use crypto::identity::{PublicKey, Signature};
 use common::futures_compat::send_to_sink;
+use crypto::identity::{PublicKey, Signature};
 
-use super::messages::{ToIdentity, ResponseSignature, ResponsePublicKey};
+use super::messages::{ResponsePublicKey, ResponseSignature, ToIdentity};
 
 #[derive(Debug)]
 pub enum IdentityClientError {
@@ -27,7 +27,7 @@ impl IdentityClient {
         &self,
         request: ToIdentity,
         rx: oneshot::Receiver<R>,
-    ) -> impl Future<Output=Result<R, IdentityClientError>> {
+    ) -> impl Future<Output = Result<R, IdentityClientError>> {
         send_to_sink(self.requests_sender.clone(), request)
             .map_err(|_| IdentityClientError::RequestSendFailed)
             .and_then(|_| {
@@ -40,7 +40,7 @@ impl IdentityClient {
     pub fn request_signature(
         &self,
         message: Vec<u8>,
-    ) -> impl Future<Output=Result<Signature, IdentityClientError>> {
+    ) -> impl Future<Output = Result<Signature, IdentityClientError>> {
         let (tx, rx) = oneshot::channel::<ResponseSignature>();
         let request = ToIdentity::RequestSignature {
             message,
@@ -54,7 +54,7 @@ impl IdentityClient {
     /// Returns a Future that resolves to the public key.
     pub fn request_public_key(
         &self,
-    ) -> impl Future<Output=Result<PublicKey, IdentityClientError>> {
+    ) -> impl Future<Output = Result<PublicKey, IdentityClientError>> {
         let (tx, rx) = oneshot::channel();
         let request = ToIdentity::RequestPublicKey {
             response_sender: tx,
@@ -68,15 +68,14 @@ impl IdentityClient {
 mod tests {
     use super::*;
 
-    use futures::future;
     use futures::executor::LocalPool;
+    use futures::future;
     use futures::task::SpawnExt;
     use futures::FutureExt;
 
-    use crypto::test_utils::DummyRandom;
-    use crypto::identity::{verify_signature, SoftwareEd25519Identity,
-                            generate_pkcs8_key_pair};
     use crate::identity::create_identity;
+    use crypto::identity::{generate_pkcs8_key_pair, verify_signature, SoftwareEd25519Identity};
+    use crypto::test_utils::DummyRandom;
 
     #[test]
     fn test_identity_consistent_public_key_with_client() {
@@ -118,7 +117,9 @@ mod tests {
         spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         let public_key = local_pool.run_until(smc.request_public_key()).unwrap();
-        let signature = local_pool.run_until(smc.request_signature(my_message.to_vec())).unwrap();
+        let signature = local_pool
+            .run_until(smc.request_signature(my_message.to_vec()))
+            .unwrap();
 
         assert!(verify_signature(&my_message[..], &public_key, &signature));
     }

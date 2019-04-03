@@ -9,24 +9,23 @@ pub struct AppReportError;
 
 #[derive(Clone)]
 pub struct AppReport {
-    report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>,
+    report_client: StateClient<BatchMutable<NodeReport>, Vec<NodeReportMutation>>,
 }
 
 impl AppReport {
     // TODO; Should this be private?
-    pub (super) fn new(report_client: StateClient<BatchMutable<NodeReport>,Vec<NodeReportMutation>>) -> Self {
-        AppReport {
-            report_client,
-        }
+    pub(super) fn new(
+        report_client: StateClient<BatchMutable<NodeReport>, Vec<NodeReportMutation>>,
+    ) -> Self {
+        AppReport { report_client }
     }
 
-    pub async fn incoming_reports(&mut self) 
-        -> Result<(NodeReport, mpsc::Receiver<Vec<NodeReportMutation>>), AppReportError> {
-
-        let (batch_mutable, incoming_mutations) = await!(self.report_client.request_state())
-            .map_err(|_| AppReportError)?;
+    pub async fn incoming_reports(
+        &mut self,
+    ) -> Result<(NodeReport, mpsc::Receiver<Vec<NodeReportMutation>>), AppReportError> {
+        let (batch_mutable, incoming_mutations) =
+            await!(self.report_client.request_state()).map_err(|_| AppReportError)?;
 
         Ok((batch_mutable.0, incoming_mutations))
     }
 }
-

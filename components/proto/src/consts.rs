@@ -24,7 +24,7 @@ pub const CONN_TIMEOUT_TICKS: usize = 4;
 /// length for such frame, measured in bytes.
 pub const MAX_FRAME_LENGTH: usize = 1 << 20; // 1[MB]
 
-/// Index server: The amount of ticks it takes for an idle node to be removed from the 
+/// Index server: The amount of ticks it takes for an idle node to be removed from the
 /// index server database.
 pub const INDEX_NODE_TIMEOUT_TICKS: usize = 60 * (1000 / TICK_MS); // 1 minute
 

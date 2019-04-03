@@ -1,6 +1,6 @@
 use std::convert::TryInto;
-use std::io::{self, Write};
 use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::Path;
 
 use toml;
@@ -8,12 +8,10 @@ use toml;
 use crypto::identity::PublicKey;
 use net::messages::NetAddressError;
 
-use crate::file::pk_string::{public_key_to_string, 
-    string_to_public_key, PkStringError};
+use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 
 use crate::app_server::messages::RelayAddress;
 use crate::file::relay::RelayFile;
-
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendAddress {
@@ -89,23 +87,26 @@ pub fn load_friend_from_file(path: &Path) -> Result<FriendAddress, FriendFileErr
         });
     }
 
-    Ok(FriendAddress {
-        public_key,
-        relays,
-    })
+    Ok(FriendAddress { public_key, relays })
 }
 
-
 /// Store FriendAddress to file
-pub fn store_friend_to_file(friend_address: &FriendAddress, path: &Path)
-    -> Result<(), FriendFileError> {
-
-    let FriendAddress {ref public_key, ref relays} = friend_address;
+pub fn store_friend_to_file(
+    friend_address: &FriendAddress,
+    path: &Path,
+) -> Result<(), FriendFileError> {
+    let FriendAddress {
+        ref public_key,
+        ref relays,
+    } = friend_address;
 
     let mut relay_files = Vec::new();
 
     for relay_address in relays {
-        let RelayAddress {ref public_key, ref address} = relay_address;
+        let RelayAddress {
+            ref public_key,
+            ref address,
+        } = relay_address;
 
         relay_files.push(RelayFile {
             public_key: public_key_to_string(&public_key),
@@ -135,7 +136,8 @@ mod tests {
 
     #[test]
     fn test_friend_file_basic() {
-        let friend_file: FriendFile = toml::from_str(r#"
+        let friend_file: FriendFile = toml::from_str(
+            r#"
             public_key = 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo'
 
             [[relays]]
@@ -145,17 +147,27 @@ mod tests {
             [[relays]]
             public_key = 'u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7s'
             address = '127.0.0.1:1338'
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
-        assert_eq!(friend_file.public_key, "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo");
+        assert_eq!(
+            friend_file.public_key,
+            "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo"
+        );
         assert_eq!(friend_file.relays.len(), 2);
 
-        assert_eq!(friend_file.relays[0].public_key, "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo");
+        assert_eq!(
+            friend_file.relays[0].public_key,
+            "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo"
+        );
         assert_eq!(friend_file.relays[0].address, "127.0.0.1:1337");
 
-        assert_eq!(friend_file.relays[1].public_key, "u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7s");
+        assert_eq!(
+            friend_file.relays[1].public_key,
+            "u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7s"
+        );
         assert_eq!(friend_file.relays[1].address, "127.0.0.1:1338");
-
     }
 
     #[test]
@@ -185,6 +197,3 @@ mod tests {
         assert_eq!(friend_address, friend_address2);
     }
 }
-
-
-

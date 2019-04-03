@@ -2,11 +2,8 @@
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
@@ -20,29 +17,29 @@ use std::time::Duration;
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
-use clap::{Arg, App};
+use clap::{App, Arg};
 
-use common::int_convert::usize_to_u64;
 use common::conn::Listener;
+use common::int_convert::usize_to_u64;
 
 use crypto::crypto_rand::system_random;
 
 use identity::{create_identity, IdentityClient};
 use timer::create_timer;
 
-
-use node::{net_node, NodeConfig, NodeState, NetNodeError};
+use node::{net_node, NetNodeError, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
 
-use proto::consts::{KEEPALIVE_TICKS, TICKS_TO_REKEY, 
-    MAX_OPERATIONS_IN_BATCH, TICK_MS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS};
-use proto::net::messages::NetAddress;
 use net::{NetConnector, TcpListener};
+use proto::consts::{
+    KEEPALIVE_TICKS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
+    TICK_MS,
+};
+use proto::net::messages::NetAddress;
 
-
-use proto::file::identity::load_identity_from_file;
 use proto::file::app::load_trusted_apps;
+use proto::file::identity::load_identity_from_file;
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -62,7 +59,6 @@ const CONN_TIMEOUT_TICKS: usize = 0x8;
 /// going through the incoming connection transform at the same time
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
-
 #[derive(Debug)]
 enum NodeBinError {
     ParseListenAddressError,
@@ -74,46 +70,55 @@ enum NodeBinError {
     NetNodeError(NetNodeError),
 }
 
-
 fn run() -> Result<(), NodeBinError> {
     env_logger::init();
     let matches = App::new("Offst Node")
-                          .version("0.1.0")
-                          .author("real <real@freedomlayer.org>")
-                          .about("Spawns Offst Node")
-                          .arg(Arg::with_name("database")
-                               .short("d")
-                               .long("database")
-                               .value_name("database")
-                               .help("Database file path")
-                               .required(true))
-                          .arg(Arg::with_name("idfile")
-                               .short("i")
-                               .long("idfile")
-                               .value_name("idfile")
-                               .help("Identity file path")
-                               .required(true))
-                          .arg(Arg::with_name("laddr")
-                               .short("l")
-                               .long("laddr")
-                               .value_name("laddr")
-                               .help("Listening address (Used for communication with apps)\n\
-                                     Examples:\n\
-                                     - 0.0.0.0:1337\n\
-                                     - fe80::14c2:3048:b1ac:85fb:1337")
-                               .required(true))
-                          .arg(Arg::with_name("trusted")
-                               .short("t")
-                               .long("trusted")
-                               .value_name("trusted")
-                               .help("Directory path of trusted applications")
-                               .required(true))
-                          .get_matches();
-
+        .version("0.1.0")
+        .author("real <real@freedomlayer.org>")
+        .about("Spawns Offst Node")
+        .arg(
+            Arg::with_name("database")
+                .short("d")
+                .long("database")
+                .value_name("database")
+                .help("Database file path")
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("idfile")
+                .short("i")
+                .long("idfile")
+                .value_name("idfile")
+                .help("Identity file path")
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("laddr")
+                .short("l")
+                .long("laddr")
+                .value_name("laddr")
+                .help(
+                    "Listening address (Used for communication with apps)\n\
+                     Examples:\n\
+                     - 0.0.0.0:1337\n\
+                     - fe80::14c2:3048:b1ac:85fb:1337",
+                )
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("trusted")
+                .short("t")
+                .long("trusted")
+                .value_name("trusted")
+                .help("Directory path of trusted applications")
+                .required(true),
+        )
+        .get_matches();
 
     // Parse listening address
     let listen_address_str = matches.value_of("laddr").unwrap();
-    let listen_socket_addr: SocketAddr = listen_address_str.parse()
+    let listen_socket_addr: SocketAddr = listen_address_str
+        .parse()
         .map_err(|_| NodeBinError::ParseListenAddressError)?;
 
     // Parse identity file:
@@ -123,30 +128,29 @@ fn run() -> Result<(), NodeBinError> {
     // let local_public_key = identity.get_public_key();
 
     // Create a ThreadPool:
-    let mut thread_pool = ThreadPool::new()
-        .map_err(|_| NodeBinError::CreateThreadPoolError)?;
+    let mut thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // Create thread pool for file system operations:
-    let file_system_thread_pool = ThreadPool::new()
-        .map_err(|_| NodeBinError::CreateThreadPoolError)?;
+    let file_system_thread_pool =
+        ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // A thread pool for resolving network addresses:
-    let resolve_thread_pool = ThreadPool::new()
-        .map_err(|_| NodeBinError::CreateThreadPoolError)?;
+    let resolve_thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
-    thread_pool.spawn(identity_loop)
+    thread_pool
+        .spawn(identity_loop)
         .map_err(|_| NodeBinError::SpawnError)?;
     let identity_client = IdentityClient::new(sender);
 
     // Get a timer client:
-    let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap()); 
-    let timer_client = create_timer(dur, thread_pool.clone())
-        .map_err(|_| NodeBinError::CreateTimerError)?;
+    let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
+    let timer_client =
+        create_timer(dur, thread_pool.clone()).map_err(|_| NodeBinError::CreateTimerError)?;
 
     // Fill in node configuration:
-    let node_config =  NodeConfig {
+    let node_config = NodeConfig {
         /// Memory allocated to a channel in memory (Used to connect two components)
         channel_len: CHANNEL_LEN,
         /// The amount of ticks we wait before attempting to reconnect
@@ -169,12 +173,13 @@ fn run() -> Result<(), NodeBinError> {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
-        /// Maximum amount of incoming app connectinos we set up at the same time
+        /// Maximum amount of incoming app connections we set up at the same time
         max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
     };
 
     // A tcp connector, Used to connect to remote servers:
-    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
+    let net_connector =
+        NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
 
     // Obtain secure cryptographic random:
     let rng = system_random();
@@ -194,26 +199,31 @@ fn run() -> Result<(), NodeBinError> {
     // It might be hard for the user to detect in which file there was a problem
     // in case of an error.
     let get_trusted_apps = move || -> Option<_> {
-        Some(load_trusted_apps(&trusted_dir_path)
-            .ok()?
-            .into_iter()
-            .map(|trusted_app| (trusted_app.public_key, trusted_app.permissions))
-            .collect::<HashMap<_,_>>())
+        Some(
+            load_trusted_apps(&trusted_dir_path)
+                .ok()?
+                .into_iter()
+                .map(|trusted_app| (trusted_app.public_key, trusted_app.permissions))
+                .collect::<HashMap<_, _>>(),
+        )
     };
 
-    let node_fut = net_node(incoming_app_raw_conns,
-                      net_connector,
-                      timer_client,
-                      identity_client,
-                      rng,
-                      node_config,
-                      get_trusted_apps,
-                      atomic_db,
-                      file_system_thread_pool.clone(),
-                      file_system_thread_pool.clone(),
-                      thread_pool.clone());
+    let node_fut = net_node(
+        incoming_app_raw_conns,
+        net_connector,
+        timer_client,
+        identity_client,
+        rng,
+        node_config,
+        get_trusted_apps,
+        atomic_db,
+        file_system_thread_pool.clone(),
+        file_system_thread_pool.clone(),
+        thread_pool.clone(),
+    );
 
-    thread_pool.run(node_fut)
+    thread_pool
+        .run(node_fut)
         .map_err(|e| NodeBinError::NetNodeError(e))
 }
 

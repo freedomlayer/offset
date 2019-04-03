@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
-use crypto::uid::Uid;
 use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
-use crate::index_server::messages::{RouteWithCapacity, NamedIndexServerAddress};
-pub use crate::index_server::messages::{RequestRoutes, IndexMutation, UpdateFriend};
-
+pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};
+use crate::index_server::messages::{NamedIndexServerAddress, RouteWithCapacity};
 
 #[derive(Debug, Clone)]
 pub struct IndexClientState {
@@ -15,7 +14,6 @@ pub struct IndexClientState {
 // ---------------------------------------------------
 // IndexClient <--> AppServer communication
 // ---------------------------------------------------
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// ISA stands for Index Server Address
@@ -77,8 +75,7 @@ pub enum AppServerToIndexClient<ISA> {
     ApplyMutations(Vec<IndexMutation>),
 }
 
-
-impl<ISA> IndexClientReport<ISA> 
+impl<ISA> IndexClientReport<ISA>
 where
     ISA: Eq + Clone,
 {
@@ -86,21 +83,21 @@ where
         match mutation {
             IndexClientReportMutation::AddIndexServer(add_index_server) => {
                 // Remove first, to avoid duplicates:
-                self.index_servers.retain(|index_server| 
-                                          index_server.public_key != add_index_server.public_key);
+                self.index_servers
+                    .retain(|index_server| index_server.public_key != add_index_server.public_key);
                 self.index_servers.push(NamedIndexServerAddress {
                     public_key: add_index_server.public_key.clone(),
                     address: add_index_server.address.clone(),
                     name: add_index_server.name.clone(),
                 });
-            },
+            }
             IndexClientReportMutation::RemoveIndexServer(public_key) => {
-                self.index_servers.retain(|index_server| 
-                                          &index_server.public_key != public_key);
-            },
+                self.index_servers
+                    .retain(|index_server| &index_server.public_key != public_key);
+            }
             IndexClientReportMutation::SetConnectedServer(opt_public_key) => {
                 self.opt_connected_server = opt_public_key.clone();
-            },
+            }
         }
     }
 }

@@ -1,9 +1,9 @@
-use byteorder::{ByteOrder, BigEndian, WriteBytesExt};
-use futures::task::{Spawn, SpawnExt};
-use futures::{future, StreamExt, SinkExt};
+use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use futures::channel::mpsc;
+use futures::task::{Spawn, SpawnExt};
+use futures::{future, SinkExt, StreamExt};
 
-use common::conn::{FutTransform, BoxFuture, ConnPairVec};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
 /// Prefix a communication session (Of Vec<u8>) with each side declaring his version.
 /// If the local version does not match the stated remote version, the connection is closed.
@@ -13,7 +13,7 @@ pub struct VersionPrefix<S> {
     spawner: S,
 }
 
-impl<S> VersionPrefix<S> 
+impl<S> VersionPrefix<S>
 where
     S: Spawn,
 {
@@ -79,33 +79,30 @@ where
     }
 }
 
-impl<S> FutTransform for VersionPrefix<S> 
+impl<S> FutTransform for VersionPrefix<S>
 where
     S: Spawn + Send,
 {
     type Input = ConnPairVec;
     type Output = ConnPairVec;
 
-    fn transform(&mut self, input: Self::Input)
-        -> BoxFuture<'_, Self::Output> {
-
+    fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(future::ready(self.spawn_prefix(input)))
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
 
-    async fn task_version_prefix_match<S>(spawner: S) 
+    async fn task_version_prefix_match<S>(spawner: S)
     where
         S: Spawn,
     {
         let (a_sender, b_receiver) = mpsc::channel(0);
         let (b_sender, a_receiver) = mpsc::channel(0);
-        
+
         // Both A and B use version 3:
         let mut version_prefix_3 = VersionPrefix::new(3u32, spawner);
 
@@ -113,11 +110,11 @@ mod tests {
         let (mut b_sender, mut b_receiver) = version_prefix_3.spawn_prefix((b_sender, b_receiver));
 
         // We expect the connection to work correctly, as the versions match:
-        await!(a_sender.send(vec![1,2,3])).unwrap();
-        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1,2,3]);
+        await!(a_sender.send(vec![1, 2, 3])).unwrap();
+        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1, 2, 3]);
 
-        await!(b_sender.send(vec![3,2,1])).unwrap();
-        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3,2,1]);
+        await!(b_sender.send(vec![3, 2, 1])).unwrap();
+        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3, 2, 1]);
     }
 
     #[test]
@@ -126,13 +123,13 @@ mod tests {
         thread_pool.run(task_version_prefix_match(thread_pool.clone()));
     }
 
-    async fn task_version_prefix_mismatch<S>(spawner: S) 
+    async fn task_version_prefix_mismatch<S>(spawner: S)
     where
         S: Spawn + Clone,
     {
         let (a_sender, b_receiver) = mpsc::channel(0);
         let (b_sender, a_receiver) = mpsc::channel(0);
-        
+
         // Version mismatch between A and B:
         let mut version_prefix_3 = VersionPrefix::new(3u32, spawner.clone());
         let mut version_prefix_4 = VersionPrefix::new(4u32, spawner);
@@ -141,10 +138,10 @@ mod tests {
         let (mut b_sender, mut b_receiver) = version_prefix_4.spawn_prefix((b_sender, b_receiver));
 
         // We expect the connection to be closed because of version mismatch:
-        await!(a_sender.send(vec![1,2,3])).unwrap();
+        await!(a_sender.send(vec![1, 2, 3])).unwrap();
         assert!(await!(b_receiver.next()).is_none());
 
-        await!(b_sender.send(vec![3,2,1])).unwrap();
+        await!(b_sender.send(vec![3, 2, 1])).unwrap();
         assert!(await!(a_receiver.next()).is_none());
     }
 

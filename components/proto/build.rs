@@ -11,7 +11,7 @@ macro_rules! build_schema {
 }
 
 fn main() {
-    build_schema!{
+    build_schema! {
         "src/schema/common.capnp",
         "src/schema/funder.capnp",
         "src/schema/dh.capnp",

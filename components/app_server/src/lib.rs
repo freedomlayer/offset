@@ -1,13 +1,10 @@
-#![crate_type = "lib"] 
+#![crate_type = "lib"]
 #![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
@@ -20,5 +17,4 @@ mod server;
 #[cfg(test)]
 mod tests;
 
-pub use self::server::{app_server_loop, 
-    IncomingAppConnection, AppServerError};
+pub use self::server::{app_server_loop, AppServerError, IncomingAppConnection};

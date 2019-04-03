@@ -1,12 +1,9 @@
 #![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
 #![feature(generators)]
 #![feature(nll)]
-#![crate_type = "lib"] 
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![crate_type = "lib"]
+#![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
@@ -19,18 +16,18 @@ pub mod big_array;
 pub mod define_fixed_bytes;
 pub mod async_adapter;
 // pub mod frame_codec;
+pub mod access_control;
 pub mod async_test_utils;
-pub mod futures_compat;
+pub mod caller_info;
+pub mod canonical_serialize;
 pub mod conn;
 pub mod dummy_connector;
 pub mod dummy_listener;
-pub mod access_control;
-pub mod canonical_serialize;
-pub mod mutable_state;
-pub mod transform_pool;
-pub mod state_service;
+pub mod futures_compat;
 pub mod multi_consumer;
+pub mod mutable_state;
 pub mod select_streams;
-pub mod caller_info;
+pub mod state_service;
+pub mod transform_pool;
 // pub mod wait_spawner;
 pub mod test_executor;

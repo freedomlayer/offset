@@ -19,8 +19,9 @@ impl Ephemeral {
 
     pub fn mutate(&mut self, mutation: &EphemeralMutation) {
         match mutation {
-            EphemeralMutation::LivenessMutation(liveness_mutation) => 
-                self.liveness.mutate(liveness_mutation),
+            EphemeralMutation::LivenessMutation(liveness_mutation) => {
+                self.liveness.mutate(liveness_mutation)
+            }
         }
     }
 }

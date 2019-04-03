@@ -1,12 +1,9 @@
-#![crate_type = "lib"] 
+#![crate_type = "lib"]
 #![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
 #![feature(nll)]
 #![feature(never_type)]
-
-#![deny(
-    trivial_numeric_casts,
-    warnings
-)]
+#![deny(trivial_numeric_casts, warnings)]
+#![allow(intra_doc_link_resolution_failure)]
 
 #[macro_use]
 extern crate log;
@@ -17,5 +14,6 @@ extern crate common;
 mod timer;
 pub mod utils;
 
-pub use self::timer::{TimerTick, TimerClient, 
-    create_timer_incoming, create_timer, dummy_timer_multi_sender};
+pub use self::timer::{
+    create_timer, create_timer_incoming, dummy_timer_multi_sender, TimerClient, TimerTick,
+};

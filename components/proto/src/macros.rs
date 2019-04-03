@@ -1,4 +1,3 @@
-
 /// Include a capnp schema
 macro_rules! include_schema {
     ($( $name:ident, $path:expr );*) => {
