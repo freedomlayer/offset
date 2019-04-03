@@ -67,7 +67,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             timer_client.clone(),
             i,
             test_executor.clone()
-        )));
+        )).unwrap());
     }
 
     // Create relays:

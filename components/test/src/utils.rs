@@ -231,7 +231,7 @@ pub async fn create_app<S>(
     timer_client: TimerClient,
     node_index: u8,
     spawner: S,
-) -> NodeConnection<impl CryptoRandom + Clone>
+) -> Option<NodeConnection<impl CryptoRandom + Clone>>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
@@ -249,8 +249,7 @@ where
         app_identity_client,
         rng,
         spawner.clone()
-    ))
-    .unwrap()
+    )).ok()
 }
 
 pub async fn create_node<S>(
