@@ -57,7 +57,8 @@ where
             while let Some(Ok(tcp_stream)) = await!(incoming_conns.next()) {
                 let conn_pair =
                     tcp_stream_to_conn_pair(tcp_stream, c_max_frame_length, &mut c_spawner);
-                if let Err(_) = await!(conn_receiver_sender.send(conn_pair)) {
+                if let Err(e) = await!(conn_receiver_sender.send(conn_pair)) {
+                    warn!("TcpListener::listen(): Send error: {:?}", e);
                     return;
                 }
             }
