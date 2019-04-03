@@ -1,9 +1,9 @@
 use bytes::Bytes;
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::compat::{Compat, Future01CompatExt};
 use futures::task::{Spawn, SpawnExt};
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::{FutureExt, stream, StreamExt, SinkExt};
 
 use futures_01::sink::Sink as Sink01;
 use futures_01::stream::Stream as Stream01;
@@ -12,6 +12,14 @@ use tokio::codec::{Framed, LengthDelimitedCodec};
 use tokio::net::TcpStream;
 
 use common::conn::ConnPairVec;
+
+
+enum ReceiverEvent<T> {
+    /// User closed the connection
+    SendDone,
+    /// A message received from remote side
+    FromRemote(Result<T,()>),
+}
 
 /// Convert a connection pair (sender Sink, receiver Stream) of Futures 0.1
 /// to a pair of (mpsc::Sender, mpsc::Receiver) of Futures 0.3.
@@ -28,7 +36,7 @@ where
     let (sender_01, receiver_01) = conn_pair_01;
 
     let (mut user_sender_03, from_user_sender_03) = mpsc::channel::<Result<T, ()>>(0);
-    let (to_user_receiver_03, mut user_receiver_03) = mpsc::channel::<Result<T, ()>>(0);
+    let (to_user_receiver_03, user_receiver_03) = mpsc::channel::<Result<T, ()>>(0);
 
     // Forward messages from user_sender:
     let from_user_sender_01 = Compat::new(from_user_sender_03).map_err(|_| ());
@@ -61,22 +69,44 @@ where
     let (user_sender, mut from_user_sender) = mpsc::channel::<T>(0);
     let (mut to_user_receiver, user_receiver) = mpsc::channel::<T>(0);
 
+    let (send_done_sender, send_done) = oneshot::channel();
+
     // Forward user_sender:
     let _ = spawner.spawn(async move {
         while let Some(data) = await!(from_user_sender.next()) {
             if let Err(_) = await!(user_sender_03.send(Ok(data))) {
-                return;
+                warn!("Forward user_sender error");
+                break;
             }
         }
+        let _ = send_done_sender.send(());
+        info!("Forward user_sender done");
     });
 
     // Forward user_receiver:
     let _ = spawner.spawn(async move {
-        while let Some(Ok(data)) = await!(user_receiver_03.next()) {
-            if let Err(_) = await!(to_user_receiver.send(data)) {
-                return;
+        let done_stream = stream::once(send_done.map(|_| ReceiverEvent::SendDone));
+        let from_remote = user_receiver_03.map(|data: Result<T,()>| ReceiverEvent::FromRemote(data));
+        let mut incoming = done_stream.select(from_remote);
+
+        while let Some(event) = await!(incoming.next()) {
+            match event {
+                ReceiverEvent::SendDone => {
+                    info!("ReceiverEvent::SendDone");
+                    return;
+                },
+                ReceiverEvent::FromRemote(Ok(data)) => {
+                    if let Err(_) = await!(to_user_receiver.send(data)) {
+                        warn!("conn_pair_01_to_03(): to_user_receiver.send() error");
+                        return;
+                    }
+                },
+                ReceiverEvent::FromRemote(Err(_)) => {
+                    warn!("conn_pair_01_to_03(): ReceiverEvent::FromRemote(Err(_))");
+                },
             }
         }
+        info!("Forward user_receiver done");
     });
 
     (user_sender, user_receiver)
@@ -160,5 +190,4 @@ mod tests {
             thread_pool.clone(),
         ));
     }
-
 }
