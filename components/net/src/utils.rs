@@ -82,8 +82,8 @@ where
             }
         }
         // The user closed the sender. We close the connection aggressively.
-        // We have to drop all the tasks, because if we only close the sender, 
-        // the connection will not be closed.
+        // We have to drop all the receiver tasks, because closing the sender is not enough for
+        // closing the connection.
         //
         // See also: 
         // https://users.rust-lang.org/t/
