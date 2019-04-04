@@ -1,5 +1,5 @@
 [package]
-name = "stctrl"
+name = "offst-stctrl"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 edition = "2018"

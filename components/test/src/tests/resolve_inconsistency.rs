@@ -63,7 +63,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         timer_client.clone(),
         0,
         test_executor.clone()
-    ));
+    )).unwrap();
 
     // Create initial database for node 1:
     sim_db.init_db(1);
@@ -93,7 +93,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         timer_client.clone(),
         1,
         test_executor.clone()
-    ));
+    )).unwrap();
 
     // Create relays:
     await!(create_relay(

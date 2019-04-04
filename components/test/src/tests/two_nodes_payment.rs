@@ -59,13 +59,23 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     ))
     .forget();
 
+    // Connection attempt to the wrong node should fail:
+    let opt_wrong_app = await!(create_app(
+        0,
+        sim_net_client.clone(),
+        timer_client.clone(),
+        1,
+        test_executor.clone()
+    ));
+    assert!(opt_wrong_app.is_none());
+
     let mut app0 = await!(create_app(
         0,
         sim_net_client.clone(),
         timer_client.clone(),
         0,
         test_executor.clone()
-    ));
+    )).unwrap();
 
     // Create initial database for node 1:
     sim_db.init_db(1);
@@ -95,7 +105,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         timer_client.clone(),
         1,
         test_executor.clone()
-    ));
+    )).unwrap();
 
     // Create relays:
     await!(create_relay(

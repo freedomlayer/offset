@@ -842,6 +842,7 @@ name = "offst-net"
 version = "0.1.0"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -923,6 +924,18 @@ dependencies = [
  "offst-proto 0.1.0",
  "offst-timer 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "offst-stctrl"
+version = "0.1.0"
+dependencies = [
+ "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-app 0.1.0",
+ "prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1353,18 +1366,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "stable_deref_trait"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "stctrl"
-version = "0.1.0"
-dependencies = [
- "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app 0.1.0",
- "prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "strsim"

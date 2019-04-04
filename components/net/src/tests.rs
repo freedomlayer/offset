@@ -1,9 +1,12 @@
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+use env_logger;
+
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
+
 
 use common::conn::{FutTransform, Listener};
 use proto::net::messages::NetAddress;
@@ -104,3 +107,41 @@ fn test_net_connector_v4_basic() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_net_connector_v4_basic(thread_pool.clone()));
 }
+
+
+async fn task_net_connector_v4_drop_sender<S>(spawner: S)
+where
+    S: Spawn + Clone + Send + 'static,
+{
+
+    let available_port = get_available_port_v4();
+    let loopback = Ipv4Addr::new(127, 0, 0, 1);
+    let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
+
+    let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
+    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone(), spawner.clone());
+
+    let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
+
+    let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
+
+    let (client_sender, _client_receiver) =
+        await!(net_connector.transform(net_address.clone())).unwrap();
+    let (_server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
+
+    // Drop the client's sender:
+    drop(client_sender);
+
+    // Wait until the server understands the connection is closed.
+    // This should happen quickly.
+    while let Some(_) = await!(server_receiver.next()) {
+    }
+}
+
+#[test]
+fn test_net_connector_v4_drop_sender() {
+    env_logger::init();
+    let mut thread_pool = ThreadPool::new().unwrap();
+    thread_pool.run(task_net_connector_v4_drop_sender(thread_pool.clone()));
+}
+
