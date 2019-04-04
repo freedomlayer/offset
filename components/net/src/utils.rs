@@ -40,7 +40,7 @@ where
 
     let send_forward_03 = sender_01.send_all(from_user_sender_01).compat().map(|_| ());
 
-    let opt_send_handle = spawner.spawn_with_handle(send_forward_03);
+    drop(spawner.spawn(send_forward_03));
 
     // Forward messages to user_receiver:
     let to_user_receiver_01 = Compat::new(to_user_receiver_03)
@@ -54,6 +54,7 @@ where
         .compat()
         .map(|_| ());
 
+    // We keep a handle, to be able to cancel the recv task later:
     let opt_recv_handle = spawner.spawn_with_handle(recv_forward_01);
 
     // We want to give the user sender and receiver of T (And not Result<T,()>),
@@ -81,11 +82,12 @@ where
             }
         }
         // The user closed the sender. We close the connection aggressively.
-        // We have to drop all the tasks, because if we only close the sender the connection
-        // will not be closed.
+        // We have to drop all the tasks, because if we only close the sender, 
+        // the connection will not be closed.
+        //
         // See also: 
-        // https://users.rust-lang.org/t/tokio-tcp-connection-not-closed-when-sender-is-dropped-futures-0-3-compat-layer/26910/4
-        drop(opt_send_handle);
+        // https://users.rust-lang.org/t/
+        //      tokio-tcp-connection-not-closed-when-sender-is-dropped-futures-0-3-compat-layer/26910/4
         drop(opt_recv_handle);
         drop(opt_user_receiver);
     });
