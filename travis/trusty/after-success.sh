@@ -18,5 +18,6 @@ if [[ "$KCOV" == "1" ]]; then
             ${exe}
     done
 
-    bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+    # Automatically reads from CODECOV_TOKEN environment variable:
+    bash <(curl -s https://codecov.io/bash)
 fi
