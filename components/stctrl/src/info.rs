@@ -5,9 +5,10 @@ use prettytable::Table;
 
 use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport};
 use app::{
-    public_key_to_string, store_friend_to_file, AppReport, FriendAddress, NodeConnection,
+    store_friend_to_file, AppReport, FriendAddress, NodeConnection,
     RelayAddress,
 };
+use app::ser_string::public_key_to_string;
 
 #[derive(Debug)]
 pub enum InfoError {

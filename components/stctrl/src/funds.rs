@@ -1,6 +1,7 @@
 use clap::ArgMatches;
 
-use app::{string_to_public_key, AppRoutes, AppSendFunds, NodeConnection, PublicKey};
+use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
+use app::ser_string::string_to_public_key;
 
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
