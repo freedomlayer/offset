@@ -1,3 +1,4 @@
+use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 use base64::{self, URL_SAFE_NO_PAD};
 use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
@@ -60,4 +61,23 @@ pub fn string_to_hash_result(hash_result_str: &str) -> Result<HashResult, SerStr
     let mut hash_result_array = [0u8; HASH_RESULT_LEN];
     hash_result_array.copy_from_slice(&hash_result_vec[0..HASH_RESULT_LEN]);
     Ok(HashResult::from(&hash_result_array))
+}
+
+/// Convert a InvoiceId into a string
+pub fn invoice_id_to_string(invoice_id: &InvoiceId) -> String {
+    base64::encode_config(&invoice_id, URL_SAFE_NO_PAD)
+}
+
+/// Convert a string into a InvoiceId
+pub fn string_to_invoice_id(invoice_id_str: &str) -> Result<InvoiceId, SerStringError> {
+    // Decode public key:
+    let invoice_id_vec =
+        base64::decode_config(invoice_id_str, URL_SAFE_NO_PAD).map_err(|_| SerStringError)?;
+    // TODO: A more idiomatic way to do this?
+    if invoice_id_vec.len() != INVOICE_ID_LEN {
+        return Err(SerStringError);
+    }
+    let mut invoice_id_array = [0u8; INVOICE_ID_LEN];
+    invoice_id_array.copy_from_slice(&invoice_id_vec[0..INVOICE_ID_LEN]);
+    Ok(InvoiceId::from(&invoice_id_array))
 }
