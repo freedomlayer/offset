@@ -22,8 +22,8 @@ pub mod uid;
 pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
 pub use proto::file::index_server::load_index_server_from_file;
 pub use proto::file::node::load_node_from_file;
-pub use proto::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 pub use proto::file::relay::load_relay_from_file;
+pub use proto::file::ser_string::{public_key_to_string, string_to_public_key};
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::index_server::messages::NamedIndexServerAddress;
