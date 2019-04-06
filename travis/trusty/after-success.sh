@@ -13,10 +13,11 @@ if [[ "$KCOV" == "1" ]]; then
         ${HOME}/kcov-${TARGET}/bin/kcov \
             --verify \
             --exclude-path=/usr/include \
-            --include-pattern="offst/src" \
+            --include-pattern="offst/components" \
             target/kcov \
             ${exe}
     done
 
-    bash <(curl -s https://codecov.io/bash) -t ${CODECOV_TOKEN}
+    # Automatically reads from CODECOV_TOKEN environment variable:
+    bash <(curl -s https://codecov.io/bash)
 fi
