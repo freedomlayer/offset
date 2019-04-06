@@ -26,6 +26,7 @@ pub use proto::file::relay::load_relay_from_file;
 pub use proto::file::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
+pub use proto::funder::messages::Receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
 pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
@@ -59,4 +60,5 @@ pub mod route {
 
 }
 
-pub use crypto::identity::PublicKey;
+pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
+pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
