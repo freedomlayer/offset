@@ -168,7 +168,7 @@ where
 
     /// Add or update edge
     fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge<u128>) -> Option<CapacityEdge<u128>> {
-        let a_entry = self.nodes.entry(a).or_insert(NodeEdges::new());
+        let a_entry = self.nodes.entry(a).or_insert_with(NodeEdges::new);
         a_entry
             .edges
             .insert(b, Edge::new(edge))
@@ -187,7 +187,7 @@ where
             None => return None,
         };
 
-        if a_edges.edges.len() == 0 {
+        if a_edges.edges.is_empty() {
             self.nodes.remove(a);
         }
 
@@ -197,10 +197,7 @@ where
     /// Remove a node and all related edges known from him.
     /// Note: This method will not remove an edge from another node b pointing to a.
     fn remove_node(&mut self, a: &N) -> bool {
-        match self.nodes.remove(a) {
-            Some(_) => true,
-            None => false,
-        }
+        self.nodes.remove(a).is_some()
     }
 
     fn get_routes(

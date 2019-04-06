@@ -55,50 +55,52 @@ where
     type Output = Option<ServerConn>;
 
     fn transform(&mut self, index_server: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(async move {
-            // This line performs connection and then handshake:
-            let (mut data_sender, mut data_receiver) =
-                await!(self.net_connector.transform(index_server))?;
+        Box::pin(
+            async move {
+                // This line performs connection and then handshake:
+                let (mut data_sender, mut data_receiver) =
+                    await!(self.net_connector.transform(index_server))?;
 
-            let (user_sender, mut local_receiver) = mpsc::channel(0);
-            let (mut local_sender, user_receiver) = mpsc::channel(0);
+                let (user_sender, mut local_receiver) = mpsc::channel(0);
+                let (mut local_sender, user_receiver) = mpsc::channel(0);
 
-            // Deserialize incoming data:
-            let deser_fut = async move {
-                while let Some(data) = await!(data_receiver.next()) {
-                    let message = match deserialize_index_server_to_client(&data) {
-                        Ok(message) => message,
-                        Err(_) => {
-                            error!("deserialize index_server_to_client error");
+                // Deserialize incoming data:
+                let deser_fut = async move {
+                    while let Some(data) = await!(data_receiver.next()) {
+                        let message = match deserialize_index_server_to_client(&data) {
+                            Ok(message) => message,
+                            Err(_) => {
+                                error!("deserialize index_server_to_client error");
+                                return;
+                            }
+                        };
+                        if let Err(e) = await!(local_sender.send(message)) {
+                            error!("error sending to local_sender: {:?}", e);
                             return;
                         }
-                    };
-                    if let Err(e) = await!(local_sender.send(message)) {
-                        error!("error sending to local_sender: {:?}", e);
-                        return;
                     }
-                }
-            };
-            // If there is any error here, the user will find out when
-            // he tries to read from `user_receiver`
-            let _ = self.spawner.spawn(deser_fut);
+                };
+                // If there is any error here, the user will find out when
+                // he tries to read from `user_receiver`
+                let _ = self.spawner.spawn(deser_fut);
 
-            // Serialize outgoing data:
-            let ser_fut = async move {
-                while let Some(message) = await!(local_receiver.next()) {
-                    let data = serialize_index_client_to_server(&message);
-                    if let Err(e) = await!(data_sender.send(data)) {
-                        error!("error sending to data_sender: {:?}", e);
-                        return;
+                // Serialize outgoing data:
+                let ser_fut = async move {
+                    while let Some(message) = await!(local_receiver.next()) {
+                        let data = serialize_index_client_to_server(&message);
+                        if let Err(e) = await!(data_sender.send(data)) {
+                            error!("error sending to data_sender: {:?}", e);
+                            return;
+                        }
                     }
-                }
-            };
-            // If there is any error here, the user will find out when
-            // he tries to send through `user_sender`
-            let _ = self.spawner.spawn(ser_fut);
+                };
+                // If there is any error here, the user will find out when
+                // he tries to send through `user_sender`
+                let _ = self.spawner.spawn(ser_fut);
 
-            Some((user_sender, user_receiver))
-        })
+                Some((user_sender, user_receiver))
+            },
+        )
     }
 }
 
@@ -108,7 +110,7 @@ pub enum SpawnIndexClientError {
     SpawnError,
 }
 
-pub async fn spawn_index_client<'a, ISA, C, R, S>(
+pub async fn spawn_index_client<ISA, C, R, S>(
     local_public_key: PublicKey,
     index_client_config: IndexClientConfig<ISA>,
     index_client_state: IndexClientState,

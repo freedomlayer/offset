@@ -35,7 +35,7 @@ where
             // First send our protocol version to the remote side:
             let mut version_data = Vec::new();
             version_data.write_u32::<BigEndian>(local_version).unwrap();
-            if let Err(_) = await!(sender.send(version_data)) {
+            if await!(sender.send(version_data)).is_err() {
                 warn!("Failed to send version information");
                 return;
             }

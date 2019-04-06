@@ -30,12 +30,14 @@ where
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(async move {
-            let socket_addr_vec = await!(self.resolver.transform(net_address));
-            // A trivial implementation: We try to connect to the first address on the list.
-            // TODO: Maybe choose a random address in the future?
-            let socket_addr = socket_addr_vec.get(0)?.clone();
-            await!(self.tcp_connector.transform(socket_addr))
-        })
+        Box::pin(
+            async move {
+                let socket_addr_vec = await!(self.resolver.transform(net_address));
+                // A trivial implementation: We try to connect to the first address on the list.
+                // TODO: Maybe choose a random address in the future?
+                let socket_addr = socket_addr_vec.get(0)?;
+                await!(self.tcp_connector.transform(*socket_addr))
+            },
+        )
     }
 }

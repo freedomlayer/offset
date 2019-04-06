@@ -212,7 +212,7 @@ fn handle_response_send_funds<B>(
 
             let response_send_funds_result = ResponseSendFundsResult::Success(receipt.clone());
             outgoing_control.push(FunderOutgoingControl::ResponseReceived(ResponseReceived {
-                request_id: pending_request.request_id.clone(),
+                request_id: pending_request.request_id,
                 result: response_send_funds_result,
             }));
             // We make our own copy of the receipt, in case the user abruptly crashes.

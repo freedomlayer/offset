@@ -4,6 +4,12 @@
 #![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -42,6 +48,7 @@ pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 /// Amount of ticks we wait before attempting to reconnect to a remote index server.
 pub const BACKOFF_TICKS: usize = 0x8;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum IndexServerBinError {
     CreateThreadPoolError,
@@ -182,7 +189,7 @@ fn run() -> Result<(), IndexServerBinError> {
 
     thread_pool
         .run(index_server_fut)
-        .map_err(|e| IndexServerBinError::NetIndexServerError(e))?;
+        .map_err(IndexServerBinError::NetIndexServerError)?;
 
     Ok(())
 }

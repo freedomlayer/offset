@@ -119,6 +119,7 @@ pub struct MoveTokenRequest<B = NetAddress> {
     pub token_wanted: bool,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FriendMessage<B = NetAddress> {
     MoveTokenRequest(MoveTokenRequest<B>),
@@ -232,6 +233,10 @@ impl CanonicalSerialize for FriendsRoute {
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.public_keys.is_empty()
     }
 
     /// Check if the route is valid.
@@ -427,7 +432,7 @@ impl<B> FunderIncomingControl<B> {
 }
 
 impl UserRequestSendFunds {
-    pub fn to_request(self) -> RequestSendFunds {
+    pub fn into_request(self) -> RequestSendFunds {
         RequestSendFunds {
             request_id: self.request_id,
             route: self.route,

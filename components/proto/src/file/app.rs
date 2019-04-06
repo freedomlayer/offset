@@ -85,7 +85,7 @@ pub fn store_trusted_app_to_file(
     let data = toml::to_string(&trusted_app_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }

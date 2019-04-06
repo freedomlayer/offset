@@ -80,7 +80,8 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         0,
         test_executor.clone()
-    )).unwrap();
+    ))
+    .unwrap();
 
     // Create initial database for node 1:
     sim_db.init_db(1);
@@ -109,7 +110,8 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         1,
         test_executor.clone()
-    )).unwrap();
+    ))
+    .unwrap();
 
     // Create relays:
     await!(create_relay(
@@ -237,7 +239,8 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         1,
         test_executor.clone()
-    )).unwrap();
+    ))
+    .unwrap();
 
     let mut report1 = app1.report().clone();
 

@@ -44,7 +44,7 @@ where
             receiver: receiver
                 .map(|data| deserialize_reject_connection(&data))
                 .take_while(|res| future::ready(res.is_ok()))
-                .map(|res| res.unwrap()),
+                .map(Result::unwrap),
             sender: sender.with(|msg| future::ready(Ok(serialize_incoming_connection(&msg)))),
         }),
         InitConnection::Accept(accept_public_key) => IncomingConnInner::Accept(IncomingAccept {
@@ -84,23 +84,25 @@ async fn process_conn<FT>(
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let fut_receiver = Box::pin(async move {
-        if let Some(first_msg) = await!(receiver.next()) {
-            let dispatch_res = await!(dispatch_conn(
-                sender,
-                receiver,
-                public_key,
-                first_msg,
-                keepalive_transform
-            ));
-            if dispatch_res.is_none() {
-                warn!("process_conn(): dispatch_conn() failure");
+    let fut_receiver = Box::pin(
+        async move {
+            if let Some(first_msg) = await!(receiver.next()) {
+                let dispatch_res = await!(dispatch_conn(
+                    sender,
+                    receiver,
+                    public_key,
+                    first_msg,
+                    keepalive_transform
+                ));
+                if dispatch_res.is_none() {
+                    warn!("process_conn(): dispatch_conn() failure");
+                }
+                dispatch_res
+            } else {
+                None
             }
-            dispatch_res
-        } else {
-            None
-        }
-    });
+        },
+    );
 
     let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
     let res = await!(future_timeout(
@@ -300,14 +302,16 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         thread_pool
-            .spawn(async move {
-                await!(remote_sender.send(ser_first_msg).map(|res| {
-                    match res {
-                        Ok(_remote_sender) => (),
-                        Err(_) => unreachable!("Sending first message failed!"),
-                    }
-                }))
-            })
+            .spawn(
+                async move {
+                    await!(remote_sender.send(ser_first_msg).map(|res| {
+                        match res {
+                            Ok(_remote_sender) => (),
+                            Err(_) => unreachable!("Sending first message failed!"),
+                        }
+                    }))
+                },
+            )
             .unwrap();
 
         let (conn, processed_conns) = thread_pool.run(receive(processed_conns)).unwrap();

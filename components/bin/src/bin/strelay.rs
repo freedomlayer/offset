@@ -5,6 +5,12 @@
 #![type_length_limit = "4194304"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -38,6 +44,7 @@ use proto::file::identity::load_identity_from_file;
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum RelayServerBinError {
     ParseListenAddressError,
@@ -110,7 +117,7 @@ fn run() -> Result<(), RelayServerBinError> {
 
     thread_pool
         .run(relay_server_fut)
-        .map_err(|e| RelayServerBinError::NetRelayServerError(e))
+        .map_err(RelayServerBinError::NetRelayServerError)
 }
 
 fn main() {

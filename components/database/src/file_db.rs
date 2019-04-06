@@ -101,7 +101,7 @@ where
         for mutation in mutations.iter() {
             self.state
                 .mutate(mutation)
-                .map_err(|mutate_error| FileDbError::MutateError(mutate_error))?;
+                .map_err(FileDbError::MutateError)?;
         }
 
         // Serialize the state:

@@ -3,7 +3,7 @@ use bytes::Bytes;
 use futures::channel::mpsc;
 use futures::compat::{Compat, Future01CompatExt};
 use futures::task::{Spawn, SpawnExt};
-use futures::{FutureExt, StreamExt, SinkExt};
+use futures::{FutureExt, SinkExt, StreamExt};
 
 use futures_01::sink::Sink as Sink01;
 use futures_01::stream::Stream as Stream01;
@@ -12,7 +12,6 @@ use tokio::codec::{Framed, LengthDelimitedCodec};
 use tokio::net::TcpStream;
 
 use common::conn::ConnPairVec;
-
 
 /// Convert a connection pair (sender Sink, receiver Stream) of Futures 0.1
 /// to a pair of (mpsc::Sender, mpsc::Receiver) of Futures 0.3.
@@ -64,33 +63,37 @@ where
     let (mut to_user_receiver, user_receiver) = mpsc::channel::<T>(0);
 
     // Forward user_receiver:
-    let opt_user_receiver = spawner.spawn_with_handle(async move {
-        while let Some(Ok(data)) = await!(user_receiver_03.next()) {
-            if let Err(_) = await!(to_user_receiver.send(data)) {
-                warn!("conn_pair_01_to_03(): to_user_receiver.send() error");
-                return;
+    let opt_user_receiver = spawner.spawn_with_handle(
+        async move {
+            while let Some(Ok(data)) = await!(user_receiver_03.next()) {
+                if await!(to_user_receiver.send(data)).is_err() {
+                    warn!("conn_pair_01_to_03(): to_user_receiver.send() error");
+                    return;
+                }
             }
-        }
-    });
+        },
+    );
 
     // Forward user_sender:
-    let _ = spawner.spawn(async move {
-        while let Some(data) = await!(from_user_sender.next()) {
-            if let Err(_) = await!(user_sender_03.send(Ok(data))) {
-                warn!("Forward user_sender error");
-                break;
+    let _ = spawner.spawn(
+        async move {
+            while let Some(data) = await!(from_user_sender.next()) {
+                if await!(user_sender_03.send(Ok(data))).is_err() {
+                    warn!("Forward user_sender error");
+                    break;
+                }
             }
-        }
-        // The user closed the sender. We close the connection aggressively.
-        // We have to drop all the receiver tasks, because closing the sender is not enough for
-        // closing the connection.
-        //
-        // See also: 
-        // https://users.rust-lang.org/t/
-        //      tokio-tcp-connection-not-closed-when-sender-is-dropped-futures-0-3-compat-layer/26910/4
-        drop(opt_recv_handle);
-        drop(opt_user_receiver);
-    });
+            // The user closed the sender. We close the connection aggressively.
+            // We have to drop all the receiver tasks, because closing the sender is not enough for
+            // closing the connection.
+            //
+            // See also:
+            // https://users.rust-lang.org/t/
+            //      tokio-tcp-connection-not-closed-when-sender-is-dropped-futures-0-3-compat-layer/26910/4
+            drop(opt_recv_handle);
+            drop(opt_user_receiver);
+        },
+    );
 
     (user_sender, user_receiver)
 }

@@ -22,6 +22,8 @@
 
 // #![deny(warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(clippy::too_many_arguments, clippy::implicit_hasher, clippy::module_inception)]
+// TODO: disallow clippy::too_many_arguments
 
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};
@@ -101,7 +103,7 @@ where
         .map(|_| TimerEvent::Incoming)
         .chain(stream::once(future::ready(TimerEvent::IncomingDone)));
     let from_client = from_client
-        .map(|timer_request| TimerEvent::Request(timer_request))
+        .map(TimerEvent::Request)
         .chain(stream::once(future::ready(TimerEvent::RequestsDone)));
 
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
@@ -166,14 +168,16 @@ pub fn dummy_timer_multi_sender(
     let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
     let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
     spawner
-        .spawn(async move {
-            while let Some(timer_request) = await!(request_receiver.next()) {
-                let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
+        .spawn(
+            async move {
+                while let Some(timer_request) = await!(request_receiver.next()) {
+                    let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
 
-                await!(tick_sender_sender.send(tick_sender)).unwrap();
-                timer_request.response_sender.send(tick_receiver).unwrap();
-            }
-        })
+                    await!(tick_sender_sender.send(tick_sender)).unwrap();
+                    timer_request.response_sender.send(tick_receiver).unwrap();
+                }
+            },
+        )
         .unwrap();
 
     (tick_sender_receiver, TimerClient::new(request_sender))

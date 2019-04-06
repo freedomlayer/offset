@@ -51,7 +51,7 @@ impl<'a, T> Stream for SelectStreams<'a, T> {
             }
         }
         // No more streams to poll:
-        return Poll::Ready(None);
+        Poll::Ready(None)
     }
 }
 

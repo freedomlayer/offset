@@ -122,7 +122,7 @@ pub fn store_friend_to_file(
     let data = toml::to_string(&friend_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }

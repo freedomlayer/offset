@@ -4,6 +4,12 @@
 #![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -246,6 +252,7 @@ fn node_ticket(matches: &ArgMatches) -> Result<(), NodeTicketError> {
     store_node_to_file(&node_address, &output_path).map_err(|_| NodeTicketError::StoreNodeFileError)
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum StmError {
     InitNodeDbError(InitNodeDbError),
@@ -452,7 +459,7 @@ fn run() -> Result<(), StmError> {
         )
         .get_matches();
 
-    Ok(match matches.subcommand() {
+    match matches.subcommand() {
         ("init-node-db", Some(matches)) => init_node_db(matches)?,
         ("gen-ident", Some(matches)) => gen_identity(matches)?,
         ("app-ticket", Some(matches)) => app_ticket(matches)?,
@@ -460,7 +467,8 @@ fn run() -> Result<(), StmError> {
         ("index-ticket", Some(matches)) => index_ticket(matches)?,
         ("node-ticket", Some(matches)) => node_ticket(matches)?,
         _ => unreachable!(),
-    })
+    }
+    Ok(())
 }
 
 fn main() {

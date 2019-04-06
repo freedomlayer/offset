@@ -140,7 +140,7 @@ where
     let ser_init_connection =
         serialize_init_connection(&InitConnection::Accept(public_key.clone()));
     let send_res = await!(sender.send(ser_init_connection));
-    if let Err(_) = send_res {
+    if send_res.is_err() {
         await!(pending_reject_sender.send(public_key))
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
@@ -216,10 +216,10 @@ where
             }
         })
         .take_while(|opt_incoming_connection| future::ready(opt_incoming_connection.is_some()))
-        .map(|opt| opt.unwrap());
+        .map(Option::unwrap);
 
     let incoming_access_control = incoming_access_control
-        .map(|access_control_op| ClientListenerEvent::AccessControlOp(access_control_op))
+        .map(ClientListenerEvent::AccessControlOp)
         .chain(stream::once(future::ready(
             ClientListenerEvent::AccessControlClosed,
         )));
@@ -403,14 +403,16 @@ mod tests {
         let (res_sender, res_receiver) = oneshot::channel();
 
         spawner
-            .spawn(async move {
-                let res = await!(connect_with_timeout(
-                    connector,
-                    conn_timeout_ticks,
-                    timer_stream
-                ));
-                res_sender.send(res).unwrap();
-            })
+            .spawn(
+                async move {
+                    let res = await!(connect_with_timeout(
+                        connector,
+                        conn_timeout_ticks,
+                        timer_stream
+                    ));
+                    res_sender.send(res).unwrap();
+                },
+            )
             .unwrap();
 
         let req = await!(req_receiver.next()).unwrap();

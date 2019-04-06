@@ -171,7 +171,7 @@ where
         .chain(stream::once(future::ready(RelayServerEvent::TimerClosed)));
 
     let incoming_conns = incoming_conns
-        .map(|incoming_conn| RelayServerEvent::IncomingConn(incoming_conn))
+        .map(RelayServerEvent::IncomingConn)
         .chain(stream::once(future::ready(
             RelayServerEvent::IncomingConnsClosed,
         )));
@@ -202,12 +202,14 @@ where
                         let (mpsc_sender, mut mpsc_receiver) =
                             mpsc::channel::<IncomingConnection>(0);
                         spawner
-                            .spawn(async move {
-                                let mut sender = sender.sink_map_err(|_| ());
-                                await!(sender
-                                    .send_all(&mut mpsc_receiver)
-                                    .then(|_| future::ready(())))
-                            })
+                            .spawn(
+                                async move {
+                                    let mut sender = sender.sink_map_err(|_| ());
+                                    await!(sender
+                                        .send_all(&mut mpsc_receiver)
+                                        .then(|_| future::ready(())))
+                                },
+                            )
                             .unwrap();
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
@@ -223,12 +225,14 @@ where
                                 RelayServerEvent::ListenerClosed(public_key.clone()),
                             )));
                         spawner
-                            .spawn(async move {
-                                let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
-                                await!(c_event_sender
-                                    .send_all(&mut receiver)
-                                    .then(|_| future::ready(())))
-                            })
+                            .spawn(
+                                async move {
+                                    let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
+                                    await!(c_event_sender
+                                        .send_all(&mut receiver)
+                                        .then(|_| future::ready(())))
+                                },
+                            )
                             .unwrap();
                     }
                     IncomingConnInner::Accept(incoming_accept) => {
@@ -312,7 +316,7 @@ where
             }
             RelayServerEvent::TimerTick => {
                 // Remove old half tunnels:
-                for (_listener_public_key, listener) in &mut listeners {
+                for listener in listeners.values_mut() {
                     listener
                         .half_tunnels
                         .retain(|_init_public_key, half_tunnel| {

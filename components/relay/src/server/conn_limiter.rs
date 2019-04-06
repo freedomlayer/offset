@@ -35,11 +35,8 @@ where
 
 impl<T> Drop for Tracked<T> {
     fn drop(&mut self) {
-        match self.opt_drop_sender.take() {
-            Some(drop_sender) => {
-                let _ = drop_sender.send(());
-            }
-            None => {}
+        if let Some(drop_sender) = self.opt_drop_sender.take() {
+            let _ = drop_sender.send(());
         };
     }
 }

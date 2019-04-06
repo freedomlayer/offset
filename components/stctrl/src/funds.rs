@@ -95,9 +95,8 @@ async fn funds_send<'a>(
     let request_id = gen_uid();
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let receipt =
-        await!(app_send_funds.request_send_funds(request_id.clone(), route, invoice_id, amount))
-            .map_err(|_| FundsError::SendFundsError)?;
+    let receipt = await!(app_send_funds.request_send_funds(request_id, route, invoice_id, amount))
+        .map_err(|_| FundsError::SendFundsError)?;
 
     println!("Payment successful!");
     println!("Fees: {}", fees);

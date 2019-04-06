@@ -25,6 +25,7 @@ pub enum SetDirection<B> {
     Outgoing(MoveToken<B>),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<B> {
     McMutation(McMutation),
@@ -44,6 +45,7 @@ pub struct TcIncoming {
     pub move_token_in: MoveTokenHashed,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum TcDirection<B> {
     Incoming(TcIncoming),
@@ -75,6 +77,7 @@ pub struct MoveTokenReceived<B> {
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum ReceiveMoveTokenOutput<B> {
     Duplicate,
@@ -307,7 +310,7 @@ impl TcIncoming {
     {
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
-        if &self.move_token_in == &create_hashed(&new_move_token) {
+        if self.move_token_in == create_hashed(&new_move_token) {
             // Duplicate
             Ok(ReceiveMoveTokenOutput::Duplicate)
         } else {
@@ -361,7 +364,7 @@ where
             return Err(ReceiveMoveTokenError::ChainInconsistency);
         }
 
-        if &new_move_token.old_token == &self.move_token_out.new_token {
+        if new_move_token.old_token == self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
         // self.outgoing_to_incoming(friend_move_token, new_move_token)
         } else if self.move_token_out.old_token == new_move_token.new_token {

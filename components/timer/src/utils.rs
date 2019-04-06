@@ -18,7 +18,8 @@ pub async fn sleep_ticks(
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
     let ticks_u64 = usize_to_u64(ticks).unwrap();
     let fut = timer_stream.take(ticks_u64).for_each(|_| future::ready(()));
-    Ok(await!(fut))
+    await!(fut);
+    Ok(())
 }
 
 /// Wraps a future with a timeout.

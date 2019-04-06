@@ -7,7 +7,6 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-
 use common::conn::{FutTransform, Listener};
 use proto::net::messages::NetAddress;
 
@@ -108,12 +107,10 @@ fn test_net_connector_v4_basic() {
     thread_pool.run(task_net_connector_v4_basic(thread_pool.clone()));
 }
 
-
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-
     let available_port = get_available_port_v4();
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
@@ -134,8 +131,7 @@ where
 
     // Wait until the server understands the connection is closed.
     // This should happen quickly.
-    while let Some(_) = await!(server_receiver.next()) {
-    }
+    while let Some(_) = await!(server_receiver.next()) {}
 }
 
 #[test]
@@ -144,4 +140,3 @@ fn test_net_connector_v4_drop_sender() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
-

@@ -352,11 +352,8 @@ pub async fn config<'a>(
 
     // Obtain current report:
     let app_report = node_connection.report();
-    let (node_report, incoming_mutations) =
+    let (node_report, _incoming_mutations) =
         await!(app_report.incoming_reports()).map_err(|_| ConfigError::GetReportError)?;
-    // We currently don't need live updates about report mutations:
-    drop(incoming_mutations);
-    drop(app_report);
 
     match matches.subcommand() {
         ("add-relay", Some(matches)) => await!(config_add_relay(matches, app_config, node_report))?,

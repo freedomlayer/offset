@@ -60,7 +60,8 @@ where
             let _ = sender.send(routes);
         }
         GraphRequest::Tick(a, sender) => {
-            let _ = sender.send(capacity_graph.tick(&a));
+            capacity_graph.tick(&a);
+            let _ = sender.send(());
         }
     }
 }
@@ -82,10 +83,12 @@ where
     while let Some(graph_request) = await!(incoming_requests.next()) {
         // Run the graph computation over own pool:
         let process_request_handle = graph_service_spawner
-            .spawn_with_handle(async move {
-                process_request(&mut capacity_graph, graph_request);
-                capacity_graph
-            })
+            .spawn_with_handle(
+                async move {
+                    process_request(&mut capacity_graph, graph_request);
+                    capacity_graph
+                },
+            )
             .map_err(|_| GraphServiceError::LocalSpawnError)?;
 
         // Wait for completion of the computation on the external pool:

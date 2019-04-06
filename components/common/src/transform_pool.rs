@@ -36,7 +36,7 @@ where
     S: Spawn,
 {
     let incoming = incoming
-        .map(|input_value| TransformPoolEvent::Incoming(input_value))
+        .map(TransformPoolEvent::Incoming)
         .chain(stream::once(future::ready(
             TransformPoolEvent::IncomingClosed,
         )));

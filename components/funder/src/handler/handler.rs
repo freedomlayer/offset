@@ -160,6 +160,12 @@ where
         .is_open()
 }
 
+type FunderHandleIncomingOutput<B> = (
+    SendCommands,
+    Vec<FunderOutgoingControl<B>>,
+    Vec<ChannelerConfig<RelayAddress<B>>>,
+    Option<Uid>,
+);
 pub fn funder_handle_incoming<B, R>(
     mut m_state: &mut MutableFunderState<B>,
     mut m_ephemeral: &mut MutableEphemeral,
@@ -167,15 +173,7 @@ pub fn funder_handle_incoming<B, R>(
     max_node_relays: usize,
     max_pending_user_requests: usize,
     funder_incoming: FunderIncoming<B>,
-) -> Result<
-    (
-        SendCommands,
-        Vec<FunderOutgoingControl<B>>,
-        Vec<ChannelerConfig<RelayAddress<B>>>,
-        Option<Uid>,
-    ),
-    FunderHandlerError,
->
+) -> Result<FunderHandleIncomingOutput<B>, FunderHandlerError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,

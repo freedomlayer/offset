@@ -176,6 +176,7 @@ where
     pub num_ready_receipts: u64,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<B = NetAddress>
 where
@@ -205,6 +206,7 @@ pub struct AddFriendReport<B = NetAddress> {
     pub channel_status: ChannelStatusReport,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<B = NetAddress>
 where
@@ -341,9 +343,10 @@ where
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                     num_pending_user_requests: 0,
                 };
-                if let Some(_) = self
+                if self
                     .friends
                     .insert(add_friend_report.friend_public_key.clone(), friend_report)
+                    .is_some()
                 {
                     Err(FunderReportMutateError::FriendAlreadyExists)
                 } else {
@@ -351,7 +354,7 @@ where
                 }
             }
             FunderReportMutation::RemoveFriend(friend_public_key) => {
-                if let None = self.friends.remove(&friend_public_key) {
+                if self.friends.remove(&friend_public_key).is_none() {
                     Err(FunderReportMutateError::FriendDoesNotExist)
                 } else {
                     Ok(())

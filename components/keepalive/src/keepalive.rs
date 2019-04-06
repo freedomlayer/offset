@@ -70,13 +70,13 @@ where
         .chain(stream::once(future::ready(KeepAliveEvent::TimerClosed)));
 
     let from_remote = from_remote
-        .map(|ka_message| KeepAliveEvent::MessageFromRemote(ka_message))
+        .map(KeepAliveEvent::MessageFromRemote)
         .chain(stream::once(future::ready(
             KeepAliveEvent::RemoteChannelClosed,
         )));
 
     let from_user = from_user
-        .map(|vec| KeepAliveEvent::MessageFromUser(vec))
+        .map(KeepAliveEvent::MessageFromUser)
         .chain(stream::once(future::ready(
             KeepAliveEvent::UserChannelClosed,
         )));
@@ -99,7 +99,7 @@ where
                     .map_err(|_| KeepAliveError::DeserializeError)?;
                 ticks_to_close = keepalive_ticks;
                 if let KaMessage::Message(message) = ka_message {
-                    if let Err(_) = await!(to_user.send(message)) {
+                    if await!(to_user.send(message)).is_err() {
                         warn!("keepalive_loop(): Can not send to local side");
                         break;
                     }
@@ -108,7 +108,7 @@ where
             KeepAliveEvent::MessageFromUser(message) => {
                 let ka_message = KaMessage::Message(message);
                 let ser_ka_message = serialize_ka_message(&ka_message);
-                if let Err(_) = await!(to_remote.send(ser_ka_message)) {
+                if await!(to_remote.send(ser_ka_message)).is_err() {
                     warn!("keepalive_loop(): Can not send to remote side");
                     break;
                 }
@@ -123,7 +123,7 @@ where
                 if ticks_to_send_keepalive == 0 {
                     let ka_message = KaMessage::KeepAlive;
                     let ser_ka_message = serialize_ka_message(&ka_message);
-                    if let Err(_) = await!(to_remote.send(ser_ka_message)) {
+                    if await!(to_remote.send(ser_ka_message)).is_err() {
                         warn!("Keepalive_loop(): Can not send to remote side");
                         break;
                     }
@@ -173,34 +173,36 @@ where
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-        Box::pin(async move {
-            if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
-                let keepalive_fut = inner_keepalive_loop(
-                    to_remote,
-                    from_remote,
-                    to_user,
-                    from_user,
-                    timer_stream,
-                    self.keepalive_ticks,
-                    None,
-                )
-                .map_err(|e| {
-                    warn!(
-                        "transform_keepalive(): inner_keepalive_loop() error: {:?}",
-                        e
+        Box::pin(
+            async move {
+                if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
+                    let keepalive_fut = inner_keepalive_loop(
+                        to_remote,
+                        from_remote,
+                        to_user,
+                        from_user,
+                        timer_stream,
+                        self.keepalive_ticks,
+                        None,
                     )
-                })
-                .then(|_| future::ready(()));
+                    .map_err(|e| {
+                        warn!(
+                            "transform_keepalive(): inner_keepalive_loop() error: {:?}",
+                            e
+                        )
+                    })
+                    .then(|_| future::ready(()));
 
-                self.spawner.spawn(keepalive_fut).unwrap();
-            } else {
-                // Note: In this case the user will notice there is an error when he tries to
-                // use the connection, because to_user, from_user are dropped
-                warn!("transform_keepalive(): Error requesting timer stream");
-            }
+                    self.spawner.spawn(keepalive_fut).unwrap();
+                } else {
+                    // Note: In this case the user will notice there is an error when he tries to
+                    // use the connection, because to_user, from_user are dropped
+                    warn!("transform_keepalive(): Error requesting timer stream");
+                }
 
-            (user_sender, user_receiver)
-        })
+                (user_sender, user_receiver)
+            },
+        )
     }
 }
 

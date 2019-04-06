@@ -26,7 +26,7 @@ use crate::client_session::{ControlSender, SessionHandle};
 use crate::seq_friends::SeqFriendsClient;
 use crate::single_client::SingleClientControl;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct IndexClientConfig<ISA> {
     pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
 }
@@ -156,7 +156,7 @@ async fn send_full_state(
         // TODO: Maybe send mutations in batches in the future:
         // However, we need to be careful to not send too many mutations in one batch.
         let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
-        if let Err(_) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+        if await!(control_sender.send(SingleClientControl::SendMutations(mutations))).is_err() {
             break;
         }
         // Note that here we can not reset the ticks_to_send_keepalive counter because we are
@@ -254,33 +254,36 @@ where
         let (sfs_done_sender, sfs_done_receiver) = oneshot::channel::<()>();
 
         // TODO: Can we remove the Box::pin() from here? How?
-        let connect_fut = Box::pin(async move {
-            let res = await!(c_index_client_session.transform(index_server))?;
-            let (control_sender, close_receiver) = res;
+        let connect_fut = Box::pin(
+            async move {
+                let res = await!(c_index_client_session.transform(index_server))?;
+                let (control_sender, close_receiver) = res;
 
-            let c_control_sender = control_sender.clone();
-            let send_full_state_cancellable_fut = async move {
-                let send_full_state_fut = Box::pin(
-                    send_full_state(c_seq_friends_client, c_control_sender)
-                        .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
-                        .map(|_| {
-                            let _ = sfs_done_sender.send(());
-                        }),
-                );
+                let c_control_sender = control_sender.clone();
+                let send_full_state_cancellable_fut = async move {
+                    let send_full_state_fut = Box::pin(
+                        send_full_state(c_seq_friends_client, c_control_sender)
+                            .map_err(|e| warn!("Error in send_full_state(): {:?}", e))
+                            .map(|_| {
+                                let _ = sfs_done_sender.send(());
+                            }),
+                    );
 
-                select! {
-                    _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
-                    _ = send_full_state_fut.fuse() => (),
+                    select! {
+                        _sfs_cancel_receiver = sfs_cancel_receiver.fuse() => (),
+                        _ = send_full_state_fut.fuse() => (),
+                    };
                 };
-            };
 
-            c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
+                c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
 
-            let _ =
-                await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
-            let _ = await!(close_receiver);
-            Some(())
-        });
+                let _ = await!(
+                    c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender))
+                );
+                let _ = await!(close_receiver);
+                Some(())
+            },
+        );
 
         let mut c_event_sender = self.event_sender.clone();
         let cancellable_fut = async move {
@@ -313,12 +316,12 @@ where
             request_id,
             result: ResponseRoutesResult::Failure,
         };
-        return await!(self
+        await!(self
             .to_app_server
             .send(IndexClientToAppServer::ResponseRoutes(
                 client_response_routes
             )))
-        .map_err(|_| IndexClientError::SendToAppServerFailed);
+        .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
     pub async fn handle_from_app_server_add_index_server(
@@ -451,7 +454,7 @@ where
             None => return await!(self.return_response_routes_failure(request_routes.request_id)),
         };
 
-        let c_request_id = request_routes.request_id.clone();
+        let c_request_id = request_routes.request_id;
         let (response_sender, response_receiver) = oneshot::channel();
         let single_client_control =
             SingleClientControl::RequestRoutes((request_routes, response_sender));

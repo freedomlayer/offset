@@ -95,8 +95,8 @@ where
     fn clone(&self) -> FuncFutTransform<F, I, O> {
         FuncFutTransform {
             func: self.func.clone(),
-            phantom_i: self.phantom_i.clone(),
-            phantom_o: self.phantom_o.clone(),
+            phantom_i: self.phantom_i,
+            phantom_o: self.phantom_o,
         }
     }
 }

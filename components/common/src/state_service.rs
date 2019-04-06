@@ -49,6 +49,7 @@ impl<ST, MU> StateClient<ST, MU> {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 enum Event<ST, MU> {
     IncomingRequest(StateRequest<ST, MU>),
     IncomingRequestsClosed,
@@ -68,11 +69,11 @@ where
     ST: MutableState<Mutation = MU, MutateError = E> + Clone,
 {
     let incoming_requests = incoming_requests
-        .map(|request| Event::IncomingRequest(request))
+        .map(Event::IncomingRequest)
         .chain(stream::once(future::ready(Event::IncomingRequestsClosed)));
 
     let incoming_mutations = incoming_mutations
-        .map(|mutation| Event::IncomingMutation(mutation))
+        .map(Event::IncomingMutation)
         .chain(stream::once(future::ready(Event::IncomingMutationsClosed)));
 
     let mut incoming = incoming_requests.select(incoming_mutations);
@@ -84,7 +85,11 @@ where
         match event {
             Event::IncomingRequest(request) => {
                 let (sender, receiver) = mpsc::channel(0);
-                if let Ok(_) = request.response_sender.send((state.clone(), receiver)) {
+                if request
+                    .response_sender
+                    .send((state.clone(), receiver))
+                    .is_ok()
+                {
                     senders.push(sender);
                 }
             }
@@ -93,12 +98,12 @@ where
                 // Mutate state:
                 state
                     .mutate(&mutation)
-                    .map_err(|e| StateServiceError::MutateError(e))?;
+                    .map_err(StateServiceError::MutateError)?;
 
                 // Update all clients about state change:
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
-                    if let Ok(_) = await!(sender.send(mutation.clone())) {
+                    if await!(sender.send(mutation.clone())).is_ok() {
                         // We only retain the sender if no error have occurred:
                         new_senders.push(sender)
                     }

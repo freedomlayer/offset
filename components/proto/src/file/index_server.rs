@@ -91,7 +91,7 @@ pub fn store_index_server_to_file(
     let data = toml::to_string(&index_server_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }

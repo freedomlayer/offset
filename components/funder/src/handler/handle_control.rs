@@ -116,7 +116,7 @@ fn enable_friend<B>(
     m_state: &mut MutableFunderState<B>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
     friend_public_key: &PublicKey,
-    friend_relays: &Vec<RelayAddress<B>>,
+    friend_relays: &[RelayAddress<B>],
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
@@ -125,7 +125,7 @@ fn enable_friend<B>(
     // Notify Channeler:
     let channeler_add_friend = ChannelerUpdateFriend {
         friend_public_key: friend_public_key.clone(),
-        friend_relays: friend_relays.clone(),
+        friend_relays: friend_relays.to_vec(),
         local_relays: friend.sent_local_relays.to_vec(),
     };
     let channeler_config = ChannelerConfig::UpdateFriend(channeler_add_friend);
@@ -511,7 +511,7 @@ where
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
-    let request_send_funds = user_request_send_funds.to_request();
+    let request_send_funds = user_request_send_funds.into_request();
     let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -613,14 +613,20 @@ where
             named_relay_address,
         ),
 
-        FunderControl::RemoveRelay(public_key) => Ok(control_remove_relay(
-            m_state,
-            send_commands,
-            outgoing_channeler_config,
-            public_key,
-        )),
+        FunderControl::RemoveRelay(public_key) => {
+            control_remove_relay(
+                m_state,
+                send_commands,
+                outgoing_channeler_config,
+                public_key,
+            );
+            Ok(())
+        }
 
-        FunderControl::AddFriend(add_friend) => Ok(control_add_friend(m_state, add_friend)),
+        FunderControl::AddFriend(add_friend) => {
+            control_add_friend(m_state, add_friend);
+            Ok(())
+        }
 
         FunderControl::RemoveFriend(remove_friend) => control_remove_friend(
             m_state,

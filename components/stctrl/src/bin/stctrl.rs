@@ -4,6 +4,12 @@
 #![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -427,23 +433,26 @@ fn run() -> Result<(), StCtrlError> {
         .map_err(|_| StCtrlError::SpawnIdentityServiceError)?;
 
     let c_thread_pool = thread_pool.clone();
-    thread_pool.run(async move {
-        // Connect to node:
-        let node_connection = await!(connect(
-            node_address.public_key,
-            node_address.address,
-            app_identity_client,
-            c_thread_pool.clone()
-        ))
-        .map_err(|_| StCtrlError::ConnectionError)?;
+    thread_pool.run(
+        async move {
+            // Connect to node:
+            let node_connection = await!(connect(
+                node_address.public_key,
+                node_address.address,
+                app_identity_client,
+                c_thread_pool.clone()
+            ))
+            .map_err(|_| StCtrlError::ConnectionError)?;
 
-        Ok(match matches.subcommand() {
-            ("info", Some(matches)) => await!(info(matches, node_connection))?,
-            ("config", Some(matches)) => await!(config(matches, node_connection))?,
-            ("funds", Some(matches)) => await!(funds(matches, node_connection))?,
-            _ => unreachable!(),
-        })
-    })
+            match matches.subcommand() {
+                ("info", Some(matches)) => await!(info(matches, node_connection))?,
+                ("config", Some(matches)) => await!(config(matches, node_connection))?,
+                ("funds", Some(matches)) => await!(funds(matches, node_connection))?,
+                _ => unreachable!(),
+            }
+            Ok(())
+        },
+    )
 }
 
 fn main() {

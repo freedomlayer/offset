@@ -99,27 +99,31 @@ where
     let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
     // Deserialize data received from node:
-    let _ = spawner.spawn(async move {
-        while let Some(data) = await!(receiver.next()) {
-            let message = match deserialize_app_server_to_app(&data) {
-                Ok(message) => message,
-                Err(_) => return,
-            };
-            if let Err(_) = await!(to_user_receiver.send(message)) {
-                return;
+    let _ = spawner.spawn(
+        async move {
+            while let Some(data) = await!(receiver.next()) {
+                let message = match deserialize_app_server_to_app(&data) {
+                    Ok(message) => message,
+                    Err(_) => return,
+                };
+                if await!(to_user_receiver.send(message)).is_err() {
+                    return;
+                }
             }
-        }
-    });
+        },
+    );
 
     // Serialize data sent to node:
-    let _ = spawner.spawn(async move {
-        while let Some(message) = await!(from_user_sender.next()) {
-            let data = serialize_app_to_app_server(&message);
-            if let Err(_) = await!(sender.send(data)) {
-                return;
+    let _ = spawner.spawn(
+        async move {
+            while let Some(message) = await!(from_user_sender.next()) {
+                let data = serialize_app_to_app_server(&message);
+                if await!(sender.send(data)).is_err() {
+                    return;
+                }
             }
-        }
-    });
+        },
+    );
 
     Ok((app_permissions, node_report, (user_sender, user_receiver)))
 }
@@ -158,7 +162,7 @@ where
         app_identity_client,
         spawner.clone()
     ))
-    .map_err(|e| NodeConnectError::SetupConnectionError(e))?;
+    .map_err(NodeConnectError::SetupConnectionError)?;
 
     NodeConnection::new(conn_tuple, rng, &mut spawner)
         .map_err(|_| NodeConnectError::CreateNodeConnectionError)

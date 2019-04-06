@@ -473,15 +473,13 @@ fn ser_relays_transition(
     }
 }
 
+type RelaysTransitions = (
+    ImVec<NamedRelayAddress<NetAddress>>,
+    ImVec<NamedRelayAddress<NetAddress>>,
+);
 fn deser_relays_transition(
     relays_transition_reader: &report_capnp::relays_transition::Reader,
-) -> Result<
-    (
-        ImVec<NamedRelayAddress<NetAddress>>,
-        ImVec<NamedRelayAddress<NetAddress>>,
-    ),
-    SerializeError,
-> {
+) -> Result<RelaysTransitions, SerializeError> {
     let mut last_sent = ImVec::new();
     for named_relay_address in relays_transition_reader.get_last_sent()? {
         last_sent.push_back(read_named_relay_address(&named_relay_address)?);

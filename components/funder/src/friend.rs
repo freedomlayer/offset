@@ -57,12 +57,13 @@ where
             SentLocalRelays::LastSent(last_address) => last_address
                 .iter()
                 .cloned()
-                .map(|named_relay_address| named_relay_address.into())
+                .map(Into::into)
                 .collect::<Vec<_>>(),
         }
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
@@ -89,6 +90,7 @@ pub struct ChannelInconsistent {
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ChannelStatus<B> {
     Inconsistent(ChannelInconsistent),
