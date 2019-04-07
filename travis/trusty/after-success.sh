@@ -5,7 +5,6 @@
 if [[ "$KCOV" == "1" ]]; then
     travis/trusty/install-kcov.sh
 
-    cargo clean
     RUSTFLAGS="-C link-dead-code" cargo test -v --no-run --target=${TARGET}
 
     exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)

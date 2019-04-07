@@ -23,7 +23,9 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
       script:
-        - cargo clean && cargo test
+        - cargo fmt --all -- --check
+        - cargo clippy
+        - cargo test
       after_success:
         - travis/trusty/after-success.sh
 
@@ -34,4 +36,4 @@ matrix:
       before_script:
         - brew install capnp
       script:
-        - cargo clean && cargo test
+        - cargo test
