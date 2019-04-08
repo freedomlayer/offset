@@ -12,7 +12,7 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 KCOV=1
+    - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 KCOV=1 RUSTFLAGS="-C link-dead-code"
       os: linux
       rust: nightly-2019-03-20
       addons:
@@ -27,7 +27,7 @@ matrix:
         - travis/trusty/pre/capnp.sh
         - cargo fmt --all -- --check
         - cargo clippy
-        - RUSTFLAGS="-C link-dead-code" cargo test
+        - cargo test
         - travis/trusty/post/kcov/try-install.sh
         - travis/trusty/post/kcov/run.sh
         - travis/trusty/post/cargo-sweep.sh
