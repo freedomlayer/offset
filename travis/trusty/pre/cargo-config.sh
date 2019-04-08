@@ -16,5 +16,3 @@ rustup component add clippy-preview
 rustup component add rustfmt
 
 cat .cargo/config
-
-travis/trusty/install-capnp.sh
