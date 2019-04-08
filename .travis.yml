@@ -27,7 +27,7 @@ matrix:
       script:
         - cargo fmt --all -- --check
         - cargo clippy
-        - cargo test
+        - RUSTFLAGS="-C link-dead-code" cargo test
         - travis/trusty/after-success.sh
 
     - env: TARGET=x86_64-apple-darwin KCOV=0
