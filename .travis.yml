@@ -26,7 +26,6 @@ matrix:
         - cargo fmt --all -- --check
         - cargo clippy
         - cargo test
-      after_success:
         - travis/trusty/after-success.sh
 
     - env: TARGET=x86_64-apple-darwin KCOV=0
