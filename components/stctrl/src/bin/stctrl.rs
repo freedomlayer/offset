@@ -107,6 +107,14 @@ fn run() -> Result<(), StCtrlError> {
                                 .value_name("friend_name")
                                 .help("friend name")
                                 .required(true),
+                        )
+                        .arg(
+                            Arg::with_name("output")
+                                .short("o")
+                                .long("output")
+                                .value_name("output_file")
+                                .help("output last friend token file")
+                                .required(true),
                         ),
                 )
                 .subcommand(SubCommand::with_name("balance").about("Display current balance"))

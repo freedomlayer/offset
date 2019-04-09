@@ -10,12 +10,18 @@ use app::{
 };
 use app::ser_string::public_key_to_string;
 
+use crate::utils::friend_public_key_by_name;
+use crate::file::move_token_hashed_report::store_move_token_hashed_report_to_file;
+
 #[derive(Debug)]
 pub enum InfoError {
     GetReportError,
     BalanceOverflow,
     OutputFileAlreadyExists,
     StoreNodeToFileError,
+    FriendNameNotFound,
+    MissingLastIncomingMoveToken,
+    StoreLastIncomingMoveTokenError,
 }
 
 /// Get a most recently known node report:
@@ -134,16 +140,41 @@ pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
     Ok(())
 }
 
+/// Obtain the last incoming move token messages from a friend.  
+/// This is the last signed commitment made by the friend to the mutual balance.
 pub async fn info_last_friend_token<'a>(
-    _matches: &'a ArgMatches<'a>,
-    _app_report: AppReport,
+    matches: &'a ArgMatches<'a>,
+    mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    // TODO: Should possibly export a file
-    unimplemented!();
-    /*
-    let idfile = matches.value_of("idfile").unwrap();
-    let output = matches.value_of("output").unwrap();
-    */
+
+    let friend_name = matches.value_of("friend_name").unwrap();
+    let output_file = matches.value_of("output_file").unwrap();
+    let output_pathbuf = PathBuf::from(output_file);
+
+    if output_pathbuf.exists() {
+        return Err(InfoError::OutputFileAlreadyExists);
+    }
+
+    // Get a recent report:
+    let (node_report, incoming_mutations) = await!(app_report.incoming_reports())
+        .map_err(|_| InfoError::GetReportError)?;
+    // We don't want to listen on incoming mutations:
+    drop(incoming_mutations);
+
+    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
+        .ok_or(InfoError::FriendNameNotFound)?;
+
+    let friend_report = node_report.funder_report.friends.get(&friend_public_key).unwrap();
+    let last_incoming_move_token = match &friend_report.opt_last_incoming_move_token {
+        Some(last_incoming_move_token) => last_incoming_move_token,
+        // If the remote side have never sent any message, we might not have a 
+        // "last incoming move token":
+        None => return Err(InfoError::MissingLastIncomingMoveToken),
+    };
+
+    store_move_token_hashed_report_to_file(last_incoming_move_token, 
+                                           &output_pathbuf)
+        .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
 }
 
 /// Get an approximate value for mutual balance with a friend.
