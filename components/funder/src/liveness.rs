@@ -1,7 +1,7 @@
 use crypto::identity::PublicKey;
 use im::hashset::HashSet as ImHashSet;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Liveness {
     pub friends: ImHashSet<PublicKey>,
 }

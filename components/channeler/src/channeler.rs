@@ -113,21 +113,19 @@ impl<RA> Friends<RA> {
     /// Obtain (if possible) a FriendConnected struct corresponding to the given
     /// public_key. A FriendConnected struct allows sending messages to the remote friend.
     pub fn get_friend_connected(&mut self, public_key: &PublicKey) -> Option<&mut FriendConnected> {
-        match self.in_friends.get_mut(public_key) {
-            Some(in_friend) => match in_friend {
+        if let Some(in_friend) = self.in_friends.get_mut(public_key) {
+            match in_friend {
                 InFriend::Listening => {}
                 InFriend::Connected(friend_connected) => return Some(friend_connected),
-            },
-            None => {}
-        };
+            }
+        }
 
-        match self.out_friends.get_mut(public_key) {
-            Some(out_friend) => match &mut out_friend.status {
+        if let Some(out_friend) = self.out_friends.get_mut(public_key) {
+            match &mut out_friend.status {
                 OutFriendStatus::Connecting => {}
                 OutFriendStatus::Connected(friend_connected) => return Some(friend_connected),
-            },
-            None => {}
-        };
+            }
+        }
 
         None
     }
@@ -298,7 +296,7 @@ where
                 Ok(())
             }
             FunderToChanneler::RemoveFriend(friend_public_key) => {
-                if let Some(_) = self.friends.in_friends.remove(&friend_public_key) {
+                if self.friends.in_friends.remove(&friend_public_key).is_some() {
                     let lp_config = LpConfig::RemoveFriend(friend_public_key.clone());
                     await!(self.listen_config.send(lp_config))
                         .map_err(|_| ChannelerError::ListenerConfigError)?;
@@ -459,8 +457,7 @@ where
 
     // Forward incoming listen connections:
     let mut c_event_sender = channeler.event_sender.clone();
-    let mut incoming_listen_conns =
-        incoming_listen_conns.map(|pk_conn| ChannelerEvent::Connection(pk_conn));
+    let mut incoming_listen_conns = incoming_listen_conns.map(ChannelerEvent::Connection);
     let send_listen_conns_fut = async move {
         let _ = await!(c_event_sender.send_all(&mut incoming_listen_conns));
         // If we reach here it means an error occurred.
@@ -472,7 +469,7 @@ where
         .map_err(|_| ChannelerError::SpawnError)?;
 
     let from_funder = from_funder
-        .map(|funder_to_channeler| ChannelerEvent::FromFunder(funder_to_channeler))
+        .map(ChannelerEvent::FromFunder)
         .chain(stream::once(future::ready(ChannelerEvent::FunderClosed)));
 
     let mut events = select_streams![event_receiver, from_funder];

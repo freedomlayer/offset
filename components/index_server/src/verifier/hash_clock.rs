@@ -78,7 +78,7 @@ where
         expansion.push(hashed_rand_value);
 
         // Concatenate all hashes, and update hash_info accordingly:
-        for (_, hash) in &self.neighbor_hashes {
+        for hash in self.neighbor_hashes.values() {
             expansion.push(hash.clone());
         }
 
@@ -134,10 +134,9 @@ where
         }
 
         for hash in ex_expansion_chain.last().unwrap().iter() {
-            match self.last_ticks_map.get_key_value(hash) {
-                Some((hash, _)) => return Some(hash),
-                None => {}
-            };
+            if let Some((hash, _)) = self.last_ticks_map.get_key_value(hash) {
+                return Some(hash);
+            }
         }
         None
     }

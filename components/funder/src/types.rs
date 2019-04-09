@@ -54,7 +54,7 @@ pub async fn create_response_send_funds<'a>(
 ) -> ResponseSendFunds {
     let u_response_send_funds = ResponseSendFunds {
         request_id: pending_request.request_id,
-        rand_nonce: rand_nonce,
+        rand_nonce,
         signature: (),
     };
 
@@ -77,7 +77,7 @@ pub async fn create_failure_send_funds<'a>(
     let u_failure_send_funds = FailureSendFunds {
         request_id: pending_request.request_id,
         reporting_public_key: local_public_key.clone(),
-        rand_nonce: rand_nonce,
+        rand_nonce,
         signature: (),
     };
 
@@ -237,12 +237,14 @@ pub enum ChannelerConfig<RA> {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum FunderIncomingComm<B> {
     Liveness(IncomingLivenessMessage),
     Friend((PublicKey, FriendMessage<B>)),
 }
 
 /// An incoming message to the Funder:
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum FunderIncoming<B> {
     Init,
@@ -250,6 +252,7 @@ pub enum FunderIncoming<B> {
     Comm(FunderIncomingComm<B>),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoing<B>
 where
@@ -259,6 +262,7 @@ where
     Comm(FunderOutgoingComm<B>),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoingComm<B> {
     FriendMessage((PublicKey, FriendMessage<B>)),

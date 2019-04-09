@@ -73,7 +73,7 @@ where
         let (relay_address, remote_public_key) = input;
         let relay_connect = self
             .relay_connect(relay_address, remote_public_key)
-            .map(|res| res.ok());
+            .map(Result::ok);
         Box::pin(relay_connect)
     }
 }
@@ -110,9 +110,9 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner
-            .spawn_with_handle(async move {
-                await!(client_connector.transform((address, c_public_key))).unwrap()
-            })
+            .spawn_with_handle(
+                async move { await!(client_connector.transform((address, c_public_key))).unwrap() },
+            )
             .unwrap();
 
         // Wait for connection request:

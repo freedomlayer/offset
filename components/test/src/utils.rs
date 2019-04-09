@@ -249,7 +249,8 @@ where
         app_identity_client,
         rng,
         spawner.clone()
-    )).ok()
+    ))
+    .ok()
 }
 
 pub async fn create_node<S>(

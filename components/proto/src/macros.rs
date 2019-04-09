@@ -2,7 +2,7 @@
 macro_rules! include_schema {
     ($( $name:ident, $path:expr );*) => {
         $(
-            #[allow(unused, clippy)]
+            #[allow(unused, clippy::all)]
             pub mod $name {
                 include!(concat!(env!("OUT_DIR"), "/schema/", $path, ".rs"));
             }

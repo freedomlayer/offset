@@ -223,8 +223,7 @@ fn ser_inconsistency_error(
     let mut reset_token = inconsistency_error_builder.reborrow().init_reset_token();
     write_signature(&reset_terms.reset_token, &mut reset_token);
 
-    inconsistency_error_builder
-        .set_inconsistency_counter(reset_terms.inconsistency_counter.clone());
+    inconsistency_error_builder.set_inconsistency_counter(reset_terms.inconsistency_counter);
 
     let mut balance_for_reset = inconsistency_error_builder
         .reborrow()

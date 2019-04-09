@@ -42,7 +42,7 @@ where
     async fn send_request(&mut self, app_request: AppRequest) -> Result<(), AppConfigError> {
         // Randomly generate a new app_request_id:
         let app_request_id = Uid::new(&self.rng);
-        let to_app_server = AppToAppServer::new(app_request_id.clone(), app_request);
+        let to_app_server = AppToAppServer::new(app_request_id, app_request);
 
         // Start listening to done requests:
         let mut incoming_done_requests =

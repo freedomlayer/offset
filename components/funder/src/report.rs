@@ -167,9 +167,10 @@ where
 {
     let mut friends = ImHashMap::new();
     for (friend_public_key, friend_state) in &funder_state.friends {
-        let friend_liveness = match ephemeral.liveness.is_online(friend_public_key) {
-            true => FriendLivenessReport::Online,
-            false => FriendLivenessReport::Offline,
+        let friend_liveness = if ephemeral.liveness.is_online(friend_public_key) {
+            FriendLivenessReport::Online
+        } else {
+            FriendLivenessReport::Offline
         };
         let friend_report = create_friend_report(&friend_state, &friend_liveness);
         friends.insert(friend_public_key.clone(), friend_report);
@@ -327,7 +328,7 @@ where
                 friend_public_key: add_friend.friend_public_key.clone(),
                 name: add_friend.name.clone(),
                 relays: add_friend.relays.clone(),
-                balance: add_friend.balance.clone(), // Initial balance
+                balance: add_friend.balance, // Initial balance
                 opt_last_incoming_move_token: friend_after
                     .channel_status
                     .get_last_incoming_move_token_hashed()

@@ -1,6 +1,8 @@
 language: rust
 dist: trusty
 sudo: required
+git:
+  depth: 1
 cache:
   cargo: true
   directories:
@@ -10,11 +12,9 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 KCOV=1
+    - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
       os: linux
       rust: nightly-2019-03-20
-      before_script:
-        - travis/trusty/before-script.sh
       addons:
         apt:
           packages:
@@ -23,15 +23,20 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
       script:
-        - cargo clean && cargo test
-      after_success:
-        - travis/trusty/after-success.sh
+        - travis/trusty/pre/cargo-config.sh
+        - travis/trusty/pre/capnp.sh
+        - cargo fmt --all -- --check
+        - cargo clippy
+        - cargo test
+        - travis/trusty/post/kcov/try-install.sh
+        - travis/trusty/post/kcov/run.sh
+        - travis/trusty/post/cargo-sweep.sh
 
-    - env: TARGET=x86_64-apple-darwin KCOV=0
+    - env: TARGET=x86_64-apple-darwin
       os: osx
       rust: nightly-2019-03-20
       osx_image: xcode9.2
       before_script:
         - brew install capnp
       script:
-        - cargo clean && cargo test
+        - cargo test

@@ -104,6 +104,7 @@ impl From<GraphClientError> for ServerLoopError {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum IndexServerEvent {
     ServerConnection((PublicKey, ServerConn)),
@@ -353,7 +354,7 @@ where
         }
 
         // Try to send time tick to all connected clients:
-        for (_client_public_key, connected_client) in &mut self.clients {
+        for connected_client in self.clients.values_mut() {
             let _ = connected_client.try_send(IndexServerToClient::TimeHash(time_hash.clone()));
         }
 
@@ -459,13 +460,13 @@ where
                 c_compare_public_key(&c_local_public_key, &server_public_key) == Ordering::Less,
             )
         })
-        .map(|server_connection| IndexServerEvent::ServerConnection(server_connection))
+        .map(IndexServerEvent::ServerConnection)
         .chain(stream::once(future::ready(
             IndexServerEvent::ServerListenerClosed,
         )));
 
     let incoming_client_connections = incoming_client_connections
-        .map(|client_connection| IndexServerEvent::ClientConnection(client_connection))
+        .map(IndexServerEvent::ClientConnection)
         .chain(stream::once(future::ready(
             IndexServerEvent::ClientListenerClosed,
         )));
@@ -520,9 +521,11 @@ where
 
                 index_server
                     .spawner
-                    .spawn(async move {
-                        let _ = await!(c_event_sender.send_all(&mut receiver));
-                    })
+                    .spawn(
+                        async move {
+                            let _ = await!(c_event_sender.send_all(&mut receiver));
+                        },
+                    )
                     .map_err(|_| ServerLoopError::SpawnError)?;
 
                 index_server

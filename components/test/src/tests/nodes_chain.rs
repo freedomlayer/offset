@@ -61,13 +61,16 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         ))
         .forget();
 
-        apps.push(await!(create_app(
-            i,
-            sim_net_client.clone(),
-            timer_client.clone(),
-            i,
-            test_executor.clone()
-        )).unwrap());
+        apps.push(
+            await!(create_app(
+                i,
+                sim_net_client.clone(),
+                timer_client.clone(),
+                i,
+                test_executor.clone()
+            ))
+            .unwrap(),
+        );
     }
 
     // Create relays:

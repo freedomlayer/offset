@@ -70,7 +70,7 @@ impl SendCommands {
         let friend_send_commands = self
             .send_commands
             .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
+            .or_insert_with(FriendSendCommands::new);
         friend_send_commands.try_send = true;
     }
 
@@ -78,7 +78,7 @@ impl SendCommands {
         let friend_send_commands = self
             .send_commands
             .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
+            .or_insert_with(FriendSendCommands::new);
         friend_send_commands.resend_outgoing = true;
     }
 
@@ -86,7 +86,7 @@ impl SendCommands {
         let friend_send_commands = self
             .send_commands
             .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
+            .or_insert_with(FriendSendCommands::new);
         friend_send_commands.remote_wants_token = true;
     }
 
@@ -94,7 +94,7 @@ impl SendCommands {
         let friend_send_commands = self
             .send_commands
             .entry(friend_public_key.clone())
-            .or_insert(FriendSendCommands::new());
+            .or_insert_with(FriendSendCommands::new);
         friend_send_commands.local_reset = true;
     }
 }
@@ -335,17 +335,16 @@ async fn send_friend_iter1<'a, B, R>(
                     is_token_wanted,
                     &mut outgoing_messages,
                 );
-            } else {
-                if friend_send_commands.resend_outgoing {
-                    let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
-                    transmit_outgoing(
-                        m_state,
-                        &friend_public_key,
-                        is_token_wanted,
-                        &mut outgoing_messages,
-                    );
-                }
+            } else if friend_send_commands.resend_outgoing {
+                let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
+                transmit_outgoing(
+                    m_state,
+                    &friend_public_key,
+                    is_token_wanted,
+                    &mut outgoing_messages,
+                );
             }
+
             return;
         }
         TcDirection::Incoming(tc_incoming) => tc_incoming,

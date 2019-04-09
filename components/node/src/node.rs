@@ -145,7 +145,7 @@ where
             let mutations = request
                 .mutations
                 .into_iter()
-                .map(|funder_mutation| NodeMutation::Funder(funder_mutation))
+                .map(NodeMutation::Funder)
                 .collect::<Vec<_>>();
 
             if let Err(e) = await!(database_client.mutate(mutations)) {
@@ -183,7 +183,7 @@ where
                 }
             };
             if let Some(to_funder_message) = opt_to_funder_message {
-                if let Err(_) = await!(incoming_comm_sender.send(to_funder_message)) {
+                if await!(incoming_comm_sender.send(to_funder_message)).is_err() {
                     return;
                 }
             }
@@ -216,7 +216,7 @@ where
                     FunderToChanneler::Message((public_key, data))
                 }
             };
-            if let Err(_) = await!(to_channeler.send(to_channeler_message)) {
+            if await!(to_channeler.send(to_channeler_message)).is_err() {
                 return;
             }
         }
@@ -278,7 +278,7 @@ where
             let mutations = request
                 .mutations
                 .into_iter()
-                .map(|index_client_mutation| NodeMutation::IndexClient(index_client_mutation))
+                .map(NodeMutation::IndexClient)
                 .collect::<Vec<_>>();
 
             if let Err(e) = await!(database_client.mutate(mutations)) {
@@ -436,11 +436,12 @@ where
         spawner
     ))?;
 
-    // Returns a future that resolves when the first component dies
-    Ok(select! {
+    // Wait for death of any component
+    select! {
         res = channeler_handle.fuse() => res?,
         res = funder_handle.fuse() => res?,
         res = app_server_handle.fuse() => res?,
         res = index_client_handle.fuse() => res?,
-    })
+    }
+    Ok(())
 }

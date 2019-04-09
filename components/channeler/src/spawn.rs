@@ -42,12 +42,14 @@ where
     fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (public_key, conn_pair) = input;
 
-        Box::pin(async move {
-            let (_public_key, conn_pair) = await!(self
-                .encrypt_transform
-                .transform((Some(public_key), conn_pair)))?;
-            Some(conn_pair)
-        })
+        Box::pin(
+            async move {
+                let (_public_key, conn_pair) = await!(self
+                    .encrypt_transform
+                    .transform((Some(public_key), conn_pair)))?;
+                Some(conn_pair)
+            },
+        )
     }
 }
 
@@ -77,11 +79,13 @@ where
     fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (public_key, conn_pair) = input;
 
-        Box::pin(async move {
-            await!(self
-                .encrypt_transform
-                .transform((Some(public_key), conn_pair)))
-        })
+        Box::pin(
+            async move {
+                await!(self
+                    .encrypt_transform
+                    .transform((Some(public_key), conn_pair)))
+            },
+        )
     }
 }
 

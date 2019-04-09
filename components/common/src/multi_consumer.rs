@@ -47,6 +47,7 @@ impl<T> Clone for MultiConsumerClient<T> {
 }
 
 /// A MultiConsumer loop event
+#[allow(clippy::enum_variant_names)]
 enum Event<T> {
     IncomingItem(T),
     IncomingItemsClosed,
@@ -67,11 +68,11 @@ where
     I: Stream<Item = T> + Unpin,
 {
     let incoming_items = incoming_items
-        .map(|t| Event::IncomingItem(t))
+        .map(Event::IncomingItem)
         .chain(stream::once(future::ready(Event::IncomingItemsClosed)));
 
     let incoming_requests = incoming_requests
-        .map(|request| Event::IncomingRequest(request))
+        .map(Event::IncomingRequest)
         .chain(stream::once(future::ready(Event::IncomingRequestsClosed)));
 
     let mut incoming = incoming_items.select(incoming_requests);
@@ -83,7 +84,7 @@ where
             Event::IncomingItem(t) => {
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
-                    if let Ok(_) = await!(sender.send(t.clone())) {
+                    if await!(sender.send(t.clone())).is_ok() {
                         new_senders.push(sender);
                     }
                 }
@@ -97,7 +98,7 @@ where
             Event::IncomingItemsClosed => break,
             Event::IncomingRequest(request) => {
                 let (sender, receiver) = mpsc::channel(0);
-                if let Ok(_) = request.response_sender.send(receiver) {
+                if request.response_sender.send(receiver).is_ok() {
                     senders.push(sender);
                 }
             }

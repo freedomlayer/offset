@@ -72,13 +72,10 @@ where
     }
 
     pub async fn send(&mut self, message: AppServerToApp<B>) {
-        match self.opt_sender.take() {
-            Some(mut sender) => {
-                if let Ok(()) = await!(sender.send(message)) {
-                    self.opt_sender = Some(sender);
-                }
+        if let Some(mut sender) = self.opt_sender.take() {
+            if let Ok(()) = await!(sender.send(message)) {
+                self.opt_sender = Some(sender);
             }
-            None => {}
         }
     }
 }
@@ -155,7 +152,7 @@ where
 
         let app_counter = self.app_counter;
         let mut receiver =
-            receiver.map(move |app_to_app_server| (app_counter.clone(), Some(app_to_app_server)));
+            receiver.map(move |app_to_app_server| (app_counter, Some(app_to_app_server)));
 
         let mut from_app_sender = self.from_app_sender.clone();
         let send_all_fut = async move {
@@ -192,7 +189,7 @@ where
     /// Send node report mutations to all connected apps
     pub async fn broadcast_node_report_mutations(&mut self, report_mutations: ReportMutations<B>) {
         // Send node report mutations to all connected apps
-        for (_app_id, app) in &mut self.apps {
+        for app in &mut self.apps.values_mut() {
             await!(app.send(AppServerToApp::ReportMutations(report_mutations.clone())));
         }
     }
@@ -205,7 +202,7 @@ where
             FunderOutgoingControl::ResponseReceived(response_received) => {
                 // Find the app that issued the request, and forward the response to this app:
                 // TODO: Should we break the loop if found?
-                for (_app_id, app) in &mut self.apps {
+                for app in self.apps.values_mut() {
                     if app
                         .open_send_funds_requests
                         .remove(&response_received.request_id)
@@ -240,7 +237,7 @@ where
                 }
 
                 let mut report_mutations = ReportMutations {
-                    opt_app_request_id: funder_report_mutations.opt_app_request_id.clone(),
+                    opt_app_request_id: funder_report_mutations.opt_app_request_id,
                     mutations: Vec::new(),
                 };
                 for funder_report_mutation in funder_report_mutations.mutations {
@@ -263,7 +260,7 @@ where
         match index_client_message {
             IndexClientToAppServer::ReportMutations(index_client_report_mutations) => {
                 let mut report_mutations = ReportMutations {
-                    opt_app_request_id: index_client_report_mutations.opt_app_request_id.clone(),
+                    opt_app_request_id: index_client_report_mutations.opt_app_request_id,
                     mutations: Vec::new(),
                 };
                 for index_client_report_mutation in index_client_report_mutations.mutations {
@@ -278,7 +275,7 @@ where
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 // We search for the app that issued the request, and send it the response.
                 // TODO: Should we break the loop if we found one originating app?
-                for (_app_id, app) in &mut self.apps {
+                for app in self.apps.values_mut() {
                     if app
                         .open_route_requests
                         .remove(&client_response_routes.request_id)
@@ -316,57 +313,48 @@ where
             return Ok(());
         }
 
-        let app_request_id = app_message.app_request_id.clone();
+        let app_request_id = app_message.app_request_id;
 
         match app_message.app_request {
             AppRequest::AddRelay(named_relay_address) => {
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::AddRelay(named_relay_address)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
-            AppRequest::RemoveRelay(public_key) => {
-                await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
-                    FunderControl::RemoveRelay(public_key)
-                )))
-                .map_err(|_| AppServerError::SendToFunderError)
-            }
+            AppRequest::RemoveRelay(public_key) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::RemoveRelay(public_key))
+            ))
+            .map_err(|_| AppServerError::SendToFunderError),
             AppRequest::RequestSendFunds(user_request_send_funds) => {
                 // Keep track of which application issued this request:
                 app.open_send_funds_requests
-                    .insert(user_request_send_funds.request_id.clone());
+                    .insert(user_request_send_funds.request_id);
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::RequestSendFunds(user_request_send_funds)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
-            AppRequest::ReceiptAck(receipt_ack) => {
-                await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
-                    FunderControl::ReceiptAck(receipt_ack)
-                )))
-                .map_err(|_| AppServerError::SendToFunderError)
-            }
-            AppRequest::AddFriend(add_friend) => {
-                await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
-                    FunderControl::AddFriend(add_friend)
-                )))
-                .map_err(|_| AppServerError::SendToFunderError)
-            }
+            AppRequest::ReceiptAck(receipt_ack) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::ReceiptAck(receipt_ack))
+            ))
+            .map_err(|_| AppServerError::SendToFunderError),
+            AppRequest::AddFriend(add_friend) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::AddFriend(add_friend))
+            ))
+            .map_err(|_| AppServerError::SendToFunderError),
             AppRequest::SetFriendRelays(set_friend_address) => {
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetFriendRelays(set_friend_address)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
             AppRequest::SetFriendName(set_friend_name) => {
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetFriendName(set_friend_name)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
@@ -374,7 +362,7 @@ where
             AppRequest::RemoveFriend(friend_public_key) => {
                 let remove_friend = RemoveFriend { friend_public_key };
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::RemoveFriend(remove_friend)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
@@ -385,7 +373,7 @@ where
                     status: FriendStatus::Enabled,
                 };
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetFriendStatus(set_friend_status)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
@@ -396,7 +384,7 @@ where
                     status: FriendStatus::Disabled,
                 };
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetFriendStatus(set_friend_status)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
@@ -407,7 +395,7 @@ where
                     status: RequestsStatus::Open,
                 };
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetRequestsStatus(set_requests_status)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
@@ -418,33 +406,32 @@ where
                     status: RequestsStatus::Closed,
                 };
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetRequestsStatus(set_requests_status)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
             AppRequest::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
             AppRequest::ResetFriendChannel(reset_friend_channel) => {
                 await!(self.to_funder.send(FunderIncomingControl::new(
-                    app_request_id.clone(),
+                    app_request_id,
                     FunderControl::ResetFriendChannel(reset_friend_channel)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
             AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
-                app.open_route_requests
-                    .insert(request_routes.request_id.clone());
+                app.open_route_requests.insert(request_routes.request_id);
                 await!(self
                     .to_index_client
                     .send(AppServerToIndexClient::AppRequest((
-                        app_request_id.clone(),
+                        app_request_id,
                         IndexClientRequest::RequestRoutes(request_routes)
                     ))))
                 .map_err(|_| AppServerError::SendToIndexClientError)
@@ -452,14 +439,14 @@ where
             AppRequest::AddIndexServer(named_index_server_address) => await!(self
                 .to_index_client
                 .send(AppServerToIndexClient::AppRequest((
-                    app_request_id.clone(),
+                    app_request_id,
                     IndexClientRequest::AddIndexServer(named_index_server_address)
                 ))))
             .map_err(|_| AppServerError::SendToIndexClientError),
             AppRequest::RemoveIndexServer(index_server_address) => await!(self
                 .to_index_client
                 .send(AppServerToIndexClient::AppRequest((
-                    app_request_id.clone(),
+                    app_request_id,
                     IndexClientRequest::RemoveIndexServer(index_server_address)
                 ))))
             .map_err(|_| AppServerError::SendToIndexClientError),
@@ -515,20 +502,19 @@ where
     );
 
     let from_funder = from_funder
-        .map(|funder_outgoing_control| AppServerEvent::FromFunder(funder_outgoing_control))
+        .map(AppServerEvent::FromFunder)
         .chain(stream::once(future::ready(AppServerEvent::FunderClosed)));
 
     let from_index_client = from_index_client
-        .map(|index_client_msg| AppServerEvent::FromIndexClient(index_client_msg))
+        .map(AppServerEvent::FromIndexClient)
         .chain(stream::once(future::ready(
             AppServerEvent::IndexClientClosed,
         )));
 
-    let from_app_receiver = from_app_receiver
-        .map(|from_app: (u128, Option<AppToAppServer<B>>)| AppServerEvent::FromApp(from_app));
+    let from_app_receiver = from_app_receiver.map(AppServerEvent::FromApp);
 
     let incoming_connections = incoming_connections
-        .map(|incoming_connection| AppServerEvent::IncomingConnection(incoming_connection))
+        .map(AppServerEvent::IncomingConnection)
         .chain(stream::once(future::ready(
             AppServerEvent::IncomingConnectionsClosed,
         )));

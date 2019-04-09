@@ -20,6 +20,7 @@ pub struct FunderState<B: Clone> {
     pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FunderMutation<B: Clone> {
     FriendMutation((PublicKey, FriendMutation<B>)),

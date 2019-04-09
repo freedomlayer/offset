@@ -7,6 +7,12 @@
 #![type_length_limit = "8388608"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 #[cfg(test)]
 #[macro_use]

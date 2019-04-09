@@ -65,12 +65,10 @@ where
                     }
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                 }
+            } else if fself.opt_receiver.is_none() {
+                return Poll::Ready(Ok(()));
             } else {
-                if fself.opt_receiver.is_none() {
-                    return Poll::Ready(Ok(()));
-                } else {
-                    return Poll::Pending;
-                }
+                return Poll::Pending;
             }
         }
     }

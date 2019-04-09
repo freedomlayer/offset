@@ -5,9 +5,7 @@ set -ex
 KCOV_INSTALL_PREFIX="${HOME}/kcov-${TARGET}"
 KCOV_MINIMUM_REQUIRED=${KCOV_MINIMUM_REQUIRED:-34}
 
-# https://github.com/SimonKagstrom/kcov/blob/master/INSTALL.md
-sudo apt-get install -y cmake binutils-dev libcurl4-openssl-dev \
-                        zlib1g-dev libdw-dev libiberty-dev
+sudo apt-get install -y libdw-dev
 
 if [[ -f "$KCOV_INSTALL_PREFIX/bin/kcov" ]]; then
     KCOV_INSTALLED_VERSION=$(${KCOV_INSTALL_PREFIX}/bin/kcov --version)
@@ -20,6 +18,10 @@ if [[ -f "$KCOV_INSTALL_PREFIX/bin/kcov" ]]; then
        rm -rf "$KCOV_INSTALL_PREFIX/bin/kcov"
     fi
 fi
+
+# https://github.com/SimonKagstrom/kcov/blob/master/INSTALL.md
+sudo apt-get install -y cmake binutils-dev libcurl4-openssl-dev \
+                        zlib1g-dev libiberty-dev
 
 curl -L https://github.com/SimonKagstrom/kcov/archive/v${KCOV_MINIMUM_REQUIRED}.tar.gz | tar -zxf -
 

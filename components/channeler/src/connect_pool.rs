@@ -104,10 +104,13 @@ where
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>> + Clone,
 {
     // TODO; How to remove this Box::pin?
-    let connect_fut = Box::pin(async move {
-        let raw_conn = await!(client_connector.transform((address, friend_public_key.clone())))?;
-        await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
-    });
+    let connect_fut = Box::pin(
+        async move {
+            let raw_conn =
+                await!(client_connector.transform((address, friend_public_key.clone())))?;
+            await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
+        },
+    );
 
     // We either finish connecting, or got canceled in the middle:
     select! {
@@ -337,15 +340,14 @@ where
         spawner.clone(),
     );
 
-    let incoming_conn_done =
-        incoming_conn_done.map(|opt_conn| CpEvent::<RA>::ConnectAttemptDone(opt_conn));
+    let incoming_conn_done = incoming_conn_done.map(CpEvent::<RA>::ConnectAttemptDone);
 
     let incoming_requests = incoming_requests
-        .map(|connect_request| CpEvent::<RA>::ConnectRequest(connect_request))
+        .map(CpEvent::<RA>::ConnectRequest)
         .chain(stream::once(future::ready(CpEvent::ConnectRequestClosed)));
 
     let incoming_config = incoming_config
-        .map(|config_request| CpEvent::ConfigRequest(config_request))
+        .map(CpEvent::ConfigRequest)
         .chain(stream::once(future::ready(CpEvent::ConfigRequestClosed)));
 
     let incoming_ticks = timer_stream
@@ -489,19 +491,21 @@ where
     type Output = ConnectPoolControl<RA>;
 
     fn transform(&mut self, friend_public_key: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(async move {
-            // TODO: Should we keep the unwrap()-s here?
-            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
-            create_connect_pool(
-                timer_stream,
-                self.encrypt_transform.clone(),
-                friend_public_key,
-                self.backoff_ticks,
-                self.client_connector.clone(),
-                self.spawner.clone(),
-            )
-            .unwrap()
-        })
+        Box::pin(
+            async move {
+                // TODO: Should we keep the unwrap()-s here?
+                let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
+                create_connect_pool(
+                    timer_stream,
+                    self.encrypt_transform.clone(),
+                    friend_public_key,
+                    self.backoff_ticks,
+                    self.client_connector.clone(),
+                    self.spawner.clone(),
+                )
+                .unwrap()
+            },
+        )
     }
 }
 

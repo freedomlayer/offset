@@ -101,7 +101,7 @@ where
                         return Ok(());
                     }
                 };
-                if let Err(_) = request_sender.send(routes) {
+                if request_sender.send(routes).is_err() {
                     warn!(
                         "Failed to return response for request_id: {:?} ",
                         &request_id
@@ -121,7 +121,7 @@ where
             SingleClientControl::RequestRoutes((request_routes, response_sender)) => {
                 // Add a new open request:
                 self.open_requests
-                    .insert(request_routes.request_id.clone(), response_sender);
+                    .insert(request_routes.request_id, response_sender);
 
                 // Send request to server:
                 let to_server_message = IndexClientToServer::RequestRoutes(request_routes);
@@ -133,7 +133,7 @@ where
                     node_public_key: self.local_public_key.clone(),
                     index_mutations,
                     time_hash: self.server_time_hash.clone(),
-                    session_id: self.session_id.clone(),
+                    session_id: self.session_id,
                     counter: self.counter,
                     rand_nonce: RandValue::new(&self.rng),
                     signature: Signature::zero(),
@@ -204,11 +204,11 @@ where
     );
 
     let from_server = from_server
-        .map(|index_server_to_client| SingleClientEvent::FromServer(index_server_to_client))
+        .map(SingleClientEvent::FromServer)
         .chain(stream::once(future::ready(SingleClientEvent::ServerClosed)));
 
     let incoming_control = incoming_control
-        .map(|single_client_control| SingleClientEvent::Control(single_client_control))
+        .map(SingleClientEvent::Control)
         .chain(stream::once(future::ready(
             SingleClientEvent::ControlClosed,
         )));

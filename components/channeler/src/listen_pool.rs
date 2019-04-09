@@ -276,10 +276,10 @@ where
         spawner,
     );
 
-    let incoming_relay_closed = relay_closed_receiver.map(|address| LpEvent::RelayClosed(address));
+    let incoming_relay_closed = relay_closed_receiver.map(LpEvent::RelayClosed);
 
     let incoming_config = incoming_config
-        .map(|config| LpEvent::Config(config))
+        .map(LpEvent::Config)
         .chain(stream::once(future::ready(LpEvent::ConfigClosed)));
 
     let timer_stream = timer_stream
@@ -367,8 +367,8 @@ where
         let mut c_timer_client = self.timer_client.clone();
         let c_listener = self.listener.clone();
         let c_encrypt_transform = self.encrypt_transform.clone();
-        let c_max_concurrent_encrypt = self.max_concurrent_encrypt.clone();
-        let c_backoff_ticks = self.backoff_ticks.clone();
+        let c_max_concurrent_encrypt = self.max_concurrent_encrypt;
+        let c_backoff_ticks = self.backoff_ticks;
         let mut c_spawner = self.spawner.clone();
 
         // Connections encryptor:

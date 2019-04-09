@@ -49,7 +49,7 @@ where
 
         // Local chosen relays should allow all friends to connect:
         let mut relay_friends = HashSet::new();
-        for (_relay_address, relay) in &self.relays {
+        for relay in self.relays.values() {
             for friend in &relay.friends {
                 relay_friends.insert(friend.clone());
             }

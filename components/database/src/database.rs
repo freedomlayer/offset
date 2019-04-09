@@ -78,7 +78,7 @@ where
         let mutate_fut = future::lazy(move |_| {
             atomic_db
                 .mutate_db(&mutations[..])
-                .map_err(|atomic_db_error| DatabaseError::AtomicDbError(atomic_db_error))?;
+                .map_err(DatabaseError::AtomicDbError)?;
             Ok(atomic_db)
         });
         let handle = database_spawner

@@ -186,7 +186,7 @@ pub async fn info_export_ticket<'a>(
         .funder_report
         .relays
         .into_iter()
-        .map(|relay| relay.into())
+        .map(Into::into)
         .collect();
 
     let node_address = FriendAddress {

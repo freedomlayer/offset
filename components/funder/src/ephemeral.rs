@@ -1,6 +1,6 @@
 use super::liveness::{Liveness, LivenessMutation};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Ephemeral {
     pub liveness: Liveness,
 }

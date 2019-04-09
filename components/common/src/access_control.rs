@@ -6,7 +6,7 @@ pub enum AccessControlOp<T> {
     Remove(T),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AccessControl<T: std::cmp::Eq + std::hash::Hash> {
     allowed: HashSet<T>,
 }

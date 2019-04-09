@@ -33,9 +33,17 @@ impl EncryptNonceCounter {
         increase_nonce(&mut self.inner.0);
         export_nonce
     }
+}
 
-    pub fn as_ref(&self) -> &[u8; ENC_NONCE_LEN] {
+impl AsRef<[u8; ENC_NONCE_LEN]> for EncryptNonceCounter {
+    fn as_ref(&self) -> &[u8; ENC_NONCE_LEN] {
         &self.inner.0
+    }
+}
+
+impl Default for EncryptNonceCounter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

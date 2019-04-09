@@ -30,7 +30,7 @@ fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMuta
     match index_mutation {
         IndexMutation::UpdateFriend(update_friend) => {
             let capacity_pair = (update_friend.send_capacity, update_friend.recv_capacity);
-            let _ = seq_friends.update(update_friend.public_key.clone(), capacity_pair.clone());
+            let _ = seq_friends.update(update_friend.public_key.clone(), capacity_pair);
         }
         IndexMutation::RemoveFriend(public_key) => {
             let _ = seq_friends.remove(public_key);
@@ -49,7 +49,8 @@ async fn seq_friends_loop(
                 let _ = response_sender.send(());
             }
             SeqFriendsRequest::ResetCountdown(response_sender) => {
-                let _ = response_sender.send(seq_friends.reset_countdown());
+                seq_friends.reset_countdown();
+                let _ = response_sender.send(());
             }
             SeqFriendsRequest::NextUpdate(response_sender) => {
                 let update_friend =

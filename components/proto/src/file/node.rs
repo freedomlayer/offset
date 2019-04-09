@@ -86,7 +86,7 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(),
     let data = toml::to_string(&node_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }

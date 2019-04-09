@@ -43,7 +43,7 @@ where
     type Input = A;
     type Output = O;
 
-    fn transform<'a>(&'a mut self, address: A) -> BoxFuture<'_, Self::Output> {
+    fn transform(&mut self, address: A) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
         let conn_request = ConnRequest {
             address,

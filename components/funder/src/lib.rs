@@ -6,6 +6,12 @@
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
+// TODO: disallow clippy::too_many_arguments
 
 extern crate futures_cpupool;
 
