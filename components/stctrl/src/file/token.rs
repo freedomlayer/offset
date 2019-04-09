@@ -12,7 +12,7 @@ use app::ser_string::{
 use toml;
 
 #[derive(Debug)]
-pub enum MoveTokenHashedReportFileError {
+pub enum TokenFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
@@ -25,9 +25,9 @@ pub enum MoveTokenHashedReportFileError {
     InvalidPublicKey,
 }
 
-/// A helper structure for serialize and deserializing MoveTokenHashedReport.
+/// A helper structure for serialize and deserializing Token.
 #[derive(Serialize, Deserialize)]
-pub struct MoveTokenHashedReportFile {
+pub struct TokenFile {
     pub prefix_hash: String,           // HashResult,
     pub local_public_key: String,      // PublicKey,
     pub remote_public_key: String,     // PublicKey,
@@ -40,71 +40,69 @@ pub struct MoveTokenHashedReportFile {
     pub new_token: String,             // Signature,
 }
 
-impl From<io::Error> for MoveTokenHashedReportFileError {
+impl From<io::Error> for TokenFileError {
     fn from(e: io::Error) -> Self {
-        MoveTokenHashedReportFileError::IoError(e)
+        TokenFileError::IoError(e)
     }
 }
 
-impl From<toml::de::Error> for MoveTokenHashedReportFileError {
+impl From<toml::de::Error> for TokenFileError {
     fn from(e: toml::de::Error) -> Self {
-        MoveTokenHashedReportFileError::TomlDeError(e)
+        TokenFileError::TomlDeError(e)
     }
 }
 
-impl From<toml::ser::Error> for MoveTokenHashedReportFileError {
+impl From<toml::ser::Error> for TokenFileError {
     fn from(e: toml::ser::Error) -> Self {
-        MoveTokenHashedReportFileError::TomlSeError(e)
+        TokenFileError::TomlSeError(e)
     }
 }
 
-impl From<SerStringError> for MoveTokenHashedReportFileError {
+impl From<SerStringError> for TokenFileError {
     fn from(_e: SerStringError) -> Self {
-        MoveTokenHashedReportFileError::SerStringError
+        TokenFileError::SerStringError
     }
 }
 
-/// Load MoveTokenHashedReport from a file
-pub fn load_move_token_hashed_report_from_file(
-    path: &Path,
-) -> Result<MoveTokenHashedReport, MoveTokenHashedReportFileError> {
+/// Load Token from a file
+pub fn load_token_from_file(path: &Path) -> Result<MoveTokenHashedReport, TokenFileError> {
     let data = fs::read_to_string(&path)?;
-    let move_token_hashed_report_file: MoveTokenHashedReportFile = toml::from_str(&data)?;
+    let token_file: TokenFile = toml::from_str(&data)?;
 
     Ok(MoveTokenHashedReport {
-        prefix_hash: string_to_hash_result(&move_token_hashed_report_file.prefix_hash)?,
-        local_public_key: string_to_public_key(&move_token_hashed_report_file.local_public_key)?,
-        remote_public_key: string_to_public_key(&move_token_hashed_report_file.remote_public_key)?,
-        inconsistency_counter: move_token_hashed_report_file
+        prefix_hash: string_to_hash_result(&token_file.prefix_hash)?,
+        local_public_key: string_to_public_key(&token_file.local_public_key)?,
+        remote_public_key: string_to_public_key(&token_file.remote_public_key)?,
+        inconsistency_counter: token_file
             .inconsistency_counter
             .parse()
-            .map_err(|_| MoveTokenHashedReportFileError::ParseInconsistencyCounterError)?,
-        move_token_counter: move_token_hashed_report_file
+            .map_err(|_| TokenFileError::ParseInconsistencyCounterError)?,
+        move_token_counter: token_file
             .move_token_counter
             .parse()
-            .map_err(|_| MoveTokenHashedReportFileError::ParseMoveTokenCounterError)?,
-        balance: move_token_hashed_report_file
+            .map_err(|_| TokenFileError::ParseMoveTokenCounterError)?,
+        balance: token_file
             .balance
             .parse()
-            .map_err(|_| MoveTokenHashedReportFileError::ParseBalanceError)?,
-        local_pending_debt: move_token_hashed_report_file
+            .map_err(|_| TokenFileError::ParseBalanceError)?,
+        local_pending_debt: token_file
             .local_pending_debt
             .parse()
-            .map_err(|_| MoveTokenHashedReportFileError::ParseLocalPendingDebtError)?,
-        remote_pending_debt: move_token_hashed_report_file
+            .map_err(|_| TokenFileError::ParseLocalPendingDebtError)?,
+        remote_pending_debt: token_file
             .remote_pending_debt
             .parse()
-            .map_err(|_| MoveTokenHashedReportFileError::ParseRemotePendingDebtError)?,
-        rand_nonce: string_to_rand_value(&move_token_hashed_report_file.rand_nonce)?,
-        new_token: string_to_signature(&move_token_hashed_report_file.new_token)?,
+            .map_err(|_| TokenFileError::ParseRemotePendingDebtError)?,
+        rand_nonce: string_to_rand_value(&token_file.rand_nonce)?,
+        new_token: string_to_signature(&token_file.new_token)?,
     })
 }
 
-/// Store MoveTokenHashedReport to file
-pub fn store_move_token_hashed_report_to_file(
-    move_token_hashed_report: &MoveTokenHashedReport,
+/// Store Token to file
+pub fn store_token_to_file(
+    token: &MoveTokenHashedReport,
     path: &Path,
-) -> Result<(), MoveTokenHashedReportFileError> {
+) -> Result<(), TokenFileError> {
     let MoveTokenHashedReport {
         ref prefix_hash,
         ref local_public_key,
@@ -116,9 +114,9 @@ pub fn store_move_token_hashed_report_to_file(
         remote_pending_debt,
         ref rand_nonce,
         ref new_token,
-    } = move_token_hashed_report;
+    } = token;
 
-    let move_token_hashed_report_file = MoveTokenHashedReportFile {
+    let token_file = TokenFile {
         prefix_hash: hash_result_to_string(prefix_hash),
         local_public_key: public_key_to_string(local_public_key),
         remote_public_key: public_key_to_string(remote_public_key),
@@ -131,7 +129,7 @@ pub fn store_move_token_hashed_report_to_file(
         new_token: signature_to_string(new_token),
     };
 
-    let data = toml::to_string(&move_token_hashed_report_file)?;
+    let data = toml::to_string(&token_file)?;
 
     let mut file = File::create(path)?;
     file.write(&data.as_bytes())?;
@@ -150,8 +148,8 @@ mod tests {
     };
 
     #[test]
-    fn test_move_token_hashed_report_file_basic() {
-        let move_token_hashed_report_file: MoveTokenHashedReportFile = toml::from_str(
+    fn test_token_file_basic() {
+        let token_file: TokenFile = toml::from_str(
             r#"
             prefix_hash = 'prefix_hash'
             local_public_key = 'local_public_key'
@@ -167,43 +165,25 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(move_token_hashed_report_file.prefix_hash, "prefix_hash");
-        assert_eq!(
-            move_token_hashed_report_file.local_public_key,
-            "local_public_key"
-        );
-        assert_eq!(
-            move_token_hashed_report_file.remote_public_key,
-            "remote_public_key"
-        );
-        assert_eq!(
-            move_token_hashed_report_file.inconsistency_counter,
-            "inconsistency_counter"
-        );
-        assert_eq!(
-            move_token_hashed_report_file.move_token_counter,
-            "move_token_counter"
-        );
-        assert_eq!(move_token_hashed_report_file.balance, "balance");
-        assert_eq!(
-            move_token_hashed_report_file.local_pending_debt,
-            "local_pending_debt"
-        );
-        assert_eq!(
-            move_token_hashed_report_file.remote_pending_debt,
-            "remote_pending_debt"
-        );
-        assert_eq!(move_token_hashed_report_file.rand_nonce, "rand_nonce");
-        assert_eq!(move_token_hashed_report_file.new_token, "new_token");
+        assert_eq!(token_file.prefix_hash, "prefix_hash");
+        assert_eq!(token_file.local_public_key, "local_public_key");
+        assert_eq!(token_file.remote_public_key, "remote_public_key");
+        assert_eq!(token_file.inconsistency_counter, "inconsistency_counter");
+        assert_eq!(token_file.move_token_counter, "move_token_counter");
+        assert_eq!(token_file.balance, "balance");
+        assert_eq!(token_file.local_pending_debt, "local_pending_debt");
+        assert_eq!(token_file.remote_pending_debt, "remote_pending_debt");
+        assert_eq!(token_file.rand_nonce, "rand_nonce");
+        assert_eq!(token_file.new_token, "new_token");
     }
 
     #[test]
-    fn test_store_load_move_token_hashed_report() {
+    fn test_store_load_token() {
         // Create a temporary directory:
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("move_token_hashed_report_file");
+        let file_path = dir.path().join("token_file");
 
-        let move_token_hashed_report = MoveTokenHashedReport {
+        let token = MoveTokenHashedReport {
             prefix_hash: HashResult::from(&[0; HASH_RESULT_LEN]),
             local_public_key: PublicKey::from(&[1; PUBLIC_KEY_LEN]),
             remote_public_key: PublicKey::from(&[2; PUBLIC_KEY_LEN]),
@@ -216,10 +196,9 @@ mod tests {
             new_token: Signature::from(&[4; SIGNATURE_LEN]),
         };
 
-        store_move_token_hashed_report_to_file(&move_token_hashed_report, &file_path).unwrap();
-        let move_token_hashed_report2 =
-            load_move_token_hashed_report_from_file(&file_path).unwrap();
+        store_token_to_file(&token, &file_path).unwrap();
+        let token2 = load_token_from_file(&file_path).unwrap();
 
-        assert_eq!(move_token_hashed_report, move_token_hashed_report2);
+        assert_eq!(token, token2);
     }
 }

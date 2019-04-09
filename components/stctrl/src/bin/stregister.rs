@@ -19,8 +19,8 @@ use app::ser_string::{public_key_to_string, string_to_public_key};
 use app::{verify_move_token_hashed_report, verify_receipt};
 
 use stctrl::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
-use stctrl::file::move_token_hashed_report::load_move_token_hashed_report_from_file;
 use stctrl::file::receipt::load_receipt_from_file;
+use stctrl::file::token::load_token_from_file;
 
 #[derive(Debug)]
 enum StRegisterError {
@@ -132,7 +132,7 @@ fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), St
 /// Verify a given friend token
 /// If the given token is valid, output token details
 fn subcommand_verify_token(arg_verify_token: VerifyToken) -> Result<(), StRegisterError> {
-    let move_token_hashed_report = load_move_token_hashed_report_from_file(&arg_verify_token.token)
+    let move_token_hashed_report = load_token_from_file(&arg_verify_token.token)
         .map_err(|_| StRegisterError::LoadTokenError)?;
 
     if verify_move_token_hashed_report(

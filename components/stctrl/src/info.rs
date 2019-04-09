@@ -7,7 +7,7 @@ use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeRep
 use app::ser_string::public_key_to_string;
 use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
 
-use crate::file::move_token_hashed_report::store_move_token_hashed_report_to_file;
+use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
 
 #[derive(Debug)]
@@ -172,7 +172,7 @@ pub async fn info_last_friend_token<'a>(
         None => return Err(InfoError::MissingLastIncomingMoveToken),
     };
 
-    store_move_token_hashed_report_to_file(last_incoming_move_token, &output_pathbuf)
+    store_token_to_file(last_incoming_move_token, &output_pathbuf)
         .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
 }
 
