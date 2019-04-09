@@ -417,6 +417,6 @@ fn run() -> Result<(), StCtrlError> {
 
 fn main() {
     if let Err(e) = run() {
-        error!("run() error: {:?}", e);
+        error!("error: {:?}", e);
     }
 }
