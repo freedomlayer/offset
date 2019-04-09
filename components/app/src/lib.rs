@@ -27,6 +27,7 @@ pub use proto::file::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::funder::messages::Receipt;
+pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
 pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};

@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "stctrl"
 path = "src/bin/stctrl.rs"
 
+[[bin]]
+name = "stregister"
+path = "src/bin/stregister.rs"
+
 [dependencies]
 
 
@@ -30,6 +34,8 @@ serde = "1"
 serde_derive = "1"
 
 toml = "0.4.10"
+
+structopt = "0.2.15"
 
 [dev_dependencies]
 
