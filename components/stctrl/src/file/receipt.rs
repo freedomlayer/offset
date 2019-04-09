@@ -93,7 +93,7 @@ pub fn store_receipt_to_file(receipt: &Receipt, path: &Path) -> Result<(), Recei
     let data = toml::to_string(&receipt_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }

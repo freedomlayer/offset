@@ -97,7 +97,7 @@ pub fn store_invoice_to_file(invoice: &Invoice, path: &Path) -> Result<(), Invoi
     let data = toml::to_string(&invoice_file)?;
 
     let mut file = File::create(path)?;
-    file.write(&data.as_bytes())?;
+    file.write_all(&data.as_bytes())?;
 
     Ok(())
 }
