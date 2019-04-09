@@ -23,3 +23,4 @@ pub mod funds;
 pub mod info;
 
 pub mod file;
+pub mod utils;

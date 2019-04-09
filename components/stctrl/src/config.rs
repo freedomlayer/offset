@@ -5,8 +5,10 @@ use clap::ArgMatches;
 use app::report::{ChannelStatusReport, NodeReport};
 use app::{
     load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig,
-    NamedIndexServerAddress, NamedRelayAddress, NodeConnection, PublicKey,
+    NamedIndexServerAddress, NamedRelayAddress, NodeConnection,
 };
+
+use crate::utils::friend_public_key_by_name;
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -169,20 +171,6 @@ async fn config_add_friend<'a>(
     ))
     .map_err(|_| ConfigError::AppConfigError)?;
     Ok(())
-}
-
-/// Find a friend's public key given his name
-fn friend_public_key_by_name<'a>(
-    node_report: &'a NodeReport,
-    friend_name: &str,
-) -> Option<&'a PublicKey> {
-    // Search for the friend:
-    for (friend_public_key, friend_report) in &node_report.funder_report.friends {
-        if friend_report.name == friend_name {
-            return Some(friend_public_key);
-        }
-    }
-    None
 }
 
 async fn config_set_friend_relays<'a>(
