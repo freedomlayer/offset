@@ -18,8 +18,8 @@ use app::gen::gen_invoice_id;
 use app::ser_string::string_to_public_key;
 use app::verify_receipt;
 
-use stctrl::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
-use stctrl::receipt::load_receipt_from_file;
+use stctrl::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
+use stctrl::file::receipt::load_receipt_from_file;
 
 #[derive(Debug)]
 enum StRegisterError {

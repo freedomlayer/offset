@@ -8,7 +8,7 @@ use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
 use app::gen::gen_uid;
 
-use crate::receipt::store_receipt_to_file;
+use crate::file::receipt::store_receipt_to_file;
 
 #[derive(Debug)]
 pub enum FundsError {
