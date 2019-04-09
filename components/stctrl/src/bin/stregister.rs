@@ -36,7 +36,10 @@ enum StRegisterError {
 /// Generate invoice file
 #[derive(Debug, StructOpt)]
 struct GenInvoice {
-    /// Amount of credits to request (Must be non-negative)
+    /// Payment recipient's public key (In base 64)
+    #[structopt(short = "p")]
+    public_key: String,
+    /// Amount of credits to pay (A non negative integer)
     #[structopt(short = "a")]
     amount: u128,
     /// Path of output invoice file
@@ -70,8 +73,13 @@ enum StRegister {
 /// Randomly generate an invoice and store it to an output file
 fn subcommand_gen_invoice(arg_gen_invoice: GenInvoice) -> Result<(), StRegisterError> {
     let invoice_id = gen_invoice_id();
+
+    let dest_public_key = string_to_public_key(&arg_gen_invoice.public_key)
+        .map_err(|_| StRegisterError::ParsePublicKeyError)?;
+
     let invoice = Invoice {
         invoice_id,
+        dest_public_key,
         dest_payment: arg_gen_invoice.amount,
     };
 
@@ -102,10 +110,7 @@ fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), St
         return Err(StRegisterError::DestPaymentMismatch);
     }
 
-    let seller_public_key = string_to_public_key(&arg_verify_receipt.seller_public_key)
-        .map_err(|_| StRegisterError::ParsePublicKeyError)?;
-
-    if verify_receipt(&receipt, &seller_public_key) {
+    if verify_receipt(&receipt, &invoice.dest_public_key) {
         println!("Receipt is valid!");
         Ok(())
     } else {
