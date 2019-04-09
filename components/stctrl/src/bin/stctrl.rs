@@ -387,6 +387,14 @@ fn run() -> Result<(), StCtrlError> {
                                 .value_name("amount")
                                 .help("Amount of credits to send")
                                 .required(true),
+                        )
+                        .arg(
+                            Arg::with_name("receipt")
+                                .short("r")
+                                .long("receipt")
+                                .value_name("receipt")
+                                .help("Output receipt file")
+                                .required(true),
                         ),
                 ),
         )

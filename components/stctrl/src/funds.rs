@@ -1,11 +1,14 @@
-use clap::ArgMatches;
+use std::path::PathBuf;
 
+use clap::ArgMatches; 
 use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
 use app::ser_string::string_to_public_key;
 
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
 use app::uid::gen_uid;
+
+use crate::receipt::store_receipt_to_file;
 
 #[derive(Debug)]
 pub enum FundsError {
@@ -17,6 +20,8 @@ pub enum FundsError {
     AppRoutesError,
     SendFundsError,
     NoSuitableRoute,
+    ReceiptFileAlreadyExists,
+    StoreReceiptError,
     ReceiptAckError,
 }
 
@@ -67,6 +72,12 @@ async fn funds_send<'a>(
 ) -> Result<(), FundsError> {
     let destination_str = matches.value_of("destination").unwrap();
     let amount_str = matches.value_of("amount").unwrap();
+    let receipt_file = matches.value_of("receipt").unwrap();
+    let receipt_pathbuf = PathBuf::from(receipt_file);
+
+    if receipt_pathbuf.exists() {
+        return Err(FundsError::ReceiptFileAlreadyExists);
+    }
 
     let amount = amount_str
         .parse::<u128>()
@@ -102,6 +113,11 @@ async fn funds_send<'a>(
     println!("Payment successful!");
     println!("Fees: {}", fees);
 
+    // Store receipt to file:
+    store_receipt_to_file(&receipt, &receipt_pathbuf)
+        .map_err(|_| FundsError::StoreReceiptError)?;
+
+    // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
 }
 
