@@ -1,4 +1,5 @@
 use base64::{self, URL_SAFE_NO_PAD};
+use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
@@ -80,4 +81,23 @@ pub fn string_to_invoice_id(invoice_id_str: &str) -> Result<InvoiceId, SerString
     let mut invoice_id_array = [0u8; INVOICE_ID_LEN];
     invoice_id_array.copy_from_slice(&invoice_id_vec[0..INVOICE_ID_LEN]);
     Ok(InvoiceId::from(&invoice_id_array))
+}
+
+/// Convert a RandValue into a string
+pub fn rand_value_to_string(rand_value: &RandValue) -> String {
+    base64::encode_config(&rand_value, URL_SAFE_NO_PAD)
+}
+
+/// Convert a string into a RandValue
+pub fn string_to_rand_value(rand_value_str: &str) -> Result<RandValue, SerStringError> {
+    // Decode public key:
+    let rand_value_vec =
+        base64::decode_config(rand_value_str, URL_SAFE_NO_PAD).map_err(|_| SerStringError)?;
+    // TODO: A more idiomatic way to do this?
+    if rand_value_vec.len() != RAND_VALUE_LEN {
+        return Err(SerStringError);
+    }
+    let mut rand_value_array = [0u8; RAND_VALUE_LEN];
+    rand_value_array.copy_from_slice(&rand_value_vec[0..RAND_VALUE_LEN]);
+    Ok(RandValue::from(&rand_value_array))
 }
