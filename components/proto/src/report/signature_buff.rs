@@ -37,7 +37,7 @@ fn move_token_hashed_report_signature_buff(
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token_hashed_report<B>(
+pub fn verify_move_token_hashed_report(
     move_token_hashed_report: &MoveTokenHashedReport,
     public_key: &PublicKey,
 ) -> bool {
