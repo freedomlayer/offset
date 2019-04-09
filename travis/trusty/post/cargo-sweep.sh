@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 # Install cargo-sweep. If installed, cargo failure will be ignored.
+# TODO: parse ~/.cargo/.crates.toml to determine version
+#       maybe use cargo-update library for that
 cargo install cargo-sweep --vers 0.4.1 || true
 
 # cargo-sweep produces a lot of output
-cargo sweep . -t 30 > /dev/null
+cargo sweep --toolchains $TRAVIS_RUST_VERSION > /dev/null
