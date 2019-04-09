@@ -14,11 +14,8 @@
 #[macro_use]
 extern crate log;
 
-// use std::convert::TryInto;
-use std::env;
+// use std::env;
 use std::path::PathBuf;
-
-// use log::Level;
 
 use futures::executor::ThreadPool;
 
@@ -30,15 +27,12 @@ use stctrl::info::{info, InfoError};
 
 use app::{connect, identity_from_file, load_node_from_file};
 
-const STCTRL_ID_FILE: &str = "STCTRL_ID_FILE";
-const STCTRL_NODE_TICKET_FILE: &str = "STCTRL_NODE_TICKET_FILE";
-
 #[derive(Debug)]
 enum StCtrlError {
     CreateThreadPoolError,
-    MissingIdFileArgument,
+    // MissingIdFileArgument,
     IdFileDoesNotExist,
-    MissingNodeTicketArgument,
+    // MissingNodeTicketArgument,
     NodeTicketFileDoesNotExist,
     InvalidNodeTicketFile,
     SpawnIdentityServiceError,
@@ -66,26 +60,6 @@ impl From<FundsError> for StCtrlError {
     }
 }
 
-/// Get environment variable
-fn get_env(key: &str) -> Option<String> {
-    for (cur_key, value) in env::vars() {
-        if cur_key == key {
-            return Some(value);
-        }
-    }
-    None
-}
-
-/// Get stctrl id file path by reading an environment variable
-fn env_stctrl_id_file() -> Option<PathBuf> {
-    Some(PathBuf::from(get_env(STCTRL_ID_FILE)?))
-}
-
-/// Get stctrl node ticket file path by reading an environment variable
-fn env_stctrl_node_ticket_file() -> Option<PathBuf> {
-    Some(PathBuf::from(get_env(STCTRL_NODE_TICKET_FILE)?))
-}
-
 fn run() -> Result<(), StCtrlError> {
     // simple_logger::init_with_level(Level::Info).unwrap();
     env_logger::init();
@@ -97,23 +71,21 @@ fn run() -> Result<(), StCtrlError> {
         .version("0.1.0")
         .author("real <real@freedomlayer.org>")
         .about("A command line client for offst node")
-        // STCTRL_ID_FILE
         .arg(
             Arg::with_name("idfile")
                 .short("I")
                 .long("idfile")
                 .value_name("idfile")
                 .help("Client identity file path")
-                .required(false),
+                .required(true),
         )
-        // STCTRL_NODE_TICKET_FILE
         .arg(
             Arg::with_name("node_ticket")
                 .short("T")
                 .long("ticket")
                 .value_name("node_ticket")
                 .help("Node ticket file path")
-                .required(false),
+                .required(true),
         )
         /* ------------[Info] ------------- */
         .subcommand(
@@ -401,33 +373,13 @@ fn run() -> Result<(), StCtrlError> {
         .get_matches();
 
     // Get application's identity:
-    let idfile_pathbuf = match matches.value_of("idfile") {
-        Some(idfile) => PathBuf::from(idfile),
-        None => {
-            if let Some(idfile_pathbuf) = env_stctrl_id_file() {
-                idfile_pathbuf
-            } else {
-                return Err(StCtrlError::MissingIdFileArgument);
-            }
-        }
-    };
-
+    let idfile_pathbuf = PathBuf::from(matches.value_of("idfile").unwrap());
     if !idfile_pathbuf.exists() {
         return Err(StCtrlError::IdFileDoesNotExist);
     }
 
     // Get node's connection information (node-ticket):
-    let node_ticket_pathbuf = match matches.value_of("node_ticket") {
-        Some(node_ticket) => PathBuf::from(node_ticket),
-        None => {
-            if let Some(node_ticket_pathbuf) = env_stctrl_node_ticket_file() {
-                node_ticket_pathbuf
-            } else {
-                return Err(StCtrlError::MissingNodeTicketArgument);
-            }
-        }
-    };
-
+    let node_ticket_pathbuf = PathBuf::from(matches.value_of("node_ticket").unwrap());
     if !node_ticket_pathbuf.exists() {
         return Err(StCtrlError::NodeTicketFileDoesNotExist);
     }
