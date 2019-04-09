@@ -36,6 +36,8 @@ fn move_token_hashed_report_signature_buff(
     sig_buffer
 }
 
+// TODO: Is the public_key argument redundant now? (As it should be exactly the same
+// as move_token_hashed_report.local_public_key)
 /// Verify that new_token is a valid signature over the rest of the fields.
 pub fn verify_move_token_hashed_report(
     move_token_hashed_report: &MoveTokenHashedReport,
