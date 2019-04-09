@@ -29,6 +29,7 @@ pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAd
 pub use proto::funder::messages::Receipt;
 pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
+pub use proto::report::signature_buff::verify_move_token_hashed_report;
 
 pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
 
