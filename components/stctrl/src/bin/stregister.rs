@@ -15,8 +15,8 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use app::gen::gen_invoice_id;
-use app::ser_string::string_to_public_key;
-use app::verify_receipt;
+use app::ser_string::{public_key_to_string, string_to_public_key};
+use app::{verify_move_token_hashed_report, verify_receipt};
 
 use stctrl::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
 use stctrl::file::move_token_hashed_report::load_move_token_hashed_report_from_file;
@@ -33,6 +33,7 @@ enum StRegisterError {
     InvalidReceipt,
     ParsePublicKeyError,
     LoadTokenError,
+    TokenInvalid,
 }
 
 /// Generate invoice file
@@ -131,12 +132,43 @@ fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), St
 /// Verify a given friend token
 /// If the given token is valid, output token details
 fn subcommand_verify_token(arg_verify_token: VerifyToken) -> Result<(), StRegisterError> {
-    let _move_token_hashed_report =
-        load_move_token_hashed_report_from_file(&arg_verify_token.token)
-            .map_err(|_| StRegisterError::LoadTokenError)?;
+    let move_token_hashed_report = load_move_token_hashed_report_from_file(&arg_verify_token.token)
+        .map_err(|_| StRegisterError::LoadTokenError)?;
 
-    // move_token_hashed_report
-    unimplemented!();
+    if verify_move_token_hashed_report(
+        &move_token_hashed_report,
+        &move_token_hashed_report.local_public_key,
+    ) {
+        println!("Token is valid!");
+        println!();
+        println!(
+            "local_public_key: {}",
+            public_key_to_string(&move_token_hashed_report.local_public_key)
+        );
+        println!(
+            "remote_public_key: {}",
+            public_key_to_string(&move_token_hashed_report.remote_public_key)
+        );
+        println!(
+            "inconsistency_counter: {}",
+            move_token_hashed_report.inconsistency_counter
+        );
+        println!(
+            "move_token_counter: {}",
+            move_token_hashed_report.move_token_counter
+        );
+        println!(
+            "local_pending_debt: {}",
+            move_token_hashed_report.local_pending_debt
+        );
+        println!(
+            "remote_pending_debt: {}",
+            move_token_hashed_report.remote_pending_debt
+        );
+        Ok(())
+    } else {
+        Err(StRegisterError::TokenInvalid)
+    }
 }
 
 fn run() -> Result<(), StRegisterError> {
