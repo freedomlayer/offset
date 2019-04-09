@@ -99,7 +99,7 @@ pub fn prepare_receipt(
     }
 }
 
-#[allow(unused)]
+/// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
     data.extend(FUND_SUCCESS_PREFIX);
