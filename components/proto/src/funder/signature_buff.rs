@@ -111,7 +111,7 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 
 // Prefix used for chain hashing of token channel funds.
 // NEXT is used for hashing for the next move token funds.
-const TOKEN_NEXT: &[u8] = b"NEXT";
+pub const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
 pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {
