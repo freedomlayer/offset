@@ -421,9 +421,9 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, Serializ
 mod tests {
     use super::*;
     use crate::app_server::messages::RelayAddress;
-    use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
     use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
     use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+    use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
     use crypto::uid::{Uid, UID_LEN};
     use std::convert::TryInto;
 

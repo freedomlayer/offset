@@ -6,7 +6,7 @@ use app::ser_string::string_to_public_key;
 
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
-use app::uid::gen_uid;
+use app::gen::gen_uid;
 
 use crate::receipt::store_receipt_to_file;
 

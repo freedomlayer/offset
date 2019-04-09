@@ -1,7 +1,7 @@
-use crate::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 use base64::{self, URL_SAFE_NO_PAD};
 use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 
 #[derive(Debug)]
 pub struct SerStringError;

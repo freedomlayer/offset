@@ -22,6 +22,7 @@ pub mod crypto_rand;
 pub mod dh;
 pub mod hash;
 pub mod identity;
+pub mod invoice_id;
 pub mod nonce_window;
 pub mod sym_encrypt;
 pub mod test_utils;

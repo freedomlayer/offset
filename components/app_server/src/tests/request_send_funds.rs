@@ -4,13 +4,13 @@ use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use crypto::uid::Uid;
-use crypto::uid::UID_LEN;
+use crypto::uid::{Uid, UID_LEN};
+use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
-    FriendsRoute, FunderControl, FunderOutgoingControl, InvoiceId, ResponseReceived,
-    ResponseSendFundsResult, UserRequestSendFunds, INVOICE_ID_LEN,
+    FriendsRoute, FunderControl, FunderOutgoingControl, ResponseReceived,
+    ResponseSendFundsResult, UserRequestSendFunds,
 };
 
 use super::utils::spawn_dummy_app_server;

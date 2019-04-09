@@ -16,8 +16,8 @@
 extern crate log;
 
 mod connect;
+pub mod gen;
 mod identity;
-pub mod uid;
 
 pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
 pub use proto::file::index_server::load_index_server_from_file;
@@ -51,7 +51,7 @@ pub mod report {
 }
 
 pub mod invoice {
-    pub use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
+    pub use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 }
 
 pub mod route {

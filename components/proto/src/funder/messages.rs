@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use crypto::crypto_rand::RandValue;
 use crypto::hash::{self, HashResult};
 use crypto::identity::{PublicKey, Signature};
+use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -46,10 +47,12 @@ pub enum ChannelerToFunder {
 
 // -------------------------------------------
 
+/*
 pub const INVOICE_ID_LEN: usize = 32;
 
 // The universal unique identifier of an invoice.
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
+*/
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
