@@ -10,8 +10,8 @@ use common::test_executor::TestExecutor;
 use proto::app_server::messages::AppPermissions;
 use timer::create_timer_incoming;
 
-use crypto::uid::{Uid, UID_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{

@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
-use clap::ArgMatches; 
-use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
 use app::ser_string::string_to_public_key;
+use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
+use clap::ArgMatches;
 
+use app::gen::gen_uid;
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
-use app::gen::gen_uid;
 
 use crate::file::receipt::store_receipt_to_file;
 
@@ -114,8 +114,7 @@ async fn funds_send<'a>(
     println!("Fees: {}", fees);
 
     // Store receipt to file:
-    store_receipt_to_file(&receipt, &receipt_pathbuf)
-        .map_err(|_| FundsError::StoreReceiptError)?;
+    store_receipt_to_file(&receipt, &receipt_pathbuf).map_err(|_| FundsError::StoreReceiptError)?;
 
     // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)

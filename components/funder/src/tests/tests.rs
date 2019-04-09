@@ -2,12 +2,12 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 
 use crypto::identity::PublicKey;
-use crypto::uid::{Uid, UID_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{
-    FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, ReceiptAck,
-    RequestsStatus, ResetFriendChannel, ResponseSendFundsResult, UserRequestSendFunds,
+    FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, ReceiptAck, RequestsStatus,
+    ResetFriendChannel, ResponseSendFundsResult, UserRequestSendFunds,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
