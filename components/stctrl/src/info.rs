@@ -27,6 +27,7 @@ pub struct FriendsCmd {}
 pub struct FriendLastTokenCmd {
     #[structopt(short = "n", name = "name")]
     friend_name: String,
+    /// Path for output token file
     #[structopt(short = "o", name = "output")]
     output_file: PathBuf,
 }
@@ -44,16 +45,22 @@ pub struct ExportTicketCmd {
 
 #[derive(Debug, StructOpt)]
 pub enum InfoCmd {
+    /// Show information about configured relay servers
     #[structopt(name = "relays")]
     Relays(RelaysCmd),
+    /// Show information about configured index servers
     #[structopt(name = "index")]
     Index(IndexCmd),
+    /// Show information about configured friends
     #[structopt(name = "friends")]
     Friends(FriendsCmd),
+    /// Export friend's last token
     #[structopt(name = "friend-last-token")]
     FriendLastToken(FriendLastTokenCmd),
+    /// Show current balance
     #[structopt(name = "balance")]
     Balance(BalanceCmd),
+    /// Export ticket for this node
     #[structopt(name = "export-ticket")]
     ExportTicket(ExportTicketCmd),
 }
