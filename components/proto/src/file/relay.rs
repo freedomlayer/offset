@@ -9,7 +9,7 @@ use toml;
 use crate::app_server::messages::RelayAddress;
 use crate::net::messages::NetAddressError;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum RelayFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -27,33 +27,9 @@ pub struct RelayFile {
     pub address: String,
 }
 
-impl From<io::Error> for RelayFileError {
-    fn from(e: io::Error) -> Self {
-        RelayFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for RelayFileError {
-    fn from(e: toml::de::Error) -> Self {
-        RelayFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for RelayFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        RelayFileError::TomlSeError(e)
-    }
-}
-
 impl From<SerStringError> for RelayFileError {
     fn from(_e: SerStringError) -> Self {
         RelayFileError::SerStringError
-    }
-}
-
-impl From<NetAddressError> for RelayFileError {
-    fn from(e: NetAddressError) -> Self {
-        RelayFileError::NetAddressError(e)
     }
 }
 

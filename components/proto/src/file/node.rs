@@ -9,7 +9,7 @@ use toml;
 use crate::net::messages::NetAddressError;
 use crate::node::types::NodeAddress;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum NodeFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -27,33 +27,9 @@ struct NodeFile {
     address: String,
 }
 
-impl From<io::Error> for NodeFileError {
-    fn from(e: io::Error) -> Self {
-        NodeFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for NodeFileError {
-    fn from(e: toml::de::Error) -> Self {
-        NodeFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for NodeFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        NodeFileError::TomlSeError(e)
-    }
-}
-
 impl From<SerStringError> for NodeFileError {
     fn from(_e: SerStringError) -> Self {
         NodeFileError::SerStringError
-    }
-}
-
-impl From<NetAddressError> for NodeFileError {
-    fn from(e: NetAddressError) -> Self {
-        NodeFileError::NetAddressError(e)
     }
 }
 

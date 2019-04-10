@@ -15,6 +15,7 @@ pub struct MultiConsumerRequest<T> {
     response_sender: oneshot::Sender<mpsc::Receiver<T>>,
 }
 
+#[derive(Clone)]
 pub struct MultiConsumerClient<T> {
     request_sender: mpsc::Sender<MultiConsumerRequest<T>>,
 }
@@ -35,14 +36,6 @@ impl<T> MultiConsumerClient<T> {
 
         // Wait for response:
         await!(response_receiver).map_err(|_| MultiConsumerClientError::ReceiveError)
-    }
-}
-
-impl<T> Clone for MultiConsumerClient<T> {
-    fn clone(&self) -> Self {
-        MultiConsumerClient {
-            request_sender: self.request_sender.clone(),
-        }
     }
 }
 

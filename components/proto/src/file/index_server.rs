@@ -10,7 +10,7 @@ use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStr
 use crate::index_server::messages::IndexServerAddress;
 use crate::net::messages::{NetAddress, NetAddressError};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum IndexServerFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -28,33 +28,9 @@ struct IndexServerFile {
     address: String,
 }
 
-impl From<io::Error> for IndexServerFileError {
-    fn from(e: io::Error) -> Self {
-        IndexServerFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for IndexServerFileError {
-    fn from(e: toml::de::Error) -> Self {
-        IndexServerFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for IndexServerFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        IndexServerFileError::TomlSeError(e)
-    }
-}
-
 impl From<SerStringError> for IndexServerFileError {
     fn from(_e: SerStringError) -> Self {
         IndexServerFileError::SerStringError
-    }
-}
-
-impl From<NetAddressError> for IndexServerFileError {
-    fn from(e: NetAddressError) -> Self {
-        IndexServerFileError::NetAddressError(e)
     }
 }
 

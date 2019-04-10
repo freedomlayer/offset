@@ -24,8 +24,10 @@ impl<A, O> DummyConnector<A, O> {
     }
 }
 
-// TODO: Why didn't the automatic #[derive(Clone)] works for DummyListener?
-// Seemed like it had a problem with having config_receiver inside ListenRequest.
+// #[derive(Clone)] does not work for DummyListener when compiling index_client
+// Seems like it has a problem with having config_receiver inside ListenRequest.
+// O is Option<(Sender<IndexClientToServer>, Receiver<IndexServerToClient>)>
+// where Sender and Receiver are from futures.
 // This is a workaround for this issue:
 impl<A, O> Clone for DummyConnector<A, O> {
     fn clone(&self) -> DummyConnector<A, O> {

@@ -21,16 +21,9 @@ pub enum StateClientError {
     ReceiveResponseError,
 }
 
+#[derive(Clone)]
 pub struct StateClient<ST, MU> {
     request_sender: mpsc::Sender<StateRequest<ST, MU>>,
-}
-
-impl<ST, MU> Clone for StateClient<ST, MU> {
-    fn clone(&self) -> Self {
-        StateClient {
-            request_sender: self.request_sender.clone(),
-        }
-    }
 }
 
 impl<ST, MU> StateClient<ST, MU> {

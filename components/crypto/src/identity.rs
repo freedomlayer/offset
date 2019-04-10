@@ -1,3 +1,4 @@
+use derive_more::*;
 use ring::signature;
 use std::cmp::Ordering;
 
@@ -11,7 +12,7 @@ pub const SIGNATURE_LEN: usize = 64;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, From)]
 pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
 
 /// Check if one public key is "lower" than another.
@@ -23,12 +24,6 @@ pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
 impl Signature {
     pub fn zero() -> Signature {
         Signature([0x00u8; SIGNATURE_LEN])
-    }
-}
-
-impl From<[u8; SIGNATURE_LEN]> for Signature {
-    fn from(array: [u8; SIGNATURE_LEN]) -> Self {
-        Signature(array)
     }
 }
 

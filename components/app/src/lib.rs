@@ -7,9 +7,9 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
-    clippy::module_inception
+    clippy::module_inception,
+    clippy::new_without_default
 )]
-// TODO: disallow clippy::too_many_arguments
 #![allow(unused)]
 
 #[macro_use]

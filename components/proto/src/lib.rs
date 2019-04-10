@@ -5,9 +5,9 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
-    clippy::module_inception
+    clippy::module_inception,
+    clippy::new_without_default
 )]
-// TODO: disallow clippy::too_many_arguments
 
 extern crate byteorder;
 extern crate capnp;
@@ -26,6 +26,9 @@ extern crate toml;
 
 #[cfg(test)]
 extern crate tempfile;
+
+#[macro_use]
+extern crate derive_more;
 
 #[macro_use]
 pub mod macros;

@@ -8,7 +8,7 @@ use toml;
 use crate::app_server::messages::AppPermissions;
 use crypto::identity::PublicKey;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum AppFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -28,24 +28,6 @@ pub struct TrustedAppFile {
 pub struct TrustedApp {
     pub public_key: PublicKey,
     pub permissions: AppPermissions,
-}
-
-impl From<io::Error> for AppFileError {
-    fn from(e: io::Error) -> Self {
-        AppFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for AppFileError {
-    fn from(e: toml::de::Error) -> Self {
-        AppFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for AppFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        AppFileError::TomlSeError(e)
-    }
 }
 
 impl From<SerStringError> for AppFileError {

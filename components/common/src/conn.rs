@@ -86,8 +86,7 @@ pub struct FuncFutTransform<F, I, O> {
     phantom_o: PhantomData<O>,
 }
 
-// It seems like deriving Clone automatically doesn't work,
-// so we need to implement manually. Is this a bug in how #[derive(Clone)] works?
+// FuncFutTransform can be Clone only when F is Clone
 impl<F, I, O> Clone for FuncFutTransform<F, I, O>
 where
     F: Clone,
