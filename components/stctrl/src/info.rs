@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use prettytable::Table;
 use structopt::StructOpt;
 
-use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport};
+use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport};
 use app::ser_string::public_key_to_string;
 use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
 
@@ -129,29 +129,59 @@ pub async fn info_index(mut app_report: AppReport) -> Result<(), InfoError> {
     Ok(())
 }
 
+/// Return a string that represents requests status.
+/// "+" means open, "-" means closed
+fn requests_status_str(requests_status_report: &RequestsStatusReport) -> String {
+    if requests_status_report == &RequestsStatusReport::Open {
+        "+"
+    } else {
+        "-"
+    }.to_owned()
+}
+
+/*
+/// Check if a friend state is consistent
+fn is_consistent(friend_report: &FriendReport) -> bool {
+    match &friend_report.channel_status {
+        ChannelStatusReport::Consistent(_) => true,
+        ChannelStatusReport::Inconsistent(_) => false,
+    }
+}
+*/
+
+#[allow(unused)]
 /// A user friendly string explaining the current channel status
 fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(tc_report) => {
-            res += "[Consistent]\n";
-            res += &format!("balance = {}\n", tc_report.balance.balance);
-            res += &format!("local_requests = {:?}\n", tc_report.requests_status.local);
-            res += &format!("remote_requests = {:?}", tc_report.requests_status.remote);
+            res += "C: "; 
+            let local_requests_str = requests_status_str(&tc_report.requests_status.local);
+            let remote_requests_str = requests_status_str(&tc_report.requests_status.remote);
+
+            res += &format!("LR={}, RR={}\n", local_requests_str, remote_requests_str);
+
+            let balance = &tc_report.balance;
+            res += &format!("B  ={}\nLMD={}\nRMD={}\nLPD={}\nRPD={}\n", 
+                            balance.balance,
+                            balance.local_max_debt,
+                            balance.remote_max_debt,
+                            balance.local_pending_debt,
+                            balance.remote_pending_debt);
         }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
-            res += "[Inconsistent]\n";
+            res += "I:\n";
             res += &format!(
-                "local_terms = {}",
+                "LT={}\n",
                 channel_inconsistent_report.local_reset_terms_balance
             );
             match &channel_inconsistent_report.opt_remote_reset_terms {
                 Some(remote_reset_terms) => {
                     // TODO: Possibly negate this value? Maybe we should do it at the funder?
-                    res += &format!("remote_terms = {}", remote_reset_terms.balance_for_reset);
+                    res += &format!("RT={}", remote_reset_terms.balance_for_reset);
                 }
                 None => {
-                    res += "remote terms unknown";
+                    res += "RT=?";
                 }
             }
         }
@@ -159,32 +189,36 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
     res
 }
 
+
 pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
-    // Add title:
-    table.add_row(row!["friend name", "status", "liveness", "channel status"]);
-
+    // Add titlek:
+    table.set_titles(row!["st", "name", "balance"]);
+    
     for (_friend_public_key, friend_report) in &report.funder_report.friends {
         // Is the friend enabled?
         let status_str = if friend_report.status == FriendStatusReport::Enabled {
-            "enabled"
+            "E"
         } else {
-            "disabled"
+            "D"
         };
 
         let liveness_str = if friend_report.liveness.is_online() {
-            "online"
+            "+"
         } else {
-            "offline"
+            "-"
         };
 
+        let mut status_string = String::new();
+        status_string += status_str;
+        status_string += liveness_str;
+
         table.add_row(row![
+            status_string,
             friend_report.name,
-            status_str,
-            liveness_str,
-            friend_channel_status(&friend_report)
+            friend_channel_status(&friend_report),
         ]);
     }
 
