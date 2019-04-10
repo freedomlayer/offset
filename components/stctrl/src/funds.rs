@@ -64,7 +64,7 @@ fn choose_route(
     Err(FundsError::NoSuitableRoute)
 }
 
-async fn funds_send<'a>(
+async fn funds_send_raw<'a>(
     matches: &'a ArgMatches<'a>,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
@@ -72,11 +72,16 @@ async fn funds_send<'a>(
 ) -> Result<(), FundsError> {
     let destination_str = matches.value_of("destination").unwrap();
     let amount_str = matches.value_of("amount").unwrap();
-    let receipt_file = matches.value_of("receipt").unwrap();
-    let receipt_pathbuf = PathBuf::from(receipt_file);
 
-    if receipt_pathbuf.exists() {
-        return Err(FundsError::ReceiptFileAlreadyExists);
+    let opt_receipt_file = matches.value_of("receipt");
+    let opt_receipt_pathbuf = opt_receipt_file.map(PathBuf::from);
+
+    // In case the user wants a receipt, make sure that we will be able to write the receipt
+    // before we do the actual payment:
+    if let Some(receipt_pathbuf) = &opt_receipt_pathbuf {
+        if receipt_pathbuf.exists() {
+            return Err(FundsError::ReceiptFileAlreadyExists);
+        }
     }
 
     let amount = amount_str
@@ -113,8 +118,11 @@ async fn funds_send<'a>(
     println!("Payment successful!");
     println!("Fees: {}", fees);
 
-    // Store receipt to file:
-    store_receipt_to_file(&receipt, &receipt_pathbuf).map_err(|_| FundsError::StoreReceiptError)?;
+    // If the user wanted a receipt, we provide one:
+    if let Some(receipt_pathbuf) = opt_receipt_pathbuf {
+        // Store receipt to file:
+        store_receipt_to_file(&receipt, &receipt_pathbuf).map_err(|_| FundsError::StoreReceiptError)?;
+    }
 
     // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
@@ -144,7 +152,7 @@ pub async fn funds<'a>(
         .clone();
 
     match matches.subcommand() {
-        ("send", Some(matches)) => await!(funds_send(
+        ("send", Some(matches)) => await!(funds_send_raw(
             matches,
             local_public_key,
             app_routes,

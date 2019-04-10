@@ -350,7 +350,7 @@ fn run() -> Result<(), StCtrlError> {
                 .setting(AppSettings::SubcommandRequiredElseHelp)
                 .about("configure offst node")
                 .subcommand(
-                    SubCommand::with_name("send")
+                    SubCommand::with_name("send-raw")
                         .about("Send funds to a remote destination")
                         .arg(
                             Arg::with_name("destination")
@@ -374,7 +374,7 @@ fn run() -> Result<(), StCtrlError> {
                                 .long("receipt")
                                 .value_name("receipt")
                                 .help("Output receipt file")
-                                .required(true),
+                                .required(false),
                         ),
                 ),
         )
