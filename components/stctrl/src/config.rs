@@ -135,30 +135,43 @@ pub struct ResetFriendCmd {
 
 #[derive(Debug, StructOpt)]
 pub enum ConfigCmd {
+    /// Add a relay server
     #[structopt(name = "add-relay")]
     AddRelay(AddRelayCmd),
+    /// Remove a relay server
     #[structopt(name = "remove-relay")]
     RemoveRelay(RemoveRelayCmd),
+    /// Add an index server
     #[structopt(name = "add-index")]
     AddIndex(AddIndexCmd),
+    /// Remove an index server
     #[structopt(name = "remove-index")]
     RemoveIndex(RemoveIndexCmd),
+    /// Add a new friend
     #[structopt(name = "add-friend")]
     AddFriend(AddFriendCmd),
+    /// Update friend's relays
     #[structopt(name = "set-friend-relays")]
     SetFriendRelays(SetFriendRelaysCmd),
+    /// Remove a friend
     #[structopt(name = "remove-friend")]
     RemoveFriend(RemoveFriendCmd),
+    /// Enable a friend
     #[structopt(name = "enable-friend")]
     EnableFriend(EnableFriendCmd),
+    /// Disable a friend
     #[structopt(name = "disable-friend")]
     DisableFriend(DisableFriendCmd),
+    /// Open requests from friend
     #[structopt(name = "open-friend")]
     OpenFriend(OpenFriendCmd),
+    /// Close requests from friend
     #[structopt(name = "close-friend")]
     CloseFriend(CloseFriendCmd),
+    /// Set friend's max debt
     #[structopt(name = "set-friend-max-debt")]
     SetFriendMaxDebt(SetFriendMaxDebtCmd),
+    /// Reset mutual credit with a friend according to friend's terms
     #[structopt(name = "reset-friend")]
     ResetFriend(ResetFriendCmd),
 }
