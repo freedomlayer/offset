@@ -376,6 +376,28 @@ fn run() -> Result<(), StCtrlError> {
                                 .help("Output receipt file")
                                 .required(false),
                         ),
+                )
+                .subcommand(
+                    SubCommand::with_name("pay-invoice")
+                        .about("Pay an invoice")
+                        .arg(
+                            Arg::with_name("invoice")
+                                .short("i")
+                                .long("invoice")
+                                // TODO: Possibly rename value to invoice_file?
+                                .value_name("invoice")
+                                .help("invoice file path")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::with_name("receipt")
+                                .short("r")
+                                .long("receipt")
+                                // TODO: Possibly rename value to receipt_file?
+                                .value_name("receipt")
+                                .help("Output receipt file")
+                                .required(true),
+                        ),
                 ),
         )
         .get_matches();
