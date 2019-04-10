@@ -60,6 +60,11 @@ where
             // This will usually happen if we just set the friend to be disabled. We will get the
             // offline notification for the friend short time after we set it to be disabled.
 
+            // If the friend does not exist, we have nothing to do here:
+            if m_state.state().friends.get(&friend_public_key).is_none() {
+                return Ok(());
+            }
+
             let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
             let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
             m_ephemeral.mutate(ephemeral_mutation);
