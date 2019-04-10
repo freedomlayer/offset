@@ -56,15 +56,10 @@ where
             m_ephemeral.mutate(ephemeral_mutation);
         }
         IncomingLivenessMessage::Offline(friend_public_key) => {
-            // Find friend:
-            let friend = match m_state.state().friends.get(&friend_public_key) {
-                Some(friend) => Ok(friend),
-                None => Err(HandleLivenessError::FriendDoesNotExist),
-            }?;
-            match friend.status {
-                FriendStatus::Enabled => Ok(()),
-                FriendStatus::Disabled => Err(HandleLivenessError::FriendIsDisabled),
-            }?;
+            // It is possible that the friend is disabled and we get an offline notification.
+            // This will usually happen if we just set the friend to be disabled. We will get the
+            // offline notification for the friend short time after we set it to be disabled.
+
             let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
             let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
             m_ephemeral.mutate(ephemeral_mutation);
