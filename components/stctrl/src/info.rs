@@ -188,7 +188,7 @@ pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
 
 /// Obtain the last incoming move token messages from a friend.  
 /// This is the last signed commitment made by the friend to the mutual balance.
-pub async fn info_friend_last_token<'a>(
+pub async fn info_friend_last_token(
     friend_last_token_cmd: FriendLastTokenCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {

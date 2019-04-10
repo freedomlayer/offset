@@ -377,7 +377,7 @@ async fn config_enable_friend(
     await!(app_config.enable_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_disable_friend<'a>(
+async fn config_disable_friend(
     disable_friend_cmd: DisableFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
