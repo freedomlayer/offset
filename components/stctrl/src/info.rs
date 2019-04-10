@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use structopt::StructOpt;
 use prettytable::Table;
+use structopt::StructOpt;
 
 use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport};
 use app::ser_string::public_key_to_string;
@@ -9,7 +9,6 @@ use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayA
 
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
-
 
 /// Show all configured relays
 #[derive(Debug, StructOpt)]
@@ -40,7 +39,7 @@ pub struct BalanceCmd {}
 #[derive(Debug, StructOpt)]
 pub struct ExportTicketCmd {
     #[structopt(short = "o", name = "output")]
-    output_file: PathBuf
+    output_file: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -192,7 +191,6 @@ pub async fn info_friend_last_token(
     friend_last_token_cmd: FriendLastTokenCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-
     let FriendLastTokenCmd {
         friend_name,
         output_file,
@@ -256,7 +254,6 @@ pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-
     let ExportTicketCmd { output_file } = export_ticket_cmd;
 
     if output_file.exists() {
@@ -282,19 +279,20 @@ pub async fn info_export_ticket(
     Ok(())
 }
 
-pub async fn info(
-    info_cmd: InfoCmd,
-    mut node_connection: NodeConnection,
-) -> Result<(), InfoError> {
+pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection) -> Result<(), InfoError> {
     let app_report = node_connection.report().clone();
 
     match info_cmd {
         InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report))?,
         InfoCmd::Index(_index_cmd) => await!(info_index(app_report))?,
         InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report))?,
-        InfoCmd::FriendLastToken(friend_last_token_cmd) => await!(info_friend_last_token(friend_last_token_cmd, app_report))?,
+        InfoCmd::FriendLastToken(friend_last_token_cmd) => {
+            await!(info_friend_last_token(friend_last_token_cmd, app_report))?
+        }
         InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report))?,
-        InfoCmd::ExportTicket(export_ticket_cmd) => await!(info_export_ticket(export_ticket_cmd, app_report))?,
+        InfoCmd::ExportTicket(export_ticket_cmd) => {
+            await!(info_export_ticket(export_ticket_cmd, app_report))?
+        }
     }
     Ok(())
 }

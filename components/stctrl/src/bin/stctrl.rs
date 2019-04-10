@@ -21,9 +21,9 @@ use futures::executor::ThreadPool;
 
 use structopt::StructOpt;
 
-use stctrl::config::{ConfigCmd, config, ConfigError};
-use stctrl::funds::{FundsCmd, funds, FundsError};
-use stctrl::info::{InfoCmd, info, InfoError};
+use stctrl::config::{config, ConfigCmd, ConfigError};
+use stctrl::funds::{funds, FundsCmd, FundsError};
+use stctrl::info::{info, InfoCmd, InfoError};
 
 use app::{connect, identity_from_file, load_node_from_file};
 
@@ -60,7 +60,6 @@ impl From<FundsError> for StCtrlError {
     }
 }
 
-
 #[derive(Debug, StructOpt)]
 enum StCtrlSubcommand {
     #[structopt(name = "info")]
@@ -96,7 +95,7 @@ fn run() -> Result<(), StCtrlError> {
     let StCtrlCmd {
         idfile,
         node_ticket,
-        subcommand
+        subcommand,
     } = StCtrlCmd::from_args();
 
     // Get application's identity:
@@ -110,8 +109,8 @@ fn run() -> Result<(), StCtrlError> {
     }
 
     // Get node information from file:
-    let node_address = load_node_from_file(&node_ticket)
-        .map_err(|_| StCtrlError::InvalidNodeTicketFile)?;
+    let node_address =
+        load_node_from_file(&node_ticket).map_err(|_| StCtrlError::InvalidNodeTicketFile)?;
 
     // Spawn identity service:
     let app_identity_client = identity_from_file(&idfile, thread_pool.clone())
@@ -131,7 +130,9 @@ fn run() -> Result<(), StCtrlError> {
 
             match subcommand {
                 StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection))?,
-                StCtrlSubcommand::Config(config_cmd) => await!(config(config_cmd, node_connection))?,
+                StCtrlSubcommand::Config(config_cmd) => {
+                    await!(config(config_cmd, node_connection))?
+                }
                 StCtrlSubcommand::Funds(funds_cmd) => await!(funds(funds_cmd, node_connection))?,
             }
             Ok(())

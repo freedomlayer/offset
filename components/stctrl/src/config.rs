@@ -133,7 +133,6 @@ pub struct ResetFriendCmd {
     friend_name: String,
 }
 
-
 #[derive(Debug, StructOpt)]
 pub enum ConfigCmd {
     #[structopt(name = "add-relay")]
@@ -193,7 +192,6 @@ async fn config_add_relay(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     for named_relay_address in node_report.funder_report.relays {
         if named_relay_address.name == add_relay_cmd.relay_name {
             return Err(ConfigError::RelayNameAlreadyExists);
@@ -204,8 +202,8 @@ async fn config_add_relay(
         return Err(ConfigError::RelayFileNotFound);
     }
 
-    let relay_address =
-        load_relay_from_file(&add_relay_cmd.relay_file).map_err(|_| ConfigError::LoadRelayFromFileError)?;
+    let relay_address = load_relay_from_file(&add_relay_cmd.relay_file)
+        .map_err(|_| ConfigError::LoadRelayFromFileError)?;
 
     let named_relay_address = NamedRelayAddress {
         public_key: relay_address.public_key,
@@ -221,7 +219,6 @@ async fn config_remove_relay(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let mut opt_relay_public_key = None;
     for named_relay_address in node_report.funder_report.relays {
         if named_relay_address.name == remove_relay_cmd.relay_name {
@@ -239,7 +236,6 @@ async fn config_add_index(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let AddIndexCmd {
         index_file,
         index_name,
@@ -273,7 +269,6 @@ async fn config_remove_index(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let mut opt_index_public_key = None;
     for named_index_server_address in node_report.index_client_report.index_servers {
         if named_index_server_address.name == remove_index_cmd.index_name {
@@ -292,7 +287,6 @@ async fn config_add_friend(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let AddFriendCmd {
         friend_file,
         friend_name,
@@ -327,7 +321,6 @@ async fn config_set_friend_relays(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let SetFriendRelaysCmd {
         friend_file,
         friend_name,
@@ -373,7 +366,6 @@ async fn config_enable_friend(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let friend_public_key = friend_public_key_by_name(&node_report, &enable_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
@@ -386,10 +378,10 @@ async fn config_disable_friend(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
-    let friend_public_key = friend_public_key_by_name(&node_report, &disable_friend_cmd.friend_name)
-        .ok_or(ConfigError::FriendNameNotFound)?
-        .clone();
+    let friend_public_key =
+        friend_public_key_by_name(&node_report, &disable_friend_cmd.friend_name)
+            .ok_or(ConfigError::FriendNameNotFound)?
+            .clone();
 
     await!(app_config.disable_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
@@ -411,7 +403,6 @@ async fn config_close_friend(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let friend_public_key = friend_public_key_by_name(&node_report, &close_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
@@ -424,7 +415,6 @@ async fn config_set_friend_max_debt(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let SetFriendMaxDebtCmd {
         friend_name,
         max_debt,
@@ -443,7 +433,6 @@ async fn config_reset_friend(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let mut opt_friend_pk_report = None;
     for (friend_public_key, friend_report) in &node_report.funder_report.friends {
         if friend_report.name == reset_friend_cmd.friend_name {
@@ -490,19 +479,61 @@ pub async fn config(
     };
 
     match config_cmd {
-        ConfigCmd::AddRelay(add_relay_cmd) => await!(config_add_relay(add_relay_cmd, app_config, node_report))?,
-        ConfigCmd::RemoveRelay(remove_relay_cmd) => await!(config_remove_relay(remove_relay_cmd, app_config, node_report))?,
-        ConfigCmd::AddIndex(add_index_cmd) => await!(config_add_index(add_index_cmd, app_config, node_report))?,
-        ConfigCmd::RemoveIndex(remove_index_cmd) => await!(config_remove_index(remove_index_cmd, app_config, node_report))?,
-        ConfigCmd::AddFriend(add_friend_cmd) => await!(config_add_friend(add_friend_cmd, app_config, node_report))?,
-        ConfigCmd::SetFriendRelays(set_friend_relays_cmd) => await!(config_set_friend_relays(set_friend_relays_cmd, app_config, node_report))?,
-        ConfigCmd::RemoveFriend(remove_friend_cmd) => await!(config_remove_friend(remove_friend_cmd, app_config, node_report))?,
-        ConfigCmd::EnableFriend(enable_friend_cmd) => await!(config_enable_friend(enable_friend_cmd, app_config, node_report))?,
-        ConfigCmd::DisableFriend(disable_friend_cmd) => await!(config_disable_friend(disable_friend_cmd, app_config, node_report))?,
-        ConfigCmd::OpenFriend(open_friend_cmd) => await!(config_open_friend(open_friend_cmd, app_config, node_report))?,
-        ConfigCmd::CloseFriend(close_friend_cmd) => await!(config_close_friend(close_friend_cmd, app_config, node_report))?,
-        ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => await!(config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report))?,
-        ConfigCmd::ResetFriend(reset_friend_cmd) => await!(config_reset_friend(reset_friend_cmd, app_config, node_report))?,
+        ConfigCmd::AddRelay(add_relay_cmd) => {
+            await!(config_add_relay(add_relay_cmd, app_config, node_report))?
+        }
+        ConfigCmd::RemoveRelay(remove_relay_cmd) => await!(config_remove_relay(
+            remove_relay_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::AddIndex(add_index_cmd) => {
+            await!(config_add_index(add_index_cmd, app_config, node_report))?
+        }
+        ConfigCmd::RemoveIndex(remove_index_cmd) => await!(config_remove_index(
+            remove_index_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::AddFriend(add_friend_cmd) => {
+            await!(config_add_friend(add_friend_cmd, app_config, node_report))?
+        }
+        ConfigCmd::SetFriendRelays(set_friend_relays_cmd) => await!(config_set_friend_relays(
+            set_friend_relays_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::RemoveFriend(remove_friend_cmd) => await!(config_remove_friend(
+            remove_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::EnableFriend(enable_friend_cmd) => await!(config_enable_friend(
+            enable_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::DisableFriend(disable_friend_cmd) => await!(config_disable_friend(
+            disable_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::OpenFriend(open_friend_cmd) => {
+            await!(config_open_friend(open_friend_cmd, app_config, node_report))?
+        }
+        ConfigCmd::CloseFriend(close_friend_cmd) => await!(config_close_friend(
+            close_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => await!(
+            config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report)
+        )?,
+        ConfigCmd::ResetFriend(reset_friend_cmd) => await!(config_reset_friend(
+            reset_friend_cmd,
+            app_config,
+            node_report
+        ))?,
     }
 
     Ok(())

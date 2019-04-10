@@ -9,8 +9,8 @@ use app::gen::gen_uid;
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, RouteWithCapacity};
 
-use crate::file::receipt::store_receipt_to_file;
 use crate::file::invoice::load_invoice_from_file;
+use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
 #[derive(Debug, StructOpt)]
@@ -107,7 +107,6 @@ async fn funds_send_raw(
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
 ) -> Result<(), FundsError> {
-
     let SendRawCmd {
         destination_str,
         dest_payment,
@@ -146,8 +145,9 @@ async fn funds_send_raw(
     let request_id = gen_uid();
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let receipt = await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
-        .map_err(|_| FundsError::SendFundsError)?;
+    let receipt =
+        await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
+            .map_err(|_| FundsError::SendFundsError)?;
 
     println!("Payment successful!");
     println!("Fees: {}", fees);
@@ -155,7 +155,8 @@ async fn funds_send_raw(
     // If the user wanted a receipt, we provide one:
     if let Some(receipt_file) = opt_receipt_file {
         // Store receipt to file:
-        store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
+        store_receipt_to_file(&receipt, &receipt_file)
+            .map_err(|_| FundsError::StoreReceiptError)?;
     }
 
     // We only send the ack if we managed to get the receipt:
@@ -169,7 +170,6 @@ async fn funds_pay_invoice(
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
 ) -> Result<(), FundsError> {
-
     let PayInvoiceCmd {
         invoice_file,
         receipt_file,
@@ -186,8 +186,8 @@ async fn funds_pay_invoice(
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
 
-    let invoice = load_invoice_from_file(&invoice_file)
-        .map_err(|_| FundsError::LoadInvoiceError)?;
+    let invoice =
+        load_invoice_from_file(&invoice_file).map_err(|_| FundsError::LoadInvoiceError)?;
 
     // TODO: We might get routes with the exact capacity,
     // but this will not be enough for sending our amount because
@@ -208,8 +208,13 @@ async fn funds_pay_invoice(
     // Randomly generate a request id:
     let request_id = gen_uid();
 
-    let receipt = await!(app_send_funds.request_send_funds(request_id, route, invoice.invoice_id, invoice.dest_payment))
-        .map_err(|_| FundsError::SendFundsError)?;
+    let receipt = await!(app_send_funds.request_send_funds(
+        request_id,
+        route,
+        invoice.invoice_id,
+        invoice.dest_payment
+    ))
+    .map_err(|_| FundsError::SendFundsError)?;
 
     println!("Payment successful!");
     println!("Fees: {}", fees);
@@ -244,8 +249,18 @@ pub async fn funds(
         .clone();
 
     match funds_cmd {
-        FundsCmd::SendRaw(send_raw_cmd) => await!(funds_send_raw(send_raw_cmd, local_public_key, app_routes, app_send_funds))?,
-        FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(pay_invoice_cmd, local_public_key, app_routes, app_send_funds))?,
+        FundsCmd::SendRaw(send_raw_cmd) => await!(funds_send_raw(
+            send_raw_cmd,
+            local_public_key,
+            app_routes,
+            app_send_funds
+        ))?,
+        FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
+            pay_invoice_cmd,
+            local_public_key,
+            app_routes,
+            app_send_funds
+        ))?,
     }
 
     Ok(())
