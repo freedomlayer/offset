@@ -239,9 +239,9 @@ fn friend_balance(friend_report: &FriendReport) -> i128 {
 pub async fn info_balance(mut app_report: AppReport) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
-    let total_balance: i128 = 0;
+    let mut total_balance: i128 = 0;
     for (_friend_public_key, friend_report) in &report.funder_report.friends {
-        total_balance
+        total_balance = total_balance
             .checked_add(friend_balance(&friend_report))
             .ok_or(InfoError::BalanceOverflow)?;
     }
