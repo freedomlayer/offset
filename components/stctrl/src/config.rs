@@ -240,24 +240,28 @@ async fn config_add_index(
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
 
+    let AddIndexCmd {
+        index_file,
+        index_name,
+    } = add_index_cmd;
+
     for named_index_server_address in node_report.index_client_report.index_servers {
-        if named_index_server_address.name == add_index_cmd.index_name {
+        if named_index_server_address.name == index_name {
             return Err(ConfigError::IndexNameAlreadyExists);
         }
     }
 
-    let index_pathbuf = PathBuf::from(add_index_cmd.index_file);
-    if !index_pathbuf.exists() {
+    if !index_file.exists() {
         return Err(ConfigError::IndexFileNotFound);
     }
 
-    let index_server_address = load_index_server_from_file(&index_pathbuf)
+    let index_server_address = load_index_server_from_file(&index_file)
         .map_err(|_| ConfigError::LoadIndexFromFileError)?;
 
     let named_index_server_address = NamedIndexServerAddress {
         public_key: index_server_address.public_key,
         address: index_server_address.address,
-        name: add_index_cmd.index_name.to_owned(),
+        name: index_name.to_owned(),
     };
 
     await!(app_config.add_index_server(named_index_server_address))
