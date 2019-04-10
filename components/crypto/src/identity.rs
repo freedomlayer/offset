@@ -1,5 +1,3 @@
-extern crate untrusted;
-
 use ring::signature;
 use std::cmp::Ordering;
 

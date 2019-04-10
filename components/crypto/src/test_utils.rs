@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::clone::Clone;
 use std::sync::Mutex;
 
-use crypto_rand::CryptoRandom;
+use crate::crypto_rand::CryptoRandom;
 use rand::{self, RngCore, StdRng};
 use ring::{error::Unspecified, rand::SecureRandom};
 

@@ -12,8 +12,6 @@
 )]
 // TODO: disallow clippy::too_many_arguments
 
-extern crate log;
-
 #[cfg(test)]
 #[macro_use]
 extern crate serde_derive;

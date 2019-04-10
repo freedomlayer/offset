@@ -1,5 +1,3 @@
-extern crate capnpc;
-
 macro_rules! build_schema {
     ($($path: expr),*) => {
         capnpc::CompilerCommand::new()

@@ -181,7 +181,7 @@ mod tests {
         ]))
         .unwrap();
 
-        // Droping the only client should close the loop:
+        // Dropping the only client should close the loop:
         drop(db_client);
 
         let atomic_db = await!(loop_res_fut).unwrap();

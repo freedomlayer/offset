@@ -17,13 +17,13 @@ extern crate log;
 use std::collections::HashMap;
 
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
-use clap::{App, Arg};
+use structopt::StructOpt;
 
 use common::conn::Listener;
 use common::int_convert::usize_to_u64;
@@ -68,7 +68,6 @@ const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum NodeBinError {
-    ParseListenAddressError,
     LoadIdentityError,
     CreateThreadPoolError,
     CreateTimerError,
@@ -77,62 +76,38 @@ enum NodeBinError {
     NetNodeError(NetNodeError),
 }
 
+// TODO: Add version (0.1.0)
+// TODO: Add author
+// TODO: Add description - Spawns Offst Node
+/// stnode: Offst Node
+#[derive(Debug, StructOpt)]
+struct StNodeCmd {
+    /// StCtrl app identity file path
+    #[structopt(parse(from_os_str), short = "i", long = "idfile")]
+    idfile: PathBuf,
+    /// Listening address (Used for communication with apps)
+    #[structopt(short = "l", long = "laddr")]
+    laddr: SocketAddr,
+    /// Database file path
+    #[structopt(parse(from_os_str), short = "d", long = "database")]
+    database: PathBuf,
+    /// Directory path of trusted applications
+    #[structopt(parse(from_os_str), short = "t", long = "trusted")]
+    trusted: PathBuf,
+}
+
 fn run() -> Result<(), NodeBinError> {
     env_logger::init();
-    let matches = App::new("Offst Node")
-        .version("0.1.0")
-        .author("real <real@freedomlayer.org>")
-        .about("Spawns Offst Node")
-        .arg(
-            Arg::with_name("database")
-                .short("d")
-                .long("database")
-                .value_name("database")
-                .help("Database file path")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("idfile")
-                .short("i")
-                .long("idfile")
-                .value_name("idfile")
-                .help("Identity file path")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("laddr")
-                .short("l")
-                .long("laddr")
-                .value_name("laddr")
-                .help(
-                    "Listening address (Used for communication with apps)\n\
-                     Examples:\n\
-                     - 0.0.0.0:1337\n\
-                     - fe80::14c2:3048:b1ac:85fb:1337",
-                )
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("trusted")
-                .short("t")
-                .long("trusted")
-                .value_name("trusted")
-                .help("Directory path of trusted applications")
-                .required(true),
-        )
-        .get_matches();
 
-    // Parse listening address
-    let listen_address_str = matches.value_of("laddr").unwrap();
-    let listen_socket_addr: SocketAddr = listen_address_str
-        .parse()
-        .map_err(|_| NodeBinError::ParseListenAddressError)?;
+    let StNodeCmd {
+        idfile,
+        laddr,
+        database,
+        trusted,
+    } = StNodeCmd::from_args();
 
     // Parse identity file:
-    let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(Path::new(&idfile_path))
-        .map_err(|_| NodeBinError::LoadIdentityError)?;
-    // let local_public_key = identity.get_public_key();
+    let identity = load_identity_from_file(&idfile).map_err(|_| NodeBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
     let mut thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
@@ -192,22 +167,17 @@ fn run() -> Result<(), NodeBinError> {
     let rng = system_random();
 
     // Load database:
-    let db_path = matches.value_of("database").unwrap();
-    let atomic_db = FileDb::<NodeState<NetAddress>>::load(Path::new(&db_path).to_path_buf())
-        .map_err(|_| NodeBinError::LoadDbError)?;
+    let atomic_db =
+        FileDb::<NodeState<NetAddress>>::load(database).map_err(|_| NodeBinError::LoadDbError)?;
 
     // Start listening to apps:
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(listen_socket_addr);
+    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(laddr);
 
     // Create a closure for loading trusted apps map:
-    let trusted_dir_path = Path::new(matches.value_of("trusted").unwrap()).to_path_buf();
-    // TODO: We need a more detailed error here.
-    // It might be hard for the user to detect in which file there was a problem
-    // in case of an error.
     let get_trusted_apps = move || -> Option<_> {
         Some(
-            load_trusted_apps(&trusted_dir_path)
+            load_trusted_apps(&trusted)
                 .ok()?
                 .into_iter()
                 .map(|trusted_app| (trusted_app.public_key, trusted_app.permissions))
