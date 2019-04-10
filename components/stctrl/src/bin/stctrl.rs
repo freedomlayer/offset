@@ -63,8 +63,11 @@ impl From<FundsError> for StCtrlError {
 
 #[derive(Debug, StructOpt)]
 enum StCtrlSubcommand {
+    #[structopt(name = "info")]
     Info(InfoCmd),
+    #[structopt(name = "config")]
     Config(ConfigCmd),
+    #[structopt(name = "funds")]
     Funds(FundsCmd),
 }
 
