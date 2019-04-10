@@ -78,7 +78,7 @@ enum StCtrlSubcommand {
 #[derive(Debug, StructOpt)]
 struct StCtrlCmd {
     /// StCtrl app identity file path
-    #[structopt(parse(from_os_str), short = "I")]
+    #[structopt(parse(from_os_str), short = "I", long = "idfile")]
     idfile: PathBuf,
     /// Node ticket file path
     #[structopt(parse(from_os_str), name = "ticket", short = "T")]
