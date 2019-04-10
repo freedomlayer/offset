@@ -9,7 +9,7 @@ use common_capnp::{
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{InvoiceId, Receipt};
+use crate::funder::messages::Receipt;
 use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 use crate::serialize::SerializeError;
@@ -18,6 +18,7 @@ use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
+use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
 
 /// Read the underlying bytes from given `CustomUInt128` reader.

@@ -3,7 +3,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
+use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
 use toml;
 
 use crate::app_server::messages::RelayAddress;
@@ -14,7 +14,7 @@ pub enum RelayFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    PkStringError,
+    SerStringError,
     ParseSocketAddrError,
     InvalidPublicKey,
     NetAddressError(NetAddressError),
@@ -45,9 +45,9 @@ impl From<toml::ser::Error> for RelayFileError {
     }
 }
 
-impl From<PkStringError> for RelayFileError {
-    fn from(_e: PkStringError) -> Self {
-        RelayFileError::PkStringError
+impl From<SerStringError> for RelayFileError {
+    fn from(_e: SerStringError) -> Self {
+        RelayFileError::SerStringError
     }
 }
 

@@ -12,7 +12,6 @@
 extern crate byteorder;
 extern crate capnp;
 
-#[macro_use]
 extern crate common;
 extern crate crypto;
 

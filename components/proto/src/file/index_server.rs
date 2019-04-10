@@ -5,7 +5,7 @@ use std::path::Path;
 
 use toml;
 
-use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
+use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
 
 use crate::index_server::messages::IndexServerAddress;
 use crate::net::messages::{NetAddress, NetAddressError};
@@ -15,7 +15,7 @@ pub enum IndexServerFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    PkStringError,
+    SerStringError,
     ParseSocketAddrError,
     InvalidPublicKey,
     NetAddressError(NetAddressError),
@@ -46,9 +46,9 @@ impl From<toml::ser::Error> for IndexServerFileError {
     }
 }
 
-impl From<PkStringError> for IndexServerFileError {
-    fn from(_e: PkStringError) -> Self {
-        IndexServerFileError::PkStringError
+impl From<SerStringError> for IndexServerFileError {
+    fn from(_e: SerStringError) -> Self {
+        IndexServerFileError::SerStringError
     }
 }
 

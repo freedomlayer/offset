@@ -6,10 +6,10 @@ use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
 use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
+use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 
 use proto::funder::messages::{
-    FailureSendFunds, FriendTcOp, FriendsRoute, InvoiceId, RequestSendFunds, RequestsStatus,
-    ResponseSendFunds, INVOICE_ID_LEN,
+    FailureSendFunds, FriendTcOp, FriendsRoute, RequestSendFunds, RequestsStatus, ResponseSendFunds,
 };
 use proto::funder::signature_buff::{
     create_failure_signature_buffer, create_response_signature_buffer,

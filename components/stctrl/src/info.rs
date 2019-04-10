@@ -1,13 +1,62 @@
 use std::path::PathBuf;
 
-use clap::ArgMatches;
 use prettytable::Table;
+use structopt::StructOpt;
 
 use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport};
-use app::{
-    public_key_to_string, store_friend_to_file, AppReport, FriendAddress, NodeConnection,
-    RelayAddress,
-};
+use app::ser_string::public_key_to_string;
+use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
+
+use crate::file::token::store_token_to_file;
+use crate::utils::friend_public_key_by_name;
+
+/// Show all configured relays
+#[derive(Debug, StructOpt)]
+pub struct RelaysCmd {}
+
+/// Show all configured index servers
+#[derive(Debug, StructOpt)]
+pub struct IndexCmd {}
+
+/// Show all configured friend servers
+#[derive(Debug, StructOpt)]
+pub struct FriendsCmd {}
+
+/// Export last obtained token from a friend
+#[derive(Debug, StructOpt)]
+pub struct FriendLastTokenCmd {
+    #[structopt(short = "n", name = "name")]
+    friend_name: String,
+    #[structopt(short = "o", name = "output")]
+    output_file: PathBuf,
+}
+
+/// Display balance summary
+#[derive(Debug, StructOpt)]
+pub struct BalanceCmd {}
+
+/// Export a ticket of this node's contact information
+#[derive(Debug, StructOpt)]
+pub struct ExportTicketCmd {
+    #[structopt(short = "o", name = "output")]
+    output_file: PathBuf,
+}
+
+#[derive(Debug, StructOpt)]
+pub enum InfoCmd {
+    #[structopt(name = "relays")]
+    Relays(RelaysCmd),
+    #[structopt(name = "index")]
+    Index(IndexCmd),
+    #[structopt(name = "friends")]
+    Friends(FriendsCmd),
+    #[structopt(name = "friend-last-token")]
+    FriendLastToken(FriendLastTokenCmd),
+    #[structopt(name = "balance")]
+    Balance(BalanceCmd),
+    #[structopt(name = "export-ticket")]
+    ExportTicket(ExportTicketCmd),
+}
 
 #[derive(Debug)]
 pub enum InfoError {
@@ -15,6 +64,9 @@ pub enum InfoError {
     BalanceOverflow,
     OutputFileAlreadyExists,
     StoreNodeToFileError,
+    FriendNameNotFound,
+    MissingLastIncomingMoveToken,
+    StoreLastIncomingMoveTokenError,
 }
 
 /// Get a most recently known node report:
@@ -133,16 +185,44 @@ pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
     Ok(())
 }
 
-pub async fn info_last_friend_token<'a>(
-    _matches: &'a ArgMatches<'a>,
-    _app_report: AppReport,
+/// Obtain the last incoming move token messages from a friend.  
+/// This is the last signed commitment made by the friend to the mutual balance.
+pub async fn info_friend_last_token(
+    friend_last_token_cmd: FriendLastTokenCmd,
+    mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    // TODO: Should possibly export a file
-    unimplemented!();
-    /*
-    let idfile = matches.value_of("idfile").unwrap();
-    let output = matches.value_of("output").unwrap();
-    */
+    let FriendLastTokenCmd {
+        friend_name,
+        output_file,
+    } = friend_last_token_cmd;
+
+    if output_file.exists() {
+        return Err(InfoError::OutputFileAlreadyExists);
+    }
+
+    // Get a recent report:
+    let (node_report, incoming_mutations) =
+        await!(app_report.incoming_reports()).map_err(|_| InfoError::GetReportError)?;
+    // We don't want to listen on incoming mutations:
+    drop(incoming_mutations);
+
+    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
+        .ok_or(InfoError::FriendNameNotFound)?;
+
+    let friend_report = node_report
+        .funder_report
+        .friends
+        .get(&friend_public_key)
+        .unwrap();
+    let last_incoming_move_token = match &friend_report.opt_last_incoming_move_token {
+        Some(last_incoming_move_token) => last_incoming_move_token,
+        // If the remote side have never sent any message, we might not have a
+        // "last incoming move token":
+        None => return Err(InfoError::MissingLastIncomingMoveToken),
+    };
+
+    store_token_to_file(last_incoming_move_token, &output_file)
+        .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
 }
 
 /// Get an approximate value for mutual balance with a friend.
@@ -170,14 +250,13 @@ pub async fn info_balance(mut app_report: AppReport) -> Result<(), InfoError> {
     Ok(())
 }
 
-pub async fn info_export_ticket<'a>(
-    matches: &'a ArgMatches<'a>,
+pub async fn info_export_ticket(
+    export_ticket_cmd: ExportTicketCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    let output_file = matches.value_of("output_file").unwrap();
-    let output_pathbuf = PathBuf::from(output_file);
+    let ExportTicketCmd { output_file } = export_ticket_cmd;
 
-    if output_pathbuf.exists() {
+    if output_file.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -194,29 +273,26 @@ pub async fn info_export_ticket<'a>(
         relays,
     };
 
-    store_friend_to_file(&node_address, &output_pathbuf)
+    store_friend_to_file(&node_address, &output_file)
         .map_err(|_| InfoError::StoreNodeToFileError)?;
 
     Ok(())
 }
 
-pub async fn info<'a>(
-    matches: &'a ArgMatches<'a>,
-    mut node_connection: NodeConnection,
-) -> Result<(), InfoError> {
+pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection) -> Result<(), InfoError> {
     let app_report = node_connection.report().clone();
 
-    match matches.subcommand() {
-        ("relays", Some(_matches)) => await!(info_relays(app_report))?,
-        ("index", Some(_matches)) => await!(info_index(app_report))?,
-        ("friends", Some(_matches)) => await!(info_friends(app_report))?,
-        ("last-friend-token", Some(matches)) => {
-            await!(info_last_friend_token(matches, app_report))?
+    match info_cmd {
+        InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report))?,
+        InfoCmd::Index(_index_cmd) => await!(info_index(app_report))?,
+        InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report))?,
+        InfoCmd::FriendLastToken(friend_last_token_cmd) => {
+            await!(info_friend_last_token(friend_last_token_cmd, app_report))?
         }
-        ("balance", Some(_matches)) => await!(info_balance(app_report))?,
-        ("export-ticket", Some(matches)) => await!(info_export_ticket(matches, app_report))?,
-        _ => unreachable!(),
+        InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report))?,
+        InfoCmd::ExportTicket(export_ticket_cmd) => {
+            await!(info_export_ticket(export_ticket_cmd, app_report))?
+        }
     }
-
     Ok(())
 }

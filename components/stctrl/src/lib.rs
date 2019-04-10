@@ -15,7 +15,12 @@
 extern crate prettytable;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod config;
 pub mod funds;
 pub mod info;
+
+pub mod file;
+pub mod utils;

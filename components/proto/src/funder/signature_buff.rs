@@ -99,7 +99,7 @@ pub fn prepare_receipt(
     }
 }
 
-#[allow(unused)]
+/// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
     data.extend(FUND_SUCCESS_PREFIX);
@@ -111,7 +111,7 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 
 // Prefix used for chain hashing of token channel funds.
 // NEXT is used for hashing for the next move token funds.
-const TOKEN_NEXT: &[u8] = b"NEXT";
+pub const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
 pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {

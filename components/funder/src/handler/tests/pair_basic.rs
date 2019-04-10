@@ -10,13 +10,14 @@ use identity::{create_identity, IdentityClient};
 
 use crypto::crypto_rand::RngContainer;
 use crypto::identity::{compare_public_key, generate_pkcs8_key_pair, SoftwareEd25519Identity};
+use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
-    InvoiceId, RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    UserRequestSendFunds, INVOICE_ID_LEN,
+    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
+    UserRequestSendFunds,
 };
 
 use crate::ephemeral::Ephemeral;

@@ -16,17 +16,20 @@
 extern crate log;
 
 mod connect;
+pub mod gen;
 mod identity;
-pub mod uid;
 
 pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
 pub use proto::file::index_server::load_index_server_from_file;
 pub use proto::file::node::load_node_from_file;
-pub use proto::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
 pub use proto::file::relay::load_relay_from_file;
+pub use proto::file::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
+pub use proto::funder::messages::Receipt;
+pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
+pub use proto::report::signature_buff::verify_move_token_hashed_report;
 
 pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
 
@@ -50,7 +53,7 @@ pub mod report {
 }
 
 pub mod invoice {
-    pub use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
+    pub use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 }
 
 pub mod route {
@@ -59,4 +62,6 @@ pub mod route {
 
 }
 
-pub use crypto::identity::PublicKey;
+pub use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
+pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
+pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};

@@ -8,7 +8,7 @@ use toml;
 use crypto::identity::PublicKey;
 use net::messages::NetAddressError;
 
-use crate::file::pk_string::{public_key_to_string, string_to_public_key, PkStringError};
+use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
 
 use crate::app_server::messages::RelayAddress;
 use crate::file::relay::RelayFile;
@@ -24,7 +24,7 @@ pub enum FriendFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    PkStringError,
+    SerStringError,
     ParseSocketAddrError,
     InvalidPublicKey,
     NetAddressError(NetAddressError),
@@ -55,9 +55,9 @@ impl From<toml::ser::Error> for FriendFileError {
     }
 }
 
-impl From<PkStringError> for FriendFileError {
-    fn from(_e: PkStringError) -> Self {
-        FriendFileError::PkStringError
+impl From<SerStringError> for FriendFileError {
+    fn from(_e: SerStringError) -> Self {
+        FriendFileError::SerStringError
     }
 }
 

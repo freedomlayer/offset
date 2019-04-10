@@ -4,11 +4,12 @@ use futures::{SinkExt, StreamExt};
 
 use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 use crypto::identity::PublicKey;
+use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{
-    FriendsRoute, InvoiceId, Receipt, ReceiptAck, ResponseReceived, ResponseSendFundsResult,
+    FriendsRoute, Receipt, ReceiptAck, ResponseReceived, ResponseSendFundsResult,
     UserRequestSendFunds,
 };
 

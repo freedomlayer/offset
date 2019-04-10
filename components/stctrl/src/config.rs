@@ -1,12 +1,167 @@
 use std::path::PathBuf;
 
-use clap::ArgMatches;
+use structopt::StructOpt;
 
 use app::report::{ChannelStatusReport, NodeReport};
 use app::{
     load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig,
-    NamedIndexServerAddress, NamedRelayAddress, NodeConnection, PublicKey,
+    NamedIndexServerAddress, NamedRelayAddress, NodeConnection,
 };
+
+use crate::utils::friend_public_key_by_name;
+
+/// Add a relay
+#[derive(Debug, StructOpt)]
+pub struct AddRelayCmd {
+    /// Path of relay file
+    #[structopt(parse(from_os_str), name = "relay", short = "r")]
+    relay_file: PathBuf,
+    /// Assigned relay name (You can pick any name)
+    #[structopt(name = "name", short = "n")]
+    relay_name: String,
+}
+
+/// Remove relay
+#[derive(Debug, StructOpt)]
+pub struct RemoveRelayCmd {
+    /// Relay name to remove
+    #[structopt(name = "name", short = "n")]
+    relay_name: String,
+}
+
+/// Add index
+#[derive(Debug, StructOpt)]
+pub struct AddIndexCmd {
+    /// Path of index file
+    #[structopt(parse(from_os_str), name = "index", short = "i")]
+    index_file: PathBuf,
+    /// Assigned index name (You can pick any name)
+    #[structopt(name = "name", short = "n")]
+    index_name: String,
+}
+
+/// Remove index
+#[derive(Debug, StructOpt)]
+pub struct RemoveIndexCmd {
+    /// Index name to remove
+    #[structopt(name = "name", short = "n")]
+    index_name: String,
+}
+
+/// Add friend
+#[derive(Debug, StructOpt)]
+pub struct AddFriendCmd {
+    /// Path of friend file
+    #[structopt(parse(from_os_str), name = "friend", short = "f")]
+    friend_file: PathBuf,
+    /// Assigned friend name (You can pick any name)
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+    /// Initial balance with friend
+    #[structopt(name = "balance", short = "b")]
+    balance: i128,
+}
+
+/// Set friend relays
+#[derive(Debug, StructOpt)]
+pub struct SetFriendRelaysCmd {
+    /// Path of friend file
+    #[structopt(parse(from_os_str), name = "friend", short = "f")]
+    friend_file: PathBuf,
+    /// Friend name (Must be an existing friend)
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Remove friend
+#[derive(Debug, StructOpt)]
+pub struct RemoveFriendCmd {
+    /// Friend name to remove
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Enable friend
+#[derive(Debug, StructOpt)]
+pub struct EnableFriendCmd {
+    /// Friend name to enable
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Disable friend
+#[derive(Debug, StructOpt)]
+pub struct DisableFriendCmd {
+    /// Friend name to disable
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Enable forwarding of payment requests from friend to us
+#[derive(Debug, StructOpt)]
+pub struct OpenFriendCmd {
+    /// Friend name to open
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Disable forwarding of payment requests from friend to us
+#[derive(Debug, StructOpt)]
+pub struct CloseFriendCmd {
+    /// Friend name to close
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+/// Set friend's maximum allowed debt
+/// If you lose this friend, you can lose this amount of credits.
+#[derive(Debug, StructOpt)]
+pub struct SetFriendMaxDebtCmd {
+    /// Friend name
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+    /// Max debt allowed for friend
+    #[structopt(name = "mdebt", short = "m")]
+    max_debt: u128,
+}
+
+/// Reset mutual credit with friend according to friend's terms.
+#[derive(Debug, StructOpt)]
+pub struct ResetFriendCmd {
+    /// Friend name to reset
+    #[structopt(name = "name", short = "n")]
+    friend_name: String,
+}
+
+#[derive(Debug, StructOpt)]
+pub enum ConfigCmd {
+    #[structopt(name = "add-relay")]
+    AddRelay(AddRelayCmd),
+    #[structopt(name = "remove-relay")]
+    RemoveRelay(RemoveRelayCmd),
+    #[structopt(name = "add-index")]
+    AddIndex(AddIndexCmd),
+    #[structopt(name = "remove-index")]
+    RemoveIndex(RemoveIndexCmd),
+    #[structopt(name = "add-friend")]
+    AddFriend(AddFriendCmd),
+    #[structopt(name = "set-friend-relays")]
+    SetFriendRelays(SetFriendRelaysCmd),
+    #[structopt(name = "remove-friend")]
+    RemoveFriend(RemoveFriendCmd),
+    #[structopt(name = "enable-friend")]
+    EnableFriend(EnableFriendCmd),
+    #[structopt(name = "disable-friend")]
+    DisableFriend(DisableFriendCmd),
+    #[structopt(name = "open-friend")]
+    OpenFriend(OpenFriendCmd),
+    #[structopt(name = "close-friend")]
+    CloseFriend(CloseFriendCmd),
+    #[structopt(name = "set-friend-max-debt")]
+    SetFriendMaxDebt(SetFriendMaxDebtCmd),
+    #[structopt(name = "reset-friend")]
+    ResetFriend(ResetFriendCmd),
+}
 
 #[derive(Debug)]
 pub enum ConfigError {
@@ -32,47 +187,41 @@ pub enum ConfigError {
     UnknownRemoteResetTerms,
 }
 
-async fn config_add_relay<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_add_relay(
+    add_relay_cmd: AddRelayCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let relay_file = matches.value_of("relay_file").unwrap();
-    let relay_name = matches.value_of("relay_name").unwrap();
-
     for named_relay_address in node_report.funder_report.relays {
-        if named_relay_address.name == relay_name {
+        if named_relay_address.name == add_relay_cmd.relay_name {
             return Err(ConfigError::RelayNameAlreadyExists);
         }
     }
 
-    let relay_pathbuf = PathBuf::from(relay_file);
-    if !relay_pathbuf.exists() {
+    if !add_relay_cmd.relay_file.exists() {
         return Err(ConfigError::RelayFileNotFound);
     }
 
-    let relay_address =
-        load_relay_from_file(&relay_pathbuf).map_err(|_| ConfigError::LoadRelayFromFileError)?;
+    let relay_address = load_relay_from_file(&add_relay_cmd.relay_file)
+        .map_err(|_| ConfigError::LoadRelayFromFileError)?;
 
     let named_relay_address = NamedRelayAddress {
         public_key: relay_address.public_key,
         address: relay_address.address,
-        name: relay_name.to_owned(),
+        name: add_relay_cmd.relay_name.to_owned(),
     };
 
     await!(app_config.add_relay(named_relay_address)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_remove_relay<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_remove_relay(
+    remove_relay_cmd: RemoveRelayCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let relay_name = matches.value_of("relay_name").unwrap();
-
     let mut opt_relay_public_key = None;
     for named_relay_address in node_report.funder_report.relays {
-        if named_relay_address.name == relay_name {
+        if named_relay_address.name == remove_relay_cmd.relay_name {
             opt_relay_public_key = Some(named_relay_address.public_key.clone());
         }
     }
@@ -82,13 +231,15 @@ async fn config_remove_relay<'a>(
     await!(app_config.remove_relay(relay_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_add_index<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_add_index(
+    add_index_cmd: AddIndexCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let index_file = matches.value_of("index_file").unwrap();
-    let index_name = matches.value_of("index_name").unwrap();
+    let AddIndexCmd {
+        index_file,
+        index_name,
+    } = add_index_cmd;
 
     for named_index_server_address in node_report.index_client_report.index_servers {
         if named_index_server_address.name == index_name {
@@ -96,12 +247,11 @@ async fn config_add_index<'a>(
         }
     }
 
-    let index_pathbuf = PathBuf::from(index_file);
-    if !index_pathbuf.exists() {
+    if !index_file.exists() {
         return Err(ConfigError::IndexFileNotFound);
     }
 
-    let index_server_address = load_index_server_from_file(&index_pathbuf)
+    let index_server_address = load_index_server_from_file(&index_file)
         .map_err(|_| ConfigError::LoadIndexFromFileError)?;
 
     let named_index_server_address = NamedIndexServerAddress {
@@ -114,16 +264,14 @@ async fn config_add_index<'a>(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_remove_index<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_remove_index(
+    remove_index_cmd: RemoveIndexCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let index_name = matches.value_of("index_name").unwrap();
-
     let mut opt_index_public_key = None;
     for named_index_server_address in node_report.index_client_report.index_servers {
-        if named_index_server_address.name == index_name {
+        if named_index_server_address.name == remove_index_cmd.index_name {
             opt_index_public_key = Some(named_index_server_address.public_key.clone());
         }
     }
@@ -134,18 +282,16 @@ async fn config_remove_index<'a>(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_add_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_add_friend(
+    add_friend_cmd: AddFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_file = matches.value_of("friend_file").unwrap();
-    let friend_name = matches.value_of("friend_name").unwrap();
-    let friend_balance_str = matches.value_of("friend_balance").unwrap();
-
-    let friend_balance = friend_balance_str
-        .parse::<i128>()
-        .map_err(|_| ConfigError::ParseBalanceError)?;
+    let AddFriendCmd {
+        friend_file,
+        friend_name,
+        balance,
+    } = add_friend_cmd;
 
     for (_friend_public_key, friend_report) in node_report.funder_report.friends {
         if friend_report.name == friend_name {
@@ -153,57 +299,43 @@ async fn config_add_friend<'a>(
         }
     }
 
-    let friend_pathbuf = PathBuf::from(friend_file);
-    if !friend_pathbuf.exists() {
+    if !friend_file.exists() {
         return Err(ConfigError::FriendFileNotFound);
     }
 
     let friend_address =
-        load_friend_from_file(&friend_pathbuf).map_err(|_| ConfigError::LoadFriendFromFileError)?;
+        load_friend_from_file(&friend_file).map_err(|_| ConfigError::LoadFriendFromFileError)?;
 
     await!(app_config.add_friend(
         friend_address.public_key,
         friend_address.relays,
         friend_name.to_owned(),
-        friend_balance
+        balance
     ))
     .map_err(|_| ConfigError::AppConfigError)?;
     Ok(())
 }
 
-/// Find a friend's public key given his name
-fn friend_public_key_by_name<'a>(
-    node_report: &'a NodeReport,
-    friend_name: &str,
-) -> Option<&'a PublicKey> {
-    // Search for the friend:
-    for (friend_public_key, friend_report) in &node_report.funder_report.friends {
-        if friend_report.name == friend_name {
-            return Some(friend_public_key);
-        }
-    }
-    None
-}
-
-async fn config_set_friend_relays<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_set_friend_relays(
+    set_friend_relays_cmd: SetFriendRelaysCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_file = matches.value_of("friend_file").unwrap();
-    let friend_name = matches.value_of("friend_name").unwrap();
+    let SetFriendRelaysCmd {
+        friend_file,
+        friend_name,
+    } = set_friend_relays_cmd;
 
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    let friend_pathbuf = PathBuf::from(friend_file);
-    if !friend_pathbuf.exists() {
+    if !friend_file.exists() {
         return Err(ConfigError::FriendFileNotFound);
     }
 
     let friend_address =
-        load_friend_from_file(&friend_pathbuf).map_err(|_| ConfigError::LoadFriendFromFileError)?;
+        load_friend_from_file(&friend_file).map_err(|_| ConfigError::LoadFriendFromFileError)?;
 
     // Just in case, make sure that the the friend we know with this name
     // has the same public key as inside the provided file.
@@ -217,89 +349,78 @@ async fn config_set_friend_relays<'a>(
     Ok(())
 }
 
-async fn config_remove_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_remove_friend(
+    remove_friend_cmd: RemoveFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &remove_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
     await!(app_config.remove_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_enable_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_enable_friend(
+    enable_friend_cmd: EnableFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &enable_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
     await!(app_config.enable_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_disable_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_disable_friend(
+    disable_friend_cmd: DisableFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
-        .ok_or(ConfigError::FriendNameNotFound)?
-        .clone();
+    let friend_public_key =
+        friend_public_key_by_name(&node_report, &disable_friend_cmd.friend_name)
+            .ok_or(ConfigError::FriendNameNotFound)?
+            .clone();
 
     await!(app_config.disable_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_open_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_open_friend(
+    open_friend_cmd: OpenFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &open_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
     await!(app_config.open_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_close_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_close_friend(
+    close_friend_cmd: CloseFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &close_friend_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
     await!(app_config.close_friend(friend_public_key)).map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_set_friend_max_debt<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_set_friend_max_debt(
+    set_friend_max_debt_cmd: SetFriendMaxDebtCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-    let max_debt_str = matches.value_of("max_debt").unwrap();
+    let SetFriendMaxDebtCmd {
+        friend_name,
+        max_debt,
+    } = set_friend_max_debt_cmd;
 
-    let max_debt = max_debt_str
-        .parse::<u128>()
-        .map_err(|_| ConfigError::ParseMaxDebtError)?;
-
-    let friend_public_key = friend_public_key_by_name(&node_report, friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
@@ -307,16 +428,14 @@ async fn config_set_friend_max_debt<'a>(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_reset_friend<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn config_reset_friend(
+    reset_friend_cmd: ResetFriendCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_name = matches.value_of("friend_name").unwrap();
-
     let mut opt_friend_pk_report = None;
     for (friend_public_key, friend_report) in &node_report.funder_report.friends {
-        if friend_report.name == friend_name {
+        if friend_report.name == reset_friend_cmd.friend_name {
             opt_friend_pk_report = Some((friend_public_key, friend_report));
         }
     }
@@ -341,8 +460,8 @@ async fn config_reset_friend<'a>(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-pub async fn config<'a>(
-    matches: &'a ArgMatches<'a>,
+pub async fn config(
+    config_cmd: ConfigCmd,
     mut node_connection: NodeConnection,
 ) -> Result<(), ConfigError> {
     let app_config = node_connection
@@ -359,43 +478,62 @@ pub async fn config<'a>(
         node_report
     };
 
-    match matches.subcommand() {
-        ("add-relay", Some(matches)) => await!(config_add_relay(matches, app_config, node_report))?,
-        ("remove-relay", Some(matches)) => {
-            await!(config_remove_relay(matches, app_config, node_report))?
+    match config_cmd {
+        ConfigCmd::AddRelay(add_relay_cmd) => {
+            await!(config_add_relay(add_relay_cmd, app_config, node_report))?
         }
-        ("add-index", Some(matches)) => await!(config_add_index(matches, app_config, node_report))?,
-        ("remove-index", Some(matches)) => {
-            await!(config_remove_index(matches, app_config, node_report))?
+        ConfigCmd::RemoveRelay(remove_relay_cmd) => await!(config_remove_relay(
+            remove_relay_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::AddIndex(add_index_cmd) => {
+            await!(config_add_index(add_index_cmd, app_config, node_report))?
         }
-        ("add-friend", Some(matches)) => {
-            await!(config_add_friend(matches, app_config, node_report))?
+        ConfigCmd::RemoveIndex(remove_index_cmd) => await!(config_remove_index(
+            remove_index_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::AddFriend(add_friend_cmd) => {
+            await!(config_add_friend(add_friend_cmd, app_config, node_report))?
         }
-        ("set-friend-relays", Some(matches)) => {
-            await!(config_set_friend_relays(matches, app_config, node_report))?
+        ConfigCmd::SetFriendRelays(set_friend_relays_cmd) => await!(config_set_friend_relays(
+            set_friend_relays_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::RemoveFriend(remove_friend_cmd) => await!(config_remove_friend(
+            remove_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::EnableFriend(enable_friend_cmd) => await!(config_enable_friend(
+            enable_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::DisableFriend(disable_friend_cmd) => await!(config_disable_friend(
+            disable_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::OpenFriend(open_friend_cmd) => {
+            await!(config_open_friend(open_friend_cmd, app_config, node_report))?
         }
-        ("remove-friend", Some(matches)) => {
-            await!(config_remove_friend(matches, app_config, node_report))?
-        }
-        ("enable-friend", Some(matches)) => {
-            await!(config_enable_friend(matches, app_config, node_report))?
-        }
-        ("disable-friend", Some(matches)) => {
-            await!(config_disable_friend(matches, app_config, node_report))?
-        }
-        ("open-friend", Some(matches)) => {
-            await!(config_open_friend(matches, app_config, node_report))?
-        }
-        ("close-friend", Some(matches)) => {
-            await!(config_close_friend(matches, app_config, node_report))?
-        }
-        ("set-friend-max-debt", Some(matches)) => {
-            await!(config_set_friend_max_debt(matches, app_config, node_report))?
-        }
-        ("reset-friend", Some(matches)) => {
-            await!(config_reset_friend(matches, app_config, node_report))?
-        }
-        _ => unreachable!(),
+        ConfigCmd::CloseFriend(close_friend_cmd) => await!(config_close_friend(
+            close_friend_cmd,
+            app_config,
+            node_report
+        ))?,
+        ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => await!(
+            config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report)
+        )?,
+        ConfigCmd::ResetFriend(reset_friend_cmd) => await!(config_reset_friend(
+            reset_friend_cmd,
+            app_config,
+            node_report
+        ))?,
     }
 
     Ok(())

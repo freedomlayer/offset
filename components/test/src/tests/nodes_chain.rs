@@ -7,9 +7,9 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{InvoiceId, INVOICE_ID_LEN};
 use timer::create_timer_incoming;
 
+use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 use crypto::uid::{Uid, UID_LEN};
 
 use crate::sim_network::create_sim_network;
