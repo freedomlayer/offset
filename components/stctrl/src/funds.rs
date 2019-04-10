@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use app::ser_string::string_to_public_key;
 use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
-use clap::ArgMatches;
+
+use structopt::StructOpt;
 
 use app::gen::gen_uid;
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
@@ -10,6 +11,39 @@ use app::route::{FriendsRoute, RouteWithCapacity};
 
 use crate::file::receipt::store_receipt_to_file;
 use crate::file::invoice::load_invoice_from_file;
+
+/// Send funds to a remote destination
+#[derive(Debug, StructOpt)]
+pub struct SendRawCmd {
+    /// recipient's public key
+    #[structopt(name = "destination", short = "d")]
+    destination_str: String,
+    /// Amount of credits to send
+    #[structopt(name = "amount", short = "a")]
+    dest_payment: u128,
+    /// Output receipt file
+    #[structopt(parse(from_os_str), name = "receipt", short = "r")]
+    opt_receipt_file: Option<PathBuf>,
+}
+
+/// Pay an invoice
+#[derive(Debug, StructOpt)]
+pub struct PayInvoiceCmd {
+    #[structopt(parse(from_os_str), name = "invoice", short = "i")]
+    invoice_file: PathBuf,
+    /// Output receipt file
+    #[structopt(parse(from_os_str), name = "receipt", short = "r")]
+    receipt_file: PathBuf,
+}
+
+/// Funds sending related commands
+#[derive(Debug, StructOpt)]
+pub enum FundsCmd {
+    #[structopt(name = "send-raw")]
+    SendRaw(SendRawCmd),
+    #[structopt(name = "pay-invoice")]
+    PayInvoice(PayInvoiceCmd),
+}
 
 #[derive(Debug)]
 pub enum FundsError {
@@ -67,29 +101,26 @@ fn choose_route(
 }
 
 /// Send funds to a remote destination without using an invoice.
-async fn funds_send_raw<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn funds_send_raw(
+    send_raw_cmd: SendRawCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
 ) -> Result<(), FundsError> {
-    let destination_str = matches.value_of("destination").unwrap();
-    let amount_str = matches.value_of("amount").unwrap();
 
-    let opt_receipt_file = matches.value_of("receipt");
-    let opt_receipt_pathbuf = opt_receipt_file.map(PathBuf::from);
+    let SendRawCmd {
+        destination_str,
+        dest_payment,
+        opt_receipt_file,
+    } = send_raw_cmd;
 
     // In case the user wants a receipt, make sure that we will be able to write the receipt
     // before we do the actual payment:
-    if let Some(receipt_pathbuf) = &opt_receipt_pathbuf {
-        if receipt_pathbuf.exists() {
+    if let Some(receipt_file) = &opt_receipt_file {
+        if receipt_file.exists() {
             return Err(FundsError::ReceiptFileAlreadyExists);
         }
     }
-
-    let amount = amount_str
-        .parse::<u128>()
-        .map_err(|_| FundsError::ParseAmountError)?;
 
     // Destination public key:
     let destination =
@@ -101,30 +132,30 @@ async fn funds_send_raw<'a>(
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
     let routes_with_capacity = await!(app_routes.request_routes(
-        amount,
+        dest_payment,
         local_public_key, // source
         destination,
         None
     )) // No exclusion of edges
     .map_err(|_| FundsError::AppRoutesError)?;
 
-    let route = choose_route(routes_with_capacity, amount)?;
+    let route = choose_route(routes_with_capacity, dest_payment)?;
     let fees = route.len().checked_sub(2).unwrap();
 
     // A trivial invoice:
     let request_id = gen_uid();
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let receipt = await!(app_send_funds.request_send_funds(request_id, route, invoice_id, amount))
+    let receipt = await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
         .map_err(|_| FundsError::SendFundsError)?;
 
     println!("Payment successful!");
     println!("Fees: {}", fees);
 
     // If the user wanted a receipt, we provide one:
-    if let Some(receipt_pathbuf) = opt_receipt_pathbuf {
+    if let Some(receipt_file) = opt_receipt_file {
         // Store receipt to file:
-        store_receipt_to_file(&receipt, &receipt_pathbuf).map_err(|_| FundsError::StoreReceiptError)?;
+        store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
     }
 
     // We only send the ack if we managed to get the receipt:
@@ -132,31 +163,30 @@ async fn funds_send_raw<'a>(
 }
 
 /// Pay an invoice
-async fn funds_pay_invoice<'a>(
-    matches: &'a ArgMatches<'a>,
+async fn funds_pay_invoice(
+    pay_invoice_cmd: PayInvoiceCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
 ) -> Result<(), FundsError> {
 
-    let invoice_file = matches.value_of("invoice").unwrap();
-    let invoice_pathbuf = PathBuf::from(invoice_file);
-
-    let receipt_file = matches.value_of("receipt").unwrap();
-    let receipt_pathbuf = PathBuf::from(receipt_file);
+    let PayInvoiceCmd {
+        invoice_file,
+        receipt_file,
+    } = pay_invoice_cmd;
 
     // Make sure that we will be able to write the receipt
     // before we do the actual payment:
-    if receipt_pathbuf.exists() {
+    if receipt_file.exists() {
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
 
     // Load invoice:
-    if invoice_pathbuf.exists() {
+    if invoice_file.exists() {
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
 
-    let invoice = load_invoice_from_file(&invoice_pathbuf)
+    let invoice = load_invoice_from_file(&invoice_file)
         .map_err(|_| FundsError::LoadInvoiceError)?;
 
     // TODO: We might get routes with the exact capacity,
@@ -185,13 +215,13 @@ async fn funds_pay_invoice<'a>(
     println!("Fees: {}", fees);
 
     // Store receipt to file:
-    store_receipt_to_file(&receipt, &receipt_pathbuf).map_err(|_| FundsError::StoreReceiptError)?;
+    store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
 
     // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
 }
-pub async fn funds<'a>(
-    matches: &'a ArgMatches<'a>,
+pub async fn funds(
+    funds_cmd: FundsCmd,
     mut node_connection: NodeConnection,
 ) -> Result<(), FundsError> {
     // Get our local public key:
@@ -213,20 +243,9 @@ pub async fn funds<'a>(
         .ok_or(FundsError::NoRoutesPermissions)?
         .clone();
 
-    match matches.subcommand() {
-        ("send-raw", Some(matches)) => await!(funds_send_raw(
-            matches,
-            local_public_key,
-            app_routes,
-            app_send_funds
-        ))?,
-        ("pay-invoice", Some(matches)) => await!(funds_pay_invoice(
-            matches,
-            local_public_key,
-            app_routes,
-            app_send_funds
-        ))?,
-        _ => unreachable!(),
+    match funds_cmd {
+        FundsCmd::SendRaw(send_raw_cmd) => await!(funds_send_raw(send_raw_cmd, local_public_key, app_routes, app_send_funds))?,
+        FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(pay_invoice_cmd, local_public_key, app_routes, app_send_funds))?,
     }
 
     Ok(())
