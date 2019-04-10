@@ -16,10 +16,10 @@ use crate::file::invoice::load_invoice_from_file;
 #[derive(Debug, StructOpt)]
 pub struct SendRawCmd {
     /// recipient's public key
-    #[structopt(name = "destination", short = "d")]
+    #[structopt(name = "destination", short = "d", long = "dest")]
     destination_str: String,
     /// Amount of credits to send
-    #[structopt(name = "amount", short = "a")]
+    #[structopt(name = "amount", short = "a", long = "amount")]
     dest_payment: u128,
     /// Output receipt file
     #[structopt(parse(from_os_str), name = "receipt", short = "r")]
