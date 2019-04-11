@@ -12,3 +12,4 @@
 )]
 
 pub mod stindex;
+pub mod stmgr;
