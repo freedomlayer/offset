@@ -40,16 +40,16 @@ pub const BACKOFF_TICKS: usize = 0x8;
 pub struct StIndexCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Listening address for clients
     #[structopt(long = "lclient")]
-    lclient: SocketAddr,
+    pub lclient: SocketAddr,
     /// Listening address for servers
     #[structopt(long = "lserver")]
-    lserver: SocketAddr,
+    pub lserver: SocketAddr,
     /// Directory path of trusted index servers
     #[structopt(parse(from_os_str), short = "t", long = "trusted")]
-    trusted: PathBuf,
+    pub trusted: PathBuf,
 }
 
 #[allow(clippy::enum_variant_names)]

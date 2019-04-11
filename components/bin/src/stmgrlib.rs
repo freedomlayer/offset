@@ -31,75 +31,75 @@ pub enum InitNodeDbError {
 pub struct InitNodeDbCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Database output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct GenIdentCmd {
     /// Identity file output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct AppTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Application ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
     /// Permission to request routes
     #[structopt(long = "proutes")]
-    proutes: bool,
+    pub proutes: bool,
     /// Permission to send funds
     #[structopt(long = "pfunds")]
-    pfunds: bool,
+    pub pfunds: bool,
     /// Permission to change configuration
     #[structopt(long = "pconfig")]
-    pconfig: bool,
+    pub pconfig: bool,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct RelayTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Relay ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
     /// Public address of the relay
     #[structopt(long = "address")]
-    address: String,
+    pub address: String,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct IndexTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Index server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
     /// Public address of the index server
     #[structopt(long = "address")]
-    address: String,
+    pub address: String,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct NodeTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Node server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    output: PathBuf,
+    pub output: PathBuf,
     /// Public address of the node server
     #[structopt(long = "address")]
-    address: String,
+    pub address: String,
 }
 
 // TODO: Add version (0.1.0)

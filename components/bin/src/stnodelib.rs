@@ -68,16 +68,16 @@ pub enum NodeBinError {
 pub struct StNodeCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Listening address (Used for communication with apps)
     #[structopt(short = "l", long = "laddr")]
-    laddr: SocketAddr,
+    pub laddr: SocketAddr,
     /// Database file path
     #[structopt(parse(from_os_str), short = "d", long = "database")]
-    database: PathBuf,
+    pub database: PathBuf,
     /// Directory path of trusted applications
     #[structopt(parse(from_os_str), short = "t", long = "trusted")]
-    trusted: PathBuf,
+    pub trusted: PathBuf,
 }
 
 pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {

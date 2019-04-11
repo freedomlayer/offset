@@ -26,10 +26,10 @@ pub struct FriendsCmd {}
 #[derive(Debug, StructOpt)]
 pub struct FriendLastTokenCmd {
     #[structopt(short = "n", name = "name")]
-    friend_name: String,
+    pub friend_name: String,
     /// Path for output token file
     #[structopt(short = "o", name = "output")]
-    output_file: PathBuf,
+    pub output_file: PathBuf,
 }
 
 /// Display balance summary
@@ -40,7 +40,7 @@ pub struct BalanceCmd {}
 #[derive(Debug, StructOpt)]
 pub struct ExportTicketCmd {
     #[structopt(short = "o", name = "output")]
-    output_file: PathBuf,
+    pub output_file: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]

@@ -28,13 +28,13 @@ pub enum StRegisterError {
 pub struct GenInvoice {
     /// Payment recipient's public key (In base 64)
     #[structopt(short = "p")]
-    public_key: String,
+    pub public_key: String,
     /// Amount of credits to pay (A non negative integer)
     #[structopt(short = "a")]
-    amount: u128,
+    pub amount: u128,
     /// Path of output invoice file
     #[structopt(parse(from_os_str), short = "o")]
-    output: PathBuf,
+    pub output: PathBuf,
 }
 
 /// Verify receipt file
@@ -42,10 +42,10 @@ pub struct GenInvoice {
 pub struct VerifyReceipt {
     /// Path of invoice file (Locally generated)
     #[structopt(parse(from_os_str), short = "i")]
-    invoice: PathBuf,
+    pub invoice: PathBuf,
     /// Path of receipt file (Received from buyer)
     #[structopt(parse(from_os_str), short = "r")]
-    receipt: PathBuf,
+    pub receipt: PathBuf,
 }
 
 /// Verify a token received from a friend.
@@ -54,7 +54,7 @@ pub struct VerifyReceipt {
 pub struct VerifyToken {
     /// Path of token file
     #[structopt(parse(from_os_str), short = "t")]
-    token: PathBuf,
+    pub token: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]

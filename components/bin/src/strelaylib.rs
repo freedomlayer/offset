@@ -45,10 +45,10 @@ pub enum RelayServerBinError {
 pub struct StRelayCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Listening address
     #[structopt(long = "laddr")]
-    laddr: SocketAddr,
+    pub laddr: SocketAddr,
 }
 
 pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {

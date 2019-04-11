@@ -15,10 +15,10 @@ use crate::utils::friend_public_key_by_name;
 pub struct AddRelayCmd {
     /// Path of relay file
     #[structopt(parse(from_os_str), name = "relay", short = "r")]
-    relay_file: PathBuf,
+    pub relay_file: PathBuf,
     /// Assigned relay name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    relay_name: String,
+    pub relay_name: String,
 }
 
 /// Remove relay
@@ -26,7 +26,7 @@ pub struct AddRelayCmd {
 pub struct RemoveRelayCmd {
     /// Relay name to remove
     #[structopt(name = "name", short = "n")]
-    relay_name: String,
+    pub relay_name: String,
 }
 
 /// Add index
@@ -34,10 +34,10 @@ pub struct RemoveRelayCmd {
 pub struct AddIndexCmd {
     /// Path of index file
     #[structopt(parse(from_os_str), name = "index", short = "i")]
-    index_file: PathBuf,
+    pub index_file: PathBuf,
     /// Assigned index name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    index_name: String,
+    pub index_name: String,
 }
 
 /// Remove index
@@ -45,7 +45,7 @@ pub struct AddIndexCmd {
 pub struct RemoveIndexCmd {
     /// Index name to remove
     #[structopt(name = "name", short = "n")]
-    index_name: String,
+    pub index_name: String,
 }
 
 /// Add friend
@@ -53,13 +53,13 @@ pub struct RemoveIndexCmd {
 pub struct AddFriendCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), name = "friend", short = "f")]
-    friend_file: PathBuf,
+    pub friend_file: PathBuf,
     /// Assigned friend name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
     /// Initial balance with friend
     #[structopt(name = "balance", short = "b")]
-    balance: i128,
+    pub balance: i128,
 }
 
 /// Set friend relays
@@ -67,10 +67,10 @@ pub struct AddFriendCmd {
 pub struct SetFriendRelaysCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), name = "friend", short = "f")]
-    friend_file: PathBuf,
+    pub friend_file: PathBuf,
     /// Friend name (Must be an existing friend)
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Remove friend
@@ -78,7 +78,7 @@ pub struct SetFriendRelaysCmd {
 pub struct RemoveFriendCmd {
     /// Friend name to remove
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Enable friend
@@ -86,7 +86,7 @@ pub struct RemoveFriendCmd {
 pub struct EnableFriendCmd {
     /// Friend name to enable
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Disable friend
@@ -94,7 +94,7 @@ pub struct EnableFriendCmd {
 pub struct DisableFriendCmd {
     /// Friend name to disable
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Enable forwarding of payment requests from friend to us
@@ -102,7 +102,7 @@ pub struct DisableFriendCmd {
 pub struct OpenFriendCmd {
     /// Friend name to open
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Disable forwarding of payment requests from friend to us
@@ -110,7 +110,7 @@ pub struct OpenFriendCmd {
 pub struct CloseFriendCmd {
     /// Friend name to close
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Set friend's maximum allowed debt
@@ -119,10 +119,10 @@ pub struct CloseFriendCmd {
 pub struct SetFriendMaxDebtCmd {
     /// Friend name
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
     /// Max debt allowed for friend
     #[structopt(name = "mdebt", short = "m")]
-    max_debt: u128,
+    pub max_debt: u128,
 }
 
 /// Reset mutual credit with friend according to friend's terms.
@@ -130,7 +130,7 @@ pub struct SetFriendMaxDebtCmd {
 pub struct ResetFriendCmd {
     /// Friend name to reset
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 #[derive(Debug, StructOpt)]

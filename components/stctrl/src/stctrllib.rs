@@ -61,12 +61,12 @@ pub enum StCtrlSubcommand {
 pub struct StCtrlCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "I", long = "idfile")]
-    idfile: PathBuf,
+    pub idfile: PathBuf,
     /// Node ticket file path
     #[structopt(parse(from_os_str), short = "T", name = "ticket")]
-    node_ticket: PathBuf,
+    pub node_ticket: PathBuf,
     #[structopt(flatten)]
-    subcommand: StCtrlSubcommand,
+    pub subcommand: StCtrlSubcommand,
 }
 
 pub fn stctrl(st_ctrl_cmd: StCtrlCmd) -> Result<(), StCtrlError> {
