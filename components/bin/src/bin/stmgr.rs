@@ -14,8 +14,9 @@
 #[macro_use]
 extern crate log;
 
-use bin::stmgr::{stmgr, StMgrCmd, StmError};
 use structopt::StructOpt;
+
+use bin::stmgrlib::{stmgr, StMgrCmd, StmError};
 
 fn run() -> Result<(), StmError> {
     env_logger::init();

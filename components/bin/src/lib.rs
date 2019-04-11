@@ -12,7 +12,7 @@
     clippy::new_without_default
 )]
 
-pub mod stindex;
-pub mod stmgr;
-pub mod stnode;
-pub mod strelay;
+pub mod stindexlib;
+pub mod stmgrlib;
+pub mod stnodelib;
+pub mod strelaylib;
