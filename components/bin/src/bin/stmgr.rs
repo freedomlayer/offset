@@ -70,7 +70,7 @@ struct AppTicketCmd {
     /// Application ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     output: PathBuf,
-    /// Permission to request reports
+    /// Permission to request routes
     #[structopt(long = "proutes")]
     proutes: bool,
     /// Permission to send funds
