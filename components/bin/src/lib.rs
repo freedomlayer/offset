@@ -2,6 +2,7 @@
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
+#![type_length_limit = "3770813"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
