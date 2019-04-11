@@ -1,5 +1,3 @@
-extern crate untrusted;
-
 use ring::agreement::{self, EphemeralPrivateKey};
 use ring::digest;
 use ring::hkdf::extract_and_expand;

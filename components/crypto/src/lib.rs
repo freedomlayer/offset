@@ -7,16 +7,10 @@
 )]
 // TODO: disallow clippy::too_many_arguments
 
-extern crate bytes;
-extern crate ring;
 #[macro_use]
 extern crate common;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate base64;
-extern crate byteorder;
-extern crate rand;
 
 pub mod crypto_rand;
 pub mod dh;

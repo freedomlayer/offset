@@ -110,8 +110,8 @@ fn shift_left(blocks: &mut Vec<u64>, nbits: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::increase_nonce;
     use byteorder::{ByteOrder, LittleEndian};
-    use increase_nonce;
 
     const NONCE_LENGTH: usize = 4;
     const WINDOW_WIDTH: usize = 256;

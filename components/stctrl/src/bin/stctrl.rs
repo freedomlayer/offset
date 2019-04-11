@@ -80,7 +80,7 @@ struct StCtrlCmd {
     #[structopt(parse(from_os_str), short = "I", long = "idfile")]
     idfile: PathBuf,
     /// Node ticket file path
-    #[structopt(parse(from_os_str), name = "ticket", short = "T")]
+    #[structopt(parse(from_os_str), short = "T", name = "ticket")]
     node_ticket: PathBuf,
     #[structopt(flatten)]
     subcommand: StCtrlSubcommand,

@@ -8,9 +8,6 @@
 #[macro_use]
 extern crate log;
 
-// #[macro_use]
-extern crate structopt;
-
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -71,7 +68,7 @@ struct VerifyToken {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "stregister", about = "offST register")]
+/// stregister - offST register
 enum StRegister {
     #[structopt(name = "gen-invoice")]
     GenInvoice(GenInvoice),

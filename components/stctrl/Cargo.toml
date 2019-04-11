@@ -21,7 +21,6 @@ path = "src/bin/stregister.rs"
 
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 
-clap = "2.32.0"
 log = "0.4"
 # simple_logger = "1.0.1"
 env_logger = "0.6.0"

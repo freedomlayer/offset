@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
 use toml;
@@ -90,16 +90,32 @@ pub fn store_trusted_app_to_file(
     Ok(())
 }
 
+#[derive(Debug)]
+pub enum AppDirectoryError {
+    IoError(io::Error),
+    InvalidDirectory(io::Error),
+    InvalidFile(PathBuf, AppFileError),
+}
+
+impl From<io::Error> for AppDirectoryError {
+    fn from(e: io::Error) -> Self {
+        AppDirectoryError::IoError(e)
+    }
+}
+
 /// Load all trusted applications files from a given directory.
-pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedApp>, AppFileError> {
+pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedApp>, AppDirectoryError> {
     let mut res_trusted = Vec::new();
-    for entry in fs::read_dir(dir_path)? {
+    for entry in fs::read_dir(dir_path).map_err(AppDirectoryError::InvalidDirectory)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
             continue;
         }
-        res_trusted.push(load_trusted_app_from_file(&path)?);
+        res_trusted.push(
+            load_trusted_app_from_file(&path)
+                .map_err(|e| AppDirectoryError::InvalidFile(path, e))?,
+        );
     }
     Ok(res_trusted)
 }

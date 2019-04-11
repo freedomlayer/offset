@@ -10,9 +10,3 @@
     clippy::module_inception
 )]
 // TODO: disallow clippy::too_many_arguments
-
-// #[macro_use]
-// extern crate log;
-extern crate clap;
-// #[macro_use]
-extern crate serde_derive;

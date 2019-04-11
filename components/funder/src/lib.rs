@@ -13,19 +13,10 @@
 )]
 // TODO: disallow clippy::too_many_arguments
 
-extern crate futures_cpupool;
-
 #[macro_use]
 extern crate log;
-
-extern crate num_bigint;
-extern crate num_traits;
-
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-
-extern crate common;
 
 mod credit_calc;
 mod ephemeral;

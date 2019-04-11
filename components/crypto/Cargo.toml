@@ -2,6 +2,7 @@
 name = "offst-crypto"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
+edition = "2018"
 
 [dependencies]
 
@@ -22,5 +23,3 @@ version = "1.1"
 features = ["i128"]
 
 [dev-dependencies]
-
-

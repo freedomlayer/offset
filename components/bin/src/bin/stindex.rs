@@ -17,13 +17,13 @@ extern crate log;
 use std::collections::HashMap;
 
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
-use clap::{App, Arg};
+use structopt::StructOpt;
 
 use common::conn::Listener;
 use common::int_convert::usize_to_u64;
@@ -39,7 +39,7 @@ use timer::create_timer;
 use net::{NetConnector, TcpListener};
 
 use proto::file::identity::load_identity_from_file;
-use proto::file::index_server::load_trusted_servers;
+use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
 
 // TODO; Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
@@ -54,76 +54,46 @@ enum IndexServerBinError {
     CreateThreadPoolError,
     CreateTimerError,
     NetIndexServerError(NetIndexServerError),
-    ParseClientListenAddressError,
-    ParseServerListenAddressError,
     LoadIdentityError,
     CreateIdentityError,
-    LoadTrustedServersError,
+    LoadTrustedServersError(IndexServerDirectoryError),
+}
+
+// TODO: Add version (0.1.0)
+// TODO: Add author
+// TODO: Add description
+/// stindex: Offst Index Server
+#[derive(Debug, StructOpt)]
+struct StIndexCmd {
+    /// StCtrl app identity file path
+    #[structopt(parse(from_os_str), short = "i", long = "idfile")]
+    idfile: PathBuf,
+    /// Listening address for clients
+    #[structopt(long = "lclient")]
+    lclient: SocketAddr,
+    /// Listening address for servers
+    #[structopt(long = "lserver")]
+    lserver: SocketAddr,
+    /// Directory path of trusted index servers
+    #[structopt(parse(from_os_str), short = "t", long = "trusted")]
+    trusted: PathBuf,
 }
 
 fn run() -> Result<(), IndexServerBinError> {
     env_logger::init();
-    let matches = App::new("Offst Index Server")
-        .version("0.1.0")
-        .author("real <real@freedomlayer.org>")
-        .about("Spawns an Index Server")
-        .arg(
-            Arg::with_name("idfile")
-                .short("i")
-                .long("idfile")
-                .value_name("idfile")
-                .help("identity file path")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("lclient")
-                .long("lclient")
-                .value_name("lclient")
-                .help("Listening address for clients")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("lserver")
-                .long("lserver")
-                .value_name("lserver")
-                .help("Listening address for servers")
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("trusted")
-                .short("t")
-                .long("trusted")
-                .value_name("trusted")
-                .help("Directory path of trusted index servers")
-                .required(true),
-        )
-        .get_matches();
 
-    // Parse clients listening address
-    let client_listen_address_str = matches.value_of("lclient").unwrap();
-    let client_listen_socket_addr: SocketAddr = client_listen_address_str
-        .parse()
-        .map_err(|_| IndexServerBinError::ParseClientListenAddressError)?;
+    let StIndexCmd {
+        idfile,
+        lclient,
+        lserver,
+        trusted,
+    } = StIndexCmd::from_args();
 
-    // Parse servers listening address
-    let server_listen_address_str = matches.value_of("lserver").unwrap();
-    let server_listen_socket_addr: SocketAddr = server_listen_address_str
-        .parse()
-        .map_err(|_| IndexServerBinError::ParseServerListenAddressError)?;
-
-    // Parse identity file:
-    let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(Path::new(&idfile_path))
+    let identity = load_identity_from_file(Path::new(&idfile))
         .map_err(|_| IndexServerBinError::LoadIdentityError)?;
-    // let local_public_key = identity.get_public_key();
 
-    // Load trusted index servers
-    let trusted_dir_path = matches.value_of("trusted").unwrap();
-    // TODO: We need a more detailed error here.
-    // It might be hard for the user to detect in which file there was a problem
-    // in case of an error.
-    let trusted_servers = load_trusted_servers(Path::new(&trusted_dir_path))
-        .map_err(|_| IndexServerBinError::LoadTrustedServersError)?
+    let trusted_servers = load_trusted_servers(Path::new(&trusted))
+        .map_err(IndexServerBinError::LoadTrustedServersError)?
         .into_iter()
         .map(|index_server_address| {
             (
@@ -159,13 +129,11 @@ fn run() -> Result<(), IndexServerBinError> {
 
     // Start listening to clients:
     let client_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_client_raw_conns) =
-        client_tcp_listener.listen(client_listen_socket_addr);
+    let (_config_sender, incoming_client_raw_conns) = client_tcp_listener.listen(lclient);
 
     // Start listening to servers:
     let server_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_server_raw_conns) =
-        server_tcp_listener.listen(server_listen_socket_addr);
+    let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(lserver);
 
     // A tcp connector, Used to connect to remote servers:
     let raw_server_net_connector =

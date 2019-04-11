@@ -16,13 +16,13 @@
 extern crate log;
 
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
-use clap::{App, Arg};
+use structopt::StructOpt;
 
 use common::conn::Listener;
 
@@ -47,7 +47,6 @@ pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum RelayServerBinError {
-    ParseListenAddressError,
     CreateThreadPoolError,
     LoadIdentityError,
     CreateIdentityError,
@@ -55,36 +54,28 @@ enum RelayServerBinError {
     NetRelayServerError(NetRelayServerError),
 }
 
+// TODO: Add version (0.1.0)
+// TODO: Add author
+// TODO: Add description - Spawns an Offst Relay Server
+/// strelay: Offst Relay Server
+#[derive(Debug, StructOpt)]
+struct StRelayCmd {
+    /// StCtrl app identity file path
+    #[structopt(parse(from_os_str), short = "i", long = "idfile")]
+    idfile: PathBuf,
+    /// Listening address
+    #[structopt(long = "laddr")]
+    laddr: SocketAddr,
+}
+
 fn run() -> Result<(), RelayServerBinError> {
     env_logger::init();
-    let matches = App::new("Offst Relay Server")
-                          .version("0.1.0")
-                          .author("real <real@freedomlayer.org>")
-                          .about("Spawns an Offst Relay Server")
-                          .arg(Arg::with_name("idfile")
-                               .short("i")
-                               .long("idfile")
-                               .value_name("idfile")
-                               .help("Identity file path")
-                               .required(true))
-                          .arg(Arg::with_name("laddr")
-                               .short("l")
-                               .long("laddr")
-                               .value_name("laddr")
-                               .help("Listening address. \nExamples:\n- 0.0.0.0:1337\n- fe80::14c2:3048:b1ac:85fb:1337")
-                               .required(true))
-                          .get_matches();
 
-    // Parse listening address
-    let listen_address_str = matches.value_of("laddr").unwrap();
-    let listen_socket_addr: SocketAddr = listen_address_str
-        .parse()
-        .map_err(|_| RelayServerBinError::ParseListenAddressError)?;
+    let StRelayCmd { idfile, laddr } = StRelayCmd::from_args();
 
     // Parse identity file:
-    let idfile_path = matches.value_of("idfile").unwrap();
-    let identity = load_identity_from_file(Path::new(&idfile_path))
-        .map_err(|_| RelayServerBinError::LoadIdentityError)?;
+    let identity =
+        load_identity_from_file(&idfile).map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
     let mut thread_pool =
@@ -104,7 +95,7 @@ fn run() -> Result<(), RelayServerBinError> {
     let rng = system_random();
 
     let tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(listen_socket_addr);
+    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(laddr);
 
     let relay_server_fut = net_relay_server(
         incoming_raw_conns,

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use toml;
 
@@ -96,19 +96,35 @@ pub fn store_index_server_to_file(
     Ok(())
 }
 
+#[derive(Debug)]
+pub enum IndexServerDirectoryError {
+    IoError(io::Error),
+    InvalidDirectory(io::Error),
+    InvalidFile(PathBuf, IndexServerFileError),
+}
+
+impl From<io::Error> for IndexServerDirectoryError {
+    fn from(e: io::Error) -> Self {
+        IndexServerDirectoryError::IoError(e)
+    }
+}
+
 /// Load a directory of index server address files, and return a map representing
 /// the information from all files
 pub fn load_trusted_servers(
     dir_path: &Path,
-) -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerFileError> {
+) -> Result<Vec<IndexServerAddress<NetAddress>>, IndexServerDirectoryError> {
     let mut res_trusted = Vec::new();
-    for entry in fs::read_dir(dir_path)? {
+    for entry in fs::read_dir(dir_path).map_err(IndexServerDirectoryError::InvalidDirectory)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
             continue;
         }
-        res_trusted.push(load_index_server_from_file(&path)?);
+        res_trusted.push(
+            load_index_server_from_file(&path)
+                .map_err(|e| IndexServerDirectoryError::InvalidFile(path, e))?,
+        );
     }
     Ok(res_trusted)
 }

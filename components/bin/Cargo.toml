@@ -44,12 +44,12 @@ serde_derive = "1.0.87"
 serde = "1.0.87"
 base64 = "0.10.1"
 
-clap = "2.32.0"
 log = "0.4"
 env_logger = "0.6.0"
 futures-preview = "0.3.0-alpha.13"
 
+structopt = "0.2.15"
+
 [dev-dependencies]
 
 tempfile = "3.0.5"
-
