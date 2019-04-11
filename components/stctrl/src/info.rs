@@ -103,7 +103,11 @@ pub async fn info_relays(mut app_report: AppReport, writer: &mut impl io::Write)
             named_relay_address.address
         ]);
     }
-    table.print(writer).map_err(|_| InfoError::WriteError)?;
+    if !table.is_empty() {
+        table.print(writer).map_err(|_| InfoError::WriteError)?;
+    } else {
+        writeln!(writer, "No configured relay servers.").map_err(|_| InfoError::WriteError)?;
+    }
     Ok(())
 }
 
@@ -127,7 +131,11 @@ pub async fn info_index(mut app_report: AppReport, writer: &mut impl io::Write) 
         let pk_string = public_key_to_string(&named_index_server_address.public_key);
         table.add_row(row![name, pk_string, named_index_server_address.address]);
     }
-    table.print(writer).map_err(|_| InfoError::WriteError)?;
+    if !table.is_empty() {
+        table.print(writer).map_err(|_| InfoError::WriteError)?;
+    } else {
+        writeln!(writer, "No configured index servers.").map_err(|_| InfoError::WriteError)?;
+    }
     Ok(())
 }
 
@@ -224,7 +232,11 @@ pub async fn info_friends(mut app_report: AppReport, writer: &mut impl io::Write
         ]);
     }
 
-    table.print(writer).map_err(|_| InfoError::WriteError)?;
+    if !table.is_empty() {
+        table.print(writer).map_err(|_| InfoError::WriteError)?;
+    } else {
+        writeln!(writer, "No configured friends.").map_err(|_| InfoError::WriteError)?;
+    }
     Ok(())
 }
 
