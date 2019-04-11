@@ -1,4 +1,4 @@
-use std::{thread, time};
+use std::{str, thread, time};
 
 use tempfile::tempdir;
 
@@ -6,6 +6,7 @@ use bin::stindexlib::{stindex, StIndexCmd};
 use bin::stnodelib::{stnode, StNodeCmd};
 use bin::strelaylib::{strelay, StRelayCmd};
 
+use stctrl::config::{AddIndexCmd, AddRelayCmd, ConfigCmd};
 use stctrl::info::{FriendsCmd, InfoCmd};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
 
@@ -95,43 +96,91 @@ fn basic_invoice_receipt() {
 
     spawn_entities(&stctrl_setup);
 
-    // Wait until app0 manages to connect to node0:
-    // -------------------------------------------
-    // Show friends:
-    let friends_cmd = FriendsCmd {};
-    let info_cmd = InfoCmd::Friends(friends_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
+    for j in 0..2 {
+        // Wait until app0 manages to connect to node0:
+        // -------------------------------------------
+        // Show friends:
+        let friends_cmd = FriendsCmd {};
+        let info_cmd = InfoCmd::Friends(friends_cmd);
+        let subcommand = StCtrlSubcommand::Info(info_cmd);
 
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0.ticket"),
-        subcommand,
-    };
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
 
-    while stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).is_err() {
-        thread::sleep(time::Duration::from_millis(100));
+        let mut output = Vec::new();
+        while stctrl(st_ctrl_cmd.clone(), &mut output).is_err() {
+            thread::sleep(time::Duration::from_millis(100));
+            output.clear();
+        }
+        assert!(str::from_utf8(&output)
+            .unwrap()
+            .contains("No configured friends"));
     }
 
-    // Wait until app1 manages to connect to node1:
-    // -------------------------------------------
-    // Show friends:
-    let friends_cmd = FriendsCmd {};
-    let info_cmd = InfoCmd::Friends(friends_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
+    // Configure relay servers for nodes:
+    // -----------------------------
 
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
+    for j in 0..2 {
+        // Node0: Add relay0:
+        let add_relay_cmd = AddRelayCmd {
+            relay_file: stctrl_setup
+                .temp_dir_path
+                .join(format!("relay{}", j))
+                .join(format!("relay{}.ticket", j)),
+            relay_name: format!("relay{}", j),
+        };
+        let config_cmd = ConfigCmd::AddRelay(add_relay_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
 
-    while stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).is_err() {
-        thread::sleep(time::Duration::from_millis(100));
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Configure index servers for nodes:
+    // -----------------------------
+
+    for j in 0..2 {
+        // Node0: Add index0:
+        let add_index_cmd = AddIndexCmd {
+            index_file: stctrl_setup
+                .temp_dir_path
+                .join(format!("index{}", j))
+                .join(format!("index{}_client.ticket", j)),
+            index_name: format!("index{}", j),
+        };
+        let config_cmd = ConfigCmd::AddIndex(add_index_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
 }
