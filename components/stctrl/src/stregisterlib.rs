@@ -1,3 +1,4 @@
+use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -21,6 +22,7 @@ pub enum StRegisterError {
     ParsePublicKeyError,
     LoadTokenError,
     TokenInvalid,
+    WriteError,
 }
 
 /// Generate invoice file
@@ -91,7 +93,10 @@ fn subcommand_gen_invoice(arg_gen_invoice: GenInvoice) -> Result<(), StRegisterE
 }
 
 /// Verify a given receipt
-fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), StRegisterError> {
+fn subcommand_verify_receipt(
+    arg_verify_receipt: VerifyReceipt,
+    writer: &mut impl io::Write,
+) -> Result<(), StRegisterError> {
     let invoice = load_invoice_from_file(&arg_verify_receipt.invoice)
         .map_err(|_| StRegisterError::LoadInvoiceError)?;
 
@@ -109,7 +114,7 @@ fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), St
     }
 
     if verify_receipt(&receipt, &invoice.dest_public_key) {
-        println!("Receipt is valid!");
+        writeln!(writer, "Receipt is valid!").map_err(|_| StRegisterError::WriteError)?;
         Ok(())
     } else {
         Err(StRegisterError::InvalidReceipt)
@@ -118,7 +123,10 @@ fn subcommand_verify_receipt(arg_verify_receipt: VerifyReceipt) -> Result<(), St
 
 /// Verify a given friend token
 /// If the given token is valid, output token details
-fn subcommand_verify_token(arg_verify_token: VerifyToken) -> Result<(), StRegisterError> {
+fn subcommand_verify_token(
+    arg_verify_token: VerifyToken,
+    writer: &mut impl io::Write,
+) -> Result<(), StRegisterError> {
     let move_token_hashed_report = load_token_from_file(&arg_verify_token.token)
         .map_err(|_| StRegisterError::LoadTokenError)?;
 
@@ -126,42 +134,60 @@ fn subcommand_verify_token(arg_verify_token: VerifyToken) -> Result<(), StRegist
         &move_token_hashed_report,
         &move_token_hashed_report.local_public_key,
     ) {
-        println!("Token is valid!");
-        println!();
-        println!(
+        writeln!(writer, "Token is valid!").map_err(|_| StRegisterError::WriteError)?;
+        writeln!(writer, "").map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "local_public_key: {}",
             public_key_to_string(&move_token_hashed_report.local_public_key)
-        );
-        println!(
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "remote_public_key: {}",
             public_key_to_string(&move_token_hashed_report.remote_public_key)
-        );
-        println!(
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "inconsistency_counter: {}",
             move_token_hashed_report.inconsistency_counter
-        );
-        println!(
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "move_token_counter: {}",
             move_token_hashed_report.move_token_counter
-        );
-        println!(
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "local_pending_debt: {}",
             move_token_hashed_report.local_pending_debt
-        );
-        println!(
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(
+            writer,
             "remote_pending_debt: {}",
             move_token_hashed_report.remote_pending_debt
-        );
+        )
+        .map_err(|_| StRegisterError::WriteError)?;
+
         Ok(())
     } else {
         Err(StRegisterError::TokenInvalid)
     }
 }
 
-pub fn stregister(st_register_cmd: StRegisterCmd) -> Result<(), StRegisterError> {
+pub fn stregister(
+    st_register_cmd: StRegisterCmd,
+    writer: &mut impl io::Write,
+) -> Result<(), StRegisterError> {
     match st_register_cmd {
         StRegisterCmd::GenInvoice(gen_invoice) => subcommand_gen_invoice(gen_invoice),
-        StRegisterCmd::VerifyReceipt(verify_receipt) => subcommand_verify_receipt(verify_receipt),
-        StRegisterCmd::VerifyToken(verify_token) => subcommand_verify_token(verify_token),
+        StRegisterCmd::VerifyReceipt(verify_receipt) => {
+            subcommand_verify_receipt(verify_receipt, writer)
+        }
+        StRegisterCmd::VerifyToken(verify_token) => subcommand_verify_token(verify_token, writer),
     }
 }

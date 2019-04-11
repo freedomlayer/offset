@@ -8,6 +8,7 @@
 #[macro_use]
 extern crate log;
 
+use std::io;
 use structopt::StructOpt;
 
 use stctrl::stregisterlib::{stregister, StRegisterCmd, StRegisterError};
@@ -15,7 +16,7 @@ use stctrl::stregisterlib::{stregister, StRegisterCmd, StRegisterError};
 fn run() -> Result<(), StRegisterError> {
     env_logger::init();
     let st_register_cmd = StRegisterCmd::from_args();
-    stregister(st_register_cmd)
+    stregister(st_register_cmd, &mut io::stdout())
 }
 
 fn main() {

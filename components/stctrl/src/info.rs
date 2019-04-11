@@ -1,3 +1,4 @@
+use std::io;
 use std::path::PathBuf;
 
 use prettytable::Table;
@@ -74,6 +75,7 @@ pub enum InfoError {
     FriendNameNotFound,
     MissingLastIncomingMoveToken,
     StoreLastIncomingMoveTokenError,
+    WriteError,
 }
 
 /// Get a most recently known node report:
@@ -86,7 +88,7 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
     Ok(node_report)
 }
 
-pub async fn info_relays(mut app_report: AppReport) -> Result<(), InfoError> {
+pub async fn info_relays(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
@@ -101,11 +103,11 @@ pub async fn info_relays(mut app_report: AppReport) -> Result<(), InfoError> {
             named_relay_address.address
         ]);
     }
-    table.printstd();
+    table.print(writer).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
 
-pub async fn info_index(mut app_report: AppReport) -> Result<(), InfoError> {
+pub async fn info_index(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
@@ -125,7 +127,7 @@ pub async fn info_index(mut app_report: AppReport) -> Result<(), InfoError> {
         let pk_string = public_key_to_string(&named_index_server_address.public_key);
         table.add_row(row![name, pk_string, named_index_server_address.address]);
     }
-    table.printstd();
+    table.print(writer).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
 
@@ -190,7 +192,7 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
 }
 
 
-pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
+pub async fn info_friends(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
@@ -222,7 +224,7 @@ pub async fn info_friends(mut app_report: AppReport) -> Result<(), InfoError> {
         ]);
     }
 
-    table.printstd();
+    table.print(writer).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
 
@@ -277,7 +279,7 @@ fn friend_balance(friend_report: &FriendReport) -> i128 {
     }
 }
 
-pub async fn info_balance(mut app_report: AppReport) -> Result<(), InfoError> {
+pub async fn info_balance(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut total_balance: i128 = 0;
@@ -287,7 +289,7 @@ pub async fn info_balance(mut app_report: AppReport) -> Result<(), InfoError> {
             .ok_or(InfoError::BalanceOverflow)?;
     }
 
-    println!("Total balance: {}", total_balance);
+    writeln!(writer, "Total balance: {}", total_balance).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
 
@@ -320,17 +322,17 @@ pub async fn info_export_ticket(
     Ok(())
 }
 
-pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection) -> Result<(), InfoError> {
+pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection, writer: &mut impl io::Write) -> Result<(), InfoError> {
     let app_report = node_connection.report().clone();
 
     match info_cmd {
-        InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report))?,
-        InfoCmd::Index(_index_cmd) => await!(info_index(app_report))?,
-        InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report))?,
+        InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report, writer))?,
+        InfoCmd::Index(_index_cmd) => await!(info_index(app_report, writer))?,
+        InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report, writer))?,
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
             await!(info_friend_last_token(friend_last_token_cmd, app_report))?
         }
-        InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report))?,
+        InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report, writer))?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
             await!(info_export_ticket(export_ticket_cmd, app_report))?
         }

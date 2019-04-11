@@ -14,6 +14,7 @@
 #[macro_use]
 extern crate log;
 
+use std::io;
 use structopt::StructOpt;
 
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError};
@@ -21,7 +22,7 @@ use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError};
 fn run() -> Result<(), StCtrlError> {
     env_logger::init();
     let st_ctrl_cmd = StCtrlCmd::from_args();
-    stctrl(st_ctrl_cmd)
+    stctrl(st_ctrl_cmd, &mut io::stdout())
 }
 
 fn main() {

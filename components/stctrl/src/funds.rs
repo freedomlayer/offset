@@ -1,3 +1,4 @@
+use std::io;
 use std::path::PathBuf;
 
 use app::ser_string::string_to_public_key;
@@ -59,6 +60,7 @@ pub enum FundsError {
     StoreReceiptError,
     ReceiptAckError,
     LoadInvoiceError,
+    WriteError,
 }
 
 /// Choose a route for pushing `amount` credits
@@ -106,6 +108,7 @@ async fn funds_send_raw(
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
     let SendRawCmd {
         destination_str,
@@ -149,8 +152,8 @@ async fn funds_send_raw(
         await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
             .map_err(|_| FundsError::SendFundsError)?;
 
-    println!("Payment successful!");
-    println!("Fees: {}", fees);
+    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
     // If the user wanted a receipt, we provide one:
     if let Some(receipt_file) = opt_receipt_file {
@@ -169,6 +172,7 @@ async fn funds_pay_invoice(
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
     let PayInvoiceCmd {
         invoice_file,
@@ -216,8 +220,8 @@ async fn funds_pay_invoice(
     ))
     .map_err(|_| FundsError::SendFundsError)?;
 
-    println!("Payment successful!");
-    println!("Fees: {}", fees);
+    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
     // Store receipt to file:
     store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
@@ -228,6 +232,7 @@ async fn funds_pay_invoice(
 pub async fn funds(
     funds_cmd: FundsCmd,
     mut node_connection: NodeConnection,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
     // Get our local public key:
     let mut app_report = node_connection.report().clone();
@@ -253,13 +258,15 @@ pub async fn funds(
             send_raw_cmd,
             local_public_key,
             app_routes,
-            app_send_funds
+            app_send_funds,
+            writer,
         ))?,
         FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
-            app_send_funds
+            app_send_funds,
+            writer,
         ))?,
     }
 

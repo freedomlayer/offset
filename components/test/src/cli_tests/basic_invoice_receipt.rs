@@ -111,7 +111,7 @@ fn basic_invoice_receipt() {
         subcommand,
     };
 
-    while stctrl(st_ctrl_cmd.clone()).is_err() {
+    while stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).is_err() {
         thread::sleep(time::Duration::from_millis(100));
     }
 
@@ -131,7 +131,7 @@ fn basic_invoice_receipt() {
         subcommand,
     };
 
-    while stctrl(st_ctrl_cmd.clone()).is_err() {
+    while stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).is_err() {
         thread::sleep(time::Duration::from_millis(100));
     }
 }

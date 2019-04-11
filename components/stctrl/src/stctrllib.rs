@@ -1,3 +1,4 @@
+use std::io;
 use std::path::PathBuf;
 
 use futures::executor::ThreadPool;
@@ -69,7 +70,7 @@ pub struct StCtrlCmd {
     pub subcommand: StCtrlSubcommand,
 }
 
-pub fn stctrl(st_ctrl_cmd: StCtrlCmd) -> Result<(), StCtrlError> {
+pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(), StCtrlError> {
     let mut thread_pool = ThreadPool::new().map_err(|_| StCtrlError::CreateThreadPoolError)?;
 
     let StCtrlCmd {
@@ -109,11 +110,11 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd) -> Result<(), StCtrlError> {
             .map_err(|_| StCtrlError::ConnectionError)?;
 
             match subcommand {
-                StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection))?,
+                StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection, writer))?,
                 StCtrlSubcommand::Config(config_cmd) => {
                     await!(config(config_cmd, node_connection))?
                 }
-                StCtrlSubcommand::Funds(funds_cmd) => await!(funds(funds_cmd, node_connection))?,
+                StCtrlSubcommand::Funds(funds_cmd) => await!(funds(funds_cmd, node_connection, writer))?,
             }
             Ok(())
         },
