@@ -24,7 +24,7 @@ pub enum StRegisterError {
 }
 
 /// Generate invoice file
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct GenInvoice {
     /// Payment recipient's public key (In base 64)
     #[structopt(short = "p")]
@@ -38,7 +38,7 @@ pub struct GenInvoice {
 }
 
 /// Verify receipt file
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct VerifyReceipt {
     /// Path of invoice file (Locally generated)
     #[structopt(parse(from_os_str), short = "i")]
@@ -50,14 +50,14 @@ pub struct VerifyReceipt {
 
 /// Verify a token received from a friend.
 /// A token is some recent commitment of a friend to the mutual credit balance.
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct VerifyToken {
     /// Path of token file
     #[structopt(parse(from_os_str), short = "t")]
     pub token: PathBuf,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 /// stregister - offST register
 pub enum StRegisterCmd {
     #[structopt(name = "gen-invoice")]

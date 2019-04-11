@@ -43,7 +43,7 @@ impl From<FundsError> for StCtrlError {
     }
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub enum StCtrlSubcommand {
     #[structopt(name = "info")]
     Info(InfoCmd),
@@ -57,7 +57,7 @@ pub enum StCtrlSubcommand {
 // TODO: Add author
 // TODO: Add description
 /// stctrl: offST ConTRoL
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct StCtrlCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "I", long = "idfile")]

@@ -13,7 +13,7 @@ use crate::file::invoice::load_invoice_from_file;
 use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct SendRawCmd {
     /// recipient's public key
     #[structopt(name = "destination", short = "d", long = "dest")]
@@ -27,7 +27,7 @@ pub struct SendRawCmd {
 }
 
 /// Pay an invoice
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct PayInvoiceCmd {
     #[structopt(parse(from_os_str), name = "invoice", short = "i")]
     pub invoice_file: PathBuf,
@@ -37,7 +37,7 @@ pub struct PayInvoiceCmd {
 }
 
 /// Funds sending related commands
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub enum FundsCmd {
     #[structopt(name = "send-raw")]
     SendRaw(SendRawCmd),

@@ -11,19 +11,19 @@ use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
 
 /// Show all configured relays
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct RelaysCmd {}
 
 /// Show all configured index servers
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct IndexCmd {}
 
 /// Show all configured friend servers
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct FriendsCmd {}
 
 /// Export last obtained token from a friend
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct FriendLastTokenCmd {
     #[structopt(short = "n", name = "name")]
     pub friend_name: String,
@@ -33,17 +33,17 @@ pub struct FriendLastTokenCmd {
 }
 
 /// Display balance summary
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct BalanceCmd {}
 
 /// Export a ticket of this node's contact information
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct ExportTicketCmd {
     #[structopt(short = "o", name = "output")]
     pub output_file: PathBuf,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
     /// Show information about configured relay servers
     #[structopt(name = "relays")]
