@@ -30,7 +30,8 @@ fn get_available_ports(num_ports: usize) -> Vec<u16> {
         .collect()
 }
 
-pub struct StctrlSetup {
+#[derive(Debug)]
+pub struct StCtrlSetup {
     pub node0_addr: String,
     pub node1_addr: String,
     pub index0_client_addr: String,
@@ -42,7 +43,7 @@ pub struct StctrlSetup {
     pub temp_dir_path: PathBuf,
 }
 
-pub fn create_stctrl_setup(temp_dir_path: &Path) -> StctrlSetup {
+pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     /*
     ├── app0
     │   ├── app0.ident
@@ -221,7 +222,7 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StctrlSetup {
     };
     stmgr(StMgrCmd::AppTicket(app_ticket_cmd)).unwrap();
 
-    StctrlSetup {
+    StCtrlSetup {
         node0_addr,
         node1_addr,
         index0_client_addr,
