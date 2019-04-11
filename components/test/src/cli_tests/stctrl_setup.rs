@@ -82,15 +82,17 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     */
 
     // Assign listening addresses for all services:
-    let ports = dbg!(get_available_ports(8));
-    let node0_addr = format!("localhost:{}", ports[0]);
-    let node1_addr = format!("localhost:{}", ports[1]);
-    let index0_client_addr = format!("localhost:{}", ports[2]);
-    let index0_server_addr = format!("localhost:{}", ports[3]);
-    let index1_client_addr = format!("localhost:{}", ports[4]);
-    let index1_server_addr = format!("localhost:{}", ports[5]);
-    let relay0_addr = format!("localhost:{}", ports[6]);
-    let relay1_addr = format!("localhost:{}", ports[7]);
+    let ports = get_available_ports(8);
+    // TODO: Is there a more generic way to express localhost than 127.0.0.1?
+    // We can't use "localhost" because it requires resolving.
+    let node0_addr = format!("127.0.0.1:{}", ports[0]);
+    let node1_addr = format!("127.0.0.1:{}", ports[1]);
+    let index0_client_addr = format!("127.0.0.1:{}", ports[2]);
+    let index0_server_addr = format!("127.0.0.1:{}", ports[3]);
+    let index1_client_addr = format!("127.0.0.1:{}", ports[4]);
+    let index1_server_addr = format!("127.0.0.1:{}", ports[5]);
+    let relay0_addr = format!("127.0.0.1:{}", ports[6]);
+    let relay1_addr = format!("127.0.0.1:{}", ports[7]);
 
     // Prepare directories for all entities in the test:
     fs::create_dir(temp_dir_path.join("app0")).unwrap();
