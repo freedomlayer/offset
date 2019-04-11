@@ -22,7 +22,8 @@ pub mod config;
 pub mod funds;
 pub mod info;
 
-pub mod stctrllib;
-
 pub mod file;
 pub mod utils;
+
+pub mod stctrllib;
+pub mod stregisterlib;
