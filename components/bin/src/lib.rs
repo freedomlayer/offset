@@ -14,3 +14,4 @@
 pub mod stindex;
 pub mod stmgr;
 pub mod stnode;
+pub mod strelay;
