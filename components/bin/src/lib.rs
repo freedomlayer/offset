@@ -10,3 +10,5 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
+
+pub mod stindex;
