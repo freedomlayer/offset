@@ -6,8 +6,8 @@ use bin::stindexlib::{stindex, StIndexCmd};
 use bin::stnodelib::{stnode, StNodeCmd};
 use bin::strelaylib::{strelay, StRelayCmd};
 
-use stctrl::config::{AddIndexCmd, AddRelayCmd, ConfigCmd};
-use stctrl::info::{FriendsCmd, InfoCmd};
+use stctrl::config::{AddFriendCmd, AddIndexCmd, AddRelayCmd, ConfigCmd, EnableFriendCmd};
+use stctrl::info::{ExportTicketCmd, FriendsCmd, InfoCmd};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
@@ -96,10 +96,8 @@ fn basic_invoice_receipt() {
 
     spawn_entities(&stctrl_setup);
 
+    // Wait until apps can connect to nodes:
     for j in 0..2 {
-        // Wait until app0 manages to connect to node0:
-        // -------------------------------------------
-        // Show friends:
         let friends_cmd = FriendsCmd {};
         let info_cmd = InfoCmd::Friends(friends_cmd);
         let subcommand = StCtrlSubcommand::Info(info_cmd);
@@ -183,4 +181,117 @@ fn basic_invoice_receipt() {
         };
         stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
+
+    // Export friend ticket files:
+    // ---------------------------
+
+    for j in 0..2 {
+        // Node0: Add node1 as a friend:
+        let export_ticket_cmd = ExportTicketCmd {
+            output_file: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("node{}.friend", j)),
+        };
+        let info_cmd = InfoCmd::ExportTicket(export_ticket_cmd);
+        let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Add friends
+    // ------------
+
+    for j in 0..2 {
+        // node0 has a plus of 20 credits
+        let balance = if j == 0 { 20 } else { -20 };
+        // Node0: Add node1 as a friend
+        let add_friend_cmd = AddFriendCmd {
+            friend_file: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", 1 - j))
+                .join(format!("node{}.friend", 1 - j)),
+            friend_name: format!("node{}", 1 - j),
+            balance,
+        };
+        let config_cmd = ConfigCmd::AddFriend(add_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Enable friends
+    // ---------------
+    for j in 0..2 {
+        let enable_friend_cmd = EnableFriendCmd {
+            friend_name: format!("node{}", 1 - j),
+        };
+        let config_cmd = ConfigCmd::EnableFriend(enable_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    /*
+    // Wait until apps can connect to nodes:
+    for j in 0..2 {
+        let friends_cmd = FriendsCmd {};
+        let info_cmd = InfoCmd::Friends(friends_cmd);
+        let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+
+        let mut output = Vec::new();
+        while stctrl(st_ctrl_cmd.clone(), &mut output).is_err() {
+            thread::sleep(time::Duration::from_millis(100));
+            output.clear();
+        }
+        assert!(str::from_utf8(&output)
+            .unwrap()
+            .contains("No configured friends"));
+    }
+    */
 }
