@@ -975,6 +975,7 @@ dependencies = [
  "futures-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-test-preview 0.3.0-alpha.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-bin 0.1.0",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "offst-database 0.1.0",
@@ -984,6 +985,7 @@ dependencies = [
  "offst-node 0.1.0",
  "offst-proto 0.1.0",
  "offst-relay 0.1.0",
+ "offst-stctrl 0.1.0",
  "offst-timer 0.1.0",
  "tempfile 3.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
