@@ -154,6 +154,8 @@ fn subcommand_verify_token(
             move_token_hashed_report.inconsistency_counter
         )
         .map_err(|_| StRegisterError::WriteError)?;
+        writeln!(writer, "balance: {}", move_token_hashed_report.balance)
+            .map_err(|_| StRegisterError::WriteError)?;
         writeln!(
             writer,
             "move_token_counter: {}",
