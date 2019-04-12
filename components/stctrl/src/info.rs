@@ -159,7 +159,6 @@ fn is_consistent(friend_report: &FriendReport) -> bool {
 }
 */
 
-#[allow(unused)]
 /// A user friendly string explaining the current channel status
 fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
