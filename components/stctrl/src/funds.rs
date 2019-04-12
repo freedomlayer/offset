@@ -15,7 +15,7 @@ use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
 #[derive(Clone, Debug, StructOpt)]
-pub struct SendRawCmd {
+pub struct SendFundsCmd {
     /// recipient's public key
     #[structopt(name = "destination", short = "d", long = "dest")]
     pub destination_str: String,
@@ -40,8 +40,10 @@ pub struct PayInvoiceCmd {
 /// Funds sending related commands
 #[derive(Clone, Debug, StructOpt)]
 pub enum FundsCmd {
-    #[structopt(name = "send-raw")]
-    SendRaw(SendRawCmd),
+    /// Send funds to a remote destination (Using destination public key)
+    #[structopt(name = "send-funds")]
+    SendFunds(SendFundsCmd),
+    /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
 }
@@ -103,14 +105,14 @@ fn choose_route(
 }
 
 /// Send funds to a remote destination without using an invoice.
-async fn funds_send_raw(
-    send_raw_cmd: SendRawCmd,
+async fn funds_send_funds(
+    send_raw_cmd: SendFundsCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
     writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
-    let SendRawCmd {
+    let SendFundsCmd {
         destination_str,
         dest_payment,
         opt_receipt_file,
@@ -249,7 +251,7 @@ pub async fn funds(
         .clone();
 
     match funds_cmd {
-        FundsCmd::SendRaw(send_raw_cmd) => await!(funds_send_raw(
+        FundsCmd::SendFunds(send_raw_cmd) => await!(funds_send_funds(
             send_raw_cmd,
             local_public_key,
             app_routes,
