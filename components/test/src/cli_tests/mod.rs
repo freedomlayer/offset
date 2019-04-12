@@ -1,2 +1,2 @@
-mod basic_invoice_receipt;
+mod basic_cli;
 mod stctrl_setup;

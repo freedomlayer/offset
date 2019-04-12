@@ -7,8 +7,8 @@ use bin::stnodelib::{stnode, StNodeCmd};
 use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
-    AddFriendCmd, AddIndexCmd, AddRelayCmd, ConfigCmd, EnableFriendCmd, OpenFriendCmd,
-    SetFriendMaxDebtCmd,
+    AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
+    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
 };
 use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
 use stctrl::info::{
@@ -581,8 +581,56 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     assert!(output_str.contains("balance: -70"));
 }
 
+/// Close requests and disable friends
+fn close_disable(stctrl_setup: &StCtrlSetup) {
+    // Nodes disable each other (as friends):
+    for j in 0..2 {
+        let disable_friend_cmd = DisableFriendCmd {
+            friend_name: format!("node{}", 1 - j),
+        };
+        let config_cmd = ConfigCmd::DisableFriend(disable_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Close friends:
+    // ---------------
+    for j in 0..2 {
+        let close_friend_cmd = CloseFriendCmd {
+            friend_name: format!("node{}", 1 - j),
+        };
+        let config_cmd = ConfigCmd::CloseFriend(close_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+}
+
 #[test]
-fn basic_invoice_receipt() {
+fn basic_cli() {
     let _ = env_logger::init();
 
     // Create a temporary directory.
@@ -596,4 +644,5 @@ fn basic_invoice_receipt() {
     send_funds(&stctrl_setup);
     pay_invoice(&stctrl_setup);
     export_token(&stctrl_setup);
+    close_disable(&stctrl_setup);
 }
