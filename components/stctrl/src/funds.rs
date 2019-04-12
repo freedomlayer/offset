@@ -185,11 +185,6 @@ async fn funds_pay_invoice(
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
 
-    // Load invoice:
-    if invoice_file.exists() {
-        return Err(FundsError::ReceiptFileAlreadyExists);
-    }
-
     let invoice =
         load_invoice_from_file(&invoice_file).map_err(|_| FundsError::LoadInvoiceError)?;
 
