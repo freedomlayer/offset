@@ -27,7 +27,7 @@ pub enum StRegisterError {
 
 /// Generate invoice file
 #[derive(Clone, Debug, StructOpt)]
-pub struct GenInvoice {
+pub struct GenInvoiceCmd {
     /// Payment recipient's public key (In base 64)
     #[structopt(short = "p")]
     pub public_key: String,
@@ -41,7 +41,7 @@ pub struct GenInvoice {
 
 /// Verify receipt file
 #[derive(Clone, Debug, StructOpt)]
-pub struct VerifyReceipt {
+pub struct VerifyReceiptCmd {
     /// Path of invoice file (Locally generated)
     #[structopt(parse(from_os_str), short = "i")]
     pub invoice: PathBuf,
@@ -53,7 +53,7 @@ pub struct VerifyReceipt {
 /// Verify a token received from a friend.
 /// A token is some recent commitment of a friend to the mutual credit balance.
 #[derive(Clone, Debug, StructOpt)]
-pub struct VerifyToken {
+pub struct VerifyTokenCmd {
     /// Path of token file
     #[structopt(parse(from_os_str), short = "t")]
     pub token: PathBuf,
@@ -63,44 +63,44 @@ pub struct VerifyToken {
 /// stregister - offST register
 pub enum StRegisterCmd {
     #[structopt(name = "gen-invoice")]
-    GenInvoice(GenInvoice),
+    GenInvoice(GenInvoiceCmd),
     #[structopt(name = "verify-receipt")]
-    VerifyReceipt(VerifyReceipt),
+    VerifyReceipt(VerifyReceiptCmd),
     #[structopt(name = "verify-token")]
-    VerifyToken(VerifyToken),
+    VerifyToken(VerifyTokenCmd),
 }
 
 /// Randomly generate an invoice and store it to an output file
-fn subcommand_gen_invoice(arg_gen_invoice: GenInvoice) -> Result<(), StRegisterError> {
+fn subcommand_gen_invoice(gen_invoice_cmd: GenInvoiceCmd) -> Result<(), StRegisterError> {
     let invoice_id = gen_invoice_id();
 
-    let dest_public_key = string_to_public_key(&arg_gen_invoice.public_key)
+    let dest_public_key = string_to_public_key(&gen_invoice_cmd.public_key)
         .map_err(|_| StRegisterError::ParsePublicKeyError)?;
 
     let invoice = Invoice {
         invoice_id,
         dest_public_key,
-        dest_payment: arg_gen_invoice.amount,
+        dest_payment: gen_invoice_cmd.amount,
     };
 
     // Make sure we don't override an existing invoice file:
-    if arg_gen_invoice.output.exists() {
+    if gen_invoice_cmd.output.exists() {
         return Err(StRegisterError::InvoiceFileAlreadyExists);
     }
 
-    store_invoice_to_file(&invoice, &arg_gen_invoice.output)
+    store_invoice_to_file(&invoice, &gen_invoice_cmd.output)
         .map_err(|_| StRegisterError::StoreInvoiceError)
 }
 
 /// Verify a given receipt
 fn subcommand_verify_receipt(
-    arg_verify_receipt: VerifyReceipt,
+    verify_receipt_cmd: VerifyReceiptCmd,
     writer: &mut impl io::Write,
 ) -> Result<(), StRegisterError> {
-    let invoice = load_invoice_from_file(&arg_verify_receipt.invoice)
+    let invoice = load_invoice_from_file(&verify_receipt_cmd.invoice)
         .map_err(|_| StRegisterError::LoadInvoiceError)?;
 
-    let receipt = load_receipt_from_file(&arg_verify_receipt.receipt)
+    let receipt = load_receipt_from_file(&verify_receipt_cmd.receipt)
         .map_err(|_| StRegisterError::LoadReceiptError)?;
 
     // Make sure that the invoice and receipt files match:
@@ -124,10 +124,10 @@ fn subcommand_verify_receipt(
 /// Verify a given friend token
 /// If the given token is valid, output token details
 fn subcommand_verify_token(
-    arg_verify_token: VerifyToken,
+    verify_token_cmd: VerifyTokenCmd,
     writer: &mut impl io::Write,
 ) -> Result<(), StRegisterError> {
-    let move_token_hashed_report = load_token_from_file(&arg_verify_token.token)
+    let move_token_hashed_report = load_token_from_file(&verify_token_cmd.token)
         .map_err(|_| StRegisterError::LoadTokenError)?;
 
     if verify_move_token_hashed_report(
@@ -184,10 +184,12 @@ pub fn stregister(
     writer: &mut impl io::Write,
 ) -> Result<(), StRegisterError> {
     match st_register_cmd {
-        StRegisterCmd::GenInvoice(gen_invoice) => subcommand_gen_invoice(gen_invoice),
-        StRegisterCmd::VerifyReceipt(verify_receipt) => {
-            subcommand_verify_receipt(verify_receipt, writer)
+        StRegisterCmd::GenInvoice(gen_invoice_cmd) => subcommand_gen_invoice(gen_invoice_cmd),
+        StRegisterCmd::VerifyReceipt(verify_receipt_cmd) => {
+            subcommand_verify_receipt(verify_receipt_cmd, writer)
         }
-        StRegisterCmd::VerifyToken(verify_token) => subcommand_verify_token(verify_token, writer),
+        StRegisterCmd::VerifyToken(verify_token_cmd) => {
+            subcommand_verify_token(verify_token_cmd, writer)
+        }
     }
 }
