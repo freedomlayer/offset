@@ -97,6 +97,9 @@ struct OutFriend<RA> {
     config_client: CpConfigClient<RA>,
     connect_client: CpConnectClient,
     status: OutFriendStatus,
+    /// Will abort a connection attempt when dropped
+    #[allow(unused)]
+    opt_abort_connect: Option<oneshot::Sender<()>>,
 }
 
 struct Friends<RA> {
@@ -182,26 +185,38 @@ where
         compare_public_key(&self.local_public_key, friend_public_key) == Ordering::Less
     }
 
-    fn connect_out_friend(&self, friend_public_key: &PublicKey) -> Result<(), ChannelerError> {
-        let out_friend = match self.friends.out_friends.get(friend_public_key) {
+    fn connect_out_friend(&mut self, friend_public_key: &PublicKey) -> Result<(), ChannelerError> {
+        let out_friend = match self.friends.out_friends.get_mut(friend_public_key) {
             Some(out_friend) => out_friend,
             None => unreachable!(), // We assert that the out_friend exists.
         };
+
+        let (abort_connect, abort_connect_receiver) = oneshot::channel();
+        // Connection attempt will be aborted if we drop this friend:
+        out_friend.opt_abort_connect = Some(abort_connect);
 
         let mut c_connect_client = out_friend.connect_client.clone();
         let c_friend_public_key = friend_public_key.clone();
         let mut c_event_sender = self.event_sender.clone();
         let connect_fut = async move {
-            let event = match await!(c_connect_client.connect()) {
-                Ok(raw_conn) => ChannelerEvent::Connection((c_friend_public_key, raw_conn)),
-                Err(e) => {
-                    warn!("connect_out_friend(): connect() error: {:?}", e);
-                    // This should only happen if there was a real problem
-                    // with the connector.
-                    ChannelerEvent::ConnectorClosed
-                }
+            let opt_res_raw_conn = select! {
+                _ = abort_connect_receiver.fuse() => None,
+                res_raw_conn = Box::pin(c_connect_client.connect()).fuse() => Some(res_raw_conn)
             };
-            let _ = await!(c_event_sender.send(event));
+            if let Some(res_raw_conn) = opt_res_raw_conn {
+                let event = match res_raw_conn {
+                    Ok(raw_conn) => ChannelerEvent::Connection((c_friend_public_key, raw_conn)),
+                    Err(e) => {
+                        warn!("connect_out_friend(): connect() error: {:?}", e);
+                        // This should only happen if there was a real problem
+                        // with the connector.
+                        ChannelerEvent::ConnectorClosed
+                    }
+                };
+                let _ = await!(c_event_sender.send(event));
+            } else {
+                warn!("A friend was removed during connection attempt");
+            }
         };
 
         self.spawner
@@ -236,6 +251,7 @@ where
                 config_client,
                 connect_client,
                 status: OutFriendStatus::Connecting,
+                opt_abort_connect: None,
             };
             self.friends
                 .out_friends
@@ -1000,13 +1016,29 @@ mod tests {
 
         // Request to remove the friend in the middle of connection attempt:
         await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[0].clone()))).unwrap();
-        drop(conn_request);
+
+        // Reply to the conn request too late:
+        let (connect_sender0, _connect_receiver0) = mpsc::channel(0);
+        let (config_sender0, _config_receiver0) = mpsc::channel(0);
+
+        let config_client0 = CpConfigClient::new(config_sender0);
+        let connect_client0 = CpConnectClient::new(connect_sender0);
+        conn_request.reply((config_client0, connect_client0));
 
         // UpdateFriend again, to make sure channeler is still alive:
         await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
             .unwrap();
+
         let conn_request = await!(conn_request_receiver.next()).unwrap();
         assert_eq!(conn_request.address, pks[0]);
+
+        // Reply to the conn request, to avoid panic on exit:
+        let (connect_sender0, _connect_receiver0) = mpsc::channel(0);
+        let (config_sender0, _config_receiver0) = mpsc::channel(0);
+
+        let config_client0 = CpConfigClient::new(config_sender0);
+        let connect_client0 = CpConnectClient::new(connect_sender0);
+        conn_request.reply((config_client0, connect_client0));
     }
 
     #[test]
