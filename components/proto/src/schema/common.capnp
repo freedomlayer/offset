@@ -78,7 +78,7 @@ struct Receipt {
         destPayment @2: CustomUInt128;
         signature @3: Signature;
         # Signature{key=recipientKey}(
-        #   "FUND_SUCCESS" ||
+        #   sha512/256("FUND_SUCCESS") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   invoiceId ||
         #   destPayment
