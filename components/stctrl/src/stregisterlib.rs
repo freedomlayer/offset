@@ -135,7 +135,7 @@ fn subcommand_verify_token(
         &move_token_hashed_report.local_public_key,
     ) {
         writeln!(writer, "Token is valid!").map_err(|_| StRegisterError::WriteError)?;
-        writeln!(writer, "").map_err(|_| StRegisterError::WriteError)?;
+        writeln!(writer).map_err(|_| StRegisterError::WriteError)?;
         writeln!(
             writer,
             "local_public_key: {}",
