@@ -300,7 +300,7 @@ pub async fn info_balance(mut app_report: AppReport, writer: &mut impl io::Write
             .ok_or(InfoError::BalanceOverflow)?;
     }
 
-    writeln!(writer, "Total balance: {}", total_balance).map_err(|_| InfoError::WriteError)?;
+    writeln!(writer, "{}", total_balance).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
 
