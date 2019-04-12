@@ -36,7 +36,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("index0").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stindex(st_index_cmd));
+    thread::spawn(move || {
+        let res = stindex(st_index_cmd);
+        error!("index0 exited with: {:?}", res);
+    });
 
     // Spawn index1:
     let st_index_cmd = StIndexCmd {
@@ -49,7 +52,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("index1").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stindex(st_index_cmd));
+    thread::spawn(move || {
+        let res = stindex(st_index_cmd);
+        error!("index1 exited with: {:?}", res);
+    });
 
     // Spawn relay0:
     let st_relay_cmd = StRelayCmd {
@@ -60,7 +66,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         laddr: stctrl_setup.relay0_addr.parse().unwrap(),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || strelay(st_relay_cmd));
+    thread::spawn(move || {
+        let res = strelay(st_relay_cmd);
+        error!("relay0 exited with: {:?}", res);
+    });
 
     // Spawn relay1:
     let st_relay_cmd = StRelayCmd {
@@ -71,7 +80,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         laddr: stctrl_setup.relay1_addr.parse().unwrap(),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || strelay(st_relay_cmd));
+    thread::spawn(move || {
+        let res = strelay(st_relay_cmd);
+        error!("relay1 exited with: {:?}", res);
+    });
 
     // Spawn node0:
     let st_node_cmd = StNodeCmd {
@@ -81,7 +93,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("node0").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stnode(st_node_cmd));
+    thread::spawn(move || {
+        let res = stnode(st_node_cmd);
+        error!("node0 exited with: {:?}", res);
+    });
 
     // Spawn node1:
     let st_node_cmd = StNodeCmd {
@@ -91,7 +106,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("node1").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stnode(st_node_cmd));
+    thread::spawn(move || {
+        let res = stnode(st_node_cmd);
+        error!("node1 exited with: {:?}", res);
+    });
 }
 
 /// Get the public key of node{index}:
