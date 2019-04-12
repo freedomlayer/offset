@@ -11,10 +11,14 @@ use stctrl::config::{
     SetFriendMaxDebtCmd,
 };
 use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendsCmd, InfoCmd, PublicKeyCmd};
+use stctrl::info::{
+    BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
+};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
 
-use stctrl::stregisterlib::{stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd};
+use stctrl::stregisterlib::{
+    stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd, VerifyTokenCmd,
+};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -543,8 +547,39 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
 }
 
-/// Export node0's token and then verify it
-fn export_token(_stctrl_setup: &StCtrlSetup) {}
+/// Export a friend's last token and then verify it
+fn export_token(stctrl_setup: &StCtrlSetup) {
+    // node0: Get node1's last token:
+    let friend_last_token_cmd = FriendLastTokenCmd {
+        friend_name: "node1".to_owned(),
+        output_file: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+    };
+    let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
+    let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+
+    // Verify the token:
+    // ------------------
+    let verify_token_cmd = VerifyTokenCmd {
+        token: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+    };
+
+    let stregister_cmd = StRegisterCmd::VerifyToken(verify_token_cmd);
+    let mut output = Vec::new();
+    stregister(stregister_cmd, &mut output).unwrap();
+    let output_str = str::from_utf8(&output).unwrap();
+    assert!(output_str.contains("is valid!"));
+    assert!(output_str.contains("balance: -70"));
+}
 
 #[test]
 fn basic_invoice_receipt() {
