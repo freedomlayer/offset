@@ -5,7 +5,7 @@ use std::marker::Unpin;
 
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
-use futures::{select, future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{FutTransform, Listener};
 use common::select_streams::{select_streams, BoxStream};
@@ -320,7 +320,6 @@ where
         friend_public_key: PublicKey,
         raw_conn: RawConn,
     ) -> Result<(), ChannelerError> {
-
         let (sender, receiver) = raw_conn;
 
         // Close fut_recv whenever closer is closed.
@@ -361,7 +360,8 @@ where
                     return Ok(());
                 }
                 OutFriendStatus::Connecting => {
-                    out_friend.status = OutFriendStatus::Connected(Connected::new(friend_sender, closer))
+                    out_friend.status =
+                        OutFriendStatus::Connected(Connected::new(friend_sender, closer))
                 }
             }
         }
@@ -881,8 +881,7 @@ mod tests {
         let lp_config = await!(listener_request.config_receiver.next()).unwrap();
         assert_eq!(lp_config, LpConfig::SetLocalAddresses(vec![0x1u32]));
 
-
-        for _ in 0 .. 3 {
+        for _ in 0..3 {
             // Add a friend:
             let channeler_update_friend = ChannelerUpdateFriend {
                 friend_public_key: pks[2].clone(),
@@ -914,14 +913,10 @@ mod tests {
             };
 
             // Request to remove the friend in the middle of connection:
-            await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone())))
-                .unwrap();
+            await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone()))).unwrap();
 
             let lp_config = await!(listener_request.config_receiver.next()).unwrap();
-            assert_eq!(
-                lp_config,
-                LpConfig::RemoveFriend(pks[2].clone())
-            );
+            assert_eq!(lp_config, LpConfig::RemoveFriend(pks[2].clone()));
 
             // Friend should be reported as offline:
             let channeler_to_funder = await!(funder_receiver.next()).unwrap();
@@ -933,9 +928,11 @@ mod tests {
     }
 
     #[test]
-    fn test_channeler_loop_update_remove_friend () {
+    fn test_channeler_loop_update_remove_friend() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_channeler_loop_update_remove_friend(thread_pool.clone()));
+        thread_pool.run(task_channeler_loop_update_remove_friend(
+            thread_pool.clone(),
+        ));
     }
 
     // TODO: Add tests to make sure access control works properly?

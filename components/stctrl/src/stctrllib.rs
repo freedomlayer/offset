@@ -110,11 +110,15 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
             .map_err(|_| StCtrlError::ConnectionError)?;
 
             match subcommand {
-                StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection, writer))?,
+                StCtrlSubcommand::Info(info_cmd) => {
+                    await!(info(info_cmd, node_connection, writer))?
+                }
                 StCtrlSubcommand::Config(config_cmd) => {
                     await!(config(config_cmd, node_connection))?
                 }
-                StCtrlSubcommand::Funds(funds_cmd) => await!(funds(funds_cmd, node_connection, writer))?,
+                StCtrlSubcommand::Funds(funds_cmd) => {
+                    await!(funds(funds_cmd, node_connection, writer))?
+                }
             }
             Ok(())
         },

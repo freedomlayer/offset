@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use prettytable::Table;
 use structopt::StructOpt;
 
-use app::report::{ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport};
+use app::report::{
+    ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
+};
 use app::ser_string::public_key_to_string;
 use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
 
@@ -96,7 +98,10 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
 }
 
 /// Show local public key
-pub async fn info_public_key(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info_public_key(
+    mut app_report: AppReport,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let public_key_string = public_key_to_string(&report.funder_report.local_public_key);
@@ -104,7 +109,10 @@ pub async fn info_public_key(mut app_report: AppReport, writer: &mut impl io::Wr
     Ok(())
 }
 
-pub async fn info_relays(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info_relays(
+    mut app_report: AppReport,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
@@ -127,7 +135,10 @@ pub async fn info_relays(mut app_report: AppReport, writer: &mut impl io::Write)
     Ok(())
 }
 
-pub async fn info_index(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info_index(
+    mut app_report: AppReport,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
@@ -162,7 +173,8 @@ fn requests_status_str(requests_status_report: &RequestsStatusReport) -> String 
         "+"
     } else {
         "-"
-    }.to_owned()
+    }
+    .to_owned()
 }
 
 /*
@@ -180,19 +192,21 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(tc_report) => {
-            res += "C: "; 
+            res += "C: ";
             let local_requests_str = requests_status_str(&tc_report.requests_status.local);
             let remote_requests_str = requests_status_str(&tc_report.requests_status.remote);
 
             res += &format!("LR={}, RR={}\n", local_requests_str, remote_requests_str);
 
             let balance = &tc_report.balance;
-            res += &format!("B  ={}\nLMD={}\nRMD={}\nLPD={}\nRPD={}\n", 
-                            balance.balance,
-                            balance.local_max_debt,
-                            balance.remote_max_debt,
-                            balance.local_pending_debt,
-                            balance.remote_pending_debt);
+            res += &format!(
+                "B  ={}\nLMD={}\nRMD={}\nLPD={}\nRPD={}\n",
+                balance.balance,
+                balance.local_max_debt,
+                balance.remote_max_debt,
+                balance.local_pending_debt,
+                balance.remote_pending_debt
+            );
         }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             res += "I:\n";
@@ -214,14 +228,16 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
     res
 }
 
-
-pub async fn info_friends(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info_friends(
+    mut app_report: AppReport,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut table = Table::new();
     // Add titlek:
     table.set_titles(row!["st", "name", "balance"]);
-    
+
     for (_friend_public_key, friend_report) in &report.funder_report.friends {
         // Is the friend enabled?
         let status_str = if friend_report.status == FriendStatusReport::Enabled {
@@ -306,7 +322,10 @@ fn friend_balance(friend_report: &FriendReport) -> i128 {
     }
 }
 
-pub async fn info_balance(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info_balance(
+    mut app_report: AppReport,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let report = await!(get_report(&mut app_report))?;
 
     let mut total_balance: i128 = 0;
@@ -349,7 +368,11 @@ pub async fn info_export_ticket(
     Ok(())
 }
 
-pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection, writer: &mut impl io::Write) -> Result<(), InfoError> {
+pub async fn info(
+    info_cmd: InfoCmd,
+    mut node_connection: NodeConnection,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
     let app_report = node_connection.report().clone();
 
     match info_cmd {
