@@ -163,6 +163,8 @@ where
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
+    sig_buffer.extend_from_slice(&move_token.local_public_key);
+    sig_buffer.extend_from_slice(&move_token.remote_public_key);
     sig_buffer
         .write_u64::<BigEndian>(move_token.inconsistency_counter)
         .unwrap();
