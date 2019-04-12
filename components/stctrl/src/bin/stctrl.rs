@@ -7,9 +7,9 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
-    clippy::module_inception
+    clippy::module_inception,
+    clippy::new_without_default
 )]
-// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -19,6 +19,8 @@ use std::path::PathBuf;
 
 use futures::executor::ThreadPool;
 
+use derive_more::*;
+
 use structopt::StructOpt;
 
 use stctrl::config::{config, ConfigCmd, ConfigError};
@@ -27,7 +29,7 @@ use stctrl::info::{info, InfoCmd, InfoError};
 
 use app::{connect, identity_from_file, load_node_from_file};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum StCtrlError {
     CreateThreadPoolError,
     // MissingIdFileArgument,
@@ -40,24 +42,6 @@ enum StCtrlError {
     InfoError(InfoError),
     ConfigError(ConfigError),
     FundsError(FundsError),
-}
-
-impl From<InfoError> for StCtrlError {
-    fn from(e: InfoError) -> Self {
-        StCtrlError::InfoError(e)
-    }
-}
-
-impl From<ConfigError> for StCtrlError {
-    fn from(e: ConfigError) -> Self {
-        StCtrlError::ConfigError(e)
-    }
-}
-
-impl From<FundsError> for StCtrlError {
-    fn from(e: FundsError) -> Self {
-        StCtrlError::FundsError(e)
-    }
 }
 
 #[derive(Debug, StructOpt)]

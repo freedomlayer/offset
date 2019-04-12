@@ -4,6 +4,8 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
 
+use derive_more::*;
+
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
@@ -68,16 +70,10 @@ where
     ))
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum NetRelayServerError {
     RelayServerError(RelayServerError),
     SpawnError,
-}
-
-impl From<RelayServerError> for NetRelayServerError {
-    fn from(e: RelayServerError) -> Self {
-        NetRelayServerError::RelayServerError(e)
-    }
 }
 
 /// Start a secure channel without knowing the identity of the remote

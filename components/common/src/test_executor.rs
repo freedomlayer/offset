@@ -84,12 +84,6 @@ impl TestExecutor {
     }
 }
 
-impl Default for TestExecutor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunOutput<T> {
     /// Output has returned

@@ -19,7 +19,7 @@ pub struct FriendAddress {
     pub relays: Vec<RelayAddress>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum FriendFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -30,41 +30,17 @@ pub enum FriendFileError {
     NetAddressError(NetAddressError),
 }
 
-/// A helper structure for serialize and deserializing FriendAddress.
-#[derive(Serialize, Deserialize)]
-struct FriendFile {
-    public_key: String,
-    relays: Vec<RelayFile>,
-}
-
-impl From<io::Error> for FriendFileError {
-    fn from(e: io::Error) -> Self {
-        FriendFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for FriendFileError {
-    fn from(e: toml::de::Error) -> Self {
-        FriendFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for FriendFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        FriendFileError::TomlSeError(e)
-    }
-}
-
 impl From<SerStringError> for FriendFileError {
     fn from(_e: SerStringError) -> Self {
         FriendFileError::SerStringError
     }
 }
 
-impl From<NetAddressError> for FriendFileError {
-    fn from(e: NetAddressError) -> Self {
-        FriendFileError::NetAddressError(e)
-    }
+/// A helper structure for serialize and deserializing FriendAddress.
+#[derive(Serialize, Deserialize)]
+struct FriendFile {
+    public_key: String,
+    relays: Vec<RelayFile>,
 }
 
 /// Load FriendAddress from a file

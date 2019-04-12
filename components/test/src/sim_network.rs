@@ -81,6 +81,7 @@ pub enum SimNetworkClientError {
     ReceiveResponseError,
 }
 
+#[derive(Clone)]
 pub struct SimNetworkClient {
     sender: mpsc::Sender<SimNetworkRequest>,
 }
@@ -100,14 +101,6 @@ impl SimNetworkClient {
             .send(SimNetworkRequest::Listen((net_address, response_sender))))
         .map_err(|_| SimNetworkClientError::SendRequestError)?;
         await!(response_receiver).map_err(|_| SimNetworkClientError::ReceiveResponseError)
-    }
-}
-
-impl Clone for SimNetworkClient {
-    fn clone(&self) -> Self {
-        SimNetworkClient {
-            sender: self.sender.clone(),
-        }
     }
 }
 

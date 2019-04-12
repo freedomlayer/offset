@@ -7,9 +7,9 @@
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
-    clippy::module_inception
+    clippy::module_inception,
+    clippy::new_without_default
 )]
-// TODO: disallow clippy::too_many_arguments
 
 #[macro_use]
 extern crate log;
@@ -18,6 +18,8 @@ use std::convert::TryInto;
 use std::path::{Path, PathBuf};
 
 use structopt::StructOpt;
+
+use derive_more::*;
 
 use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
@@ -227,18 +229,12 @@ fn app_ticket(
     store_trusted_app_to_file(&trusted_app, &output).map_err(|_| AppTicketError::StoreAppFileError)
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum RelayTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreRelayFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for RelayTicketError {
-    fn from(e: NetAddressError) -> Self {
-        RelayTicketError::NetAddressError(e)
-    }
 }
 
 /// Create a public relay ticket
@@ -268,18 +264,12 @@ fn relay_ticket(
     store_relay_to_file(&relay_address, &output).map_err(|_| RelayTicketError::StoreRelayFileError)
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum IndexTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreIndexFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for IndexTicketError {
-    fn from(e: NetAddressError) -> Self {
-        IndexTicketError::NetAddressError(e)
-    }
 }
 
 /// Create a public index ticket
@@ -310,18 +300,12 @@ fn index_ticket(
         .map_err(|_| IndexTicketError::StoreIndexFileError)
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum NodeTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreNodeFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for NodeTicketError {
-    fn from(e: NetAddressError) -> Self {
-        NodeTicketError::NetAddressError(e)
-    }
 }
 
 /// Create a node ticket
@@ -352,7 +336,7 @@ fn node_ticket(
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum StmError {
     InitNodeDbError(InitNodeDbError),
     GenIdentityError(GenIdentityError),
@@ -360,42 +344,6 @@ enum StmError {
     RelayTicketError(RelayTicketError),
     IndexTicketError(IndexTicketError),
     NodeTicketError(NodeTicketError),
-}
-
-impl From<InitNodeDbError> for StmError {
-    fn from(e: InitNodeDbError) -> Self {
-        StmError::InitNodeDbError(e)
-    }
-}
-
-impl From<GenIdentityError> for StmError {
-    fn from(e: GenIdentityError) -> Self {
-        StmError::GenIdentityError(e)
-    }
-}
-
-impl From<AppTicketError> for StmError {
-    fn from(e: AppTicketError) -> Self {
-        StmError::AppTicketError(e)
-    }
-}
-
-impl From<RelayTicketError> for StmError {
-    fn from(e: RelayTicketError) -> Self {
-        StmError::RelayTicketError(e)
-    }
-}
-
-impl From<IndexTicketError> for StmError {
-    fn from(e: IndexTicketError) -> Self {
-        StmError::IndexTicketError(e)
-    }
-}
-
-impl From<NodeTicketError> for StmError {
-    fn from(e: NodeTicketError) -> Self {
-        StmError::NodeTicketError(e)
-    }
 }
 
 fn run() -> Result<(), StmError> {

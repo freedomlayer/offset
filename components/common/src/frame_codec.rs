@@ -11,7 +11,7 @@
 //! - `length` (unsigned 4 bytes integer, big endian): the length (in bytes) of the remaining data
 //! - `data` (bytes, with length of `length`): the actual data
 
-
+use derive_more::*;
 
 use std::io;
 use std::mem;
@@ -43,7 +43,7 @@ pub struct FrameCodec {
     state: FrameCodecState,
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum FrameCodecError {
     SerializeLengthError(io::Error),
     DeserializeLengthError(io::Error),
@@ -59,15 +59,6 @@ impl FrameCodec {
                 accum_length: Vec::new(),
             },
         }
-    }
-}
-
-/// Conversion of io::Error into FrameCodecError.
-/// This is required for usage of FrameCodecError as the error type of FrameCodec
-/// Encoder and Decoder.
-impl From<io::Error> for FrameCodecError {
-    fn from(e: io::Error) -> Self {
-        FrameCodecError::IoError(e)
     }
 }
 

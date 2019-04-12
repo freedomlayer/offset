@@ -1,21 +1,15 @@
 use std::convert::TryFrom;
-use std::fmt;
 // use byteorder::{WriteBytesExt, BigEndian};
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 use common::canonical_serialize::CanonicalSerialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[display(fmt = "{}", _0)]
 pub struct NetAddress(String);
 
 impl NetAddress {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl fmt::Display for NetAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 

@@ -2,6 +2,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
+use derive_more::*;
+
 use app::ser_string::{
     invoice_id_to_string, public_key_to_string, string_to_invoice_id, string_to_public_key,
     SerStringError,
@@ -19,7 +21,7 @@ pub struct Invoice {
     pub dest_payment: u128,
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum InvoiceFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -35,24 +37,6 @@ pub struct InvoiceFile {
     pub invoice_id: String,
     pub dest_public_key: String,
     pub dest_payment: String,
-}
-
-impl From<io::Error> for InvoiceFileError {
-    fn from(e: io::Error) -> Self {
-        InvoiceFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for InvoiceFileError {
-    fn from(e: toml::de::Error) -> Self {
-        InvoiceFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for InvoiceFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        InvoiceFileError::TomlSeError(e)
-    }
 }
 
 impl From<SerStringError> for InvoiceFileError {

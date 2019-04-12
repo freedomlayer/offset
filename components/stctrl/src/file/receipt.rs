@@ -2,6 +2,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
+use derive_more::*;
+
 use app::ser_string::{
     hash_result_to_string, invoice_id_to_string, signature_to_string, string_to_hash_result,
     string_to_invoice_id, string_to_signature, SerStringError,
@@ -10,7 +12,7 @@ use app::Receipt;
 
 use toml;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum ReceiptFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -27,24 +29,6 @@ pub struct ReceiptFile {
     pub invoice_id: String,
     pub dest_payment: String,
     pub signature: String,
-}
-
-impl From<io::Error> for ReceiptFileError {
-    fn from(e: io::Error) -> Self {
-        ReceiptFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for ReceiptFileError {
-    fn from(e: toml::de::Error) -> Self {
-        ReceiptFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for ReceiptFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        ReceiptFileError::TomlSeError(e)
-    }
 }
 
 impl From<SerStringError> for ReceiptFileError {

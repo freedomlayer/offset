@@ -2,6 +2,8 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 
+use derive_more::*;
+
 use common::conn::{ConnPairVec, FutTransform};
 use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
@@ -33,7 +35,7 @@ use proto::report::convert::funder_report_to_index_client_state;
 use crate::adapters::{EncKeepaliveConnector, EncRelayConnector};
 use crate::types::{create_node_report, NodeConfig, NodeMutation, NodeState};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum NodeError {
     RequestPublicKeyError,
     SpawnError,
@@ -41,30 +43,6 @@ pub enum NodeError {
     FunderError(FunderError),
     IndexClientError(IndexClientError),
     AppServerError(AppServerError),
-}
-
-impl From<ChannelerError> for NodeError {
-    fn from(e: ChannelerError) -> Self {
-        NodeError::ChannelerError(e)
-    }
-}
-
-impl From<FunderError> for NodeError {
-    fn from(e: FunderError) -> Self {
-        NodeError::FunderError(e)
-    }
-}
-
-impl From<IndexClientError> for NodeError {
-    fn from(e: IndexClientError) -> Self {
-        NodeError::IndexClientError(e)
-    }
-}
-
-impl From<AppServerError> for NodeError {
-    fn from(e: AppServerError) -> Self {
-        NodeError::AppServerError(e)
-    }
 }
 
 fn node_spawn_channeler<C, R, S>(

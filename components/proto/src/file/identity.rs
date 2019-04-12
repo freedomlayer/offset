@@ -4,16 +4,10 @@ use std::path::Path;
 
 use crypto::identity::{Identity, SoftwareEd25519Identity};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum IdentityFileError {
     IoError(io::Error),
     ParseError,
-}
-
-impl From<io::Error> for IdentityFileError {
-    fn from(io_error: io::Error) -> Self {
-        IdentityFileError::IoError(io_error)
-    }
 }
 
 /// Load an identity from a file

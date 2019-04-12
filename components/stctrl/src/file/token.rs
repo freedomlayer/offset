@@ -2,6 +2,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
+use derive_more::*;
+
 use app::report::MoveTokenHashedReport;
 use app::ser_string::{
     hash_result_to_string, public_key_to_string, rand_value_to_string, signature_to_string,
@@ -11,7 +13,7 @@ use app::ser_string::{
 
 use toml;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum TokenFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
@@ -38,24 +40,6 @@ pub struct TokenFile {
     pub remote_pending_debt: String,   // u128,
     pub rand_nonce: String,            // RandValue,
     pub new_token: String,             // Signature,
-}
-
-impl From<io::Error> for TokenFileError {
-    fn from(e: io::Error) -> Self {
-        TokenFileError::IoError(e)
-    }
-}
-
-impl From<toml::de::Error> for TokenFileError {
-    fn from(e: toml::de::Error) -> Self {
-        TokenFileError::TomlDeError(e)
-    }
-}
-
-impl From<toml::ser::Error> for TokenFileError {
-    fn from(e: toml::ser::Error) -> Self {
-        TokenFileError::TomlSeError(e)
-    }
 }
 
 impl From<SerStringError> for TokenFileError {
