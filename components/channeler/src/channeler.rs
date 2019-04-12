@@ -380,6 +380,11 @@ where
                         OutFriendStatus::Connected(Connected::new(friend_sender, closer))
                 }
             }
+        } else {
+            //  This might happen if an out_friend was added and then suddenly removed.
+            //  We might get the connection success event but we don't want to connect anymore.
+            warn!("handle_connection(): Not an in_friend or an out_friend. Aborting");
+            return Ok(());
         }
 
         let mut c_event_sender = self.event_sender.clone();
