@@ -1014,8 +1014,10 @@ mod tests {
             local_relays: vec![0x2u32, 0x3u32],
         };
 
-        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend.clone())))
-            .unwrap();
+        await!(funder_sender.send(FunderToChanneler::UpdateFriend(
+            channeler_update_friend.clone()
+        )))
+        .unwrap();
         let conn_request = await!(conn_request_receiver.next()).unwrap();
         assert_eq!(conn_request.address, pks[0]);
 
