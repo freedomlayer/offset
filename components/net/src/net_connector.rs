@@ -30,6 +30,7 @@ where
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
+        debug!("Connecting to {:?}", net_address);
         Box::pin(
             async move {
                 let socket_addr_vec = await!(self.resolver.transform(net_address));

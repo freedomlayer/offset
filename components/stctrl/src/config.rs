@@ -11,154 +11,167 @@ use app::{
 use crate::utils::friend_public_key_by_name;
 
 /// Add a relay
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct AddRelayCmd {
     /// Path of relay file
     #[structopt(parse(from_os_str), name = "relay", short = "r")]
-    relay_file: PathBuf,
+    pub relay_file: PathBuf,
     /// Assigned relay name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    relay_name: String,
+    pub relay_name: String,
 }
 
 /// Remove relay
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct RemoveRelayCmd {
     /// Relay name to remove
     #[structopt(name = "name", short = "n")]
-    relay_name: String,
+    pub relay_name: String,
 }
 
 /// Add index
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct AddIndexCmd {
     /// Path of index file
     #[structopt(parse(from_os_str), name = "index", short = "i")]
-    index_file: PathBuf,
+    pub index_file: PathBuf,
     /// Assigned index name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    index_name: String,
+    pub index_name: String,
 }
 
 /// Remove index
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct RemoveIndexCmd {
     /// Index name to remove
     #[structopt(name = "name", short = "n")]
-    index_name: String,
+    pub index_name: String,
 }
 
 /// Add friend
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct AddFriendCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), name = "friend", short = "f")]
-    friend_file: PathBuf,
+    pub friend_file: PathBuf,
     /// Assigned friend name (You can pick any name)
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
     /// Initial balance with friend
     #[structopt(name = "balance", short = "b")]
-    balance: i128,
+    pub balance: i128,
 }
 
 /// Set friend relays
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct SetFriendRelaysCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), name = "friend", short = "f")]
-    friend_file: PathBuf,
+    pub friend_file: PathBuf,
     /// Friend name (Must be an existing friend)
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Remove friend
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct RemoveFriendCmd {
     /// Friend name to remove
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Enable friend
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct EnableFriendCmd {
     /// Friend name to enable
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Disable friend
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct DisableFriendCmd {
     /// Friend name to disable
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Enable forwarding of payment requests from friend to us
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct OpenFriendCmd {
     /// Friend name to open
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Disable forwarding of payment requests from friend to us
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct CloseFriendCmd {
     /// Friend name to close
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
 /// Set friend's maximum allowed debt
 /// If you lose this friend, you can lose this amount of credits.
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct SetFriendMaxDebtCmd {
     /// Friend name
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
     /// Max debt allowed for friend
     #[structopt(name = "mdebt", short = "m")]
-    max_debt: u128,
+    pub max_debt: u128,
 }
 
 /// Reset mutual credit with friend according to friend's terms.
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct ResetFriendCmd {
     /// Friend name to reset
     #[structopt(name = "name", short = "n")]
-    friend_name: String,
+    pub friend_name: String,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub enum ConfigCmd {
+    /// Add a relay server
     #[structopt(name = "add-relay")]
     AddRelay(AddRelayCmd),
+    /// Remove a relay server
     #[structopt(name = "remove-relay")]
     RemoveRelay(RemoveRelayCmd),
+    /// Add an index server
     #[structopt(name = "add-index")]
     AddIndex(AddIndexCmd),
+    /// Remove an index server
     #[structopt(name = "remove-index")]
     RemoveIndex(RemoveIndexCmd),
+    /// Add a new friend
     #[structopt(name = "add-friend")]
     AddFriend(AddFriendCmd),
+    /// Update friend's relays
     #[structopt(name = "set-friend-relays")]
     SetFriendRelays(SetFriendRelaysCmd),
+    /// Remove a friend
     #[structopt(name = "remove-friend")]
     RemoveFriend(RemoveFriendCmd),
+    /// Enable a friend
     #[structopt(name = "enable-friend")]
     EnableFriend(EnableFriendCmd),
+    /// Disable a friend
     #[structopt(name = "disable-friend")]
     DisableFriend(DisableFriendCmd),
+    /// Open requests from friend
     #[structopt(name = "open-friend")]
     OpenFriend(OpenFriendCmd),
+    /// Close requests from friend
     #[structopt(name = "close-friend")]
     CloseFriend(CloseFriendCmd),
+    /// Set friend's max debt
     #[structopt(name = "set-friend-max-debt")]
     SetFriendMaxDebt(SetFriendMaxDebtCmd),
+    /// Reset mutual credit with a friend according to friend's terms
     #[structopt(name = "reset-friend")]
     ResetFriend(ResetFriendCmd),
 }

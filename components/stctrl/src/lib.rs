@@ -24,3 +24,6 @@ pub mod info;
 
 pub mod file;
 pub mod utils;
+
+pub mod stctrllib;
+pub mod stregisterlib;

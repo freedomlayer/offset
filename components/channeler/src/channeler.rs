@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::Unpin;
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{FutTransform, Listener};
 use common::select_streams::{select_streams, BoxStream};
@@ -49,12 +49,16 @@ pub enum ChannelerError {
 
 struct Connected<T> {
     opt_sender: Option<mpsc::Sender<T>>,
+    #[allow(unused)]
+    /// When dropped, this will trigger closing of the receiving side task:
+    closer: oneshot::Sender<()>,
 }
 
 impl<T> Connected<T> {
-    pub fn new(sender: mpsc::Sender<T>) -> Self {
+    pub fn new(sender: mpsc::Sender<T>, closer: oneshot::Sender<()>) -> Self {
         Connected {
             opt_sender: Some(sender),
+            closer,
         }
     }
 
@@ -317,6 +321,10 @@ where
         raw_conn: RawConn,
     ) -> Result<(), ChannelerError> {
         let (sender, receiver) = raw_conn;
+
+        // Close fut_recv whenever closer is closed.
+        let (closer, close_receiver) = oneshot::channel::<()>();
+
         // We use an overwrite channel to make sure we are never stuck on trying to send a
         // message to remote friend. A friend only needs to know the most recent message,
         // so previous pending messages may be discarded.
@@ -339,7 +347,7 @@ where
                     return Ok(());
                 }
                 InFriend::Listening => {
-                    *in_friend = InFriend::Connected(Connected::new(friend_sender))
+                    *in_friend = InFriend::Connected(Connected::new(friend_sender, closer))
                 }
             }
         } else if let Some(mut out_friend) = self.friends.out_friends.get_mut(&friend_public_key) {
@@ -352,7 +360,8 @@ where
                     return Ok(());
                 }
                 OutFriendStatus::Connecting => {
-                    out_friend.status = OutFriendStatus::Connected(Connected::new(friend_sender))
+                    out_friend.status =
+                        OutFriendStatus::Connected(Connected::new(friend_sender, closer))
                 }
             }
         }
@@ -367,7 +376,11 @@ where
         });
         let c_friend_public_key = friend_public_key.clone();
         let fut_recv = async move {
-            let _ = await!(c_event_sender.send_all(&mut receiver));
+            select! {
+                _ = c_event_sender.send_all(&mut receiver).fuse() => (),
+                _ = close_receiver.fuse() => (),
+            };
+
             let receiver_closed_event = ChannelerEvent::FriendEvent(FriendEvent::ReceiverClosed(
                 c_friend_public_key.clone(),
             ));
@@ -396,6 +409,12 @@ where
                     .map_err(|_| ChannelerError::SendToFunderFailed)?
             }
             FriendEvent::ReceiverClosed(friend_public_key) => {
+                // Report Funder that the friend is offline:
+                let to_funder = ChannelerToFunder::Offline(friend_public_key.clone());
+                await!(self.to_funder.send(to_funder))
+                    .map_err(|_| ChannelerError::SendToFunderFailed)?;
+
+                /*
                 if self
                     .friends
                     .get_friend_connected(&friend_public_key)
@@ -406,6 +425,7 @@ where
                     await!(self.to_funder.send(to_funder))
                         .map_err(|_| ChannelerError::SendToFunderFailed)?;
                 }
+                */
 
                 if let Some(in_friend) = self.friends.in_friends.get_mut(&friend_public_key) {
                     *in_friend = InFriend::Listening;
@@ -808,6 +828,111 @@ mod tests {
     fn test_channeler_loop_listen_friend() {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_channeler_loop_listen_friend(thread_pool.clone()));
+    }
+
+    // ------------------------------------------------------------
+    // ------------------------------------------------------------
+
+    /// Test multiple updating and removing the same friend
+    /// The friend is removed in the middle of a connection. We expect the connection to be
+    /// forcefully closed.
+    async fn task_channeler_loop_update_remove_friend<S>(mut spawner: S)
+    where
+        S: Spawn + Clone + Send + Sync + 'static,
+    {
+        let (mut funder_sender, from_funder) = mpsc::channel(0);
+        let (to_funder, mut funder_receiver) = mpsc::channel(0);
+
+        // We sort the public keys ahead of time, so that we know how to break ties.
+        // Our local public key will be pks[1]. pks[0] < pks[1] < pks[2]
+        //
+        // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
+        // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
+        let mut pks = (0..3)
+            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .collect::<Vec<PublicKey>>();
+        pks.sort_by(compare_public_key);
+
+        let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_request_sender);
+
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+
+        spawner
+            .spawn(
+                channeler_loop(
+                    pks[1].clone(),
+                    from_funder,
+                    to_funder,
+                    connector,
+                    listener,
+                    spawner.clone(),
+                )
+                .map_err(|e| error!("Error in channeler_loop(): {:?}", e))
+                .map(|_| ()),
+            )
+            .unwrap();
+
+        // Set address for our relay:
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
+        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+
+        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        assert_eq!(lp_config, LpConfig::SetLocalAddresses(vec![0x1u32]));
+
+        for _ in 0..3 {
+            // Add a friend:
+            let channeler_update_friend = ChannelerUpdateFriend {
+                friend_public_key: pks[2].clone(),
+                friend_relays: vec![0x0u32],
+                local_relays: vec![0x2u32, 0x3u32],
+            };
+            await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+                .unwrap();
+
+            let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+            assert_eq!(
+                lp_config,
+                LpConfig::UpdateFriend((pks[2].clone(), vec![0x2u32, 0x3u32]))
+            );
+
+            // Set up a connection:
+            let (_pk2_sender, receiver) = mpsc::channel(0);
+            let (sender, _pk2_receiver) = mpsc::channel(0);
+            await!(listener_request
+                .conn_sender
+                .send((pks[2].clone(), (sender, receiver))))
+            .unwrap();
+
+            // Friend should be reported as online:
+            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            match channeler_to_funder {
+                ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[2]),
+                _ => unreachable!(),
+            };
+
+            // Request to remove the friend in the middle of connection:
+            await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone()))).unwrap();
+
+            let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+            assert_eq!(lp_config, LpConfig::RemoveFriend(pks[2].clone()));
+
+            // Friend should be reported as offline:
+            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            match channeler_to_funder {
+                ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[2]),
+                _ => unreachable!(),
+            };
+        }
+    }
+
+    #[test]
+    fn test_channeler_loop_update_remove_friend() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_loop_update_remove_friend(
+            thread_pool.clone(),
+        ));
     }
 
     // TODO: Add tests to make sure access control works properly?

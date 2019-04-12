@@ -1,3 +1,4 @@
+use std::io;
 use std::path::PathBuf;
 
 use app::ser_string::string_to_public_key;
@@ -13,34 +14,36 @@ use crate::file::invoice::load_invoice_from_file;
 use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
-#[derive(Debug, StructOpt)]
-pub struct SendRawCmd {
+#[derive(Clone, Debug, StructOpt)]
+pub struct SendFundsCmd {
     /// recipient's public key
     #[structopt(name = "destination", short = "d", long = "dest")]
-    destination_str: String,
+    pub destination_str: String,
     /// Amount of credits to send
     #[structopt(name = "amount", short = "a", long = "amount")]
-    dest_payment: u128,
+    pub dest_payment: u128,
     /// Output receipt file
     #[structopt(parse(from_os_str), name = "receipt", short = "r")]
-    opt_receipt_file: Option<PathBuf>,
+    pub opt_receipt_file: Option<PathBuf>,
 }
 
 /// Pay an invoice
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub struct PayInvoiceCmd {
     #[structopt(parse(from_os_str), name = "invoice", short = "i")]
-    invoice_file: PathBuf,
+    pub invoice_file: PathBuf,
     /// Output receipt file
     #[structopt(parse(from_os_str), name = "receipt", short = "r")]
-    receipt_file: PathBuf,
+    pub receipt_file: PathBuf,
 }
 
 /// Funds sending related commands
-#[derive(Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 pub enum FundsCmd {
-    #[structopt(name = "send-raw")]
-    SendRaw(SendRawCmd),
+    /// Send funds to a remote destination (Using destination public key)
+    #[structopt(name = "send-funds")]
+    SendFunds(SendFundsCmd),
+    /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
 }
@@ -59,6 +62,7 @@ pub enum FundsError {
     StoreReceiptError,
     ReceiptAckError,
     LoadInvoiceError,
+    WriteError,
 }
 
 /// Choose a route for pushing `amount` credits
@@ -101,13 +105,14 @@ fn choose_route(
 }
 
 /// Send funds to a remote destination without using an invoice.
-async fn funds_send_raw(
-    send_raw_cmd: SendRawCmd,
+async fn funds_send_funds(
+    send_raw_cmd: SendFundsCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
-    let SendRawCmd {
+    let SendFundsCmd {
         destination_str,
         dest_payment,
         opt_receipt_file,
@@ -149,8 +154,8 @@ async fn funds_send_raw(
         await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
             .map_err(|_| FundsError::SendFundsError)?;
 
-    println!("Payment successful!");
-    println!("Fees: {}", fees);
+    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
     // If the user wanted a receipt, we provide one:
     if let Some(receipt_file) = opt_receipt_file {
@@ -169,6 +174,7 @@ async fn funds_pay_invoice(
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
     let PayInvoiceCmd {
         invoice_file,
@@ -178,11 +184,6 @@ async fn funds_pay_invoice(
     // Make sure that we will be able to write the receipt
     // before we do the actual payment:
     if receipt_file.exists() {
-        return Err(FundsError::ReceiptFileAlreadyExists);
-    }
-
-    // Load invoice:
-    if invoice_file.exists() {
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
 
@@ -216,8 +217,8 @@ async fn funds_pay_invoice(
     ))
     .map_err(|_| FundsError::SendFundsError)?;
 
-    println!("Payment successful!");
-    println!("Fees: {}", fees);
+    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
     // Store receipt to file:
     store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
@@ -228,6 +229,7 @@ async fn funds_pay_invoice(
 pub async fn funds(
     funds_cmd: FundsCmd,
     mut node_connection: NodeConnection,
+    writer: &mut impl io::Write,
 ) -> Result<(), FundsError> {
     // Get our local public key:
     let mut app_report = node_connection.report().clone();
@@ -249,17 +251,19 @@ pub async fn funds(
         .clone();
 
     match funds_cmd {
-        FundsCmd::SendRaw(send_raw_cmd) => await!(funds_send_raw(
+        FundsCmd::SendFunds(send_raw_cmd) => await!(funds_send_funds(
             send_raw_cmd,
             local_public_key,
             app_routes,
-            app_send_funds
+            app_send_funds,
+            writer,
         ))?,
         FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
-            app_send_funds
+            app_send_funds,
+            writer,
         ))?,
     }
 
