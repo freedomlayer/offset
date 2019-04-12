@@ -935,6 +935,88 @@ mod tests {
         ));
     }
 
+    /// Test the case of a friend the channeler initiates connection to, and suddenly the friend is
+    /// removed
+    async fn task_channeler_loop_connect_friend_removed<S>(mut spawner: S)
+    where
+        S: Spawn + Clone + Send + Sync + 'static,
+    {
+        let (mut funder_sender, from_funder) = mpsc::channel(0);
+        let (to_funder, _funder_receiver) = mpsc::channel(0);
+
+        // We sort the public keys ahead of time, so that we know how to break ties.
+        // Our local public key will be pks[1]. pks[0] < pks[1] < pks[2]
+        //
+        // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
+        // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
+        let mut pks = (0..3)
+            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .collect::<Vec<PublicKey>>();
+        pks.sort_by(compare_public_key);
+
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
+        let connector = DummyConnector::new(conn_request_sender);
+
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+
+        spawner
+            .spawn(
+                channeler_loop(
+                    pks[1].clone(),
+                    from_funder,
+                    to_funder,
+                    connector,
+                    listener,
+                    spawner.clone(),
+                )
+                .map_err(|e| error!("Error in channeler_loop(): {:?}", e))
+                .map(|_| ()),
+            )
+            .unwrap();
+
+        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+
+        // This is the final address we set for our relay:
+        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
+
+        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        match lp_config {
+            LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![0x1u32]),
+            _ => unreachable!(),
+        };
+
+        // Add a friend:
+        let channeler_update_friend = ChannelerUpdateFriend {
+            friend_public_key: pks[0].clone(),
+            friend_relays: vec![0x0u32],
+            local_relays: vec![0x2u32, 0x3u32],
+        };
+
+        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend.clone())))
+            .unwrap();
+        let conn_request = await!(conn_request_receiver.next()).unwrap();
+        assert_eq!(conn_request.address, pks[0]);
+
+        // Request to remove the friend in the middle of connection attempt:
+        await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[0].clone()))).unwrap();
+        drop(conn_request);
+
+        // UpdateFriend again, to make sure channeler is still alive:
+        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+            .unwrap();
+        let conn_request = await!(conn_request_receiver.next()).unwrap();
+        assert_eq!(conn_request.address, pks[0]);
+    }
+
+    #[test]
+    fn test_channeler_loop_connect_friend_removed() {
+        let mut thread_pool = ThreadPool::new().unwrap();
+        thread_pool.run(task_channeler_loop_connect_friend_removed(
+            thread_pool.clone(),
+        ));
+    }
+
     // TODO: Add tests to make sure access control works properly?
     // If a friend with a strange public key tries to connect, he should not be able to succeed?
 }
