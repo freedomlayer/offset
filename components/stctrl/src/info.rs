@@ -11,6 +11,10 @@ use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayA
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
 
+/// Display local public key (Used as address for sending funds)
+#[derive(Clone, Debug, StructOpt)]
+pub struct PublicKeyCmd {}
+
 /// Show all configured relays
 #[derive(Clone, Debug, StructOpt)]
 pub struct RelaysCmd {}
@@ -46,6 +50,9 @@ pub struct ExportTicketCmd {
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
+    /// Show local public key (Used as address for sending funds)
+    #[structopt(name = "public-key")]
+    PublicKey(PublicKeyCmd),
     /// Show information about configured relay servers
     #[structopt(name = "relays")]
     Relays(RelaysCmd),
@@ -86,6 +93,15 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
     drop(incoming_mutations);
 
     Ok(node_report)
+}
+
+/// Show local public key
+pub async fn info_public_key(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
+    let report = await!(get_report(&mut app_report))?;
+
+    let public_key_string = public_key_to_string(&report.funder_report.local_public_key);
+    writeln!(writer, "{}", &public_key_string).map_err(|_| InfoError::WriteError)?;
+    Ok(())
 }
 
 pub async fn info_relays(mut app_report: AppReport, writer: &mut impl io::Write) -> Result<(), InfoError> {
@@ -337,6 +353,7 @@ pub async fn info(info_cmd: InfoCmd, mut node_connection: NodeConnection, writer
     let app_report = node_connection.report().clone();
 
     match info_cmd {
+        InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
         InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report, writer))?,
         InfoCmd::Index(_index_cmd) => await!(info_index(app_report, writer))?,
         InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report, writer))?,
