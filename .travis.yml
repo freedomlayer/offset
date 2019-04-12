@@ -12,7 +12,7 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
+    - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
       os: linux
       rust: nightly-2019-03-20
       addons:
@@ -32,7 +32,7 @@ matrix:
         - travis/trusty/post/kcov/run.sh
         - travis/trusty/post/cargo-sweep.sh
 
-    - env: TARGET=x86_64-apple-darwin
+    - env: RUST_BACKTRACE=1 TARGET=x86_64-apple-darwin
       os: osx
       rust: nightly-2019-03-20
       osx_image: xcode9.2
