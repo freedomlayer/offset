@@ -27,14 +27,16 @@ pub fn create_response_signature_buffer<S>(
     inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
+    sbuffer.extend_from_slice(&pending_request.invoice_id);
     sbuffer
         .write_u128::<BigEndian>(pending_request.dest_payment)
         .unwrap();
-    sbuffer.extend_from_slice(&pending_request.invoice_id);
 
     sbuffer
 }
 
+// TODO: How to keep in sync with verify_receipt and prepare receipt?
+// TODO: Add tests for synchronization between those functions? Possibly share code?
 /// Create the buffer we sign over at the Failure funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
@@ -86,7 +88,7 @@ pub fn prepare_receipt(
 ) -> Receipt {
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.canonical_serialize());
+    hash_buff.extend_from_slice(&pending_request.route.hash());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
@@ -102,7 +104,7 @@ pub fn prepare_receipt(
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
-    data.extend(FUND_SUCCESS_PREFIX);
+    data.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
     data.extend(receipt.response_hash.as_ref());
     data.extend(receipt.invoice_id.as_ref());
     data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
@@ -161,6 +163,8 @@ where
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
+    sig_buffer.extend_from_slice(&move_token.local_public_key);
+    sig_buffer.extend_from_slice(&move_token.remote_public_key);
     sig_buffer
         .write_u64::<BigEndian>(move_token.inconsistency_counter)
         .unwrap();

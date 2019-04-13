@@ -14,7 +14,7 @@ use crate::report::messages::FunderReportMutations;
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChannelerUpdateFriend<RA> {
     pub friend_public_key: PublicKey,
     /// We should try to connect to this address:

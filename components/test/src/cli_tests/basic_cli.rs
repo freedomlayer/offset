@@ -7,14 +7,18 @@ use bin::stnodelib::{stnode, StNodeCmd};
 use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
-    AddFriendCmd, AddIndexCmd, AddRelayCmd, ConfigCmd, EnableFriendCmd, OpenFriendCmd,
-    SetFriendMaxDebtCmd,
+    AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
+    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
 };
 use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendsCmd, InfoCmd, PublicKeyCmd};
+use stctrl::info::{
+    BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
+};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
 
-use stctrl::stregisterlib::{stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd};
+use stctrl::stregisterlib::{
+    stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd, VerifyTokenCmd,
+};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -32,7 +36,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("index0").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stindex(st_index_cmd));
+    thread::spawn(move || {
+        let res = stindex(st_index_cmd);
+        error!("index0 exited with: {:?}", res);
+    });
 
     // Spawn index1:
     let st_index_cmd = StIndexCmd {
@@ -45,7 +52,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("index1").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stindex(st_index_cmd));
+    thread::spawn(move || {
+        let res = stindex(st_index_cmd);
+        error!("index1 exited with: {:?}", res);
+    });
 
     // Spawn relay0:
     let st_relay_cmd = StRelayCmd {
@@ -56,7 +66,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         laddr: stctrl_setup.relay0_addr.parse().unwrap(),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || strelay(st_relay_cmd));
+    thread::spawn(move || {
+        let res = strelay(st_relay_cmd);
+        error!("relay0 exited with: {:?}", res);
+    });
 
     // Spawn relay1:
     let st_relay_cmd = StRelayCmd {
@@ -67,7 +80,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         laddr: stctrl_setup.relay1_addr.parse().unwrap(),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || strelay(st_relay_cmd));
+    thread::spawn(move || {
+        let res = strelay(st_relay_cmd);
+        error!("relay1 exited with: {:?}", res);
+    });
 
     // Spawn node0:
     let st_node_cmd = StNodeCmd {
@@ -77,7 +93,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("node0").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stnode(st_node_cmd));
+    thread::spawn(move || {
+        let res = stnode(st_node_cmd);
+        error!("node0 exited with: {:?}", res);
+    });
 
     // Spawn node1:
     let st_node_cmd = StNodeCmd {
@@ -87,7 +106,10 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
         trusted: stctrl_setup.temp_dir_path.join("node1").join("trusted"),
     };
     // TODO: How can we close this thread?
-    thread::spawn(move || stnode(st_node_cmd));
+    thread::spawn(move || {
+        let res = stnode(st_node_cmd);
+        error!("node1 exited with: {:?}", res);
+    });
 }
 
 /// Get the public key of node{index}:
@@ -537,19 +559,156 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             .join("receipt_40.receipt"),
     };
 
-    let _stregister_cmd = StRegisterCmd::VerifyReceipt(verify_receipt_cmd);
-    /*
+    let stregister_cmd = StRegisterCmd::VerifyReceipt(verify_receipt_cmd);
     let mut output = Vec::new();
     stregister(stregister_cmd, &mut output).unwrap();
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
-    */
 }
 
-/// Export node0's token and then verify it
-fn export_token(_stctrl_setup: &StCtrlSetup) {}
+/// Export a friend's last token and then verify it
+fn export_token(stctrl_setup: &StCtrlSetup) {
+    // node0: Get node1's last token:
+    let friend_last_token_cmd = FriendLastTokenCmd {
+        friend_name: "node1".to_owned(),
+        output_file: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+    };
+    let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
+    let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+
+    // Verify the token:
+    // ------------------
+    let verify_token_cmd = VerifyTokenCmd {
+        token: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+    };
+
+    let stregister_cmd = StRegisterCmd::VerifyToken(verify_token_cmd);
+    let mut output = Vec::new();
+    stregister(stregister_cmd, &mut output).unwrap();
+    let output_str = str::from_utf8(&output).unwrap();
+    assert!(output_str.contains("is valid!"));
+    assert!(output_str.contains("balance: -70"));
+}
+
+/// Close requests and disable friends
+fn close_disable(stctrl_setup: &StCtrlSetup) {
+    // Close friends:
+    // ---------------
+    for j in 0..2 {
+        let close_friend_cmd = CloseFriendCmd {
+            friend_name: format!("node{}", 1 - j),
+        };
+        let config_cmd = ConfigCmd::CloseFriend(close_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Wait until requests are seen closed:
+    for j in 0..2 {
+        let friends_cmd = FriendsCmd {};
+        let info_cmd = InfoCmd::Friends(friends_cmd);
+        let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+
+        // Wait until the local requests and remote requests are both open:
+        loop {
+            let mut output = Vec::new();
+            stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+            let output_string = str::from_utf8(&output).unwrap();
+            if output_string.contains("LR=-") && output_string.contains("RR=-") {
+                break;
+            }
+            thread::sleep(time::Duration::from_millis(100));
+        }
+    }
+
+    // Nodes disable each other (as friends):
+    for j in 0..2 {
+        let disable_friend_cmd = DisableFriendCmd {
+            friend_name: format!("node{}", 1 - j),
+        };
+        let config_cmd = ConfigCmd::DisableFriend(disable_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Wait until friends are seen disabled and offline:
+    for j in 0..2 {
+        let friends_cmd = FriendsCmd {};
+        let info_cmd = InfoCmd::Friends(friends_cmd);
+        let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+
+        // Wait until the remote friend seems to be disabled and offline:
+        loop {
+            let mut output = Vec::new();
+            stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+            let output_string = str::from_utf8(&output).unwrap();
+            if output_string.contains("D-") {
+                break;
+            }
+            thread::sleep(time::Duration::from_millis(100));
+        }
+    }
+}
 
 #[test]
-fn basic_invoice_receipt() {
+fn basic_cli() {
     let _ = env_logger::init();
 
     // Create a temporary directory.
@@ -563,4 +722,5 @@ fn basic_invoice_receipt() {
     send_funds(&stctrl_setup);
     pay_invoice(&stctrl_setup);
     export_token(&stctrl_setup);
+    close_disable(&stctrl_setup);
 }
