@@ -11,7 +11,7 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 
 ## Building Offst
 
-### Install dependencies:
+### Install dependencies
 
 - Install [Rust](https://www.rust-lang.org/tools/install).
 - Install [capnproto](https://capnproto.org):
