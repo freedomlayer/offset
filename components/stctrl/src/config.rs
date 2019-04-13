@@ -58,7 +58,7 @@ pub struct AddFriendCmd {
     #[structopt(name = "name", short = "n")]
     pub friend_name: String,
     /// Initial balance with friend
-    #[structopt(name = "balance", short = "b")]
+    #[structopt(name = "balance", long = "balance")]
     pub balance: i128,
 }
 
