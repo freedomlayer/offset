@@ -714,9 +714,11 @@ mod tests {
 
         let (_pk0_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, _pk0_receiver) = mpsc::channel(0);
-        drop(connect_req0
-            .response_sender
-            .send((local_sender, local_receiver)));
+        drop(
+            connect_req0
+                .response_sender
+                .send((local_sender, local_receiver)),
+        );
 
         // The connection requests receiver should be closed:
         assert!(await!(connect_receiver0.next()).is_none());
