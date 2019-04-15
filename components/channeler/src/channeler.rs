@@ -47,6 +47,7 @@ pub enum ChannelerError {
 
 struct Connected<T> {
     opt_sender: Option<mpsc::Sender<T>>,
+    // TODO: Do we really need the closer here? Check it.
     #[allow(unused)]
     /// When dropped, this will trigger closing of the receiving side task:
     closer: oneshot::Sender<()>,
