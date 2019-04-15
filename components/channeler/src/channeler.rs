@@ -23,7 +23,6 @@ pub enum ChannelerEvent<RA> {
     Connection((PublicKey, RawConn)),
     FriendEvent(FriendEvent),
     ListenerClosed,
-    ConnectorClosed,
     FunderClosed,
 }
 
@@ -44,11 +43,11 @@ pub enum ChannelerError {
     ListenerClosed,
     FunderClosed,
     ConnectorConfigError,
-    ConnectorClosed,
 }
 
 struct Connected<T> {
     opt_sender: Option<mpsc::Sender<T>>,
+    // TODO: Do we really need the closer here? Check it.
     #[allow(unused)]
     /// When dropped, this will trigger closing of the receiving side task:
     closer: oneshot::Sender<()>,
@@ -97,9 +96,6 @@ struct OutFriend<RA> {
     config_client: CpConfigClient<RA>,
     connect_client: CpConnectClient,
     status: OutFriendStatus,
-    /// Will abort a connection attempt when dropped
-    #[allow(unused)]
-    opt_abort_connect: Option<oneshot::Sender<()>>,
 }
 
 struct Friends<RA> {
@@ -191,32 +187,21 @@ where
             None => unreachable!(), // We assert that the out_friend exists.
         };
 
-        let (abort_connect, abort_connect_receiver) = oneshot::channel();
-        // Connection attempt will be aborted if we drop this friend:
-        out_friend.opt_abort_connect = Some(abort_connect);
-
         let mut c_connect_client = out_friend.connect_client.clone();
         let c_friend_public_key = friend_public_key.clone();
         let mut c_event_sender = self.event_sender.clone();
         let connect_fut = async move {
-            let opt_res_raw_conn = select! {
-                _ = abort_connect_receiver.fuse() => None,
-                res_raw_conn = Box::pin(c_connect_client.connect()).fuse() => Some(res_raw_conn)
+            match await!(c_connect_client.connect()) {
+                Ok(raw_conn) => {
+                    let event = ChannelerEvent::Connection((c_friend_public_key, raw_conn));
+                    let _ = await!(c_event_sender.send(event));
+                }
+                Err(e) => {
+                    // This probably happened because the friend was removed
+                    // during connection attempt.
+                    warn!("connect_out_friend(): connect() error: {:?}", e);
+                }
             };
-            if let Some(res_raw_conn) = opt_res_raw_conn {
-                let event = match res_raw_conn {
-                    Ok(raw_conn) => ChannelerEvent::Connection((c_friend_public_key, raw_conn)),
-                    Err(e) => {
-                        warn!("connect_out_friend(): connect() error: {:?}", e);
-                        // This should only happen if there was a real problem
-                        // with the connector.
-                        ChannelerEvent::ConnectorClosed
-                    }
-                };
-                let _ = await!(c_event_sender.send(event));
-            } else {
-                warn!("A friend was removed during connection attempt");
-            }
         };
 
         self.spawner
@@ -251,7 +236,6 @@ where
                 config_client,
                 connect_client,
                 status: OutFriendStatus::Connecting,
-                opt_abort_connect: None,
             };
             self.friends
                 .out_friends
@@ -527,7 +511,6 @@ where
                 await!(channeler.handle_friend_event(friend_event))?
             }
             ChannelerEvent::ListenerClosed => return Err(ChannelerError::ListenerClosed),
-            ChannelerEvent::ConnectorClosed => return Err(ChannelerError::ConnectorClosed),
             ChannelerEvent::FunderClosed => return Err(ChannelerError::FunderClosed),
         };
     }
