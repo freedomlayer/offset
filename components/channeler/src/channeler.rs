@@ -195,7 +195,7 @@ where
                 Ok(raw_conn) => {
                     let event = ChannelerEvent::Connection((c_friend_public_key, raw_conn));
                     let _ = await!(c_event_sender.send(event));
-                },
+                }
                 Err(e) => {
                     // This probably happened because the friend was removed
                     // during connection attempt.
@@ -1039,7 +1039,6 @@ mod tests {
             thread_pool.clone(),
         ));
     }
-
 
     // TODO: Add tests to make sure access control works properly?
     // If a friend with a strange public key tries to connect, he should not be able to succeed?
