@@ -40,3 +40,11 @@ matrix:
         - brew install capnp
       script:
         - cargo test
+
+    - env: RUST_BACKTRACE=1 TARGET=x86_64-pc-windows-gnu
+      os: windows
+      rust: nightly-2019-03-20
+      before_script:
+        - choco install capnproto 
+      script:
+        - cargo test
