@@ -43,6 +43,9 @@ matrix:
 
     - env: RUST_BACKTRACE=1 TARGET=x86_64-pc-windows-gnu
       os: windows
+      # A workaround to deal with travis windows issue, see:
+      # https://travis-ci.community/t/current-known-issues-please-read-this-before-posting-a-new-topic/264/9
+      filter_secrets: false
       rust: nightly-2019-03-20
       before_script:
         - choco install capnproto 
