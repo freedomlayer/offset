@@ -44,6 +44,6 @@ matrix:
     filter_secrets: false
     rust: nightly-2019-03-20
     before_script:
-    - choco install capnproto
+    - choco install capnproto yasm strawberryperl
     script:
     - cargo test
