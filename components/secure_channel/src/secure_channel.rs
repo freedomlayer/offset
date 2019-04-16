@@ -227,7 +227,7 @@ where
 
     let sc_loop_report_error = sc_loop.map(|res| {
         if let Err(e) = res {
-            error!("Secure Channel error: {:?}", e);
+            warn!("Secure Channel error: {:?}", e);
         }
     });
     spawner
