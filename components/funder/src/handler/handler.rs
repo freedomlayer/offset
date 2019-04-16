@@ -261,9 +261,13 @@ where
         running_state.mutate(funder_mutation);
     }
 
+    // At this point the running_state is the final funder_state:
+    let funder_state = running_state;
+
     for ephemeral_mutation in ephemeral_mutations {
         report_mutations.extend(ephemeral_mutation_to_report_mutations::<B>(
             ephemeral_mutation,
+            &funder_state,
         ));
     }
 

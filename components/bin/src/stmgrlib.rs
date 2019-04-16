@@ -151,6 +151,7 @@ fn init_node_db(InitNodeDbCmd { idfile, output }: InitNodeDbCmd) -> Result<(), I
 
 #[derive(Debug)]
 pub enum GenIdentityError {
+    OutputAlreadyExists,
     StoreToFileError,
 }
 
@@ -159,6 +160,10 @@ fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityEr
     // Generate a new random keypair:
     let rng = system_random();
     let pkcs8 = generate_pkcs8_key_pair(&rng);
+
+    if output.exists() {
+        return Err(GenIdentityError::OutputAlreadyExists);
+    }
 
     store_identity_to_file(pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
 }

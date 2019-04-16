@@ -117,7 +117,7 @@ pub async fn info_relays(
 
     let mut table = Table::new();
     // Add title:
-    table.add_row(row!["relay name", "public key", "address"]);
+    table.set_titles(row!["relay name", "public key", "address"]);
 
     for named_relay_address in &report.funder_report.relays {
         let pk_string = public_key_to_string(&named_relay_address.public_key);
@@ -143,7 +143,7 @@ pub async fn info_index(
 
     let mut table = Table::new();
     // Add title:
-    table.add_row(row!["index server name", "public key", "address"]);
+    table.set_titles(row!["index server name", "public key", "address"]);
 
     let opt_connected_server = &report.index_client_report.opt_connected_server;
     for named_index_server_address in &report.index_client_report.index_servers {

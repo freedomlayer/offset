@@ -149,6 +149,8 @@ where
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
+    // TODO: The state of liveness = true with status = disabled should never happen.
+    // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
