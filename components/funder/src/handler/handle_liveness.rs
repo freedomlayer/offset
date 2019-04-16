@@ -46,6 +46,9 @@ where
                 .liveness
                 .is_online(&friend_public_key)
             {
+                // The liveness data in ephemeral represents the information we got from the
+                // Channeler. We don't expect the channeler to send twice that a node is online.
+                // This would mean a bug in the Channeler
                 return Err(HandleLivenessError::FriendAlreadyOnline);
             }
 
@@ -59,15 +62,14 @@ where
             // It is possible that the friend is disabled and we get an offline notification.
             // This will usually happen if we just set the friend to be disabled. We will get the
             // offline notification for the friend short time after we set it to be disabled.
-
-            // If the friend does not exist, we have nothing to do here:
-            if m_state.state().friends.get(&friend_public_key).is_none() {
-                return Ok(());
-            }
-
             let liveness_mutation = LivenessMutation::SetOffline(friend_public_key.clone());
             let ephemeral_mutation = EphemeralMutation::LivenessMutation(liveness_mutation);
             m_ephemeral.mutate(ephemeral_mutation);
+
+            // If the friend does not exist, we have nothing more to do here:
+            if m_state.state().friends.get(&friend_public_key).is_none() {
+                return Ok(());
+            }
 
             // Cancel all messages pending for this friend:
             cancel_pending_requests(m_state, send_commands, outgoing_control, &friend_public_key);

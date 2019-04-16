@@ -365,6 +365,7 @@ where
 
 pub fn ephemeral_mutation_to_report_mutations<B>(
     ephemeral_mutation: &EphemeralMutation,
+    funder_state: &FunderState<B>,
 ) -> Vec<FunderReportMutation<B>>
 where
     B: Clone,
@@ -372,6 +373,21 @@ where
     match ephemeral_mutation {
         EphemeralMutation::LivenessMutation(liveness_mutation) => match liveness_mutation {
             LivenessMutation::SetOnline(public_key) => {
+                if !funder_state.friends.contains_key(public_key) {
+                    // We ignore the liveness mutation if friend does not exist.
+                    //
+                    // We do this because ephemeral and funder states do not necessarily agree on
+                    // the list of friends. It is possible that a friend is marked as online at the
+                    // ephemeral, but there is no such friend at the funder.
+                    //
+                    // Ephemeral represents the most up to date information the funder has received
+                    // from the Channeler, while Funder state represents user's configuration.
+                    //
+                    // The report is always a bit more pessimistic, as a new friend is always
+                    // initialized as offline in the report, but it will eventually be marked as
+                    // online when this information arrives from the Channeler.
+                    return Vec::new();
+                }
                 let friend_report_mutation =
                     FriendReportMutation::SetLiveness(FriendLivenessReport::Online);
                 vec![FunderReportMutation::FriendReportMutation((
@@ -380,6 +396,10 @@ where
                 ))]
             }
             LivenessMutation::SetOffline(public_key) => {
+                if !funder_state.friends.contains_key(public_key) {
+                    // We ignore the liveness mutation if friend does not exist.
+                    return Vec::new();
+                }
                 let friend_report_mutation =
                     FriendReportMutation::SetLiveness(FriendLivenessReport::Offline);
                 vec![FunderReportMutation::FriendReportMutation((
