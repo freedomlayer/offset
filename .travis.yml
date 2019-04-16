@@ -6,48 +6,44 @@ git:
 cache:
   cargo: true
   directories:
-    - $HOME/capnp
-    - $HOME/kcov-x86_64-unknown-linux-gnu
-
+  - "$HOME/capnp"
+  - "$HOME/kcov-x86_64-unknown-linux-gnu"
 matrix:
   fast_finish: true
   include:
-    - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
-      os: linux
-      rust: nightly-2019-03-20
-      addons:
-        apt:
-          packages:
-            - gcc-6
-            - g++-6
-          sources:
-            - ubuntu-toolchain-r-test
-      script:
-        - travis/trusty/pre/cargo-config.sh
-        - travis/trusty/pre/capnp.sh
-        - cargo fmt --all -- --check
-        - cargo clippy
-        - cargo test
-        - travis/trusty/post/kcov/try-install.sh
-        - travis/trusty/post/kcov/run.sh
-        - travis/trusty/post/cargo-sweep.sh
-
-    - env: RUST_BACKTRACE=1 TARGET=x86_64-apple-darwin
-      os: osx
-      rust: nightly-2019-03-20
-      osx_image: xcode9.2
-      before_script:
-        - brew install capnp
-      script:
-        - cargo test
-
-    - env: RUST_BACKTRACE=1 TARGET=x86_64-pc-windows-gnu
-      os: windows
-      # A workaround to deal with travis windows issue, see:
-      # https://travis-ci.community/t/current-known-issues-please-read-this-before-posting-a-new-topic/264/9
-      filter_secrets: false
-      rust: nightly-2019-03-20
-      before_script:
-        - choco install capnproto 
-      script:
-        - cargo test
+  - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C
+      link-dead-code"
+    os: linux
+    rust: nightly-2019-03-20
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
+    script:
+    - travis/trusty/pre/cargo-config.sh
+    - travis/trusty/pre/capnp.sh
+    - cargo fmt --all -- --check
+    - cargo clippy
+    - cargo test
+    - travis/trusty/post/kcov/try-install.sh
+    - travis/trusty/post/kcov/run.sh
+    - travis/trusty/post/cargo-sweep.sh
+  - env: RUST_BACKTRACE=1 TARGET=x86_64-apple-darwin
+    os: osx
+    rust: nightly-2019-03-20
+    osx_image: xcode9.2
+    before_script:
+    - brew install capnp
+    script:
+    - cargo test
+  - env: RUST_BACKTRACE=1 TARGET=x86_64-pc-windows-msvc
+    os: windows
+    filter_secrets: false
+    rust: nightly-2019-03-20
+    before_script:
+    - choco install capnproto
+    script:
+    - cargo test
