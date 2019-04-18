@@ -14,7 +14,7 @@ matrix:
   - env: RUST_BACKTRACE=1 TARGET=x86_64-pc-windows-msvc
     os: windows
     filter_secrets: false
-    rust: nightly-2019-03-20
+    # rust: nightly-2019-03-20
     before_script:
     # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
     - choco install vcredist2010 capnproto strawberryperl 
