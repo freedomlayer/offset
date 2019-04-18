@@ -4,7 +4,7 @@
 
 exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
-    ${HOME}/kcov-${TARGET}/bin/kcov \
+    ${HOME}/install/kcov-${TARGET}/bin/kcov \
         --verify \
         --exclude-path=/usr/include \
         --include-pattern="components" \
