@@ -24,4 +24,5 @@ matrix:
     - cd
     - echo $PATH
     script:
+        - cd
         - yasm
