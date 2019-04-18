@@ -17,12 +17,14 @@ matrix:
     # rust: nightly-2019-03-20
     before_script:
     # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
-    - choco install vcredist2010 capnproto strawberryperl 
+    # - choco install vcredist2010 capnproto strawberryperl 
     - mkdir windows_build_tools
     - curl -o windows_build_tools/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
-    - export PATH=$PATH:";windows_build_tools"
-    - cd
+    - export PATH=$PATH:":windows_build_tools"
     - echo $PATH
+    - ECHO %cd$
+    - pwd
     script:
-        - cd
+        - ECHO %cd$
+        - pwd
         - yasm
