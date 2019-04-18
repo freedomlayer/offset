@@ -17,8 +17,7 @@ cache:
 matrix:
   include:
 
-  - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C
-      link-dead-code"
+  - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
     os: linux
     dist: trusty
     rust: nightly-2019-03-20
