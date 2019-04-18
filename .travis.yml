@@ -10,7 +10,7 @@ git:
 # Don't cache the cargo registry:
 # See: https://levans.fr/rust_travis_cache.html
 before_cache:
-    - trusty/post/cargo-sweep.sh
+    - travis/trusty/post/cargo-sweep.sh
     - rm -rf $HOME/.cargo/registry
 
 cache:
@@ -33,13 +33,13 @@ matrix:
         sources:
         - ubuntu-toolchain-r-test
     script:
-    - trusty/pre/cargo-config.sh
-    - trusty/pre/capnp.sh
+    - travis/trusty/pre/cargo-config.sh
+    - travis/trusty/pre/capnp.sh
     - cargo fmt --all -- --check
     - cargo clippy
     - cargo test
-    - trusty/post/kcov/try-install.sh
-    - trusty/post/kcov/run.sh
+    - travis/trusty/post/kcov/try-install.sh
+    - travis/trusty/post/kcov/run.sh
 
   - env: TARGET=x86_64-apple-darwin
     os: osx
