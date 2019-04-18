@@ -7,7 +7,7 @@ for exe in ${exes}; do
     ${HOME}/kcov-${TARGET}/bin/kcov \
         --verify \
         --exclude-path=/usr/include \
-        --include-pattern="offst/components" \
+        --include-pattern="components" \
         target/kcov \
         ${exe}
 done
