@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-CAPNP_INSTALL_PREFIX="${HOME}/capnp"
+CAPNP_INSTALL_PREFIX="${HOME}/install/capnp"
 
 CAPNP_VERSION="0.7.0"
 
-if [ ! -d "$HOME/capnp/lib" ]; then
+# Build only if we don't have a cached installation:
+if [ ! -d "$CAPNP_INSTALL_PREFIX/lib" ]; then
   curl -L https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz | tar -zxf -
   pushd capnproto-c++-${CAPNP_VERSION}
   ./configure --prefix=${CAPNP_INSTALL_PREFIX}

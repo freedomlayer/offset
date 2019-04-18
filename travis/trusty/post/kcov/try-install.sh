@@ -2,7 +2,7 @@
 
 set -ex
 
-KCOV_INSTALL_PREFIX="${HOME}/kcov-${TARGET}"
+KCOV_INSTALL_PREFIX="${HOME}/install/kcov-${TARGET}"
 KCOV_MINIMUM_REQUIRED=${KCOV_MINIMUM_REQUIRED:-34}
 
 sudo apt-get install -y libdw-dev
