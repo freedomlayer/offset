@@ -39,7 +39,8 @@ matrix:
     - travis/trusty/pre/capnp.sh
     - cargo fmt --all -- --check
     - cargo clippy
-    - cargo test
+      # We add target dir so that kcov can find the test files to run:
+    - cargo test --target ${TARGET}
     - travis/trusty/post/kcov/try-install.sh
     - travis/trusty/post/kcov/run.sh
 
