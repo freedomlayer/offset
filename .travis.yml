@@ -1,42 +1,91 @@
 language: rust
-dist: trusty
 sudo: required
+env:
+  global:
+    - PROJECT_NAME: offst
+    - RUST_BACKTRACE: full
+
 git:
   depth: 1
+
+# Don't cache the cargo registry:
+# See: https://levans.fr/rust_travis_cache.html
+before_cache:
+    - travis/trusty/post/cargo-sweep.sh
+    - rm -rf $HOME/.cargo/registry
+
 cache:
-  cargo: true
   directories:
-    - $HOME/capnp
-    - $HOME/kcov-x86_64-unknown-linux-gnu
+    - $HOME/.cargo
+    - $HOME/install
 
 matrix:
   fast_finish: true
   include:
-    - env: RUST_BACKTRACE=1 TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
-      os: linux
-      rust: nightly-2019-03-20
-      addons:
-        apt:
-          packages:
-            - gcc-6
-            - g++-6
-          sources:
-            - ubuntu-toolchain-r-test
-      script:
-        - travis/trusty/pre/cargo-config.sh
-        - travis/trusty/pre/capnp.sh
-        - cargo fmt --all -- --check
-        - cargo clippy
-        - cargo test
-        - travis/trusty/post/kcov/try-install.sh
-        - travis/trusty/post/kcov/run.sh
-        - travis/trusty/post/cargo-sweep.sh
 
-    - env: RUST_BACKTRACE=1 TARGET=x86_64-apple-darwin
-      os: osx
-      rust: nightly-2019-03-20
-      osx_image: xcode9.2
-      before_script:
-        - brew install capnp
-      script:
+  - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
+    os: linux
+    dist: trusty
+    rust: nightly-2019-03-20
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
+    script:
+    - travis/trusty/pre/cargo-config.sh
+    - travis/trusty/pre/capnp.sh
+    - cargo fmt --all -- --check
+    - cargo clippy
+      # We add target dir so that kcov can find the test files to run:
+    - cargo test --target ${TARGET}
+    - travis/trusty/post/kcov/try-install.sh
+    - travis/trusty/post/kcov/run.sh
+
+  - env: TARGET=x86_64-apple-darwin
+    os: osx
+    rust: nightly-2019-03-20
+    osx_image: xcode9.2
+    before_script:
+    - brew install capnp
+    script:
+    - cargo test
+
+  - env: TARGET=x86_64-pc-windows-msvc
+    os: windows
+    # Used as a temporary fix for windows CI issue in travis.
+    # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
+    filter_secrets: false
+    rust: nightly-2019-03-20
+    before_script:
+    # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
+    - choco install vcredist2010 capnproto strawberryperl 
+    - mkdir -p $HOME/install/yasm
+    - curl -o $HOME/install/yasm/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
+    - export PATH=$HOME/install/yasm:$PATH
+    - echo $PATH
+    script:
         - cargo test
+
+before_deploy: travis/before_deploy.sh
+deploy:
+  provider: releases
+  api_key:
+    secure: MpKcz5y3DQGkZYpekopOAHkErw8RoJSsnLDWzTQg+bxDD4+30Q+aZ21EK6BIvOgNTcGZCpxKAr1iobr9IVv9tlEZVGeV3eiCeAUCq52uQmDfYf5VkckwF5DLBcKN7FLZZVgKq8m30OLXDyxuwogd39LcKzTKyHURQAa7DHSjomUf+Yu+/+PFMxCisvFKl0Etp/qMbPXuoZya19qH5zDNupf4BsB00qJo0SMF8pPZ/p+m+BGotBNNwLWGrfDt5Pv460/0H8MixkrVnt3/tKmZ3MvhQ42bMgMR5vg+j/Ioeiq2jiUjoLaC0HixL8wyOKyiXiuvAE812P5MEeCA6RrjG2q6CaOM+b4+Az5q/PbM5zzmhjT6wWVmNfIb7hqin7k63cAL5BBAmqcWO9LYazk3/8Eqv+/CVGvZyVixz7/qhbBzA/J5sJiu4O5IHYgtchXUcyZh+YIPwQpfwbHhyUl55wIRqMiOohaBxufYBKGUoe5pH26U/acaY4xSzRKCbXTej5bW+pY3OkeUKZFEETDAPdGcGjrD12CFbSaY5ikYmkFSDKluMcbvXpWCRXvPo+D+c1RPJ6xxxYKA/+6AH3nhQEwX6viEYD/XtxPYUEdbgYcImz/HL5clo6j0uiP/gHmrdGY+tg8btOozNvkNXMKJyEffYMFyuDbPrjWOK712/pU=
+  file: $HOME/deployment/${PROJECT_NAME}-${TRAVIS_TAG}-${TARGET}.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: freedomlayer/offst
+    branch: master
+branches:
+  only:
+    # Pushes and PR to the master branch
+    - master
+    # Ruby regex to match tags. Required, or travis won't trigger deploys when
+    # a new tag is pushed. Version tags should be of the form: v0.1.0
+    - /^v\d+\.\d+\.\d+.*$/
+
+
