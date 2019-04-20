@@ -85,7 +85,7 @@ branches:
     # Pushes and PR to the master branch
     - master
     # Temporary test branch to debug deployments
-    - real/fix/release_deploy
+    - real/fix/release_deploy2
     # Ruby regex to match tags. Required, or travis won't trigger deploys when
     # a new tag is pushed. Version tags should be of the form: v0.1.0
     - /^v\d+\.\d+\.\d+.*$/
