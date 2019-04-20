@@ -55,6 +55,8 @@ matrix:
 
   - env: TARGET=x86_64-pc-windows-msvc
     os: windows
+    # Used as a temporary fix for windows CI issue in travis.
+    # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
     filter_secrets: false
     rust: nightly-2019-03-20
     before_script:
