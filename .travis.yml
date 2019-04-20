@@ -79,6 +79,7 @@ deploy:
   on:
     tags: true
     repo: freedomlayer/offst
+    all_branches: true
 branches:
   only:
     # Pushes and PR to the master branch
