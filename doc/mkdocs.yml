@@ -2,6 +2,7 @@ site_name: Offst
 nav:
     - Home: index.md
     - Tutorial: tutorial.md
+    - Theory: theory.md
 
 markdown_extensions:
   - footnotes
