@@ -331,14 +331,14 @@ A -- B -- C -- D -- E -- F
 
 And consider the following cases:
 
-(1) B receives a `RequestSendFundsOp` message that he should forward to C, but he
+**(1)** B receives a `RequestSendFundsOp` message that he should forward to C, but he
 doesn't forward the message to C.
 
 This is not a reasonable for B, because B could potentially earn credits
 from this transaction.
 
 
-(2) A sends a message to a nonexistent remote node T, along the route:
+**(2)** A sends a message to a nonexistent remote node T, along the route:
 
 `A -- B -- C -- D -- T`
 
@@ -349,7 +349,7 @@ sending a message to a nonexistent remote node costs credit to A, and the
 mediator nodes are still compensated.
 
 
-(3) A and F cooperate. When F receives a `RequestSendFundsOp` message, F doesn't
+**(3)** A and F cooperate. When F receives a `RequestSendFundsOp` message, F doesn't
 return a signed response message to E. A and F might be using this as a
 technique for free communication.
 
@@ -359,21 +359,21 @@ E and F will be frozen and it will not be possible to open new requests from E
 to F. This means that F will not be able to receive funds through E.
 
 
-(4) B receives a `ResponseSendFundsOp` message from C but doesn't pay C.
+**(4)** B receives a `ResponseSendFundsOp` message from C but doesn't pay C.
 
 An inconsistency will be created in the neighbor relationship between B and C,
 and communication will not continue between them until this inconsistency is
 wsolved manually.
 
 
-(5) C receives a `ResponseSendFundsOp` message from D but does not pass it to B.
+**(5)** C receives a `ResponseSendFundsOp` message from D but does not pass it to B.
 
 This means that C gives up on credit, passing the `ResponseSendFundsOp` message to B
 will earn C credit. Therefore, C will prefer to pass the `ResponseSendFundsOp`
 message to B.
 
 
-(6) An attacker node claims to be many nodes
+**(6)** An attacker node claims to be many nodes
 For example, consider the following friends graph:
 
 ```text
