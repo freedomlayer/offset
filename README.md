@@ -5,10 +5,19 @@
 [![Documentation Status](https://readthedocs.org/projects/offst/badge/?version=latest)](https://offst.readthedocs.io/en/latest/?badge=latest)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/offst.svg)](https://gitter.im/freedomlayer/offst)
 
-**Offst** is a decentralized payment infrastructure, relying on mutual trust. See [Offst's
-blog](https://www.freedomlayer.org/offst/) for more information.
+**Offst** is a decentralized payment infrastructure, relying on mutual trust. 
 
 Warning: Offst is still a work in progress, and is not yet ready for use in production.
+
+## Info
+
+- [Documentation](https://offst.readthedocs.io/en/latest/?badge=latest)
+- [Blog](https://www.freedomlayer.org/offst/)
+
+## Download
+
+[Releases page](https://github.com/freedomlayer/offst/releases)
+
 
 ## Building Offst
 

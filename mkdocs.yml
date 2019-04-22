@@ -1,8 +1,0 @@
-site_name: Offst
-nav:
-    - Home: index.md
-    - Tutorial: tutorial.md
-    - About: about.md
-
-markdown_extensions:
-  - footnotes

@@ -1,0 +1,16 @@
+site_name: Offst
+nav:
+    - Home: index.md
+    - Tutorial: tutorial.md
+    - Theory: theory.md
+    - Network: network.md
+
+markdown_extensions:
+  - footnotes
+
+theme:
+    name: readthedocs
+    highlightjs: true
+    hljs_languages:
+        - yaml
+        - rust

@@ -34,7 +34,7 @@ reasonable for Alice to charge for forwarding the transactions. For example,
 Alice could charge 1 dollar for every transaction she forwards.
 
 Offst is a system that works this way. People or organizations can set up
-mutual credit which each other, and leverage those mutual credits to send
+mutual credit with each other, and leverage those mutual credits to send
 payments to anyone in the network. A participant that mediates a transaction
 earns 1 credit.
 
@@ -531,5 +531,223 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
 ```
 
 ## Sending funds
+
+There are currently two ways to send funds using stctrl:
+- `send-funds`: Send funds without an invoice
+- `pay-invoice`: Pay an invoice
+
+Internally both commands work the same. 
+The difference between the two is that to pay with `pay-invoice` the recipient
+party must first generate an invoice file (Specifying the payment amount).
+
+On the other hand, `send-funds` allows raw sending of funds to any party given
+that its public key is known. Paying with `send-funds` does not leave any means
+for the recipient of the funds to relate them to any specific transaction. 
+
+
+### send-funds
+
+Let's begin with `send-funds`, which is the raw method of sending funds:
+
+We first observe the initial balance:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+0
+```
+
+Suppose that we want to send 50 credits from node0 to node1. We first need to
+know node1's public key:
+
+```bash
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info public-key
+bUoWZEEInqjDdw8TOBlpY0zpHF7hjLMAX_DdPrTI9y8
+```
+
+Next, we use the `send-funds` subcommand to send credits:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket funds send-funds --amount 50 --dest bUoWZEEInqjDdw8TOBlpY0zpHF7hjLMAX_DdPrTI9y8
+Payment successful!
+Fees: 0
+```
+
+The new balance from the point of view of node0 and node1:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+-50
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
+50
+```
+
+### pay-invoice
+
+Suppose that node1 wants to buy a bag of bananas from node0 that cost 60 credits.
+To make the transaction, the following should happen:
+
+1. node0 prepares an invoice for 60 credits and sends it to node1.
+2. node1 pays the invoice and sends the receipt to node0.
+3. node0 verifies the receipt and (if the receipt was valid) gives the bag of bananas to node1.
+
+
+(1) **node0 prepares an invoice**
+
+To prepare an invoice, we first get node0's public key:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info public-key
+TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw
+```
+
+node0 prepares an invoice using the `stregister` util:
+
+```bash
+$ stregister gen-invoice -a 60 -p TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw -o bananas.invoice
+```
+
+(2) **node1 pays the invoice**
+
+node1 can now pay the invoice:
+
+```bash
+$ stctrl -I app1/app1.ident -T node1/node1.ticket funds pay-invoice -i bananas.invoice -r bananas.receipt
+Payment successful!
+Fees: 0
+```
+
+Note that a receipt file was created: bananas.receipt. The receipt file is a
+proof that node1 paid the invoice successfuly. Node1 now hands over the receipt
+to node0.
+
+
+(3) **node0 verifies the receipt**
+
+```bash
+$ stregister verify-receipt -i bananas.invoice -r bananas.receipt 
+Receipt is valid!
+```
+
+As expected, the balances now are:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+10
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
+-10
+```
+
+Now that the payment is verified, node0 can give node1 the bag of bananas.
+
+
+
+## Running your own relay
+
+Usually you will not need to run your own relay. You can configure your node to
+use known public relays instead. If you still want to run your own relay, read
+on.
+
+We first need to create a new identity for the relay server. This can be done
+as follows:
+
+```bash
+$ mkdir relay
+$ stmgr gen-ident --output relay/relay.ident
+```
+
+Next, we can start the relay using this command:
+
+```bash
+strelay --idfile relay/relay.ident --laddr 127.0.0.1:8000 &
+```
+
+To allow nodes to connect to our relays, we need to provide a relay ticket.
+A ticket can be generated using the following command:
+
+
+```bash
+$ stmgr relay-ticket --address 127.0.0.1:8000 --idfile relay/relay.ident --output relay/relay.ticket
+```
+
+Note that the address in the `stmgr relay-ticket` command must match the
+address in the `strelay` command (Otherwise, nodes will connect to the wrong
+relay address).
+
+The ticket file `relay.ticket` can now be published. A user can download the
+relay ticket file and apply it to a node using the command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-relay \
+            -n my_relay -r relay.ticket
+```
+
+## Running your own index server
+
+Usually you will not need to run your own index server. You can configure your
+node to use known public index servers instead. If you still want to run your
+own index server, read on.
+
+We first need to create a new identity for the index server. This can be done
+as follows:
+
+```bash
+$ mkdir index
+$ stmgr gen-ident --output index/index.ident
+```
+
+Next, we need to set up a directory of trusted index servers:
+
+```bash
+mkdir index/trusted
+```
+
+And add a few trusted index servers tickets to this directory. 
+
+Note that it is required that the owners of those index servers will add our
+index server as a trusted index server too. For communication to happen between
+two index servers, it is crucial that both sides configure the remote side as a
+trusted index server.
+
+To generate an index server facing ticket, we run the command:
+
+```bash
+$ stmgr index-ticket --idfile index/index.ident --address 127.0.0.1:7000 \
+        --output index_server.ticket
+```
+
+We will send the resulting `index_server.ticket` to the owner of the remote index servers we
+want to communicate with.
+
+To start the index server, we run:
+
+```bash
+stindex --idfile index/index.ident --lclient 127.0.0.1:9000 --lserver 127.0.0.1:7000 --trusted index/trusted &
+```
+
+We have two listening addresses above (lclient and lserver) because we listen
+on two different TCP ports: One for incoming connections from nodes (lclient)
+and one for incoming connections from federating index servers (lserver). Note
+that the index server facing ticket we created earlier matches the `--lserver`
+address.
+
+To allow nodes to add our index server, we produce a node facing index ticket
+as follows:
+
+```bash
+$ stmgr index-ticket --idfile index/index.ident --address 127.0.0.1:9000 \
+        --output index_client.ticket
+```
+
+Note that this command is very similar to the command we used to produce an
+index server facing ticket. The difference is the TCP port we have chosen and
+the output file name.
+
+Now we can publish the `index_client.ticket` file. A node can add the index
+server to its configuration using this command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-index \
+            -n my_index -i index_client.ticket
+```
 
 
