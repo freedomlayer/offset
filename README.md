@@ -14,6 +14,11 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 - [Documentation](https://offst.readthedocs.io/en/latest/?badge=latest)
 - [Blog](https://www.freedomlayer.org/offst/)
 
+## Download
+
+[Releases page](https://github.com/freedomlayer/offst/releases)
+
+
 ## Building Offst
 
 ### Install dependencies
