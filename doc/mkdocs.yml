@@ -3,6 +3,7 @@ nav:
     - Home: index.md
     - Tutorial: tutorial.md
     - Theory: theory.md
+    - Network: network.md
 
 markdown_extensions:
   - footnotes
