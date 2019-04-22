@@ -628,4 +628,13 @@ $ stregister verify-receipt -i bananas.invoice -r bananas.receipt
 Receipt is valid!
 ```
 
+As expected, the balances now are:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+10
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
+-10
+```
+
 Now that the payment is verified, node0 can give node1 the bag of bananas.
