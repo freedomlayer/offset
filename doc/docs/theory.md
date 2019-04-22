@@ -476,7 +476,7 @@ friendship channel between two parties.
 
 
 
-## Sending funds might wait forever
+## Sending funds may wait forever
 
 When transferring large amount of credits in the graph of friends, the method
 of indefinite waiting for response messages imposes risks for the sender of the
