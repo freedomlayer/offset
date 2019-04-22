@@ -5,9 +5,6 @@
 # Required
 version: 2
 
-# The location of 
-docs_dir: docs
-
 # Build documentation with MkDocs
 mkdocs:
   configuration: doc/mkdocs.yml
