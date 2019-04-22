@@ -6,3 +6,10 @@ nav:
 
 markdown_extensions:
   - footnotes
+
+theme:
+    name: readthedocs
+    highlightjs: true
+    hljs_languages:
+        - yaml
+        - rust
