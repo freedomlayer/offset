@@ -638,3 +638,116 @@ $ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
 ```
 
 Now that the payment is verified, node0 can give node1 the bag of bananas.
+
+
+
+## Running your own relay
+
+Usually you will not need to run your own relay. You can configure your node to
+use known public relays instead. If you still want to run your own relay, read
+on.
+
+We first need to create a new identity for the relay server. This can be done
+as follows:
+
+```bash
+$ mkdir relay
+$ stmgr gen-ident --output relay/relay.ident
+```
+
+Next, we can start the relay using this command:
+
+```bash
+strelay --idfile relay/relay.ident --laddr 127.0.0.1:8000 &
+```
+
+To allow nodes to connect to our relays, we need to provide a relay ticket.
+A ticket can be generated using the following command:
+
+
+```bash
+$ stmgr relay-ticket --address 127.0.0.1:8000 --idfile relay/relay.ident --output relay/relay.ticket
+```
+
+Note that the address in the `stmgr relay-ticket` command must match the
+address in the `strelay` command (Otherwise, nodes will connect to the wrong
+relay address).
+
+The ticket file `relay.ticket` can now be published. A user can download the
+relay ticket file and apply it to a node using the command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-relay \
+            -n my_relay -r relay.ticket
+```
+
+## Running your own index server
+
+Usually you will not need to run your own index server. You can configure your
+node to use known public index servers instead. If you still want to run your
+own index server, read on.
+
+We first need to create a new identity for the index server. This can be done
+as follows:
+
+```bash
+$ mkdir index
+$ stmgr gen-ident --output index/index.ident
+```
+
+Next, we need to set up a directory of trusted index servers:
+
+```bash
+mkdir index/trusted
+```
+
+And add a few trusted index servers tickets to this directory. 
+
+Note that it is required that the owners of those index servers will add our
+index server as a trusted index server too. For communication to happen between
+two index servers, it is crucial that both sides configure the remote side as a
+trusted index server.
+
+To generate an index server facing ticket, we run the command:
+
+```bash
+$ stmgr index-ticket --idfile index/index.ident --address 127.0.0.1:7000 \
+        --output index_server.ticket
+```
+
+We will send the resulting `index_server.ticket` to the owner of the remote index servers we
+want to communicate with.
+
+To start the index server, we run:
+
+```bash
+stindex --idfile index/index.ident --lclient 127.0.0.1:9000 --lserver 127.0.0.1:7000 --trusted index/trusted &
+```
+
+We have two listening addresses above (lclient and lserver) because we listen
+on two different TCP ports: One for incoming connections from nodes (lclient)
+and one for incoming connections from federating index servers (lserver). Note
+that the index server facing ticket we created earlier matches the `--lserver`
+address.
+
+To allow nodes to add our index server, we produce a node facing index ticket
+as follows:
+
+```bash
+$ stmgr index-ticket --idfile index/index.ident --address 127.0.0.1:9000 \
+        --output index_client.ticket
+```
+
+Note that this command is very similar to the command we used to produce an
+index server facing ticket. The difference is the TCP port we have chosen and
+the output file name.
+
+Now we can publish the `index_client.ticket` file. A node can add the index
+server to its configuration using this command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-index \
+            -n my_index -i index_client.ticket
+```
+
+
