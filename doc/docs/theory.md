@@ -390,16 +390,19 @@ Hence, whenever A sends funds to E through the route `A -- B -- C -- D -- E`,
 the attacker obtains more credit compared to the honest friends graph:
 `A - M - E`.
 
-The equivalent of this is letting the attacker ask for for credit for
-forwarding funds, and this is possible in the credit switching protocol. 
-An attacker will prefer to ask for more credit per transaction instead of
-simulating multiple nodes to make the route look longer.
+This is the equivalent of letting the attacker ask for more credit for
+forwarding funds [^1]. Note however that if a route to a destination node is
+long, it is likely that a different route will be chosen to send the funds.
 
-Also note that if a route to a destination node is long or expensive, it is
-likely that a different route will be chosen to send the funds. It is only
-reasonable for a node to increase the amount of credits he bills for mediating
-a transaction as long as there are no cheaper routes.
+Therefore the attacker can simulate a longer route only up to a certain length.
+If the simulated route becomes too large, other shorter (and cheaper) routes
+will be chosen instead.
 
+[^1]: 
+    We might consider to add a feature for setting a transaction fee in future
+    versions of offst. Currently the profit for mediating a transaction is
+    fixed to be 1 credit.
+ 
 
 Analyzing the cases above does not mean that the backwards credit payment is
 proved to be safe, but currently we do not know of any holes in its design.
@@ -427,7 +430,7 @@ A picture of the credit balance from the point of view of A:
     -localMaxDebt                                   remoteMaxDebt
 ```
 
-We generally [^1] require the following inequalities:
+We generally [^2] require the following inequalities:
 
 ```text
 -localMaxDebt
@@ -437,7 +440,7 @@ We generally [^1] require the following inequalities:
     <= remoteMaxDebt
 ```
 
-[^1]: 
+[^2]: 
     With the exception that one can configure remoteMaxDebt to any value, even
     lower than balance. In that case it should not be possible to increase
     balance.
