@@ -1,0 +1,535 @@
+# Offst tutorial
+
+## The core idea
+
+Consider Alice, who has two friends, Bob and [Charli](https://en.wikipedia.org/wiki/Charli_XCX).
+Suppose that at the same time:
+
+- Bob owes Alice 50 dollars
+- Alice also owes Charli 50 dollars. 
+
+```text
+    (-50,+50)       (-50, +50)
+Bob --------- Alice ---------- Charli
+
+```
+
+Suppose that Charli meets Bob one day, and Bob has a bicycle he wants to sell
+for exactly 50 dollars. Suppose also that Charli is exactly looking to buy a
+bicycle, and he decides to buy it from bob. In this case Charli can take the
+bicycle, and they both ask Alice to forget about the debts on both sides.
+
+In a sense, Charli made a payment to Bob by asking Alice to **offset** the debts.
+No real money bills had to pass hands to make this happen.
+
+```text
+      (0, 0)          (0, 0)
+Bob --------- Alice ---------- Charli
+
+```
+
+
+If Bob and Charli perform these kinds of transactions very often, it is
+reasonable for Alice to charge for forwarding the transactions. For example,
+Alice could charge 1 dollar for every transaction she forwards.
+
+Offst is a system that works this way. People or organizations can set up
+mutual credit which each other, and leverage those mutual credits to send
+payments to anyone in the network. A participant that mediates a transaction
+earns 1 credit.
+
+
+## Initial setup
+
+Offst is a network of nodes with mutual credit relationship between
+them. Therefore the first thing we are going to do is to set up a node.
+To be able to talk with our node we will also set up an application.
+
+```text
+
+    Node ----- Application
+
+```
+
+The Node is the part that does most of the hard work: processing transactions.
+You can leave it to work in the background.
+
+The Application is a way to communicate and control the node operation.
+Some things that offst applications can do:
+
+- Configure mutual credits with other nodes (Called: friends)
+- View the current balance
+- Find routes between nodes
+- Send credits to a remote node
+
+We start by creating a directory for our first experiment. Let's call it my_offst.
+
+```bash
+$ mkdir my_offst
+$ cd my_offst
+```
+
+Next, we create a directory for our first node:
+
+```bash
+$ mkdir node0
+# Trusted applications:
+$ mkdir node0/trusted
+```
+
+And a directory for our first app:
+
+```bash
+$ mkdir app
+```
+
+At this point, this is what your directory tree (inside `my_offst/`) should look like:
+
+```text
+my_offst/
+├── app0
+├── node0
+│   └── trusted
+```
+
+All following commands will be run from the root directory (`my_offst/`).
+
+### Cryptographic identity
+
+Next, we create an cryptographic identity for our node and application. In
+offst, every entity has a cryptographic identity which allows it to talk
+securely with other entities.
+
+
+```bash
+$ stmgr gen-ident --output node0/node0.ident
+$ stmgr gen-ident --output app0/app0.ident
+```
+
+### Node database
+
+We initialize the node's database. The database contains the node's balances
+with other nodes, and some other configuration.
+
+```bash
+$ stmgr init-node-db --idfile node0/node0.ident --output node0/node0.db
+```
+
+### Node ticket
+
+Next, we create a ticket for the node. This serves an invitation for an
+application to connect to the node:
+
+```bash
+$ stmgr node-ticket --address 127.0.0.1:9500 --idfile node.ident --output node.ticket
+```
+
+### Application ticket
+
+An offst node is a program that manages your credits, so we can't let any
+application connect to the node and perform operations. Therefore for every
+application that we want to allow to connect to the node, we need to create a
+ticket with specific permissions. Let's create a ticket for our application:
+
+
+```bash
+$ stmgr app-ticket --idfile app0/app0.ident --pconfig --pfunds --proutes --output node0/trusted/app0.ticket
+```
+
+The command above creates a ticket for app0 and stores it in the trusted dir of
+node0. This will allow node0 to know that app0 is trusted.
+
+Note the additional flags we used in the command: `--pconfig`, `--pfunds` and
+`--proutes`. Those are permissions for configuration, sending funds and
+requesting routes respectively.
+
+
+### Starting the node
+
+At this point you should have this file tree:
+
+```text
+├── app0
+│   ├── app0.ident
+│   └── node0.friend
+├── node0
+│   ├── node0.db
+│   ├── node0.ident
+│   ├── node0.ticket
+│   └── trusted
+│       └── app0.ticket
+```
+
+We can start the node with the command:
+
+```bash
+$ stnode --database node0/node0.db --idfile node0/node0.ident --laddr 127.0.0.1:9500 --trusted node0/trusted &
+```
+
+Note that the address we use for listening should be the same address as the
+one advertised in the node ticket (See `stmgr node-ticket` above), otherwise
+the application using the node ticket will connect to the wrong address.
+
+The `&` at the end of the command means that the node will run in the background.
+
+The node we have just spawned is "alone in the world". It does not have any
+mutual credit with other nodes, and has no means of communication (because no
+relay servers were configured) and no means of finding friend routes (no index servers
+were configured). All that the node does now is wait for further commands from
+an application.
+
+
+### Connecting with stctrl
+
+We will use the command line `stctrl` application to connect to communicate
+with the node. To make sure that everything works correctly, run this command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
+```
+
+If everything went well, the expected output is something of the form:
+
+```bash
+No configured friends.
+```
+
+Which is true, because we have not yet configured any friends.
+
+
+### Configuring relays
+
+Relays are servers that help nodes communicate. Every node must have at least
+one configured relay to function.
+
+You can start your own relay, or use a public relay that someone else is running.
+
+Configuring a relay is done using the command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-relay \
+            -n my_relay -r my_relay.ticket
+```
+
+Where `-n my_relay` is your own name for this relay (You can pick any name you
+want), and `-r my_relay.ticket` is a ticket file provided by the relay owner.
+
+
+You can view the configured relays using stctrl's `info relays` subcommand.
+Example:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info relays
++------------+---------------------------------------------+----------------+
+| relay name | public key                                  | address        |
++------------+---------------------------------------------+----------------+
+| relay0     | Brvo3Fo0O2svzU1rFdcBL6FtLVNL6b8xJNAWgZc7ll0 | 127.0.0.1:8000 |
++------------+---------------------------------------------+----------------+
+```
+
+A relay can be removed using stctrl's `config remove-relay` subcommand.
+
+
+### Index servers
+
+Index servers are servers that help nodes find routes to send credits. Every
+node must have at least one index server to be able to send and receive funds.
+
+A connection to an index server allows a node to find routes to other nodes,
+and at the same time allows other nodes to find routes to the node.
+
+Anyone can start an index server, however, to be effective index servers
+must federate with other index servers. This way information about nodes
+can propagate. 
+
+Consider the following example: Node NA is connected to index server IA, and node NB is connected
+to to index server IB:
+
+```
+     IA                IB
+     |                 |
+     |                 |
+     NA == ND == NE == NB
+
+Legend:
+| - Communication
+= - Mutual credit relationship
+```
+
+Suppose that NA wants to send funds to NB. NA first asks the index server IA
+for a route. If the index server IA does not federate with the index server IB,
+IA will probably not know about the route `NA == ND == NE == NB`, and as a
+result NA will not be able to send funds to NB.
+
+### Configuring index servers
+
+TODO: How to obtain public index servers?
+
+An index server can be configured using the command:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-index \
+            -n my_index -i my_index.ticket
+```
+
+You can view the configured index servers using stctrl's `info index` subcommand. Example:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info index
++-------------------+---------------------------------------------+----------------+
+| index server name | public key                                  | address        |
++-------------------+---------------------------------------------+----------------+
+| index0 (*)        | LMncLsod0HGDG66kEJJ3kki68CAGfjDsPTdGdLsyD5M | 127.0.0.1:9000 |
++-------------------+---------------------------------------------+----------------+
+```
+
+In this version of offst a node connects to only one index server at a
+time. If the index server is down, an attempt is made to connect to the next
+one on the list. (This behaviour might change in the future)
+
+The currently connected index server is marked with a star ("*").
+
+
+### Adding an extra node
+
+To experiment with sending funds, we need at least one more node.
+To get an extra node (Let's call it node1), we run the same commands but with
+`node1` instead of `node0`. Also note that we use port `9501` instead of `9500` for
+listening, as it is not possible for the two nodes to listen on the same TCP
+port.
+
+
+```bash
+# Create directory tree:
+mkdir node1
+mkdir node1/trusted
+mkdir app1
+
+# Create identities:
+$ stmgr gen-ident --output node1/node1.ident
+$ stmgr gen-ident --output app1/app1.ident
+
+# Prepare node:
+$ stmgr init-node-db --idfile node1/node1.ident --output node1/node1.db
+$ stmgr node-ticket --address 127.0.0.1:9501 --idfile node.ident --output node.ticket
+$ stmgr app-ticket --idfile app1/app1.ident --pconfig --pfunds --proutes --output node1/trusted/app1.ticket
+
+# Run node:
+$ stnode --database node1/node1.db --idfile node1/node1.ident --laddr 127.0.0.1:9501 --trusted node1/trusted &
+
+# Configure relay:
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config add-relay \
+            -n my_relay -r my_relay.ticket
+
+# Configure index:
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config add-index \
+            -n my_index -i my_index.ticket
+```
+
+## Configuring mutual credit
+
+At this point the two nodes (node0 and node1) do not know about each other:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
+No configured friends.
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info friends
+No configured friends.
+```
+
+### Exporting friend tickets
+
+We create friend ticket for each node. This will allow the opposite node to add
+it as a friend:
+
+```bash
+# Export node0 info as a friend file:
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info export-ticket -o app0/node0.friend
+# Export node1 info as a friend file:
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info export-ticket -o app1/node1.friend
+```
+
+A friend file contains a node's public key and a list of relays that can be used to
+communicate with a node.
+
+```bash
+$ cat app0/node0.friend 
+public_key = "TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw"
+
+[[relays]]
+public_key = "Brvo3Fo0O2svzU1rFdcBL6FtLVNL6b8xJNAWgZc7ll0"
+address = "127.0.0.1:8000"
+```
+
+### Adding friends
+
+```bash
+# Node0 adds node1 as a friend:
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config add-friend -n node1 -f app1/node1.friend --balance=100
+# Node1 adds node0 as a friend:
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config add-friend -n node0 -f app0/node0.friend --balance=-100
+```
+
+Note that in the above commands we chose that node0 has the initial balance of
+100 credits, and node1 has the dual initial balance of -100.
+
+If we now run `info friends` we get:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
++----+-------+---------------+
+| st | name  | balance       |
++====+=======+===============+
+| D- | node1 | C: LR=-, RR=- |
+|    |       | B  =100       |
+|    |       | LMD=0         |
+|    |       | RMD=0         |
+|    |       | LPD=0         |
+|    |       | RPD=0         |
++----+-------+---------------+
+```
+
+We can see that the balance is 100 from node0's side.
+Take a look at the `st` column: the status column. `D` means disabled, and `-` means offline. 
+The two nodes can not see each other, because we have not yet enabled
+communication.
+
+### Enabling friends communication
+
+To enable communication, run:
+
+```bash
+# Node0: Enable communication to node1:
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config enable-friend -n node1
+# Node1: Enable communication to node0:
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config enable-friend -n node0
+```
+
+Running `info friends` should now output:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
++----+-------+---------------+
+| st | name  | balance       |
++====+=======+===============+
+| E+ | node1 | C: LR=-, RR=- |
+|    |       | B  =100       |
+|    |       | LMD=0         |
+|    |       | RMD=0         |
+|    |       | LPD=0         |
+|    |       | RPD=0         |
++----+-------+---------------+
+```
+
+Note that the status now is `E+`, which means enabled and online.
+
+### Setting credit limit
+
+We still can not send credits between node0 and node1, because we have not yet
+configured the size of the credit limit. In other words, we need to configure:
+
+- The maximum amount of credits node0 allows node1 to have in debt.
+- The maximum amount of credits node1 allows node0 to have in debt.
+
+The first amount can only be configured by node0, and the second amount can
+only be configured by node1.
+
+From the point of view of node0, the balance may only move in the limits:
+
+`-localMaxDebt <= balance <= remoteMaxDebt`
+
+Where `remoteMaxDebt` is chosen by node0, and `localMaxDebt` is chosen by node1:
+
+```text
+                               balance                               
+                                 |                 
+    ----------[------------------*-----------------------------]--------->
+              |                                                |
+    -localMaxDebt                                   remoteMaxDebt
+```
+
+Using the subcommand `info friends` we can see that the current `localMaxDebt`
+(Denoted as LMD) and `remoteMaxDebt` (Denoted as RMD) are both 0. So this is
+the current initial state from the point of view of node0:
+
+```text
+                      remoteMaxDebt   balance = 100
+                              |       |                 
+    --------------------------0-------*------------------>
+                              |                                                
+                     -localMaxDebt                                   
+```
+
+Note that this is a degenerated state, because balance is not between
+`-localMaxDebt` and `remoteMaxDebt`. In this state it is only allowed for the
+balance to go down to the direction of `remoteMaxDebt`.
+
+
+Let's adjust the two max debt values. This can be done using the
+`set-friend-max-debt` subcommand:
+
+```bash
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config set-friend-max-debt -n node0 -m 150
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config set-friend-max-debt -n node1 -m 200
+```
+
+The new diagram from the point of view of node0 should now be:
+
+```text
+                                      balance = 100     remoteMaxDebt = 200
+                                      |                |
+    -------------[------------0-------*----------------]->
+                 |                                                             
+        -localMaxDebt = -150
+```
+
+### Opening requests
+
+Consider the current output of the `info friends` subcommand:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
++----+-------+---------------+
+| st | name  | balance       |
++====+=======+===============+
+| E+ | node1 | C: LR=-, RR=- |
+|    |       | B  =100       |
+|    |       | LMD=150       |
+|    |       | RMD=200       |
+|    |       | LPD=0         |
+|    |       | RPD=0         |
++----+-------+---------------+
+```
+
+The first line of the balance column contains `LR=-, RR=-`. `LR=-` means that
+local requests are closed. In other words, it is not possible for node1 to open
+payments requests through us. `RR=-` means that remote requests are closed:
+node0 can not open payment requests through node1.
+
+If we want to be able to send a payment from node0 to node1 we need to open the
+requests at node1. This can be done using the `config open-friend` subcommand:
+ 
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket config open-friend -n node1
+$ stctrl -I app1/app1.ident -T node1/node1.ticket config open-friend -n node0
+```
+
+Requests are now open between node0 and node1:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
++----+-------+---------------+
+| st | name  | balance       |
++====+=======+===============+
+| E+ | node1 | C: LR=+, RR=+ |
+|    |       | B  =100       |
+|    |       | LMD=150       |
+|    |       | RMD=200       |
+|    |       | LPD=0         |
+|    |       | RPD=0         |
++----+-------+---------------+
+```
+
+## Sending funds
+
+

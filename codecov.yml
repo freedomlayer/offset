@@ -1,1 +1,10 @@
 comment: off
+# See https://docs.codecov.io/docs/commit-status for more info:
+coverage:
+  status:
+    project:
+      default:
+        # We do not allow the coverage to go down by 5 percent:
+        threshold: 5
+        base: auto
+    patch: off
