@@ -34,7 +34,7 @@ reasonable for Alice to charge for forwarding the transactions. For example,
 Alice could charge 1 dollar for every transaction she forwards.
 
 Offst is a system that works this way. People or organizations can set up
-mutual credit which each other, and leverage those mutual credits to send
+mutual credit with each other, and leverage those mutual credits to send
 payments to anyone in the network. A participant that mediates a transaction
 earns 1 credit.
 
