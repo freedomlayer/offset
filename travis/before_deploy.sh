@@ -38,9 +38,8 @@ mk_tarball() {
         # Copy the licenses and README.
         cp {README.md,LICENSE} "$staging/"
 
-        # Copy documentation:
-        cp -R "docs" "$staging/doc/"
-        cp "mkdocs.yml" "$staging/doc/"
+        # Copy mkdocs documentation:
+        cp -R "doc/." "$staging/doc/"
 
         # TODO: Copy man pages?
         # TODO: Copy shell completion files.
