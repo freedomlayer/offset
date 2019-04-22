@@ -61,7 +61,7 @@ consists of the following parameters:
 md{BA} and md{AB} are not necessarily equal. Drawn on a one dimensional scale,
 we get a picture as follows (from the point of view of A):
 
-```
+```text
                      d{AB}
      [-----------|-----^-------]
   -md{BA}        0           md{AB}
@@ -75,7 +75,7 @@ always true that `-md{BA} <= d{AB} <= md{AB}`. Note the symmetric property:
 
 From the point of view of B, the picture looks as follows:
 
-```
+```text
             d{BA)
      [-------^-----|-----------]
   -md{AB}          0         md{BA}
@@ -115,7 +115,7 @@ If A and B are not friends, they need the help of a mediator, or a chain of
 mediators, to perform the transaction. A and B will look for a chain of the
 following form:
 
-```
+```text
 A -- M1 -- M2 -- M3 -- B
 ```
 
@@ -145,7 +145,7 @@ method to perform a transaction between friends.
 
 Consider the following graph of friends:
 
-```
+```text
 A -- B -- C -- D
 ```
 
@@ -274,7 +274,7 @@ We now consider higher level applications that use the credit clearing
 mechanism for sending funds in exchange for some goods. There are two parties
 in the transaction: The buyer and the seller.
 
-```
+```text
 Buyer App                       Seller App
            <---[InvoiceId]----
            ----[Receipt]----->
@@ -325,7 +325,7 @@ every participant to pass the funds to their destination (When possible).
 
 Consider the following network formation between neighbors:
 
-```
+```text
 A -- B -- C -- D -- E -- F
 ```
 
@@ -376,7 +376,7 @@ message to B.
 (6) An attacker node claims to be many nodes
 For example, consider the following friends graph:
 
-```
+```text
 A -- B -- C -- D -- E
      \---------/
        Attacker
@@ -419,7 +419,7 @@ We denote:
 
 A picture of the credit balance from the point of view of A:
 
-```
+```text
       balance - localPendingD  balance       balance + remotePendingD
                       |          |                |
     ----------[-------(----------*----------------)------------]--------->
@@ -429,7 +429,7 @@ A picture of the credit balance from the point of view of A:
 
 We generally [^1] require the following inequalities:
 
-```
+```text
 -localMaxDebt
     <= balance - localPendingDebt 
     <= balance
@@ -448,7 +448,7 @@ We generally [^1] require the following inequalities:
 Assume a mutual credit between two parties: `A -- B`.
 Consider an attacker that has routes to A and routes to B:
 
-```
+```text
 M -- .. -- A -- B -- .. -- N
 ```
 
@@ -484,7 +484,7 @@ credits .
 
 Consider the following graph of friends:
 
-```
+```text
 A -- B -- C -- D
 ```
 
