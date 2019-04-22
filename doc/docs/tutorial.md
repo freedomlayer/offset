@@ -532,4 +532,100 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
 
 ## Sending funds
 
+There are currently two ways to send funds using stctrl:
+- `send-funds`: Send funds without an invoice
+- `pay-invoice`: Pay an invoice
 
+Internally both commands work the same. 
+The difference between the two is that to pay with `pay-invoice` the recipient
+party must first generate an invoice file (Specifying the payment amount).
+
+On the other hand, `send-funds` allows raw sending of funds to any party given
+that its public key is known. Paying with `send-funds` does not leave any means
+for the recipient of the funds to relate them to any specific transaction. 
+
+
+### send-funds
+
+Let's begin with `send-funds`, which is the raw method of sending funds:
+
+We first observe the initial balance:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+0
+```
+
+Suppose that we want to send 50 credits from node0 to node1. We first need to
+know node1's public key:
+
+```bash
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info public-key
+bUoWZEEInqjDdw8TOBlpY0zpHF7hjLMAX_DdPrTI9y8
+```
+
+Next, we use the `send-funds` subcommand to send credits:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket funds send-funds --amount 50 --dest bUoWZEEInqjDdw8TOBlpY0zpHF7hjLMAX_DdPrTI9y8
+Payment successful!
+Fees: 0
+```
+
+The new balance from the point of view of node0 and node1:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info balance
+-50
+$ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
+50
+```
+
+### pay-invoice
+
+Suppose that node1 wants to buy a bag of bananas from node0 that cost 60 credits.
+To make the transaction, the following should happen:
+
+1. node0 prepares an invoice for 60 credits and sends it to node1.
+2. node1 pays the invoice and sends the receipt to node0.
+3. node0 verifies the receipt and (if the receipt was valid) gives the bag of bananas to node1.
+
+
+(1) **node0 prepares an invoice**
+
+To prepare an invoice, we first get node0's public key:
+
+```bash
+$ stctrl -I app0/app0.ident -T node0/node0.ticket info public-key
+TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw
+```
+
+node0 prepares an invoice using the `stregister` util:
+
+```bash
+$ stregister gen-invoice -a 60 -p TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw -o bananas.invoice
+```
+
+(2) **node1 pays the invoice**
+
+node1 can now pay the invoice:
+
+```bash
+$ stctrl -I app1/app1.ident -T node1/node1.ticket funds pay-invoice -i bananas.invoice -r bananas.receipt
+Payment successful!
+Fees: 0
+```
+
+Note that a receipt file was created: bananas.receipt. The receipt file is a
+proof that node1 paid the invoice successfuly. Node1 now hands over the receipt
+to node0.
+
+
+(3) **node0 verifies the receipt**
+
+```bash
+$ stregister verify-receipt -i bananas.invoice -r bananas.receipt 
+Receipt is valid!
+```
+
+Now that the payment is verified, node0 can give node1 the bag of bananas.
