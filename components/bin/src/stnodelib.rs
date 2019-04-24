@@ -60,8 +60,11 @@ pub enum NodeBinError {
     NetNodeError(NetNodeError),
 }
 
-// TODO: Add description - Spawns Offst Node
 /// stnode: Offst Node
+/// The decentralized credit payment engine
+///
+///『將欲奪之，必固與之』
+///
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stnode")]
 pub struct StNodeCmd {

@@ -59,9 +59,12 @@ pub struct VerifyTokenCmd {
     pub token: PathBuf,
 }
 
+/// stregister - offST register
+/// A minimal credit register util for Offst. Used as a point of sale.
+/// Allows to generate invoices and verify receipts. Does not require knowledge of secret
+/// identities for its operation.
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(name = "stregister")]
-/// stregister - offST register
 pub enum StRegisterCmd {
     #[structopt(name = "gen-invoice")]
     GenInvoice(GenInvoiceCmd),

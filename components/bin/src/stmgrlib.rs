@@ -102,8 +102,8 @@ pub struct NodeTicketCmd {
     pub address: String,
 }
 
-// TODO: Add description - Performs Offst related management operations
 /// stmgr: offST ManaGeR
+/// A util for managing Offst entities and files
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stmgr")]
 pub enum StMgrCmd {
