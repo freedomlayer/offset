@@ -34,7 +34,6 @@ impl From<SerStringError> for RelayFileError {
 }
 
 /// Load RelayAddress from a file
-#[allow(unused)]
 pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError> {
     let data = fs::read_to_string(&path)?;
     let relay_file: RelayFile = toml::from_str(&data)?;
