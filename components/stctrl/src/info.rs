@@ -32,10 +32,11 @@ pub struct FriendsCmd {}
 /// Export last obtained token from a friend
 #[derive(Clone, Debug, StructOpt)]
 pub struct FriendLastTokenCmd {
-    #[structopt(short = "n", name = "name")]
+    /// Friend's name
+    #[structopt(short = "n", long = "name")]
     pub friend_name: String,
     /// Path for output token file
-    #[structopt(short = "o", name = "output")]
+    #[structopt(short = "o", long = "output")]
     pub output_file: PathBuf,
 }
 
@@ -46,7 +47,8 @@ pub struct BalanceCmd {}
 /// Export a ticket of this node's contact information
 #[derive(Clone, Debug, StructOpt)]
 pub struct ExportTicketCmd {
-    #[structopt(short = "o", name = "output")]
+    /// Path to output ticket file
+    #[structopt(short = "o", long = "output")]
     pub output_file: PathBuf,
 }
 

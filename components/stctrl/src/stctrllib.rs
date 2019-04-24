@@ -46,25 +46,27 @@ impl From<FundsError> for StCtrlError {
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum StCtrlSubcommand {
+    /// Get information about current state of node
     #[structopt(name = "info")]
     Info(InfoCmd),
+    /// Configure node's state
     #[structopt(name = "config")]
     Config(ConfigCmd),
+    /// Payments and funds related commands
     #[structopt(name = "funds")]
     Funds(FundsCmd),
 }
 
-// TODO: Add version (0.1.0)
-// TODO: Add author
 // TODO: Add description
 /// stctrl: offST ConTRoL
 #[derive(Clone, Debug, StructOpt)]
+#[structopt(name = "stctrl")]
 pub struct StCtrlCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "I", long = "idfile")]
     pub idfile: PathBuf,
     /// Node ticket file path
-    #[structopt(parse(from_os_str), short = "T", name = "ticket")]
+    #[structopt(parse(from_os_str), short = "T", long = "ticket")]
     pub node_ticket: PathBuf,
     #[structopt(flatten)]
     pub subcommand: StCtrlSubcommand,

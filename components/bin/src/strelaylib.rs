@@ -42,12 +42,13 @@ pub enum RelayServerBinError {
 // TODO: Add description - Spawns an Offst Relay Server
 /// strelay: Offst Relay Server
 #[derive(Debug, StructOpt)]
+#[structopt(name = "strelay")]
 pub struct StRelayCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile: PathBuf,
-    /// Listening address
-    #[structopt(long = "laddr")]
+    /// Listening address (Example: 0.0.0.0:1337)
+    #[structopt(short = "l", long = "laddr")]
     pub laddr: SocketAddr,
 }
 

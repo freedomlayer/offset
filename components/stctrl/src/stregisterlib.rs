@@ -29,13 +29,13 @@ pub enum StRegisterError {
 #[derive(Clone, Debug, StructOpt)]
 pub struct GenInvoiceCmd {
     /// Payment recipient's public key (In base 64)
-    #[structopt(short = "p")]
+    #[structopt(short = "p", long = "pubkey")]
     pub public_key: String,
     /// Amount of credits to pay (A non negative integer)
-    #[structopt(short = "a")]
+    #[structopt(short = "a", long = "amount")]
     pub amount: u128,
     /// Path of output invoice file
-    #[structopt(parse(from_os_str), short = "o")]
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
 }
 
@@ -43,10 +43,10 @@ pub struct GenInvoiceCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct VerifyReceiptCmd {
     /// Path of invoice file (Locally generated)
-    #[structopt(parse(from_os_str), short = "i")]
+    #[structopt(parse(from_os_str), short = "i", long = "invoice")]
     pub invoice: PathBuf,
     /// Path of receipt file (Received from buyer)
-    #[structopt(parse(from_os_str), short = "r")]
+    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
     pub receipt: PathBuf,
 }
 
@@ -55,11 +55,12 @@ pub struct VerifyReceiptCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct VerifyTokenCmd {
     /// Path of token file
-    #[structopt(parse(from_os_str), short = "t")]
+    #[structopt(parse(from_os_str), short = "t", long = "token")]
     pub token: PathBuf,
 }
 
 #[derive(Clone, Debug, StructOpt)]
+#[structopt(name = "stregister")]
 /// stregister - offST register
 pub enum StRegisterCmd {
     #[structopt(name = "gen-invoice")]

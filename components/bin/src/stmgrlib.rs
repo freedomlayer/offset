@@ -72,7 +72,7 @@ pub struct RelayTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the relay
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
@@ -85,7 +85,7 @@ pub struct IndexTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the index server
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
@@ -98,15 +98,14 @@ pub struct NodeTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the node server
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
-// TODO: Add version (0.1.0)
-// TODO: Add author
 // TODO: Add description - Performs Offst related management operations
 /// stmgr: offST ManaGeR
 #[derive(Debug, StructOpt)]
+#[structopt(name = "stmgr")]
 pub enum StMgrCmd {
     /// Initialize a new (empty) node database
     #[structopt(name = "init-node-db")]
