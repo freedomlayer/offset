@@ -5,6 +5,7 @@ nav:
     - Tutorial: tutorial.md
     - Theory: theory.md
     - Network: network.md
+    - Contributing: contributing.md
 
 markdown_extensions:
   - footnotes

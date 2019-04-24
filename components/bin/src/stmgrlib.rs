@@ -15,7 +15,7 @@ use database::file_db::FileDb;
 use node::NodeState;
 
 use proto::file::app::{store_trusted_app_to_file, TrustedApp};
-use proto::file::identity::{load_identity_from_file, store_identity_to_file};
+use proto::file::identity::{load_identity_from_file, store_raw_identity_to_file};
 use proto::file::index_server::store_index_server_to_file;
 use proto::file::node::store_node_to_file;
 use proto::file::relay::store_relay_to_file;
@@ -72,7 +72,7 @@ pub struct RelayTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the relay
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
@@ -85,7 +85,7 @@ pub struct IndexTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the index server
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
@@ -98,15 +98,14 @@ pub struct NodeTicketCmd {
     #[structopt(parse(from_os_str), short = "o", long = "output")]
     pub output: PathBuf,
     /// Public address of the node server
-    #[structopt(long = "address")]
+    #[structopt(short = "a", long = "address")]
     pub address: String,
 }
 
-// TODO: Add version (0.1.0)
-// TODO: Add author
-// TODO: Add description - Performs Offst related management operations
 /// stmgr: offST ManaGeR
+/// A util for managing Offst entities and files
 #[derive(Debug, StructOpt)]
+#[structopt(name = "stmgr")]
 pub enum StMgrCmd {
     /// Initialize a new (empty) node database
     #[structopt(name = "init-node-db")]
@@ -165,7 +164,7 @@ fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityEr
         return Err(GenIdentityError::OutputAlreadyExists);
     }
 
-    store_identity_to_file(pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
+    store_raw_identity_to_file(&pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
 }
 
 #[derive(Debug)]

@@ -32,20 +32,20 @@ pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 /// Amount of ticks we wait before attempting to reconnect to a remote index server.
 pub const BACKOFF_TICKS: usize = 0x8;
 
-// TODO: Add version (0.1.0)
-// TODO: Add author
-// TODO: Add description
 /// stindex: Offst Index Server
+/// A server used to index the Offst network. Collects topology information from nodes, and serves
+/// nodes requests for routes
 #[derive(Debug, StructOpt)]
+#[structopt(name = "stindex")]
 pub struct StIndexCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile: PathBuf,
     /// Listening address for clients
-    #[structopt(long = "lclient")]
+    #[structopt(short = "c", long = "lclient")]
     pub lclient: SocketAddr,
     /// Listening address for servers
-    #[structopt(long = "lserver")]
+    #[structopt(short = "s", long = "lserver")]
     pub lserver: SocketAddr,
     /// Directory path of trusted index servers
     #[structopt(parse(from_os_str), short = "t", long = "trusted")]

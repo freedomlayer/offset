@@ -37,17 +37,16 @@ pub enum RelayServerBinError {
     NetRelayServerError(NetRelayServerError),
 }
 
-// TODO: Add version (0.1.0)
-// TODO: Add author
-// TODO: Add description - Spawns an Offst Relay Server
 /// strelay: Offst Relay Server
+/// A server used to relay communication between nodes
 #[derive(Debug, StructOpt)]
+#[structopt(name = "strelay")]
 pub struct StRelayCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile: PathBuf,
-    /// Listening address
-    #[structopt(long = "laddr")]
+    /// Listening address (Example: 0.0.0.0:1337)
+    #[structopt(short = "l", long = "laddr")]
     pub laddr: SocketAddr,
 }
 

@@ -44,7 +44,6 @@ struct FriendFile {
 }
 
 /// Load FriendAddress from a file
-#[allow(unused)]
 pub fn load_friend_from_file(path: &Path) -> Result<FriendAddress, FriendFileError> {
     let data = fs::read_to_string(&path)?;
     let friend_file: FriendFile = toml::from_str(&data)?;

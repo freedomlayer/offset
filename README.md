@@ -5,7 +5,8 @@
 [![Documentation Status](https://readthedocs.org/projects/offst/badge/?version=latest)](https://offst.readthedocs.io/en/latest/?badge=latest)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/offst.svg)](https://gitter.im/freedomlayer/offst)
 
-**Offst** is a decentralized payment infrastructure, relying on mutual trust. 
+**Offst** is a decentralized payment system, allowing to pay and process
+payments efficiently and safely.
 
 Warning: Offst is still a work in progress, and is not yet ready for use in production.
 
@@ -17,6 +18,10 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 ## Download
 
 [Releases page](https://github.com/freedomlayer/offst/releases)
+
+## Dockerized Offst servers
+
+[offst_docker](https://github.com/freedomlayer/offst_docker)
 
 
 ## Building Offst

@@ -17,23 +17,24 @@ use crate::file::receipt::store_receipt_to_file;
 #[derive(Clone, Debug, StructOpt)]
 pub struct SendFundsCmd {
     /// recipient's public key
-    #[structopt(name = "destination", short = "d", long = "dest")]
+    #[structopt(short = "d", long = "dest")]
     pub destination_str: String,
     /// Amount of credits to send
-    #[structopt(name = "amount", short = "a", long = "amount")]
+    #[structopt(short = "a", long = "amount")]
     pub dest_payment: u128,
     /// Output receipt file
-    #[structopt(parse(from_os_str), name = "receipt", short = "r")]
+    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
     pub opt_receipt_file: Option<PathBuf>,
 }
 
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]
 pub struct PayInvoiceCmd {
-    #[structopt(parse(from_os_str), name = "invoice", short = "i")]
+    /// Path to invoice file to pay
+    #[structopt(parse(from_os_str), short = "i", long = "invoice")]
     pub invoice_file: PathBuf,
     /// Output receipt file
-    #[structopt(parse(from_os_str), name = "receipt", short = "r")]
+    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
     pub receipt_file: PathBuf,
 }
 

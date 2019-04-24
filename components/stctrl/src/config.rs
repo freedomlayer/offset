@@ -14,10 +14,10 @@ use crate::utils::friend_public_key_by_name;
 #[derive(Clone, Debug, StructOpt)]
 pub struct AddRelayCmd {
     /// Path of relay file
-    #[structopt(parse(from_os_str), name = "relay", short = "r")]
+    #[structopt(parse(from_os_str), long = "relay", short = "r")]
     pub relay_file: PathBuf,
     /// Assigned relay name (You can pick any name)
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub relay_name: String,
 }
 
@@ -25,7 +25,7 @@ pub struct AddRelayCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct RemoveRelayCmd {
     /// Relay name to remove
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub relay_name: String,
 }
 
@@ -33,10 +33,10 @@ pub struct RemoveRelayCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct AddIndexCmd {
     /// Path of index file
-    #[structopt(parse(from_os_str), name = "index", short = "i")]
+    #[structopt(parse(from_os_str), long = "index", short = "i")]
     pub index_file: PathBuf,
     /// Assigned index name (You can pick any name)
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub index_name: String,
 }
 
@@ -44,7 +44,7 @@ pub struct AddIndexCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct RemoveIndexCmd {
     /// Index name to remove
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub index_name: String,
 }
 
@@ -52,13 +52,13 @@ pub struct RemoveIndexCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct AddFriendCmd {
     /// Path of friend file
-    #[structopt(parse(from_os_str), name = "friend", short = "f")]
+    #[structopt(parse(from_os_str), long = "friend", short = "f")]
     pub friend_file: PathBuf,
     /// Assigned friend name (You can pick any name)
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
     /// Initial balance with friend
-    #[structopt(name = "balance", long = "balance")]
+    #[structopt(long = "balance")]
     pub balance: i128,
 }
 
@@ -66,10 +66,10 @@ pub struct AddFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct SetFriendRelaysCmd {
     /// Path of friend file
-    #[structopt(parse(from_os_str), name = "friend", short = "f")]
+    #[structopt(parse(from_os_str), long = "friend", short = "f")]
     pub friend_file: PathBuf,
     /// Friend name (Must be an existing friend)
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -77,7 +77,7 @@ pub struct SetFriendRelaysCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct RemoveFriendCmd {
     /// Friend name to remove
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -85,7 +85,7 @@ pub struct RemoveFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct EnableFriendCmd {
     /// Friend name to enable
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -93,7 +93,7 @@ pub struct EnableFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct DisableFriendCmd {
     /// Friend name to disable
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -101,7 +101,7 @@ pub struct DisableFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct OpenFriendCmd {
     /// Friend name to open
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -109,7 +109,7 @@ pub struct OpenFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct CloseFriendCmd {
     /// Friend name to close
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
@@ -118,10 +118,10 @@ pub struct CloseFriendCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct SetFriendMaxDebtCmd {
     /// Friend name
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
     /// Max debt allowed for friend
-    #[structopt(name = "mdebt", short = "m")]
+    #[structopt(long = "mdebt", short = "m")]
     pub max_debt: u128,
 }
 
@@ -129,7 +129,7 @@ pub struct SetFriendMaxDebtCmd {
 #[derive(Clone, Debug, StructOpt)]
 pub struct ResetFriendCmd {
     /// Friend name to reset
-    #[structopt(name = "name", short = "n")]
+    #[structopt(long = "name", short = "n")]
     pub friend_name: String,
 }
 
