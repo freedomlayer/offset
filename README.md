@@ -18,6 +18,10 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 
 [Releases page](https://github.com/freedomlayer/offst/releases)
 
+## Dockerized Offst servers
+
+[offst_docker](https://github.com/freedomlayer/offst_docker)
+
 
 ## Building Offst
 
