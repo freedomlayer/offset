@@ -8,4 +8,5 @@ payments efficiently and safely.
 - [Getting started tutorial](tutorial.md)
 - [How offst works?](theory.md)
 - [Network structure](network.md)
+- [Contributing](contributing.md)
 

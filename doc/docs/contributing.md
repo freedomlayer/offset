@@ -1,10 +1,12 @@
-# Guidelines for Offst code
+# Contributing guide
+
+## Offst Code guidelines
 
 This document contains the main values and priorities when writing Offst
 code. If you are unsure about a design or technical decision, this document
 might be able to help you reach a decision.
 
-## Priorities
+### Priorities
 
 The main priorities to consider when writing code in Offst are as follows (In
 this order):
@@ -14,11 +16,10 @@ this order):
 3. Easy to read code
 4. Efficiency
 
-## Guidelines
 
 ### Security and Safety
 
-Offst is used for passing credits between people. Therefore safety is of
+Offst is used for passing funds between people. Therefore safety is of
 highest priority.
 
 - When two possible designs are possible, always choose the safer design.
@@ -26,7 +27,7 @@ highest priority.
     your own.
 - Random for cryptographic uses should only be obtained from Cryptographic sources.
 - Do not use `unsafe` statements.
-- In most cases, prefer to use a compile time guarantee over a runtime guarantee.
+- In most cases, prefer to use a compile time safety guarantee over a runtime safety guarantee.
     Instead of verifying that a state is valid at runtime, design your data
     structures such that invalid states are unrepresentable.
 - Safe operations with numbers. There are Rust functions for safe operations
@@ -53,10 +54,12 @@ different design that will make testing easier.
 
 Always make sure that your tests are deterministic. If a test is not
 deterministic, it can sometimes fail and sometimes succeed. A failure for a non
-deterministic test can be hard to track.
+deterministic test can be hard to track. 
 
 Do not use real random number generators in your tests. Instead, load a random
 number generator with a deterministic seed.
 
 Do not rely on time in your tests. Time is not deterministic. Whenever time is
 required in your code, use a Stream of ticks instead.
+
+An exception for the deterministic tests rule can be made for large integration tests.
