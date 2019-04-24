@@ -47,7 +47,7 @@ matrix:
   - env: TARGET=x86_64-apple-darwin
     os: osx
     rust: nightly-2019-03-20
-    osx_image: xcode9.2
+    osx_image: xcode9.4.1
     before_script:
     - brew install capnp
     script:
