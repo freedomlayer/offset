@@ -101,3 +101,29 @@ pub fn string_to_rand_value(rand_value_str: &str) -> Result<RandValue, SerString
     rand_value_array.copy_from_slice(&rand_value_vec[0..RAND_VALUE_LEN]);
     Ok(RandValue::from(&rand_value_array))
 }
+
+// TODO: Find a better way to represent private key.
+// We currently use [u8; 85] directly because of ring limitations.
+
+/// Convert a private key into a string
+pub fn private_key_to_string(private_key: &[u8; 85]) -> String {
+    // We have to do this because [u8; 85] doesn't implement AsRef, due to compiler limitations
+    let private_key_slice = &private_key[0..85];
+    base64::encode_config(&private_key_slice, URL_SAFE_NO_PAD)
+}
+
+// TODO: Fix all 85 hacks here
+
+/// Convert a string into a private key
+pub fn string_to_private_key(private_key_str: &str) -> Result<[u8; 85], SerStringError> {
+    // Decode public key:
+    let private_key_vec =
+        base64::decode_config(private_key_str, URL_SAFE_NO_PAD).map_err(|_| SerStringError)?;
+    // TODO: A more idiomatic way to do this?
+    if private_key_vec.len() != 85 {
+        return Err(SerStringError);
+    }
+    let mut private_key_array = [0u8; 85];
+    private_key_array.copy_from_slice(&private_key_vec[0..85]);
+    Ok(private_key_array)
+}
