@@ -15,7 +15,7 @@ use database::file_db::FileDb;
 use node::NodeState;
 
 use proto::file::app::{store_trusted_app_to_file, TrustedApp};
-use proto::file::identity::{load_identity_from_file, store_identity_to_file};
+use proto::file::identity::{load_identity_from_file, store_raw_identity_to_file};
 use proto::file::index_server::store_index_server_to_file;
 use proto::file::node::store_node_to_file;
 use proto::file::relay::store_relay_to_file;
@@ -165,7 +165,7 @@ fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityEr
         return Err(GenIdentityError::OutputAlreadyExists);
     }
 
-    store_identity_to_file(pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
+    store_raw_identity_to_file(&pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
 }
 
 #[derive(Debug)]
