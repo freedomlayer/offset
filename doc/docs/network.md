@@ -13,7 +13,7 @@ Offst network consists of a few entities:
 
 ```text
                   +-------+
-                  | Index +
+                  | Index |
                   +-+---+-+
                     |   |           
               +-----+   +------+
