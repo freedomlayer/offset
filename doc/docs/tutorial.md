@@ -78,7 +78,7 @@ $ mkdir node0/trusted
 And a directory for our first app:
 
 ```bash
-$ mkdir app
+$ mkdir app0
 ```
 
 At this point, this is what your directory tree (inside `my_offst/`) should look like:
@@ -118,7 +118,7 @@ Next, we create a ticket for the node. This serves an invitation for an
 application to connect to the node:
 
 ```bash
-$ stmgr node-ticket --address 127.0.0.1:9500 --idfile node.ident --output node.ticket
+$ stmgr node-ticket --address 127.0.0.1:9500 --idfile node0/node0.ident --output node0/node0.ticket
 ```
 
 ### Application ticket
@@ -184,7 +184,7 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
 
 If everything went well, the expected output is something of the form:
 
-```bash
+```text
 No configured friends.
 ```
 
@@ -290,9 +290,9 @@ port.
 
 ```bash
 # Create directory tree:
-mkdir node1
-mkdir node1/trusted
-mkdir app1
+$ mkdir node1
+$ mkdir node1/trusted
+$ mkdir app1
 
 # Create identities:
 $ stmgr gen-ident --output node1/node1.ident
@@ -300,7 +300,7 @@ $ stmgr gen-ident --output app1/app1.ident
 
 # Prepare node:
 $ stmgr init-node-db --idfile node1/node1.ident --output node1/node1.db
-$ stmgr node-ticket --address 127.0.0.1:9501 --idfile node.ident --output node.ticket
+$ stmgr node-ticket --address 127.0.0.1:9501 --idfile node1/node1.ident --output node1/node1.ticket
 $ stmgr app-ticket --idfile app1/app1.ident --pconfig --pfunds --proutes --output node1/trusted/app1.ticket
 
 # Run node:
