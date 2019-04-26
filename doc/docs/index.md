@@ -9,4 +9,3 @@ payments efficiently and safely.
 - [How offst works?](theory.md)
 - [Network structure](network.md)
 - [Contributing](contributing.md)
-

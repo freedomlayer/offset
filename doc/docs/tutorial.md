@@ -6,7 +6,7 @@ Consider Alice, who has two friends, Bob and [Charli](https://en.wikipedia.org/w
 Suppose that at the same time:
 
 - Bob owes Alice 50 dollars
-- Alice also owes Charli 50 dollars. 
+- Alice also owes Charli 50 dollars.
 
 ```text
     (-50,+50)       (-50, +50)
@@ -28,7 +28,6 @@ Bob --------- Alice ---------- Charli
 
 ```
 
-
 If Bob and Charli perform these kinds of transactions very often, it is
 reasonable for Alice to charge for forwarding the transactions. For example,
 Alice could charge 1 dollar for every transaction she forwards.
@@ -37,7 +36,6 @@ Offst is a system that works this way. People or organizations can set up
 mutual credit with each other, and leverage those mutual credits to send
 payments to anyone in the network. A participant that mediates a transaction
 earns 1 credit.
-
 
 ## Initial setup
 
@@ -89,7 +87,7 @@ At this point, this is what your directory tree (inside `my_offst/`) should look
 my_offst/
 ├── app0
 ├── node0
-│   └── trusted
+│   └── trusted
 ```
 
 All following commands will be run from the root directory (`my_offst/`).
@@ -99,7 +97,6 @@ All following commands will be run from the root directory (`my_offst/`).
 Next, we create an cryptographic identity for our node and application. In
 offst, every entity has a cryptographic identity which allows it to talk
 securely with other entities.
-
 
 ```bash
 $ stmgr gen-ident --output node0/node0.ident
@@ -131,7 +128,6 @@ application connect to the node and perform operations. Therefore for every
 application that we want to allow to connect to the node, we need to create a
 ticket with specific permissions. Let's create a ticket for our application:
 
-
 ```bash
 $ stmgr app-ticket --idfile app0/app0.ident --pconfig --pfunds --proutes --output node0/trusted/app0.ticket
 ```
@@ -143,21 +139,20 @@ Note the additional flags we used in the command: `--pconfig`, `--pfunds` and
 `--proutes`. Those are permissions for configuration, sending funds and
 requesting routes respectively.
 
-
 ### Starting the node
 
 At this point you should have this file tree:
 
 ```text
 ├── app0
-│   ├── app0.ident
-│   └── node0.friend
+│   ├── app0.ident
+│   └── node0.friend
 ├── node0
-│   ├── node0.db
-│   ├── node0.ident
-│   ├── node0.ticket
-│   └── trusted
-│       └── app0.ticket
+│   ├── node0.db
+│   ├── node0.ident
+│   ├── node0.ticket
+│   └── trusted
+│       └── app0.ticket
 ```
 
 We can start the node with the command:
@@ -178,7 +173,6 @@ relay servers were configured) and no means of finding friend routes (no index s
 were configured). All that the node does now is wait for further commands from
 an application.
 
-
 ### Connecting with stctrl
 
 We will use the command line `stctrl` application to connect to communicate
@@ -195,7 +189,6 @@ No configured friends.
 ```
 
 Which is true, because we have not yet configured any friends.
-
 
 ### Configuring relays
 
@@ -214,7 +207,6 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket config add-relay \
 Where `-n my_relay` is your own name for this relay (You can pick any name you
 want), and `-r my_relay.ticket` is a ticket file provided by the relay owner.
 
-
 You can view the configured relays using stctrl's `info relays` subcommand.
 Example:
 
@@ -229,7 +221,6 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info relays
 
 A relay can be removed using stctrl's `config remove-relay` subcommand.
 
-
 ### Index servers
 
 Index servers are servers that help nodes find routes to send credits. Every
@@ -240,12 +231,12 @@ and at the same time allows other nodes to find routes to the node.
 
 Anyone can start an index server, however, to be effective index servers
 must federate with other index servers. This way information about nodes
-can propagate. 
+can propagate.
 
 Consider the following example: Node NA is connected to index server IA, and node NB is connected
 to to index server IB:
 
-```
+```text
      IA                IB
      |                 |
      |                 |
@@ -289,7 +280,6 @@ one on the list. (This behaviour might change in the future)
 
 The currently connected index server is marked with a star ("*").
 
-
 ### Adding an extra node
 
 To experiment with sending funds, we need at least one more node.
@@ -297,7 +287,6 @@ To get an extra node (Let's call it node1), we run the same commands but with
 `node1` instead of `node0`. Also note that we use port `9501` instead of `9500` for
 listening, as it is not possible for the two nodes to listen on the same TCP
 port.
-
 
 ```bash
 # Create directory tree:
@@ -353,7 +342,7 @@ A friend file contains a node's public key and a list of relays that can be used
 communicate with a node.
 
 ```bash
-$ cat app0/node0.friend 
+$ cat app0/node0.friend
 public_key = "TiTqXCEMBDoAyseEiw8t6r3L7do_k0iXOU1_rk4ERqw"
 
 [[relays]]
@@ -390,7 +379,7 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
 ```
 
 We can see that the balance is 100 from node0's side.
-Take a look at the `st` column: the status column. `D` means disabled, and `-` means offline. 
+Take a look at the `st` column: the status column. `D` means disabled, and `-` means offline.
 The two nodes can not see each other, because we have not yet enabled
 communication.
 
@@ -441,8 +430,8 @@ From the point of view of node0, the balance may only move in the limits:
 Where `remoteMaxDebt` is chosen by node0, and `localMaxDebt` is chosen by node1:
 
 ```text
-                               balance                               
-                                 |                 
+                               balance
+                                 |
     ----------[------------------*-----------------------------]--------->
               |                                                |
     -localMaxDebt                                   remoteMaxDebt
@@ -454,16 +443,15 @@ the current initial state from the point of view of node0:
 
 ```text
                       remoteMaxDebt   balance = 100
-                              |       |                 
+                              |       |
     --------------------------0-------*------------------>
-                              |                                                
-                     -localMaxDebt                                   
+                              |
+                     -localMaxDebt
 ```
 
 Note that this is a degenerated state, because balance is not between
 `-localMaxDebt` and `remoteMaxDebt`. In this state it is only allowed for the
 balance to go down to the direction of `remoteMaxDebt`.
-
 
 Let's adjust the two max debt values. This can be done using the
 `set-friend-max-debt` subcommand:
@@ -479,7 +467,7 @@ The new diagram from the point of view of node0 should now be:
                                       balance = 100     remoteMaxDebt = 200
                                       |                |
     -------------[------------0-------*----------------]->
-                 |                                                             
+                 |
         -localMaxDebt = -150
 ```
 
@@ -508,7 +496,7 @@ node0 can not open payment requests through node1.
 
 If we want to be able to send a payment from node0 to node1 we need to open the
 requests at node1. This can be done using the `config open-friend` subcommand:
- 
+
 ```bash
 $ stctrl -I app0/app0.ident -T node0/node0.ticket config open-friend -n node1
 $ stctrl -I app1/app1.ident -T node1/node1.ticket config open-friend -n node0
@@ -533,17 +521,17 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info friends
 ## Sending funds
 
 There are currently two ways to send funds using stctrl:
+
 - `send-funds`: Send funds without an invoice
 - `pay-invoice`: Pay an invoice
 
-Internally both commands work the same. 
+Internally both commands work the same.
 The difference between the two is that to pay with `pay-invoice` the recipient
 party must first generate an invoice file (Specifying the payment amount).
 
 On the other hand, `send-funds` allows raw sending of funds to any party given
 that its public key is known. Paying with `send-funds` does not leave any means
-for the recipient of the funds to relate them to any specific transaction. 
-
+for the recipient of the funds to relate them to any specific transaction.
 
 ### send-funds
 
@@ -590,7 +578,6 @@ To make the transaction, the following should happen:
 2. node1 pays the invoice and sends the receipt to node0.
 3. node0 verifies the receipt and (if the receipt was valid) gives the bag of bananas to node1.
 
-
 (1) **node0 prepares an invoice**
 
 To prepare an invoice, we first get node0's public key:
@@ -617,14 +604,13 @@ Fees: 0
 ```
 
 Note that a receipt file was created: bananas.receipt. The receipt file is a
-proof that node1 paid the invoice successfuly. Node1 now hands over the receipt
+proof that node1 paid the invoice successfully. Node1 now hands over the receipt
 to node0.
-
 
 (3) **node0 verifies the receipt**
 
 ```bash
-$ stregister verify-receipt -i bananas.invoice -r bananas.receipt 
+$ stregister verify-receipt -i bananas.invoice -r bananas.receipt
 Receipt is valid!
 ```
 
@@ -638,8 +624,6 @@ $ stctrl -I app1/app1.ident -T node1/node1.ticket info balance
 ```
 
 Now that the payment is verified, node0 can give node1 the bag of bananas.
-
-
 
 ## Running your own relay
 
@@ -663,7 +647,6 @@ strelay --idfile relay/relay.ident --laddr 127.0.0.1:8000 &
 
 To allow nodes to connect to our relays, we need to provide a relay ticket.
 A ticket can be generated using the following command:
-
 
 ```bash
 $ stmgr relay-ticket --address 127.0.0.1:8000 --idfile relay/relay.ident --output relay/relay.ticket
@@ -701,7 +684,7 @@ Next, we need to set up a directory of trusted index servers:
 mkdir index/trusted
 ```
 
-And add a few trusted index servers tickets to this directory. 
+And add a few trusted index servers tickets to this directory.
 
 Note that it is required that the owners of those index servers will add our
 index server as a trusted index server too. For communication to happen between
@@ -749,5 +732,3 @@ server to its configuration using this command:
 $ stctrl -I app0/app0.ident -T node0/node0.ticket config add-index \
             -n my_index -i index_client.ticket
 ```
-
-

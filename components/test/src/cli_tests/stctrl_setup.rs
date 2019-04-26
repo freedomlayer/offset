@@ -46,36 +46,36 @@ pub struct StCtrlSetup {
 pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     /*
     ├── app0
-    │   ├── app0.ident
-    │   └── node0.friend
+    │   ├── app0.ident
+    │   └── node0.friend
     ├── app1
-    │   ├── app1.ident
-    │   └── node1.friend
+    │   ├── app1.ident
+    │   └── node1.friend
     ├── index0
-    │   ├── index0_client.ticket
-    │   ├── index0.ident
-    │   └── trusted
-    │       └── index1_server.ticket
+    │   ├── index0_client.ticket
+    │   ├── index0.ident
+    │   └── trusted
+    │       └── index1_server.ticket
     ├── index1
-    │   ├── index1_client.ticket
-    │   ├── index1.ident
-    │   └── trusted
-    │       └── index0_server.ticket
+    │   ├── index1_client.ticket
+    │   ├── index1.ident
+    │   └── trusted
+    │       └── index0_server.ticket
     ├── node0
-    │   ├── node0.db
-    │   ├── node0.ident
-    │   ├── node0.ticket
-    │   └── trusted
-    │       └── app0.ticket
+    │   ├── node0.db
+    │   ├── node0.ident
+    │   ├── node0.ticket
+    │   └── trusted
+    │       └── app0.ticket
     ├── node1
-    │   ├── node1.db
-    │   ├── node1.ident
-    │   ├── node1.ticket
-    │   └── trusted
-    │       └── app1.ticket
+    │   ├── node1.db
+    │   ├── node1.ident
+    │   ├── node1.ticket
+    │   └── trusted
+    │       └── app1.ticket
     ├── relay0
-    │   ├── relay0.ident
-    │   └── relay0.ticket
+    │   ├── relay0.ident
+    │   └── relay0.ticket
     └── relay1
         ├── relay1.ident
         └── relay1.ticket

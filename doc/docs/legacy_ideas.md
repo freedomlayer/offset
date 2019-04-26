@@ -7,16 +7,17 @@ can be frozen. This is done as follows:
 
 Consider a node A, having friendship relationships with B, C, D, E.
 
-```
+```text
  B <---  /---\
  C <---  | A |  <--- E
  D <---  \---/
 ```
 
 When a RequestSendFund is sent from E through A to one of B, C, D, credits are
-frozen from E to A. 
+frozen from E to A.
 
 We distinguish between different frozen credits from E to A:
+
 - `F{EA}_B`: Frozen credits that represent a RequestSendFund that continues to B.
 - `F{EA}_C`: Frozen credits that represent a RequestSendFund that continues to C.
 - `F{EA}_D`: Frozen credits that represent a RequestSendFund that continues to D.
@@ -45,25 +46,24 @@ information).
 In words: The amount of frozen credits from the channel `J-->A`
 allocated to the channel `A-->I` is proportional to the trust A puts in I.
 
-This requirement can also be formulated as: 
+This requirement can also be formulated as:
 
 `F{JA}_I <= md{AI} * md{AJ} / (md{A} - md{AJ})`
 
 Note that the right hand of this inequality is fully determined by A's
 configuration.
 
-
 ## Exponential decay of credit freezing (Legacy)
 
 Proportional credit freezing allocation makes sure that all the immediate
 friends of A can freeze credits only according to the amount of trust A puts in
-them. This is a "first level" protection against freezing DoS. 
+them. This is a "first level" protection against freezing DoS.
 
 However, note that this countermeasure is not enough to protect against
 excessive freezing of credits by remote adversarial nodes. Consider for example
 the following friends topology:
 
-```
+```text
          F                  -- J
          |                     |
          |                     |
@@ -73,7 +73,6 @@ the following friends topology:
          E
 
 ```
-
 
 Assume that the node J is an adversarial node. J can start a Request messages
 with the following paths (All start with J and end with J):
@@ -101,14 +100,14 @@ To limit the amount of frozen credits a remote node can create, we use
 **exponential decay** of allowed credit freezing.
 Consider a node A, and a path going through A as follows:
 
-```         
+```text
 A1 -- A2 -- ... -- A(k)
 ```
 
 The maximum amount of credits that can be frozen (from the point of view of the
 node A(i)) in this path are:
 
-```
+```text
 frozenCredits[A(i)->A(k)] <= md{A(i)-A(i-1)} * (md{A(i)-A(i+1)} / (md{A(i)} - md{A(i)-A(i-1)}))
     * (md{A(i+1)-A(i+2)} / (md{A(i+1)} - md{A(i+1)-A(i)}))
     ...
@@ -124,7 +123,7 @@ the inequality is not satisfied. Therefore, every node A(s) that forwards a
 request message will add the following information to the forwarded Request
 message:
 
-- sharedCredits(s):    md{A(s)-A(s-1)} if A is not first, 
+- sharedCredits(s):    md{A(s)-A(s-1)} if A is not first,
                        md{A(s)} otherwise.
 
 - forwardTrust(s):     md{A(s)-A(s+1)}
@@ -135,11 +134,11 @@ message:
 Upon receipt of a Request message, a node A(m-1) will verify the following
 frozen credits inequalities before forwarding the request to A(m):
 
-```
-frozenCredits[1->m] <= sharedCredits1 * (forwardTrust1 / totalTrust1) * ... 
+```text
+frozenCredits[1->m] <= sharedCredits1 * (forwardTrust1 / totalTrust1) * ...
                     * (forwardTrust(m-1) / totalTrust(m-1))
 
-frozenCredits[2->m] <= sharedCredits2 * (forwardTrust2 / totalTrust2) * ... 
+frozenCredits[2->m] <= sharedCredits2 * (forwardTrust2 / totalTrust2) * ...
                     * (forwardTrust(m-1) / totalTrust(m-1))
 
 ...
@@ -157,7 +156,7 @@ the above inequalities.
 As a result of the proportional credit freezing allocation mechanism, we obtain
 this property: The farer a node from a channel in the friendship graph (with
 respect to trust), the less credits he can freeze. The amount of credits that
-can be frozen decrease exponentially with the distance. 
+can be frozen decrease exponentially with the distance.
 
 This means that each single RequestSendFund message will allow to freeze (and
 therefore send) less credits. However, large amounts of credits can still be
@@ -168,14 +167,12 @@ credits according to the amount of trust put on him, possibly indirectly. The
 farer an attacker in the friendship graph from a friends channel, the less
 credits the attacker can freeze.
 
-
 TODO: Possibly add examples here?
 
 Note that `frozenCredits[i->m]` above is the total amount of credits frozen
 from the node A(i) to the node A(m). This value is calculated by A(m-1) by
 adding the frozen credits from all the current open requests from the node A(i)
 to the node A(m), including the newly proposed request.
-
 
 ## The idea of time limiting requests (Abandoned)
 
@@ -187,7 +184,7 @@ neighbors or friends).
 We show an example of implementing the time limit feature for a request.
 Consider the following graph of friends:
 
-```
+```text
 A -- B -- C -- D
 ```
 
@@ -215,7 +212,6 @@ sent on time, B will accept the message and pay C 4 credits. Finally B sends
 back the signed response message to A. If the response message arrived on time,
 A will pay B the promised 6 credits.
 
-
 The idea time limiting requests was abandoned because of the way it performs
 when network failures happen. Consider the previous example of A attempting to
 send funds to D, when A is willing to wait at most 6 seconds.
@@ -225,7 +221,7 @@ sends a request message to D. Next, D sends C a signed response message. C pays
 D the promised 2 credits, and then C attempts to send back to B the signed
 response message, but suddenly the connection between B and C is disturbed.
 
-```
+```text
 A -- B -X- C -- D
 ```
 
@@ -249,4 +245,3 @@ and C.
 
 Because of the possibility of conflicts that can not be resolved easily, **we
 decided to abandon the idea of time limiting requests.**
-

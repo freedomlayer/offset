@@ -7,15 +7,13 @@ Offst network consists of a few entities:
 - Node (`stnode`)
 - Applications (For example: `stctrl`)
 
-
 ## Example network topology
-
 
 ```text
                   +-------+
                   | Index |
                   +-+---+-+
-                    |   |           
+                    |   |
               +-----+   +------+
               |                |
          +----+--+         +---+---+          +-------+
@@ -25,7 +23,7 @@ Offst network consists of a few entities:
            |                                        +---+
            |     +-------+         +-------+            |    +-------+
            |     | Relay |         | Relay |            |    | Relay |
-           |     +--+----+         +-+---+-+            |    +---+---+               
+           |     +--+----+         +-+---+-+            |    +---+---+
            |        |                |   |              |        |
            |+-------+                |   |              |        |
            || +----------------------+   +-----------+  |+-------+
@@ -44,17 +42,15 @@ Offst network consists of a few entities:
 
 All lines in the diagram above represent TCP connections.
 
-
 ## Node
 
 The core payment logic happens inside the offst node.
- 
+
 To operate, a node needs the following information:
 
 - An identity file: A private key used to authenticate the identity of the node.
 - A database file: Used to save the current relationships (balances and open payment requests) with other nodes.
 - A list of trusted applications and their permissions.
-
 
 A Node allows applications to connect. Applications must register ahead of time
 to be able to connect to the node. The communication interface between a node
@@ -65,10 +61,8 @@ and an application allows an application to:
 - Request routes
 - Send funds
 
-
 A node needs to be configured to have at least one relay server and one index
 server to be able to operate.
-
 
 ## Relay server
 
@@ -90,9 +84,7 @@ The relays model is decentralized. Anyone [^1] can run his own relay. However,
 we realize that some users might not be willing (or able) to run their own
 relay servers. Instead, it is possible to use the services of a public relay.
 
-
 [^1]: That has his own public address (IP or domain name)
-
 
 ## Index server
 
@@ -119,12 +111,10 @@ B, only if the two conditions hold:
 
 A and B will share node's information.
 
-
 Every index server has a full picture of the whole nodes' funds network. This
 allows index servers to find routes of wanted capacity efficiently, using
 classical graph theoretic algorithms, like
 [BFS](https://en.wikipedia.org/wiki/Breadth-first_search).
-
 
 Anyone can run his own index server, but to have any value, this index server
 must be part of the index servers federation. On his own, an index server will
