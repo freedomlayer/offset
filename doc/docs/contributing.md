@@ -16,7 +16,6 @@ this order):
 3. Easy to read code
 4. Efficiency
 
-
 ### Security and Safety
 
 Offst is used for passing funds between people. Therefore safety is of
@@ -54,7 +53,7 @@ different design that will make testing easier.
 
 Always make sure that your tests are deterministic. If a test is not
 deterministic, it can sometimes fail and sometimes succeed. A failure for a non
-deterministic test can be hard to track. 
+deterministic test can be hard to track.
 
 Do not use real random number generators in your tests. Instead, load a random
 number generator with a deterministic seed.

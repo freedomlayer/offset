@@ -27,7 +27,7 @@ baker could use his credit at the milkman to get milk. After the milkman gives
 the baker a bottle of milk, the debt of the milkman to the baker is cleared.
 
 This method allows the milkman and the baker to perform exchange of their
-goods, even if they do not want to exchange them at exactly the same time. 
+goods, even if they do not want to exchange them at exactly the same time.
 
 One assumption that mutual credit clearing makes is that the milkman and the
 baker trust each other. Suppose that the milkman takes 5 loafs of bread from
@@ -50,7 +50,6 @@ Some measures to be taken when using mutual credit clearing:
     should be limited to some maximum amount. For example: If the baker allows the milkman to owe
     him credit of value at most 3 loafs of bread, the baker will not be able to lose
     more than 3 loafs of bread if A can't repay the debt.
-
 
 Given these assumptions, the state of mutual credit between two nodes A and B
 consists of the following parameters:
@@ -88,7 +87,7 @@ world between two people.
 The economy of mutual credit clearing between two people is simple, and it
 requires that each side generates goods that the other side wants. In the
 example above, the milkman wants to get bread, and the baker wants to get milk.
-This does not always happen in the real world. 
+This does not always happen in the real world.
 
 If, for example, the baker decided to stop drinking milk (Maybe he got
 allergic?), the simple mutual credit clearing between the milkman and the baker
@@ -100,7 +99,6 @@ This problem could be solved if the baker possibly wanted to buy service from
 the carpenter, assuming that the carpenter buys milk from the milkman. This
 will usually happen in an economy of multiple players.
 
-
 ## Chains of mutual credit clearing
 
 To extend the idea of credit clearing to the economy of multiple players we use
@@ -109,7 +107,7 @@ people he trusts, and maintains mutual credit clearing with.
 
 Assume that a person A wants to send funds to another person B. If A and B
 are friends (They directly manage mutual credit clearing), the transaction is
-simple: A will decrease d{AB} and B will increase d{BA}. 
+simple: A will decrease d{AB} and B will increase d{BA}.
 
 If A and B are not friends, they need the help of a mediator, or a chain of
 mediators, to perform the transaction. A and B will look for a chain of the
@@ -133,7 +131,6 @@ strangers A,B to find a chain of friends that connects them, to allow transfer
 of funds between A and B. If no such chain is found, transfer of funds will not
 be possible.
 
-
 ## Introduction to backwards credit payment
 
 In the previous sections we showed that transfer of funds between
@@ -155,7 +152,7 @@ from A to B together with payments to the mediators, but we haven't yet gave
 the specifics of how to do this, to make this transaction somewhat atomic and
 secure.
 
-Consider first the following naive scenario: A wants to send 10 credits to D. 
+Consider first the following naive scenario: A wants to send 10 credits to D.
 A will calculate how much credit he needs to give to each of the mediators as a
 payment for passing the funds all the way to D. For example: 2 credits to B, 2
 credits to C and 10 credits to D.  Next, A will send 14 = 2 + 2 + 10 credits to B.
@@ -188,7 +185,7 @@ credits from B. B Finally B sends the signature back to A and receives 14
 credits.
 
 Eventually, A paid 14 credits, and B,C each earned 2 credits. D received 10
-credits. In addition, A knows that the funds was received by D. 
+credits. In addition, A knows that the funds was received by D.
 
 We distinguish between two stages in this transaction: We call the forward
 stage (Sending the message from A to D) the `RequestSendFundsOp`, and the backwards stage
@@ -196,21 +193,20 @@ stage (Sending the message from A to D) the `RequestSendFundsOp`, and the backwa
 
 What happens if one of the mediators can not pass the message during the
 request stage? For example, if C wants to pass the message to D, but C knows
-that D is currently not online? 
+that D is currently not online?
 In this case, C will send back a `FailureSendFundsOp` message to B, claiming that the
 funds could not be delivered, together with C's signature. B will pay C 1
 credit. B will then add his own signature to the failure message, and forward
 the failure message to A. Seeing the provided failure message, A will pay B 2
-credits. 
+credits.
 
 In other words, in the case of a failure, every mediator node (Up to the failure
 reporting node) receives only 1 credit.
 
-
 ## Messages definition
 
 We include here a more detailed description of each of the three messages used for
-the transfer of funds between friends: `RequestSendFundsOp`, `ResponseSendFundsOp` and `FailureSendFundOp`. 
+the transfer of funds between friends: `RequestSendFundsOp`, `ResponseSendFundsOp` and `FailureSendFundOp`.
 (Comments begin with a hash (#) sign)
 
 ```capnp
@@ -267,7 +263,6 @@ struct FailureSendFundsOp {
 }
 ```
 
-
 ## Invoice and Receipt
 
 We now consider higher level applications that use the credit clearing
@@ -278,7 +273,7 @@ in the transaction: The buyer and the seller.
 Buyer App                       Seller App
            <---[InvoiceId]----
            ----[Receipt]----->
-                
+
 ```
 
 Detailed process:
@@ -290,10 +285,9 @@ Detailed process:
 4. The buyer receives a `ResponseSendFundsOp`, signed by the buyer. He uses it to
    construct a signed receipt that contains the invoiceId.
 5. The buyer sends the receipt to the seller.
-6. The seller verifies the receipt and provies the goods.
+6. The seller verifies the receipt and provides the goods.
 
 The structure of the receipt is as follows:
-
 
 ```capnp
 struct Receipt {
@@ -314,7 +308,6 @@ struct Receipt {
 Note that once a valid `ResponseSendFundsOp` message is received, it is possible to
 construct a `Receipt`. The signature in the receipt is exactly the same signature
 at the `ResponseSendFundsOp` message.
-
 
 ## Analyzing incentives in Backwards credit payment
 
@@ -337,7 +330,6 @@ doesn't forward the message to C.
 This is not a reasonable for B, because B could potentially earn credits
 from this transaction.
 
-
 **(2)** A sends a message to a nonexistent remote node T, along the route:
 
 `A -- B -- C -- D -- T`
@@ -348,7 +340,6 @@ arrive A, and all the mediator nodes will be paid 1 credit. This means that
 sending a message to a nonexistent remote node costs credit to A, and the
 mediator nodes are still compensated.
 
-
 **(3)** A and F cooperate. When F receives a `RequestSendFundsOp` message, F doesn't
 return a signed response message to E. A and F might be using this as a
 technique for free communication.
@@ -358,20 +349,17 @@ freezes credits between E and F. If F does this many times, all credits between
 E and F will be frozen and it will not be possible to open new requests from E
 to F. This means that F will not be able to receive funds through E.
 
-
 **(4)** B receives a `ResponseSendFundsOp` message from C but doesn't pay C.
 
 An inconsistency will be created in the neighbor relationship between B and C,
 and communication will not continue between them until this inconsistency is
-wsolved manually.
-
+solved manually.
 
 **(5)** C receives a `ResponseSendFundsOp` message from D but does not pass it to B.
 
 This means that C gives up on credit, passing the `ResponseSendFundsOp` message to B
 will earn C credit. Therefore, C will prefer to pass the `ResponseSendFundsOp`
 message to B.
-
 
 **(6)** An attacker node claims to be many nodes
 For example, consider the following friends graph:
@@ -398,22 +386,21 @@ Therefore the attacker can simulate a longer route only up to a certain length.
 If the simulated route becomes too large, other shorter (and cheaper) routes
 will be chosen instead.
 
-[^1]: 
+[^1]:
     We might consider to add a feature for setting a transaction fee in future
     versions of offst. Currently the profit for mediating a transaction is
     fixed to be 1 credit.
- 
 
 Analyzing the cases above does not mean that the backwards credit payment is
 proved to be safe, but currently we do not know of any holes in its design.
 
-
 ## Frozen credits
 
-Assume the mutual credit relationship between two friends `A -- B`. 
+Assume the mutual credit relationship between two friends `A -- B`.
 Consider the credit balance from the point of view of A.
 
-We denote: 
+We denote:
+
 - balance is `d{AB}`, the balance between A and B from the point of view of A.
 - remoteMaxDebt is `md{AB}`, the maximum debt A allows to B.
 - localMaxDebt is `md{BA}`, the maximum debt B allows to A.
@@ -434,17 +421,16 @@ We generally [^2] require the following inequalities:
 
 ```text
 -localMaxDebt
-    <= balance - localPendingDebt 
+    <= balance - localPendingDebt
     <= balance
     <= balance + remotePendingDebt
     <= remoteMaxDebt
 ```
 
-[^2]: 
+[^2]:
     With the exception that one can configure remoteMaxDebt to any value, even
     lower than balance. In that case it should not be possible to increase
     balance.
-
 
 ## Credit Freezing DoS problem
 
@@ -460,7 +446,7 @@ In the picture above: M and N are nodes that are controlled by an attacker
 
 M sends a `RequestSendFundsOp` message to N through the route in the picture. N
 receives the `RequestSendFundsOp` message and never sends a `ResponseSendFundsOp`
-message. 
+message.
 
 If M keeps sending `RequestSendFundsOp` to which N never responds, all available
 credits from A to B will be frozen. This will block any new `RequestSendFundsOp`
@@ -476,8 +462,6 @@ least the same amount of credits A has to freeze.
 However, if the attacker can obtain enough credit capacity (This should be
 possible in most cases), the attacker might be able to block a specific
 friendship channel between two parties.
-
-
 
 ## Sending funds may wait forever
 
@@ -496,10 +480,10 @@ And consider the following cases:
 (1) A wants to send funds to D. A sends a request message to
 B. B sends a request message to C. Suddenly C crashes. As in the previous
 example (in the graph of neighbors) is not known to B if C has received the
-message, therefore B will wait indefinately, until a response message is
-received from C. 
+message, therefore B will wait indefinitely, until a response message is
+received from C.
 
-Meanwhile, A doesn't know if the trasfer of funds to D has completed. If A has
+Meanwhile, A doesn't know if the transfer of funds to D has completed. If A has
 sent a large amount of credit to D, this could be a problem. A could try to open
 a new request to send funds to D, but then it is possible that the two
 transactions will succeed, and eventually A sent D twice as much credit.
@@ -514,14 +498,13 @@ funds transfer transaction was completed.
 
 **As a summary:**
 
-- If A knows that the funds transfer was completed, then D has already received the funds. 
+- If A knows that the funds transfer was completed, then D has already received the funds.
 - It is possible that D received the funds, but A doesn't know about this yet.
-
 
 A possible solution to the lack of atomicity of funds transfer would be to
 split large payments into smaller chunks. For example, if A wants to send D
 1000 credits, A could send D 50 credits at a time. Most of the fund transfers
-should complete successfuly. If a transaction of 50 credits is somehow delayed,
+should complete successfully. If a transaction of 50 credits is somehow delayed,
 A could attempt to send another 50 credits to D. At some point enough credits
 have arrived to D.
 
