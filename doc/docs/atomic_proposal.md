@@ -117,16 +117,16 @@ We describe a full buying story:
      | |   |
      | |   |     
      | |   | 
-     | | +----+   Invoice   +----+
-     | \-|    |<------------|    |
-     |   | A' |   Receipt   | E' |
-     \---|    |------------>|    |
-         +----+             +----+
+     | | +----+       Invoice        +----+
+     | \-|    |<---------------------|    |
+     |   | A' |       Receipt        | E' |
+     \---|    |--------------------->|    |
+         +----+                      +----+
 ```
 
 In the figure above one can see the process of payment from A to E.
 A is the buyer's node and E is the seller's node. A' is the buyer client, and
-E' is the seller's client. The buying process rephrased:
+E' is the seller's client. The buying process:
 
 - E' sends an invoice to A'
 - A' sends the invoice to A.
@@ -135,8 +135,8 @@ E' is the seller's client. The buying process rephrased:
 - A sends A' a receipt.
 - A' forwards the receipt to E'.
 
-It can be seen that in this process E' does not require any Internet
-connectivity.
+It can be seen that in this process the client E' does not need to be connected
+to the node E (Hence no Internet connectivity is required).
 
 
 ## Proposed design (Atomic transactions)
