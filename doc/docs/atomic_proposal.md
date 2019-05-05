@@ -140,7 +140,7 @@ It can be seen that in this process the client E' does not need to be connected
 to the node E (Hence no Internet connectivity is required).
 
 
-## Proposed design (Atomic transactions)
+## Proposed design outline (Atomic transactions)
 
 Consider the following route:
 
@@ -149,8 +149,77 @@ B --- C --- D --- E
 ```
 
 Suppose that B wants to send credits to E along this route.
-First a **request** message is sent from B all the way to E, freezing credits along
-the way. 
+
+
+```text
+Invoice        <=====[inv]========    (Out of band)
+
+Request        ------[req]------->
+Response       <-----[resp]-------
+
+Confirmation   ======[conf]======>    (Out of band)
+Goods          <=====[goods]======    (Out of band)
+
+Commit         <-----[commit]-----
+(Receipt)
+               B --- C --- D --- E
+```
+
+The following operations occur:
+
+1. E hands an Invoice to B. (Out of band)
+2. B sends a Request message along a path to E.
+3. E sends back a Response message along the same route to B.
+4. B prepares a Confirmation message and hands it to E (Out of band).
+5. E sends a Commit message along the route to B.
+6. B receives the Commit message, prepares a Receipt and keeps it.
+
+
+From the point of view of Offst users, this is how a transaction looks like:
+
+```text
+Invoice        <=====[inv]========    (Out of band)
+Confirmation   ======[conf]======>    (Out of band)
+Goods          <=====[goods]======    (Out of band)
+               B -- ...   ... -- E
+```
+
+Note that the event of giving the confirmation by B is atomic.
+The moment this event happens, the transaction is considered successful.
+Note however, that it might take some time until the payment destination will
+be able to collect his credits.
+
+Cancellation can happen at any time after the Request message and before the
+Commit message. A Cancellation message can only be sent by the payment
+destination. 
+
+### Examples for cancellation
+
+- invoiceId is not recognized (by E):
+
+```text
+Invoice        <=====[inv]========    (Out of band)
+
+Request        ------[req]------->
+Cancel         <-----[cancel]-----
+
+               B --- C --- D --- E
+```
+
+
+- Confirmation took too long to arrive:
+
+```text
+Invoice        <=====[inv]========    (Out of band)
+
+Request        ------[req]------->
+Response       <-----[resp]-------
+Cancel         <-----[cancel]-----
+
+               B --- C --- D --- E
+```
+
+## Messages definitions
 
 
 ### Request message
@@ -263,10 +332,8 @@ Confirmation message. The Confirmation message is given to the destination, and
 at that moment the payment is considered successful. 
 
 ```text
+=======[conf]=====>  (Out of band)
 B --- C --- D --- E
-|                 ^
-|                 |
-\------[conf]-----/
 ```
 
 Verification of the Confirmation message is done by checking the following:
@@ -366,4 +433,87 @@ struct Receipt {
 The Receipt can be constructed only after the CommitOp message was received.
 Note that it is possible that a receipt can be constructed only a long time
 after the confirmation message was given.
+
+
+## Atomicity
+
+Assume that the node E issued an invoice and handed it to B.
+
+B wants to pay the invoice. The payment begins by sending a Request message
+along the path from B to E. The payment is considered successful when B hands a
+Confirmation message to E. 
+
+This means that we should examine the possiblity of B waiting indefinitely
+during the sending of Request and Response messages along the route.
+
+During this time (Request + Response period), B can discard the transaction by
+walking away. E will not be able to make progress because in order to send the
+Commit message, the correct srcPlainLock is required, but E does not know it
+before B sends the Confirmation message.
+
+Also note that if B sends a valid Confirmation message to E, the transaction is
+considered successful, and B can not reverse it. This happens because B reveals
+srcPlainLock at the Confirmation message sent to E.
+
+
+## Cancellation responsibility
+
+Only the payment destination can issue a Cancel message (Sent from the
+destination along a path to the source). A Cancel message will be sent by the
+Offst node automatically for any incoming Request message that contains a non
+recognized InvoiceId.
+
+In addition, cancellation can be issued for a certain `invoiceId` from the
+application level. Cancellation message should only be sent after the invoice was
+issued and before a Confirmation message was received. It might be possible for
+applications to cancel `invoiceId`-s after a certain amount of time.
+
+- Sending a Cancel message after a Confirmation message was received is
+    considered a bad form for the seller (payment destination), and can be seen
+    as equivalent to not delivering the goods after a successful payment. 
+
+- Sending a Cancel
+    message after the goods were given to the payment source will cause the
+    seller to lose credits.
+
+
+The only way for the buyer (payment source) to cancel a transaction is by never
+sending a Confirmation message to the seller (payment destination).
+
+
+## Extra: Payment without Confirmation
+
+Consider the following route:
+
+```text
+B --- C --- D --- E
+```
+
+Suppose that B wants to send credits to E without any atomicity guarantees. 
+
+For example, B might want to send a donation to E. Therefore B does not care
+about the atomicty of the transaction.
+
+The resulting protocol is as follows:
+
+```text
+Invoice        <=====[inv]========    (Out of band)
+
+Request        ------[req]------->
+Response       <-----[resp]-------
+
+Commit         <-----[commit]-----
+(Receipt)
+               B --- C --- D --- E
+```
+
+(Note that the Out of band Invoice part is optional).
+
+This can be achieved by having B choose a well known value for `srcPlainLock`,
+for example, 256 consecutive zero bytes (`'\x00' * 256`). This should allow E
+to "guess" `srcPlainLock` and send back a Commit message immediately.
+Therefore the out of band Confirmation message sent from B is not required.
+
+
+
 
