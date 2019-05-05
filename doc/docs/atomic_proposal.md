@@ -576,12 +576,11 @@ use this implementation.
 
 ### Buyer interface
 
-```text
-
+```markdown
 RequestPay [App -> Node]
 ==========
 - Invoice
-    - `invoiceId`
+    - invoiceId
     - Destination public key
     - Amount of credits
 
@@ -592,8 +591,8 @@ ResponsePay [Node -> App]
 
 
 SendFunds [App -> Node]
-(Extra: non atomic payment form)
 =========
+(Extra: non atomic payment form)
 - Destination public key
 - Amount of credits
 
@@ -632,15 +631,15 @@ After a while:
 
 ### Seller interface
 
-```text
+```markdown
 AddInvoice [App -> Node]
 ===========
-- `invoiceId`
+- invoiceId
 
 
 CancelInvoice [App -> Node]
 ==============
-- `invoiceId`
+- invoiceId
 
 
 Confirm [App -> Node]
