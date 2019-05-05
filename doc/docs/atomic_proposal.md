@@ -332,7 +332,7 @@ Confirmation message. The Confirmation message is given to the destination, and
 at that moment the payment is considered successful. 
 
 ```text
-=======[conf]=====>  (Out of band)
+=======[conf]=====>    (Out of band)
 B --- C --- D --- E
 ```
 
@@ -437,6 +437,10 @@ after the confirmation message was given.
 
 ## Atomicity
 
+Atomicity is guaranteed by using a [hash
+lock](https://en.bitcoin.it/wiki/Hashlock) created by the payment source:
+`srcHashedLock`.
+
 Assume that the node E issued an invoice and handed it to B.
 
 B wants to pay the invoice. The payment begins by sending a Request message
@@ -454,6 +458,35 @@ before B sends the Confirmation message.
 Also note that if B sends a valid Confirmation message to E, the transaction is
 considered successful, and B can not reverse it. This happens because B reveals
 srcPlainLock at the Confirmation message sent to E.
+
+
+## Receipt verifiability
+
+A receipt is a proof that a certain invoice was paid. It can be verified by
+anyone that possesses: 
+
+- The invoice (`invoiceId` + public key of payment destination)
+- The Receipt
+
+Verification is performed by checking the signature (See description of signature at
+the Receipt definition).
+
+In order to make sure the buyer can not have a valid Receipt before the payment
+actually completed, we use a hash lock that is issued by the payment
+destination: `destHashedLock`.
+
+When the payment source receives a Response message it can not yet create a
+valid Receipt, because the payment source doesn't yet know `destPlainLock`.
+This value is revealed only at the Commit message, when the payment is
+considered to be successful.
+
+Note: An alternative solution could be to let the payment destination sign a new
+signature over the Commit message, but instead we chose to use a hash lock,
+which is a less expensive cryptographic operation. Using a hash lock also does
+not require access to the identity of the payment destination.
+
+This leaves the whole protocol with only one cryptographic signature over the
+Response message, signed by the payment destination (seller).
 
 
 ## Cancellation responsibility
@@ -481,7 +514,7 @@ The only way for the buyer (payment source) to cancel a transaction is by never
 sending a Confirmation message to the seller (payment destination).
 
 
-## Extra: Payment without Confirmation
+## Extra: Non-atomic payment without Confirmation
 
 Consider the following route:
 
@@ -515,5 +548,7 @@ to "guess" `srcPlainLock` and send back a Commit message immediately.
 Therefore the out of band Confirmation message sent from B is not required.
 
 
+
+## Application interface
 
 
