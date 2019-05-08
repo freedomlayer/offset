@@ -1,7 +1,7 @@
 
 # Proposal for atomic payments redesign
 
-05.05.2019, real
+08.05.2019, real
 
 ## Abstract
 
