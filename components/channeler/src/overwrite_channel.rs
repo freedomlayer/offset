@@ -1,5 +1,5 @@
 use core::pin::Pin;
-use futures::task::{Poll, Waker};
+use futures::task::{Poll, Context};
 use futures::{Future, Sink, Stream, StreamExt};
 use std::marker::Unpin;
 
@@ -23,15 +23,15 @@ impl<T, M, K> Future for OverwriteChannel<T, M, K>
 where
     T: Unpin,
     M: Stream<Item = T> + Unpin,
-    K: Sink<SinkItem = T> + Unpin,
+    K: Sink<T> + Unpin,
 {
     type Output = Result<(), K::SinkError>;
 
-    fn poll(mut self: Pin<&mut Self>, lw: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Self::Output> {
         let mut fself = Pin::new(&mut self);
         loop {
             let recv_progress = if let Some(mut receiver) = fself.opt_receiver.take() {
-                match receiver.poll_next_unpin(lw) {
+                match receiver.poll_next_unpin(context) {
                     Poll::Ready(Some(item)) => {
                         // We discard the previous item and store the new one:
                         fself.opt_item = Some(item);
@@ -52,7 +52,7 @@ where
             };
 
             if let Some(item) = fself.opt_item.take() {
-                match Pin::new(&mut fself.sender).poll_ready(lw) {
+                match Pin::new(&mut fself.sender).poll_ready(context) {
                     Poll::Ready(Ok(())) => match Pin::new(&mut fself.sender).start_send(item) {
                         Ok(()) => {}
                         Err(e) => return Poll::Ready(Err(e)),
@@ -81,7 +81,7 @@ pub fn overwrite_send_all<T, E, M, K>(sender: K, receiver: M) -> impl Future<Out
 where
     T: Unpin,
     M: Stream<Item = T> + Unpin,
-    K: Sink<SinkItem = T, SinkError = E> + Unpin,
+    K: Sink<T, SinkError = E> + Unpin,
 {
     OverwriteChannel::new(sender, receiver)
 }

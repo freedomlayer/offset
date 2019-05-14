@@ -513,6 +513,7 @@ where
 mod tests {
     use super::*;
     use futures::executor::ThreadPool;
+    use futures::future::join;
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
@@ -571,7 +572,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(connect_fut.join(handle_connect_fut));
+            await!(join(connect_fut, handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -592,7 +593,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(connect_fut.join(handle_connect_fut));
+            await!(join(connect_fut, handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -613,7 +614,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(connect_fut.join(handle_connect_fut));
+            await!(join(connect_fut, handle_connect_fut));
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -640,7 +641,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (_local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(connect_fut.join(handle_connect_fut));
+            await!(join(connect_fut, handle_connect_fut));
         let _conn_request_receiver = new_conn_request_receiver;
     }
 
@@ -750,7 +751,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (_remote_conn, new_conn_request_receiver)) =
-            await!(connect_fut.join(handle_connect_fut));
+            await!(join(connect_fut, handle_connect_fut));
         let _conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:

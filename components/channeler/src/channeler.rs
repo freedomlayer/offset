@@ -154,7 +154,7 @@ where
         + Sync
         + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
-    TF: Sink<SinkItem = ChannelerToFunder> + Send + Unpin,
+    TF: Sink<ChannelerToFunder> + Send + Unpin,
 {
     fn new(
         local_public_key: PublicKey,
@@ -457,7 +457,7 @@ pub async fn channeler_loop<FF, TF, RA, C, L, S>(
 ) -> Result<(), ChannelerError>
 where
     FF: Stream<Item = FunderToChanneler<RA>> + Send + Unpin,
-    TF: Sink<SinkItem = ChannelerToFunder> + Send + Unpin,
+    TF: Sink<ChannelerToFunder> + Send + Unpin,
     RA: Clone + Send + Sync + Debug + 'static,
     C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
         + Clone
