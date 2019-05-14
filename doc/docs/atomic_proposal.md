@@ -660,6 +660,10 @@ This construction allows taking donations through a static HTTPS webpage.
 All one has to do is publish his public key. We are still not though sure if
 adding this guessing feature will have real world uses.
 
+Idea: Change `srcHashedLock` to be a sum type of None or srcHashedLock?
+This way guessing will not be required. Might depend on the hash and salt
+representation.
+
 ## Application interface
 
 We describe here Offst nodes' interface with an Application.
