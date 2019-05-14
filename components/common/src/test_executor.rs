@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use futures::future::{self, FutureObj};
-use futures::task::{ArcWake, Spawn, SpawnError, Waker};
+use futures::task::{ArcWake, Spawn, SpawnError, Waker, Context};
 use futures::{Future, Poll};
 
 // use crate::caller_info::{get_caller_info, CallerInfo};
@@ -58,7 +58,7 @@ impl TestWaker {
 }
 
 impl ArcWake for TestWaker {
-    fn wake(arc_self: &Arc<Self>) {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
         let mut inner = arc_self.arc_mutex_inner.lock().unwrap();
         // Avoid duplicates:
         inner.add_wake(arc_self.future_id);
@@ -128,7 +128,7 @@ impl WaitFuture {
 impl Future for WaitFuture {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Self::Output> {
         if self.as_mut().was_polled {
             Poll::Ready(())
         } else {
@@ -141,7 +141,7 @@ impl Future for WaitFuture {
 impl TestExecutor {
     /// Perform one iteration of polling all futures that needs to be awaken.
     /// If the local future is resolved, we return its output.
-    fn poll_future(&self, future_id: usize, waker: &Waker) {
+    fn poll_future(&self, future_id: usize, context: &mut Context) {
         let mut future = {
             let mut inner = self.arc_mutex_inner.lock().unwrap();
             if let Some(future) = inner.futures.remove(&future_id) {
@@ -157,7 +157,7 @@ impl TestExecutor {
             let mut inner = self.arc_mutex_inner.lock().unwrap();
             inner.opt_polled_id = Some(future_id);
         }
-        let poll_res = future.as_mut().poll(&waker);
+        let poll_res = future.as_mut().poll(context);
         // Clear current future being polled:
         {
             let mut inner = self.arc_mutex_inner.lock().unwrap();
@@ -202,6 +202,7 @@ impl TestExecutor {
             }
 
             let waker = self.create_waker(future_id);
+            let mut context = Context::from_waker(&waker);
             if future_id == local_future_id {
                 // Woken future is our local future:
 
@@ -210,7 +211,7 @@ impl TestExecutor {
                     let mut inner = self.arc_mutex_inner.lock().unwrap();
                     inner.opt_polled_id = Some(future_id);
                 }
-                let poll_res = local_future.as_mut().poll(&waker);
+                let poll_res = local_future.as_mut().poll(&mut context);
                 // Clear current future being polled:
                 {
                     let mut inner = self.arc_mutex_inner.lock().unwrap();
@@ -223,7 +224,7 @@ impl TestExecutor {
                 continue;
             }
 
-            self.poll_future(future_id, &waker);
+            self.poll_future(future_id, &mut context);
         }
         opt_local_output
     }
@@ -295,7 +296,8 @@ impl TestExecutor {
             }
 
             let waker = self.create_waker(future_id);
-            self.poll_future(future_id, &waker);
+            let mut context = Context::from_waker(&waker);
+            self.poll_future(future_id, &mut context);
         }
     }
 
@@ -417,13 +419,13 @@ mod tests {
 
     impl Future for Yield {
         type Output = ();
-        fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
+        fn poll(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Self::Output> {
             let count = &mut self.as_mut().0;
             *count = count.saturating_sub(1);
             if *count == 0 {
                 Poll::Ready(())
             } else {
-                waker.wake();
+                context.waker().clone().wake();
                 Poll::Pending
             }
         }
