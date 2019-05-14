@@ -172,7 +172,7 @@ async fn send_full_state(
 impl<ISA, TAS, ICS, S> IndexClient<ISA, TAS, ICS, S>
 where
     ISA: Debug + Eq + Clone + Send + 'static,
-    TAS: Sink<SinkItem = IndexClientToAppServer<ISA>> + Unpin,
+    TAS: Sink<IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<SessionHandle>>
         + Clone
         + Send
@@ -702,7 +702,7 @@ pub async fn index_client_loop<ISA, FAS, TAS, ICS, TS, S>(
 where
     ISA: Debug + Eq + Clone + Send + 'static,
     FAS: Stream<Item = AppServerToIndexClient<ISA>> + Send + Unpin,
-    TAS: Sink<SinkItem = IndexClientToAppServer<ISA>> + Unpin,
+    TAS: Sink<IndexClientToAppServer<ISA>> + Unpin,
     ICS: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<SessionHandle>>
         + Clone
         + Send

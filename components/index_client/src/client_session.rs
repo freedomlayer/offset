@@ -101,6 +101,7 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
+    use futures::future::join;
 
     use crypto::hash::{HashResult, HASH_RESULT_LEN};
     use crypto::identity::{generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity};
@@ -150,7 +151,7 @@ mod tests {
         };
         let session_handle_fut = index_client_session.transform(0x1337u32);
 
-        let (opt_session_handle, ()) = await!(session_handle_fut.join(handle_conn_request_fut));
+        let (opt_session_handle, ()) = await!(join(session_handle_fut, handle_conn_request_fut));
         let (_control_sender, close_receiver) = opt_session_handle.unwrap();
 
         drop(server_sender);
