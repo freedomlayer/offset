@@ -42,7 +42,7 @@ where
     drop(spawner.spawn(send_forward_03));
 
     // Forward messages to user_receiver:
-    let to_user_receiver_01 = Compat::new(to_user_receiver_03)
+    let to_user_receiver_01 = to_user_receiver_03.compat()
         .sink_map_err(|_| ())
         .with(|t: T| -> Result<Result<T, ()>, ()> { Ok(Ok(t)) });
 
