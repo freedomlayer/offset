@@ -81,7 +81,8 @@ mod tests {
     use futures::channel::mpsc;
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
-    use futures::{FutureExt, SinkExt, StreamExt};
+    use futures::{SinkExt, StreamExt};
+    use futures::future::join;
 
     use common::conn::ConnPairVec;
     use common::dummy_connector::DummyConnector;
@@ -101,7 +102,7 @@ mod tests {
         let mut backoff_connector =
             BackoffConnector::new(dummy_connector, timer_client, backoff_ticks);
 
-        let (opt_conn, _) = await!(backoff_connector.transform(10u32).join(
+        let (opt_conn, _) = await!(join(backoff_connector.transform(10u32),
             async move {
                 // Connection attempt fails for the first 5 times:
                 for _ in 0..5usize {
