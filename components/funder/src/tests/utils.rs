@@ -6,6 +6,7 @@ use common::mutable_state::MutableState;
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
+use futures::stream::select;
 
 use crypto::identity::{
     generate_pkcs8_key_pair, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
@@ -157,7 +158,7 @@ where
     let incoming_new_node = incoming_new_node.map(|new_node| RouterEvent::NewNode(new_node));
     let comm_receiver = comm_receiver.map(|tuple| RouterEvent::OutgoingComm(tuple));
 
-    let mut events = incoming_new_node.select(comm_receiver);
+    let mut events = select(incoming_new_node, comm_receiver);
 
     while let Some(event) = await!(events.next()) {
         match event {

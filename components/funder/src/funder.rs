@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use futures::channel::mpsc;
 use futures::{future, stream, SinkExt, StreamExt};
+use futures::stream::select;
 
 use common::canonical_serialize::CanonicalSerialize;
 
@@ -77,7 +78,7 @@ where
     let mut incoming_messages = stream::once(future::ready(FunderEvent::FunderIncoming(
         FunderIncoming::Init,
     )))
-    .chain(incoming_control.select(incoming_comm));
+    .chain(select(incoming_control, incoming_comm));
 
     while let Some(funder_event) = await!(incoming_messages.next()) {
         // For testing:
