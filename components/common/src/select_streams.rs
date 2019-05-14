@@ -1,4 +1,4 @@
-use futures::task::Waker;
+use futures::task::Context;
 use futures::{Poll, Stream, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
@@ -26,7 +26,7 @@ pub struct SelectStreams<'a, T> {
 impl<'a, T> Stream for SelectStreams<'a, T> {
     type Item = T;
 
-    fn poll_next(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
         for sk in &mut self.stream_keepers {
             sk.polled = false;
         }
@@ -39,7 +39,7 @@ impl<'a, T> Stream for SelectStreams<'a, T> {
             }
             stream_keeper.polled = true;
 
-            match stream_keeper.stream.poll_next_unpin(waker) {
+            match stream_keeper.stream.poll_next_unpin(context) {
                 Poll::Pending => {
                     self.stream_keepers.push_back(stream_keeper);
                 }

@@ -29,7 +29,7 @@ pub fn create_interval(duration: Duration) -> mpsc::Receiver<()> {
 /// See: https://users.rust-lang.org/t/discarding-unused-cloned-sender-futures-3-0/21228
 pub async fn send_to_sink<S, T, E>(mut sink: S, item: T) -> Result<S, E>
 where
-    S: Sink<SinkItem = T, SinkError = E> + std::marker::Unpin + 'static,
+    S: Sink<T, SinkError = E> + std::marker::Unpin + 'static,
 {
     await!(sink.send(item))?;
     Ok(sink)
@@ -42,7 +42,7 @@ pub fn future_select<T>(
 ) -> impl Future<Output = T> + Unpin {
     let s_a = stream::once(a);
     let s_b = stream::once(b);
-    let s = s_a.select(s_b);
+    let s = stream::select(s_a, s_b);
     s.into_future().map(|(opt_item, _s)| opt_item.unwrap())
 }
 

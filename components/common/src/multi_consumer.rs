@@ -1,5 +1,6 @@
 use futures::channel::{mpsc, oneshot};
 use futures::{future, stream, SinkExt, Stream, StreamExt};
+use futures::stream::select;
 use std::marker::Unpin;
 
 #[derive(Debug)]
@@ -68,7 +69,7 @@ where
         .map(Event::IncomingRequest)
         .chain(stream::once(future::ready(Event::IncomingRequestsClosed)));
 
-    let mut incoming = incoming_items.select(incoming_requests);
+    let mut incoming = select(incoming_items, incoming_requests);
     let mut incoming_requests_closed = false;
     let mut senders: Vec<mpsc::Sender<T>> = Vec::new();
 
