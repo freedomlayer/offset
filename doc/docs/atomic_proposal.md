@@ -409,27 +409,18 @@ at that moment the payment is considered successful.
 B --- C --- D --- E
 ```
 
-Verification of the Confirmation message is done by checking the following:
-
-- invoiceId matches the originally issued invoice.
-- destPayment matches the wanted amount of credits.
-- The signature is valid (Signed by the destination of the payment)
-- The revealed lock is valid: `bcrypt(srcPlainLock) == srcHashedLock`
-
-
-Upon receipt the Confirmation message, the destination will give the goods to
+Upon receipt of a valid Confirmation message, the seller will give the goods to
 the buyer, and send back (along the same route) a Commit message to collect his
 credits.
 
 ```capnp
-struct Confirmation {
+struct RequestConfirmation {
         responseHash @0: Hash;
         # = sha512/256(requestId || sha512/256(route) || randNonce)
-        invoiceId @1: InvoiceId;
-        destPayment @2: CustomUInt128;
-        srcPlainLock: @3: Lock;
+        destPayment @1: CustomUInt128;
+        srcPlainLock: @2: Lock;
         # The preimage of the hashedLock at the request message [256 bits]
-        signature @4: Signature;
+        signature @3: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
@@ -440,7 +431,29 @@ struct Confirmation {
         #   invoiceId
         # )
 }
+
+struct Confirmation {
+        invoiceId @0: InvoiceId;
+        # InvoiceId being paid.
+        requestConfirmations @1: List(RequestConfirmation);
+        # A list of confirmations. Each confirmation corresponds to a request
+        # sent along one route.
+}
 ```
+
+Note that the `Confirmation` message may contain multiple
+`RequestConfirmation`, each corresponding to one request. This allows
+fragmented payment along multiple routes.
+
+Verification of a Confirmation message by the seller is done as follows:
+
+- InvoiceId matches an originally issued invoice.
+- For every RequestConfirmation:
+    - The revealed lock is valid for every RequestConfirmation: 
+        `bcrypt(srcPlainLock) == srcHashedLock`
+    - signature is valid for all RequestConfirmations.
+- Total of `destPayment` is correct (Equal the requested amount at the
+    invoice).
 
 
 ### (*) Commit message
@@ -585,6 +598,29 @@ applications to cancel `invoiceId`-s after a certain amount of time.
 
 The only way for the buyer to cancel a transaction is by never
 sending a Confirmation message to the seller.
+
+
+## Fragmented/Multi-Route transactions
+
+Sometimes it might not be possible to send a payment along a single route.
+In such cases it is useful to send the transaction along multipe
+routes. The protocol allows sending a payment along multiple routes atomically.
+This is done as follows:
+
+1. Buyer gets an Invoice from the seller for a certain amount of
+   credits.
+2. Buyer sends a RequestSendFundsOp along a route.
+3. A ResponseSendFundsOp or a CancelSendFundsOp message is returned.
+4. Go back to (2) until the wanted amount of credits is acheived (for paying
+   the invoice).
+5. Buyer sends a Confirmation message containing a list of all
+   RequestConfirmation-s for all the requests that got a valid response.
+6. Seller verifies the Confirmation message. If valid, the payment is accepted
+   and the goods are handed to the buyer.
+7. The Seller sends back CommitOp messages for all requests.
+8. Any CommitOp message can be used to create a valid Receipt. (Two diferent
+   constructed receipts will have the same invoiceId but different
+   responseHash).
 
 
 ## Extra: Non-atomic payment without Confirmation
