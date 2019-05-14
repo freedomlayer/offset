@@ -59,9 +59,9 @@ async fn inner_keepalive_loop<TR, FR, TU, FU, TS>(
     mut opt_event_sender: Option<mpsc::Sender<KeepAliveEvent>>,
 ) -> Result<(), KeepAliveError>
 where
-    TR: Sink<SinkItem = Vec<u8>> + Unpin,
+    TR: Sink<Vec<u8>> + Unpin,
     FR: Stream<Item = Vec<u8>> + Unpin + Send,
-    TU: Sink<SinkItem = Vec<u8>> + Unpin,
+    TU: Sink<Vec<u8>> + Unpin,
     FU: Stream<Item = Vec<u8>> + Unpin + Send,
     TS: Stream<Item = TimerTick> + Unpin + Send,
 {
@@ -236,7 +236,7 @@ mod tests {
         mut spawner: S,
     ) -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
     where
-        TR: Sink<SinkItem = Vec<u8>> + Unpin + Send + 'static,
+        TR: Sink<Vec<u8>> + Unpin + Send + 'static,
         FR: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
         TS: Stream<Item = TimerTick> + Unpin + Send + 'static,
         S: Spawn,
