@@ -52,7 +52,7 @@ enum AcceptConnectionError {
 /// This is done to overcome some compiler type limitations.
 fn to_mpsc_sender<T,SI,SE>(mut sink: SI, mut spawner: impl Spawn) -> mpsc::Sender<T>
 where
-    SI: Sink<SinkItem=T, SinkError=SE> + Unpin + Send + 'static,
+    SI: Sink<T, SinkError=SE> + Unpin + Send + 'static,
     T: Send + 'static,
 {
     let (sender, mut receiver) = mpsc::channel::<T>(0);
@@ -115,7 +115,7 @@ async fn accept_connection<C, CS, CSE, FT>(
 ) -> Result<(), AcceptConnectionError>
 where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send,
-    CS: Sink<SinkItem = (PublicKey, ConnPairVec), SinkError = CSE> + Unpin + 'static,
+    CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
     let timer_stream = await!(timer_client.request_timer_stream())
@@ -174,7 +174,7 @@ async fn inner_client_listener<'a, C, IAC, CS, CSE, FT>(
 where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send + Sync + Clone + 'static,
     IAC: Stream<Item = AccessControlOp<PublicKey>> + Unpin + Send + 'static,
-    CS: Sink<SinkItem = (PublicKey, ConnPairVec), SinkError = CSE> + Unpin + Clone + Send + 'static,
+    CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {
