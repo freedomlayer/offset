@@ -2,7 +2,8 @@ use std::marker::Unpin;
 
 use crate::timer::{TimerClient, TimerTick};
 use common::int_convert::usize_to_u64;
-use futures::{future, select, Future, FutureExt, Stream, StreamExt};
+use futures::{future, Future, FutureExt, Stream, StreamExt};
+use futures::select;
 
 #[derive(Debug)]
 pub enum SleepTicksError {

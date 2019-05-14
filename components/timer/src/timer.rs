@@ -25,11 +25,13 @@
 #![allow(clippy::too_many_arguments, clippy::implicit_hasher, clippy::module_inception)]
 // TODO: disallow clippy::too_many_arguments
 
+
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};
 use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
 use futures::stream;
+use futures::future::FutureExt;
 use futures::task::{Spawn, SpawnExt};
 use std::time::Duration;
 
@@ -193,6 +195,7 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 mod tests {
     use super::*;
     use core::pin::Pin;
+    use futures::future::join;
     use futures::executor::ThreadPool;
     use std::time::{Duration, Instant};
 
@@ -267,7 +270,7 @@ mod tests {
 
             let receiver = receiver.map(|_| ());
 
-            let new_join = joined_receivers.join(receiver).map(|_| ());
+            let new_join = join(joined_receivers, receiver).map(|_| ());
             joined_receivers = Box::pin(new_join) as Pin<Box<Future<Output = ()> + Send>>;
         }
 
@@ -326,7 +329,7 @@ mod tests {
         mut timer_client: TimerClient,
     ) -> Result<(), ()>
     where
-        S: Sink<SinkItem = (), SinkError = ()> + std::marker::Unpin + 'static,
+        S: Sink<(), SinkError = ()> + std::marker::Unpin + 'static,
     {
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
@@ -375,7 +378,7 @@ mod tests {
                 await!(tick_sender.send(TimerTick)).unwrap();
             }
         };
-        let _ = await!(timer_stream_fut.join(tick_sender_fut));
+        let _ = await!(join(timer_stream_fut, tick_sender_fut));
     }
 
     #[test]
