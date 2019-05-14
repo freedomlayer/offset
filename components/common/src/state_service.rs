@@ -1,6 +1,6 @@
 use futures::channel::{mpsc, oneshot};
-use futures::{future, stream, SinkExt, StreamExt};
 use futures::stream::select;
+use futures::{future, stream, SinkExt, StreamExt};
 
 use crate::mutable_state::MutableState;
 

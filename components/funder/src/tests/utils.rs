@@ -4,9 +4,9 @@ use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
 use futures::channel::mpsc;
+use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
-use futures::stream::select;
 
 use crypto::identity::{
     generate_pkcs8_key_pair, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN,

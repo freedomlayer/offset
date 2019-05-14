@@ -101,29 +101,23 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         .map_err(|_| StCtrlError::SpawnIdentityServiceError)?;
 
     let c_thread_pool = thread_pool.clone();
-    thread_pool.run(
-        async move {
-            // Connect to node:
-            let node_connection = await!(connect(
-                node_address.public_key,
-                node_address.address,
-                app_identity_client,
-                c_thread_pool.clone()
-            ))
-            .map_err(|_| StCtrlError::ConnectionError)?;
+    thread_pool.run(async move {
+        // Connect to node:
+        let node_connection = await!(connect(
+            node_address.public_key,
+            node_address.address,
+            app_identity_client,
+            c_thread_pool.clone()
+        ))
+        .map_err(|_| StCtrlError::ConnectionError)?;
 
-            match subcommand {
-                StCtrlSubcommand::Info(info_cmd) => {
-                    await!(info(info_cmd, node_connection, writer))?
-                }
-                StCtrlSubcommand::Config(config_cmd) => {
-                    await!(config(config_cmd, node_connection))?
-                }
-                StCtrlSubcommand::Funds(funds_cmd) => {
-                    await!(funds(funds_cmd, node_connection, writer))?
-                }
+        match subcommand {
+            StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection, writer))?,
+            StCtrlSubcommand::Config(config_cmd) => await!(config(config_cmd, node_connection))?,
+            StCtrlSubcommand::Funds(funds_cmd) => {
+                await!(funds(funds_cmd, node_connection, writer))?
             }
-            Ok(())
-        },
-    )
+        }
+        Ok(())
+    })
 }

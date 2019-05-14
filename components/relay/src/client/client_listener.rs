@@ -403,16 +403,14 @@ mod tests {
         let (res_sender, res_receiver) = oneshot::channel();
 
         spawner
-            .spawn(
-                async move {
-                    let res = await!(connect_with_timeout(
-                        connector,
-                        conn_timeout_ticks,
-                        timer_stream
-                    ));
-                    res_sender.send(res).unwrap();
-                },
-            )
+            .spawn(async move {
+                let res = await!(connect_with_timeout(
+                    connector,
+                    conn_timeout_ticks,
+                    timer_stream
+                ));
+                res_sender.send(res).unwrap();
+            })
             .unwrap();
 
         let req = await!(req_receiver.next()).unwrap();

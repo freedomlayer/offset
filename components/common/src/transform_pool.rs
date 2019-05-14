@@ -1,7 +1,7 @@
 use futures::channel::mpsc;
+use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
-use futures::stream::select;
 
 use crate::conn::FutTransform;
 

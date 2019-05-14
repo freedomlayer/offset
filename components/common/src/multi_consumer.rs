@@ -1,6 +1,6 @@
 use futures::channel::{mpsc, oneshot};
-use futures::{future, stream, SinkExt, Stream, StreamExt};
 use futures::stream::select;
+use futures::{future, stream, SinkExt, Stream, StreamExt};
 use std::marker::Unpin;
 
 #[derive(Debug)]

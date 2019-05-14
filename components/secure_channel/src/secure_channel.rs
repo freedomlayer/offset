@@ -286,21 +286,19 @@ where
         let (opt_expected_remote, conn_pair) = input;
         let (sender, receiver) = conn_pair;
 
-        Box::pin(
-            async move {
-                await!(create_secure_channel(
-                    sender,
-                    receiver,
-                    self.identity_client.clone(),
-                    opt_expected_remote.clone(),
-                    self.rng.clone(),
-                    self.timer_client.clone(),
-                    self.ticks_to_rekey,
-                    self.spawner.clone()
-                ))
-                .ok()
-            },
-        )
+        Box::pin(async move {
+            await!(create_secure_channel(
+                sender,
+                receiver,
+                self.identity_client.clone(),
+                opt_expected_remote.clone(),
+                self.rng.clone(),
+                self.timer_client.clone(),
+                self.ticks_to_rekey,
+                self.spawner.clone()
+            ))
+            .ok()
+        })
     }
 }
 

@@ -111,15 +111,13 @@ impl FutTransform for SimNetworkClient {
     #[allow(unused)]
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
-        Box::pin(
-            async move {
-                await!(self
-                    .sender
-                    .send(SimNetworkRequest::Connect((net_address, response_sender))))
-                .ok()?;
-                await!(response_receiver).ok()
-            },
-        )
+        Box::pin(async move {
+            await!(self
+                .sender
+                .send(SimNetworkRequest::Connect((net_address, response_sender))))
+            .ok()?;
+            await!(response_receiver).ok()
+        })
     }
 }
 

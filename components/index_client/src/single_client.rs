@@ -235,9 +235,9 @@ mod tests {
     use super::*;
     use crypto::hash::HASH_RESULT_LEN;
     use futures::executor::ThreadPool;
+    use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
-    use futures::future::join;
 
     use crypto::identity::{
         generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity, PUBLIC_KEY_LEN,

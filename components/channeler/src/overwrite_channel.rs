@@ -1,5 +1,5 @@
 use core::pin::Pin;
-use futures::task::{Poll, Context};
+use futures::task::{Context, Poll};
 use futures::{Future, Sink, Stream, StreamExt};
 use std::marker::Unpin;
 

@@ -76,14 +76,12 @@ where
         } = self;
 
         spawner
-            .spawn(
-                async move {
-                    let res = await!(req_sender.send(listen_request));
-                    if res.is_err() {
-                        error!("Error sending listen_request");
-                    }
-                },
-            )
+            .spawn(async move {
+                let res = await!(req_sender.send(listen_request));
+                if res.is_err() {
+                    error!("Error sending listen_request");
+                }
+            })
             .unwrap();
 
         (config_sender, conn_receiver)

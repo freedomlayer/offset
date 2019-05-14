@@ -99,9 +99,9 @@ mod tests {
     use super::*;
 
     use futures::executor::ThreadPool;
+    use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
-    use futures::future::join;
 
     use crypto::hash::{HashResult, HASH_RESULT_LEN};
     use crypto::identity::{generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity};

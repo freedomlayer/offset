@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use futures::channel::mpsc;
-use futures::{future, stream, SinkExt, StreamExt};
 use futures::stream::select;
+use futures::{future, stream, SinkExt, StreamExt};
 
 use common::canonical_serialize::CanonicalSerialize;
 
