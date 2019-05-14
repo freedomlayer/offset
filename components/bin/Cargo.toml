@@ -46,7 +46,7 @@ base64 = "0.10.1"
 
 log = "0.4"
 env_logger = "0.6.0"
-futures-preview = "0.3.0-alpha.13"
+futures-preview = "0.3.0-alpha.16"
 
 structopt = "0.2.15"
 

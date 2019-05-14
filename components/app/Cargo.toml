@@ -21,4 +21,4 @@ node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 
 log = "0.4"
 simple_logger = "1.0.1"
-futures-preview = "0.3.0-alpha.13"
+futures-preview = "0.3.0-alpha.16"
