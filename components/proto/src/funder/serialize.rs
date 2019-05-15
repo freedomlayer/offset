@@ -12,8 +12,8 @@ use std::io;
 use funder_capnp;
 
 use super::messages::{
-    CancelSendFunds, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
-    RequestSendFunds, ResetTerms, ResponseSendFunds,
+    CancelSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
+    RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::serialize::SerializeError;
@@ -36,7 +36,7 @@ pub fn ser_friends_route(
 }
 
 fn ser_request_send_funds_op(
-    request_send_funds: &RequestSendFunds,
+    request_send_funds: &RequestSendFundsOp,
     request_send_funds_op_builder: &mut funder_capnp::request_send_funds_op::Builder,
 ) {
     write_uid(
@@ -59,7 +59,7 @@ fn ser_request_send_funds_op(
 }
 
 fn ser_response_send_funds_op(
-    response_send_funds: &ResponseSendFunds,
+    response_send_funds: &ResponseSendFundsOp,
     response_send_funds_op_builder: &mut funder_capnp::response_send_funds_op::Builder,
 ) {
     write_uid(
@@ -77,7 +77,7 @@ fn ser_response_send_funds_op(
 }
 
 fn ser_cancel_send_funds_op(
-    cancel_send_funds: &CancelSendFunds,
+    cancel_send_funds: &CancelSendFundsOp,
     cancel_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder,
 ) {
     unimplemented!();
@@ -283,7 +283,7 @@ pub fn deser_friends_route(
 
 fn deser_request_send_funds_op(
     request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader,
-) -> Result<RequestSendFunds, SerializeError> {
+) -> Result<RequestSendFundsOp, SerializeError> {
     unimplemented!();
     /*
     Ok(RequestSendFunds {
@@ -297,7 +297,7 @@ fn deser_request_send_funds_op(
 
 fn deser_response_send_funds_op(
     response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader,
-) -> Result<ResponseSendFunds, SerializeError> {
+) -> Result<ResponseSendFundsOp, SerializeError> {
     unimplemented!();
     /*
     Ok(ResponseSendFunds {
@@ -310,8 +310,8 @@ fn deser_response_send_funds_op(
 
 fn deser_cancel_send_funds_op(
     cancel_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
-) -> Result<CancelSendFunds, SerializeError> {
-    Ok(CancelSendFunds {
+) -> Result<CancelSendFundsOp, SerializeError> {
+    Ok(CancelSendFundsOp {
         request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
         reporting_public_key: read_public_key(
             &cancel_send_funds_op_reader.get_reporting_public_key()?,
@@ -453,19 +453,19 @@ mod tests {
             ],
         };
 
-        let request_send_funds = RequestSendFunds {
+        let request_send_funds = RequestSendFundsOp {
             request_id: Uid::from(&[22; UID_LEN]),
             route,
             dest_payment: 48,
             invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
         };
-        let response_send_funds = ResponseSendFunds {
+        let response_send_funds = ResponseSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
             signature: Signature::from(&[3; SIGNATURE_LEN]),
         };
 
-        let cancel_send_funds = CancelSendFunds {
+        let cancel_send_funds = CancelSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
             reporting_public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),

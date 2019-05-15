@@ -3,6 +3,7 @@ use std::collections::HashSet;
 
 use crypto::crypto_rand::RandValue;
 use crypto::hash::{self, HashResult};
+use crypto::hash_lock::HashedLock;
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
@@ -60,24 +61,24 @@ pub struct FriendsRoute {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct RequestSendFunds {
+pub struct RequestSendFundsOp {
     pub request_id: Uid,
-    pub src_hashed_lock: HashResult, // TODO: Change to bcrypt later
+    pub src_hashed_lock: HashedLock, // TODO: Change to bcrypt later
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds<S = Signature> {
+pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
-    pub dest_hashed_lock: HashResult,
+    pub dest_hashed_lock: HashedLock,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CancelSendFunds<S = Signature> {
+pub struct CancelSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
@@ -89,9 +90,9 @@ pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
-    RequestSendFunds(RequestSendFunds),
-    ResponseSendFunds(ResponseSendFunds),
-    CancelSendFunds(CancelSendFunds),
+    RequestSendFunds(RequestSendFundsOp),
+    ResponseSendFunds(ResponseSendFundsOp),
+    CancelSendFunds(CancelSendFundsOp),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -151,7 +152,7 @@ pub struct Receipt {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
-    Response(HashResult), // inner: dest_hashed_lock. TOOD: Change to use bcrypt
+    Response(HashedLock), // inner: dest_hashed_lock. TOOD: Change to use bcrypt
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -162,14 +163,14 @@ pub struct PendingTransaction {
     pub invoice_id: InvoiceId,
     /// Amount of credits taken for forwarding the transaction
     pub fee: u128,
-    pub src_hashed_lock: HashResult,
+    pub src_hashed_lock: HashedLock,
     pub stage: TransactionStage,
 }
 
 // ==================================================================
 // ==================================================================
 
-impl CanonicalSerialize for RequestSendFunds {
+impl CanonicalSerialize for RequestSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
@@ -181,7 +182,7 @@ impl CanonicalSerialize for RequestSendFunds {
     }
 }
 
-impl CanonicalSerialize for ResponseSendFunds {
+impl CanonicalSerialize for ResponseSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
@@ -191,7 +192,7 @@ impl CanonicalSerialize for ResponseSendFunds {
     }
 }
 
-impl CanonicalSerialize for CancelSendFunds {
+impl CanonicalSerialize for CancelSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);

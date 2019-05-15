@@ -7,7 +7,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{
-    PendingTransaction, RequestSendFunds, RequestsStatus, TransactionStage,
+    PendingTransaction, RequestSendFundsOp, RequestsStatus, TransactionStage,
 };
 
 /// The maximum possible funder debt.
@@ -296,7 +296,7 @@ impl MutualCredit {
     /// as those messages do not repeat the information sent in the request.
     fn create_pending_transaction(
         &self,
-        request_send_funds: &RequestSendFunds,
+        request_send_funds: &RequestSendFundsOp,
     ) -> Result<PendingTransaction, RateError> {
         Ok(PendingTransaction {
             request_id: request_send_funds.request_id,
