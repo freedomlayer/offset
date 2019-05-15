@@ -1,3 +1,4 @@
+use crypto::hash_lock::{PlainLock, PLAIN_LOCK_LEN};
 use crypto::identity::{
     generate_pkcs8_key_pair, Identity, Signature, SoftwareEd25519Identity, SIGNATURE_LEN,
 };
@@ -92,8 +93,6 @@ fn test_outgoing_set_remote_max_debt() {
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 20);
 }
 
-/*
-
 #[test]
 fn test_request_response_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
@@ -121,12 +120,15 @@ fn test_request_response_send_funds() {
         ],
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
+    let src_plain_lock = PlainLock::from(&[1; PLAIN_LOCK_LEN]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
+        src_hashed_lock: src_plain_lock.hash(),
         route,
         dest_payment: 10,
         invoice_id,
+        left_fees: 5,
     };
 
     let pending_transaction = create_pending_transaction(&request_send_funds);
@@ -144,10 +146,12 @@ fn test_request_response_send_funds() {
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
+    let dest_plain_lock = PlainLock::from(&[2; PLAIN_LOCK_LEN]);
 
     // TODO: Add signature here:
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
+        dest_hashed_lock: dest_plain_lock.hash(),
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; SIGNATURE_LEN]),
     };
@@ -168,6 +172,7 @@ fn test_request_response_send_funds() {
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
+/*
 
 #[test]
 fn test_request_failure_send_funds() {
