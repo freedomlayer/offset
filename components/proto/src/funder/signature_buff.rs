@@ -5,9 +5,7 @@ use crypto::identity::{verify_signature, PublicKey};
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{
-    CancelSendFundsOp, MoveToken, PendingTransaction, Receipt, ResponseSendFundsOp,
-};
+use super::messages::{MoveToken, PendingTransaction, Receipt, ResponseSendFundsOp};
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
@@ -37,68 +35,6 @@ pub fn create_response_signature_buffer<S>(
     sbuffer.extend_from_slice(&pending_transaction.invoice_id);
 
     sbuffer
-}
-
-// TODO: How to keep in sync with verify_receipt and prepare receipt?
-// TODO: Add tests for synchronization between those functions? Possibly share code?
-/// Create the buffer we sign over at the Failure funds.
-/// Note that the signature is not just over the Response funds bytes. The signed buffer also
-/// contains information from the Request funds.
-pub fn create_failure_signature_buffer<S>(
-    failure_send_funds: &CancelSendFundsOp<S>,
-    pending_transaction: &PendingTransaction,
-) -> Vec<u8> {
-    /*
-    # Signature{key=recipientKey}(
-    #   sha512/256("FUNDS_CANCEL") ||
-    #   requestId ||
-    #   srcHashedLock ||
-    #   sha512/256(route) ||
-    #   destPayment ||
-    #   invoiceId ||
-    #   reportingPublicKey ||
-    #   randNonce
-    # )
-    */
-    let mut sbuffer = Vec::new();
-
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_CANCEL_PREFIX));
-    sbuffer.extend_from_slice(&pending_transaction.request_id);
-    sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
-    sbuffer.extend_from_slice(&pending_transaction.route.hash());
-
-    sbuffer
-        .write_u128::<BigEndian>(pending_transaction.dest_payment)
-        .unwrap();
-    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
-    sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key);
-    sbuffer.extend_from_slice(&failure_send_funds.rand_nonce);
-
-    sbuffer
-}
-
-/// Verify a failure signature
-pub fn verify_failure_signature(
-    failure_send_funds: &CancelSendFundsOp,
-    pending_transaction: &PendingTransaction,
-) -> Option<()> {
-    let failure_signature_buffer =
-        create_failure_signature_buffer(&failure_send_funds, &pending_transaction);
-    let reporting_public_key = &failure_send_funds.reporting_public_key;
-    // Make sure that the reporting_public_key is on the route:
-    // TODO: Should we check that it is after us? Is it checked somewhere else?
-    let _ = pending_transaction
-        .route
-        .pk_to_index(&reporting_public_key)?;
-
-    if !verify_signature(
-        &failure_signature_buffer,
-        reporting_public_key,
-        &failure_send_funds.signature,
-    ) {
-        return None;
-    }
-    Some(())
 }
 
 /*

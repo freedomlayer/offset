@@ -311,6 +311,8 @@ fn deser_response_send_funds_op(
 fn deser_cancel_send_funds_op(
     cancel_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
 ) -> Result<CancelSendFundsOp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(CancelSendFundsOp {
         request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
         reporting_public_key: read_public_key(
@@ -319,6 +321,7 @@ fn deser_cancel_send_funds_op(
         rand_nonce: read_rand_nonce(&cancel_send_funds_op_reader.get_rand_nonce()?)?,
         signature: read_signature(&cancel_send_funds_op_reader.get_signature()?)?,
     })
+    */
 }
 
 fn deser_friend_operation(

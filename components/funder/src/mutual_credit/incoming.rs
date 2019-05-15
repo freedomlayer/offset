@@ -7,7 +7,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
-use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
+use proto::funder::signature_buff::create_response_signature_buffer;
 
 use crate::credit_calc::CreditCalculator;
 
@@ -371,36 +371,6 @@ fn process_cancel_send_funds(
         .clone();
     // TODO: Possibly get rid of clone() here for optimization later
 
-    // Find ourselves on the route. If we are not there, abort.
-    let local_index = pending_transaction
-        .route
-        .find_pk_pair(
-            &mutual_credit.state().idents.local_public_key,
-            &mutual_credit.state().idents.remote_public_key,
-        )
-        .unwrap();
-
-    // Make sure that reporting node public key is:
-    //  - inside the route
-    //  - After us on the route.
-    //  - Not the destination node
-
-    let reporting_index = pending_transaction
-        .route
-        .pk_to_index(&cancel_send_funds.reporting_public_key)
-        .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
-
-    if reporting_index <= local_index {
-        return Err(ProcessOperationError::InvalidReportingNode);
-    }
-
-    verify_failure_signature(&cancel_send_funds, &pending_transaction)
-        .ok_or(ProcessOperationError::InvalidFailureSignature)?;
-
-    // At this point we believe the failure funds is valid.
-    let route_len = usize_to_u32(pending_transaction.route.len()).unwrap();
-    let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
-
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
@@ -408,14 +378,20 @@ fn process_cancel_send_funds(
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
+    /*
     let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
     let reporting_index = usize_to_u32(reporting_index).unwrap();
     let failure_credits = credit_calc
         .credits_on_failure(remote_index, reporting_index)
         .unwrap();
-    let freeze_credits = credit_calc.credits_to_freeze(remote_index).unwrap();
+    */
 
-    // Decrease frozen credits and decrease balance:
+    let freeze_credits = pending_transaction
+        .dest_payment
+        .checked_add(pending_transaction.left_fees)
+        .unwrap();
+
+    // Decrease frozen credits:
     let new_local_pending_debt = mutual_credit
         .state()
         .balance
@@ -427,18 +403,7 @@ fn process_cancel_send_funds(
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
-    let new_balance = mutual_credit
-        .state()
-        .balance
-        .balance
-        .checked_sub_unsigned(failure_credits)
-        .unwrap();
-
-    let tc_mutation = McMutation::SetBalance(new_balance);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
-
-    // Return Failure funds.
+    // Return cancel_send_funds:
     let incoming_message = Some(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
         pending_transaction,
         incoming_cancel: cancel_send_funds,

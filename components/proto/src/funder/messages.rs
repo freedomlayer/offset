@@ -79,11 +79,8 @@ pub struct ResponseSendFundsOp<S = Signature> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CancelSendFundsOp<S = Signature> {
+pub struct CancelSendFundsOp {
     pub request_id: Uid,
-    pub reporting_public_key: PublicKey,
-    pub rand_nonce: RandValue,
-    pub signature: S,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -226,9 +223,6 @@ impl CanonicalSerialize for CancelSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.reporting_public_key);
-        res_bytes.extend_from_slice(&self.rand_nonce);
-        res_bytes.extend_from_slice(&self.signature);
         res_bytes
     }
 }
