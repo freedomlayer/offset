@@ -94,18 +94,24 @@ fn test_outgoing_set_remote_max_debt() {
 }
 
 #[test]
-fn test_request_response_send_funds() {
+fn test_request_response_commit_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
     let remote_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
     let balance = 0;
     let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
+    // -----[SetRemoteMaxDebt]------
+    // -----------------------------
     // Make enough trust from remote side, so that we will be able to send credits:
     apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
+    // -----[EnableRequests]--------
+    // -----------------------------
     // Remote side should open his requests status:
     apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
 
+    // -----[RequestSendFunds]--------
+    // -----------------------------
     let rng = DummyRandom::new(&[1u8]);
     let pkcs8 = generate_pkcs8_key_pair(&rng);
     let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -141,9 +147,11 @@ fn test_request_response_send_funds() {
     assert_eq!(mutual_credit.state().balance.balance, 0);
     assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
-    let local_pending_debt = mutual_credit.state().balance.local_pending_debt;
-    assert!(local_pending_debt > 0);
+    assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
+
+    // -----[ResponseSendFunds]--------
+    // --------------------------------
 
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
     let dest_plain_lock = PlainLock::from(&[2; PLAIN_LOCK_LEN]);
@@ -165,12 +173,15 @@ fn test_request_response_send_funds() {
     )
     .unwrap();
 
-    let balance = mutual_credit.state().balance.balance;
-    assert_eq!(balance, -(local_pending_debt as i128));
+    // We expect that no changes to balance happened yet:
+    assert_eq!(mutual_credit.state().balance.balance, 0);
     assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
-    assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
+    assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
+
+    // -----[CommitSendFunds]--------
+    // --------------------------------
 }
 /*
 
