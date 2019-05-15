@@ -294,13 +294,8 @@ impl OutgoingMc {
         commit_send_funds: CommitSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         unimplemented!();
-    }
 
-    /*
-    fn queue_response_send_funds(
-        &mut self,
-        response_send_funds: ResponseSendFundsOp,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
+        /*
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
         let remote_pending_transactions = &self
@@ -383,6 +378,6 @@ impl OutgoingMc {
         mc_mutations.push(mc_mutation);
 
         Ok(mc_mutations)
+        */
     }
-    */
 }
