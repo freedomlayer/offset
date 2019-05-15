@@ -433,13 +433,6 @@ fn process_commit_send_funds(
         return Err(ProcessOperationError::InvalidDestPlainLock);
     }
 
-    let mut mc_mutations = Vec::new();
-
-    // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(commit_send_funds.request_id);
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
-
     // Calculate amount of credits that were frozen:
     let freeze_credits = pending_transaction
         .dest_payment
@@ -447,6 +440,13 @@ fn process_commit_send_funds(
         .unwrap();
     // Note: The unwrap() above should never fail, because this was already checked during the
     // request message processing.
+
+    let mut mc_mutations = Vec::new();
+
+    // Remove entry from local_pending hashmap:
+    let mc_mutation = McMutation::RemoveLocalPendingTransaction(commit_send_funds.request_id);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     // Decrease frozen credits and decrease balance:
     let new_local_pending_debt = mutual_credit

@@ -36,6 +36,9 @@ pub enum QueueOperationError {
     FailureSentFromDest,
     RemoteRequestsClosed,
     NotExpectingResponse,
+    NotExpectingCommit,
+    InvalidSrcPlainLock,
+    InvalidDestPlainLock,
 }
 
 /// A wrapper over a token channel, accumulating funds to be sent as one transaction.
@@ -293,9 +296,6 @@ impl OutgoingMc {
         &mut self,
         commit_send_funds: CommitSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
-        unimplemented!();
-
-        /*
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
         let remote_pending_transactions = &self
@@ -306,51 +306,36 @@ impl OutgoingMc {
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions
-            .get(&response_send_funds.request_id)
+            .get(&commit_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?
             .clone();
         // TODO: Possibly get rid of clone() here for optimization later
 
-        // verify signature:
-        let response_signature_buffer =
-            create_response_signature_buffer(&response_send_funds, &pending_transaction);
-        // The response was signed by the destination node:
-        let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
+        let dest_hashed_lock = match &pending_transaction.stage {
+            TransactionStage::Response(dest_hashed_lock) => dest_hashed_lock,
+            _ => return Err(QueueOperationError::NotExpectingCommit),
+        };
 
-        // Verify response funds signature:
-        if !verify_signature(
-            &response_signature_buffer,
-            dest_public_key,
-            &response_send_funds.signature,
-        ) {
-            return Err(QueueOperationError::InvalidResponseSignature);
+        // Verify src_plain_lock and dest_plain_lock:
+        if commit_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+            return Err(QueueOperationError::InvalidSrcPlainLock);
         }
 
-        // Calculate amount of credits to freeze.
-        let route_len = usize_to_u32(pending_transaction.route.len())
-            .ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
+        if commit_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+            return Err(QueueOperationError::InvalidDestPlainLock);
+        }
 
-        // Find ourselves on the route. If we are not there, abort.
-        let remote_index = pending_transaction
-            .route
-            .find_pk_pair(
-                &self.mutual_credit.state().idents.remote_public_key,
-                &self.mutual_credit.state().idents.local_public_key,
-            )
+        // Calculate amount of credits that were frozen:
+        let freeze_credits = pending_transaction
+            .dest_payment
+            .checked_add(pending_transaction.left_fees)
             .unwrap();
-
-        let local_index = usize_to_u32(remote_index.checked_add(1).unwrap()).unwrap();
 
         // Remove entry from remote_pending hashmap:
         let mut mc_mutations = Vec::new();
-        let mc_mutation =
-            McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
+        let mc_mutation = McMutation::RemoveRemotePendingTransaction(commit_send_funds.request_id);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
-
-        let success_credits = credit_calc.credits_on_success(local_index).unwrap();
-        let freeze_credits = credit_calc.credits_to_freeze(local_index).unwrap();
 
         // Decrease frozen credits and increase balance:
         let new_remote_pending_debt = self
@@ -359,7 +344,9 @@ impl OutgoingMc {
             .balance
             .remote_pending_debt
             .checked_sub(freeze_credits)
-            .expect("Insufficient frozen credit!");
+            .unwrap();
+        // Above unwrap() should never fail. This was already checked when a request message was
+        // received.
 
         let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
         self.mutual_credit.mutate(&mc_mutation);
@@ -370,14 +357,15 @@ impl OutgoingMc {
             .state()
             .balance
             .balance
-            .checked_add_unsigned(success_credits)
-            .expect("balance overflow");
+            .checked_add_unsigned(freeze_credits)
+            .unwrap();
+        // Above unwrap() should never fail. This was already checked when a request message was
+        // received.
 
         let mc_mutation = McMutation::SetBalance(new_balance);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
         Ok(mc_mutations)
-        */
     }
 }
