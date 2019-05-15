@@ -291,6 +291,7 @@ impl MutualCredit {
         self.state.balance.local_pending_debt = local_pending_debt;
     }
 
+    /*
     /// Keep information from a RequestSendFunds message.
     /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
     /// as those messages do not repeat the information sent in the request.
@@ -308,4 +309,5 @@ impl MutualCredit {
             stage: TransactionStage::Request,
         })
     }
+    */
 }

@@ -184,8 +184,7 @@ pub struct PendingTransaction {
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
-    /// Amount of credits taken for forwarding the transaction
-    pub fee: u128,
+    pub left_fees: u128,
     pub src_hashed_lock: HashedLock,
     pub stage: TransactionStage,
 }
