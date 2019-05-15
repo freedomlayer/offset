@@ -378,14 +378,6 @@ fn process_cancel_send_funds(
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
-    /*
-    let remote_index = usize_to_u32(local_index.checked_add(1).unwrap()).unwrap();
-    let reporting_index = usize_to_u32(reporting_index).unwrap();
-    let failure_credits = credit_calc
-        .credits_on_failure(remote_index, reporting_index)
-        .unwrap();
-    */
-
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
