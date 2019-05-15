@@ -261,47 +261,10 @@ impl OutgoingMc {
             .get(&cancel_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?;
 
-        // Find ourselves on the route. If we are not there, abort.
-        let remote_index = pending_transaction
-            .route
-            .find_pk_pair(
-                &self.mutual_credit.state().idents.remote_public_key,
-                &self.mutual_credit.state().idents.local_public_key,
-            )
+        let freeze_credits = pending_transaction
+            .dest_payment
+            .checked_add(pending_transaction.left_fees)
             .unwrap();
-
-        let local_index = remote_index.checked_add(1).unwrap();
-        if local_index.checked_add(1).unwrap() == pending_transaction.route.len() {
-            // Note that we can not be the destination. The destination can not be the sender of a
-            // failure funds.
-            return Err(QueueOperationError::FailureSentFromDest);
-        }
-
-        // Make sure that reporting node public key is:
-        //  - inside the route
-        //  - After us on the route, or us.
-        //  - Not the destination node
-        unimplemented!();
-
-        /*
-
-        let reporting_index = pending_transaction
-            .route
-            .pk_to_index(&cancel_send_funds.reporting_public_key)
-            .ok_or(QueueOperationError::ReportingNodeNonexistent)?;
-
-        if reporting_index < local_index {
-            return Err(QueueOperationError::InvalidReportingNode);
-        }
-
-
-        verify_failure_signature(&cancel_send_funds, &pending_transaction)
-            .ok_or(QueueOperationError::InvalidFailureSignature)?;
-
-        // At this point we believe the failure funds is valid.
-        let route_len = usize_to_u32(pending_transaction.route.len())
-            .ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
         // Remove entry from remote hashmap:
         let mut mc_mutations = Vec::new();
@@ -309,14 +272,6 @@ impl OutgoingMc {
         let mc_mutation = McMutation::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
-
-        let local_index = usize_to_u32(local_index).unwrap();
-        let reporting_index = usize_to_u32(reporting_index).unwrap();
-
-        let failure_credits = credit_calc
-            .credits_on_failure(local_index, reporting_index)
-            .unwrap();
-        let freeze_credits = credit_calc.credits_to_freeze(local_index).unwrap();
 
         // Decrease frozen credits:
         let new_remote_pending_debt = self
@@ -331,21 +286,7 @@ impl OutgoingMc {
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
-        // Add to balance:
-        let new_balance = self
-            .mutual_credit
-            .state()
-            .balance
-            .balance
-            .checked_add_unsigned(failure_credits)
-            .unwrap();
-
-        let mc_mutation = McMutation::SetBalance(new_balance);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
-
         Ok(mc_mutations)
-        */
     }
 
     fn queue_commit_send_funds(
