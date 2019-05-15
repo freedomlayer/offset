@@ -129,9 +129,9 @@ fn process_enable_requests(
         incoming_message: None,
         mc_mutations: Vec::new(),
     };
-    let tc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
-    mutual_credit.mutate(&tc_mutation);
-    op_output.mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
+    mutual_credit.mutate(&mc_mutation);
+    op_output.mc_mutations.push(mc_mutation);
 
     Ok(op_output)
 }
@@ -146,9 +146,9 @@ fn process_disable_requests(
 
     match mutual_credit.state().requests_status.remote {
         RequestsStatus::Open => {
-            let tc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
-            mutual_credit.mutate(&tc_mutation);
-            op_output.mc_mutations.push(tc_mutation);
+            let mc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
+            mutual_credit.mutate(&mc_mutation);
+            op_output.mc_mutations.push(mc_mutation);
             Ok(op_output)
         }
         RequestsStatus::Closed => Err(ProcessOperationError::RequestsAlreadyDisabled),
@@ -169,9 +169,9 @@ fn process_set_remote_max_debt(
             proposed_max_debt,
         ))
     } else {
-        let tc_mutation = McMutation::SetLocalMaxDebt(proposed_max_debt);
-        mutual_credit.mutate(&tc_mutation);
-        op_output.mc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetLocalMaxDebt(proposed_max_debt);
+        mutual_credit.mutate(&mc_mutation);
+        op_output.mc_mutations.push(mc_mutation);
         Ok(op_output)
     }
 }
@@ -276,14 +276,14 @@ fn process_request_send_funds(
         mc_mutations: Vec::new(),
     };
 
-    let tc_mutation = McMutation::InsertRemotePendingTransaction(pending_transaction);
-    mutual_credit.mutate(&tc_mutation);
-    op_output.mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::InsertRemotePendingTransaction(pending_transaction);
+    mutual_credit.mutate(&mc_mutation);
+    op_output.mc_mutations.push(mc_mutation);
 
     // If we are here, we can freeze the credits:
-    let tc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
-    mutual_credit.mutate(&tc_mutation);
-    op_output.mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+    mutual_credit.mutate(&mc_mutation);
+    op_output.mc_mutations.push(mc_mutation);
 
     Ok(op_output)
 }
@@ -329,12 +329,12 @@ fn process_response_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Set the stage to Response, and remember dest_hashed_lock:
-    let tc_mutation = McMutation::SetRemotePendingTransactionStage((
+    let mc_mutation = McMutation::SetRemotePendingTransactionStage((
         response_send_funds.request_id.clone(),
         TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
     ));
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFundsOp {
         pending_transaction,
@@ -368,9 +368,9 @@ fn process_cancel_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     let freeze_credits = pending_transaction
         .dest_payment
@@ -385,9 +385,9 @@ fn process_cancel_send_funds(
         .checked_sub(freeze_credits)
         .unwrap();
 
-    let tc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     // Return cancel_send_funds:
     let incoming_message = Some(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
@@ -436,9 +436,9 @@ fn process_commit_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = McMutation::RemoveLocalPendingTransaction(commit_send_funds.request_id);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::RemoveLocalPendingTransaction(commit_send_funds.request_id);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     // Calculate amount of credits that were frozen:
     let freeze_credits = pending_transaction
@@ -456,9 +456,9 @@ fn process_commit_send_funds(
         .checked_sub(freeze_credits)
         .unwrap();
 
-    let tc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     let new_balance = mutual_credit
         .state()
@@ -467,9 +467,9 @@ fn process_commit_send_funds(
         .checked_sub_unsigned(freeze_credits)
         .unwrap();
 
-    let tc_mutation = McMutation::SetBalance(new_balance);
-    mutual_credit.mutate(&tc_mutation);
-    mc_mutations.push(tc_mutation);
+    let mc_mutation = McMutation::SetBalance(new_balance);
+    mutual_credit.mutate(&mc_mutation);
+    mc_mutations.push(mc_mutation);
 
     let incoming_message = Some(IncomingMessage::Commit(IncomingCommitSendFundsOp {
         pending_transaction,
