@@ -4,8 +4,8 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
+    RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
@@ -73,21 +73,21 @@ impl OutgoingMc {
 
     fn queue_enable_requests(&mut self) -> Result<Vec<McMutation>, QueueOperationError> {
         // TODO: Should we check first if local requests are already open?
-        let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Open);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mut mc_mutations = Vec::new();
+        let mc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Open);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
-        Ok(tc_mutations)
+        Ok(mc_mutations)
     }
 
     fn queue_disable_requests(&mut self) -> Result<Vec<McMutation>, QueueOperationError> {
-        let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Closed);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mut mc_mutations = Vec::new();
+        let mc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Closed);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
-        Ok(tc_mutations)
+        Ok(mc_mutations)
     }
 
     fn queue_set_remote_max_debt(
@@ -98,11 +98,11 @@ impl OutgoingMc {
             return Err(QueueOperationError::RemoteMaxDebtTooLarge);
         }
 
-        let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::SetRemoteMaxDebt(proposed_max_debt);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
-        Ok(tc_mutations)
+        let mut mc_mutations = Vec::new();
+        let mc_mutation = McMutation::SetRemoteMaxDebt(proposed_max_debt);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
+        Ok(mc_mutations)
     }
 
     fn queue_request_send_funds(
@@ -127,21 +127,11 @@ impl OutgoingMc {
             return Err(QueueOperationError::RemoteRequestsClosed);
         }
 
-        // Calculate amount of credits to freeze.
-        let route_len = usize_to_u32(request_send_funds.route.len())
-            .ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, request_send_funds.dest_payment);
-
-        // Get index of remote friend on the route:
-        let remote_index = local_index
-            .checked_add(1)
-            .ok_or(QueueOperationError::RouteTooLong)?;
-        let remote_index = usize_to_u32(remote_index).ok_or(QueueOperationError::RouteTooLong)?;
-
         // Calculate amount of credits to freeze
-        let own_freeze_credits = credit_calc
-            .credits_to_freeze(remote_index)
-            .ok_or(QueueOperationError::CreditCalculatorFailure)?;
+        let own_freeze_credits = request_send_funds
+            .dest_payment
+            .checked_add(request_send_funds.left_fees)
+            .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
         let balance = &self.mutual_credit.state().balance;
 
@@ -170,30 +160,34 @@ impl OutgoingMc {
             .state()
             .pending_transactions
             .pending_local_requests;
+
         // Make sure that we don't have this request as a pending request already:
         if p_local_requests.contains_key(&request_send_funds.request_id) {
             return Err(QueueOperationError::RequestAlreadyExists);
         }
 
-        unimplemented!();
+        // Add pending transaction:
+        let pending_transaction = PendingTransaction {
+            request_id: request_send_funds.request_id,
+            route: request_send_funds.route.clone(),
+            dest_payment: request_send_funds.dest_payment,
+            invoice_id: request_send_funds.invoice_id.clone(),
+            left_fees: request_send_funds.left_fees,
+            src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
+            stage: TransactionStage::Request,
+        };
 
-        /*
-
-        // Add pending request funds:
-        let pending_friend_request = create_pending_transaction(&request_send_funds);
-
-        let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::InsertLocalPendingTransaction(pending_friend_request);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mut mc_mutations = Vec::new();
+        let mc_mutation = McMutation::InsertLocalPendingTransaction(pending_transaction);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
         // If we are here, we can freeze the credits:
-        let tc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
-        Ok(tc_mutations)
-        */
+        Ok(mc_mutations)
     }
 
     fn queue_response_send_funds(
@@ -247,11 +241,11 @@ impl OutgoingMc {
         let local_index = usize_to_u32(remote_index.checked_add(1).unwrap()).unwrap();
 
         // Remove entry from remote_pending hashmap:
-        let mut tc_mutations = Vec::new();
-        let tc_mutation =
+        let mut mc_mutations = Vec::new();
+        let mc_mutation =
             McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
         let success_credits = credit_calc.credits_on_success(local_index).unwrap();
         let freeze_credits = credit_calc.credits_to_freeze(local_index).unwrap();
@@ -265,9 +259,9 @@ impl OutgoingMc {
             .checked_sub(freeze_credits)
             .expect("Insufficient frozen credit!");
 
-        let tc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
         let new_balance = self
             .mutual_credit
@@ -277,11 +271,11 @@ impl OutgoingMc {
             .checked_add_unsigned(success_credits)
             .expect("balance overflow");
 
-        let tc_mutation = McMutation::SetBalance(new_balance);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetBalance(new_balance);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
-        Ok(tc_mutations)
+        Ok(mc_mutations)
     }
 
     fn queue_cancel_send_funds(
@@ -344,11 +338,11 @@ impl OutgoingMc {
         let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
         // Remove entry from remote hashmap:
-        let mut tc_mutations = Vec::new();
+        let mut mc_mutations = Vec::new();
 
-        let tc_mutation = McMutation::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
         let local_index = usize_to_u32(local_index).unwrap();
         let reporting_index = usize_to_u32(reporting_index).unwrap();
@@ -367,9 +361,9 @@ impl OutgoingMc {
             .checked_sub(freeze_credits)
             .unwrap();
 
-        let tc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
         // Add to balance:
         let new_balance = self
@@ -380,11 +374,11 @@ impl OutgoingMc {
             .checked_add_unsigned(failure_credits)
             .unwrap();
 
-        let tc_mutation = McMutation::SetBalance(new_balance);
-        self.mutual_credit.mutate(&tc_mutation);
-        tc_mutations.push(tc_mutation);
+        let mc_mutation = McMutation::SetBalance(new_balance);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
 
-        Ok(tc_mutations)
+        Ok(mc_mutations)
         */
     }
 
