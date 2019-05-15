@@ -33,6 +33,7 @@ extern crate derive_more;
 #[macro_use]
 pub mod macros;
 pub mod app_server;
+#[allow(unused)]
 pub mod capnp_common;
 pub mod consts;
 pub mod file;

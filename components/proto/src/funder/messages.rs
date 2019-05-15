@@ -162,6 +162,8 @@ pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
     pub invoice_id: InvoiceId,
+    pub src_plain_lock: PlainLock,
+    pub dest_plain_lock: PlainLock,
     pub dest_payment: u128,
     pub signature: Signature,
     // Signature{key=recipientKey}(

@@ -9,8 +9,8 @@ use super::messages::{
     CancelSendFundsOp, MoveToken, PendingTransaction, Receipt, ResponseSendFundsOp,
 };
 
-pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
-pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
+pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
+pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
@@ -21,7 +21,7 @@ pub fn create_response_signature_buffer<S>(
 ) -> Vec<u8> {
     let mut sbuffer = Vec::new();
 
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
+    sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
 
     let mut inner_blob = Vec::new();
     inner_blob.extend_from_slice(&pending_transaction.request_id);
@@ -29,10 +29,12 @@ pub fn create_response_signature_buffer<S>(
     inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
-    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
+    sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
+    sbuffer.extend_from_slice(&response_send_funds.dest_hashed_lock);
     sbuffer
         .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
+    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
 
     sbuffer
 }
@@ -46,10 +48,23 @@ pub fn create_failure_signature_buffer<S>(
     failure_send_funds: &CancelSendFundsOp<S>,
     pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
+    /*
+    # Signature{key=recipientKey}(
+    #   sha512/256("FUNDS_CANCEL") ||
+    #   requestId ||
+    #   srcHashedLock ||
+    #   sha512/256(route) ||
+    #   destPayment ||
+    #   invoiceId ||
+    #   reportingPublicKey ||
+    #   randNonce
+    # )
+    */
     let mut sbuffer = Vec::new();
 
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_FAILURE_PREFIX));
+    sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_CANCEL_PREFIX));
     sbuffer.extend_from_slice(&pending_transaction.request_id);
+    sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
     sbuffer.extend_from_slice(&pending_transaction.route.hash());
 
     sbuffer
@@ -86,6 +101,7 @@ pub fn verify_failure_signature(
     Some(())
 }
 
+/*
 pub fn prepare_receipt(
     response_send_funds: &ResponseSendFundsOp,
     pending_transaction: &PendingTransaction,
@@ -104,14 +120,18 @@ pub fn prepare_receipt(
         signature: response_send_funds.signature.clone(),
     }
 }
+*/
 
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
-    data.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
+
+    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
     data.extend(receipt.response_hash.as_ref());
-    data.extend(receipt.invoice_id.as_ref());
+    data.extend_from_slice(&receipt.src_plain_lock.hash());
+    data.extend_from_slice(&receipt.dest_plain_lock.hash());
     data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
 }
 
