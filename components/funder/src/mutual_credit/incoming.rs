@@ -329,7 +329,7 @@ fn process_response_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Set the stage to Response, and remember dest_hashed_lock:
-    let mc_mutation = McMutation::SetRemotePendingTransactionStage((
+    let mc_mutation = McMutation::SetLocalPendingTransactionStage((
         response_send_funds.request_id.clone(),
         TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
     ));
