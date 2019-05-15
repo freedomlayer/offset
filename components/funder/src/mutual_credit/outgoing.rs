@@ -35,6 +35,7 @@ pub enum QueueOperationError {
     InvalidFailureSignature,
     FailureSentFromDest,
     RemoteRequestsClosed,
+    NotExpectingResponse,
 }
 
 /// A wrapper over a token channel, accumulating funds to be sent as one transaction.
@@ -224,54 +225,19 @@ impl OutgoingMc {
             return Err(QueueOperationError::InvalidResponseSignature);
         }
 
-        // Calculate amount of credits to freeze.
-        let route_len = usize_to_u32(pending_transaction.route.len())
-            .ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
+        // We expect that the current stage is Request:
+        if let TransactionStage::Request = pending_transaction.stage {
+        } else {
+            return Err(QueueOperationError::NotExpectingResponse);
+        }
 
-        // Find ourselves on the route. If we are not there, abort.
-        let remote_index = pending_transaction
-            .route
-            .find_pk_pair(
-                &self.mutual_credit.state().idents.remote_public_key,
-                &self.mutual_credit.state().idents.local_public_key,
-            )
-            .unwrap();
-
-        let local_index = usize_to_u32(remote_index.checked_add(1).unwrap()).unwrap();
-
-        // Remove entry from remote_pending hashmap:
         let mut mc_mutations = Vec::new();
-        let mc_mutation =
-            McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
 
-        let success_credits = credit_calc.credits_on_success(local_index).unwrap();
-        let freeze_credits = credit_calc.credits_to_freeze(local_index).unwrap();
-
-        // Decrease frozen credits and increase balance:
-        let new_remote_pending_debt = self
-            .mutual_credit
-            .state()
-            .balance
-            .remote_pending_debt
-            .checked_sub(freeze_credits)
-            .expect("Insufficient frozen credit!");
-
-        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
-
-        let new_balance = self
-            .mutual_credit
-            .state()
-            .balance
-            .balance
-            .checked_add_unsigned(success_credits)
-            .expect("balance overflow");
-
-        let mc_mutation = McMutation::SetBalance(new_balance);
+        // Set the stage to Response, and remember dest_hashed_lock:
+        let mc_mutation = McMutation::SetRemotePendingTransactionStage((
+            response_send_funds.request_id.clone(),
+            TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
+        ));
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -388,4 +354,94 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         unimplemented!();
     }
+
+    /*
+    fn queue_response_send_funds(
+        &mut self,
+        response_send_funds: ResponseSendFundsOp,
+    ) -> Result<Vec<McMutation>, QueueOperationError> {
+        // Make sure that id exists in remote_pending hashmap,
+        // and access saved request details.
+        let remote_pending_transactions = &self
+            .mutual_credit
+            .state()
+            .pending_transactions
+            .pending_remote_requests;
+
+        // Obtain pending request:
+        let pending_transaction = remote_pending_transactions
+            .get(&response_send_funds.request_id)
+            .ok_or(QueueOperationError::RequestDoesNotExist)?
+            .clone();
+        // TODO: Possibly get rid of clone() here for optimization later
+
+        // verify signature:
+        let response_signature_buffer =
+            create_response_signature_buffer(&response_send_funds, &pending_transaction);
+        // The response was signed by the destination node:
+        let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
+
+        // Verify response funds signature:
+        if !verify_signature(
+            &response_signature_buffer,
+            dest_public_key,
+            &response_send_funds.signature,
+        ) {
+            return Err(QueueOperationError::InvalidResponseSignature);
+        }
+
+        // Calculate amount of credits to freeze.
+        let route_len = usize_to_u32(pending_transaction.route.len())
+            .ok_or(QueueOperationError::RouteTooLong)?;
+        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
+
+        // Find ourselves on the route. If we are not there, abort.
+        let remote_index = pending_transaction
+            .route
+            .find_pk_pair(
+                &self.mutual_credit.state().idents.remote_public_key,
+                &self.mutual_credit.state().idents.local_public_key,
+            )
+            .unwrap();
+
+        let local_index = usize_to_u32(remote_index.checked_add(1).unwrap()).unwrap();
+
+        // Remove entry from remote_pending hashmap:
+        let mut mc_mutations = Vec::new();
+        let mc_mutation =
+            McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
+
+        let success_credits = credit_calc.credits_on_success(local_index).unwrap();
+        let freeze_credits = credit_calc.credits_to_freeze(local_index).unwrap();
+
+        // Decrease frozen credits and increase balance:
+        let new_remote_pending_debt = self
+            .mutual_credit
+            .state()
+            .balance
+            .remote_pending_debt
+            .checked_sub(freeze_credits)
+            .expect("Insufficient frozen credit!");
+
+        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
+
+        let new_balance = self
+            .mutual_credit
+            .state()
+            .balance
+            .balance
+            .checked_add_unsigned(success_credits)
+            .expect("balance overflow");
+
+        let mc_mutation = McMutation::SetBalance(new_balance);
+        self.mutual_credit.mutate(&mc_mutation);
+        mc_mutations.push(mc_mutation);
+
+        Ok(mc_mutations)
+    }
+    */
 }
