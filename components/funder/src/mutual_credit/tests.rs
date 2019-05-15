@@ -152,7 +152,6 @@ fn test_request_response_commit_send_funds() {
 
     // -----[ResponseSendFunds]--------
     // --------------------------------
-
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
     let dest_plain_lock = PlainLock::from(&[2; PLAIN_LOCK_LEN]);
 
@@ -201,10 +200,9 @@ fn test_request_response_commit_send_funds() {
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
-/*
 
 #[test]
-fn test_request_failure_send_funds() {
+fn test_request_cancel_send_funds() {
     let rng = DummyRandom::new(&[1u8]);
     let pkcs8 = generate_pkcs8_key_pair(&rng);
     let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
@@ -215,12 +213,18 @@ fn test_request_failure_send_funds() {
     let balance = 0;
     let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
+    // -----[SetRemoteMaxDebt]------
+    // -----------------------------
     // Make enough trust from remote side, so that we will be able to send credits:
     apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
+    // -----[EnableRequests]--------
+    // -----------------------------
     // Remote side should open his requests status:
     apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
 
+    // -----[RequestSendFunds]--------
+    // -----------------------------
     let request_id = Uid::from(&[3; UID_LEN]);
     let route = FriendsRoute {
         public_keys: vec![
@@ -230,12 +234,15 @@ fn test_request_failure_send_funds() {
         ],
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
+    let src_plain_lock = PlainLock::from(&[1; PLAIN_LOCK_LEN]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
+        src_hashed_lock: src_plain_lock.hash(),
         route,
         dest_payment: 10,
         invoice_id,
+        left_fees: 5,
     };
 
     let pending_transaction = create_pending_transaction(&request_send_funds);
@@ -248,12 +255,11 @@ fn test_request_failure_send_funds() {
     assert_eq!(mutual_credit.state().balance.balance, 0);
     assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
-    let local_pending_debt = mutual_credit.state().balance.local_pending_debt;
-    assert!(local_pending_debt > 0);
+    assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
-    let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
-
+    // -----[CancelSendFunds]--------
+    // ------------------------------
     let mut cancel_send_funds = CancelSendFundsOp { request_id };
 
     apply_incoming(
@@ -268,4 +274,3 @@ fn test_request_failure_send_funds() {
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
-*/
