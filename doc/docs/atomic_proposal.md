@@ -503,7 +503,8 @@ struct Receipt {
         invoiceId @1: InvoiceId;
         srcPlainLock @2: Lock;
         destPlainLock @3: Lock;
-        signature @4: Signature;
+        destPayment @4: CustomUInt128;
+        signature @5: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
