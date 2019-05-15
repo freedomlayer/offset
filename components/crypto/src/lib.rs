@@ -15,6 +15,7 @@ extern crate serde_derive;
 pub mod crypto_rand;
 pub mod dh;
 pub mod hash;
+pub mod hash_lock;
 pub mod identity;
 pub mod invoice_id;
 pub mod nonce_window;
