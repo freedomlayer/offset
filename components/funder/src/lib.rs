@@ -18,8 +18,8 @@
 #[macro_use]
 extern crate serde_derive;
 
-#[allow(unused)]
-mod credit_calc;
+// #[allow(unused)]
+// mod credit_calc;
 // mod ephemeral;
 // mod friend;
 // mod funder;

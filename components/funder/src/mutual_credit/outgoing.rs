@@ -10,7 +10,6 @@ use proto::funder::messages::{
 use proto::funder::signature_buff::create_response_signature_buffer;
 
 use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
-use crate::credit_calc::CreditCalculator;
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
