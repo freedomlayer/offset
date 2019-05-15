@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 use crypto::crypto_rand::RandValue;
 use crypto::hash::{self, HashResult};
-use crypto::hash_lock::HashedLock;
+use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
@@ -83,6 +83,27 @@ pub struct CancelSendFundsOp<S = Signature> {
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
     pub signature: S,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct Confirmation<S> {
+    response_hash: HashResult,
+    dest_payment: u128,
+    src_plain_lock: PlainLock,
+    signature: S,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct MultiConfirmation<S> {
+    invoice_id: InvoiceId,
+    confirmations: Vec<Confirmation<S>>,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct CommitOp {
+    pub request_id: Uid,
+    pub src_plain_lock: PlainLock,
+    pub dest_plain_lock: PlainLock,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
