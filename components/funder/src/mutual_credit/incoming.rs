@@ -5,7 +5,7 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
     CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp,
+    RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
@@ -55,6 +55,7 @@ pub enum ProcessOperationError {
     RequestsAlreadyDisabled,
     RouteTooLong,
     InsufficientTrust,
+    InsufficientFee,
     CreditsCalcOverflow,
     CreditCalculatorFailure,
     RequestAlreadyExists,
@@ -64,6 +65,7 @@ pub enum ProcessOperationError {
     InvalidReportingNode,
     InvalidFailureSignature,
     LocalRequestsClosed,
+    CalcFeeError,
 }
 
 #[derive(Debug)]
@@ -201,17 +203,31 @@ fn process_request_send_funds(
 
     let route_len =
         usize_to_u32(request_send_funds.route.len()).ok_or(ProcessOperationError::RouteTooLong)?;
-    let credit_calc = CreditCalculator::new(route_len, request_send_funds.dest_payment);
 
     let local_index = remote_index
         .checked_add(1)
         .ok_or(ProcessOperationError::RouteTooLong)?;
     let local_index = usize_to_u32(local_index).ok_or(ProcessOperationError::RouteTooLong)?;
 
+    // Calculate the amount of credits we want for passing this request.
+    // (Note: We are for sure not the origin of this request message, because it was received from a
+    // remote side)
+    let own_fee = mutual_credit
+        .state()
+        .rate
+        .calc_fee(request_send_funds.dest_payment)
+        .map_err(|_| ProcessOperationError::CalcFeeError)?;
+
+    let new_left_fees = request_send_funds
+        .left_fees
+        .checked_sub(own_fee)
+        .ok_or(ProcessOperationError::InsufficientFee)?;
+
     // Calculate amount of credits to freeze
-    let own_freeze_credits = credit_calc
-        .credits_to_freeze(local_index)
-        .ok_or(ProcessOperationError::CreditCalculatorFailure)?;
+    let own_freeze_credits = request_send_funds
+        .dest_payment
+        .checked_add(request_send_funds.left_fees)
+        .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
     // Make sure we can freeze the credits
     let balance = &mutual_credit.state().balance;
@@ -244,18 +260,25 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
-    unimplemented!();
+    // Add pending transaction:
+    let pending_transaction = PendingTransaction {
+        request_id: request_send_funds.request_id,
+        route: request_send_funds.route.clone(),
+        dest_payment: request_send_funds.dest_payment,
+        invoice_id: request_send_funds.invoice_id.clone(),
+        left_fees: new_left_fees,
+        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
+        stage: TransactionStage::Request,
+    };
 
-    /*
-    // Add pending request funds:
-    let pending_friend_request = create_pending_transaction(&request_send_funds);
+    // let pending_friend_request = create_pending_transaction(&request_send_funds);
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: Some(IncomingMessage::Request(request_send_funds)),
         mc_mutations: Vec::new(),
     };
 
-    let tc_mutation = McMutation::InsertRemotePendingTransaction(pending_friend_request);
+    let tc_mutation = McMutation::InsertRemotePendingTransaction(pending_transaction);
     mutual_credit.mutate(&tc_mutation);
     op_output.mc_mutations.push(tc_mutation);
 
@@ -265,7 +288,6 @@ fn process_request_send_funds(
     op_output.mc_mutations.push(tc_mutation);
 
     Ok(op_output)
-    */
 }
 
 fn process_response_send_funds(
