@@ -474,7 +474,7 @@ all the way (along the original route) to the source of the payment.
 
 
 ```capnp
-struct CommitOp {
+struct CommitSendFundsOp {
         requestId @0: Uid;
         srcPlainLock @1: Lock;
         destPlainLock @2: Lock;
@@ -485,7 +485,7 @@ Note that the Commit message can only be sent by the seller after
 it has received the confirmation, because the confirmation contains the
 srcPlainLock.
 
-When receiving a CommitOp messages, the following should be verified:
+When receiving a CommitSendFundsOp messages, the following should be verified:
 
 - `bcrypt(srcPlainLock) = srcHashedLock`
 - `bcrypt(destPlainLock) = destHashedLock`
@@ -516,7 +516,7 @@ struct Receipt {
 }
 ```
 
-The Receipt can be constructed only after the CommitOp message was received.
+The Receipt can be constructed only after the CommitSendFundsOp message was received.
 Note that it is possible that a receipt can be constructed only a long time
 after the confirmation message was given.
 
@@ -617,8 +617,8 @@ This is done as follows:
    Confirmation-s for all the requests that got a valid response.
 6. Seller verifies the MultiConfirmation message. If valid, the payment is accepted
    and the goods are handed to the buyer.
-7. The Seller sends back CommitOp messages for all requests.
-8. Any CommitOp message can be used to create a valid Receipt. (Two diferent
+7. The Seller sends back CommitSendFundsOp messages for all requests.
+8. Any CommitSendFundsOp message can be used to create a valid Receipt. (Two diferent
    constructed receipts will have the same invoiceId but different
    responseHash).
 
