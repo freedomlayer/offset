@@ -337,7 +337,7 @@ struct ResponseSendFundsOp {
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   srcHashedLock || 
-        #   receiptHashedLock ||
+        #   destHashedLock || 
         #   destPayment ||
         #   invoiceId
         # )
@@ -425,8 +425,7 @@ struct Confirmation {
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
         #   srcHashedLock || 
-        #   dstHashedLock || 
-        #   receiptHashedLock ||
+        #   destHashedLock || 
         #   destPayment ||
         #   invoiceId
         # )
