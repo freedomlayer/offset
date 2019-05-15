@@ -254,7 +254,7 @@ where
                     }
                     SetDirection::Outgoing(friend_move_token) => {
                         let tc_outgoing = TcOutgoing {
-                            mutual_credit: self.get_mutual_credit().clone(), // TODO; Remove this clone()
+                            mutual_credit: self.get_mutual_credit().clone(), // TODO: Remove this clone()
                             move_token_out: friend_move_token.clone(),
                             opt_prev_move_token_in: self
                                 .get_last_incoming_move_token_hashed()

@@ -103,7 +103,7 @@ where
     C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>> + Clone,
 {
-    // TODO; How to remove this Box::pin?
+    // TODO: How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
         let raw_conn = await!(client_connector.transform((address, friend_public_key.clone())))?;
         await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))

@@ -22,7 +22,7 @@ use timer::create_timer;
 
 use proto::file::identity::load_identity_from_file;
 
-// TODO; Maybe take as a command line argument in the future?
+// TODO: Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;

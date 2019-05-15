@@ -127,7 +127,7 @@ where
         spawner.clone(),
     );
 
-    // TODO; How to get rid of Box::pin() here?
+    // TODO: How to get rid of Box::pin() here?
     let incoming_ver_conns = Box::pin(incoming_raw_conns.then(move |raw_conn| {
         // TODO: A more efficient way to do this?
         // We seem to have to clone version_transform for every connection

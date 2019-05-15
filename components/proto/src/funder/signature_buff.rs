@@ -144,7 +144,7 @@ where
 
     hash_buff.extend_from_slice(&move_token.old_token);
 
-    // TODO; Use CanonicalSerialize instead here:
+    // TODO: Use CanonicalSerialize instead here:
     hash_buff
         .write_u64::<BigEndian>(usize_to_u64(move_token.operations.len()).unwrap())
         .unwrap();

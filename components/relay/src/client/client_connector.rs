@@ -50,7 +50,7 @@ where
         let from_tunnel_receiver = receiver;
         let to_tunnel_sender = sender;
 
-        // TODO; Do something about the unwrap here:
+        // TODO: Do something about the unwrap here:
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = await!(self
             .keepalive_transform
