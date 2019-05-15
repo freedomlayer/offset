@@ -9,7 +9,7 @@ use proto::funder::messages::{
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
@@ -164,15 +164,7 @@ impl OutgoingMc {
         }
 
         // Add pending transaction:
-        let pending_transaction = PendingTransaction {
-            request_id: request_send_funds.request_id,
-            route: request_send_funds.route.clone(),
-            dest_payment: request_send_funds.dest_payment,
-            invoice_id: request_send_funds.invoice_id.clone(),
-            left_fees: request_send_funds.left_fees,
-            src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
-            stage: TransactionStage::Request,
-        };
+        let pending_transaction = create_pending_transaction(&request_send_funds);
 
         let mut mc_mutations = Vec::new();
         let mc_mutation = McMutation::InsertLocalPendingTransaction(pending_transaction);
