@@ -63,10 +63,11 @@ pub struct FriendsRoute {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
     pub request_id: Uid,
-    pub src_hashed_lock: HashedLock, // TODO: Change to bcrypt later
+    pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
+    pub left_fees: u128,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -100,7 +101,7 @@ pub struct MultiConfirmation<S> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CommitOp {
+pub struct CommitSendFundsOp {
     pub request_id: Uid,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
@@ -114,6 +115,7 @@ pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
+    CommitSendFunds(CommitSendFundsOp),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -195,10 +197,13 @@ impl CanonicalSerialize for RequestSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.src_hashed_lock);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes
             .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
+        res_bytes.extend_from_slice(&self.invoice_id);
+        res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
         res_bytes
     }
 }
@@ -207,6 +212,7 @@ impl CanonicalSerialize for ResponseSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.dest_hashed_lock);
         res_bytes.extend_from_slice(&self.rand_nonce);
         res_bytes.extend_from_slice(&self.signature);
         res_bytes
@@ -218,7 +224,18 @@ impl CanonicalSerialize for CancelSendFundsOp {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.reporting_public_key);
+        res_bytes.extend_from_slice(&self.rand_nonce);
         res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for CommitSendFundsOp {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.src_plain_lock);
+        res_bytes.extend_from_slice(&self.dest_plain_lock);
         res_bytes
     }
 }
@@ -248,6 +265,10 @@ impl CanonicalSerialize for FriendTcOp {
             FriendTcOp::CancelSendFunds(cancel_send_funds) => {
                 res_bytes.push(5u8);
                 res_bytes.append(&mut cancel_send_funds.canonical_serialize())
+            }
+            FriendTcOp::CommitSendFunds(commit_send_funds) => {
+                res_bytes.push(6u8);
+                res_bytes.append(&mut commit_send_funds.canonical_serialize())
             }
         }
         res_bytes
