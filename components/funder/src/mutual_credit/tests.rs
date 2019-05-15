@@ -15,8 +15,7 @@ use proto::funder::signature_buff::{
     create_failure_signature_buffer, create_response_signature_buffer,
 };
 
-use crate::mutual_credit::types::MutualCredit;
-use crate::types::create_pending_request;
+use crate::mutual_credit::types::{create_pending_transaction, MutualCredit};
 
 use crate::mutual_credit::incoming::{
     process_operation, ProcessOperationError, ProcessOperationOutput,
@@ -129,7 +128,7 @@ fn test_request_response_send_funds() {
         invoice_id,
     };
 
-    let pending_request = create_pending_request(&request_send_funds);
+    let pending_transaction = create_pending_transaction(&request_send_funds);
     apply_outgoing(
         &mut mutual_credit,
         &FriendTcOp::RequestSendFunds(request_send_funds),
@@ -152,7 +151,7 @@ fn test_request_response_send_funds() {
         signature: Signature::from(&[0; SIGNATURE_LEN]),
     };
 
-    let sign_buffer = create_response_signature_buffer(&response_send_funds, &pending_request);
+    let sign_buffer = create_response_signature_buffer(&response_send_funds, &pending_transaction);
     response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(
@@ -204,7 +203,7 @@ fn test_request_failure_send_funds() {
         invoice_id,
     };
 
-    let pending_request = create_pending_request(&request_send_funds);
+    let pending_transaction = create_pending_transaction(&request_send_funds);
     apply_outgoing(
         &mut mutual_credit,
         &FriendTcOp::RequestSendFunds(request_send_funds),
@@ -227,7 +226,7 @@ fn test_request_failure_send_funds() {
         signature: Signature::from(&[0; SIGNATURE_LEN]),
     };
 
-    let sign_buffer = create_failure_signature_buffer(&failure_send_funds, &pending_request);
+    let sign_buffer = create_failure_signature_buffer(&failure_send_funds, &pending_transaction);
     failure_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(

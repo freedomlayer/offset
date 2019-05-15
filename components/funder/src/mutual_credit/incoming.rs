@@ -4,32 +4,30 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    FailureSendFunds, FriendTcOp, PendingRequest, RequestSendFunds, RequestsStatus,
+    FailureSendFunds, FriendTcOp, PendingTransaction, RequestSendFunds, RequestsStatus,
     ResponseSendFunds,
 };
 use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
-use crate::types::create_pending_request;
-
 use crate::credit_calc::CreditCalculator;
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 /*
 pub struct IncomingRequestSendFunds {
-    pub request: PendingRequest,
+    pub request: PendingTransaction,
 }
 */
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFunds {
-    pub pending_request: PendingRequest,
+    pub pending_transaction: PendingTransaction,
     pub incoming_response: ResponseSendFunds,
 }
 
 #[derive(Debug)]
 pub struct IncomingFailureSendFunds {
-    pub pending_request: PendingRequest,
+    pub pending_transaction: PendingTransaction,
     pub incoming_failure: FailureSendFunds,
 }
 
@@ -239,7 +237,7 @@ fn process_request_send_funds(
 
     let p_remote_requests = &mutual_credit
         .state()
-        .pending_requests
+        .pending_transactions
         .pending_remote_requests;
     // Make sure that we don't have this request as a pending request already:
     if p_remote_requests.contains_key(&request_send_funds.request_id) {
@@ -247,14 +245,14 @@ fn process_request_send_funds(
     }
 
     // Add pending request funds:
-    let pending_friend_request = create_pending_request(&request_send_funds);
+    let pending_friend_request = create_pending_transaction(&request_send_funds);
 
     let mut op_output = ProcessOperationOutput {
         incoming_message: Some(IncomingMessage::Request(request_send_funds)),
         mc_mutations: Vec::new(),
     };
 
-    let tc_mutation = McMutation::InsertRemotePendingRequest(pending_friend_request);
+    let tc_mutation = McMutation::InsertRemotePendingTransaction(pending_friend_request);
     mutual_credit.mutate(&tc_mutation);
     op_output.mc_mutations.push(tc_mutation);
 
@@ -272,22 +270,22 @@ fn process_response_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_requests = &mutual_credit
+    let local_pending_transactions = &mutual_credit
         .state()
-        .pending_requests
+        .pending_transactions
         .pending_local_requests;
 
     // Obtain pending request:
     // TODO: Possibly get rid of clone() here for optimization later
-    let pending_request = local_pending_requests
+    let pending_transaction = local_pending_transactions
         .get(&response_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
-    let dest_public_key = pending_request.route.public_keys.last().unwrap();
+    let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
 
     let response_signature_buffer =
-        create_response_signature_buffer(&response_send_funds, &pending_request);
+        create_response_signature_buffer(&response_send_funds, &pending_transaction);
 
     // Verify response funds signature:
     if !verify_signature(
@@ -299,12 +297,12 @@ fn process_response_send_funds(
     }
 
     // It should never happen that usize_to_u32 fails here, because we
-    // checked this when we created the pending_request.
-    let route_len = usize_to_u32(pending_request.route.len()).unwrap();
-    let credit_calc = CreditCalculator::new(route_len, pending_request.dest_payment);
+    // checked this when we created the pending_transaction.
+    let route_len = usize_to_u32(pending_transaction.route.len()).unwrap();
+    let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
     // Find ourselves on the route. If we are not there, abort.
-    let local_index = pending_request
+    let local_index = pending_transaction
         .route
         .find_pk_pair(
             &mutual_credit.state().idents.local_public_key,
@@ -315,7 +313,7 @@ fn process_response_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = McMutation::RemoveLocalPendingRequest(response_send_funds.request_id);
+    let tc_mutation = McMutation::RemoveLocalPendingTransaction(response_send_funds.request_id);
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
@@ -347,7 +345,7 @@ fn process_response_send_funds(
     mc_mutations.push(tc_mutation);
 
     let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFunds {
-        pending_request,
+        pending_transaction,
         incoming_response: response_send_funds,
     }));
 
@@ -363,20 +361,20 @@ fn process_failure_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_requests = &mutual_credit
+    let local_pending_transactions = &mutual_credit
         .state()
-        .pending_requests
+        .pending_transactions
         .pending_local_requests;
 
     // Obtain pending request:
-    let pending_request = local_pending_requests
+    let pending_transaction = local_pending_transactions
         .get(&failure_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
     // TODO: Possibly get rid of clone() here for optimization later
 
     // Find ourselves on the route. If we are not there, abort.
-    let local_index = pending_request
+    let local_index = pending_transaction
         .route
         .find_pk_pair(
             &mutual_credit.state().idents.local_public_key,
@@ -389,7 +387,7 @@ fn process_failure_send_funds(
     //  - After us on the route.
     //  - Not the destination node
 
-    let reporting_index = pending_request
+    let reporting_index = pending_transaction
         .route
         .pk_to_index(&failure_send_funds.reporting_public_key)
         .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
@@ -398,17 +396,17 @@ fn process_failure_send_funds(
         return Err(ProcessOperationError::InvalidReportingNode);
     }
 
-    verify_failure_signature(&failure_send_funds, &pending_request)
+    verify_failure_signature(&failure_send_funds, &pending_transaction)
         .ok_or(ProcessOperationError::InvalidFailureSignature)?;
 
     // At this point we believe the failure funds is valid.
-    let route_len = usize_to_u32(pending_request.route.len()).unwrap();
-    let credit_calc = CreditCalculator::new(route_len, pending_request.dest_payment);
+    let route_len = usize_to_u32(pending_transaction.route.len()).unwrap();
+    let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = McMutation::RemoveLocalPendingRequest(failure_send_funds.request_id);
+    let tc_mutation = McMutation::RemoveLocalPendingTransaction(failure_send_funds.request_id);
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
@@ -444,7 +442,7 @@ fn process_failure_send_funds(
 
     // Return Failure funds.
     let incoming_message = Some(IncomingMessage::Failure(IncomingFailureSendFunds {
-        pending_request,
+        pending_transaction,
         incoming_failure: failure_send_funds,
     }));
 

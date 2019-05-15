@@ -7,7 +7,7 @@ use crypto::identity::{PublicKey, Signature};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FailureSendFunds, FriendMessage, FriendTcOp, FunderIncomingControl,
-    FunderOutgoingControl, MoveToken, PendingRequest, RequestSendFunds, ResponseSendFunds,
+    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFunds, ResponseSendFunds,
 };
 
 use proto::funder::signature_buff::{
@@ -48,17 +48,17 @@ where
 }
 
 pub async fn create_response_send_funds<'a>(
-    pending_request: &'a PendingRequest,
+    pending_transaction: &'a PendingTransaction,
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFunds {
     let u_response_send_funds = ResponseSendFunds {
-        request_id: pending_request.request_id,
+        request_id: pending_transaction.request_id,
         rand_nonce,
         signature: (),
     };
 
-    let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_request);
+    let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_transaction);
     let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
 
     ResponseSendFunds {
@@ -69,19 +69,19 @@ pub async fn create_response_send_funds<'a>(
 }
 
 pub async fn create_failure_send_funds<'a>(
-    pending_request: &'a PendingRequest,
+    pending_transaction: &'a PendingTransaction,
     local_public_key: &'a PublicKey,
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> FailureSendFunds {
     let u_failure_send_funds = FailureSendFunds {
-        request_id: pending_request.request_id,
+        request_id: pending_transaction.request_id,
         reporting_public_key: local_public_key.clone(),
         rand_nonce,
         signature: (),
     };
 
-    let signature_buff = create_failure_signature_buffer(&u_failure_send_funds, pending_request);
+    let signature_buff = create_failure_signature_buffer(&u_failure_send_funds, pending_transaction);
     let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
 
     FailureSendFunds {
@@ -107,8 +107,8 @@ pub enum UnsignedFriendTcOp {
 /// Keep information from a RequestSendFunds message.
 /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
 /// as those messages do not repeat the information sent in the request.
-pub fn create_pending_request(request_send_funds: &RequestSendFunds) -> PendingRequest {
-    PendingRequest {
+pub fn create_pending_transaction(request_send_funds: &RequestSendFunds) -> PendingTransaction {
+    PendingTransaction {
         request_id: request_send_funds.request_id,
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,

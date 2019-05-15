@@ -32,7 +32,7 @@ mod mutual_credit;
 // #[cfg(test)]
 // mod tests;
 // mod token_channel;
-pub mod types;
+// pub mod types;
 
 // pub use self::funder::{funder_loop, FunderError};
 // pub use self::state::{FunderMutation, FunderState};

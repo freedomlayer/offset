@@ -5,7 +5,9 @@ use crypto::identity::{verify_signature, PublicKey};
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{FailureSendFunds, MoveToken, PendingRequest, Receipt, ResponseSendFunds};
+use super::messages::{
+    FailureSendFunds, MoveToken, PendingTransaction, Receipt, ResponseSendFunds,
+};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -15,21 +17,21 @@ pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
 /// contains information from the Request funds.
 pub fn create_response_signature_buffer<S>(
     response_send_funds: &ResponseSendFunds<S>,
-    pending_request: &PendingRequest,
+    pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
     let mut sbuffer = Vec::new();
 
     sbuffer.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
 
     let mut inner_blob = Vec::new();
-    inner_blob.extend_from_slice(&pending_request.request_id);
-    inner_blob.extend_from_slice(&pending_request.route.hash());
+    inner_blob.extend_from_slice(&pending_transaction.request_id);
+    inner_blob.extend_from_slice(&pending_transaction.route.hash());
     inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
-    sbuffer.extend_from_slice(&pending_request.invoice_id);
+    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
     sbuffer
-        .write_u128::<BigEndian>(pending_request.dest_payment)
+        .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
 
     sbuffer
@@ -42,18 +44,18 @@ pub fn create_response_signature_buffer<S>(
 /// contains information from the Request funds.
 pub fn create_failure_signature_buffer<S>(
     failure_send_funds: &FailureSendFunds<S>,
-    pending_request: &PendingRequest,
+    pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
     let mut sbuffer = Vec::new();
 
     sbuffer.extend_from_slice(&hash::sha_512_256(FUND_FAILURE_PREFIX));
-    sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.extend_from_slice(&pending_request.route.hash());
+    sbuffer.extend_from_slice(&pending_transaction.request_id);
+    sbuffer.extend_from_slice(&pending_transaction.route.hash());
 
     sbuffer
-        .write_u128::<BigEndian>(pending_request.dest_payment)
+        .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
-    sbuffer.extend_from_slice(&pending_request.invoice_id);
+    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
     sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key);
     sbuffer.extend_from_slice(&failure_send_funds.rand_nonce);
 
@@ -63,14 +65,16 @@ pub fn create_failure_signature_buffer<S>(
 /// Verify a failure signature
 pub fn verify_failure_signature(
     failure_send_funds: &FailureSendFunds,
-    pending_request: &PendingRequest,
+    pending_transaction: &PendingTransaction,
 ) -> Option<()> {
     let failure_signature_buffer =
-        create_failure_signature_buffer(&failure_send_funds, &pending_request);
+        create_failure_signature_buffer(&failure_send_funds, &pending_transaction);
     let reporting_public_key = &failure_send_funds.reporting_public_key;
     // Make sure that the reporting_public_key is on the route:
     // TODO: Should we check that it is after us? Is it checked somewhere else?
-    let _ = pending_request.route.pk_to_index(&reporting_public_key)?;
+    let _ = pending_transaction
+        .route
+        .pk_to_index(&reporting_public_key)?;
 
     if !verify_signature(
         &failure_signature_buffer,
@@ -84,19 +88,19 @@ pub fn verify_failure_signature(
 
 pub fn prepare_receipt(
     response_send_funds: &ResponseSendFunds,
-    pending_request: &PendingRequest,
+    pending_transaction: &PendingTransaction,
 ) -> Receipt {
     let mut hash_buff = Vec::new();
-    hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.hash());
+    hash_buff.extend_from_slice(&pending_transaction.request_id);
+    hash_buff.extend_from_slice(&pending_transaction.route.hash());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
 
     Receipt {
         response_hash,
-        invoice_id: pending_request.invoice_id.clone(),
-        dest_payment: pending_request.dest_payment,
+        invoice_id: pending_transaction.invoice_id.clone(),
+        dest_payment: pending_transaction.dest_payment,
         signature: response_send_funds.signature.clone(),
     }
 }

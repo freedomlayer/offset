@@ -62,6 +62,7 @@ pub struct FriendsRoute {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFunds {
     pub request_id: Uid,
+    pub src_hashed_lock: HashResult, // TODO: Change to bcrypt later
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
@@ -146,12 +147,22 @@ pub struct Receipt {
     // )
 }
 
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum TransactionStage {
+    Request,
+    Response(HashResult), // inner: dest_hashed_lock. TOOD: Change to use bcrypt
+}
+
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PendingRequest {
+pub struct PendingTransaction {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
     pub invoice_id: InvoiceId,
+    /// Amount of credits taken for forwarding the transaction
+    pub fee: u128,
+    pub src_hashed_lock: HashResult,
+    pub stage: TransactionStage,
 }
 
 // ==================================================================
@@ -435,6 +446,7 @@ impl<B> FunderIncomingControl<B> {
 }
 
 impl UserRequestSendFunds {
+    /*
     pub fn into_request(self) -> RequestSendFunds {
         RequestSendFunds {
             request_id: self.request_id,
@@ -444,14 +456,15 @@ impl UserRequestSendFunds {
         }
     }
 
-    pub fn create_pending_request(&self) -> PendingRequest {
-        PendingRequest {
+    pub fn create_pending_transaction(&self) -> PendingTransaction {
+        PendingTransaction {
             request_id: self.request_id,
             route: self.route.clone(),
             dest_payment: self.dest_payment,
             invoice_id: self.invoice_id.clone(),
         }
     }
+    */
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

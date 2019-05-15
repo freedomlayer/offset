@@ -1,10 +1,14 @@
 use im::hashmap::HashMap as ImHashMap;
+use num_bigint::BigUint;
+use num_traits::cast::ToPrimitive;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::messages::{PendingRequest, RequestsStatus};
+use proto::funder::messages::{
+    PendingTransaction, RequestSendFunds, RequestsStatus, TransactionStage,
+};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
@@ -53,16 +57,16 @@ impl McBalance {
 // TODO: Rename pending_local_requests to a shorter name, like local.
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct McPendingRequests {
+pub struct McPendingTransactions {
     /// Pending requests that were opened locally and not yet completed
-    pub pending_local_requests: ImHashMap<Uid, PendingRequest>,
+    pub pending_local_requests: ImHashMap<Uid, PendingTransaction>,
     /// Pending requests that were opened remotely and not yet completed
-    pub pending_remote_requests: ImHashMap<Uid, PendingRequest>,
+    pub pending_remote_requests: ImHashMap<Uid, PendingTransaction>,
 }
 
-impl McPendingRequests {
-    fn new() -> McPendingRequests {
-        McPendingRequests {
+impl McPendingTransactions {
+    fn new() -> McPendingTransactions {
+        McPendingTransactions {
             pending_local_requests: ImHashMap::new(),
             pending_remote_requests: ImHashMap::new(),
         }
@@ -86,11 +90,46 @@ impl McRequestsStatus {
     }
 }
 
+/// Rates for forwarding a transaction
+/// For a transaction of `x` credits, the amount of fees will be:
+/// `(x * mul) / 2^32 + add`
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Rate {
+    /// Commission
+    mul: u32,
+    /// Flat rate
+    add: u32,
+}
+
+#[derive(Debug)]
+struct RateError;
+
+impl Rate {
+    pub fn new() -> Self {
+        Rate { mul: 0, add: 0 }
+    }
+
+    fn calc_fee(&self, dest_payment: u128) -> Result<u128, RateError> {
+        // TODO: Fix this using BigUint
+        let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
+        let res = mul_res + BigUint::from(self.add);
+        res.to_u128().ok_or(RateError)
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct MutualCreditState {
+    /// Public identities of local and remote side
     pub idents: McIdents,
+    /// Rate for forwarding new transactions to the remote side
+    pub rate: Rate,
+    /// Current credit balance with respect to remote side
     pub balance: McBalance,
-    pub pending_requests: McPendingRequests,
+    /// Requests in progress
+    pub pending_transactions: McPendingTransactions,
+    /// Can local or remote side open requests?
+    /// We can allow or disallow opening new requests from the remote side to our side.
+    /// The remote side controls the opposite direction.
     pub requests_status: McRequestsStatus,
 }
 
@@ -106,10 +145,10 @@ pub enum McMutation {
     SetLocalMaxDebt(u128),
     SetRemoteMaxDebt(u128),
     SetBalance(i128),
-    InsertLocalPendingRequest(PendingRequest),
-    RemoveLocalPendingRequest(Uid),
-    InsertRemotePendingRequest(PendingRequest),
-    RemoveRemotePendingRequest(Uid),
+    InsertLocalPendingTransaction(PendingTransaction),
+    RemoveLocalPendingTransaction(Uid),
+    InsertRemotePendingTransaction(PendingTransaction),
+    RemoveRemotePendingTransaction(Uid),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
 }
@@ -126,8 +165,9 @@ impl MutualCredit {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
                 },
+                rate: Rate::new(),
                 balance: McBalance::new(balance),
-                pending_requests: McPendingRequests::new(),
+                pending_transactions: McPendingTransactions::new(),
                 requests_status: McRequestsStatus::new(),
             },
         }
@@ -166,17 +206,17 @@ impl MutualCredit {
                 self.set_remote_max_debt(*proposed_max_debt)
             }
             McMutation::SetBalance(balance) => self.set_balance(*balance),
-            McMutation::InsertLocalPendingRequest(pending_friend_request) => {
-                self.insert_local_pending_request(pending_friend_request)
+            McMutation::InsertLocalPendingTransaction(pending_friend_request) => {
+                self.insert_local_pending_transaction(pending_friend_request)
             }
-            McMutation::RemoveLocalPendingRequest(request_id) => {
-                self.remove_local_pending_request(request_id)
+            McMutation::RemoveLocalPendingTransaction(request_id) => {
+                self.remove_local_pending_transaction(request_id)
             }
-            McMutation::InsertRemotePendingRequest(pending_friend_request) => {
-                self.insert_remote_pending_request(pending_friend_request)
+            McMutation::InsertRemotePendingTransaction(pending_friend_request) => {
+                self.insert_remote_pending_transaction(pending_friend_request)
             }
-            McMutation::RemoveRemotePendingRequest(request_id) => {
-                self.remove_remote_pending_request(request_id)
+            McMutation::RemoveRemotePendingTransaction(request_id) => {
+                self.remove_remote_pending_transaction(request_id)
             }
             McMutation::SetLocalPendingDebt(local_pending_debt) => {
                 self.set_local_pending_debt(*local_pending_debt)
@@ -207,32 +247,38 @@ impl MutualCredit {
         self.state.balance.balance = balance;
     }
 
-    fn insert_remote_pending_request(&mut self, pending_friend_request: &PendingRequest) {
-        self.state.pending_requests.pending_remote_requests.insert(
-            pending_friend_request.request_id,
-            pending_friend_request.clone(),
-        );
+    fn insert_remote_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
+        self.state
+            .pending_transactions
+            .pending_remote_requests
+            .insert(
+                pending_friend_request.request_id,
+                pending_friend_request.clone(),
+            );
     }
 
-    fn remove_remote_pending_request(&mut self, request_id: &Uid) {
+    fn remove_remote_pending_transaction(&mut self, request_id: &Uid) {
         let _ = self
             .state
-            .pending_requests
+            .pending_transactions
             .pending_remote_requests
             .remove(request_id);
     }
 
-    fn insert_local_pending_request(&mut self, pending_friend_request: &PendingRequest) {
-        self.state.pending_requests.pending_local_requests.insert(
-            pending_friend_request.request_id,
-            pending_friend_request.clone(),
-        );
+    fn insert_local_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
+        self.state
+            .pending_transactions
+            .pending_local_requests
+            .insert(
+                pending_friend_request.request_id,
+                pending_friend_request.clone(),
+            );
     }
 
-    fn remove_local_pending_request(&mut self, request_id: &Uid) {
+    fn remove_local_pending_transaction(&mut self, request_id: &Uid) {
         let _ = self
             .state
-            .pending_requests
+            .pending_transactions
             .pending_local_requests
             .remove(request_id);
     }
@@ -243,5 +289,23 @@ impl MutualCredit {
 
     fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
         self.state.balance.local_pending_debt = local_pending_debt;
+    }
+
+    /// Keep information from a RequestSendFunds message.
+    /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
+    /// as those messages do not repeat the information sent in the request.
+    fn create_pending_transaction(
+        &self,
+        request_send_funds: &RequestSendFunds,
+    ) -> Result<PendingTransaction, RateError> {
+        Ok(PendingTransaction {
+            request_id: request_send_funds.request_id,
+            route: request_send_funds.route.clone(),
+            dest_payment: request_send_funds.dest_payment,
+            invoice_id: request_send_funds.invoice_id.clone(),
+            fee: self.state.rate.calc_fee(request_send_funds.dest_payment)?,
+            src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
+            stage: TransactionStage::Request,
+        })
     }
 }

@@ -8,9 +8,8 @@ use proto::funder::messages::{
 };
 use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
-use crate::types::create_pending_request;
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
@@ -165,7 +164,7 @@ impl OutgoingMc {
         let p_local_requests = &self
             .mutual_credit
             .state()
-            .pending_requests
+            .pending_transactions
             .pending_local_requests;
         // Make sure that we don't have this request as a pending request already:
         if p_local_requests.contains_key(&request_send_funds.request_id) {
@@ -173,10 +172,10 @@ impl OutgoingMc {
         }
 
         // Add pending request funds:
-        let pending_friend_request = create_pending_request(&request_send_funds);
+        let pending_friend_request = create_pending_transaction(&request_send_funds);
 
         let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::InsertLocalPendingRequest(pending_friend_request);
+        let tc_mutation = McMutation::InsertLocalPendingTransaction(pending_friend_request);
         self.mutual_credit.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
@@ -194,14 +193,14 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
-        let remote_pending_requests = &self
+        let remote_pending_transactions = &self
             .mutual_credit
             .state()
-            .pending_requests
+            .pending_transactions
             .pending_remote_requests;
 
         // Obtain pending request:
-        let pending_request = remote_pending_requests
+        let pending_transaction = remote_pending_transactions
             .get(&response_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?
             .clone();
@@ -209,9 +208,9 @@ impl OutgoingMc {
 
         // verify signature:
         let response_signature_buffer =
-            create_response_signature_buffer(&response_send_funds, &pending_request);
+            create_response_signature_buffer(&response_send_funds, &pending_transaction);
         // The response was signed by the destination node:
-        let dest_public_key = pending_request.route.public_keys.last().unwrap();
+        let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
 
         // Verify response funds signature:
         if !verify_signature(
@@ -223,12 +222,12 @@ impl OutgoingMc {
         }
 
         // Calculate amount of credits to freeze.
-        let route_len =
-            usize_to_u32(pending_request.route.len()).ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, pending_request.dest_payment);
+        let route_len = usize_to_u32(pending_transaction.route.len())
+            .ok_or(QueueOperationError::RouteTooLong)?;
+        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
         // Find ourselves on the route. If we are not there, abort.
-        let remote_index = pending_request
+        let remote_index = pending_transaction
             .route
             .find_pk_pair(
                 &self.mutual_credit.state().idents.remote_public_key,
@@ -240,7 +239,8 @@ impl OutgoingMc {
 
         // Remove entry from remote_pending hashmap:
         let mut tc_mutations = Vec::new();
-        let tc_mutation = McMutation::RemoveRemotePendingRequest(response_send_funds.request_id);
+        let tc_mutation =
+            McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
         self.mutual_credit.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
@@ -281,19 +281,19 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
-        let remote_pending_requests = &self
+        let remote_pending_transactions = &self
             .mutual_credit
             .state()
-            .pending_requests
+            .pending_transactions
             .pending_remote_requests;
 
         // Obtain pending request:
-        let pending_request = remote_pending_requests
+        let pending_transaction = remote_pending_transactions
             .get(&failure_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?;
 
         // Find ourselves on the route. If we are not there, abort.
-        let remote_index = pending_request
+        let remote_index = pending_transaction
             .route
             .find_pk_pair(
                 &self.mutual_credit.state().idents.remote_public_key,
@@ -302,7 +302,7 @@ impl OutgoingMc {
             .unwrap();
 
         let local_index = remote_index.checked_add(1).unwrap();
-        if local_index.checked_add(1).unwrap() == pending_request.route.len() {
+        if local_index.checked_add(1).unwrap() == pending_transaction.route.len() {
             // Note that we can not be the destination. The destination can not be the sender of a
             // failure funds.
             return Err(QueueOperationError::FailureSentFromDest);
@@ -313,7 +313,7 @@ impl OutgoingMc {
         //  - After us on the route, or us.
         //  - Not the destination node
 
-        let reporting_index = pending_request
+        let reporting_index = pending_transaction
             .route
             .pk_to_index(&failure_send_funds.reporting_public_key)
             .ok_or(QueueOperationError::ReportingNodeNonexistent)?;
@@ -322,18 +322,18 @@ impl OutgoingMc {
             return Err(QueueOperationError::InvalidReportingNode);
         }
 
-        verify_failure_signature(&failure_send_funds, &pending_request)
+        verify_failure_signature(&failure_send_funds, &pending_transaction)
             .ok_or(QueueOperationError::InvalidFailureSignature)?;
 
         // At this point we believe the failure funds is valid.
-        let route_len =
-            usize_to_u32(pending_request.route.len()).ok_or(QueueOperationError::RouteTooLong)?;
-        let credit_calc = CreditCalculator::new(route_len, pending_request.dest_payment);
+        let route_len = usize_to_u32(pending_transaction.route.len())
+            .ok_or(QueueOperationError::RouteTooLong)?;
+        let credit_calc = CreditCalculator::new(route_len, pending_transaction.dest_payment);
 
         // Remove entry from remote hashmap:
         let mut tc_mutations = Vec::new();
 
-        let tc_mutation = McMutation::RemoveRemotePendingRequest(failure_send_funds.request_id);
+        let tc_mutation = McMutation::RemoveRemotePendingTransaction(failure_send_funds.request_id);
         self.mutual_credit.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 

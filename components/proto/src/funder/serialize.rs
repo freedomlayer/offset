@@ -1,8 +1,8 @@
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_invoice_id, read_public_key, read_rand_nonce,
-    read_relay_address, read_signature, read_uid, write_custom_int128, write_custom_u_int128,
-    write_invoice_id, write_public_key, write_rand_nonce, write_relay_address, write_signature,
-    write_uid,
+    read_custom_int128, read_custom_u_int128, /*read_invoice_id,*/ read_public_key,
+    read_rand_nonce, read_relay_address, read_signature, read_uid, write_custom_int128,
+    write_custom_u_int128, write_invoice_id, write_public_key, write_rand_nonce,
+    write_relay_address, write_signature, write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -278,12 +278,15 @@ pub fn deser_friends_route(
 fn deser_request_send_funds_op(
     request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader,
 ) -> Result<RequestSendFunds, SerializeError> {
+    unimplemented!();
+    /*
     Ok(RequestSendFunds {
         request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
         route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
     })
+    */
 }
 
 fn deser_response_send_funds_op(
