@@ -92,6 +92,8 @@ fn test_outgoing_set_remote_max_debt() {
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 20);
 }
 
+/*
+
 #[test]
 fn test_request_response_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
@@ -232,3 +234,4 @@ fn test_request_failure_send_funds() {
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
+*/
