@@ -202,7 +202,9 @@ impl CanonicalSerialize for RequestSendFundsOp {
             .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
         res_bytes.extend_from_slice(&self.invoice_id);
-        res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
+        // We do not sign over`left_fees`, because this field changes as the request message is
+        // forwarded.
+        // res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
         res_bytes
     }
 }
