@@ -414,7 +414,7 @@ the buyer, and send back (along the same route) a Commit message to collect his
 credits.
 
 ```capnp
-struct RequestConfirmation {
+struct Confirmation {
         responseHash @0: Hash;
         # = sha512/256(requestId || sha512/256(route) || randNonce)
         destPayment @1: CustomUInt128;
@@ -432,26 +432,26 @@ struct RequestConfirmation {
         # )
 }
 
-struct Confirmation {
+struct MultiConfirmation {
         invoiceId @0: InvoiceId;
         # InvoiceId being paid.
-        requestConfirmations @1: List(RequestConfirmation);
+        confirmations @1: List(Confirmation);
         # A list of confirmations. Each confirmation corresponds to a request
         # sent along one route.
 }
 ```
 
-Note that the `Confirmation` message may contain multiple
-`RequestConfirmation`, each corresponding to one request. This allows
+Note that the `MultiConfirmation` message may contain multiple
+`Confirmation`-s, each corresponding to one request. This allows
 fragmented payment along multiple routes.
 
-Verification of a Confirmation message by the seller is done as follows:
+Verification of a MultiConfirmation message by the seller is done as follows:
 
 - InvoiceId matches an originally issued invoice.
-- For every RequestConfirmation:
-    - The revealed lock is valid for every RequestConfirmation: 
+- For every Confirmation:
+    - The revealed lock is valid: 
         `bcrypt(srcPlainLock) == srcHashedLock`
-    - signature is valid for all RequestConfirmations.
+    - signature is valid.
 - Total of `destPayment` is correct (Equal the requested amount at the
     invoice).
 
@@ -531,7 +531,7 @@ Assume that the node E issued an invoice and handed it to B.
 
 B wants to pay the invoice. The payment begins by sending a Request message
 along the path from B to E. The payment is considered successful when B hands a
-Confirmation message to E. 
+MultiConfirmation message to E. 
 
 This means that we should examine the possibility of B waiting indefinitely
 during the sending of Request and Response messages along the route.
@@ -539,11 +539,11 @@ during the sending of Request and Response messages along the route.
 During this time (Request + Response period), B can discard the transaction by
 walking away. E will not be able to make progress because in order to send the
 Commit message, the correct srcPlainLock is required, but E does not know it
-before B sends the Confirmation message.
+before B sends the MultiConfirmation message.
 
-Also note that if B sends a valid Confirmation message to E, the transaction is
+Also note that if B sends a valid MultiConfirmation message to E, the transaction is
 considered successful, and B can not reverse it. This happens because B reveals
-srcPlainLock at the Confirmation message sent to E.
+srcPlainLock at the MultiConfirmation message sent to E.
 
 
 ## Receipt verifiability
@@ -613,9 +613,9 @@ This is done as follows:
 3. A ResponseSendFundsOp or a CancelSendFundsOp message is returned.
 4. Go back to (2) until the wanted amount of credits is acheived (for paying
    the invoice).
-5. Buyer sends a Confirmation message containing a list of all
-   RequestConfirmation-s for all the requests that got a valid response.
-6. Seller verifies the Confirmation message. If valid, the payment is accepted
+5. Buyer sends a MultiConfirmation message containing a list of all
+   Confirmation-s for all the requests that got a valid response.
+6. Seller verifies the MultiConfirmation message. If valid, the payment is accepted
    and the goods are handed to the buyer.
 7. The Seller sends back CommitOp messages for all requests.
 8. Any CommitOp message can be used to create a valid Receipt. (Two diferent
