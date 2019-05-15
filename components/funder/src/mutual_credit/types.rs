@@ -102,15 +102,14 @@ pub struct Rate {
 }
 
 #[derive(Debug)]
-struct RateError;
+pub struct RateError;
 
 impl Rate {
     pub fn new() -> Self {
         Rate { mul: 0, add: 0 }
     }
 
-    fn calc_fee(&self, dest_payment: u128) -> Result<u128, RateError> {
-        // TODO: Fix this using BigUint
+    pub fn calc_fee(&self, dest_payment: u128) -> Result<u128, RateError> {
         let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
         let res = mul_res + BigUint::from(self.add);
         res.to_u128().ok_or(RateError)
