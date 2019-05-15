@@ -4,38 +4,32 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    FailureSendFunds, FriendTcOp, PendingTransaction, RequestSendFunds, RequestsStatus,
-    ResponseSendFunds,
+    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
+    RequestsStatus, ResponseSendFundsOp,
 };
 use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
 
 use crate::credit_calc::CreditCalculator;
 
-use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
-
-/*
-pub struct IncomingRequestSendFunds {
-    pub request: PendingTransaction,
-}
-*/
+use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 #[derive(Debug)]
-pub struct IncomingResponseSendFunds {
+pub struct IncomingResponseSendFundsOp {
     pub pending_transaction: PendingTransaction,
-    pub incoming_response: ResponseSendFunds,
+    pub incoming_response: ResponseSendFundsOp,
 }
 
 #[derive(Debug)]
-pub struct IncomingFailureSendFunds {
+pub struct IncomingCancelSendFundsOp {
     pub pending_transaction: PendingTransaction,
-    pub incoming_failure: FailureSendFunds,
+    pub incoming_cancel: CancelSendFundsOp,
 }
 
 #[derive(Debug)]
 pub enum IncomingMessage {
-    Request(RequestSendFunds),
-    Response(IncomingResponseSendFunds),
-    Failure(IncomingFailureSendFunds),
+    Request(RequestSendFundsOp),
+    Response(IncomingResponseSendFundsOp),
+    Cancel(IncomingCancelSendFundsOp),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
@@ -112,8 +106,11 @@ pub fn process_operation(
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
             process_response_send_funds(mutual_credit, response_send_funds)
         }
-        FriendTcOp::FailureSendFunds(failure_send_funds) => {
-            process_failure_send_funds(mutual_credit, failure_send_funds)
+        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
+            process_cancel_send_funds(mutual_credit, cancel_send_funds)
+        }
+        FriendTcOp::CommitSendFunds(commit_send_funds) => {
+            process_commit_send_funds(mutual_credit, commit_send_funds)
         }
     }
 }
@@ -172,10 +169,10 @@ fn process_set_remote_max_debt(
     }
 }
 
-/// Process an incoming RequestSendFunds
+/// Process an incoming RequestSendFundsOp
 fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
-    request_send_funds: RequestSendFunds,
+    request_send_funds: RequestSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     if !request_send_funds.route.is_valid() {
         return Err(ProcessOperationError::InvalidRoute);
@@ -244,6 +241,9 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
+    unimplemented!();
+
+    /*
     // Add pending request funds:
     let pending_friend_request = create_pending_transaction(&request_send_funds);
 
@@ -262,11 +262,12 @@ fn process_request_send_funds(
     op_output.mc_mutations.push(tc_mutation);
 
     Ok(op_output)
+    */
 }
 
 fn process_response_send_funds(
     mutual_credit: &mut MutualCredit,
-    response_send_funds: ResponseSendFunds,
+    response_send_funds: ResponseSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
@@ -344,7 +345,7 @@ fn process_response_send_funds(
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
-    let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFunds {
+    let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFundsOp {
         pending_transaction,
         incoming_response: response_send_funds,
     }));
@@ -355,9 +356,9 @@ fn process_response_send_funds(
     })
 }
 
-fn process_failure_send_funds(
+fn process_cancel_send_funds(
     mutual_credit: &mut MutualCredit,
-    failure_send_funds: FailureSendFunds,
+    cancel_send_funds: CancelSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
@@ -368,7 +369,7 @@ fn process_failure_send_funds(
 
     // Obtain pending request:
     let pending_transaction = local_pending_transactions
-        .get(&failure_send_funds.request_id)
+        .get(&cancel_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
     // TODO: Possibly get rid of clone() here for optimization later
@@ -389,14 +390,14 @@ fn process_failure_send_funds(
 
     let reporting_index = pending_transaction
         .route
-        .pk_to_index(&failure_send_funds.reporting_public_key)
+        .pk_to_index(&cancel_send_funds.reporting_public_key)
         .ok_or(ProcessOperationError::ReportingNodeNonexistent)?;
 
     if reporting_index <= local_index {
         return Err(ProcessOperationError::InvalidReportingNode);
     }
 
-    verify_failure_signature(&failure_send_funds, &pending_transaction)
+    verify_failure_signature(&cancel_send_funds, &pending_transaction)
         .ok_or(ProcessOperationError::InvalidFailureSignature)?;
 
     // At this point we believe the failure funds is valid.
@@ -406,7 +407,7 @@ fn process_failure_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let tc_mutation = McMutation::RemoveLocalPendingTransaction(failure_send_funds.request_id);
+    let tc_mutation = McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id);
     mutual_credit.mutate(&tc_mutation);
     mc_mutations.push(tc_mutation);
 
@@ -441,13 +442,20 @@ fn process_failure_send_funds(
     mc_mutations.push(tc_mutation);
 
     // Return Failure funds.
-    let incoming_message = Some(IncomingMessage::Failure(IncomingFailureSendFunds {
+    let incoming_message = Some(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
         pending_transaction,
-        incoming_failure: failure_send_funds,
+        incoming_cancel: cancel_send_funds,
     }));
 
     Ok(ProcessOperationOutput {
         incoming_message,
         mc_mutations,
     })
+}
+
+fn process_commit_send_funds(
+    mutual_credit: &mut MutualCredit,
+    commit_send_funds: CommitSendFundsOp,
+) -> Result<ProcessOperationOutput, ProcessOperationError> {
+    unimplemented!();
 }
