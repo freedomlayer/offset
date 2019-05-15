@@ -235,10 +235,6 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::InsufficientTrust);
     }
 
-    // Note that Verifying our own freezing link will be done outside. We don't have enough
-    // information here to check this. In addition, even if it turns out we can't freeze those
-    // credits, we don't want to create a token channel inconsistency.
-
     let p_remote_requests = &mutual_credit
         .state()
         .pending_transactions
