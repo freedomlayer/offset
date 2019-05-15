@@ -9,11 +9,10 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 
 use proto::funder::messages::{
-    FailureSendFunds, FriendTcOp, FriendsRoute, RequestSendFunds, RequestsStatus, ResponseSendFunds,
+    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
+    RequestsStatus, ResponseSendFundsOp,
 };
-use proto::funder::signature_buff::{
-    create_failure_signature_buffer, create_response_signature_buffer,
-};
+use proto::funder::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::types::{create_pending_transaction, MutualCredit};
 
@@ -121,7 +120,7 @@ fn test_request_response_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let request_send_funds = RequestSendFunds {
+    let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
         route,
         dest_payment: 10,
@@ -145,7 +144,7 @@ fn test_request_response_send_funds() {
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
 
     // TODO: Add signature here:
-    let mut response_send_funds = ResponseSendFunds {
+    let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; SIGNATURE_LEN]),
@@ -196,7 +195,7 @@ fn test_request_failure_send_funds() {
     };
     let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
 
-    let request_send_funds = RequestSendFunds {
+    let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
         route,
         dest_payment: 10,
@@ -219,19 +218,11 @@ fn test_request_failure_send_funds() {
 
     let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
 
-    let mut failure_send_funds = FailureSendFunds {
-        request_id,
-        reporting_public_key: public_key_b.clone(),
-        rand_nonce,
-        signature: Signature::from(&[0; SIGNATURE_LEN]),
-    };
-
-    let sign_buffer = create_failure_signature_buffer(&failure_send_funds, &pending_transaction);
-    failure_send_funds.signature = identity.sign(&sign_buffer);
+    let mut cancel_send_funds = CancelSendFundsOp { request_id };
 
     apply_incoming(
         &mut mutual_credit,
-        FriendTcOp::FailureSendFunds(failure_send_funds),
+        FriendTcOp::CancelSendFunds(cancel_send_funds),
     )
     .unwrap();
 
