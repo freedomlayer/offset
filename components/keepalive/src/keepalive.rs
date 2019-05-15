@@ -59,9 +59,9 @@ async fn inner_keepalive_loop<TR, FR, TU, FU, TS>(
     mut opt_event_sender: Option<mpsc::Sender<KeepAliveEvent>>,
 ) -> Result<(), KeepAliveError>
 where
-    TR: Sink<SinkItem = Vec<u8>> + Unpin,
+    TR: Sink<Vec<u8>> + Unpin,
     FR: Stream<Item = Vec<u8>> + Unpin + Send,
-    TU: Sink<SinkItem = Vec<u8>> + Unpin,
+    TU: Sink<Vec<u8>> + Unpin,
     FU: Stream<Item = Vec<u8>> + Unpin + Send,
     TS: Stream<Item = TimerTick> + Unpin + Send,
 {
@@ -173,36 +173,34 @@ where
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-        Box::pin(
-            async move {
-                if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
-                    let keepalive_fut = inner_keepalive_loop(
-                        to_remote,
-                        from_remote,
-                        to_user,
-                        from_user,
-                        timer_stream,
-                        self.keepalive_ticks,
-                        None,
+        Box::pin(async move {
+            if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
+                let keepalive_fut = inner_keepalive_loop(
+                    to_remote,
+                    from_remote,
+                    to_user,
+                    from_user,
+                    timer_stream,
+                    self.keepalive_ticks,
+                    None,
+                )
+                .map_err(|e| {
+                    warn!(
+                        "transform_keepalive(): inner_keepalive_loop() error: {:?}",
+                        e
                     )
-                    .map_err(|e| {
-                        warn!(
-                            "transform_keepalive(): inner_keepalive_loop() error: {:?}",
-                            e
-                        )
-                    })
-                    .then(|_| future::ready(()));
+                })
+                .then(|_| future::ready(()));
 
-                    self.spawner.spawn(keepalive_fut).unwrap();
-                } else {
-                    // Note: In this case the user will notice there is an error when he tries to
-                    // use the connection, because to_user, from_user are dropped
-                    warn!("transform_keepalive(): Error requesting timer stream");
-                }
+                self.spawner.spawn(keepalive_fut).unwrap();
+            } else {
+                // Note: In this case the user will notice there is an error when he tries to
+                // use the connection, because to_user, from_user are dropped
+                warn!("transform_keepalive(): Error requesting timer stream");
+            }
 
-                (user_sender, user_receiver)
-            },
-        )
+            (user_sender, user_receiver)
+        })
     }
 }
 
@@ -236,7 +234,7 @@ mod tests {
         mut spawner: S,
     ) -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
     where
-        TR: Sink<SinkItem = Vec<u8>> + Unpin + Send + 'static,
+        TR: Sink<Vec<u8>> + Unpin + Send + 'static,
         FR: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
         TS: Stream<Item = TimerTick> + Unpin + Send + 'static,
         S: Spawn,

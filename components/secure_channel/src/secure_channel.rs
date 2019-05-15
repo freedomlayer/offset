@@ -44,7 +44,7 @@ async fn initial_exchange<EK, M: 'static, K: 'static, R: CryptoRandom + 'static>
 where
     R: CryptoRandom + Clone,
     M: Stream<Item = Vec<u8>> + Unpin,
-    K: Sink<SinkItem = Vec<u8>, SinkError = EK> + Unpin,
+    K: Sink<Vec<u8>, SinkError = EK> + Unpin,
 {
     let local_public_key = await!(identity_client.request_public_key())
         .map_err(|_| SecureChannelError::IdentityFailure)?;
@@ -104,7 +104,7 @@ async fn secure_channel_loop<EK, M: 'static, K: 'static, R: CryptoRandom + 'stat
 where
     R: CryptoRandom,
     M: Stream<Item = Vec<u8>> + Unpin + Send,
-    K: Sink<SinkItem = Vec<u8>, SinkError = EK> + Unpin,
+    K: Sink<Vec<u8>, SinkError = EK> + Unpin,
 {
     // TODO: How to perform graceful shutdown of sinks?
     // Is there a way to do it?
@@ -197,7 +197,7 @@ async fn create_secure_channel<EK, M, K, R, S>(
 where
     EK: 'static,
     M: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    K: Sink<SinkItem = Vec<u8>, SinkError = EK> + Unpin + Send + 'static,
+    K: Sink<Vec<u8>, SinkError = EK> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn,
 {
@@ -286,21 +286,19 @@ where
         let (opt_expected_remote, conn_pair) = input;
         let (sender, receiver) = conn_pair;
 
-        Box::pin(
-            async move {
-                await!(create_secure_channel(
-                    sender,
-                    receiver,
-                    self.identity_client.clone(),
-                    opt_expected_remote.clone(),
-                    self.rng.clone(),
-                    self.timer_client.clone(),
-                    self.ticks_to_rekey,
-                    self.spawner.clone()
-                ))
-                .ok()
-            },
-        )
+        Box::pin(async move {
+            await!(create_secure_channel(
+                sender,
+                receiver,
+                self.identity_client.clone(),
+                opt_expected_remote.clone(),
+                self.rng.clone(),
+                self.timer_client.clone(),
+                self.ticks_to_rekey,
+                self.spawner.clone()
+            ))
+            .ok()
+        })
     }
 }
 

@@ -36,15 +36,13 @@ where
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, relay_address: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(
-            async move {
-                let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
-                let (_public_key, conn_pair) = await!(self
-                    .encrypt_transform
-                    .transform((Some(relay_address.public_key), conn_pair)))?;
-                Some(conn_pair)
-            },
-        )
+        Box::pin(async move {
+            let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
+            let (_public_key, conn_pair) = await!(self
+                .encrypt_transform
+                .transform((Some(relay_address.public_key), conn_pair)))?;
+            Some(conn_pair)
+        })
     }
 }
 
@@ -86,14 +84,12 @@ where
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, index_server_address: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(
-            async move {
-                let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
-                let (_public_key, conn_pair) = await!(self
-                    .encrypt_transform
-                    .transform((Some(index_server_address.public_key), conn_pair)))?;
-                Some(await!(self.keepalive_transform.transform(conn_pair)))
-            },
-        )
+        Box::pin(async move {
+            let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
+            let (_public_key, conn_pair) = await!(self
+                .encrypt_transform
+                .transform((Some(index_server_address.public_key), conn_pair)))?;
+            Some(await!(self.keepalive_transform.transform(conn_pair)))
+        })
     }
 }

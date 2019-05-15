@@ -31,16 +31,14 @@ where
     type Output = Option<ConnPairVec>;
 
     fn transform(&mut self, socket_addr: Self::Input) -> BoxFuture<'_, Self::Output> {
-        Box::pin(
-            async move {
-                let tcp_stream = await!(TcpStream::connect(&socket_addr).compat()).ok()?;
+        Box::pin(async move {
+            let tcp_stream = await!(TcpStream::connect(&socket_addr).compat()).ok()?;
 
-                Some(tcp_stream_to_conn_pair(
-                    tcp_stream,
-                    self.max_frame_length,
-                    &mut self.spawner,
-                ))
-            },
-        )
+            Some(tcp_stream_to_conn_pair(
+                tcp_stream,
+                self.max_frame_length,
+                &mut self.spawner,
+            ))
+        })
     }
 }

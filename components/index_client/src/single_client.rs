@@ -59,7 +59,7 @@ struct SingleClient<TS, R> {
 
 impl<TS, R> SingleClient<TS, R>
 where
-    TS: Sink<SinkItem = IndexClientToServer> + Unpin,
+    TS: Sink<IndexClientToServer> + Unpin,
     R: CryptoRandom,
 {
     pub fn new(
@@ -235,6 +235,7 @@ mod tests {
     use super::*;
     use crypto::hash::HASH_RESULT_LEN;
     use futures::executor::ThreadPool;
+    use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
 
@@ -253,7 +254,7 @@ mod tests {
         let fut_send = to_server.send(IndexServerToClient::TimeHash(time_hash.clone()));
         let fut_time_hash = first_server_time_hash(&mut from_server);
 
-        let (_, res_time_hash) = await!(fut_send.join(fut_time_hash));
+        let (_, res_time_hash) = await!(join(fut_send, fut_time_hash));
         assert_eq!(res_time_hash.unwrap(), time_hash);
     }
 

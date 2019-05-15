@@ -1,4 +1,5 @@
 use futures::channel::mpsc;
+use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
@@ -32,7 +33,7 @@ where
     OUT: Send,
     T: FutTransform<Input = IN, Output = Option<OUT>> + Clone + Send + 'static,
     I: Stream<Item = IN> + Unpin,
-    O: Sink<SinkItem = OUT> + Clone + Send + Unpin + 'static,
+    O: Sink<OUT> + Clone + Send + Unpin + 'static,
     S: Spawn,
 {
     let incoming = incoming
@@ -44,7 +45,7 @@ where
     let (close_sender, close_receiver) = mpsc::channel::<()>(0);
     let close_receiver = close_receiver.map(|()| TransformPoolEvent::TransformDone);
 
-    let mut incoming_events = incoming.select(close_receiver);
+    let mut incoming_events = select(incoming, close_receiver);
     let mut num_concurrent: usize = 0;
     let mut incoming_closed = false;
     while let Some(event) = await!(incoming_events.next()) {

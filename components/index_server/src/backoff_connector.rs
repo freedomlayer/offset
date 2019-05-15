@@ -56,21 +56,19 @@ where
 
     fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         let mut c_self = self.clone();
-        Box::pin(
-            async move {
-                loop {
-                    if let Some(output) = await!(c_self.connector.transform(input.clone())) {
-                        return Some(output);
-                    }
-                    // Wait before we attempt to reconnect:
-                    await!(sleep_ticks(
-                        c_self.backoff_ticks,
-                        c_self.timer_client.clone()
-                    ))
-                    .ok()?;
+        Box::pin(async move {
+            loop {
+                if let Some(output) = await!(c_self.connector.transform(input.clone())) {
+                    return Some(output);
                 }
-            },
-        )
+                // Wait before we attempt to reconnect:
+                await!(sleep_ticks(
+                    c_self.backoff_ticks,
+                    c_self.timer_client.clone()
+                ))
+                .ok()?;
+            }
+        })
     }
 }
 
@@ -80,8 +78,9 @@ mod tests {
 
     use futures::channel::mpsc;
     use futures::executor::ThreadPool;
+    use futures::future::join;
     use futures::task::Spawn;
-    use futures::{FutureExt, SinkExt, StreamExt};
+    use futures::{SinkExt, StreamExt};
 
     use common::conn::ConnPairVec;
     use common::dummy_connector::DummyConnector;
@@ -101,27 +100,25 @@ mod tests {
         let mut backoff_connector =
             BackoffConnector::new(dummy_connector, timer_client, backoff_ticks);
 
-        let (opt_conn, _) = await!(backoff_connector.transform(10u32).join(
-            async move {
-                // Connection attempt fails for the first 5 times:
-                for _ in 0..5usize {
-                    let req = await!(req_receiver.next()).unwrap();
-                    assert_eq!(req.address, 10u32);
-                    req.reply(None); // Connection failed
-                    let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
-                    for _ in 0..8usize {
-                        await!(tick_sender.send(TimerTick)).unwrap();
-                    }
-                }
+        let (opt_conn, _) = await!(join(backoff_connector.transform(10u32), async move {
+            // Connection attempt fails for the first 5 times:
+            for _ in 0..5usize {
                 let req = await!(req_receiver.next()).unwrap();
                 assert_eq!(req.address, 10u32);
-
-                // Finally we let the connection attempt succeed.
-                // Return a dummy channel:
-                let (sender, receiver) = mpsc::channel(0);
-                req.reply(Some((sender, receiver)));
+                req.reply(None); // Connection failed
+                let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+                for _ in 0..8usize {
+                    await!(tick_sender.send(TimerTick)).unwrap();
+                }
             }
-        ));
+            let req = await!(req_receiver.next()).unwrap();
+            assert_eq!(req.address, 10u32);
+
+            // Finally we let the connection attempt succeed.
+            // Return a dummy channel:
+            let (sender, receiver) = mpsc::channel(0);
+            req.reply(Some((sender, receiver)));
+        }));
 
         let (mut sender, mut receiver) = opt_conn.unwrap();
         await!(sender.send(vec![1, 2, 3])).unwrap();

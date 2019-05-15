@@ -53,18 +53,16 @@ where
         let mut incoming_conns = listener.incoming().compat();
         let mut c_spawner = self.spawner.clone();
         let c_max_frame_length = self.max_frame_length;
-        let _ = self.spawner.spawn(
-            async move {
-                while let Some(Ok(tcp_stream)) = await!(incoming_conns.next()) {
-                    let conn_pair =
-                        tcp_stream_to_conn_pair(tcp_stream, c_max_frame_length, &mut c_spawner);
-                    if let Err(e) = await!(conn_receiver_sender.send(conn_pair)) {
-                        warn!("TcpListener::listen(): Send error: {:?}", e);
-                        return;
-                    }
+        let _ = self.spawner.spawn(async move {
+            while let Some(Ok(tcp_stream)) = await!(incoming_conns.next()) {
+                let conn_pair =
+                    tcp_stream_to_conn_pair(tcp_stream, c_max_frame_length, &mut c_spawner);
+                if let Err(e) = await!(conn_receiver_sender.send(conn_pair)) {
+                    warn!("TcpListener::listen(): Send error: {:?}", e);
+                    return;
                 }
-            },
-        );
+            }
+        });
 
         (config_sender, conn_receiver)
     }

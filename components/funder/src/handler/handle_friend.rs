@@ -498,11 +498,12 @@ where
     let token_channel = match &friend.channel_status {
         ChannelStatus::Consistent(token_channel) => token_channel,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
+            let local_reset_terms = channel_inconsistent.local_reset_terms.clone();
             try_reset_channel(
                 m_state,
                 send_commands,
                 remote_public_key,
-                &channel_inconsistent.local_reset_terms.clone(),
+                &local_reset_terms,
                 &friend_move_token_request,
             );
             return Ok(());

@@ -26,7 +26,7 @@ matrix:
   - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
     os: linux
     dist: trusty
-    rust: nightly-2019-03-20
+    rust: nightly-2019-05-12
     addons:
       apt:
         packages:
@@ -38,7 +38,8 @@ matrix:
     - travis/trusty/pre/cargo-config.sh
     - travis/trusty/pre/capnp.sh
     - cargo fmt --all -- --check
-    - cargo clippy
+      # TOOD Enable these two lints when clippy bugs are solved:
+    - cargo clippy -- -A clippy::needless_lifetimes -A clippy::identity_conversion
       # We add target dir so that kcov can find the test files to run:
     - cargo test --target ${TARGET}
     - travis/trusty/post/kcov/try-install.sh
@@ -46,7 +47,7 @@ matrix:
 
   - env: TARGET=x86_64-apple-darwin
     os: osx
-    rust: nightly-2019-03-20
+    rust: nightly-2019-05-12
     osx_image: xcode9.4.1
     before_script:
     - brew install capnp
@@ -58,7 +59,7 @@ matrix:
     # Used as a temporary fix for windows CI issue in travis.
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
     filter_secrets: false
-    rust: nightly-2019-03-20
+    rust: nightly-2019-05-12
     before_script:
     # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
     - choco install vcredist2010 capnproto strawberryperl 

@@ -1,7 +1,7 @@
 #![allow(unused)]
 use core::pin::Pin;
 use futures::channel::oneshot;
-use futures::task::Waker;
+use futures::task::Context;
 use futures::{Poll, Sink, Stream, StreamExt};
 use std::marker::Unpin;
 
@@ -28,8 +28,8 @@ where
 {
     type Item = T::Item;
 
-    fn poll_next(mut self: Pin<&mut Self>, lw: &Waker) -> Poll<Option<Self::Item>> {
-        self.inner.poll_next_unpin(lw)
+    fn poll_next(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Option<Self::Item>> {
+        self.inner.poll_next_unpin(context)
     }
 }
 
@@ -45,7 +45,7 @@ async fn conn_limiter<M, K, KE, T>(incoming_conns: T, max_conns: usize) -> Resul
 where
     T: Stream<Item = (M, K, PublicKey)>,
     M: Stream<Item = Vec<u8>>,
-    K: Sink<SinkItem = Vec<u8>, SinkError = KE>,
+    K: Sink<Vec<u8>, SinkError = KE>,
 {
     let mut cur_conns: usize = 0;
     unimplemented!();

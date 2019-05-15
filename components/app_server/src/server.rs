@@ -120,8 +120,8 @@ fn check_permissions<B>(app_permissions: &AppPermissions, app_request: &AppReque
 impl<B, TF, TIC, S> AppServer<B, TF, TIC, S>
 where
     B: Clone + PartialEq + Eq + Debug + Send + Sync + 'static,
-    TF: Sink<SinkItem = FunderIncomingControl<B>> + Unpin + Sync + Send,
-    TIC: Sink<SinkItem = AppServerToIndexClient<B>> + Unpin,
+    TF: Sink<FunderIncomingControl<B>> + Unpin + Sync + Send,
+    TIC: Sink<AppServerToIndexClient<B>> + Unpin,
     S: Spawn,
 {
     pub fn new(
@@ -486,9 +486,9 @@ pub async fn app_server_loop<B, FF, TF, FIC, TIC, IC, S>(
 where
     B: Clone + PartialEq + Eq + Debug + Send + Sync + 'static,
     FF: Stream<Item = FunderOutgoingControl<B>> + Unpin + Send,
-    TF: Sink<SinkItem = FunderIncomingControl<B>> + Unpin + Sync + Send,
+    TF: Sink<FunderIncomingControl<B>> + Unpin + Sync + Send,
     FIC: Stream<Item = IndexClientToAppServer<B>> + Unpin + Send,
-    TIC: Sink<SinkItem = AppServerToIndexClient<B>> + Unpin,
+    TIC: Sink<AppServerToIndexClient<B>> + Unpin,
     IC: Stream<Item = IncomingAppConnection<B>> + Unpin + Send,
     S: Spawn,
 {

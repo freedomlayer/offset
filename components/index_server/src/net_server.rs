@@ -135,15 +135,13 @@ where
         let mut c_version_transform = self.version_transform.clone();
         let mut c_encrypt_transform = self.encrypt_transform.clone();
         let mut c_keepalive_transform = self.keepalive_transform.clone();
-        Box::pin(
-            async move {
-                let conn_pair = await!(c_version_transform.transform(conn_pair));
-                let (public_key, conn_pair) =
-                    await!(c_encrypt_transform.transform((opt_public_key, conn_pair)))?;
-                let conn_pair = await!(c_keepalive_transform.transform(conn_pair));
-                Some((public_key, conn_pair))
-            },
-        )
+        Box::pin(async move {
+            let conn_pair = await!(c_version_transform.transform(conn_pair));
+            let (public_key, conn_pair) =
+                await!(c_encrypt_transform.transform((opt_public_key, conn_pair)))?;
+            let conn_pair = await!(c_keepalive_transform.transform(conn_pair));
+            Some((public_key, conn_pair))
+        })
     }
 
     /// Transform a raw connection from a client into connection with the following layers:
@@ -162,47 +160,41 @@ where
         )>,
     > {
         let mut c_self = self.clone();
-        Box::pin(
-            async move {
-                let (public_key, (mut sender, mut receiver)) =
-                    await!(c_self.version_enc_keepalive(None, conn_pair))?;
+        Box::pin(async move {
+            let (public_key, (mut sender, mut receiver)) =
+                await!(c_self.version_enc_keepalive(None, conn_pair))?;
 
-                let (user_sender, mut from_user_sender) = mpsc::channel(0);
-                let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-                // Deserialize received data
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(data) = await!(receiver.next()) {
-                            let message = match deserialize_index_client_to_server(&data) {
-                                Ok(message) => message,
-                                Err(_) => {
-                                    error!("Error deserializing index_client_to_server");
-                                    return;
-                                }
-                            };
-                            if await!(to_user_receiver.send(message)).is_err() {
-                                return;
-                            }
+            // Deserialize received data
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(data) = await!(receiver.next()) {
+                    let message = match deserialize_index_client_to_server(&data) {
+                        Ok(message) => message,
+                        Err(_) => {
+                            error!("Error deserializing index_client_to_server");
+                            return;
                         }
-                    },
-                );
+                    };
+                    if await!(to_user_receiver.send(message)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                // Serialize sent data:
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(message) = await!(from_user_sender.next()) {
-                            let data = serialize_index_server_to_client(&message);
-                            if await!(sender.send(data)).is_err() {
-                                return;
-                            }
-                        }
-                    },
-                );
+            // Serialize sent data:
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(message) = await!(from_user_sender.next()) {
+                    let data = serialize_index_server_to_client(&message);
+                    if await!(sender.send(data)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                Some((public_key, (user_sender, user_receiver)))
-            },
-        )
+            Some((public_key, (user_sender, user_receiver)))
+        })
     }
 
     pub fn incoming_index_server_conn_transform(
@@ -216,47 +208,41 @@ where
         )>,
     > {
         let mut c_self = self.clone();
-        Box::pin(
-            async move {
-                let (public_key, (mut sender, mut receiver)) =
-                    await!(c_self.version_enc_keepalive(None, conn_pair))?;
+        Box::pin(async move {
+            let (public_key, (mut sender, mut receiver)) =
+                await!(c_self.version_enc_keepalive(None, conn_pair))?;
 
-                let (user_sender, mut from_user_sender) = mpsc::channel(0);
-                let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-                // Deserialize received data
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(data) = await!(receiver.next()) {
-                            let message = match deserialize_index_server_to_server(&data) {
-                                Ok(message) => message,
-                                Err(_) => {
-                                    error!("Error deserializing index_server_to_server");
-                                    return;
-                                }
-                            };
-                            if await!(to_user_receiver.send(message)).is_err() {
-                                return;
-                            }
+            // Deserialize received data
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(data) = await!(receiver.next()) {
+                    let message = match deserialize_index_server_to_server(&data) {
+                        Ok(message) => message,
+                        Err(_) => {
+                            error!("Error deserializing index_server_to_server");
+                            return;
                         }
-                    },
-                );
+                    };
+                    if await!(to_user_receiver.send(message)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                // Serialize sent data:
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(message) = await!(from_user_sender.next()) {
-                            let data = serialize_index_server_to_server(&message);
-                            if await!(sender.send(data)).is_err() {
-                                return;
-                            }
-                        }
-                    },
-                );
+            // Serialize sent data:
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(message) = await!(from_user_sender.next()) {
+                    let data = serialize_index_server_to_server(&message);
+                    if await!(sender.send(data)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                Some((public_key, (user_sender, user_receiver)))
-            },
-        )
+            Some((public_key, (user_sender, user_receiver)))
+        })
     }
 
     pub fn outgoing_index_server_conn_transform(
@@ -265,47 +251,41 @@ where
         conn_pair: ConnPairVec,
     ) -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> {
         let mut c_self = self.clone();
-        Box::pin(
-            async move {
-                let (_public_key, (mut sender, mut receiver)) =
-                    await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
+        Box::pin(async move {
+            let (_public_key, (mut sender, mut receiver)) =
+                await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
 
-                let (user_sender, mut from_user_sender) = mpsc::channel(0);
-                let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-                // Deserialize received data
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(data) = await!(receiver.next()) {
-                            let message = match deserialize_index_server_to_server(&data) {
-                                Ok(message) => message,
-                                Err(_) => {
-                                    error!("Error deserializing index_server_to_server");
-                                    return;
-                                }
-                            };
-                            if await!(to_user_receiver.send(message)).is_err() {
-                                return;
-                            }
+            // Deserialize received data
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(data) = await!(receiver.next()) {
+                    let message = match deserialize_index_server_to_server(&data) {
+                        Ok(message) => message,
+                        Err(_) => {
+                            error!("Error deserializing index_server_to_server");
+                            return;
                         }
-                    },
-                );
+                    };
+                    if await!(to_user_receiver.send(message)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                // Serialize sent data:
-                let _ = c_self.spawner.spawn(
-                    async move {
-                        while let Some(message) = await!(from_user_sender.next()) {
-                            let data = serialize_index_server_to_server(&message);
-                            if await!(sender.send(data)).is_err() {
-                                return;
-                            }
-                        }
-                    },
-                );
+            // Serialize sent data:
+            let _ = c_self.spawner.spawn(async move {
+                while let Some(message) = await!(from_user_sender.next()) {
+                    let data = serialize_index_server_to_server(&message);
+                    if await!(sender.send(data)).is_err() {
+                        return;
+                    }
+                }
+            });
 
-                Some((user_sender, user_receiver))
-            },
-        )
+            Some((user_sender, user_receiver))
+        })
     }
 }
 
@@ -364,9 +344,9 @@ where
     let c_conn_transformer = conn_transformer.clone();
     let incoming_client_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
-        Box::pin(
-            async move { await!(c_conn_transformer.incoming_index_client_conn_transform(raw_conn)) },
-        )
+        Box::pin(async move {
+            await!(c_conn_transformer.incoming_index_client_conn_transform(raw_conn))
+        })
     });
     let (client_conns_sender, incoming_client_conns) = mpsc::channel(0);
     let pool_fut = transform_pool_loop(
@@ -386,9 +366,9 @@ where
     let c_conn_transformer = conn_transformer.clone();
     let incoming_server_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
-        Box::pin(
-            async move { await!(c_conn_transformer.incoming_index_server_conn_transform(raw_conn)) },
-        )
+        Box::pin(async move {
+            await!(c_conn_transformer.incoming_index_server_conn_transform(raw_conn))
+        })
     });
     let (server_conns_sender, incoming_server_conns) = mpsc::channel(0);
     let pool_fut = transform_pool_loop(
@@ -409,12 +389,10 @@ where
     let server_connector = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_raw_server_net_connector = raw_server_net_connector.clone();
         let c_conn_transformer = c_conn_transformer.clone();
-        Box::pin(
-            async move {
-                let raw_conn = await!(c_raw_server_net_connector.transform(net_address))?;
-                await!(c_conn_transformer.outgoing_index_server_conn_transform(public_key, raw_conn))
-            },
-        )
+        Box::pin(async move {
+            let raw_conn = await!(c_raw_server_net_connector.transform(net_address))?;
+            await!(c_conn_transformer.outgoing_index_server_conn_transform(public_key, raw_conn))
+        })
     });
 
     await!(index_server(

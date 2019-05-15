@@ -26,11 +26,11 @@ async fn dispatch_conn<FT>(
 ) -> Option<
     IncomingConn<
         impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<SinkItem = IncomingConnection, SinkError = ()> + Unpin,
+        impl Sink<IncomingConnection, SinkError = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
     >,
 >
 where
@@ -74,35 +74,33 @@ async fn process_conn<FT>(
 ) -> Option<
     IncomingConn<
         impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<SinkItem = IncomingConnection, SinkError = ()> + Unpin,
+        impl Sink<IncomingConnection, SinkError = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
     >,
 >
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let fut_receiver = Box::pin(
-        async move {
-            if let Some(first_msg) = await!(receiver.next()) {
-                let dispatch_res = await!(dispatch_conn(
-                    sender,
-                    receiver,
-                    public_key,
-                    first_msg,
-                    keepalive_transform
-                ));
-                if dispatch_res.is_none() {
-                    warn!("process_conn(): dispatch_conn() failure");
-                }
-                dispatch_res
-            } else {
-                None
+    let fut_receiver = Box::pin(async move {
+        if let Some(first_msg) = await!(receiver.next()) {
+            let dispatch_res = await!(dispatch_conn(
+                sender,
+                receiver,
+                public_key,
+                first_msg,
+                keepalive_transform
+            ));
+            if dispatch_res.is_none() {
+                warn!("process_conn(): dispatch_conn() failure");
             }
-        },
-    );
+            dispatch_res
+        } else {
+            None
+        }
+    });
 
     let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
     let res = await!(future_timeout(
@@ -128,11 +126,11 @@ pub fn conn_processor<T, FT>(
 ) -> impl Stream<
     Item = IncomingConn<
         impl Stream<Item = RejectConnection>,
-        impl Sink<SinkItem = IncomingConnection, SinkError = ()>,
+        impl Sink<IncomingConnection, SinkError = ()>,
         impl Stream<Item = Vec<u8>>,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()>,
+        impl Sink<Vec<u8>, SinkError = ()>,
         impl Stream<Item = Vec<u8>>,
-        impl Sink<SinkItem = Vec<u8>, SinkError = ()>,
+        impl Sink<Vec<u8>, SinkError = ()>,
     >,
 >
 where
@@ -302,16 +300,14 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = serialize_init_connection(&first_msg);
         thread_pool
-            .spawn(
-                async move {
-                    await!(remote_sender.send(ser_first_msg).map(|res| {
-                        match res {
-                            Ok(_remote_sender) => (),
-                            Err(_) => unreachable!("Sending first message failed!"),
-                        }
-                    }))
-                },
-            )
+            .spawn(async move {
+                await!(remote_sender.send(ser_first_msg).map(|res| {
+                    match res {
+                        Ok(_remote_sender) => (),
+                        Err(_) => unreachable!("Sending first message failed!"),
+                    }
+                }))
+            })
             .unwrap();
 
         let (conn, processed_conns) = thread_pool.run(receive(processed_conns)).unwrap();

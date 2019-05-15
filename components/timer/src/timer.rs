@@ -28,6 +28,7 @@
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};
 use futures::channel::{mpsc, oneshot};
+use futures::future::FutureExt;
 use futures::prelude::*;
 use futures::stream;
 use futures::task::{Spawn, SpawnExt};
@@ -168,16 +169,14 @@ pub fn dummy_timer_multi_sender(
     let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
     let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
     spawner
-        .spawn(
-            async move {
-                while let Some(timer_request) = await!(request_receiver.next()) {
-                    let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
+        .spawn(async move {
+            while let Some(timer_request) = await!(request_receiver.next()) {
+                let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
 
-                    await!(tick_sender_sender.send(tick_sender)).unwrap();
-                    timer_request.response_sender.send(tick_receiver).unwrap();
-                }
-            },
-        )
+                await!(tick_sender_sender.send(tick_sender)).unwrap();
+                timer_request.response_sender.send(tick_receiver).unwrap();
+            }
+        })
         .unwrap();
 
     (tick_sender_receiver, TimerClient::new(request_sender))
@@ -194,6 +193,7 @@ mod tests {
     use super::*;
     use core::pin::Pin;
     use futures::executor::ThreadPool;
+    use futures::future::join;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -267,7 +267,7 @@ mod tests {
 
             let receiver = receiver.map(|_| ());
 
-            let new_join = joined_receivers.join(receiver).map(|_| ());
+            let new_join = join(joined_receivers, receiver).map(|_| ());
             joined_receivers = Box::pin(new_join) as Pin<Box<Future<Output = ()> + Send>>;
         }
 
@@ -326,7 +326,7 @@ mod tests {
         mut timer_client: TimerClient,
     ) -> Result<(), ()>
     where
-        S: Sink<SinkItem = (), SinkError = ()> + std::marker::Unpin + 'static,
+        S: Sink<(), SinkError = ()> + std::marker::Unpin + 'static,
     {
         let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
@@ -375,7 +375,7 @@ mod tests {
                 await!(tick_sender.send(TimerTick)).unwrap();
             }
         };
-        let _ = await!(timer_stream_fut.join(tick_sender_fut));
+        let _ = await!(join(timer_stream_fut, tick_sender_fut));
     }
 
     #[test]

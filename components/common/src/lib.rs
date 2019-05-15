@@ -1,4 +1,4 @@
-#![feature(futures_api, async_await, await_macro, arbitrary_self_types)]
+#![feature(async_await, await_macro, arbitrary_self_types)]
 #![feature(generators)]
 #![feature(nll)]
 #![crate_type = "lib"]
@@ -20,7 +20,7 @@ pub mod safe_arithmetic;
 pub mod big_array;
 #[macro_use]
 pub mod define_fixed_bytes;
-pub mod async_adapter;
+// pub mod async_adapter;
 // pub mod frame_codec;
 pub mod access_control;
 pub mod async_test_utils;
