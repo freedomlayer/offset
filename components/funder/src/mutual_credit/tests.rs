@@ -182,6 +182,24 @@ fn test_request_response_commit_send_funds() {
 
     // -----[CommitSendFunds]--------
     // --------------------------------
+    let commit_send_funds = CommitSendFundsOp {
+        request_id,
+        src_plain_lock,
+        dest_plain_lock,
+    };
+
+    apply_incoming(
+        &mut mutual_credit,
+        FriendTcOp::CommitSendFunds(commit_send_funds),
+    )
+    .unwrap();
+
+    // We expect that no changes to balance happened yet:
+    assert_eq!(mutual_credit.state().balance.balance, -15);
+    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
+    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
+    assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
+    assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
 /*
 
