@@ -93,7 +93,7 @@ impl McRequestsStatus {
 /// Rates for forwarding a transaction
 /// For a transaction of `x` credits, the amount of fees will be:
 /// `(x * mul) / 2^32 + add`
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rate {
     /// Commission
     mul: u32,
@@ -151,6 +151,7 @@ pub enum McMutation {
     RemoveRemotePendingTransaction(Uid),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
+    SetRate(Rate),
 }
 
 impl MutualCredit {
@@ -224,6 +225,7 @@ impl MutualCredit {
             McMutation::SetRemotePendingDebt(remote_pending_debt) => {
                 self.set_remote_pending_debt(*remote_pending_debt)
             }
+            McMutation::SetRate(rate) => self.set_rate(rate.clone()),
         }
     }
 
@@ -291,6 +293,9 @@ impl MutualCredit {
         self.state.balance.local_pending_debt = local_pending_debt;
     }
 
+    fn set_rate(&mut self, rate: Rate) {
+        self.state.rate = rate;
+    }
     /*
     /// Keep information from a RequestSendFunds message.
     /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
