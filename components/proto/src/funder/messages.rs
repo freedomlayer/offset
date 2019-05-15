@@ -71,12 +71,13 @@ pub struct RequestSendFunds {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFunds<S = Signature> {
     pub request_id: Uid,
+    pub dest_hashed_lock: HashResult,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds<S = Signature> {
+pub struct CancelSendFunds<S = Signature> {
     pub request_id: Uid,
     pub reporting_public_key: PublicKey,
     pub rand_nonce: RandValue,
@@ -90,7 +91,7 @@ pub enum FriendTcOp {
     SetRemoteMaxDebt(u128),
     RequestSendFunds(RequestSendFunds),
     ResponseSendFunds(ResponseSendFunds),
-    FailureSendFunds(FailureSendFunds),
+    CancelSendFunds(CancelSendFunds),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -190,7 +191,7 @@ impl CanonicalSerialize for ResponseSendFunds {
     }
 }
 
-impl CanonicalSerialize for FailureSendFunds {
+impl CanonicalSerialize for CancelSendFunds {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
@@ -222,9 +223,9 @@ impl CanonicalSerialize for FriendTcOp {
                 res_bytes.push(4u8);
                 res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
-            FriendTcOp::FailureSendFunds(failure_send_funds) => {
+            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
                 res_bytes.push(5u8);
-                res_bytes.append(&mut failure_send_funds.canonical_serialize())
+                res_bytes.append(&mut cancel_send_funds.canonical_serialize())
             }
         }
         res_bytes

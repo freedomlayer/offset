@@ -5,9 +5,7 @@ use crypto::identity::{verify_signature, PublicKey};
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{
-    FailureSendFunds, MoveToken, PendingTransaction, Receipt, ResponseSendFunds,
-};
+use super::messages::{CancelSendFunds, MoveToken, PendingTransaction, Receipt, ResponseSendFunds};
 
 pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
 pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
@@ -43,7 +41,7 @@ pub fn create_response_signature_buffer<S>(
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_failure_signature_buffer<S>(
-    failure_send_funds: &FailureSendFunds<S>,
+    failure_send_funds: &CancelSendFunds<S>,
     pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
     let mut sbuffer = Vec::new();
@@ -64,7 +62,7 @@ pub fn create_failure_signature_buffer<S>(
 
 /// Verify a failure signature
 pub fn verify_failure_signature(
-    failure_send_funds: &FailureSendFunds,
+    failure_send_funds: &CancelSendFunds,
     pending_transaction: &PendingTransaction,
 ) -> Option<()> {
     let failure_signature_buffer =
