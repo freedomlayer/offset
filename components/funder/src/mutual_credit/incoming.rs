@@ -26,10 +26,17 @@ pub struct IncomingCancelSendFundsOp {
 }
 
 #[derive(Debug)]
+pub struct IncomingCommitSendFundsOp {
+    pub pending_transaction: PendingTransaction,
+    pub incoming_commit: CommitSendFundsOp,
+}
+
+#[derive(Debug)]
 pub enum IncomingMessage {
     Request(RequestSendFundsOp),
     Response(IncomingResponseSendFundsOp),
     Cancel(IncomingCancelSendFundsOp),
+    Commit(IncomingCommitSendFundsOp),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
