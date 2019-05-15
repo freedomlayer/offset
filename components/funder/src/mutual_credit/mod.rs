@@ -1,5 +1,3 @@
-#![warn(unused)]
-
 pub mod incoming;
 pub mod outgoing;
 #[cfg(test)]
