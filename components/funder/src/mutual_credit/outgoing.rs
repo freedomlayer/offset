@@ -4,11 +4,12 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    FailureSendFunds, FriendTcOp, RequestSendFunds, RequestsStatus, ResponseSendFunds,
+    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
+    ResponseSendFundsOp,
 };
-use proto::funder::signature_buff::{create_response_signature_buffer, verify_failure_signature};
+use proto::funder::signature_buff::create_response_signature_buffer;
 
-use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 use crate::credit_calc::CreditCalculator;
 
 /// Processes outgoing funds for a token channel.
@@ -61,8 +62,11 @@ impl OutgoingMc {
             FriendTcOp::ResponseSendFunds(response_send_funds) => {
                 self.queue_response_send_funds(response_send_funds)
             }
-            FriendTcOp::FailureSendFunds(failure_send_funds) => {
-                self.queue_failure_send_funds(failure_send_funds)
+            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
+                self.queue_cancel_send_funds(cancel_send_funds)
+            }
+            FriendTcOp::CommitSendFunds(commit_send_funds) => {
+                self.queue_commit_send_funds(commit_send_funds)
             }
         }
     }
@@ -103,7 +107,7 @@ impl OutgoingMc {
 
     fn queue_request_send_funds(
         &mut self,
-        request_send_funds: RequestSendFunds,
+        request_send_funds: RequestSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         if !request_send_funds.route.is_valid() {
             return Err(QueueOperationError::InvalidRoute);
@@ -171,6 +175,10 @@ impl OutgoingMc {
             return Err(QueueOperationError::RequestAlreadyExists);
         }
 
+        unimplemented!();
+
+        /*
+
         // Add pending request funds:
         let pending_friend_request = create_pending_transaction(&request_send_funds);
 
@@ -185,11 +193,12 @@ impl OutgoingMc {
         tc_mutations.push(tc_mutation);
 
         Ok(tc_mutations)
+        */
     }
 
     fn queue_response_send_funds(
         &mut self,
-        response_send_funds: ResponseSendFunds,
+        response_send_funds: ResponseSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
@@ -275,9 +284,9 @@ impl OutgoingMc {
         Ok(tc_mutations)
     }
 
-    fn queue_failure_send_funds(
+    fn queue_cancel_send_funds(
         &mut self,
-        failure_send_funds: FailureSendFunds,
+        cancel_send_funds: CancelSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
@@ -289,7 +298,7 @@ impl OutgoingMc {
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions
-            .get(&failure_send_funds.request_id)
+            .get(&cancel_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?;
 
         // Find ourselves on the route. If we are not there, abort.
@@ -312,17 +321,21 @@ impl OutgoingMc {
         //  - inside the route
         //  - After us on the route, or us.
         //  - Not the destination node
+        unimplemented!();
+
+        /*
 
         let reporting_index = pending_transaction
             .route
-            .pk_to_index(&failure_send_funds.reporting_public_key)
+            .pk_to_index(&cancel_send_funds.reporting_public_key)
             .ok_or(QueueOperationError::ReportingNodeNonexistent)?;
 
         if reporting_index < local_index {
             return Err(QueueOperationError::InvalidReportingNode);
         }
 
-        verify_failure_signature(&failure_send_funds, &pending_transaction)
+
+        verify_failure_signature(&cancel_send_funds, &pending_transaction)
             .ok_or(QueueOperationError::InvalidFailureSignature)?;
 
         // At this point we believe the failure funds is valid.
@@ -333,7 +346,7 @@ impl OutgoingMc {
         // Remove entry from remote hashmap:
         let mut tc_mutations = Vec::new();
 
-        let tc_mutation = McMutation::RemoveRemotePendingTransaction(failure_send_funds.request_id);
+        let tc_mutation = McMutation::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
         self.mutual_credit.mutate(&tc_mutation);
         tc_mutations.push(tc_mutation);
 
@@ -372,5 +385,13 @@ impl OutgoingMc {
         tc_mutations.push(tc_mutation);
 
         Ok(tc_mutations)
+        */
+    }
+
+    fn queue_commit_send_funds(
+        &mut self,
+        commit_send_funds: CommitSendFundsOp,
+    ) -> Result<Vec<McMutation>, QueueOperationError> {
+        unimplemented!();
     }
 }
