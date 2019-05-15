@@ -146,8 +146,10 @@ pub enum McMutation {
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),
     RemoveLocalPendingTransaction(Uid),
+    SetLocalPendingTransactionStage((Uid, TransactionStage)),
     InsertRemotePendingTransaction(PendingTransaction),
     RemoveRemotePendingTransaction(Uid),
+    SetRemotePendingTransactionStage((Uid, TransactionStage)),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
     SetRate(Rate),
@@ -212,11 +214,17 @@ impl MutualCredit {
             McMutation::RemoveLocalPendingTransaction(request_id) => {
                 self.remove_local_pending_transaction(request_id)
             }
+            McMutation::SetLocalPendingTransactionStage((request_id, stage)) => {
+                self.set_local_pending_transaction_stage(&request_id, stage.clone())
+            }
             McMutation::InsertRemotePendingTransaction(pending_friend_request) => {
                 self.insert_remote_pending_transaction(pending_friend_request)
             }
             McMutation::RemoveRemotePendingTransaction(request_id) => {
                 self.remove_remote_pending_transaction(request_id)
+            }
+            McMutation::SetRemotePendingTransactionStage((request_id, stage)) => {
+                self.set_remote_pending_transaction_stage(&request_id, stage.clone())
             }
             McMutation::SetLocalPendingDebt(local_pending_debt) => {
                 self.set_local_pending_debt(*local_pending_debt)
@@ -314,4 +322,20 @@ impl MutualCredit {
         })
     }
     */
+    fn set_local_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
+        self.state
+            .pending_transactions
+            .pending_local_requests
+            .get_mut(&request_id)
+            .unwrap()
+            .stage = stage;
+    }
+    fn set_remote_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
+        self.state
+            .pending_transactions
+            .pending_remote_requests
+            .get_mut(&request_id)
+            .unwrap()
+            .stage = stage;
+    }
 }

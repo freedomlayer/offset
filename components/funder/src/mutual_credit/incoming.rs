@@ -66,6 +66,7 @@ pub enum ProcessOperationError {
     InvalidFailureSignature,
     LocalRequestsClosed,
     CalcFeeError,
+    NotExpectingResponse,
 }
 
 #[derive(Debug)]
@@ -322,6 +323,66 @@ fn process_response_send_funds(
         return Err(ProcessOperationError::InvalidResponseSignature);
     }
 
+    // We expect that the current stage is Request:
+    if let TransactionStage::Request = pending_transaction.stage {
+    } else {
+        return Err(ProcessOperationError::NotExpectingResponse);
+    }
+
+    let mut mc_mutations = Vec::new();
+
+    // Set the stage to Response, and remember dest_hashed_lock:
+    let tc_mutation = McMutation::SetRemotePendingTransactionStage((
+        response_send_funds.request_id.clone(),
+        TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
+    ));
+    mutual_credit.mutate(&tc_mutation);
+    mc_mutations.push(tc_mutation);
+
+    let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFundsOp {
+        pending_transaction,
+        incoming_response: response_send_funds,
+    }));
+
+    Ok(ProcessOperationOutput {
+        incoming_message,
+        mc_mutations,
+    })
+}
+
+/*
+fn process_response_send_funds(
+    mutual_credit: &mut MutualCredit,
+    response_send_funds: ResponseSendFundsOp,
+) -> Result<ProcessOperationOutput, ProcessOperationError> {
+    // Make sure that id exists in local_pending hashmap,
+    // and access saved request details.
+    let local_pending_transactions = &mutual_credit
+        .state()
+        .pending_transactions
+        .pending_local_requests;
+
+    // Obtain pending request:
+    // TODO: Possibly get rid of clone() here for optimization later
+    let pending_transaction = local_pending_transactions
+        .get(&response_send_funds.request_id)
+        .ok_or(ProcessOperationError::RequestDoesNotExist)?
+        .clone();
+
+    let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
+
+    let response_signature_buffer =
+        create_response_signature_buffer(&response_send_funds, &pending_transaction);
+
+    // Verify response funds signature:
+    if !verify_signature(
+        &response_signature_buffer,
+        dest_public_key,
+        &response_send_funds.signature,
+    ) {
+        return Err(ProcessOperationError::InvalidResponseSignature);
+    }
+
     // It should never happen that usize_to_u32 fails here, because we
     // checked this when we created the pending_transaction.
     let route_len = usize_to_u32(pending_transaction.route.len()).unwrap();
@@ -380,6 +441,7 @@ fn process_response_send_funds(
         mc_mutations,
     })
 }
+*/
 
 fn process_cancel_send_funds(
     mutual_credit: &mut MutualCredit,
