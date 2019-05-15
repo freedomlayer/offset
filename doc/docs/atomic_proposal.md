@@ -380,21 +380,6 @@ B --- C --- D --- E
 ```capnp
 struct CancelSendFundsOp {
         requestId @0: Uid;
-        reportingPublicKey @1: PublicKey;
-        # Public key of the reporting node in the route of the corresponding request.
-        # The reporting node cannot be the destination node.
-        randNonce @2: RandNonce;
-        signature @3: Signature;
-        # Signature{key=recipientKey}(
-        #   sha512/256("FUNDS_CANCEL") ||
-        #   requestId ||
-        #   srcHashedLock ||
-        #   sha512/256(route) ||
-        #   destPayment ||
-        #   invoiceId ||
-        #   reportingPublicKey ||
-        #   randNonce
-        # )
 }
 ```
 
