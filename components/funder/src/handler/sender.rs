@@ -5,6 +5,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::identity::PublicKey;
+use crypto::hash_lock::PlainLock;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -420,7 +421,7 @@ where
         ChannelStatus::Inconsistent(_) => {}
     };
 
-    if !friend.pending_responses.is_empty() {
+    if !friend.pending_backwards_ops.is_empty() {
         return true;
     }
 
@@ -541,16 +542,22 @@ where
     match backwards_op {
         BackwardsOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
         BackwardsOp::UnsignedResponse(pending_transaction) => {
+            // TODO; How can we remember this value?
+            let dest_plain_lock = PlainLock::new(rng);
             let rand_nonce = RandValue::new(rng);
+            assert!(false);
             // TODO: How can we remember the destPlainLock? 
             // (Note that we have to supply here a destHashedLock value).
             FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
                 &pending_transaction,
+                // TODO: How can we remember the value of dest_plain_lock here?
+                dest_plain_lock.hash(),
                 rand_nonce,
                 identity_client
             )))
         }
         BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
+        BackwardsOp::Commit(commit_send_funds) => FriendTcOp::CommitSendFunds(commit_send_funds),
     }
 }
 
