@@ -30,7 +30,8 @@ use database::DatabaseClient;
 use identity::{create_identity, IdentityClient};
 
 use crate::ephemeral::Ephemeral;
-use crate::funder::inner_funder_loop;
+// TODO: Add this back later:
+// use crate::funder::inner_funder_loop;
 use crate::report::create_report;
 use crate::state::FunderState;
 
@@ -399,6 +400,9 @@ where
     }
 }
 
+/*
+
+// TODO: Add this back later:
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
 /// We use A = u32:
@@ -493,3 +497,4 @@ where
     }
     node_controls
 }
+*/

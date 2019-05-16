@@ -33,8 +33,8 @@ mod mutual_credit;
 pub mod report;
 #[allow(unused)]
 mod state;
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 #[allow(unused)]
 mod token_channel;
 pub mod types;
