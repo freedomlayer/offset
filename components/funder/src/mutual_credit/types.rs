@@ -54,21 +54,19 @@ impl McBalance {
     }
 }
 
-// TODO: Rename pending_local_requests to a shorter name, like local.
-
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct McPendingTransactions {
-    /// Pending requests that were opened locally and not yet completed
-    pub pending_local_requests: ImHashMap<Uid, PendingTransaction>,
-    /// Pending requests that were opened remotely and not yet completed
-    pub pending_remote_requests: ImHashMap<Uid, PendingTransaction>,
+    /// Pending transactions that were opened locally and not yet completed
+    pub local: ImHashMap<Uid, PendingTransaction>,
+    /// Pending transactions that were opened remotely and not yet completed
+    pub remote: ImHashMap<Uid, PendingTransaction>,
 }
 
 impl McPendingTransactions {
     fn new() -> McPendingTransactions {
         McPendingTransactions {
-            pending_local_requests: ImHashMap::new(),
-            pending_remote_requests: ImHashMap::new(),
+            local: ImHashMap::new(),
+            remote: ImHashMap::new(),
         }
     }
 }
@@ -257,39 +255,25 @@ impl MutualCredit {
     }
 
     fn insert_remote_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.state
-            .pending_transactions
-            .pending_remote_requests
-            .insert(
-                pending_friend_request.request_id,
-                pending_friend_request.clone(),
-            );
+        self.state.pending_transactions.remote.insert(
+            pending_friend_request.request_id,
+            pending_friend_request.clone(),
+        );
     }
 
     fn remove_remote_pending_transaction(&mut self, request_id: &Uid) {
-        let _ = self
-            .state
-            .pending_transactions
-            .pending_remote_requests
-            .remove(request_id);
+        let _ = self.state.pending_transactions.remote.remove(request_id);
     }
 
     fn insert_local_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.state
-            .pending_transactions
-            .pending_local_requests
-            .insert(
-                pending_friend_request.request_id,
-                pending_friend_request.clone(),
-            );
+        self.state.pending_transactions.local.insert(
+            pending_friend_request.request_id,
+            pending_friend_request.clone(),
+        );
     }
 
     fn remove_local_pending_transaction(&mut self, request_id: &Uid) {
-        let _ = self
-            .state
-            .pending_transactions
-            .pending_local_requests
-            .remove(request_id);
+        let _ = self.state.pending_transactions.local.remove(request_id);
     }
 
     fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) {
@@ -307,7 +291,7 @@ impl MutualCredit {
     fn set_local_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
         self.state
             .pending_transactions
-            .pending_local_requests
+            .local
             .get_mut(&request_id)
             .unwrap()
             .stage = stage;
@@ -316,7 +300,7 @@ impl MutualCredit {
     fn set_remote_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
         self.state
             .pending_transactions
-            .pending_remote_requests
+            .remote
             .get_mut(&request_id)
             .unwrap()
             .stage = stage;

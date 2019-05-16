@@ -251,10 +251,7 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::InsufficientTrust);
     }
 
-    let p_remote_requests = &mutual_credit
-        .state()
-        .pending_transactions
-        .pending_remote_requests;
+    let p_remote_requests = &mutual_credit.state().pending_transactions.remote;
     // Make sure that we don't have this request as a pending request already:
     if p_remote_requests.contains_key(&request_send_funds.request_id) {
         return Err(ProcessOperationError::RequestAlreadyExists);
@@ -292,10 +289,7 @@ fn process_response_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_transactions = &mutual_credit
-        .state()
-        .pending_transactions
-        .pending_local_requests;
+    let local_pending_transactions = &mutual_credit.state().pending_transactions.local;
 
     // Obtain pending request:
     // TODO: Possibly get rid of clone() here for optimization later
@@ -351,10 +345,7 @@ fn process_cancel_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_transactions = &mutual_credit
-        .state()
-        .pending_transactions
-        .pending_local_requests;
+    let local_pending_transactions = &mutual_credit.state().pending_transactions.local;
 
     // Obtain pending request:
     let pending_transaction = local_pending_transactions
@@ -405,10 +396,7 @@ fn process_commit_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_transactions = &mutual_credit
-        .state()
-        .pending_transactions
-        .pending_local_requests;
+    let local_pending_transactions = &mutual_credit.state().pending_transactions.local;
 
     // Obtain pending request:
     // TODO: Possibly get rid of clone() here for optimization later

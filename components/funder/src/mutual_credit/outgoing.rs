@@ -154,11 +154,7 @@ impl OutgoingMc {
             return Err(QueueOperationError::InsufficientTrust);
         }
 
-        let p_local_requests = &self
-            .mutual_credit
-            .state()
-            .pending_transactions
-            .pending_local_requests;
+        let p_local_requests = &self.mutual_credit.state().pending_transactions.local;
 
         // Make sure that we don't have this request as a pending request already:
         if p_local_requests.contains_key(&request_send_funds.request_id) {
@@ -187,11 +183,7 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
-        let remote_pending_transactions = &self
-            .mutual_credit
-            .state()
-            .pending_transactions
-            .pending_remote_requests;
+        let remote_pending_transactions = &self.mutual_credit.state().pending_transactions.remote;
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions
@@ -240,11 +232,7 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
-        let remote_pending_transactions = &self
-            .mutual_credit
-            .state()
-            .pending_transactions
-            .pending_remote_requests;
+        let remote_pending_transactions = &self.mutual_credit.state().pending_transactions.remote;
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions
@@ -285,11 +273,7 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
-        let remote_pending_transactions = &self
-            .mutual_credit
-            .state()
-            .pending_transactions
-            .pending_remote_requests;
+        let remote_pending_transactions = &self.mutual_credit.state().pending_transactions.remote;
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions

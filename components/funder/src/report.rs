@@ -86,7 +86,7 @@ where
             requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
             num_local_pending_requests: usize_to_u64(
                 mutual_credit_state
-                    .pending_requests
+                    .pending_transactions
                     .pending_local_requests
                     .len(),
             )
