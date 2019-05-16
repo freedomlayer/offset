@@ -12,11 +12,19 @@ use crate::friend::{FriendMutation, FriendState};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FunderState<B: Clone> {
+    /// Public key of this node
     pub local_public_key: PublicKey,
     /// Address of relay we are going to connect to.
     /// None means that no address was configured.
     pub relays: ImVec<NamedRelayAddress<B>>,
+    /// All configured friends and their state
     pub friends: ImHashMap<PublicKey, FriendState<B>>,
+    /// Receipts of completed payments (Generated after a CommitSendFundsOp message was received
+    /// successfuly).
+    // TODO: Should we map using InvoiceId or by something else?
+    // Note that we can not map using requestIds because we might be doing a multi route payment,
+    // which has multiple requestId-s. Maybe the Uid here can be some internal value that marks the
+    // transaction, possibly originated from the user?
     pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 

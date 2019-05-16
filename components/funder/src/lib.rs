@@ -31,7 +31,8 @@ mod liveness;
 #[allow(unused)]
 mod mutual_credit;
 // pub mod report;
-// mod state;
+#[allow(unused)]
+mod state;
 // #[cfg(test)]
 // mod tests;
 #[allow(unused)]
