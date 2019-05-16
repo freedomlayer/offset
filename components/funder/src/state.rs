@@ -55,7 +55,6 @@ where
             ready_receipts: ImHashMap::new(),
         }
     }
-    // TODO: Add code for initialization from database?
 
     // TODO: Use MutableState trait instead:
     pub fn mutate(&mut self, funder_mutation: &FunderMutation<B>) {
