@@ -24,7 +24,7 @@ pub struct FunderState<B: Clone> {
     // TODO: Should we map using InvoiceId or by something else?
     // Note that we can not map using requestIds because we might be doing a multi route payment,
     // which has multiple requestId-s. Maybe the Uid here can be some internal value that marks the
-    // transaction, possibly originated from the user?
+    // transaction, possibly originated from the user? We can call it payment_id.
     pub ready_receipts: ImHashMap<Uid, Receipt>,
 }
 
@@ -36,7 +36,7 @@ pub enum FunderMutation<B: Clone> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
-    AddReceipt((Uid, Receipt)), //(request_id, receipt)
+    AddReceipt((Uid, Receipt)), // (payment_id, receipt)
     RemoveReceipt(Uid),
 }
 
