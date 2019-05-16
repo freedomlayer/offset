@@ -16,17 +16,18 @@ use identity::IdentityClient;
 
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
 use crate::types::{
-    create_failure_send_funds, create_pending_request, create_response_send_funds,
-    create_unsigned_move_token, sign_move_token, ChannelerConfig,
+    create_pending_transaction, create_response_send_funds,
+    create_unsigned_move_token, sign_move_token, ChannelerConfig, create_cancel_send_funds,
 };
 
 use crate::friend::{
-    ChannelInconsistent, ChannelStatus, FriendMutation, ResponseOp, SentLocalRelays,
+    ChannelInconsistent, ChannelStatus, FriendMutation, BackwardsOp, SentLocalRelays,
 };
 use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
 
 use crate::ephemeral::Ephemeral;
-use crate::handler::handler::{find_request_origin, MutableFunderState};
+use crate::handler::state_wrap::MutableFunderState;
+use crate::handler::utils::find_request_origin;
 use crate::state::{FunderMutation, FunderState};
 
 #[derive(Debug, Clone)]
@@ -470,9 +471,9 @@ where
         Some(origin_public_key) => {
             // The friend with public key `origin_public_key` is the origin of this request.
             // We send him back a failure message:
-            let pending_request = create_pending_request(request_send_funds);
-            let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
-            let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+            let pending_transaction = create_pending_transaction(request_send_funds);
+            let cancel_send_funds = BackwardsOp::Cancel(create_cancel_send_funds(&pending_transaction));
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_send_funds);
             let funder_mutation =
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -527,9 +528,9 @@ where
 }
 */
 
-async fn response_op_to_friend_tc_op<'a, B, R>(
+async fn backwards_op_to_friend_tc_op<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
-    response_op: ResponseOp,
+    backwards_op: BackwardsOp,
     mut identity_client: &'a mut IdentityClient,
     rng: &'a R,
 ) -> FriendTcOp
@@ -537,26 +538,19 @@ where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
 {
-    match response_op {
-        ResponseOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
-        ResponseOp::UnsignedResponse(pending_request) => {
+    match backwards_op {
+        BackwardsOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
+        BackwardsOp::UnsignedResponse(pending_transaction) => {
             let rand_nonce = RandValue::new(rng);
+            // TODO: How can we remember the destPlainLock? 
+            // (Note that we have to supply here a destHashedLock value).
             FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
-                &pending_request,
+                &pending_transaction,
                 rand_nonce,
                 identity_client
             )))
         }
-        ResponseOp::Failure(failure) => FriendTcOp::FailureSendFunds(failure),
-        ResponseOp::UnsignedFailure(pending_request) => {
-            let rand_nonce = RandValue::new(rng);
-            FriendTcOp::FailureSendFunds(await!(create_failure_send_funds(
-                &pending_request,
-                &(m_state.state().local_public_key),
-                rand_nonce,
-                &mut identity_client
-            )))
-        }
+        BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
     }
 }
 
@@ -689,11 +683,11 @@ where
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     // Send pending responses (responses and failures)
     // TODO: Possibly replace this clone with something more efficient later:
-    let mut pending_responses = friend.pending_responses.clone();
-    while let Some(pending_response) = pending_responses.pop_front() {
-        let pending_op = await!(response_op_to_friend_tc_op(
+    let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
+    while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
+        let pending_op = await!(backwards_op_to_friend_tc_op(
             m_state,
-            pending_response,
+            pending_backwards_op,
             identity_client,
             rng
         ));
@@ -705,7 +699,7 @@ where
             &pending_op
         ))?;
 
-        let friend_mutation = FriendMutation::PopFrontPendingResponse;
+        let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -767,11 +761,11 @@ where
 
     // Send pending responses (responses and failures)
     // TODO: Possibly replace this clone with something more efficient later:
-    let mut pending_responses = friend.pending_responses.clone();
-    while let Some(pending_response) = pending_responses.pop_front() {
-        let pending_op = await!(response_op_to_friend_tc_op(
+    let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
+    while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
+        let pending_op = await!(backwards_op_to_friend_tc_op(
             m_state,
-            pending_response,
+            pending_backwards_op,
             identity_client,
             rng
         ));
@@ -786,7 +780,7 @@ where
             &pending_op
         ))?;
 
-        let friend_mutation = FriendMutation::PopFrontPendingResponse;
+        let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
