@@ -2,23 +2,24 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
+use crypto::hash_lock::HashedLock;
 use crypto::identity::{PublicKey, Signature};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerUpdateFriend, FailureSendFunds, FriendMessage, FriendTcOp, FunderIncomingControl,
-    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFunds, ResponseSendFunds,
+    ChannelerUpdateFriend, CancelSendFundsOp, FriendMessage, FriendTcOp, FunderIncomingControl,
+    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
+    CommitSendFundsOp, TransactionStage,
 };
 
 use proto::funder::signature_buff::{
-    create_failure_signature_buffer, create_response_signature_buffer, move_token_signature_buff,
+    create_response_signature_buffer, move_token_signature_buff,
     prefix_hash,
 };
 
 use identity::IdentityClient;
 
-pub type UnsignedFailureSendFunds = FailureSendFunds<()>;
-pub type UnsignedResponseSendFunds = ResponseSendFunds<()>;
+pub type UnsignedResponseSendFundsOp = ResponseSendFundsOp<()>;
 pub type UnsignedMoveToken<B> = MoveToken<B, ()>;
 
 pub async fn sign_move_token<'a, B>(
@@ -49,11 +50,14 @@ where
 
 pub async fn create_response_send_funds<'a>(
     pending_transaction: &'a PendingTransaction,
+    dest_hashed_lock: HashedLock,
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
-) -> ResponseSendFunds {
-    let u_response_send_funds = ResponseSendFunds {
+) -> ResponseSendFundsOp {
+
+    let u_response_send_funds = ResponseSendFundsOp {
         request_id: pending_transaction.request_id,
+        dest_hashed_lock,
         rand_nonce,
         signature: (),
     };
@@ -61,34 +65,33 @@ pub async fn create_response_send_funds<'a>(
     let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_transaction);
     let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
 
-    ResponseSendFunds {
+    ResponseSendFundsOp {
         request_id: u_response_send_funds.request_id,
+        dest_hashed_lock: u_response_send_funds.dest_hashed_lock,
         rand_nonce: u_response_send_funds.rand_nonce,
         signature,
     }
 }
 
-pub async fn create_failure_send_funds<'a>(
-    pending_transaction: &'a PendingTransaction,
-    local_public_key: &'a PublicKey,
-    rand_nonce: RandValue,
-    identity_client: &'a mut IdentityClient,
-) -> FailureSendFunds {
-    let u_failure_send_funds = FailureSendFunds {
+pub fn create_cancel_send_funds(
+    pending_transaction: &PendingTransaction,
+) -> CancelSendFundsOp {
+
+    CancelSendFundsOp {
         request_id: pending_transaction.request_id,
-        reporting_public_key: local_public_key.clone(),
-        rand_nonce,
-        signature: (),
-    };
+    }
+}
 
-    let signature_buff = create_failure_signature_buffer(&u_failure_send_funds, pending_transaction);
-    let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
 
-    FailureSendFunds {
-        request_id: u_failure_send_funds.request_id,
-        reporting_public_key: u_failure_send_funds.reporting_public_key,
-        rand_nonce: u_failure_send_funds.rand_nonce,
-        signature,
+pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
+    PendingTransaction {
+        request_id: request_send_funds.request_id,
+        route: request_send_funds.route.clone(),
+        dest_payment: request_send_funds.dest_payment,
+        invoice_id: request_send_funds.invoice_id.clone(),
+        left_fees: request_send_funds.left_fees,
+        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
+        stage: TransactionStage::Request,
     }
 }
 
@@ -97,24 +100,13 @@ pub enum UnsignedFriendTcOp {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
-    RequestSendFunds(RequestSendFunds),
-    ResponseSendFunds(ResponseSendFunds),
-    UnsignedResponseSendFunds(UnsignedResponseSendFunds),
-    FailureSendFunds(FailureSendFunds),
-    UnsignedFailureSendFunds(UnsignedFailureSendFunds),
+    RequestSendFunds(RequestSendFundsOp),
+    ResponseSendFunds(ResponseSendFundsOp),
+    UnsignedResponseSendFunds(UnsignedResponseSendFundsOp),
+    CancelSendFunds(CancelSendFundsOp),
+    CommitSendFunds(CommitSendFundsOp),
 }
 
-/// Keep information from a RequestSendFunds message.
-/// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
-/// as those messages do not repeat the information sent in the request.
-pub fn create_pending_transaction(request_send_funds: &RequestSendFunds) -> PendingTransaction {
-    PendingTransaction {
-        request_id: request_send_funds.request_id,
-        route: request_send_funds.route.clone(),
-        dest_payment: request_send_funds.dest_payment,
-        invoice_id: request_send_funds.invoice_id.clone(),
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {

@@ -303,25 +303,7 @@ impl MutualCredit {
     fn set_rate(&mut self, rate: Rate) {
         self.state.rate = rate;
     }
-    /*
-    /// Keep information from a RequestSendFunds message.
-    /// This information will be used later to deal with a corresponding {Response,Failure}SendFunds messages,
-    /// as those messages do not repeat the information sent in the request.
-    fn create_pending_transaction(
-        &self,
-        request_send_funds: &RequestSendFundsOp,
-    ) -> Result<PendingTransaction, RateError> {
-        Ok(PendingTransaction {
-            request_id: request_send_funds.request_id,
-            route: request_send_funds.route.clone(),
-            dest_payment: request_send_funds.dest_payment,
-            invoice_id: request_send_funds.invoice_id.clone(),
-            fee: self.state.rate.calc_fee(request_send_funds.dest_payment)?,
-            src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
-            stage: TransactionStage::Request,
-        })
-    }
-    */
+
     fn set_local_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
         self.state
             .pending_transactions
@@ -330,6 +312,7 @@ impl MutualCredit {
             .unwrap()
             .stage = stage;
     }
+
     fn set_remote_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
         self.state
             .pending_transactions
@@ -337,17 +320,5 @@ impl MutualCredit {
             .get_mut(&request_id)
             .unwrap()
             .stage = stage;
-    }
-}
-
-pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
-    PendingTransaction {
-        request_id: request_send_funds.request_id,
-        route: request_send_funds.route.clone(),
-        dest_payment: request_send_funds.dest_payment,
-        invoice_id: request_send_funds.invoice_id.clone(),
-        left_fees: request_send_funds.left_fees,
-        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
-        stage: TransactionStage::Request,
     }
 }

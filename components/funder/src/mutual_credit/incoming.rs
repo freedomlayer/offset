@@ -9,7 +9,9 @@ use proto::funder::messages::{
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
-use super::types::{create_pending_transaction, McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use crate::types::create_pending_transaction;
+
+use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {

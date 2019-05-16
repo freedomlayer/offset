@@ -15,12 +15,13 @@ use proto::funder::messages::{
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::types::{create_pending_transaction, MutualCredit};
+use crate::types::create_pending_transaction;
 
 use crate::mutual_credit::incoming::{
     process_operation, ProcessOperationError, ProcessOperationOutput,
 };
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
+use crate::mutual_credit::types::MutualCredit;
 
 /// Helper function for applying an outgoing operation over a token channel.
 fn apply_outgoing(
