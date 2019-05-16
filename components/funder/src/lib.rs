@@ -24,7 +24,8 @@ extern crate serde_derive;
 // mod friend;
 // mod funder;
 // mod handler;
-// mod liveness;
+#[allow(unused)]
+mod liveness;
 #[allow(unused)]
 mod mutual_credit;
 // pub mod report;
