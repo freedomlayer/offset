@@ -85,17 +85,11 @@ where
             balance: McBalanceReport::from(&mutual_credit_state.balance),
             requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
             num_local_pending_requests: usize_to_u64(
-                mutual_credit_state
-                    .pending_transactions
-                    .pending_local_requests
-                    .len(),
+                mutual_credit_state.pending_transactions.local.len(),
             )
             .unwrap(),
             num_remote_pending_requests: usize_to_u64(
-                mutual_credit_state
-                    .pending_requests
-                    .pending_remote_requests
-                    .len(),
+                mutual_credit_state.pending_transactions.remote.len(),
             )
             .unwrap(),
         }
@@ -155,7 +149,7 @@ where
             &friend_state.wanted_local_requests_status,
         ),
         num_pending_requests: usize_to_u64(friend_state.pending_requests.len()).unwrap(),
-        num_pending_responses: usize_to_u64(friend_state.pending_responses.len()).unwrap(),
+        num_pending_backwards_ops: usize_to_u64(friend_state.pending_backwards_ops.len()).unwrap(),
         status: FriendStatusReport::from(&friend_state.status),
         num_pending_user_requests: usize_to_u64(friend_state.pending_user_requests.len()).unwrap(),
     }
@@ -238,14 +232,14 @@ where
                 usize_to_u64(friend_after.pending_requests.len()).unwrap(),
             )]
         }
-        FriendMutation::PushBackPendingResponse(_response_op) => {
-            vec![FriendReportMutation::SetNumPendingResponses(
-                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+        FriendMutation::PushBackPendingBackwardsOp(_backwards_op) => {
+            vec![FriendReportMutation::SetNumPendingBackwardsOps(
+                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
             )]
         }
-        FriendMutation::PopFrontPendingResponse => {
-            vec![FriendReportMutation::SetNumPendingResponses(
-                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+        FriendMutation::PopFrontPendingBackwardsOp => {
+            vec![FriendReportMutation::SetNumPendingBackwardsOps(
+                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
             )]
         }
         FriendMutation::PushBackPendingUserRequest(_request_send_funds) => {

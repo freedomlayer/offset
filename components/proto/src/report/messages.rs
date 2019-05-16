@@ -156,7 +156,7 @@ where
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
     pub num_pending_requests: u64,
-    pub num_pending_responses: u64,
+    pub num_pending_backwards_ops: u64,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatusReport,
     pub num_pending_user_requests: u64,
@@ -191,7 +191,7 @@ where
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
-    SetNumPendingResponses(u64),
+    SetNumPendingBackwardsOps(u64),
     SetStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
@@ -279,8 +279,8 @@ where
             FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
             }
-            FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
-                self.num_pending_responses = *num_pending_responses;
+            FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
+                self.num_pending_backwards_ops = *num_pending_backwards_ops;
             }
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
                 self.num_pending_requests = *num_pending_requests;
@@ -340,7 +340,7 @@ where
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &RequestsStatus::Closed,
                     ),
-                    num_pending_responses: 0,
+                    num_pending_backwards_ops: 0,
                     num_pending_requests: 0,
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                     num_pending_user_requests: 0,
