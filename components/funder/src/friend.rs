@@ -1,6 +1,7 @@
 use im::vector::Vector as ImVec;
 use std::fmt::Debug;
 
+use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
 
 use common::canonical_serialize::CanonicalSerialize;
@@ -13,14 +14,14 @@ use proto::funder::messages::{
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};
-use crate::types::MoveTokenHashed;
+use crate::types::{MoveTokenHashed, UnsignedResponseSendFundsOp};
 
 /// Any operation that goes backwards (With respect to the initial request)
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
     /// A response that was not yet signed (Signing requires an async call)
-    UnsignedResponse(PendingTransaction),
+    UnsignedResponse((PendingTransaction, PlainLock)),
     Cancel(CancelSendFundsOp),
     Commit(CommitSendFundsOp),
 }
