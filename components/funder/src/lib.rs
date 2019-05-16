@@ -25,7 +25,7 @@ mod ephemeral;
 #[allow(unused)]
 mod friend;
 // mod funder;
-// mod handler;
+mod handler;
 #[allow(unused)]
 mod liveness;
 #[allow(unused)]
