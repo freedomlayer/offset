@@ -15,9 +15,11 @@ use proto::funder::messages::{
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
 
+/// Any operation that goes backwards (With respect to the initial request)
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ResponseOp {
+pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
+    /// A response that was not yet signed (Signing requires an async call)
     UnsignedResponse(PendingTransaction),
     Cancel(CancelSendFundsOp),
     Commit(CommitSendFundsOp),
@@ -73,8 +75,8 @@ pub enum FriendMutation<B: Clone> {
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest(RequestSendFundsOp),
     PopFrontPendingRequest,
-    PushBackPendingResponse(ResponseOp),
-    PopFrontPendingResponse,
+    PushBackPendingBackwardsOp(BackwardsOp),
+    PopFrontPendingBackwardsOp,
     PushBackPendingUserRequest(RequestSendFundsOp),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
@@ -127,6 +129,9 @@ pub struct FriendState<B: Clone> {
     pub sent_local_relays: SentLocalRelays<B>,
     /// Locally maintained name of the remote friend node.
     pub name: String,
+    /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
+    /// we are offline).
+    pub status: FriendStatus,
     /// Mutual credit channel information
     pub channel_status: ChannelStatus<B>,
     /// Wanted credit frame for the remote side (Set by the user of this node)
@@ -139,14 +144,14 @@ pub struct FriendState<B: Clone> {
     pub wanted_local_requests_status: RequestsStatus,
     /// A queue of requests that need to be sent to the remote friend
     pub pending_requests: ImVec<RequestSendFundsOp>,
-    /// A queue of non-requests messages (Response, Cancel, Commit) that need to be sent to the remote side
-    // TODO: Pick a better name for this queue?
-    pub pending_responses: ImVec<ResponseOp>,
-    // Pending operations to be sent to the token channel.
-    pub status: FriendStatus,
+    /// A queue of backwards operations (Response, Cancel, Commit) that need to be sent to the remote side
+    /// We keep backwards op on a separate queue because those operations are not supposed to fail
+    /// (While requests may fail due to lack of trust for example)
+    pub pending_backwards_ops: ImVec<BackwardsOp>,
+    /// Pending requests originating from the user.
+    /// We care more about these requests, because those are payments that our user wants to make.
+    /// This queue is bounded in size (TODO: Check this)
     pub pending_user_requests: ImVec<RequestSendFundsOp>,
-    // Request that the user has sent to this neighbor,
-    // but have not been processed yet. Bounded in size.
 }
 
 impl<B> FriendState<B>
@@ -168,6 +173,7 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
+            status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(token_channel),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
@@ -177,12 +183,12 @@ where
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
             pending_requests: ImVec::new(),
-            pending_responses: ImVec::new(),
-            status: FriendStatus::Disabled,
+            pending_backwards_ops: ImVec::new(),
             pending_user_requests: ImVec::new(),
         }
     }
 
+    /*
     // TODO: Do we use this function somewhere?
     /// Find the shared credits we have with this friend.
     /// This value is used for freeze guard calculations.
@@ -209,6 +215,7 @@ where
             .local_max_debt
             .saturating_add_signed(balance.balance)
     }
+    */
 
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<B>) {
         match friend_mutation {
@@ -236,11 +243,11 @@ where
             FriendMutation::PopFrontPendingRequest => {
                 let _ = self.pending_requests.pop_front();
             }
-            FriendMutation::PushBackPendingResponse(response_op) => {
-                self.pending_responses.push_back(response_op.clone());
+            FriendMutation::PushBackPendingBackwardsOp(backwards_op) => {
+                self.pending_backwards_ops.push_back(backwards_op.clone());
             }
-            FriendMutation::PopFrontPendingResponse => {
-                let _ = self.pending_responses.pop_front();
+            FriendMutation::PopFrontPendingBackwardsOp => {
+                let _ = self.pending_backwards_ops.pop_front();
             }
             FriendMutation::PushBackPendingUserRequest(request_send_funds) => {
                 self.pending_user_requests
