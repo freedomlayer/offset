@@ -13,7 +13,7 @@ use proto::funder::messages::{
     UserRequestSendFunds,
 };
 
-// TODO; Different in naming convention from AppConfigError and AppRoutesError:
+// TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
 pub enum SendFundsError {
     /// A local error occurred when trying to send funds.

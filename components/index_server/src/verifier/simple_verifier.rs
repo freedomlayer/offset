@@ -20,7 +20,7 @@ where
 {
     #[allow(unused)]
     pub fn new(ticks_to_live: usize, rng: R) -> Self {
-        // TODO(Security): Make sure that we don't have an off-by-one here with the decision to have
+        // TODO: Security: Make sure that we don't have an off-by-one here with the decision to have
         // one ticks_to_live value for both `hash_clock` and `ratchet_pool`.
 
         assert!(ticks_to_live > 0);

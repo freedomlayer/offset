@@ -13,7 +13,7 @@ pub struct AppReport {
 }
 
 impl AppReport {
-    // TODO; Should this be private?
+    // TODO: Should this be private?
     pub(super) fn new(
         report_client: StateClient<BatchMutable<NodeReport>, Vec<NodeReportMutation>>,
     ) -> Self {

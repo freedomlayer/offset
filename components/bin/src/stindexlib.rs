@@ -25,7 +25,7 @@ use net::{NetConnector, TcpListener};
 use proto::file::identity::load_identity_from_file;
 use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
 
-// TODO; Maybe take as a command line argument in the future?
+// TODO: Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
 /// We set this number to avoid DoS from half finished encrypted channel negotiations.
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
