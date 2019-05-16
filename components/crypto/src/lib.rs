@@ -19,6 +19,7 @@ pub mod hash_lock;
 pub mod identity;
 pub mod invoice_id;
 pub mod nonce_window;
+pub mod payment_id;
 pub mod sym_encrypt;
 pub mod test_utils;
 pub mod uid;
