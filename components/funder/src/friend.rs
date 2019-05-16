@@ -8,8 +8,8 @@ use common::safe_arithmetic::SafeUnsignedArithmetic;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    FailureSendFunds, FriendStatus, PendingRequest, RequestSendFunds, RequestsStatus, ResetTerms,
-    ResponseSendFunds,
+    CancelSendFundsOp, CommitSendFundsOp, FriendStatus, PendingTransaction, RequestSendFundsOp,
+    RequestsStatus, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};
@@ -17,10 +17,10 @@ use crate::types::MoveTokenHashed;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum ResponseOp {
-    Response(ResponseSendFunds),
-    UnsignedResponse(PendingRequest),
-    Failure(FailureSendFunds),
-    UnsignedFailure(PendingRequest),
+    Response(ResponseSendFundsOp),
+    UnsignedResponse(PendingTransaction),
+    Cancel(CancelSendFundsOp),
+    Commit(CommitSendFundsOp),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,11 +71,11 @@ pub enum FriendMutation<B: Clone> {
     SetConsistent(TokenChannel<B>),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingRequest(RequestSendFunds),
+    PushBackPendingRequest(RequestSendFundsOp),
     PopFrontPendingRequest,
     PushBackPendingResponse(ResponseOp),
     PopFrontPendingResponse,
-    PushBackPendingUserRequest(RequestSendFunds),
+    PushBackPendingUserRequest(RequestSendFundsOp),
     PopFrontPendingUserRequest,
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
@@ -115,19 +115,36 @@ where
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
+    /// Public key of this node
     pub local_public_key: PublicKey,
+    /// Public key of the friend node
     pub remote_public_key: PublicKey,
+    /// Relays on which the friend node can be found.
+    /// This list of relays corresponds to the last report of relays we got from the remote friend.
     pub remote_relays: Vec<RelayAddress<B>>,
+    /// The last list of our used relays we have sent to the remote friend.
+    /// We maintain this list to deal with relays drift.
     pub sent_local_relays: SentLocalRelays<B>,
+    /// Locally maintained name of the remote friend node.
     pub name: String,
+    /// Mutual credit channel information
     pub channel_status: ChannelStatus<B>,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
     pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
     pub wanted_local_requests_status: RequestsStatus,
-    pub pending_requests: ImVec<RequestSendFunds>,
+    /// A queue of requests that need to be sent to the remote friend
+    pub pending_requests: ImVec<RequestSendFundsOp>,
+    /// A queue of non-requests messages (Response, Cancel, Commit) that need to be sent to the remote side
+    // TODO: Pick a better name for this queue?
     pub pending_responses: ImVec<ResponseOp>,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatus,
-    pub pending_user_requests: ImVec<RequestSendFunds>,
+    pub pending_user_requests: ImVec<RequestSendFundsOp>,
     // Request that the user has sent to this neighbor,
     // but have not been processed yet. Bounded in size.
 }
