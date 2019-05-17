@@ -17,11 +17,15 @@ use crate::state::{FunderMutation, FunderState};
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::friend::ChannelStatus;
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
-use crate::types::{ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm};
+use crate::types::{
+    ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm,
+    UnsignedResponseSendFundsOp,
+};
 
 pub struct MutableFunderState<B: Clone> {
     initial_state: FunderState<B>,
     state: FunderState<B>,
+    unsigned_responses: Vec<UnsignedResponseSendFundsOp>,
     mutations: Vec<FunderMutation<B>>,
 }
 
@@ -33,8 +37,16 @@ where
         MutableFunderState {
             initial_state: state.clone(),
             state,
+            unsigned_responses: Vec::new(),
             mutations: Vec::new(),
         }
+    }
+
+    /// Push an unsigned response operation.
+    /// We have a separate queue for these operations because we need an async function call to
+    /// sign an unsigned response.
+    pub fn queue_unsigned_response(&mut self, u_response_send_funds: UnsignedResponseSendFundsOp) {
+        self.unsigned_responses.push(u_response_send_funds);
     }
 
     pub fn mutate(&mut self, mutation: FunderMutation<B>) {
