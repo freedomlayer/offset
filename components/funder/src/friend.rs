@@ -20,8 +20,8 @@ use crate::types::{MoveTokenHashed, UnsignedResponseSendFundsOp};
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
-    /// A response that was not yet signed (Signing requires an async call)
-    UnsignedResponse((PendingTransaction, PlainLock)),
+    // /// A response that was not yet signed (Signing requires an async call)
+    // UnsignedResponse((PendingTransaction, PlainLock)),
     Cancel(CancelSendFundsOp),
     Commit(CommitSendFundsOp),
 }

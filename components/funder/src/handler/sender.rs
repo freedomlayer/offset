@@ -541,15 +541,6 @@ where
 {
     match backwards_op {
         BackwardsOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
-        BackwardsOp::UnsignedResponse((pending_transaction, dest_plain_lock)) => {
-            let rand_nonce = RandValue::new(rng);
-            FriendTcOp::ResponseSendFunds(await!(create_response_send_funds(
-                &pending_transaction,
-                dest_plain_lock.hash(),
-                rand_nonce,
-                identity_client
-            )))
-        }
         BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
         BackwardsOp::Commit(commit_send_funds) => FriendTcOp::CommitSendFunds(commit_send_funds),
     }
