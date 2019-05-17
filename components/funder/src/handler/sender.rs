@@ -370,7 +370,7 @@ async fn send_friend_iter1<'a, B, R>(
     );
     pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
-    let _ = await!(collect_outgoing_move_token(
+    let _ = collect_outgoing_move_token(
         m_state,
         outgoing_channeler_config,
         outgoing_control,
@@ -379,7 +379,7 @@ async fn send_friend_iter1<'a, B, R>(
         pending_move_token,
         identity_client,
         rng
-    ));
+    );
 }
 
 /// Do we need to send anything to the remote side?
@@ -439,7 +439,7 @@ where
 /// Queue an operation to a PendingMoveToken.
 /// On failure, queue a failure to the relevant friend,
 /// or (if we are the origin of the request): send a failure through the control
-async fn queue_operation_or_failure<'a, B>(
+fn queue_operation_or_failure<'a, B>(
     m_state: &'a mut MutableFunderState<B>,
     pending_move_token: &'a mut PendingMoveToken<B>,
     failure_public_keys: &'a mut HashSet<PublicKey>,
@@ -529,7 +529,7 @@ where
 }
 */
 
-async fn backwards_op_to_friend_tc_op<'a, B, R>(
+fn backwards_op_to_friend_tc_op<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
     backwards_op: BackwardsOp,
     mut identity_client: &'a mut IdentityClient,
@@ -549,7 +549,7 @@ where
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side.
 /// Requests that fail to be processed are moved to the failure queues of the relevant friends.
-async fn collect_outgoing_move_token<'a, B, R>(
+fn collect_outgoing_move_token<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
@@ -635,13 +635,13 @@ where
 
     if friend.wanted_remote_max_debt != remote_max_debt {
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
-        await!(queue_operation_or_failure(
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             failure_public_keys,
             outgoing_control,
             &operation
-        ))?;
+        )?;
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -663,13 +663,13 @@ where
         } else {
             FriendTcOp::DisableRequests
         };
-        await!(queue_operation_or_failure(
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             failure_public_keys,
             outgoing_control,
             &friend_op
-        ))?;
+        )?;
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -677,19 +677,19 @@ where
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
-        let pending_op = await!(backwards_op_to_friend_tc_op(
+        let pending_op = backwards_op_to_friend_tc_op(
             m_state,
             pending_backwards_op,
             identity_client,
             rng
-        ));
-        await!(queue_operation_or_failure(
+        );
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             failure_public_keys,
             outgoing_control,
             &pending_op
-        ))?;
+        )?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
@@ -704,13 +704,13 @@ where
     let mut pending_requests = friend.pending_requests.clone();
     while let Some(pending_request) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-        await!(queue_operation_or_failure(
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             failure_public_keys,
             outgoing_control,
             &pending_op
-        ))?;
+        )?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -723,13 +723,13 @@ where
     let mut pending_user_requests = friend.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        await!(queue_operation_or_failure(
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             failure_public_keys,
             outgoing_control,
             &pending_op
-        ))?;
+        )?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -738,7 +738,7 @@ where
     Ok(())
 }
 
-async fn append_failures_to_move_token<'a, B, R>(
+fn append_failures_to_move_token<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
@@ -755,22 +755,22 @@ where
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
-        let pending_op = await!(backwards_op_to_friend_tc_op(
+        let pending_op = backwards_op_to_friend_tc_op(
             m_state,
             pending_backwards_op,
             identity_client,
             rng
-        ));
+        );
         // TODO: Find a more elegant way to do this:
         let mut dummy_failure_public_keys = HashSet::new();
         let mut dummy_outgoing_control = Vec::new();
-        await!(queue_operation_or_failure(
+        queue_operation_or_failure(
             m_state,
             pending_move_token,
             &mut dummy_failure_public_keys,
             &mut dummy_outgoing_control,
             &pending_op
-        ))?;
+        )?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
@@ -956,13 +956,13 @@ where
     // Second iteration (Attempt to queue failures created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
         assert!(ephemeral.liveness.is_online(&friend_public_key));
-        let _ = await!(append_failures_to_move_token(
+        let _ = append_failures_to_move_token(
             m_state,
             friend_public_key,
             pending_move_token,
             identity_client,
             rng
-        ));
+        );
     }
 
     // Send all pending move tokens:
