@@ -9,10 +9,10 @@ use crate::state::FunderMutation;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, ChannelerUpdateFriend, FriendStatus, FunderControl, FunderOutgoingControl,
-    ReceiptAck, RemoveFriend, ResetFriendChannel, ResponseReceived, ResponseSendFundsResult,
-    SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    UserRequestSendFunds,
+    AddFriend, ChannelerUpdateFriend, CreatePayment, FriendStatus, FunderControl,
+    FunderOutgoingControl, ReceiptAck, RemoveFriend, ResetFriendChannel, ResponseReceived,
+    ResponseSendFundsResult, SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt,
+    SetFriendStatus, SetRequestsStatus, UserRequestSendFunds,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -586,6 +586,17 @@ where
 }
 */
 
+fn control_create_payment<B>(
+    m_state: &mut MutableFunderState<B>,
+    create_payment: CreatePayment,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // TODO:
+    unimplemented!();
+}
+
 pub fn handle_control_message<B>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
@@ -660,7 +671,9 @@ where
         }
 
         // Buyer API:
-        FunderControl::CreatePayment(_create_payment) => unimplemented!(),
+        FunderControl::CreatePayment(create_payment) => {
+            control_create_payment(m_state, create_payment)
+        }
         FunderControl::CreateTransaction(_create_transaction) => unimplemented!(),
         FunderControl::RequestReceipt(_payment_id) => unimplemented!(),
         FunderControl::RemoveReceipt(_payment_id) => unimplemented!(),
