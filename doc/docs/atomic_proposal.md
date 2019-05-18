@@ -683,7 +683,8 @@ CreateTransaction [App -> Node]
 =================
 - paymentId
 - requestId
-- route + capacity + fees
+- route
+- fees
 - destPayment
 
 TransactionResult [Node -> App]
@@ -736,6 +737,7 @@ After a while:
 AddInvoice [App -> Node]
 ===========
 - invoiceId
+- totalDestPayment
 
 
 CancelInvoice [App -> Node]
