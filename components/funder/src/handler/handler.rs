@@ -191,7 +191,6 @@ where
     }
 
     // TODO: Sign all unsigned responses and then queue them as mutations
-
     await!(m_state.sign_responses(identity_client, rng));
 
     // Send all possible messages according to SendCommands

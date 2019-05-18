@@ -17,7 +17,7 @@ use identity::IdentityClient;
 
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
 use crate::types::{
-    create_pending_transaction, create_response_send_funds,
+    create_pending_transaction, 
     create_unsigned_move_token, sign_move_token, ChannelerConfig, create_cancel_send_funds,
 };
 

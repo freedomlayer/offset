@@ -16,7 +16,7 @@ use identity::IdentityClient;
 use crate::state::{FunderMutation, FunderState};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::friend::ChannelStatus;
+use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
 use crate::types::{
     create_response_send_funds, ChannelerConfig, FunderIncoming, FunderIncomingComm,
@@ -27,7 +27,6 @@ use crate::types::{
 pub struct SemiResponse {
     friend_public_key: PublicKey,
     pending_transaction: PendingTransaction,
-    dest_plain_lock: PlainLock,
 }
 
 pub struct MutableFunderState<B: Clone> {
@@ -57,12 +56,10 @@ where
         &mut self,
         friend_public_key: PublicKey,
         pending_transaction: PendingTransaction,
-        dest_plain_lock: PlainLock,
     ) {
         self.unsigned_responses.push(SemiResponse {
             friend_public_key,
             pending_transaction,
-            dest_plain_lock,
         });
     }
 
@@ -75,7 +72,7 @@ where
         &self.state
     }
 
-    /// Sign all unsigned responses
+    /// Sign all unsigned responses and apply them as mutations
     pub async fn sign_responses<'a, R>(
         &'a mut self,
         identity_client: &'a mut IdentityClient,
@@ -87,9 +84,12 @@ where
             let SemiResponse {
                 friend_public_key,
                 pending_transaction,
-                dest_plain_lock,
             } = semi_response;
 
+            // Randomly generate a dest plain lock:
+            let dest_plain_lock = PlainLock::new(rng);
+
+            // Mutation to push the new response:
             let rand_nonce = RandValue::new(rng);
             let response_send_funds = await!(create_response_send_funds(
                 &pending_transaction,
@@ -98,9 +98,14 @@ where
                 identity_client,
             ));
 
+            let backwards_op = BackwardsOp::Response(response_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(backwards_op);
+            let funder_mutation =
+                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            self.mutate(funder_mutation);
+
+            // Mutation to keep dest_plain_lock
             // TODO:
-            // - Apply mutation to keep dest_plain_lock
-            // - Apply Mutation to push the new response
             unimplemented!();
         }
     }
