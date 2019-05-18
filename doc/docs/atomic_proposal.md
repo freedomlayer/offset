@@ -672,30 +672,35 @@ use this implementation.
 ### Buyer interface
 
 ```markdown
-RequestPay [App -> Node]
-==========
-- requestId
+CreatePayment [App -> Node]
+=============
+- paymentId
 - invoiceId
-- destPayment
 - totalDestPayment
 - Destination public key
 
+CreateTransaction [App -> Node]
+=================
+- paymentId
+- requestId
+- route + capacity + fees
+- destPayment
 
-ResponsePay [Node -> App]
-===========
-- Commit or Cancellation
+TransactionResult [Node -> App]
+=================
+- Response or Cancellation
 
-
+<!--
 SendFunds [App -> Node]
 =========
 (Extra: non atomic payment form)
 - Destination public key
 - Amount of credits
-
+-->
 
 RequestReceipt [App -> Node]
 ==============
-- invoiceId
+- paymentId
 
 
 ResponseReceipt [Node -> App]
@@ -705,7 +710,7 @@ ResponseReceipt [Node -> App]
 
 RemoveReceipt [App -> Node]
 =============
-- invoiceId
+- paymentId
 
 ```
 
