@@ -698,6 +698,8 @@ fn ser_funder_report(
 fn deser_funder_report(
     funder_report_reader: &report_capnp::funder_report::Reader,
 ) -> Result<FunderReport, SerializeError> {
+    unimplemented!();
+    /*
     let mut named_relays = Vec::new();
     for named_relay_address in funder_report_reader.get_relays()? {
         named_relays.push(read_named_relay_address(&named_relay_address)?);
@@ -715,6 +717,7 @@ fn deser_funder_report(
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
     })
+    */
 }
 
 fn ser_add_friend_report(
@@ -965,6 +968,8 @@ fn ser_funder_report_mutation(
     funder_report_mutation: &FunderReportMutation,
     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder,
 ) {
+    unimplemented!();
+    /*
     match funder_report_mutation {
         FunderReportMutation::AddRelay(named_relay_address) => {
             write_named_relay_address(
@@ -1008,6 +1013,7 @@ fn ser_funder_report_mutation(
                 .set_set_num_ready_receipts(*num_ready_receipts);
         }
     }
+    */
 }
 
 fn deser_funder_report_mutation(

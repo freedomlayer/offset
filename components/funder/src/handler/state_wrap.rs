@@ -104,9 +104,13 @@ where
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             self.mutate(funder_mutation);
 
-            // Mutation to keep dest_plain_lock
-            // TODO:
-            unimplemented!();
+            // Mutation to add the destination plain lock:
+            let funder_mutation = FunderMutation::AddDestPlainLock((
+                pending_transaction.invoice_id,
+                pending_transaction.request_id,
+                dest_plain_lock,
+            ));
+            self.mutate(funder_mutation);
         }
     }
 

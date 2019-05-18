@@ -174,6 +174,8 @@ where
         local_public_key: funder_state.local_public_key.clone(),
         relays: funder_state.relays.clone(),
         friends,
+        num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
+        num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),
         num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
     }
 }
@@ -336,7 +338,7 @@ where
                 friend_public_key.clone(),
             )]
         }
-        FunderMutation::AddReceipt((_uid, _receipt)) => {
+        FunderMutation::AddReceipt(_) | FunderMutation::RemoveReceipt(_) => {
             if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
                 vec![FunderReportMutation::SetNumReadyReceipts(
                     usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
@@ -345,15 +347,16 @@ where
                 Vec::new()
             }
         }
-        FunderMutation::RemoveReceipt(_uid) => {
-            if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(
-                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
+        FunderMutation::AddInvoice(_) | FunderMutation::RemoveInvoice(_) => {
+            if funder_state_after.open_invoices.len() != funder_state.open_invoices.len() {
+                vec![FunderReportMutation::SetNumOpenInvoices(
+                    usize_to_u64(funder_state_after.open_invoices.len()).unwrap(),
                 )]
             } else {
                 Vec::new()
             }
         }
+        FunderMutation::AddDestPlainLock(_) => vec![],
     }
 }
 

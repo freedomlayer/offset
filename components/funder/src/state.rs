@@ -38,10 +38,21 @@ pub struct FunderState<B: Clone> {
 /// A local invoice in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenInvoice {
+    /// Total payment required to fulfill this invoice:
+    pub total_dest_payment: u128,
     /// Destination plain locks for all requests related to a single open invoice that was
     /// originated for this node.
     /// Multiple requests are possible for a single invoice in case of a multi-route payment.
     pub dest_plain_locks: ImHashMap<Uid, PlainLock>,
+}
+
+impl OpenInvoice {
+    pub fn new(total_dest_payment: u128) -> Self {
+        OpenInvoice {
+            total_dest_payment,
+            dest_plain_locks: ImHashMap::new(),
+        }
+    }
 }
 
 /// A local request (Originated from this node) in progress
@@ -61,6 +72,9 @@ pub enum FunderMutation<B: Clone> {
     RemoveFriend(PublicKey),
     AddReceipt((PaymentId, Receipt)),
     RemoveReceipt(PaymentId),
+    AddInvoice((InvoiceId, u128)), // (InvoiceId, total_dest_payment)
+    AddDestPlainLock((InvoiceId, Uid, PlainLock)), // InvoiceId, RequestId, dest_plain_lock
+    RemoveInvoice(InvoiceId),
 }
 
 impl<B> FunderState<B>
@@ -125,6 +139,19 @@ where
             }
             FunderMutation::RemoveReceipt(payment_id) => {
                 let _ = self.ready_receipts.remove(payment_id);
+            }
+            FunderMutation::AddInvoice((invoice_id, total_dest_payment)) => {
+                self.open_invoices
+                    .insert(invoice_id.clone(), OpenInvoice::new(*total_dest_payment));
+            }
+            FunderMutation::AddDestPlainLock((invoice_id, request_id, plain_lock)) => {
+                let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
+                open_invoice
+                    .dest_plain_locks
+                    .insert(request_id.clone(), plain_lock.clone());
+            }
+            FunderMutation::RemoveInvoice(invoice_id) => {
+                let _ = self.open_invoices.remove(invoice_id);
             }
         }
     }

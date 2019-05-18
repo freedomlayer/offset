@@ -175,6 +175,8 @@ where
     pub local_public_key: PublicKey,
     pub relays: ImVec<NamedRelayAddress<B>>,
     pub friends: ImHashMap<PublicKey, FriendReport<B>>,
+    pub num_open_invoices: u64,
+    pub num_open_transactions: u64,
     pub num_ready_receipts: u64,
 }
 
@@ -219,6 +221,8 @@ where
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<B>)),
+    SetNumOpenInvoices(u64),
+    SetNumOpenTransactions(u64),
     SetNumReadyReceipts(u64),
 }
 
@@ -375,6 +379,14 @@ where
             }
             FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
                 self.num_ready_receipts = *num_ready_receipts;
+                Ok(())
+            }
+            FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
+                self.num_open_invoices = *num_open_invoices;
+                Ok(())
+            }
+            FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {
+                self.num_open_transactions = *num_open_transactions;
                 Ok(())
             }
         }
