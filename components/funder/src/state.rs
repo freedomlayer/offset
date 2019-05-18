@@ -21,18 +21,28 @@ pub struct FunderState<B: Clone> {
     pub relays: ImVec<NamedRelayAddress<B>>,
     /// All configured friends and their state
     pub friends: ImHashMap<PublicKey, FriendState<B>>,
-    /// Locally issued invoices in progress.
-    // TODO: Add this part in the report? At least a counter of this hash set?
+    /// Locally issued invoices in progress (For which this node is the seller)
     pub open_invoices: ImHashMap<InvoiceId, OpenInvoice>,
-    /// Locally created transaction in progress. (This node is the buyer).
-    // TODO: Add this part in the report? At least a counter of this hash set?
+    /// Locally created transaction in progress. (For which this node is the buyer).
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
+    /// Ongoing payments (For which this node is the buyer):
+    pub open_payments: ImHashMap<PaymentId, OpenPayment>,
     /// Receipts of completed payments (Generated after a CollectSendFundsOp message was received
     /// successfuly).
     /// Note: We use our own randomly generated paymentId to represent a payment and not an
     /// InvoiceId. We do this to defend against possible collisions of InvoiceId values (Which
     /// are not locally generated).
     pub ready_receipts: ImHashMap<PaymentId, Receipt>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct OpenPayment {
+    /// Remote invoice id being paid
+    invoice_id: InvoiceId,
+    /// Total amount of credits we want to pay to seller.
+    total_dest_payment: u128,
+    /// Seller's public key:
+    destination_public_key: PublicKey,
 }
 
 /// A local invoice in progress
@@ -58,6 +68,7 @@ impl OpenInvoice {
 /// A local request (Originated from this node) in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenTransaction {
+    pub payment_id: PaymentId,
     /// The plain part of a hash lock for the generated transaction.
     pub src_plain_lock: PlainLock,
 }
@@ -91,6 +102,7 @@ where
             friends: ImHashMap::new(),
             open_invoices: ImHashMap::new(),
             open_transactions: ImHashMap::new(),
+            open_payments: ImHashMap::new(),
             ready_receipts: ImHashMap::new(),
         }
     }
