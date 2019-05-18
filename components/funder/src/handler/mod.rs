@@ -1,13 +1,14 @@
 #[allow(unused)]
 mod canceler;
-// #[allow(unused)]
-// mod handle_control;
+#[allow(unused)]
+mod handle_control;
 #[allow(unused)]
 mod handle_friend;
 #[allow(unused)]
 mod handle_init;
 #[allow(unused)]
 mod handle_liveness;
+// #[allow(unused)]
 // mod handler;
 #[allow(unused)]
 mod sender;

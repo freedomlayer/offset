@@ -429,6 +429,7 @@ fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) -> O
     Some(())
 }
 
+/*
 fn control_request_send_funds_inner<B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
@@ -583,6 +584,7 @@ where
 
     Ok(())
 }
+*/
 
 pub fn handle_control_message<B>(
     m_state: &mut MutableFunderState<B>,
@@ -657,15 +659,15 @@ where
             control_set_friend_name(m_state, set_friend_name)
         }
 
-        FunderControl::RequestSendFunds(user_request_send_funds) => control_request_send_funds(
-            m_state,
-            m_ephemeral.ephemeral(),
-            outgoing_control,
-            send_commands,
-            max_pending_user_requests,
-            user_request_send_funds,
-        ),
+        // Buyer API:
+        FunderControl::CreatePayment(_create_payment) => unimplemented!(),
+        FunderControl::CreateTransaction(_create_transaction) => unimplemented!(),
+        FunderControl::RequestReceipt(_payment_id) => unimplemented!(),
+        FunderControl::RemoveReceipt(_payment_id) => unimplemented!(),
 
-        FunderControl::ReceiptAck(receipt_ack) => control_receipt_ack(m_state, receipt_ack),
+        // Seller API:
+        FunderControl::AddInvoice(_invoice_id) => unimplemented!(),
+        FunderControl::CancelInvoice(invoice_id) => unimplemented!(),
+        FunderControl::CommitInvoice(_multi_commit) => unimplemented!(),
     }
 }
