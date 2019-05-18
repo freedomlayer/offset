@@ -30,7 +30,7 @@ pub struct FunderState<B: Clone> {
     /// Receipts of completed payments (Generated after a CommitSendFundsOp message was received
     /// successfuly).
     /// Note: We use our own randomly generated paymentId to represent a payment and not an
-    /// InvoiceId. This happens to defend against possible collisions of InvoiceId values (Which
+    /// InvoiceId. We do this to defend against possible collisions of InvoiceId values (Which
     /// are not locally generated).
     pub ready_receipts: ImHashMap<PaymentId, Receipt>,
 }

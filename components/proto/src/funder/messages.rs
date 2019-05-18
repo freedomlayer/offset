@@ -6,6 +6,7 @@ use crypto::hash::{self, HashResult};
 use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -84,7 +85,7 @@ pub struct CancelSendFundsOp {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct Confirmation<S> {
+pub struct Commit<S> {
     response_hash: HashResult,
     dest_payment: u128,
     src_plain_lock: PlainLock,
@@ -92,9 +93,9 @@ pub struct Confirmation<S> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct MultiConfirmation<S> {
+pub struct MultiCommit<S> {
     invoice_id: InvoiceId,
-    confirmations: Vec<Confirmation<S>>,
+    confirmations: Vec<Commit<S>>,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -440,10 +441,19 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
+/// A friend's route with known capacity
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FriendsRouteCapacity {
+    route: FriendsRoute,
+    capacity: u128,
+}
+
 /// A request to send funds that originates from the user
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserRequestSendFunds {
-    pub request_id: Uid,
+    /// payment_id is a randomly generated value (by the user), allowing the user to refer to a
+    /// certain payment.
+    pub payment_id: PaymentId,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
     pub dest_payment: u128,
@@ -467,8 +477,16 @@ pub enum FunderControl<B> {
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
+    // Buyer API:
+    RequestPay(()),
+    // SendFunds(()) // TODO: Extra
+    RequestReceipt(PaymentId),
+    RemoveReceipt(PaymentId),
+    // Seller API:
+    AddInvoice(InvoiceId),
+    CancelInvoice(InvoiceId),
+    // TODO: Possibly find a better name for this?
+    CommitInvoice(InvoiceId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -511,6 +529,7 @@ impl UserRequestSendFunds {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseSendFundsResult {
     Success(Receipt),
+    // TODO: Should we add more information to the failure here?
     Failure,
 }
 

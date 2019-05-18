@@ -17,10 +17,11 @@ use proto::funder::messages::{
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
-    cancel_local_pending_requests, cancel_pending_requests, cancel_pending_user_requests,
+    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
 };
-use crate::handler::handler::{is_friend_ready, MutableEphemeral, MutableFunderState};
 use crate::handler::sender::SendCommands;
+use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::utils::is_friend_ready;
 
 use crate::types::ChannelerConfig;
 
@@ -256,7 +257,7 @@ where
         &remove_friend.friend_public_key,
     );
 
-    cancel_local_pending_requests(
+    cancel_local_pending_transactions(
         m_state,
         send_commands,
         outgoing_control,
@@ -448,10 +449,10 @@ where
     if let Some(receipt) = m_state
         .state()
         .ready_receipts
-        .get(&user_request_send_funds.request_id)
+        .get(&user_request_send_funds.payment_id)
     {
         let response_received = ResponseReceived {
-            request_id: user_request_send_funds.request_id,
+            request_id: user_request_send_funds.payment_id,
             result: ResponseSendFundsResult::Success(receipt.clone()),
         };
         outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
@@ -482,10 +483,10 @@ where
         return Err(HandleControlError::FriendNotReady);
     }
 
-    // If request is already in progress, we do nothing:
-    // Check if there is already a pending user request with the same request_id:
+    // If payment is already in progress, we do nothing:
+    // Check if there is already a pending user payment with the same payment_id:
     for user_request in &friend.pending_user_requests {
-        if user_request_send_funds.request_id == user_request.request_id {
+        if user_request_send_funds.payment_id == user_request.request_id {
             return Err(HandleControlError::RequestAlreadyInProgress);
         }
     }
@@ -499,8 +500,8 @@ where
     if token_channel
         .get_mutual_credit()
         .state()
-        .pending_requests
-        .pending_local_requests
+        .pending_transactions
+        .local
         .contains_key(&user_request_send_funds.request_id)
     {
         return Err(HandleControlError::RequestAlreadyInProgress);
@@ -544,8 +545,8 @@ where
     ) {
         error!("control_request_send_funds_inner() failed: {:?}", e);
         let response_received = ResponseReceived {
-            request_id: user_request_send_funds.request_id,
-            result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+            request_id: user_request_send_funds.payment_id,
+            result: ResponseSendFundsResult::Failure,
         };
 
         outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));

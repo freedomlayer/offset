@@ -38,6 +38,8 @@ fn ser_user_request_send_funds(
     user_request_send_funds: &UserRequestSendFunds,
     user_request_send_funds_builder: &mut app_server_capnp::user_request_send_funds::Builder,
 ) {
+    unimplemented!();
+    /*
     write_uid(
         &user_request_send_funds.request_id,
         &mut user_request_send_funds_builder.reborrow().init_request_id(),
@@ -57,17 +59,21 @@ fn ser_user_request_send_funds(
         &user_request_send_funds.invoice_id,
         &mut user_request_send_funds_builder.reborrow().init_invoice_id(),
     );
+    */
 }
 
 fn deser_user_request_send_funds(
     user_request_send_funds_reader: &app_server_capnp::user_request_send_funds::Reader,
 ) -> Result<UserRequestSendFunds, SerializeError> {
+    unimplemented!();
+    /*
     Ok(UserRequestSendFunds {
         request_id: read_uid(&user_request_send_funds_reader.get_request_id()?)?,
         route: deser_friends_route(&user_request_send_funds_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&user_request_send_funds_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&user_request_send_funds_reader.get_invoice_id()?)?,
     })
+    */
 }
 
 fn ser_response_received(
