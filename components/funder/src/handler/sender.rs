@@ -485,7 +485,7 @@ where
             // We are the origin of this request
             let response_received = ResponseReceived {
                 request_id: request_send_funds.request_id,
-                result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+                result: ResponseSendFundsResult::Failure,
             };
             outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
         }

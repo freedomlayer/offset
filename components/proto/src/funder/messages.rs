@@ -511,7 +511,7 @@ impl UserRequestSendFunds {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseSendFundsResult {
     Success(Receipt),
-    Failure(PublicKey), // Reporting public key.
+    Failure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

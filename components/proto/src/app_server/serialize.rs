@@ -2,9 +2,10 @@ use std::io;
 
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_public_key, read_receipt, read_relay_address, read_signature,
-    read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
-    write_named_index_server_address, write_named_relay_address, write_public_key, write_receipt,
+    read_named_relay_address, read_public_key, /*read_receipt,*/ read_relay_address,
+    read_signature, read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
+    write_named_index_server_address, write_named_relay_address,
+    write_public_key, /*write_receipt,*/
     write_relay_address, write_signature, write_uid,
 };
 use capnp;
@@ -24,7 +25,7 @@ use index_server::serialize::{
 };
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, ResponseSendFundsResult,
+    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, /*ResponseSendFundsResult, */
     SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
@@ -73,6 +74,8 @@ fn ser_response_received(
     response_received: &ResponseReceived,
     response_received_builder: &mut app_server_capnp::response_received::Builder,
 ) {
+    unimplemented!();
+    /*
     write_uid(
         &response_received.request_id,
         &mut response_received_builder.reborrow().init_request_id(),
@@ -89,11 +92,14 @@ fn ser_response_received(
             write_public_key(public_key, &mut failure_builder);
         }
     };
+    */
 }
 
 fn deser_response_received(
     response_received_reader: &app_server_capnp::response_received::Reader,
 ) -> Result<ResponseReceived, SerializeError> {
+    unimplemented!();
+    /*
     let result = match response_received_reader.get_result().which()? {
         app_server_capnp::response_received::result::Success(receipt_reader) => {
             let receipt_reader = receipt_reader?;
@@ -109,6 +115,7 @@ fn deser_response_received(
         request_id: read_uid(&response_received_reader.get_request_id()?)?,
         result,
     })
+    */
 }
 
 fn ser_receipt_ack(

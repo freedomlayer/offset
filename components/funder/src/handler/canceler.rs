@@ -82,9 +82,7 @@ pub fn cancel_local_pending_transactions<B>(
                 // We send a cancel message through the control:
                 let response_received = ResponseReceived {
                     request_id: pending_local_transaction.request_id,
-                    result: ResponseSendFundsResult::Failure(
-                        m_state.state().local_public_key.clone(),
-                    ),
+                    result: ResponseSendFundsResult::Failure,
                 };
                 outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
             }
@@ -127,9 +125,7 @@ pub fn cancel_pending_requests<B>(
                 // We are the origin of this request:
                 let response_received = ResponseReceived {
                     request_id: pending_request.request_id,
-                    result: ResponseSendFundsResult::Failure(
-                        m_state.state().local_public_key.clone(),
-                    ),
+                    result: ResponseSendFundsResult::Failure,
                 };
                 outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
             }
@@ -156,7 +152,7 @@ pub fn cancel_pending_user_requests<B>(
         // We are the origin of this request:
         let response_received = ResponseReceived {
             request_id: pending_user_request.request_id,
-            result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
+            result: ResponseSendFundsResult::Failure,
         };
         outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
     }

@@ -7,7 +7,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
-use proto::funder::messages::FunderOutgoingControl;
+use proto::funder::messages::{FunderOutgoingControl, PendingTransaction};
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 
 use identity::IdentityClient;
@@ -25,7 +25,7 @@ use crate::types::{
 pub struct MutableFunderState<B: Clone> {
     initial_state: FunderState<B>,
     state: FunderState<B>,
-    unsigned_responses: Vec<UnsignedResponseSendFundsOp>,
+    unsigned_responses: Vec<PendingTransaction>,
     mutations: Vec<FunderMutation<B>>,
 }
 
@@ -45,8 +45,8 @@ where
     /// Push an unsigned response operation.
     /// We have a separate queue for these operations because we need an async function call to
     /// sign an unsigned response.
-    pub fn queue_unsigned_response(&mut self, u_response_send_funds: UnsignedResponseSendFundsOp) {
-        self.unsigned_responses.push(u_response_send_funds);
+    pub fn queue_unsigned_response(&mut self, pending_transaction: PendingTransaction) {
+        self.unsigned_responses.push(pending_transaction);
     }
 
     pub fn mutate(&mut self, mutation: FunderMutation<B>) {

@@ -6,34 +6,34 @@ use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerUpdateFriend, FailureSendFunds, FriendMessage, FunderOutgoingControl,
-    MoveTokenRequest, PendingRequest, RequestSendFunds, ResetTerms, ResponseReceived,
-    ResponseSendFunds, ResponseSendFundsResult,
+    CancelSendFundsOp, ChannelerUpdateFriend, CommitSendFundsOp, FriendMessage,
+    FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestSendFundsOp, ResetTerms,
+    ResponseReceived, ResponseSendFundsOp, ResponseSendFundsResult,
 };
-use proto::funder::signature_buff::{prepare_receipt, verify_move_token};
+use proto::funder::signature_buff::verify_move_token;
 
 use crate::mutual_credit::incoming::{
-    IncomingFailureSendFunds, IncomingMessage, IncomingResponseSendFunds,
+    IncomingCancelSendFundsOp, IncomingCommitSendFundsOp, IncomingMessage,
+    IncomingResponseSendFundsOp,
 };
 use crate::token_channel::{MoveTokenReceived, ReceiveMoveTokenOutput, TokenChannel};
 
-use crate::types::{create_pending_request, ChannelerConfig};
+use crate::types::{create_pending_transaction, ChannelerConfig};
 
 use crate::friend::{
-    ChannelInconsistent, ChannelStatus, FriendMutation, ResponseOp, SentLocalRelays,
+    BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
 use crate::state::FunderMutation;
 
 use crate::ephemeral::Ephemeral;
 
 use crate::handler::canceler::{
-    cancel_local_pending_requests, cancel_pending_requests, cancel_pending_user_requests,
-    reply_with_failure,
-};
-use crate::handler::handler::{
-    find_request_origin, is_friend_ready, MutableEphemeral, MutableFunderState,
+    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
+    reply_with_cancel,
 };
 use crate::handler::sender::SendCommands;
+use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::utils::{find_request_origin, is_friend_ready};
 
 #[derive(Debug)]
 pub enum HandleFriendError {
@@ -120,7 +120,7 @@ pub fn try_reset_channel<B>(
 fn forward_request<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    request_send_funds: RequestSendFunds,
+    request_send_funds: RequestSendFundsOp,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
@@ -144,7 +144,7 @@ fn handle_request_send_funds<B>(
     ephemeral: &Ephemeral,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
-    request_send_funds: RequestSendFunds,
+    request_send_funds: RequestSendFundsOp,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
@@ -158,12 +158,15 @@ fn handle_request_send_funds<B>(
     let next_index = local_index.checked_add(1).unwrap();
     if next_index >= request_send_funds.route.len() {
         // We are the destination of this request. We return a response:
-        let pending_request = create_pending_request(&request_send_funds);
-        let u_response_op = ResponseOp::UnsignedResponse(pending_request);
+        let pending_transaction = create_pending_transaction(&request_send_funds);
+        m_state.queue_unsigned_response(pending_transaction);
+        /*
+        let u_response_op = BackwardsOp::UnsignedResponse(pending_transaction);
         let friend_mutation = FriendMutation::PushBackPendingResponse(u_response_op);
         let funder_mutation =
-            FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
+           FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
+        */
         send_commands.set_try_send(&remote_public_key);
         return;
     }
@@ -182,7 +185,7 @@ fn handle_request_send_funds<B>(
     };
 
     if !friend_ready {
-        reply_with_failure(
+        reply_with_cancel(
             m_state,
             send_commands,
             remote_public_key,
@@ -199,31 +202,35 @@ fn handle_response_send_funds<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    response_send_funds: ResponseSendFunds,
-    pending_request: PendingRequest,
+    response_send_funds: ResponseSendFundsOp,
+    pending_transaction: PendingTransaction,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     match find_request_origin(m_state.state(), &response_send_funds.request_id).cloned() {
         None => {
+            unimplemented!();
+            /*
             // We are the origin of this request, and we got a response.
             // We provide a receipt to the user:
-            let receipt = prepare_receipt(&response_send_funds, &pending_request);
+            let receipt = prepare_receipt(&response_send_funds, &pending_transaction);
 
             let response_send_funds_result = ResponseSendFundsResult::Success(receipt.clone());
             outgoing_control.push(FunderOutgoingControl::ResponseReceived(ResponseReceived {
-                request_id: pending_request.request_id,
+                request_id: pending_transaction.request_id,
                 result: response_send_funds_result,
             }));
             // We make our own copy of the receipt, in case the user abruptly crashes.
             // In that case the user will be able to obtain the receipt again later.
-            let funder_mutation = FunderMutation::AddReceipt((pending_request.request_id, receipt));
+            let funder_mutation =
+                FunderMutation::AddReceipt((pending_transaction.request_id, receipt));
             m_state.mutate(funder_mutation);
+            */
         }
         Some(friend_public_key) => {
             // Queue this response message to another token channel:
-            let response_op = ResponseOp::Response(response_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingResponse(response_op);
+            let response_op = BackwardsOp::Response(response_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(response_op);
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -233,31 +240,30 @@ fn handle_response_send_funds<B>(
     }
 }
 
-fn handle_failure_send_funds<B>(
+fn handle_cancel_send_funds<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    failure_send_funds: FailureSendFunds,
-    pending_request: PendingRequest,
+    cancel_send_funds: CancelSendFundsOp,
+    pending_transaction: PendingTransaction,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    match find_request_origin(m_state.state(), &failure_send_funds.request_id).cloned() {
+    match find_request_origin(m_state.state(), &cancel_send_funds.request_id).cloned() {
         None => {
-            // We are the origin of this request, and we got a failure
+            // We are the origin of this request, and we got a cancellation.
             // We should pass it back to encryptor.
 
-            let response_send_funds_result =
-                ResponseSendFundsResult::Failure(failure_send_funds.reporting_public_key);
+            let response_send_funds_result = ResponseSendFundsResult::Failure;
             outgoing_control.push(FunderOutgoingControl::ResponseReceived(ResponseReceived {
-                request_id: pending_request.request_id,
+                request_id: pending_transaction.request_id,
                 result: response_send_funds_result,
             }));
         }
         Some(friend_public_key) => {
             // Queue this failure message to another token channel:
-            let failure_op = ResponseOp::Failure(failure_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingResponse(failure_op);
+            let failure_op = BackwardsOp::Cancel(cancel_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(failure_op);
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -265,6 +271,18 @@ fn handle_failure_send_funds<B>(
             send_commands.set_try_send(&friend_public_key);
         }
     };
+}
+
+fn handle_commit_send_funds<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    commit_send_funds: CommitSendFundsOp,
+    pending_transaction: PendingTransaction,
+) where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    unimplemented!();
 }
 
 /// Process valid incoming operations from remote side.
@@ -289,8 +307,8 @@ fn handle_move_token_output<B>(
                     request_send_funds,
                 );
             }
-            IncomingMessage::Response(IncomingResponseSendFunds {
-                pending_request,
+            IncomingMessage::Response(IncomingResponseSendFundsOp {
+                pending_transaction,
                 incoming_response,
             }) => {
                 handle_response_send_funds(
@@ -298,19 +316,31 @@ fn handle_move_token_output<B>(
                     send_commands,
                     outgoing_control,
                     incoming_response,
-                    pending_request,
+                    pending_transaction,
                 );
             }
-            IncomingMessage::Failure(IncomingFailureSendFunds {
-                pending_request,
-                incoming_failure,
+            IncomingMessage::Cancel(IncomingCancelSendFundsOp {
+                pending_transaction,
+                incoming_cancel,
             }) => {
-                handle_failure_send_funds(
+                handle_cancel_send_funds(
                     m_state,
                     send_commands,
                     outgoing_control,
-                    incoming_failure,
-                    pending_request,
+                    incoming_cancel,
+                    pending_transaction,
+                );
+            }
+            IncomingMessage::Commit(IncomingCommitSendFundsOp {
+                pending_transaction,
+                incoming_commit,
+            }) => {
+                handle_commit_send_funds(
+                    m_state,
+                    send_commands,
+                    outgoing_control,
+                    incoming_commit,
+                    pending_transaction,
                 );
             }
         }
@@ -338,7 +368,7 @@ fn handle_move_token_error<B, R>(
     let local_reset_terms = gen_reset_terms(&token_channel, rng);
 
     // Cancel all internal pending requests inside token channel:
-    cancel_local_pending_requests(m_state, send_commands, outgoing_control, remote_public_key);
+    cancel_local_pending_transactions(m_state, send_commands, outgoing_control, remote_public_key);
     // Cancel all pending requests to this friend:
     cancel_pending_requests(m_state, send_commands, outgoing_control, remote_public_key);
     cancel_pending_user_requests(m_state, outgoing_control, remote_public_key);
