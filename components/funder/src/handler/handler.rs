@@ -190,6 +190,9 @@ where
         outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
+    // TODO: Sign all unsigned responses and then queue them as mutations
+    assert!(false);
+
     // Send all possible messages according to SendCommands
     // TODO: Maybe we should output outgoing_comms instead of friend_messages and
     // outgoing_channeler_config. When we merge the two, we might be out of order!
