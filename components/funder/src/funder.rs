@@ -109,6 +109,9 @@ where
             }
         };
 
+        // TODO: Sign all unsigned responses and then queue them as mutations
+        assert!(false);
+
         if !handler_output.funder_mutations.is_empty() {
             // Mutate our funder_state in memory:
             for mutation in &handler_output.funder_mutations {
@@ -123,6 +126,7 @@ where
         for mutation in &handler_output.ephemeral_mutations {
             ephemeral.mutate(mutation);
         }
+
 
         // Send outgoing communication messages:
         let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
