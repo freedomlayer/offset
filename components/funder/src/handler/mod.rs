@@ -4,7 +4,8 @@ mod canceler;
 // mod handle_friend;
 #[allow(unused)]
 mod handle_init;
-// mod handle_liveness;
+#[allow(unused)]
+mod handle_liveness;
 // mod handler;
 #[allow(unused)]
 mod sender;
