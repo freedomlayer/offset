@@ -41,14 +41,14 @@ pub struct OpenInvoice {
     /// Destination plain locks for all requests related to a single open invoice that was
     /// originated for this node.
     /// Multiple requests are possible for a single invoice in case of a multi-route payment.
-    dest_plain_locks: ImHashMap<Uid, PlainLock>,
+    pub dest_plain_locks: ImHashMap<Uid, PlainLock>,
 }
 
 /// A local request (Originated from this node) in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenTransaction {
     /// The plain part of a hash lock for the generated transaction.
-    src_plain_lock: PlainLock,
+    pub src_plain_lock: PlainLock,
 }
 
 #[allow(clippy::large_enum_variant)]

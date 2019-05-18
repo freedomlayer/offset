@@ -191,7 +191,8 @@ where
     }
 
     // TODO: Sign all unsigned responses and then queue them as mutations
-    assert!(false);
+
+    await!(m_state.sign_responses(identity_client, rng));
 
     // Send all possible messages according to SendCommands
     // TODO: Maybe we should output outgoing_comms instead of friend_messages and
@@ -214,9 +215,11 @@ where
         outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));
     }
 
-    // Add reports:
-    let (initial_state, funder_mutations, _state) = m_state.done();
+    // Sign all unsigned responses (Async):
+    let (initial_state, funder_mutations, state) = m_state.done();
     let (ephemeral_mutations, _ephemeral) = m_ephemeral.done();
+
+    // Add reports:
     let report_mutations = create_report_mutations(
         initial_state,
         &funder_mutations[..],

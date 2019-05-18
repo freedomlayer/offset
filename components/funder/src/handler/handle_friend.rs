@@ -2,6 +2,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use std::fmt::Debug;
 
 use crypto::crypto_rand::CryptoRandom;
+use crypto::hash_lock::PlainLock;
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
 use proto::app_server::messages::RelayAddress;
@@ -139,13 +140,15 @@ fn forward_request<B>(
     send_commands.set_try_send(&next_pk);
 }
 
-fn handle_request_send_funds<B>(
+fn handle_request_send_funds<R, B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
     request_send_funds: RequestSendFundsOp,
+    rng: &R,
 ) where
+    R: CryptoRandom,
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     // Find ourselves on the route. If we are not there, abort.
@@ -159,7 +162,12 @@ fn handle_request_send_funds<B>(
     if next_index >= request_send_funds.route.len() {
         // We are the destination of this request. We return a response:
         let pending_transaction = create_pending_transaction(&request_send_funds);
-        m_state.queue_unsigned_response(pending_transaction);
+        let dest_plain_lock = PlainLock::new(rng);
+        m_state.queue_unsigned_response(
+            remote_public_key.clone(),
+            pending_transaction,
+            dest_plain_lock,
+        );
         /*
         let u_response_op = BackwardsOp::UnsignedResponse(pending_transaction);
         let friend_mutation = FriendMutation::PushBackPendingResponse(u_response_op);
@@ -286,14 +294,16 @@ fn handle_collect_send_funds<B>(
 }
 
 /// Process valid incoming operations from remote side.
-fn handle_move_token_output<B>(
+fn handle_move_token_output<R, B>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     remote_public_key: &PublicKey,
     incoming_messages: Vec<IncomingMessage>,
+    rng: &R,
 ) where
+    R: CryptoRandom,
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     for incoming_message in incoming_messages {
@@ -305,6 +315,7 @@ fn handle_move_token_output<B>(
                     send_commands,
                     remote_public_key,
                     request_send_funds,
+                    rng,
                 );
             }
             IncomingMessage::Response(IncomingResponseSendFundsOp {
@@ -387,7 +398,7 @@ fn handle_move_token_error<B, R>(
 }
 
 /// Handle success with incoming move token.
-fn handle_move_token_success<B>(
+fn handle_move_token_success<R, B>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
@@ -396,7 +407,9 @@ fn handle_move_token_success<B>(
     remote_public_key: &PublicKey,
     receive_move_token_output: ReceiveMoveTokenOutput<B>,
     token_wanted: bool,
+    rng: &R,
 ) where
+    R: CryptoRandom,
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     match receive_move_token_output {
@@ -497,6 +510,7 @@ fn handle_move_token_success<B>(
                 outgoing_control,
                 remote_public_key,
                 incoming_messages,
+                rng,
             );
         }
     }
@@ -556,6 +570,7 @@ where
                 remote_public_key,
                 receive_move_token_output,
                 token_wanted,
+                rng,
             );
         }
         Err(_receive_move_token_error) => {
