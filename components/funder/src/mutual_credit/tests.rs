@@ -134,6 +134,7 @@ fn test_request_response_collect_send_funds() {
         src_hashed_lock: src_plain_lock.hash(),
         route,
         dest_payment: 10,
+        total_dest_payment: 10,
         invoice_id,
         left_fees: 5,
     };
@@ -241,6 +242,7 @@ fn test_request_cancel_send_funds() {
         src_hashed_lock: src_plain_lock.hash(),
         route,
         dest_payment: 10,
+        total_dest_payment: 10,
         invoice_id,
         left_fees: 5,
     };
@@ -315,6 +317,7 @@ fn test_request_response_cancel_send_funds() {
         src_hashed_lock: src_plain_lock.hash(),
         route,
         dest_payment: 10,
+        total_dest_payment: 10,
         invoice_id,
         left_fees: 5,
     };

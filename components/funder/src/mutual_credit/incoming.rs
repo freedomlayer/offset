@@ -66,6 +66,7 @@ pub enum ProcessOperationError {
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
     NotExpectingCollect,
+    DestPaymentExceedsTotal,
 }
 
 #[derive(Debug)]
@@ -185,6 +186,10 @@ fn process_request_send_funds(
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     if !request_send_funds.route.is_valid() {
         return Err(ProcessOperationError::InvalidRoute);
+    }
+
+    if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
+        return Err(ProcessOperationError::DestPaymentExceedsTotal);
     }
 
     // Find ourselves (And remote side) on the route. If we are not there, abort.

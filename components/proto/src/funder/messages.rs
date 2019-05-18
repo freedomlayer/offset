@@ -67,6 +67,7 @@ pub struct RequestSendFundsOp {
     pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub invoice_id: InvoiceId,
     pub left_fees: u128,
 }
@@ -163,6 +164,7 @@ pub struct Receipt {
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub signature: Signature,
     // Signature{key=recipientKey}(
     //   "FUND_SUCCESS" ||
@@ -183,6 +185,7 @@ pub struct PendingTransaction {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub invoice_id: InvoiceId,
     pub left_fees: u128,
     pub src_hashed_lock: HashedLock,

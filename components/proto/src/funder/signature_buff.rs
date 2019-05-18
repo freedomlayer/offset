@@ -32,6 +32,9 @@ pub fn create_response_signature_buffer<S>(
     sbuffer
         .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
+    sbuffer
+        .write_u128::<BigEndian>(pending_transaction.total_dest_payment)
+        .unwrap();
     sbuffer.extend_from_slice(&pending_transaction.invoice_id);
 
     sbuffer
@@ -67,6 +70,8 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.extend_from_slice(&receipt.src_plain_lock.hash());
     data.extend_from_slice(&receipt.dest_plain_lock.hash());
     data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(receipt.total_dest_payment)
+        .unwrap();
     data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
 }

@@ -88,6 +88,7 @@ pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> Pe
         request_id: request_send_funds.request_id,
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
+        total_dest_payment: request_send_funds.total_dest_payment,
         invoice_id: request_send_funds.invoice_id.clone(),
         left_fees: request_send_funds.left_fees,
         src_hashed_lock: request_send_funds.src_hashed_lock.clone(),

@@ -34,6 +34,7 @@ pub enum QueueOperationError {
     NotExpectingCollect,
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
+    DestPaymentExceedsTotal,
 }
 
 /// A wrapper over a token channel, accumulating funds to be sent as one transaction.
@@ -110,6 +111,10 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         if !request_send_funds.route.is_valid() {
             return Err(QueueOperationError::InvalidRoute);
+        }
+
+        if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
+            return Err(QueueOperationError::DestPaymentExceedsTotal);
         }
 
         // Find ourselves on the route. If we are not there, abort.
