@@ -451,8 +451,6 @@ struct FriendsRouteCapacity {
 /// A request to send funds that originates from the user
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserRequestSendFunds {
-    /// payment_id is a randomly generated value (by the user), allowing the user to refer to a
-    /// certain payment.
     pub payment_id: PaymentId,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
@@ -463,6 +461,39 @@ pub struct UserRequestSendFunds {
 pub struct ReceiptAck {
     pub request_id: Uid,
     pub receipt_signature: Signature,
+}
+
+/// Start a payment, possibly by paying through multiple routes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatePayment {
+    /// payment_id is a randomly generated value (by the user), allowing the user to refer to a
+    /// certain payment.
+    pub payment_id: PaymentId,
+    pub invoice_id: InvoiceId,
+    pub total_dest_payment: u128,
+    pub dest_public_key: PublicKey,
+}
+
+/// Start a payment, possibly by paying through multiple routes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateTransaction {
+    /// A payment id of an existing payment.
+    pub payment_id: PaymentId,
+    /// Randomly generated request_id (by the user),
+    /// allows the user to refer to this request later.
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub dest_payment: u128,
+    pub fees: u128,
+}
+
+/// Start an invoice (A request for payment).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddInvoice {
+    /// Randomly generated invoice_id, allows to refer to this invoice.
+    invoice_id: InvoiceId,
+    /// Total amount of credits to be paid.
+    total_dest_payment: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -478,14 +509,13 @@ pub enum FunderControl<B> {
     SetFriendName(SetFriendName),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
-    RequestPay(()),
-    // SendFunds(()) // TODO: Extra
+    CreatePayment(CreatePayment),
+    CreateTransaction(CreateTransaction), // TODO
     RequestReceipt(PaymentId),
     RemoveReceipt(PaymentId),
     // Seller API:
     AddInvoice(InvoiceId),
     CancelInvoice(InvoiceId),
-    // TODO: Possibly find a better name for this?
     CommitInvoice(InvoiceId),
 }
 
