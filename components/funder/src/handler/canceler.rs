@@ -3,53 +3,30 @@ use crypto::identity::PublicKey;
 use std::fmt::Debug;
 
 use proto::funder::messages::{
-    FunderOutgoingControl, RequestSendFunds, ResponseReceived, ResponseSendFundsResult,
+    FunderOutgoingControl, RequestSendFundsOp, ResponseReceived, ResponseSendFundsResult,
 };
 
-use crate::handler::handler::{find_request_origin, MutableFunderState};
 use crate::handler::sender::SendCommands;
+use crate::handler::state_wrap::MutableFunderState;
+use crate::handler::utils::find_request_origin;
 
-use crate::friend::{ChannelStatus, FriendMutation, ResponseOp};
+use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::state::FunderMutation;
-use crate::types::create_pending_request;
+use crate::types::{create_cancel_send_funds, create_pending_transaction};
 
-/*
-A: CanonicalSerialize + Clone + Debug + PartialEq + Eq + 'static,
-R: CryptoRandom + 'static,
-*/
-
-/*
-/// Create a (signed) failure message for a given request_id.
-/// We are the reporting_public_key for this failure message.
-pub fn create_unsigned_failure_message(&self, pending_local_request: &PendingRequest)
-    -> UnsignedFailureSendFunds {
-
-    let rand_nonce = RandValue::new(&self.rng);
-    let local_public_key = self.state.local_public_key.clone();
-
-    let mut u_failure_send_funds = UnsignedFailureSendFunds {
-        request_id: pending_local_request.request_id.clone(),
-        reporting_public_key: local_public_key.clone(),
-        rand_nonce,
-        signature: (),
-    };
-
-    u_failure_send_funds
-}
-*/
-
-/// Reply to a request message with failure.
-pub fn reply_with_failure<B>(
+/// Reply to a request message with a cancellation.
+pub fn reply_with_cancel<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
-    request_send_funds: &RequestSendFunds,
+    request_send_funds: &RequestSendFundsOp,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    let pending_request = create_pending_request(request_send_funds);
-    let u_failure_op = ResponseOp::UnsignedFailure(pending_request);
-    let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+    let pending_local_transaction = create_pending_transaction(request_send_funds);
+    let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+    let friend_mutation =
+        FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Cancel(cancel_send_funds));
     let funder_mutation =
         FunderMutation::FriendMutation((remote_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -58,7 +35,7 @@ pub fn reply_with_failure<B>(
 
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
 /// communicated to the remote side).
-pub fn cancel_local_pending_requests<B>(
+pub fn cancel_local_pending_transactions<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
@@ -76,23 +53,25 @@ pub fn cancel_local_pending_requests<B>(
     // Mark all pending requests to this friend as errors.
     // As the token channel is being reset, we can be sure we will never obtain a response
     // for those requests.
-    let pending_local_requests = token_channel
+    let pending_local_transactions = token_channel
         .get_mutual_credit()
         .state()
-        .pending_requests
-        .pending_local_requests
+        .pending_transactions
+        .local
         .clone();
 
     // Prepare a list of all remote requests that we need to cancel:
-    for (local_request_id, pending_local_request) in pending_local_requests {
+    for (local_request_id, pending_local_transaction) in pending_local_transactions {
         let opt_origin_public_key =
             find_request_origin(m_state.state(), &local_request_id).cloned();
         match opt_origin_public_key {
             Some(origin_public_key) => {
                 // We have found the friend that is the origin of this request.
-                // We send him a failure message.
-                let u_failure_op = ResponseOp::UnsignedFailure(pending_local_request);
-                let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+                // We send him a cancel message.
+                let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+                let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
+                    BackwardsOp::Cancel(cancel_send_funds),
+                );
                 let funder_mutation =
                     FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                 m_state.mutate(funder_mutation);
@@ -100,9 +79,9 @@ pub fn cancel_local_pending_requests<B>(
             }
             None => {
                 // We are the origin of this request.
-                // We send a failure response through the control:
+                // We send a cancel message through the control:
                 let response_received = ResponseReceived {
-                    request_id: pending_local_request.request_id,
+                    request_id: pending_local_transaction.request_id,
                     result: ResponseSendFundsResult::Failure(
                         m_state.state().local_public_key.clone(),
                     ),
@@ -134,9 +113,11 @@ pub fn cancel_pending_requests<B>(
             find_request_origin(m_state.state(), &pending_request.request_id).cloned();
         match opt_origin_public_key {
             Some(origin_public_key) => {
-                let local_pending_request = create_pending_request(&pending_request);
-                let u_failure_op = ResponseOp::UnsignedFailure(local_pending_request);
-                let friend_mutation = FriendMutation::PushBackPendingResponse(u_failure_op);
+                let pending_local_transaction = create_pending_transaction(&pending_request);
+                let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+                let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
+                    BackwardsOp::Cancel(cancel_send_funds),
+                );
                 let funder_mutation =
                     FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
                 m_state.mutate(funder_mutation);
