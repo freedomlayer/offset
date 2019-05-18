@@ -8,8 +8,8 @@ mod handle_friend;
 mod handle_init;
 #[allow(unused)]
 mod handle_liveness;
-// #[allow(unused)]
-// mod handler;
+#[allow(unused)]
+mod handler;
 #[allow(unused)]
 mod sender;
 #[allow(unused)]
@@ -20,4 +20,4 @@ mod utils;
 // #[cfg(test)]
 // mod tests;
 
-// pub use self::handler::{funder_handle_message, FunderHandlerError};
+pub use self::handler::{funder_handle_message, FunderHandlerError};
