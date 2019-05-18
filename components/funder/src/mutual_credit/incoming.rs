@@ -4,7 +4,7 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
@@ -26,9 +26,9 @@ pub struct IncomingCancelSendFundsOp {
 }
 
 #[derive(Debug)]
-pub struct IncomingCommitSendFundsOp {
+pub struct IncomingCollectSendFundsOp {
     pub pending_transaction: PendingTransaction,
-    pub incoming_commit: CommitSendFundsOp,
+    pub incoming_collect: CollectSendFundsOp,
 }
 
 #[derive(Debug)]
@@ -36,7 +36,7 @@ pub enum IncomingMessage {
     Request(RequestSendFundsOp),
     Response(IncomingResponseSendFundsOp),
     Cancel(IncomingCancelSendFundsOp),
-    Commit(IncomingCommitSendFundsOp),
+    Collect(IncomingCollectSendFundsOp),
 }
 
 /// Resulting tasks to perform after processing an incoming operation.
@@ -65,7 +65,7 @@ pub enum ProcessOperationError {
     NotExpectingResponse,
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
-    NotExpectingCommit,
+    NotExpectingCollect,
 }
 
 #[derive(Debug)]
@@ -118,8 +118,8 @@ pub fn process_operation(
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
             process_cancel_send_funds(mutual_credit, cancel_send_funds)
         }
-        FriendTcOp::CommitSendFunds(commit_send_funds) => {
-            process_commit_send_funds(mutual_credit, commit_send_funds)
+        FriendTcOp::CollectSendFunds(collect_send_funds) => {
+            process_collect_send_funds(mutual_credit, collect_send_funds)
         }
     }
 }
@@ -390,9 +390,9 @@ fn process_cancel_send_funds(
     })
 }
 
-fn process_commit_send_funds(
+fn process_collect_send_funds(
     mutual_credit: &mut MutualCredit,
-    commit_send_funds: CommitSendFundsOp,
+    collect_send_funds: CollectSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
@@ -401,21 +401,21 @@ fn process_commit_send_funds(
     // Obtain pending request:
     // TODO: Possibly get rid of clone() here for optimization later
     let pending_transaction = local_pending_transactions
-        .get(&commit_send_funds.request_id)
+        .get(&collect_send_funds.request_id)
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
     let dest_hashed_lock = match &pending_transaction.stage {
         TransactionStage::Response(dest_hashed_lock) => dest_hashed_lock,
-        _ => return Err(ProcessOperationError::NotExpectingCommit),
+        _ => return Err(ProcessOperationError::NotExpectingCollect),
     };
 
     // Verify src_plain_lock and dest_plain_lock:
-    if commit_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+    if collect_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
         return Err(ProcessOperationError::InvalidSrcPlainLock);
     }
 
-    if commit_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+    if collect_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
         return Err(ProcessOperationError::InvalidDestPlainLock);
     }
 
@@ -430,7 +430,7 @@ fn process_commit_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(commit_send_funds.request_id);
+    let mc_mutation = McMutation::RemoveLocalPendingTransaction(collect_send_funds.request_id);
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 
@@ -457,9 +457,9 @@ fn process_commit_send_funds(
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 
-    let incoming_message = Some(IncomingMessage::Commit(IncomingCommitSendFundsOp {
+    let incoming_message = Some(IncomingMessage::Collect(IncomingCollectSendFundsOp {
         pending_transaction,
-        incoming_commit: commit_send_funds,
+        incoming_collect: collect_send_funds,
     }));
 
     Ok(ProcessOperationOutput {

@@ -10,7 +10,7 @@ use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
@@ -95,7 +95,7 @@ fn test_outgoing_set_remote_max_debt() {
 }
 
 #[test]
-fn test_request_response_commit_send_funds() {
+fn test_request_response_collect_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
     let remote_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
     let balance = 0;
@@ -179,9 +179,9 @@ fn test_request_response_commit_send_funds() {
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
-    // -----[CommitSendFunds]--------
+    // -----[CollectSendFunds]--------
     // --------------------------------
-    let commit_send_funds = CommitSendFundsOp {
+    let collect_send_funds = CollectSendFundsOp {
         request_id,
         src_plain_lock,
         dest_plain_lock,
@@ -189,7 +189,7 @@ fn test_request_response_commit_send_funds() {
 
     apply_incoming(
         &mut mutual_credit,
-        FriendTcOp::CommitSendFunds(commit_send_funds),
+        FriendTcOp::CollectSendFunds(collect_send_funds),
     )
     .unwrap();
 

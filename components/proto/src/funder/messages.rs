@@ -99,7 +99,7 @@ pub struct MultiCommit<S> {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CommitSendFundsOp {
+pub struct CollectSendFundsOp {
     pub request_id: Uid,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
@@ -113,7 +113,7 @@ pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
-    CommitSendFunds(CommitSendFundsOp),
+    CollectSendFunds(CollectSendFundsOp),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -228,7 +228,7 @@ impl CanonicalSerialize for CancelSendFundsOp {
     }
 }
 
-impl CanonicalSerialize for CommitSendFundsOp {
+impl CanonicalSerialize for CollectSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
@@ -264,7 +264,7 @@ impl CanonicalSerialize for FriendTcOp {
                 res_bytes.push(5u8);
                 res_bytes.append(&mut cancel_send_funds.canonical_serialize())
             }
-            FriendTcOp::CommitSendFunds(commit_send_funds) => {
+            FriendTcOp::CollectSendFunds(commit_send_funds) => {
                 res_bytes.push(6u8);
                 res_bytes.append(&mut commit_send_funds.canonical_serialize())
             }

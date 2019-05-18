@@ -9,7 +9,7 @@ use common::safe_arithmetic::SafeUnsignedArithmetic;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    CancelSendFundsOp, CommitSendFundsOp, FriendStatus, PendingTransaction, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendStatus, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResetTerms, ResponseSendFundsOp,
 };
 
@@ -23,7 +23,7 @@ pub enum BackwardsOp {
     // /// A response that was not yet signed (Signing requires an async call)
     // UnsignedResponse((PendingTransaction, PlainLock)),
     Cancel(CancelSendFundsOp),
-    Commit(CommitSendFundsOp),
+    Collect(CollectSendFundsOp),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

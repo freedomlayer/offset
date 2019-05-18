@@ -4,7 +4,7 @@ use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CommitSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
@@ -31,7 +31,7 @@ pub enum QueueOperationError {
     InvalidResponseSignature,
     RemoteRequestsClosed,
     NotExpectingResponse,
-    NotExpectingCommit,
+    NotExpectingCollect,
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
 }
@@ -64,8 +64,8 @@ impl OutgoingMc {
             FriendTcOp::CancelSendFunds(cancel_send_funds) => {
                 self.queue_cancel_send_funds(cancel_send_funds)
             }
-            FriendTcOp::CommitSendFunds(commit_send_funds) => {
-                self.queue_commit_send_funds(commit_send_funds)
+            FriendTcOp::CollectSendFunds(collect_send_funds) => {
+                self.queue_collect_send_funds(collect_send_funds)
             }
         }
     }
@@ -267,9 +267,9 @@ impl OutgoingMc {
         Ok(mc_mutations)
     }
 
-    fn queue_commit_send_funds(
+    fn queue_collect_send_funds(
         &mut self,
-        commit_send_funds: CommitSendFundsOp,
+        collect_send_funds: CollectSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
@@ -277,22 +277,22 @@ impl OutgoingMc {
 
         // Obtain pending request:
         let pending_transaction = remote_pending_transactions
-            .get(&commit_send_funds.request_id)
+            .get(&collect_send_funds.request_id)
             .ok_or(QueueOperationError::RequestDoesNotExist)?
             .clone();
         // TODO: Possibly get rid of clone() here for optimization later
 
         let dest_hashed_lock = match &pending_transaction.stage {
             TransactionStage::Response(dest_hashed_lock) => dest_hashed_lock,
-            _ => return Err(QueueOperationError::NotExpectingCommit),
+            _ => return Err(QueueOperationError::NotExpectingCollect),
         };
 
         // Verify src_plain_lock and dest_plain_lock:
-        if commit_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+        if collect_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
             return Err(QueueOperationError::InvalidSrcPlainLock);
         }
 
-        if commit_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+        if collect_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
             return Err(QueueOperationError::InvalidDestPlainLock);
         }
 
@@ -304,7 +304,7 @@ impl OutgoingMc {
 
         // Remove entry from remote_pending hashmap:
         let mut mc_mutations = Vec::new();
-        let mc_mutation = McMutation::RemoveRemotePendingTransaction(commit_send_funds.request_id);
+        let mc_mutation = McMutation::RemoveRemotePendingTransaction(collect_send_funds.request_id);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 

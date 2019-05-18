@@ -27,7 +27,7 @@ pub struct FunderState<B: Clone> {
     /// Locally created transaction in progress. (This node is the buyer).
     // TODO: Add this part in the report? At least a counter of this hash set?
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
-    /// Receipts of completed payments (Generated after a CommitSendFundsOp message was received
+    /// Receipts of completed payments (Generated after a CollectSendFundsOp message was received
     /// successfuly).
     /// Note: We use our own randomly generated paymentId to represent a payment and not an
     /// InvoiceId. We do this to defend against possible collisions of InvoiceId values (Which

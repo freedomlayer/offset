@@ -6,14 +6,14 @@ use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, CommitSendFundsOp, FriendMessage,
+    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage,
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestSendFundsOp, ResetTerms,
     ResponseReceived, ResponseSendFundsOp, ResponseSendFundsResult,
 };
 use proto::funder::signature_buff::verify_move_token;
 
 use crate::mutual_credit::incoming::{
-    IncomingCancelSendFundsOp, IncomingCommitSendFundsOp, IncomingMessage,
+    IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,
     IncomingResponseSendFundsOp,
 };
 use crate::token_channel::{MoveTokenReceived, ReceiveMoveTokenOutput, TokenChannel};
@@ -273,11 +273,11 @@ fn handle_cancel_send_funds<B>(
     };
 }
 
-fn handle_commit_send_funds<B>(
+fn handle_collect_send_funds<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    commit_send_funds: CommitSendFundsOp,
+    collect_send_funds: CollectSendFundsOp,
     pending_transaction: PendingTransaction,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -331,15 +331,15 @@ fn handle_move_token_output<B>(
                     pending_transaction,
                 );
             }
-            IncomingMessage::Commit(IncomingCommitSendFundsOp {
+            IncomingMessage::Collect(IncomingCollectSendFundsOp {
                 pending_transaction,
-                incoming_commit,
+                incoming_collect,
             }) => {
-                handle_commit_send_funds(
+                handle_collect_send_funds(
                     m_state,
                     send_commands,
                     outgoing_control,
-                    incoming_commit,
+                    incoming_collect,
                     pending_transaction,
                 );
             }

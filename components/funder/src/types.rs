@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, CancelSendFundsOp, FriendMessage, FriendTcOp, FunderIncomingControl,
     FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
-    CommitSendFundsOp, TransactionStage,
+    CollectSendFundsOp, TransactionStage,
 };
 
 use proto::funder::signature_buff::{
@@ -104,7 +104,7 @@ pub enum UnsignedFriendTcOp {
     ResponseSendFunds(ResponseSendFundsOp),
     UnsignedResponseSendFunds(UnsignedResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
-    CommitSendFunds(CommitSendFundsOp),
+    CollectSendFunds(CollectSendFundsOp),
 }
 
 

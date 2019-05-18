@@ -542,7 +542,7 @@ where
     match backwards_op {
         BackwardsOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
         BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
-        BackwardsOp::Commit(commit_send_funds) => FriendTcOp::CommitSendFunds(commit_send_funds),
+        BackwardsOp::Collect(collect_send_funds) => FriendTcOp::CollectSendFunds(collect_send_funds),
     }
 }
 
