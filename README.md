@@ -38,15 +38,16 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 Offst currently only compiles on Rust nightly (Required for async support).
 Things change quickly on nightly, therefore to avoid breakage we pin the version of the rust
 compiler to a specific version, and we bump it once in a while. The pinned
-version can be found in `.travis.yml`.
+version is specified in the `rust-toolchain` file, and will be used automatically
+when building the project.
 
-To use a pinned rust toolchain with this project, run:
+If you had a pinned rust toolchain with this project, as in the past, run:
 
 ```bash
-rustup override set nightly-YYYY-MM-DD
+rustup override unset
 ```
 
-Where the current `YYYY-MM-DD` can be found by looking at `.travis.yml`.
+To switch to using the version specified in `rust-toolchain`.
 
 ### Development tools
 
