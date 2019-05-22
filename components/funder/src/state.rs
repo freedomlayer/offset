@@ -42,7 +42,7 @@ pub enum ReceiptStatus {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenPayment {
     /// Is in the process of being closed?
-    /// Can only be removed if (open_transactions == 0) && opt_receipt.is_none()
+    /// Can only be removed if (open_transactions == 0) && receipt_status != ReceiptStatus::Pending(Receipt)
     pub is_closing: bool,
     /// Remote invoice id being paid
     pub invoice_id: InvoiceId,
