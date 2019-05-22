@@ -7,8 +7,8 @@ use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage,
-    FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestSendFundsOp, ResetTerms,
-    ResponseReceived, ResponseSendFundsOp, ResponseSendFundsResult,
+    FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
+    ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
 use proto::funder::signature_buff::verify_move_token;
 
@@ -254,11 +254,13 @@ fn handle_cancel_send_funds<B>(
             // We are the origin of this request, and we got a cancellation.
             // We should pass it back to encryptor.
 
-            let response_send_funds_result = ResponseSendFundsResult::Failure;
-            outgoing_control.push(FunderOutgoingControl::ResponseReceived(ResponseReceived {
-                request_id: pending_transaction.request_id,
-                result: response_send_funds_result,
-            }));
+            let request_result = RequestResult::Failure;
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(
+                TransactionResult {
+                    request_id: pending_transaction.request_id,
+                    result: request_result,
+                },
+            ));
         }
         Some(friend_public_key) => {
             // Queue this failure message to another token channel:

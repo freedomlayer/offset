@@ -584,20 +584,21 @@ impl UserRequestSendFunds {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResponseSendFundsResult {
+pub enum RequestResult {
+    // TODO: Should not contain Receipt.
     Success(Receipt),
     // TODO: Should we add more information to the failure here?
     Failure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResponseReceived {
+pub struct TransactionResult {
     pub request_id: Uid,
-    pub result: ResponseSendFundsResult,
+    pub result: RequestResult,
 }
 
 #[derive(Debug)]
 pub enum FunderOutgoingControl<B: Clone> {
-    ResponseReceived(ResponseReceived),
+    TransactionResult(TransactionResult),
     ReportMutations(FunderReportMutations<B>),
 }

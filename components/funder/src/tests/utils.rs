@@ -22,7 +22,7 @@ use proto::report::messages::{
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    RequestsStatus, ResponseReceived, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
+    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult
 };
 
 use database::DatabaseClient;
@@ -206,7 +206,7 @@ pub struct NodeControl<B: Clone> {
 #[derive(Debug)]
 pub enum NodeRecv<B: Clone> {
     ReportMutations(FunderReportMutations<B>),
-    ResponseReceived(ResponseReceived),
+    TransactionResult(TransactionResult),
 }
 
 impl<B> NodeControl<B>
@@ -226,8 +226,8 @@ where
                 }
                 Some(NodeRecv::ReportMutations(funder_report_mutations))
             }
-            FunderOutgoingControl::ResponseReceived(response_received) => {
-                Some(NodeRecv::ResponseReceived(response_received))
+            FunderOutgoingControl::TransactionResult(transaction_result) => {
+                Some(NodeRecv::TransactionResult(transaction_result))
             }
         }
     }
@@ -239,16 +239,16 @@ where
         while !predicate(&self.report) {
             match await!(self.recv()).unwrap() {
                 NodeRecv::ReportMutations(_) => {}
-                NodeRecv::ResponseReceived(_) => unreachable!(),
+                NodeRecv::TransactionResult(_) => unreachable!(),
             };
         }
     }
 
-    pub async fn recv_until_response(&mut self) -> Option<ResponseReceived> {
+    pub async fn recv_until_response(&mut self) -> Option<TransactionResult> {
         loop {
             match await!(self.recv())? {
                 NodeRecv::ReportMutations(_) => {}
-                NodeRecv::ResponseReceived(response_received) => return Some(response_received),
+                NodeRecv::TransactionResult(transaction_result) => return Some(transaction_result),
             };
         }
     }

@@ -4,8 +4,8 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, SetFriendName, SetFriendRelays,
-    SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    AddFriend, ReceiptAck, ResetFriendChannel, SetFriendName, SetFriendRelays,
+    SetFriendRemoteMaxDebt, TransactionResult, UserRequestSendFunds,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -82,7 +82,7 @@ where
     B: Clone,
 {
     /// Funds:
-    ResponseReceived(ResponseReceived),
+    TransactionResult(TransactionResult),
     /// Reports about current state:
     Report(NodeReport<B>),
     ReportMutations(ReportMutations<B>),

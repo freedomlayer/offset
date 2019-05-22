@@ -12,9 +12,9 @@ use crate::state::{FunderMutation, ReceiptStatus};
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
-    FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestSendFundsOp,
-    ResetFriendChannel, ResponseReceived, ResponseSendFundsResult, SetFriendName, SetFriendRate,
-    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
+    FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestResult,
+    RequestSendFundsOp, ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
     UserRequestSendFunds,
 };
 
@@ -799,10 +799,29 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
-    // TODO:
-    // - Call inner version of the function
-    // - Send outgoing control with error if any error occurs in any of the above
-    unimplemented!();
+    // If we managed to push the message, we return an Ok(()).
+    // Otherwise, we return the internal error and return a response failure message.
+    if let Err(e) = control_create_transaction_inner(
+        m_state,
+        ephemeral,
+        outgoing_control,
+        send_commands,
+        rng,
+        max_pending_user_requests,
+        create_transaction.clone(),
+    ) {
+        error!("control_create_transaction_inner() failed: {:?}", e);
+        let transaction_result = TransactionResult {
+            request_id: create_transaction.request_id,
+            result: RequestResult::Failure,
+        };
+
+        outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+    }
+
+    // Every CreateTransaction must have a matching response. Therefore we don't return an error
+    // here. We have to make sure the response arrives back to the user.
+    Ok(())
 }
 
 pub fn handle_control_message<B, R>(

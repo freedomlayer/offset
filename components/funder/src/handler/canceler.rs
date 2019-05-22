@@ -3,7 +3,7 @@ use crypto::identity::PublicKey;
 use std::fmt::Debug;
 
 use proto::funder::messages::{
-    FunderOutgoingControl, RequestSendFundsOp, ResponseReceived, ResponseSendFundsResult,
+    FunderOutgoingControl, RequestResult, RequestSendFundsOp, TransactionResult,
 };
 
 use crate::handler::sender::SendCommands;
@@ -80,11 +80,11 @@ pub fn cancel_local_pending_transactions<B>(
             None => {
                 // We are the origin of this request.
                 // We send a cancel message through the control:
-                let response_received = ResponseReceived {
+                let transaction_result = TransactionResult {
                     request_id: pending_local_transaction.request_id,
-                    result: ResponseSendFundsResult::Failure,
+                    result: RequestResult::Failure,
                 };
-                outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
             }
         };
     }
@@ -123,11 +123,11 @@ pub fn cancel_pending_requests<B>(
             }
             None => {
                 // We are the origin of this request:
-                let response_received = ResponseReceived {
+                let transaction_result = TransactionResult {
                     request_id: pending_request.request_id,
-                    result: ResponseSendFundsResult::Failure,
+                    result: RequestResult::Failure,
                 };
-                outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
             }
         };
     }
@@ -150,10 +150,10 @@ pub fn cancel_pending_user_requests<B>(
         m_state.mutate(funder_mutation);
 
         // We are the origin of this request:
-        let response_received = ResponseReceived {
+        let transaction_result = TransactionResult {
             request_id: pending_user_request.request_id,
-            result: ResponseSendFundsResult::Failure,
+            result: RequestResult::Failure,
         };
-        outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+        outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
     }
 }

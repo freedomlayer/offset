@@ -25,7 +25,8 @@ use index_server::serialize::{
 };
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, /*ResponseSendFundsResult, */
+    AddFriend, ReceiptAck,
+    ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
     SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
@@ -76,12 +77,12 @@ fn deser_user_request_send_funds(
     */
 }
 
+/*
 fn ser_response_received(
     response_received: &ResponseReceived,
     response_received_builder: &mut app_server_capnp::response_received::Builder,
 ) {
     unimplemented!();
-    /*
     write_uid(
         &response_received.request_id,
         &mut response_received_builder.reborrow().init_request_id(),
@@ -98,14 +99,14 @@ fn ser_response_received(
             write_public_key(public_key, &mut failure_builder);
         }
     };
-    */
 }
+*/
 
+/*
 fn deser_response_received(
     response_received_reader: &app_server_capnp::response_received::Reader,
 ) -> Result<ResponseReceived, SerializeError> {
     unimplemented!();
-    /*
     let result = match response_received_reader.get_result().which()? {
         app_server_capnp::response_received::result::Success(receipt_reader) => {
             let receipt_reader = receipt_reader?;
@@ -121,8 +122,8 @@ fn deser_response_received(
         request_id: read_uid(&response_received_reader.get_request_id()?)?,
         result,
     })
-    */
 }
+*/
 
 fn ser_receipt_ack(
     receipt_ack: &ReceiptAck,
@@ -458,6 +459,8 @@ fn ser_app_server_to_app(
     app_server_to_app: &AppServerToApp,
     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder,
 ) {
+    unimplemented!();
+    /*
     match app_server_to_app {
         AppServerToApp::ResponseReceived(response_received) => ser_response_received(
             response_received,
@@ -478,11 +481,14 @@ fn ser_app_server_to_app(
             &mut app_server_to_app_builder.reborrow().init_response_routes(),
         ),
     }
+    */
 }
 
 fn deser_app_server_to_app(
     app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader,
 ) -> Result<AppServerToApp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match app_server_to_app_reader.which()? {
         app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) => {
             AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?)
@@ -499,6 +505,7 @@ fn deser_app_server_to_app(
             )?)
         }
     })
+    */
 }
 
 fn ser_app_request(

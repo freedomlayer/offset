@@ -10,7 +10,7 @@ use crypto::hash_lock::PlainLock;
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestsStatus, ResponseReceived, ResponseSendFundsResult,
+    RequestsStatus, TransactionResult, RequestResult
 };
 
 use identity::IdentityClient;
@@ -483,11 +483,11 @@ where
         }
         None => {
             // We are the origin of this request
-            let response_received = ResponseReceived {
+            let transaction_result = TransactionResult {
                 request_id: request_send_funds.request_id,
-                result: ResponseSendFundsResult::Failure,
+                result: RequestResult::Failure,
             };
-            outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }
     }
 
