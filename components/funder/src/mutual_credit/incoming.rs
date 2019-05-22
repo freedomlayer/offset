@@ -11,7 +11,7 @@ use proto::funder::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{calc_fee, McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -206,17 +206,12 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
 
-    let route_len =
-        usize_to_u32(request_send_funds.route.len()).ok_or(ProcessOperationError::RouteTooLong)?;
-
-    let local_index = remote_index
-        .checked_add(1)
-        .ok_or(ProcessOperationError::RouteTooLong)?;
-    let local_index = usize_to_u32(local_index).ok_or(ProcessOperationError::RouteTooLong)?;
-
     // Calculate the amount of credits we want for passing this request.
     // (Note: We are for sure not the origin of this request message, because it was received from a
     // remote side)
+    //
+    // TODO: Should be done outside of MutualCredit:
+    /*
     let own_fee = calc_fee(&mutual_credit.state().rate, request_send_funds.dest_payment)
         .ok_or(ProcessOperationError::CalcFeeError)?;
 
@@ -224,6 +219,7 @@ fn process_request_send_funds(
         .left_fees
         .checked_sub(own_fee)
         .ok_or(ProcessOperationError::InsufficientFee)?;
+    */
 
     // Calculate amount of credits to freeze
     let own_freeze_credits = request_send_funds
@@ -260,11 +256,7 @@ fn process_request_send_funds(
     }
 
     // Add pending transaction:
-    let pending_transaction = {
-        let mut pending_transaction = create_pending_transaction(&request_send_funds);
-        pending_transaction.left_fees = new_left_fees;
-        pending_transaction
-    };
+    let pending_transaction = create_pending_transaction(&request_send_funds);
 
     // let pending_friend_request = create_pending_transaction(&request_send_funds);
 

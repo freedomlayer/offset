@@ -99,8 +99,6 @@ pub fn calc_fee(rate: &Rate, dest_payment: u128) -> Option<u128> {
 pub struct MutualCreditState {
     /// Public identities of local and remote side
     pub idents: McIdents,
-    /// Rate for forwarding new transactions to the remote side
-    pub rate: Rate,
     /// Current credit balance with respect to remote side
     pub balance: McBalance,
     /// Requests in progress
@@ -131,7 +129,6 @@ pub enum McMutation {
     SetRemotePendingTransactionStage((Uid, TransactionStage)),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
-    SetRate(Rate),
 }
 
 impl MutualCredit {
@@ -146,7 +143,6 @@ impl MutualCredit {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
                 },
-                rate: Rate::new(),
                 balance: McBalance::new(balance),
                 pending_transactions: McPendingTransactions::new(),
                 requests_status: McRequestsStatus::new(),
@@ -172,8 +168,8 @@ impl MutualCredit {
         &self.state
     }
 
-    pub fn mutate(&mut self, tc_mutation: &McMutation) {
-        match tc_mutation {
+    pub fn mutate(&mut self, mc_mutation: &McMutation) {
+        match mc_mutation {
             McMutation::SetLocalRequestsStatus(requests_status) => {
                 self.set_local_requests_status(requests_status.clone())
             }
@@ -211,7 +207,6 @@ impl MutualCredit {
             McMutation::SetRemotePendingDebt(remote_pending_debt) => {
                 self.set_remote_pending_debt(*remote_pending_debt)
             }
-            McMutation::SetRate(rate) => self.set_rate(rate.clone()),
         }
     }
 
@@ -263,10 +258,6 @@ impl MutualCredit {
 
     fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
         self.state.balance.local_pending_debt = local_pending_debt;
-    }
-
-    fn set_rate(&mut self, rate: Rate) {
-        self.state.rate = rate;
     }
 
     fn set_local_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
