@@ -672,6 +672,8 @@ fn ser_funder_report(
     funder_report: &FunderReport,
     funder_report_builder: &mut report_capnp::funder_report::Builder,
 ) {
+    unimplemented!();
+    /*
     write_public_key(
         &funder_report.local_public_key,
         &mut funder_report_builder.reborrow().init_local_public_key(),
@@ -693,6 +695,7 @@ fn ser_funder_report(
     }
 
     funder_report_builder.set_num_ready_receipts(funder_report.num_ready_receipts);
+    */
 }
 
 fn deser_funder_report(
@@ -1019,6 +1022,8 @@ fn ser_funder_report_mutation(
 fn deser_funder_report_mutation(
     funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader,
 ) -> Result<FunderReportMutation, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match funder_report_mutation_reader.which()? {
         report_capnp::funder_report_mutation::AddRelay(named_relay_address_reader) => {
             FunderReportMutation::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -1037,10 +1042,8 @@ fn deser_funder_report_mutation(
         ) => FunderReportMutation::FriendReportMutation(deser_pk_friend_report_mutation(
             &pk_friend_report_mutation_reader?,
         )?),
-        report_capnp::funder_report_mutation::SetNumReadyReceipts(num_ready_receipts) => {
-            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts)
-        }
     })
+    */
 }
 
 fn ser_index_client_report(

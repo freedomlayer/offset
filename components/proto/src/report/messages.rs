@@ -176,8 +176,8 @@ where
     pub relays: ImVec<NamedRelayAddress<B>>,
     pub friends: ImHashMap<PublicKey, FriendReport<B>>,
     pub num_open_invoices: u64,
+    pub num_open_payments: u64,
     pub num_open_transactions: u64,
-    pub num_ready_receipts: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -222,8 +222,8 @@ where
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<B>)),
     SetNumOpenInvoices(u64),
+    SetNumOpenPayments(u64),
     SetNumOpenTransactions(u64),
-    SetNumReadyReceipts(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -377,12 +377,12 @@ where
                 friend.mutate(friend_report_mutation)?;
                 Ok(())
             }
-            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
-                self.num_ready_receipts = *num_ready_receipts;
-                Ok(())
-            }
             FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
                 self.num_open_invoices = *num_open_invoices;
+                Ok(())
+            }
+            FunderReportMutation::SetNumOpenPayments(num_open_payments) => {
+                self.num_open_payments = *num_open_payments;
                 Ok(())
             }
             FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {

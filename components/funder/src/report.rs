@@ -175,8 +175,8 @@ where
         relays: funder_state.relays.clone(),
         friends,
         num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
+        num_open_payments: usize_to_u64(funder_state.open_payments.len()).unwrap(),
         num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),
-        num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
     }
 }
 
@@ -338,15 +338,6 @@ where
                 friend_public_key.clone(),
             )]
         }
-        FunderMutation::AddReceipt(_) | FunderMutation::RemoveReceipt(_) => {
-            if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(
-                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
-                )]
-            } else {
-                Vec::new()
-            }
-        }
         FunderMutation::AddInvoice(_) | FunderMutation::RemoveInvoice(_) => {
             if funder_state_after.open_invoices.len() != funder_state.open_invoices.len() {
                 vec![FunderReportMutation::SetNumOpenInvoices(
@@ -357,6 +348,27 @@ where
             }
         }
         FunderMutation::AddDestPlainLock(_) => vec![],
+        FunderMutation::AddTransaction(_) | FunderMutation::RemoveTransaction(_) => {
+            if funder_state_after.open_transactions.len() != funder_state.open_transactions.len() {
+                vec![FunderReportMutation::SetNumOpenTransactions(
+                    usize_to_u64(funder_state_after.open_transactions.len()).unwrap(),
+                )]
+            } else {
+                Vec::new()
+            }
+        }
+        FunderMutation::AddPayment(_) | FunderMutation::RemovePayment(_) => {
+            if funder_state_after.open_payments.len() != funder_state.open_payments.len() {
+                vec![FunderReportMutation::SetNumOpenPayments(
+                    usize_to_u64(funder_state_after.open_payments.len()).unwrap(),
+                )]
+            } else {
+                Vec::new()
+            }
+        }
+        FunderMutation::SetPaymentReceipt(_)
+        | FunderMutation::TakePaymentReceipt(_)
+        | FunderMutation::SetPaymentClosing(_) => vec![],
     }
 }
 

@@ -124,8 +124,8 @@ where
     match funder_report_mutation {
         FunderReportMutation::AddRelay(_)
         | FunderReportMutation::RemoveRelay(_)
-        | FunderReportMutation::SetNumReadyReceipts(_)
         | FunderReportMutation::SetNumOpenInvoices(_)
+        | FunderReportMutation::SetNumOpenPayments(_)
         | FunderReportMutation::SetNumOpenTransactions(_) => None,
         FunderReportMutation::AddFriend(add_friend_report) => {
             create_update_friend(&add_friend_report.friend_public_key)

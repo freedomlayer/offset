@@ -27,23 +27,38 @@ pub struct FunderState<B: Clone> {
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
     /// Ongoing payments (For which this node is the buyer):
     pub open_payments: ImHashMap<PaymentId, OpenPayment>,
-    /// Receipts of completed payments (Generated after a CollectSendFundsOp message was received
-    /// successfuly).
-    /// Note: We use our own randomly generated paymentId to represent a payment and not an
-    /// InvoiceId. We do this to defend against possible collisions of InvoiceId values (Which
-    /// are not locally generated).
-    pub ready_receipts: ImHashMap<PaymentId, Receipt>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum ReceiptStatus {
+    /// Haven't got a receipt yet
+    Empty,
+    /// We Have a pending receipt, waiting to be handed to the user.
+    Pending(Receipt),
+    /// A receipt was already received and handed over to user.
+    Taken,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenPayment {
+    /// Is in the process of being closed?
+    /// Can only be removed if (open_transactions == 0) && opt_receipt.is_none()
+    pub is_closing: bool,
     /// Remote invoice id being paid
-    invoice_id: InvoiceId,
+    pub invoice_id: InvoiceId,
+    /// The amount of ongoing transactions for this payment.
+    pub open_transactions: usize,
     /// Total amount of credits we want to pay to seller.
-    total_dest_payment: u128,
+    pub total_dest_payment: u128,
     /// Seller's public key:
-    destination_public_key: PublicKey,
+    pub dest_public_key: PublicKey,
+    /// The first receipt that was received for this payment. (Generated after a CollectSendFundsOp
+    /// message was received successfuly).
+    pub receipt_status: ReceiptStatus,
 }
+
+// TODO: If a receipt is requested and OpenPayment.open_transactions == 0, it should reported that no receipt
+// exists and the payment should be removed.
 
 /// A local invoice in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -81,11 +96,16 @@ pub enum FunderMutation<B: Clone> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
-    AddReceipt((PaymentId, Receipt)),
-    RemoveReceipt(PaymentId),
     AddInvoice((InvoiceId, u128)), // (InvoiceId, total_dest_payment)
     AddDestPlainLock((InvoiceId, Uid, PlainLock)), // InvoiceId, RequestId, dest_plain_lock
     RemoveInvoice(InvoiceId),
+    AddTransaction((Uid, PaymentId, PlainLock)), // (transaction_id, payment_id,src_plain_lock)
+    RemoveTransaction(Uid),                      // transaction_id
+    AddPayment((PaymentId, InvoiceId, u128, PublicKey)), // (payment_id, invoice_id, total_dest_payment, destination)
+    SetPaymentReceipt((PaymentId, Receipt)),
+    TakePaymentReceipt(PaymentId),
+    SetPaymentClosing(PaymentId),
+    RemovePayment(PaymentId),
 }
 
 impl<B> FunderState<B>
@@ -103,7 +123,6 @@ where
             open_invoices: ImHashMap::new(),
             open_transactions: ImHashMap::new(),
             open_payments: ImHashMap::new(),
-            ready_receipts: ImHashMap::new(),
         }
     }
 
@@ -145,13 +164,6 @@ where
             FunderMutation::RemoveFriend(public_key) => {
                 let _ = self.friends.remove(&public_key);
             }
-            FunderMutation::AddReceipt((payment_id, send_funds_receipt)) => {
-                self.ready_receipts
-                    .insert(payment_id.clone(), send_funds_receipt.clone());
-            }
-            FunderMutation::RemoveReceipt(payment_id) => {
-                let _ = self.ready_receipts.remove(payment_id);
-            }
             FunderMutation::AddInvoice((invoice_id, total_dest_payment)) => {
                 self.open_invoices
                     .insert(invoice_id.clone(), OpenInvoice::new(*total_dest_payment));
@@ -164,6 +176,56 @@ where
             }
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);
+            }
+            FunderMutation::AddTransaction((transaction_id, payment_id, src_plain_lock)) => {
+                let open_transaction = OpenTransaction {
+                    payment_id: payment_id.clone(),
+                    src_plain_lock: src_plain_lock.clone(),
+                };
+                let _ = self
+                    .open_transactions
+                    .insert(transaction_id.clone(), open_transaction);
+            }
+            FunderMutation::RemoveTransaction(transaction_id) => {
+                let _ = self.open_transactions.remove(transaction_id);
+            }
+            FunderMutation::AddPayment((
+                payment_id,
+                invoice_id,
+                total_dest_payment,
+                dest_public_key,
+            )) => {
+                let open_payment = OpenPayment {
+                    is_closing: false,
+                    invoice_id: invoice_id.clone(),
+                    open_transactions: 0,
+                    total_dest_payment: *total_dest_payment,
+                    dest_public_key: dest_public_key.clone(),
+                    receipt_status: ReceiptStatus::Empty,
+                };
+                let _ = self.open_payments.insert(payment_id.clone(), open_payment);
+            }
+            FunderMutation::SetPaymentReceipt((payment_id, receipt)) => {
+                let open_payment = self.open_payments.get_mut(payment_id).unwrap();
+                if let ReceiptStatus::Empty = open_payment.receipt_status {
+                    open_payment.receipt_status = ReceiptStatus::Pending(receipt.clone());
+                } else {
+                    unreachable!();
+                }
+            }
+            FunderMutation::TakePaymentReceipt(payment_id) => {
+                let open_payment = self.open_payments.get_mut(payment_id).unwrap();
+                if let ReceiptStatus::Pending(_) = &open_payment.receipt_status {
+                    open_payment.receipt_status = ReceiptStatus::Taken;
+                } else {
+                    unreachable!();
+                }
+            }
+            FunderMutation::SetPaymentClosing(payment_id) => {
+                self.open_payments.get_mut(payment_id).unwrap().is_closing = true;
+            }
+            FunderMutation::RemovePayment(payment_id) => {
+                self.open_payments.remove(payment_id);
             }
         }
     }
