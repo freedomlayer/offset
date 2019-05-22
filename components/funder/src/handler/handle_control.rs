@@ -783,7 +783,7 @@ where
 
     // Signal the sender to attempt to send:
     send_commands.set_try_send(&friend_public_key);
-    unimplemented!();
+    Ok(())
 }
 
 fn control_create_transaction<B, R>(
