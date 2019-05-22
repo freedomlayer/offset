@@ -9,8 +9,8 @@ use common::safe_arithmetic::SafeUnsignedArithmetic;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendStatus, PendingTransaction, RequestSendFundsOp,
-    RequestsStatus, ResetTerms, ResponseSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendStatus, PendingTransaction, Rate,
+    RequestSendFundsOp, RequestsStatus, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};
@@ -65,27 +65,6 @@ where
         }
     }
 }
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FriendMutation<B: Clone> {
-    TcMutation(TcMutation<B>),
-    SetInconsistent(ChannelInconsistent),
-    SetConsistent(TokenChannel<B>),
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingRequest(RequestSendFundsOp),
-    PopFrontPendingRequest,
-    PushBackPendingBackwardsOp(BackwardsOp),
-    PopFrontPendingBackwardsOp,
-    PushBackPendingUserRequest(RequestSendFundsOp),
-    PopFrontPendingUserRequest,
-    SetStatus(FriendStatus),
-    SetRemoteRelays(Vec<RelayAddress<B>>),
-    SetName(String),
-    SetSentLocalRelays(SentLocalRelays<B>),
-}
-
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
@@ -130,6 +109,8 @@ pub struct FriendState<B: Clone> {
     pub sent_local_relays: SentLocalRelays<B>,
     /// Locally maintained name of the remote friend node.
     pub name: String,
+    /// Rate of forwarding transactions that arrived from this friend to any other friend.
+    pub rate: Rate,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).
     pub status: FriendStatus,
@@ -155,6 +136,26 @@ pub struct FriendState<B: Clone> {
     pub pending_user_requests: ImVec<RequestSendFundsOp>,
 }
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FriendMutation<B: Clone> {
+    TcMutation(TcMutation<B>),
+    SetInconsistent(ChannelInconsistent),
+    SetConsistent(TokenChannel<B>),
+    SetWantedRemoteMaxDebt(u128),
+    SetWantedLocalRequestsStatus(RequestsStatus),
+    PushBackPendingRequest(RequestSendFundsOp),
+    PopFrontPendingRequest,
+    PushBackPendingBackwardsOp(BackwardsOp),
+    PopFrontPendingBackwardsOp,
+    PushBackPendingUserRequest(RequestSendFundsOp),
+    PopFrontPendingUserRequest,
+    SetStatus(FriendStatus),
+    SetRemoteRelays(Vec<RelayAddress<B>>),
+    SetName(String),
+    SetSentLocalRelays(SentLocalRelays<B>),
+}
+
 impl<B> FriendState<B>
 where
     B: Clone + CanonicalSerialize,
@@ -174,6 +175,8 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
+            // Initial rate is 0 for a new friend:
+            rate: Rate::new(),
             status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(token_channel),
 
