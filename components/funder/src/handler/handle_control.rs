@@ -2,17 +2,20 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
+use crypto::crypto_rand::CryptoRandom;
+use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
 
 use crate::friend::{ChannelStatus, FriendMutation};
-use crate::state::FunderMutation;
+use crate::state::{FunderMutation, ReceiptStatus};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, ChannelerUpdateFriend, CreatePayment, FriendStatus, FunderControl,
-    FunderOutgoingControl, ReceiptAck, RemoveFriend, ResetFriendChannel, ResponseReceived,
-    ResponseSendFundsResult, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
-    SetFriendStatus, SetRequestsStatus, UserRequestSendFunds,
+    AddFriend, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
+    FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestSendFundsOp,
+    ResetFriendChannel, ResponseReceived, ResponseSendFundsResult, SetFriendName, SetFriendRate,
+    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
+    UserRequestSendFunds,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -40,6 +43,8 @@ pub enum HandleControlError {
     FriendNotReady,
     MaxNodeRelaysReached,
     PaymentAlreadyOpen,
+    OpenPaymentNotFound,
+    PaymentReceiptNotEmpty,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -644,18 +649,176 @@ where
     Ok(())
 }
 
-pub fn handle_control_message<B>(
+fn control_create_transaction_inner<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    ephemeral: &Ephemeral,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    send_commands: &mut SendCommands,
+    rng: &R,
+    max_pending_user_requests: usize,
+    create_transaction: CreateTransaction,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
+{
+    // Make sure that a corresponding payment is open
+    let open_payment = m_state
+        .state()
+        .open_payments
+        .get(&create_transaction.payment_id)
+        .ok_or(HandleControlError::OpenPaymentNotFound)?;
+
+    // If we already have a receipt or the payment is closed, do not allow creating a new
+    // transaction:
+    if let ReceiptStatus::Empty = open_payment.receipt_status {
+        // Good case
+    } else {
+        return Err(HandleControlError::PaymentReceiptNotEmpty)?;
+    }
+
+    let route = &create_transaction.route;
+
+    // We have to be the first on the route:
+    match route.public_keys.first() {
+        Some(first) if *first == m_state.state().local_public_key => Ok(()),
+        _ => Err(HandleControlError::NotFirstInRoute),
+    }?;
+
+    // We want to have at least two public keys on the route (source and destination).
+    // We also want that the public keys on the route are unique.
+    if !route.is_valid() {
+        return Err(HandleControlError::InvalidRoute);
+    }
+    let friend_public_key = route.public_keys[1].clone();
+
+    let friend = match m_state.state().friends.get(&friend_public_key) {
+        Some(friend) => Ok(friend),
+        None => Err(HandleControlError::FriendDoesNotExist),
+    }?;
+
+    if !is_friend_ready(m_state.state(), ephemeral, &friend_public_key) {
+        return Err(HandleControlError::FriendNotReady);
+    }
+
+    // If payment is already in progress, we do nothing:
+    // Check if there is already a pending user payment with the same payment_id:
+    for user_request in &friend.pending_user_requests {
+        if create_transaction.request_id == user_request.request_id {
+            return Err(HandleControlError::RequestAlreadyInProgress);
+        }
+    }
+
+    let token_channel = match &friend.channel_status {
+        ChannelStatus::Inconsistent(_) => {
+            // It is impossible that the Channel is Inconsistent, because we know that this friend is
+            // in ready state:
+            unreachable!();
+        }
+        ChannelStatus::Consistent(token_channel) => token_channel,
+    };
+
+    // Check if there is an ongoing request with the same request_id with this specific friend:
+    if token_channel
+        .get_mutual_credit()
+        .state()
+        .pending_transactions
+        .local
+        .contains_key(&create_transaction.request_id)
+    {
+        return Err(HandleControlError::RequestAlreadyInProgress);
+    }
+
+    // Check if we have room to push this message:
+    if friend.pending_user_requests.len() >= max_pending_user_requests {
+        return Err(HandleControlError::PendingUserRequestsFull);
+    }
+
+    // Randomly generate a new PlainLock:
+    let src_plain_lock = PlainLock::new(rng);
+
+    // Keep PlainLock:
+    let funder_mutation = FunderMutation::AddTransaction((
+        create_transaction.request_id,
+        create_transaction.payment_id,
+        src_plain_lock.clone(),
+    ));
+    m_state.mutate(funder_mutation);
+
+    let open_payment = m_state
+        .state()
+        .open_payments
+        .get(&create_transaction.payment_id)
+        .unwrap();
+
+    // Update OpenPayment (Increase open transactions count):
+    let new_num_transactions = open_payment.num_transactions.checked_add(1).unwrap();
+    let funder_mutation = FunderMutation::SetPaymentNumTransactions((
+        create_transaction.payment_id,
+        new_num_transactions,
+    ));
+    m_state.mutate(funder_mutation);
+
+    let open_payment = m_state
+        .state()
+        .open_payments
+        .get(&create_transaction.payment_id)
+        .unwrap();
+
+    // Push the request:
+    let request_send_funds = RequestSendFundsOp {
+        request_id: create_transaction.request_id,
+        src_hashed_lock: src_plain_lock.hash(),
+        route: create_transaction.route,
+        dest_payment: create_transaction.dest_payment,
+        total_dest_payment: open_payment.total_dest_payment,
+        invoice_id: open_payment.invoice_id.clone(),
+        left_fees: create_transaction.fees,
+    };
+
+    let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
+
+    // Signal the sender to attempt to send:
+    send_commands.set_try_send(&friend_public_key);
+    unimplemented!();
+}
+
+fn control_create_transaction<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    ephemeral: &Ephemeral,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    send_commands: &mut SendCommands,
+    rng: &R,
+    max_pending_user_requests: usize,
+    create_transaction: CreateTransaction,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
+{
+    // TODO:
+    // - Call inner version of the function
+    // - Send outgoing control with error if any error occurs in any of the above
+    unimplemented!();
+}
+
+pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     max_node_relays: usize,
     max_pending_user_requests: usize,
     incoming_control: FunderControl<B>,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     match incoming_control {
         FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
@@ -724,7 +887,15 @@ where
         FunderControl::CreatePayment(create_payment) => {
             control_create_payment(m_state, create_payment)
         }
-        FunderControl::CreateTransaction(_create_transaction) => unimplemented!(),
+        FunderControl::CreateTransaction(create_transaction) => control_create_transaction(
+            m_state,
+            m_ephemeral.ephemeral(),
+            outgoing_control,
+            send_commands,
+            rng,
+            max_pending_user_requests,
+            create_transaction,
+        ),
         FunderControl::RequestReceipt(_payment_id) => unimplemented!(),
         FunderControl::RemoveReceipt(_payment_id) => unimplemented!(),
 

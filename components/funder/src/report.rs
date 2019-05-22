@@ -369,6 +369,7 @@ where
             }
         }
         FunderMutation::SetPaymentReceipt(_)
+        | FunderMutation::SetPaymentNumTransactions(_)
         | FunderMutation::TakePaymentReceipt(_)
         | FunderMutation::SetPaymentClosing(_) => vec![],
     }

@@ -81,6 +81,7 @@ where
                 &mut send_commands,
                 &mut outgoing_control,
                 &mut outgoing_channeler_config,
+                rng,
                 max_node_relays,
                 max_pending_user_requests,
                 funder_incoming_control.funder_control,
