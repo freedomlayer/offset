@@ -7,7 +7,7 @@ use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{
-    PendingTransaction, RequestSendFundsOp, RequestsStatus, TransactionStage,
+    PendingTransaction, Rate, RequestSendFundsOp, RequestsStatus, TransactionStage,
 };
 
 /// The maximum possible funder debt.
@@ -88,30 +88,11 @@ impl McRequestsStatus {
     }
 }
 
-/// Rates for forwarding a transaction
-/// For a transaction of `x` credits, the amount of fees will be:
-/// `(x * mul) / 2^32 + add`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Rate {
-    /// Commission
-    mul: u32,
-    /// Flat rate
-    add: u32,
-}
-
-#[derive(Debug)]
-pub struct RateError;
-
-impl Rate {
-    pub fn new() -> Self {
-        Rate { mul: 0, add: 0 }
-    }
-
-    pub fn calc_fee(&self, dest_payment: u128) -> Result<u128, RateError> {
-        let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
-        let res = mul_res + BigUint::from(self.add);
-        res.to_u128().ok_or(RateError)
-    }
+/// Calculate fee for forwarding a transaction given a `rate` and `dest_payment`.
+pub fn calc_fee(rate: &Rate, dest_payment: u128) -> Option<u128> {
+    let mul_res = (BigUint::from(dest_payment) * BigUint::from(rate.mul)) >> 32;
+    let res = mul_res + BigUint::from(rate.add);
+    res.to_u128()
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

@@ -395,6 +395,23 @@ impl RequestsStatus {
     }
 }
 
+/// Rates for forwarding a transaction
+/// For a transaction of `x` credits, the amount of fees will be:
+/// `(x * mul) / 2^32 + add`
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Rate {
+    /// Commission
+    pub mul: u32,
+    /// Flat rate
+    pub add: u32,
+}
+
+impl Rate {
+    pub fn new() -> Self {
+        Rate { mul: 0, add: 0 }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
@@ -442,6 +459,12 @@ pub struct SetFriendRelays<B = NetAddress> {
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
     pub reset_token: Signature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetFriendRate {
+    pub friend_public_key: PublicKey,
+    pub rate: Rate,
 }
 
 /// A friend's route with known capacity
@@ -510,6 +533,7 @@ pub enum FunderControl<B> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
+    SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
     CreatePayment(CreatePayment),

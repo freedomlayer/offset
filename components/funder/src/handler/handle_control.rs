@@ -669,6 +669,7 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
+        FunderControl::SetFriendRate(_friend_rate) => unimplemented!(),
 
         // Buyer API:
         FunderControl::CreatePayment(create_payment) => {

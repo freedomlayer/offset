@@ -11,7 +11,7 @@ use proto::funder::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{calc_fee, McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -217,11 +217,8 @@ fn process_request_send_funds(
     // Calculate the amount of credits we want for passing this request.
     // (Note: We are for sure not the origin of this request message, because it was received from a
     // remote side)
-    let own_fee = mutual_credit
-        .state()
-        .rate
-        .calc_fee(request_send_funds.dest_payment)
-        .map_err(|_| ProcessOperationError::CalcFeeError)?;
+    let own_fee = calc_fee(&mutual_credit.state().rate, request_send_funds.dest_payment)
+        .ok_or(ProcessOperationError::CalcFeeError)?;
 
     let new_left_fees = request_send_funds
         .left_fees
