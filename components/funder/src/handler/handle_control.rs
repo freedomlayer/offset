@@ -39,6 +39,7 @@ pub enum HandleControlError {
     UserRequestInvalid,
     FriendNotReady,
     MaxNodeRelaysReached,
+    PaymentAlreadyOpen,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -622,8 +623,25 @@ fn control_create_payment<B>(
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    // TODO:
-    unimplemented!();
+    // Make sure that a payment with the same payment_id doesn't exist:
+    if m_state
+        .state()
+        .open_payments
+        .contains_key(&create_payment.payment_id)
+    {
+        return Err(HandleControlError::PaymentAlreadyOpen);
+    }
+
+    // Add a new payment entry:
+    let m_mutation = FunderMutation::AddPayment((
+        create_payment.payment_id,
+        create_payment.invoice_id,
+        create_payment.total_dest_payment,
+        create_payment.dest_public_key,
+    ));
+
+    m_state.mutate(m_mutation);
+    Ok(())
 }
 
 pub fn handle_control_message<B>(
