@@ -153,6 +153,7 @@ pub enum FriendMutation<B: Clone> {
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
+    SetRate(Rate),
     SetSentLocalRelays(SentLocalRelays<B>),
 }
 
@@ -268,6 +269,9 @@ where
             }
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
+            }
+            FriendMutation::SetRate(friend_rate) => {
+                self.rate = friend_rate.clone();
             }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();

@@ -9,7 +9,7 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{FriendStatus, RequestsStatus};
+use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};
 use crate::net::messages::NetAddress;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,6 +144,7 @@ where
     B: Clone,
 {
     pub name: String,
+    pub rate: Rate,
     pub remote_relays: Vec<RelayAddress<B>>,
     pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
@@ -188,6 +189,7 @@ where
 {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
+    SetRate(Rate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),
@@ -268,6 +270,9 @@ where
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             }
+            FriendReportMutation::SetRate(rate) => {
+                self.rate = rate.clone();
+            }
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
             }
@@ -333,6 +338,7 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
+                    rate: Rate::new(),
                     remote_relays: add_friend_report.relays.clone(),
                     sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report

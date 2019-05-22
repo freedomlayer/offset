@@ -11,7 +11,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, ChannelerUpdateFriend, CreatePayment, FriendStatus, FunderControl,
     FunderOutgoingControl, ReceiptAck, RemoveFriend, ResetFriendChannel, ResponseReceived,
-    ResponseSendFundsResult, SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt,
+    ResponseSendFundsResult, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
     SetFriendStatus, SetRequestsStatus, UserRequestSendFunds,
 };
 
@@ -422,6 +422,35 @@ where
     Ok(())
 }
 
+fn control_set_friend_rate<B>(
+    m_state: &mut MutableFunderState<B>,
+    set_friend_rate: SetFriendRate,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Make sure that friend exists:
+    let friend = m_state
+        .state()
+        .friends
+        .get(&set_friend_rate.friend_public_key)
+        .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+    // If the newly proposed rate is the same as the old one, we do nothing:
+    if friend.rate == set_friend_rate.rate {
+        return Ok(());
+    }
+
+    let friend_mutation = FriendMutation::SetRate(set_friend_rate.rate);
+    let funder_mutation = FunderMutation::FriendMutation((
+        set_friend_rate.friend_public_key.clone(),
+        friend_mutation,
+    ));
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
 fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) -> Option<()> {
     if !user_request_send_funds.route.is_valid() {
         return None;
@@ -669,7 +698,9 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
-        FunderControl::SetFriendRate(_friend_rate) => unimplemented!(),
+        FunderControl::SetFriendRate(set_friend_rate) => {
+            control_set_friend_rate(m_state, set_friend_rate)
+        }
 
         // Buyer API:
         FunderControl::CreatePayment(create_payment) => {

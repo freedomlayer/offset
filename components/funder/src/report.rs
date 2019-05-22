@@ -136,6 +136,7 @@ where
 
     FriendReport {
         name: friend_state.name.clone(),
+        rate: friend_state.rate.clone(),
         remote_relays: friend_state.remote_relays.clone(),
         sent_local_relays: (&friend_state.sent_local_relays).into(),
         opt_last_incoming_move_token: friend_state
@@ -261,6 +262,7 @@ where
             vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())]
         }
         FriendMutation::SetName(name) => vec![FriendReportMutation::SetName(name.clone())],
+        FriendMutation::SetRate(rate) => vec![FriendReportMutation::SetRate(rate.clone())],
         FriendMutation::SetSentLocalRelays(sent_local_relays) => {
             vec![FriendReportMutation::SetSentLocalRelays(
                 sent_local_relays.into(),
