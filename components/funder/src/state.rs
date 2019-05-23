@@ -40,6 +40,7 @@ pub struct NewTransactions {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Payment {
     /// User can add new transactions
+    // TODO: Think about a better name for this?
     NewTransactions(NewTransactions),
     /// User can no longer add new transactions (user sent a RequestClosePayment)
     InProgress(u64), // num_transactions
