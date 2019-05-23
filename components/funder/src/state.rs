@@ -29,7 +29,7 @@ pub struct FunderState<B: Clone> {
     pub payments: ImHashMap<PaymentId, Payment>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct NewTransactions {
     pub num_transactions: u64,
     pub invoice_id: InvoiceId,
@@ -37,7 +37,7 @@ pub struct NewTransactions {
     pub dest_public_key: PublicKey,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Payment {
     /// User can add new transactions
     // TODO: Think about a better name for this?

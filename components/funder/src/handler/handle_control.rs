@@ -14,8 +14,8 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
     FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestResult,
-    RequestSendFundsOp, ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
+    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
     UserRequestSendFunds,
 };
 
@@ -45,8 +45,8 @@ pub enum HandleControlError {
     MaxNodeRelaysReached,
     PaymentAlreadyOpen,
     OpenPaymentNotFound,
-    PaymentReceiptNotEmpty,
     NewTransactionsNotAllowed,
+    PaymentDoesNotExist,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -817,6 +817,75 @@ where
     Ok(())
 }
 
+fn control_request_close_payment<B>(
+    m_state: &mut MutableFunderState<B>,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    payment_id: PaymentId,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    let payment = if let Some(payment) = m_state.state().payments.get(&payment_id) {
+        payment
+    } else {
+        // Payment not found:
+        outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+            ResponseClosePayment::InProgress,
+        ));
+        return Ok(());
+    };
+
+    let (opt_new_payment, response_close_payment) = match payment {
+        Payment::NewTransactions(new_transactions) => (
+            Some(Payment::InProgress(new_transactions.num_transactions)),
+            ResponseClosePayment::InProgress,
+        ),
+        Payment::InProgress(num_transactions) => (
+            Some(Payment::InProgress(*num_transactions)),
+            ResponseClosePayment::InProgress,
+        ),
+        Payment::Success((num_transactions, receipt, ack_uid)) => (
+            Some(Payment::Success((
+                *num_transactions,
+                receipt.clone(),
+                *ack_uid,
+            ))),
+            ResponseClosePayment::Success((receipt.clone(), *ack_uid)),
+        ),
+        Payment::Canceled(ack_uid) => (
+            Some(Payment::Canceled(*ack_uid)),
+            ResponseClosePayment::Canceled(*ack_uid),
+        ),
+        Payment::AfterSuccessAck(num_transactions) => (
+            Some(Payment::AfterSuccessAck(*num_transactions)),
+            ResponseClosePayment::PaymentNotFound,
+        ),
+    };
+
+    // Send back a ResponseClosePayment:
+    outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+        response_close_payment,
+    ));
+
+    // Update or remove payment record:
+    let new_payment = if let Some(new_payment) = opt_new_payment {
+        new_payment
+    } else {
+        let funder_mutation = FunderMutation::RemovePayment(payment_id);
+        m_state.mutate(funder_mutation);
+        return Ok(());
+    };
+
+    // We perform no mutations if no changes happened:
+    if new_payment == *payment {
+        return Ok(());
+    }
+
+    let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
+    m_state.mutate(funder_mutation);
+    return Ok(());
+}
+
 pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
@@ -908,7 +977,9 @@ where
             max_pending_user_requests,
             create_transaction,
         ),
-        FunderControl::RequestClosePayment(_payment_id) => unimplemented!(),
+        FunderControl::RequestClosePayment(payment_id) => {
+            control_request_close_payment(m_state, outgoing_control, payment_id)
+        }
         FunderControl::AckClosePayment((_payment_id, _uid)) => unimplemented!(),
 
         // Seller API:
