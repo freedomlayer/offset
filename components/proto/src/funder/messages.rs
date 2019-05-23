@@ -86,17 +86,19 @@ pub struct CancelSendFundsOp {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct Commit<S> {
+pub struct Commit {
     response_hash: HashResult,
     dest_payment: u128,
     src_plain_lock: PlainLock,
-    signature: S,
+    dest_hashed_lock: HashedLock,
+    signature: Signature,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct MultiCommit<S> {
+pub struct MultiCommit {
     invoice_id: InvoiceId,
-    confirmations: Vec<Commit<S>>,
+    total_dest_payment: u128,
+    commits: Vec<Commit>,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -585,8 +587,7 @@ impl UserRequestSendFunds {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestResult {
-    // TODO: Should not contain Receipt.
-    Success(Receipt),
+    Success(Commit),
     // TODO: Should we add more information to the failure here?
     Failure,
 }
