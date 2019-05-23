@@ -287,7 +287,7 @@ This is the structure of the request message:
 struct RequestSendFundsOp {
         requestId @0: Uid;
         # Randomly generated reqeustId [128 bits]
-        srcHashedLock @1: Hash;
+        srcHashedLock @1: HashedLock;
         # bcrypt(srcPlainLock), where srcPlainLock is of size 256 bits.
         route @2: FriendsRoute;
         # A route of friends that leads to the destination
@@ -334,7 +334,7 @@ B --- C --- D --- E
 ```capnp
 struct ResponseSendFundsOp {
         requestId @0: Uid;
-        destHashedLock @1: Lock;
+        destHashedLock @1: HashedLock;
         randNonce @2: RandNonce;
         signature @3: Signature;
         # Signature{key=destinationKey}(
@@ -408,10 +408,11 @@ struct Commit {
         responseHash @0: Hash;
         # = sha512/256(requestId || sha512/256(route) || randNonce)
         destPayment @1: CustomUInt128;
-        totalDestPayment @2: CustomUInt128;
-        srcPlainLock: @3: Lock;
+        # Amount of credits paid in this Transaction.
+        srcPlainLock @2: PlainLock;
         # The preimage of the hashedLock at the request message [256 bits]
-        signature @4: Signature;
+        destHashedLock @3: HashedLock;
+        signature @3: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
@@ -426,7 +427,9 @@ struct Commit {
 struct MultiCommit {
         invoiceId @0: InvoiceId;
         # InvoiceId being paid.
-        commits @1: List(Commit);
+        totalDestPayment @1: CustomUInt128;
+        # The total amount being paid
+        commits @2: List(Commit);
         # A list of confirmations. Each confirmation corresponds to a request
         # sent along one route.
 }
@@ -468,8 +471,8 @@ all the way (along the original route) to the source of the payment.
 ```capnp
 struct CollectSendFundsOp {
         requestId @0: Uid;
-        srcPlainLock @1: Lock;
-        destPlainLock @2: Lock;
+        srcPlainLock @1: PlainLock;
+        destPlainLock @2: PlainLock;
 }
 ```
 
@@ -493,8 +496,8 @@ struct Receipt {
         responseHash @0: Hash;
         # = sha512/256(requestId || sha512/256(route) || randNonce)
         invoiceId @1: InvoiceId;
-        srcPlainLock @2: Lock;
-        destPlainLock @3: Lock;
+        srcPlainLock @2: PlainLock;
+        destPlainLock @3: PlainLock;
         destPayment @4: CustomUInt128;
         destTotalPayment @4: CustomUInt128;
         signature @5: Signature;
