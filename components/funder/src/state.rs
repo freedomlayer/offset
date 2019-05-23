@@ -30,48 +30,17 @@ pub struct FunderState<B: Clone> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ReceiptStatus {
-    /// Haven't got a receipt yet
-    Empty,
-    /// We Have a pending receipt, waiting to be handed to the user.
-    Pending(Receipt),
-    /// A receipt was already received and handed over to user.
-    Taken,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Payment {
-    /// The amount of ongoing transactions for this payment.
-    pub num_transactions: u64,
-    pub payment_status: PaymentStatus,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum PaymentStatus {
+pub enum Payment {
     /// User can add new transactions
-    Open(OpenPayment),
-    /// User can not add new transactions
-    /// (Either user has called RequestClosePayment, or a receipt was received from a Collect
-    /// message along the route)
-    Closed(ClosedPayment),
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OpenPayment {
-    /// Remote invoice id being paid
-    pub invoice_id: InvoiceId,
-    /// Total amount of credits we want to pay to seller.
-    pub total_dest_payment: u128,
-    /// Seller's public key:
-    pub dest_public_key: PublicKey,
-}
-
-pub enum ClosePayment {
-    InProgress,
-    Success((Receipt, Uid)), // (Receipt, ack_uid)
+    Transactions((u64, InvoiceId, u128, PublicKey)) // (num_transactions, invoice_id, total_dest_payment, dest_public_key)
+    /// User can no longer add new transactions (user sent a RequestClosePayment)
+    InProgress(u64), // num_transactions
+    /// A receipt was received:
+    Success((u64, Receipt, Uid)), // (num_transactions, Receipt, ack_uid)
+    /// The payment will not complete, because all transactions were canceled:
     Canceled(Uid),           // ack_uid
-    AfterAck,                // User already acked.
-                             // We now wait for the remaining transactions to finish.
+    /// User already acked, We now wait for the remaining transactions to finish.
+    AfterSuccessAck(u64),           // num_transactions
 }
 
 // TODO: If a receipt is requested and OpenPayment.num_transactions == 0, it should reported that no receipt
