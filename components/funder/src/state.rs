@@ -26,7 +26,7 @@ pub struct FunderState<B: Clone> {
     /// Locally created transaction in progress. (For which this node is the buyer).
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
     /// Ongoing payments (For which this node is the buyer):
-    pub open_payments: ImHashMap<PaymentId, OpenPayment>,
+    pub payments: ImHashMap<PaymentId, Payment>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -40,21 +40,37 @@ pub enum ReceiptStatus {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OpenPayment {
-    /// Is in the process of being closed?
-    /// Can only be removed if (num_transactions == 0) && receipt_status != ReceiptStatus::Pending(Receipt)
-    pub is_closing: bool,
-    /// Remote invoice id being paid
-    pub invoice_id: InvoiceId,
+pub struct Payment {
     /// The amount of ongoing transactions for this payment.
     pub num_transactions: u64,
+    pub payment_status: PaymentStatus,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub enum PaymentStatus {
+    /// User can add new transactions
+    Open(OpenPayment),
+    /// User can not add new transactions
+    /// (Either user has called request called, or a receipt was received)
+    Closed(ClosedPayment),
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct OpenPayment {
+    /// Remote invoice id being paid
+    pub invoice_id: InvoiceId,
     /// Total amount of credits we want to pay to seller.
     pub total_dest_payment: u128,
     /// Seller's public key:
     pub dest_public_key: PublicKey,
-    /// The first receipt that was received for this payment. (Generated after a CollectSendFundsOp
-    /// message was received successfuly).
-    pub receipt_status: ReceiptStatus,
+}
+
+pub enum ClosePayment {
+    InProgress,
+    Success((Receipt, Uid)), // (Receipt, ack_uid)
+    Canceled(Uid),           // ack_uid
+    AfterAck,                // User already acked.
+                             // We now wait for the remaining transactions to finish.
 }
 
 // TODO: If a receipt is requested and OpenPayment.num_transactions == 0, it should reported that no receipt
@@ -123,7 +139,7 @@ where
             friends: ImHashMap::new(),
             open_invoices: ImHashMap::new(),
             open_transactions: ImHashMap::new(),
-            open_payments: ImHashMap::new(),
+            payments: ImHashMap::new(),
         }
     }
 
@@ -197,42 +213,70 @@ where
                 dest_public_key,
             )) => {
                 let open_payment = OpenPayment {
-                    is_closing: false,
                     invoice_id: invoice_id.clone(),
                     num_transactions: 0,
                     total_dest_payment: *total_dest_payment,
                     dest_public_key: dest_public_key.clone(),
-                    receipt_status: ReceiptStatus::Empty,
                 };
-                let _ = self.open_payments.insert(payment_id.clone(), open_payment);
+                let _ = self
+                    .payments
+                    .insert(payment_id.clone(), Payment::Open(open_payment));
             }
             FunderMutation::SetPaymentReceipt((payment_id, receipt)) => {
-                let open_payment = self.open_payments.get_mut(payment_id).unwrap();
-                if let ReceiptStatus::Empty = open_payment.receipt_status {
-                    open_payment.receipt_status = ReceiptStatus::Pending(receipt.clone());
-                } else {
-                    unreachable!();
-                }
+                let payment = self.payments.remove(payment_id).unwrap();
+                let closed_payment = match payment {
+                    Payment::Open(open_payment) => ClosedPayment {
+                        opt_ack_uid: None,
+                        num_transactions: closed_payment.num_transactions,
+                        receipt_status: ReceiptStatus::Pending(receipt.clone()),
+                    },
+                    Payment::Closed(closed_payment) => {
+                        if let ReceiptStatus::Empty = closed_payment.receipt_status {
+                            closed_payment.receipt_status = ReceiptStatus::Pending(receipt.clone());
+                        } else {
+                            unreachable!();
+                        }
+                        closed_payment
+                    }
+                };
+                let _ = self
+                    .payments
+                    .insert(payment_id.clone(), Payment::Closed(closed_payment));
             }
             FunderMutation::TakePaymentReceipt(payment_id) => {
-                let open_payment = self.open_payments.get_mut(payment_id).unwrap();
+                unimplemented!();
+                /*
+                let payment = self.payments.get_mut(payment_id).unwrap();
+                let open_payment = if let Payment::Open(open_payment) = payment {
+                    open_payment
+                } else {
+                    unreachable!();
+                };
                 if let ReceiptStatus::Pending(_) = &open_payment.receipt_status {
                     open_payment.receipt_status = ReceiptStatus::Taken;
                 } else {
                     unreachable!();
                 }
+                */
             }
             FunderMutation::SetPaymentClosing(payment_id) => {
-                self.open_payments.get_mut(payment_id).unwrap().is_closing = true;
+                unimplemented!();
+                // self.open_payments.get_mut(payment_id).unwrap().is_closing = true;
             }
             FunderMutation::SetPaymentNumTransactions((payment_id, num_transactions)) => {
+                unimplemented!();
+                /*
                 self.open_payments
                     .get_mut(payment_id)
                     .unwrap()
                     .num_transactions = *num_transactions;
+                */
             }
             FunderMutation::RemovePayment(payment_id) => {
+                unimplemented!();
+                /*
                 self.open_payments.remove(payment_id);
+                */
             }
         }
     }
