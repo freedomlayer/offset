@@ -540,8 +540,8 @@ pub enum FunderControl<B> {
     // Buyer API:
     CreatePayment(CreatePayment),
     CreateTransaction(CreateTransaction), // TODO
-    RequestReceipt(PaymentId),
-    RemoveReceipt(PaymentId),
+    RequestClosePayment(PaymentId),
+    AckClosePayment((PaymentId, Uid)), // (payment_id, ack_id)
     // Seller API:
     AddInvoice(InvoiceId),
     CancelInvoice(InvoiceId),
@@ -598,8 +598,16 @@ pub struct TransactionResult {
     pub result: RequestResult,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResponseClosePayment {
+    InProgress,              // Can not be acked
+    Success((Receipt, Uid)), // (Receipt, ack_id)
+    Canceled(Uid),           // ack_id
+}
+
 #[derive(Debug)]
 pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),
+    ResponseClosePayment(ResponseClosePayment),
     ReportMutations(FunderReportMutations<B>),
 }

@@ -22,7 +22,7 @@ use proto::report::messages::{
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult
+    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult, ResponseClosePayment,
 };
 
 use database::DatabaseClient;
@@ -206,6 +206,7 @@ pub struct NodeControl<B: Clone> {
 #[derive(Debug)]
 pub enum NodeRecv<B: Clone> {
     ReportMutations(FunderReportMutations<B>),
+    ResponseClosePayment(ResponseClosePayment),
     TransactionResult(TransactionResult),
 }
 
@@ -226,6 +227,9 @@ where
                 }
                 Some(NodeRecv::ReportMutations(funder_report_mutations))
             }
+            FunderOutgoingControl::ResponseClosePayment(response_close_payment) => {
+                Some(NodeRecv::ResponseClosePayment(response_close_payment))
+            }
             FunderOutgoingControl::TransactionResult(transaction_result) => {
                 Some(NodeRecv::TransactionResult(transaction_result))
             }
@@ -240,6 +244,7 @@ where
             match await!(self.recv()).unwrap() {
                 NodeRecv::ReportMutations(_) => {}
                 NodeRecv::TransactionResult(_) => unreachable!(),
+                NodeRecv::ResponseClosePayment(_) => unreachable!(),
             };
         }
     }
@@ -249,6 +254,7 @@ where
             match await!(self.recv())? {
                 NodeRecv::ReportMutations(_) => {}
                 NodeRecv::TransactionResult(transaction_result) => return Some(transaction_result),
+                NodeRecv::ResponseClosePayment(_) => {}
             };
         }
     }

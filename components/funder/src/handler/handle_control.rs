@@ -5,6 +5,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use crypto::crypto_rand::CryptoRandom;
 use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
+use crypto::payment_id::PaymentId;
 
 use crate::friend::{ChannelStatus, FriendMutation};
 use crate::state::{FunderMutation, ReceiptStatus};
@@ -915,8 +916,8 @@ where
             max_pending_user_requests,
             create_transaction,
         ),
-        FunderControl::RequestReceipt(_payment_id) => unimplemented!(),
-        FunderControl::RemoveReceipt(_payment_id) => unimplemented!(),
+        FunderControl::RequestClosePayment(_payment_id) => unimplemented!(),
+        FunderControl::AckClosePayment((_payment_id, _uid)) => unimplemented!(),
 
         // Seller API:
         FunderControl::AddInvoice(_invoice_id) => unimplemented!(),
