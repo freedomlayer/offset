@@ -51,9 +51,6 @@ pub enum Payment {
     AfterSuccessAck(u64), // num_transactions
 }
 
-// TODO: If a receipt is requested and OpenPayment.num_transactions == 0, it should reported that no receipt
-// exists and the payment should be removed.
-
 /// A local invoice in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenInvoice {
