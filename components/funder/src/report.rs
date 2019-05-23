@@ -176,7 +176,7 @@ where
         relays: funder_state.relays.clone(),
         friends,
         num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
-        num_open_payments: usize_to_u64(funder_state.open_payments.len()).unwrap(),
+        num_payments: usize_to_u64(funder_state.payments.len()).unwrap(),
         num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),
     }
 }
@@ -359,19 +359,15 @@ where
                 Vec::new()
             }
         }
-        FunderMutation::AddPayment(_) | FunderMutation::RemovePayment(_) => {
-            if funder_state_after.open_payments.len() != funder_state.open_payments.len() {
-                vec![FunderReportMutation::SetNumOpenPayments(
-                    usize_to_u64(funder_state_after.open_payments.len()).unwrap(),
+        FunderMutation::UpdatePayment(_) | FunderMutation::RemovePayment(_) => {
+            if funder_state_after.payments.len() != funder_state.payments.len() {
+                vec![FunderReportMutation::SetNumPayments(
+                    usize_to_u64(funder_state_after.payments.len()).unwrap(),
                 )]
             } else {
                 Vec::new()
             }
         }
-        FunderMutation::SetPaymentReceipt(_)
-        | FunderMutation::SetPaymentNumTransactions(_)
-        | FunderMutation::TakePaymentReceipt(_)
-        | FunderMutation::SetPaymentClosing(_) => vec![],
     }
 }
 

@@ -177,7 +177,7 @@ where
     pub relays: ImVec<NamedRelayAddress<B>>,
     pub friends: ImHashMap<PublicKey, FriendReport<B>>,
     pub num_open_invoices: u64,
-    pub num_open_payments: u64,
+    pub num_payments: u64,
     pub num_open_transactions: u64,
 }
 
@@ -224,7 +224,7 @@ where
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<B>)),
     SetNumOpenInvoices(u64),
-    SetNumOpenPayments(u64),
+    SetNumPayments(u64),
     SetNumOpenTransactions(u64),
 }
 
@@ -387,8 +387,8 @@ where
                 self.num_open_invoices = *num_open_invoices;
                 Ok(())
             }
-            FunderReportMutation::SetNumOpenPayments(num_open_payments) => {
-                self.num_open_payments = *num_open_payments;
+            FunderReportMutation::SetNumPayments(num_payments) => {
+                self.num_payments = *num_payments;
                 Ok(())
             }
             FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {

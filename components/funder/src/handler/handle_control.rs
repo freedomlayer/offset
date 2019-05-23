@@ -8,7 +8,7 @@ use crypto::identity::PublicKey;
 use crypto::payment_id::PaymentId;
 
 use crate::friend::{ChannelStatus, FriendMutation};
-use crate::state::{FunderMutation, ReceiptStatus};
+use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
@@ -46,6 +46,7 @@ pub enum HandleControlError {
     PaymentAlreadyOpen,
     OpenPaymentNotFound,
     PaymentReceiptNotEmpty,
+    NewTransactionsNotAllowed,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -632,19 +633,21 @@ where
     // Make sure that a payment with the same payment_id doesn't exist:
     if m_state
         .state()
-        .open_payments
+        .payments
         .contains_key(&create_payment.payment_id)
     {
         return Err(HandleControlError::PaymentAlreadyOpen);
     }
 
+    let payment = Payment::NewTransactions(NewTransactions {
+        num_transactions: 0,
+        invoice_id: create_payment.invoice_id.clone(),
+        total_dest_payment: create_payment.total_dest_payment,
+        dest_public_key: create_payment.dest_public_key.clone(),
+    });
+
     // Add a new payment entry:
-    let m_mutation = FunderMutation::AddPayment((
-        create_payment.payment_id,
-        create_payment.invoice_id,
-        create_payment.total_dest_payment,
-        create_payment.dest_public_key,
-    ));
+    let m_mutation = FunderMutation::UpdatePayment((create_payment.payment_id, payment));
 
     m_state.mutate(m_mutation);
     Ok(())
@@ -664,19 +667,17 @@ where
     R: CryptoRandom,
 {
     // Make sure that a corresponding payment is open
-    let open_payment = m_state
+    let payment = m_state
         .state()
-        .open_payments
+        .payments
         .get(&create_transaction.payment_id)
         .ok_or(HandleControlError::OpenPaymentNotFound)?;
 
-    // If we already have a receipt or the payment is closed, do not allow creating a new
-    // transaction:
-    if let ReceiptStatus::Empty = open_payment.receipt_status {
-        // Good case
+    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+        new_transactions.clone()
     } else {
-        return Err(HandleControlError::PaymentReceiptNotEmpty)?;
-    }
+        return Err(HandleControlError::NewTransactionsNotAllowed)?;
+    };
 
     let route = &create_transaction.route;
 
@@ -746,25 +747,16 @@ where
     ));
     m_state.mutate(funder_mutation);
 
-    let open_payment = m_state
-        .state()
-        .open_payments
-        .get(&create_transaction.payment_id)
-        .unwrap();
-
     // Update OpenPayment (Increase open transactions count):
-    let new_num_transactions = open_payment.num_transactions.checked_add(1).unwrap();
-    let funder_mutation = FunderMutation::SetPaymentNumTransactions((
+    let mut updated_new_transactions = new_transactions.clone();
+    updated_new_transactions.num_transactions =
+        new_transactions.num_transactions.checked_add(1).unwrap();
+
+    let funder_mutation = FunderMutation::UpdatePayment((
         create_transaction.payment_id,
-        new_num_transactions,
+        Payment::NewTransactions(updated_new_transactions),
     ));
     m_state.mutate(funder_mutation);
-
-    let open_payment = m_state
-        .state()
-        .open_payments
-        .get(&create_transaction.payment_id)
-        .unwrap();
 
     // Push the request:
     let request_send_funds = RequestSendFundsOp {
@@ -772,8 +764,8 @@ where
         src_hashed_lock: src_plain_lock.hash(),
         route: create_transaction.route,
         dest_payment: create_transaction.dest_payment,
-        total_dest_payment: open_payment.total_dest_payment,
-        invoice_id: open_payment.invoice_id.clone(),
+        total_dest_payment: new_transactions.total_dest_payment,
+        invoice_id: new_transactions.invoice_id.clone(),
         left_fees: create_transaction.fees,
     };
 

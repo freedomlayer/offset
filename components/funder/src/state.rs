@@ -30,17 +30,25 @@ pub struct FunderState<B: Clone> {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct NewTransactions {
+    pub num_transactions: u64,
+    pub invoice_id: InvoiceId,
+    pub total_dest_payment: u128,
+    pub dest_public_key: PublicKey,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Payment {
     /// User can add new transactions
-    Transactions((u64, InvoiceId, u128, PublicKey)) // (num_transactions, invoice_id, total_dest_payment, dest_public_key)
+    NewTransactions(NewTransactions),
     /// User can no longer add new transactions (user sent a RequestClosePayment)
     InProgress(u64), // num_transactions
     /// A receipt was received:
     Success((u64, Receipt, Uid)), // (num_transactions, Receipt, ack_uid)
     /// The payment will not complete, because all transactions were canceled:
-    Canceled(Uid),           // ack_uid
+    Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.
-    AfterSuccessAck(u64),           // num_transactions
+    AfterSuccessAck(u64), // num_transactions
 }
 
 // TODO: If a receipt is requested and OpenPayment.num_transactions == 0, it should reported that no receipt
@@ -87,11 +95,7 @@ pub enum FunderMutation<B: Clone> {
     RemoveInvoice(InvoiceId),
     AddTransaction((Uid, PaymentId, PlainLock)), // (transaction_id, payment_id,src_plain_lock)
     RemoveTransaction(Uid),                      // transaction_id
-    AddPayment((PaymentId, InvoiceId, u128, PublicKey)), // (payment_id, invoice_id, total_dest_payment, destination)
-    SetPaymentReceipt((PaymentId, Receipt)),
-    TakePaymentReceipt(PaymentId),
-    SetPaymentClosing(PaymentId),
-    SetPaymentNumTransactions((PaymentId, u64)), // (payment_id, num_transactions)
+    UpdatePayment((PaymentId, Payment)),
     RemovePayment(PaymentId),
 }
 
@@ -176,77 +180,11 @@ where
             FunderMutation::RemoveTransaction(transaction_id) => {
                 let _ = self.open_transactions.remove(transaction_id);
             }
-            FunderMutation::AddPayment((
-                payment_id,
-                invoice_id,
-                total_dest_payment,
-                dest_public_key,
-            )) => {
-                let open_payment = OpenPayment {
-                    invoice_id: invoice_id.clone(),
-                    num_transactions: 0,
-                    total_dest_payment: *total_dest_payment,
-                    dest_public_key: dest_public_key.clone(),
-                };
-                let _ = self
-                    .payments
-                    .insert(payment_id.clone(), Payment::Open(open_payment));
-            }
-            FunderMutation::SetPaymentReceipt((payment_id, receipt)) => {
-                let payment = self.payments.remove(payment_id).unwrap();
-                let closed_payment = match payment {
-                    Payment::Open(open_payment) => ClosedPayment {
-                        opt_ack_uid: None,
-                        num_transactions: closed_payment.num_transactions,
-                        receipt_status: ReceiptStatus::Pending(receipt.clone()),
-                    },
-                    Payment::Closed(closed_payment) => {
-                        if let ReceiptStatus::Empty = closed_payment.receipt_status {
-                            closed_payment.receipt_status = ReceiptStatus::Pending(receipt.clone());
-                        } else {
-                            unreachable!();
-                        }
-                        closed_payment
-                    }
-                };
-                let _ = self
-                    .payments
-                    .insert(payment_id.clone(), Payment::Closed(closed_payment));
-            }
-            FunderMutation::TakePaymentReceipt(payment_id) => {
-                unimplemented!();
-                /*
-                let payment = self.payments.get_mut(payment_id).unwrap();
-                let open_payment = if let Payment::Open(open_payment) = payment {
-                    open_payment
-                } else {
-                    unreachable!();
-                };
-                if let ReceiptStatus::Pending(_) = &open_payment.receipt_status {
-                    open_payment.receipt_status = ReceiptStatus::Taken;
-                } else {
-                    unreachable!();
-                }
-                */
-            }
-            FunderMutation::SetPaymentClosing(payment_id) => {
-                unimplemented!();
-                // self.open_payments.get_mut(payment_id).unwrap().is_closing = true;
-            }
-            FunderMutation::SetPaymentNumTransactions((payment_id, num_transactions)) => {
-                unimplemented!();
-                /*
-                self.open_payments
-                    .get_mut(payment_id)
-                    .unwrap()
-                    .num_transactions = *num_transactions;
-                */
+            FunderMutation::UpdatePayment((payment_id, payment)) => {
+                let _ = self.payments.insert(payment_id.clone(), payment.clone());
             }
             FunderMutation::RemovePayment(payment_id) => {
-                unimplemented!();
-                /*
-                self.open_payments.remove(payment_id);
-                */
+                let _ = self.payments.remove(payment_id);
             }
         }
     }
