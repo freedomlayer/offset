@@ -51,7 +51,8 @@ pub enum PaymentStatus {
     /// User can add new transactions
     Open(OpenPayment),
     /// User can not add new transactions
-    /// (Either user has called request called, or a receipt was received)
+    /// (Either user has called RequestClosePayment, or a receipt was received from a Collect
+    /// message along the route)
     Closed(ClosedPayment),
 }
 
