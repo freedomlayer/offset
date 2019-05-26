@@ -168,12 +168,17 @@ pub struct Receipt {
     pub dest_payment: u128,
     pub total_dest_payment: u128,
     pub signature: Signature,
-    // Signature{key=recipientKey}(
-    //   "FUND_SUCCESS" ||
-    //   sha512/256(requestId || sha512/256(route) || randNonce) ||
-    //   invoiceId ||
-    //   destPayment
-    // )
+    /*
+    # Signature{key=destinationKey}(
+    #   sha512/256("FUNDS_RESPONSE") ||
+    #   sha512/256(requestId || sha512/256(route) || randNonce) ||
+    #   srcHashedLock ||
+    #   dstHashedLock ||
+    #   destPayment ||
+    #   totalDestPayment ||
+    #   invoiceId
+    # )
+    */
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
