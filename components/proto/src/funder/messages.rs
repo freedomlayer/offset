@@ -519,9 +519,9 @@ pub struct CreateTransaction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
-    invoice_id: InvoiceId,
+    pub invoice_id: InvoiceId,
     /// Total amount of credits to be paid.
-    total_dest_payment: u128,
+    pub total_dest_payment: u128,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
