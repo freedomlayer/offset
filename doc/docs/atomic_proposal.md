@@ -499,7 +499,7 @@ struct Receipt {
         srcPlainLock @2: PlainLock;
         destPlainLock @3: PlainLock;
         destPayment @4: CustomUInt128;
-        destTotalPayment @4: CustomUInt128;
+        totalDestPayment @4: CustomUInt128;
         signature @5: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
@@ -507,7 +507,7 @@ struct Receipt {
         #   srcHashedLock || 
         #   dstHashedLock || 
         #   destPayment ||
-        #   destTotalPayment ||
+        #   totalDestPayment ||
         #   invoiceId
         # )
 }
