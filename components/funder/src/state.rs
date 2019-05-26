@@ -2,7 +2,7 @@ use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
 use common::canonical_serialize::CanonicalSerialize;
-use crypto::hash_lock::PlainLock;
+use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::PublicKey;
 use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
@@ -52,22 +52,28 @@ pub enum Payment {
     AfterSuccessAck(u64), // num_transactions
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct IncomingTransaction {
+    pub request_id: Uid,
+    /// The lock we used on our ResponseSendFundsOp message.  
+    /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.
+    pub dest_plain_lock: PlainLock,
+}
+
 /// A local invoice in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenInvoice {
     /// Total payment required to fulfill this invoice:
     pub total_dest_payment: u128,
-    /// Destination plain locks for all requests related to a single open invoice that was
-    /// originated for this node.
-    /// Multiple requests are possible for a single invoice in case of a multi-route payment.
-    pub dest_plain_locks: ImHashMap<Uid, PlainLock>,
+    /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
+    pub incoming_transactions: ImHashMap<HashedLock, IncomingTransaction>,
 }
 
 impl OpenInvoice {
     pub fn new(total_dest_payment: u128) -> Self {
         OpenInvoice {
             total_dest_payment,
-            dest_plain_locks: ImHashMap::new(),
+            incoming_transactions: ImHashMap::new(),
         }
     }
 }
@@ -89,7 +95,7 @@ pub enum FunderMutation<B: Clone> {
     AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
     AddInvoice((InvoiceId, u128)), // (InvoiceId, total_dest_payment)
-    AddDestPlainLock((InvoiceId, Uid, PlainLock)), // InvoiceId, RequestId, dest_plain_lock
+    AddIncomingTransaction((InvoiceId, Uid, PlainLock)), // (invoice_id, request_id, dest_plain_lock)
     RemoveInvoice(InvoiceId),
     AddTransaction((Uid, PaymentId, PlainLock)), // (transaction_id, payment_id,src_plain_lock)
     RemoveTransaction(Uid),                      // transaction_id
@@ -157,11 +163,15 @@ where
                 self.open_invoices
                     .insert(invoice_id.clone(), OpenInvoice::new(*total_dest_payment));
             }
-            FunderMutation::AddDestPlainLock((invoice_id, request_id, plain_lock)) => {
+            FunderMutation::AddIncomingTransaction((invoice_id, request_id, dest_plain_lock)) => {
                 let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
+                let incoming_transaction = IncomingTransaction {
+                    request_id: request_id.clone(),
+                    dest_plain_lock: dest_plain_lock.clone(),
+                };
                 open_invoice
-                    .dest_plain_locks
-                    .insert(request_id.clone(), plain_lock.clone());
+                    .incoming_transactions
+                    .insert(dest_plain_lock.hash().clone(), incoming_transaction);
             }
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);

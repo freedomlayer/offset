@@ -349,7 +349,7 @@ where
                 Vec::new()
             }
         }
-        FunderMutation::AddDestPlainLock(_) => vec![],
+        FunderMutation::AddIncomingTransaction(_) => vec![],
         FunderMutation::AddTransaction(_) | FunderMutation::RemoveTransaction(_) => {
             if funder_state_after.open_transactions.len() != funder_state.open_transactions.len() {
                 vec![FunderReportMutation::SetNumOpenTransactions(

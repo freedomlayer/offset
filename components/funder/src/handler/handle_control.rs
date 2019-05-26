@@ -15,11 +15,12 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, AddInvoice, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
-    FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestResult,
+    FunderControl, FunderOutgoingControl, MultiCommit, ReceiptAck, RemoveFriend, RequestResult,
     RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
     SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
     UserRequestSendFunds,
 };
+use proto::funder::signature_buff::verify_multi_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
@@ -54,6 +55,7 @@ pub enum HandleControlError {
     AckMismatch,
     InvoiceAlreadyExists,
     InvoiceDoesNotExist,
+    InvalidMultiCommit,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -982,7 +984,8 @@ where
         .clone();
 
     // Cancel all pending transactions related to this invoice
-    for (request_id, _) in open_invoice.dest_plain_locks {
+    for (_, incoming_transaction) in open_invoice.incoming_transactions {
+        let request_id = &incoming_transaction.request_id;
         // Explaining the unwrap() below:
         // We expect that the origin of this request must be from an existing friend.
         // We can not be the originator of this request.
@@ -997,6 +1000,50 @@ where
     m_state.mutate(funder_mutation);
 
     Ok(())
+}
+
+fn control_commit_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    multi_commit: &MultiCommit,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Find matching open invoice:
+    let open_invoice = m_state
+        .state()
+        .open_invoices
+        .get(&multi_commit.invoice_id)
+        .ok_or(HandleControlError::InvoiceDoesNotExist)?
+        .clone();
+
+    if !verify_multi_commit(multi_commit, &m_state.state().local_public_key) {
+        return Err(HandleControlError::InvalidMultiCommit);
+    }
+    /*
+
+    // TODO:
+    // - Push collect messages for all pending requests
+    for commit in multi_commit.commits {
+        let opt_uid_open_invoice.transactions.get(&commit.dest_hashed_lock)
+    }
+
+    let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
+
+    // Signal the sender to attempt to send:
+    send_commands.set_try_send(&friend_public_key);
+    assert!(false);
+
+    // Remove invoice:
+    let funder_mutation = FunderMutation::RemoveInvoice(multi_commit.invoice_id.clone());
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+    */
+    unimplemented!();
 }
 
 pub fn handle_control_message<B, R>(
@@ -1102,6 +1149,8 @@ where
         FunderControl::CancelInvoice(invoice_id) => {
             control_cancel_invoice(m_state, send_commands, invoice_id)
         }
-        FunderControl::CommitInvoice(_multi_commit) => unimplemented!(),
+        FunderControl::CommitInvoice(multi_commit) => {
+            control_commit_invoice(m_state, &multi_commit)
+        }
     }
 }

@@ -105,7 +105,7 @@ where
             self.mutate(funder_mutation);
 
             // Mutation to add the destination plain lock:
-            let funder_mutation = FunderMutation::AddDestPlainLock((
+            let funder_mutation = FunderMutation::AddIncomingTransaction((
                 pending_transaction.invoice_id,
                 pending_transaction.request_id,
                 dest_plain_lock,
