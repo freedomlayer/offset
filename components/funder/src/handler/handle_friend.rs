@@ -288,9 +288,9 @@ fn handle_cancel_send_funds<B, R>(
             ));
         }
         Some(friend_public_key) => {
-            // Queue this failure message to another token channel:
-            let failure_op = BackwardsOp::Cancel(cancel_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(failure_op);
+            // Queue this Cancel message to another token channel:
+            let cancel_op = BackwardsOp::Cancel(cancel_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_op);
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -309,7 +309,29 @@ fn handle_collect_send_funds<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    unimplemented!();
+    // Check if we are the origin of this transaction (Did we send the RequestSendFundsOp
+    // message?):
+    match find_request_origin(m_state.state(), &collect_send_funds.request_id).cloned() {
+        None => {
+            // We are the origin of this request, and we got a Collect message
+            // TODO:
+            // - Create a receipt.
+            // - Update payment status
+            // - Remove transaction
+            // - Send the receipt to the user
+            unimplemented!();
+        }
+        Some(friend_public_key) => {
+            // Queue this Collect message to another token channel:
+            let collect_op = BackwardsOp::Collect(collect_send_funds);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(collect_op);
+            let funder_mutation =
+                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+
+            send_commands.set_try_send(&friend_public_key);
+        }
+    };
 }
 
 /// Process valid incoming operations from remote side.
