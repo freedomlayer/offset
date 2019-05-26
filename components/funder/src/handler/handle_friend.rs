@@ -10,7 +10,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
-use proto::funder::signature_buff::verify_move_token;
+use proto::funder::signature_buff::{prepare_commit, verify_move_token};
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,
@@ -230,23 +230,23 @@ fn handle_response_send_funds<B>(
 {
     match find_request_origin(m_state.state(), &response_send_funds.request_id).cloned() {
         None => {
-            unimplemented!();
-            /*
-            // We are the origin of this request, and we got a response.
-            // We provide a receipt to the user:
-            let receipt = prepare_receipt(&response_send_funds, &pending_transaction);
+            // Send transaction result to user:
+            let src_plain_lock = m_state
+                .state()
+                .open_transactions
+                .get(&response_send_funds.request_id)
+                .unwrap()
+                .src_plain_lock
+                .clone();
 
-            let response_send_funds_result = ResponseSendFundsResult::Success(receipt.clone());
-            outgoing_control.push(FunderOutgoingControl::ResponseReceived(ResponseReceived {
-                request_id: pending_transaction.request_id,
-                result: response_send_funds_result,
-            }));
-            // We make our own copy of the receipt, in case the user abruptly crashes.
-            // In that case the user will be able to obtain the receipt again later.
-            let funder_mutation =
-                FunderMutation::AddReceipt((pending_transaction.request_id, receipt));
-            m_state.mutate(funder_mutation);
-            */
+            let commit = prepare_commit(&response_send_funds, &pending_transaction, src_plain_lock);
+
+            let transaction_result = TransactionResult {
+                request_id: response_send_funds.request_id.clone(),
+                result: RequestResult::Success(commit),
+            };
+            let transaction_result =
+                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }
         Some(friend_public_key) => {
             // Queue this response message to another token channel:

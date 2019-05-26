@@ -1,6 +1,7 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash::{self, sha_512_256, HashResult};
+use crypto::hash_lock::PlainLock;
 use crypto::identity::{verify_signature, PublicKey};
 use crypto::invoice_id::InvoiceId;
 
@@ -78,6 +79,28 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
         .unwrap();
     data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
+}
+
+/// Create a Commit (out of band) message given a ResponseSendFunds
+pub fn prepare_commit(
+    response_send_funds: &ResponseSendFundsOp,
+    pending_transaction: &PendingTransaction,
+    src_plain_lock: PlainLock,
+) -> Commit {
+    let mut hash_buff = Vec::new();
+    hash_buff.extend_from_slice(&pending_transaction.request_id);
+    hash_buff.extend_from_slice(&pending_transaction.route.hash());
+    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
+    let response_hash = hash::sha_512_256(&hash_buff);
+    // = sha512/256(requestId || sha512/256(route) || randNonce)
+
+    Commit {
+        response_hash,
+        dest_payment: pending_transaction.dest_payment,
+        src_plain_lock,
+        dest_hashed_lock: response_send_funds.dest_hashed_lock.clone(),
+        signature: response_send_funds.signature.clone(),
+    }
 }
 
 /// Verify that a given Commit signature is valid
