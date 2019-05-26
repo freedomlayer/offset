@@ -543,7 +543,7 @@ pub enum FunderControl<B> {
     RequestClosePayment(PaymentId),
     AckClosePayment((PaymentId, Uid)), // (payment_id, ack_id)
     // Seller API:
-    AddInvoice(InvoiceId),
+    AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
     CommitInvoice(InvoiceId),
 }
