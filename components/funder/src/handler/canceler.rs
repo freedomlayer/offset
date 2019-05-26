@@ -17,7 +17,7 @@ use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::state::FunderMutation;
 use crate::types::{create_cancel_send_funds, create_pending_transaction};
 
-/// Reply to a request message with a cancellation.
+/// Reply to a single request message with a cancellation.
 pub fn reply_with_cancel<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
@@ -36,7 +36,8 @@ pub fn reply_with_cancel<B>(
 }
 
 /// Cancel outgoing local requests that are already inside the token channel (Possibly already
-/// communicated to the remote side).
+/// communicated to the remote side). This is a violent operation, as we break our promises for
+/// forwarded requests. This should only be done during unfriending.
 pub fn cancel_local_pending_transactions<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
@@ -93,6 +94,8 @@ pub fn cancel_local_pending_transactions<B>(
     }
 }
 
+/// Cancel all pending request messages at the pending_requests queue.
+/// These are requests that were forwarded from other nodes.
 pub fn cancel_pending_requests<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
@@ -137,6 +140,8 @@ pub fn cancel_pending_requests<B>(
     }
 }
 
+/// Cancel all pending request messages at the user_pending_requests queue.
+/// These are requests that were created by the local user of this node.
 pub fn cancel_pending_user_requests<B>(
     m_state: &mut MutableFunderState<B>,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,

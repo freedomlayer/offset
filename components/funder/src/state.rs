@@ -29,6 +29,7 @@ pub struct FunderState<B: Clone> {
     pub payments: ImHashMap<PaymentId, Payment>,
 }
 
+/// A state of a Payment where new transactions may still be added.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct NewTransactions {
     pub num_transactions: u64,
