@@ -412,7 +412,7 @@ struct Commit {
         srcPlainLock @2: PlainLock;
         # The preimage of the hashedLock at the request message [256 bits]
         destHashedLock @3: HashedLock;
-        signature @3: Signature;
+        signature @4: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
