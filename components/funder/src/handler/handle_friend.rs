@@ -27,6 +27,8 @@ use crate::state::FunderMutation;
 
 use crate::ephemeral::Ephemeral;
 
+use crate::mutual_credit::types::calc_fee;
+
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
     reply_with_cancel,
@@ -144,7 +146,7 @@ fn handle_request_send_funds<B>(
     ephemeral: &Ephemeral,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
-    request_send_funds: RequestSendFundsOp,
+    mut request_send_funds: RequestSendFundsOp,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
@@ -171,6 +173,7 @@ fn handle_request_send_funds<B>(
         return;
     }
 
+    // We are not the destination of this request.
     // The node on the route has to be one of our friends:
     let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
     let friend_exists = m_state.state().friends.contains_key(next_public_key);
@@ -184,15 +187,33 @@ fn handle_request_send_funds<B>(
         false
     };
 
-    if !friend_ready {
-        reply_with_cancel(
-            m_state,
-            send_commands,
-            remote_public_key,
-            &request_send_funds.request_id,
-        );
-        return;
-    }
+    // Attempt to take our fee for forwarding the request.
+    // Note that the rate is determined by the rate we set with the node that sent us the request
+    // (And **not** with the node that we forward the request to).
+    let rate = &m_state.state().friends.get(remote_public_key).unwrap().rate;
+    let opt_local_fee = calc_fee(rate, request_send_funds.dest_payment);
+
+    let request_id = request_send_funds.request_id.clone();
+
+    // Make sure that calc_fee() worked, and that we can take this amount of credits:
+    let opt_request_send_funds = if let Some(local_fee) = opt_local_fee {
+        if let Some(new_left_fees) = request_send_funds.left_fees.checked_sub(local_fee) {
+            request_send_funds.left_fees = new_left_fees;
+            Some(request_send_funds)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let request_send_funds = match (opt_request_send_funds, friend_ready) {
+        (Some(request_send_funds), true) => request_send_funds,
+        _ => {
+            reply_with_cancel(m_state, send_commands, remote_public_key, &request_id);
+            return;
+        }
+    };
 
     // Queue message to the next node.
     forward_request(m_state, send_commands, request_send_funds);
