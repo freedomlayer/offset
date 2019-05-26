@@ -6,9 +6,7 @@ use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::messages::{
-    FunderOutgoingControl, RequestResult, RequestSendFundsOp, TransactionResult,
-};
+use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};
 
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::MutableFunderState;
