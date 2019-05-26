@@ -1,6 +1,9 @@
-use common::canonical_serialize::CanonicalSerialize;
-use crypto::identity::PublicKey;
 use std::fmt::Debug;
+
+use common::canonical_serialize::CanonicalSerialize;
+
+use crypto::identity::PublicKey;
+use crypto::uid::Uid;
 
 use proto::funder::messages::{
     FunderOutgoingControl, RequestResult, RequestSendFundsOp, TransactionResult,
@@ -19,12 +22,11 @@ pub fn reply_with_cancel<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
-    request_send_funds: &RequestSendFundsOp,
+    request_id: &Uid,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    let pending_local_transaction = create_pending_transaction(request_send_funds);
-    let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+    let cancel_send_funds = create_cancel_send_funds(request_id.clone());
     let friend_mutation =
         FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Cancel(cancel_send_funds));
     let funder_mutation =
@@ -68,7 +70,8 @@ pub fn cancel_local_pending_transactions<B>(
             Some(origin_public_key) => {
                 // We have found the friend that is the origin of this request.
                 // We send him a cancel message.
-                let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+                let cancel_send_funds =
+                    create_cancel_send_funds(pending_local_transaction.request_id.clone());
                 let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
                     BackwardsOp::Cancel(cancel_send_funds),
                 );
@@ -112,7 +115,8 @@ pub fn cancel_pending_requests<B>(
         match opt_origin_public_key {
             Some(origin_public_key) => {
                 let pending_local_transaction = create_pending_transaction(&pending_request);
-                let cancel_send_funds = create_cancel_send_funds(&pending_local_transaction);
+                let cancel_send_funds =
+                    create_cancel_send_funds(pending_local_transaction.request_id.clone());
                 let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
                     BackwardsOp::Cancel(cancel_send_funds),
                 );

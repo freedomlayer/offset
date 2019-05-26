@@ -24,10 +24,11 @@ use proto::funder::messages::{
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
+    reply_with_cancel,
 };
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
-use crate::handler::utils::is_friend_ready;
+use crate::handler::utils::{find_request_origin, is_friend_ready};
 
 use crate::types::ChannelerConfig;
 
@@ -52,6 +53,7 @@ pub enum HandleControlError {
     AckStateInvalid,
     AckMismatch,
     InvoiceAlreadyExists,
+    InvoiceDoesNotExist,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -964,6 +966,39 @@ where
     Ok(())
 }
 
+fn control_cancel_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    invoice_id: InvoiceId,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    let open_invoice = m_state
+        .state()
+        .open_invoices
+        .get(&invoice_id)
+        .ok_or(HandleControlError::InvoiceDoesNotExist)?
+        .clone();
+
+    // Cancel all pending transactions related to this invoice
+    for (request_id, _) in open_invoice.dest_plain_locks {
+        // Explaining the unwrap() below:
+        // We expect that the origin of this request must be from an existing friend.
+        // We can not be the originator of this request.
+        let friend_public_key = find_request_origin(m_state.state(), &request_id)
+            .unwrap()
+            .clone();
+        reply_with_cancel(m_state, send_commands, &friend_public_key, &request_id);
+    }
+
+    // Remove invoice:
+    let funder_mutation = FunderMutation::RemoveInvoice(invoice_id);
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
 pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
@@ -1064,7 +1099,9 @@ where
 
         // Seller API:
         FunderControl::AddInvoice(add_invoice) => control_add_invoice(m_state, add_invoice),
-        FunderControl::CancelInvoice(invoice_id) => unimplemented!(),
+        FunderControl::CancelInvoice(invoice_id) => {
+            control_cancel_invoice(m_state, send_commands, invoice_id)
+        }
         FunderControl::CommitInvoice(_multi_commit) => unimplemented!(),
     }
 }

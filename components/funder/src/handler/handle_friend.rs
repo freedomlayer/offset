@@ -189,7 +189,7 @@ fn handle_request_send_funds<B>(
             m_state,
             send_commands,
             remote_public_key,
-            &request_send_funds,
+            &request_send_funds.request_id,
         );
         return;
     }

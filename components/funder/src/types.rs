@@ -4,6 +4,7 @@ use crypto::crypto_rand::RandValue;
 use crypto::hash::HashResult;
 use crypto::hash_lock::HashedLock;
 use crypto::identity::{PublicKey, Signature};
+use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -74,11 +75,11 @@ pub async fn create_response_send_funds<'a>(
 }
 
 pub fn create_cancel_send_funds(
-    pending_transaction: &PendingTransaction,
+    request_id: Uid,
 ) -> CancelSendFundsOp {
 
     CancelSendFundsOp {
-        request_id: pending_transaction.request_id,
+        request_id: request_id,
     }
 }
 
