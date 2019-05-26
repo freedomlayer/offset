@@ -5,23 +5,16 @@ use common::canonical_serialize::CanonicalSerialize;
 use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
-use crypto::uid::Uid;
 
-use proto::app_server::messages::RelayAddress;
-use proto::funder::messages::{FunderOutgoingControl, PendingTransaction};
-use proto::report::messages::{FunderReportMutation, FunderReportMutations};
+use proto::funder::messages::PendingTransaction;
 
 use identity::IdentityClient;
 
 use crate::state::{FunderMutation, FunderState};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
-use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
-use crate::types::{
-    create_response_send_funds, ChannelerConfig, FunderIncoming, FunderIncomingComm,
-    FunderOutgoingComm, UnsignedResponseSendFundsOp,
-};
+use crate::friend::{BackwardsOp, FriendMutation};
+use crate::types::create_response_send_funds;
 
 #[derive(Debug, Clone)]
 pub struct SemiResponse {
@@ -121,6 +114,7 @@ where
     }
 }
 
+/*
 pub struct MutableFunderStateSigned<B: Clone> {
     initial_state: FunderState<B>,
     state: FunderState<B>,
@@ -128,6 +122,7 @@ pub struct MutableFunderStateSigned<B: Clone> {
 }
 
 impl<B> MutableFunderStateSigned<B> where B: Clone + CanonicalSerialize + PartialEq + Eq + Debug {}
+*/
 
 pub struct MutableEphemeral {
     ephemeral: Ephemeral,

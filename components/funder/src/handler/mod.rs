@@ -12,7 +12,6 @@ mod handle_liveness;
 mod handler;
 #[allow(unused)]
 mod sender;
-#[allow(unused)]
 mod state_wrap;
 mod utils;
 
