@@ -87,18 +87,18 @@ pub struct CancelSendFundsOp {
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
-    response_hash: HashResult,
-    dest_payment: u128,
-    src_plain_lock: PlainLock,
-    dest_hashed_lock: HashedLock,
-    signature: Signature,
+    pub response_hash: HashResult,
+    pub dest_payment: u128,
+    pub src_plain_lock: PlainLock,
+    pub dest_hashed_lock: HashedLock,
+    pub signature: Signature,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MultiCommit {
-    invoice_id: InvoiceId,
-    total_dest_payment: u128,
-    commits: Vec<Commit>,
+    pub invoice_id: InvoiceId,
+    pub total_dest_payment: u128,
+    pub commits: Vec<Commit>,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
