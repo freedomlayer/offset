@@ -251,8 +251,7 @@ fn handle_response_send_funds<B>(
                 request_id: response_send_funds.request_id.clone(),
                 result: RequestResult::Success(commit),
             };
-            let transaction_result =
-                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }
         Some(friend_public_key) => {
             // Queue this response message to another token channel:
@@ -309,7 +308,6 @@ fn handle_cancel_send_funds<B, R>(
 fn handle_collect_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     rng: &R,
     collect_send_funds: CollectSendFundsOp,
     pending_transaction: PendingTransaction,
@@ -463,7 +461,6 @@ fn handle_move_token_output<B, R>(
                 handle_collect_send_funds(
                     m_state,
                     send_commands,
-                    outgoing_control,
                     rng,
                     incoming_collect,
                     pending_transaction,
