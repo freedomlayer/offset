@@ -5,6 +5,7 @@ use common::canonical_serialize::CanonicalSerialize;
 use crypto::crypto_rand::CryptoRandom;
 use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
+use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
@@ -13,7 +14,7 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
+    AddFriend, AddInvoice, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
     FunderControl, FunderOutgoingControl, ReceiptAck, RemoveFriend, RequestResult,
     RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
     SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
@@ -50,6 +51,7 @@ pub enum HandleControlError {
     PaymentDoesNotExist,
     AckStateInvalid,
     AckMismatch,
+    InvoiceAlreadyExists,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -939,6 +941,29 @@ where
     Ok(())
 }
 
+fn control_add_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    add_invoice: AddInvoice,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    if m_state
+        .state()
+        .open_invoices
+        .contains_key(&add_invoice.invoice_id)
+    {
+        return Err(HandleControlError::InvoiceAlreadyExists);
+    }
+
+    // Add new invoice:
+    let funder_mutation =
+        FunderMutation::AddInvoice((add_invoice.invoice_id, add_invoice.total_dest_payment));
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
 pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
@@ -1038,7 +1063,7 @@ where
         }
 
         // Seller API:
-        FunderControl::AddInvoice(_invoice_id) => unimplemented!(),
+        FunderControl::AddInvoice(add_invoice) => control_add_invoice(m_state, add_invoice),
         FunderControl::CancelInvoice(invoice_id) => unimplemented!(),
         FunderControl::CommitInvoice(_multi_commit) => unimplemented!(),
     }
