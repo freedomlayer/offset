@@ -545,7 +545,7 @@ pub enum FunderControl<B> {
     // Seller API:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
-    CommitInvoice(InvoiceId),
+    CommitInvoice(MultiCommit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
