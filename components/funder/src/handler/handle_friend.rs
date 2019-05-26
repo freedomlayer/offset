@@ -230,6 +230,11 @@ fn handle_response_send_funds<B>(
 {
     match find_request_origin(m_state.state(), &response_send_funds.request_id).cloned() {
         None => {
+            // Keep the response:
+            let funder_mutation =
+                FunderMutation::SetTransactionResponse(response_send_funds.clone());
+            m_state.mutate(funder_mutation);
+
             // Send transaction result to user:
             let src_plain_lock = m_state
                 .state()

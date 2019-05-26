@@ -101,7 +101,7 @@ pub enum FunderMutation<B: Clone> {
     AddIncomingTransaction((InvoiceId, Uid, PlainLock)), // (invoice_id, request_id, dest_plain_lock)
     RemoveInvoice(InvoiceId),
     AddTransaction((Uid, PaymentId, PlainLock)), // (request_id, payment_id,src_plain_lock)
-    SetTransactionResponse((Uid, ResponseSendFundsOp)), // (request_id, response_send_funds)
+    SetTransactionResponse(ResponseSendFundsOp), // (request_id, response_send_funds)
     RemoveTransaction(Uid),                      // request_id
     UpdatePayment((PaymentId, Payment)),
     RemovePayment(PaymentId),
@@ -190,8 +190,11 @@ where
                     .open_transactions
                     .insert(request_id.clone(), open_transaction);
             }
-            FunderMutation::SetTransactionResponse((request_id, response_send_funds)) => {
-                let open_transaction = self.open_transactions.get_mut(&request_id).unwrap();
+            FunderMutation::SetTransactionResponse(response_send_funds) => {
+                let open_transaction = self
+                    .open_transactions
+                    .get_mut(&response_send_funds.request_id)
+                    .unwrap();
                 // We assert that no response was received so far:
                 assert!(open_transaction.opt_response.take().is_none());
                 open_transaction.opt_response = Some(response_send_funds.clone());
