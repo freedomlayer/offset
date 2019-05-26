@@ -9,16 +9,16 @@ use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
-use crate::friend::{ChannelStatus, FriendMutation};
+use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, AddInvoice, ChannelerUpdateFriend, CreatePayment, CreateTransaction, FriendStatus,
-    FunderControl, FunderOutgoingControl, MultiCommit, ReceiptAck, RemoveFriend, RequestResult,
-    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
-    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
-    UserRequestSendFunds,
+    AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp, CreatePayment,
+    CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl, MultiCommit, ReceiptAck,
+    RemoveFriend, RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
+    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
+    SetRequestsStatus, TransactionResult, UserRequestSendFunds,
 };
 use proto::funder::signature_buff::verify_multi_commit;
 
@@ -1004,6 +1004,7 @@ where
 
 fn control_commit_invoice<B>(
     m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
     multi_commit: &MultiCommit,
 ) -> Result<(), HandleControlError>
 where
@@ -1020,30 +1021,50 @@ where
     if !verify_multi_commit(multi_commit, &m_state.state().local_public_key) {
         return Err(HandleControlError::InvalidMultiCommit);
     }
-    /*
 
     // TODO:
     // - Push collect messages for all pending requests
-    for commit in multi_commit.commits {
-        let opt_uid_open_invoice.transactions.get(&commit.dest_hashed_lock)
+    for commit in &multi_commit.commits {
+        let incoming_transaction = if let Some(incoming_transaction) = open_invoice
+            .incoming_transactions
+            .get(&commit.dest_hashed_lock)
+        {
+            incoming_transaction
+        } else {
+            warn!("control_commit_invoice(): Failed to find matching incoming transaction.");
+            continue;
+        };
+
+        let friend_public_key = if let Some(friend_public_key) =
+            find_request_origin(m_state.state(), &incoming_transaction.request_id)
+        {
+            friend_public_key.clone()
+        } else {
+            warn!("control_commit_invoice(): Failed to find request origin");
+            continue;
+        };
+
+        let collect_send_funds = CollectSendFundsOp {
+            request_id: incoming_transaction.request_id.clone(),
+            src_plain_lock: commit.src_plain_lock.clone(),
+            dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
+        };
+
+        let friend_mutation =
+            FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Collect(collect_send_funds));
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
+
+        // Signal the sender to attempt to send:
+        send_commands.set_try_send(&friend_public_key);
     }
-
-    let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
-    let funder_mutation =
-        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-    m_state.mutate(funder_mutation);
-
-    // Signal the sender to attempt to send:
-    send_commands.set_try_send(&friend_public_key);
-    assert!(false);
 
     // Remove invoice:
     let funder_mutation = FunderMutation::RemoveInvoice(multi_commit.invoice_id.clone());
     m_state.mutate(funder_mutation);
 
     Ok(())
-    */
-    unimplemented!();
 }
 
 pub fn handle_control_message<B, R>(
@@ -1150,7 +1171,7 @@ where
             control_cancel_invoice(m_state, send_commands, invoice_id)
         }
         FunderControl::CommitInvoice(multi_commit) => {
-            control_commit_invoice(m_state, &multi_commit)
+            control_commit_invoice(m_state, send_commands, &multi_commit)
         }
     }
 }
