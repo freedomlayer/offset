@@ -114,16 +114,6 @@ where
     }
 }
 
-/*
-pub struct MutableFunderStateSigned<B: Clone> {
-    initial_state: FunderState<B>,
-    state: FunderState<B>,
-    mutations: Vec<FunderMutation<B>>,
-}
-
-impl<B> MutableFunderStateSigned<B> where B: Clone + CanonicalSerialize + PartialEq + Eq + Debug {}
-*/
-
 pub struct MutableEphemeral {
     ephemeral: Ephemeral,
     mutations: Vec<EphemeralMutation>,
