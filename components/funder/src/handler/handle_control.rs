@@ -6,6 +6,7 @@ use crypto::crypto_rand::CryptoRandom;
 use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
 use crypto::payment_id::PaymentId;
+use crypto::uid::Uid;
 
 use crate::friend::{ChannelStatus, FriendMutation};
 use crate::state::{FunderMutation, NewTransactions, Payment};
@@ -47,6 +48,8 @@ pub enum HandleControlError {
     OpenPaymentNotFound,
     NewTransactionsNotAllowed,
     PaymentDoesNotExist,
+    AckStateInvalid,
+    AckMismatch,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -886,6 +889,56 @@ where
     return Ok(());
 }
 
+fn control_ack_close_payment<B>(
+    m_state: &mut MutableFunderState<B>,
+    payment_id: PaymentId,
+    user_ack_uid: Uid,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    let payment = m_state
+        .state()
+        .payments
+        .get(&payment_id)
+        .ok_or(HandleControlError::PaymentDoesNotExist)?
+        .clone();
+
+    let new_payment = match payment {
+        Payment::NewTransactions(_) | Payment::InProgress(_) | Payment::AfterSuccessAck(_) => {
+            return Err(HandleControlError::AckStateInvalid)
+        }
+        Payment::Success((num_transactions, receipt, ack_uid)) => {
+            // Make sure that ack matches:
+            if user_ack_uid != ack_uid {
+                return Err(HandleControlError::AckMismatch);
+            }
+
+            if num_transactions > 0 {
+                // Update payment to be `AfterSuccessAck`:
+                let new_payment = Payment::AfterSuccessAck(num_transactions);
+                let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
+                m_state.mutate(funder_mutation);
+            } else {
+                // Remove payment (no pending transactions):
+                let funder_mutation = FunderMutation::RemovePayment(payment_id);
+                m_state.mutate(funder_mutation);
+            }
+        }
+        Payment::Canceled(ack_uid) => {
+            // Make sure that ack matches:
+            if user_ack_uid != ack_uid {
+                return Err(HandleControlError::AckMismatch);
+            }
+
+            // Remove payment:
+            let funder_mutation = FunderMutation::RemovePayment(payment_id);
+            m_state.mutate(funder_mutation);
+        }
+    };
+    Ok(())
+}
+
 pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
@@ -980,7 +1033,9 @@ where
         FunderControl::RequestClosePayment(payment_id) => {
             control_request_close_payment(m_state, outgoing_control, payment_id)
         }
-        FunderControl::AckClosePayment((_payment_id, _uid)) => unimplemented!(),
+        FunderControl::AckClosePayment((payment_id, ack_uid)) => {
+            control_ack_close_payment(m_state, payment_id, ack_uid)
+        }
 
         // Seller API:
         FunderControl::AddInvoice(_invoice_id) => unimplemented!(),
