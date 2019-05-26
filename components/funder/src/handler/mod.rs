@@ -3,7 +3,6 @@ mod handle_control;
 mod handle_friend;
 mod handle_init;
 mod handle_liveness;
-#[allow(unused)]
 mod handler;
 mod sender;
 mod state_wrap;
