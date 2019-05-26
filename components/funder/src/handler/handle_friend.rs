@@ -3,6 +3,7 @@ use std::fmt::Debug;
 
 use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
+use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -10,7 +11,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
-use proto::funder::signature_buff::{prepare_commit, verify_move_token};
+use proto::funder::signature_buff::{prepare_commit, prepare_receipt, verify_move_token};
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,
@@ -23,7 +24,7 @@ use crate::types::{create_pending_transaction, ChannelerConfig};
 use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
-use crate::state::FunderMutation;
+use crate::state::{FunderMutation, Payment};
 
 use crate::ephemeral::Ephemeral;
 
@@ -305,26 +306,93 @@ fn handle_cancel_send_funds<B, R>(
     };
 }
 
-fn handle_collect_send_funds<B>(
+fn handle_collect_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
     collect_send_funds: CollectSendFundsOp,
     pending_transaction: PendingTransaction,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Check if we are the origin of this transaction (Did we send the RequestSendFundsOp
     // message?):
     match find_request_origin(m_state.state(), &collect_send_funds.request_id).cloned() {
         None => {
             // We are the origin of this request, and we got a Collect message
-            // TODO:
-            // - Create a receipt.
-            // - Update payment status
-            // - Remove transaction
-            // - Send the receipt to the user
-            unimplemented!();
+            let open_transaction = m_state
+                .state()
+                .open_transactions
+                .get(&collect_send_funds.request_id)
+                .unwrap();
+
+            let payment = m_state
+                .state()
+                .payments
+                .get(&open_transaction.payment_id)
+                .unwrap();
+
+            // Update payment status:
+            let opt_new_payment = match payment {
+                Payment::NewTransactions(new_transactions) => {
+                    // Create a Receipt:
+                    let receipt = prepare_receipt(
+                        &collect_send_funds,
+                        open_transaction.opt_response.as_ref().unwrap(),
+                        &pending_transaction,
+                    );
+                    let ack_uid = Uid::new(rng);
+                    Some(Payment::Success((
+                        new_transactions.num_transactions.checked_sub(1).unwrap(),
+                        receipt,
+                        ack_uid,
+                    )))
+                }
+                Payment::InProgress(num_transactions) => {
+                    // Create a Receipt:
+                    let receipt = prepare_receipt(
+                        &collect_send_funds,
+                        open_transaction.opt_response.as_ref().unwrap(),
+                        &pending_transaction,
+                    );
+                    let ack_uid = Uid::new(rng);
+                    Some(Payment::Success((
+                        num_transactions.checked_sub(1).unwrap(),
+                        receipt,
+                        ack_uid,
+                    )))
+                }
+                Payment::Success((num_transactions, receipt, ack_uid)) => Some(Payment::Success((
+                    num_transactions.checked_sub(1).unwrap(),
+                    receipt.clone(),
+                    ack_uid.clone(),
+                ))),
+                Payment::Canceled(_) => unreachable!(),
+                Payment::AfterSuccessAck(num_transactions) => {
+                    let new_num_transactions = num_transactions.checked_sub(1).unwrap();
+                    if new_num_transactions > 0 {
+                        Some(Payment::AfterSuccessAck(new_num_transactions))
+                    } else {
+                        None
+                    }
+                }
+            };
+
+            let funder_mutation = if let Some(new_payment) = opt_new_payment {
+                // Update payment:
+                FunderMutation::UpdatePayment((open_transaction.payment_id.clone(), new_payment))
+            } else {
+                FunderMutation::RemovePayment(open_transaction.payment_id.clone())
+                // Remove payment:
+            };
+            m_state.mutate(funder_mutation);
+
+            // Remove transaction:
+            let funder_mutation =
+                FunderMutation::RemoveTransaction(collect_send_funds.request_id.clone());
+            m_state.mutate(funder_mutation);
         }
         Some(friend_public_key) => {
             // Queue this Collect message to another token channel:
@@ -396,6 +464,7 @@ fn handle_move_token_output<B, R>(
                     m_state,
                     send_commands,
                     outgoing_control,
+                    rng,
                     incoming_collect,
                     pending_transaction,
                 );
