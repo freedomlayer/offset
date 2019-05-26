@@ -278,7 +278,7 @@ async fn send_friend_iter1<'a, B, R>(
     identity_client: &'a mut IdentityClient,
     rng: &'a R,
     max_operations_in_batch: usize,
-    failure_public_keys: &'a mut HashSet<PublicKey>,
+    cancel_public_keys: &'a mut HashSet<PublicKey>,
     mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
@@ -374,7 +374,7 @@ async fn send_friend_iter1<'a, B, R>(
         m_state,
         outgoing_channeler_config,
         outgoing_control,
-        failure_public_keys,
+        cancel_public_keys,
         friend_public_key,
         pending_move_token,
         identity_client,
@@ -437,12 +437,12 @@ where
 }
 
 /// Queue an operation to a PendingMoveToken.
-/// On failure, queue a failure to the relevant friend,
-/// or (if we are the origin of the request): send a failure through the control
-fn queue_operation_or_failure<'a, B>(
+/// On cancel, queue a Cancel message to the relevant friend,
+/// or (if we are the origin of the request): send a failure notification through the control.
+fn queue_operation_or_cancel<'a, B>(
     m_state: &'a mut MutableFunderState<B>,
     pending_move_token: &'a mut PendingMoveToken<B>,
-    failure_public_keys: &'a mut HashSet<PublicKey>,
+    cancel_public_keys: &'a mut HashSet<PublicKey>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     operation: &'a FriendTcOp,
 ) -> Result<(), CollectOutgoingError>
@@ -471,7 +471,7 @@ where
     match find_request_origin(m_state.state(), &request_send_funds.request_id).cloned() {
         Some(origin_public_key) => {
             // The friend with public key `origin_public_key` is the origin of this request.
-            // We send him back a failure message:
+            // We send him back a Cancel message:
             let pending_transaction = create_pending_transaction(request_send_funds);
             let cancel_send_funds = BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id.clone()));
             let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_send_funds);
@@ -479,7 +479,7 @@ where
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
 
-            failure_public_keys.insert(origin_public_key.clone());
+            cancel_public_keys.insert(origin_public_key.clone());
         }
         None => {
             // We are the origin of this request
@@ -493,41 +493,6 @@ where
 
     Ok(())
 }
-
-/*
-/// Queue a user created request send funds message.
-/// This is different from forwarding a request_send_funds message, because there is no
-/// pending request we need to cancel in case of failure, and no failure to be queued.
-/// Instead, we return a failure message back to the user.
-async fn queue_user_request_send_funds<'a,B>(m_state: &'a mut MutableFunderState<B>,
-                                            pending_move_token: &'a mut PendingMoveToken<B>,
-                                            request_send_funds: &'a RequestSendFunds,
-                                            outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>)
-                                                -> Result<(), CollectOutgoingError>
-where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-{
-
-    let operation = FriendTcOp::RequestSendFunds(request_send_funds.clone());
-    match pending_move_token.queue_operation(&operation, m_state) {
-        Ok(()) => return Ok(()),
-        Err(PendingQueueError::MaxOperationsReached) => {
-            pending_move_token.token_wanted = true;
-            // We will send this message next time we have the token:
-            return Err(CollectOutgoingError::MaxOperationsReached);
-        }
-        Err(PendingQueueError::InsufficientTrust) => {},
-    };
-
-    let response_received = ResponseReceived {
-        request_id: request_send_funds.request_id,
-        result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
-    };
-    outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
-
-    Ok(())
-}
-*/
 
 fn backwards_op_to_friend_tc_op<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
@@ -548,12 +513,12 @@ where
 
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side.
-/// Requests that fail to be processed are moved to the failure queues of the relevant friends.
+/// Requests that fail to be processed are moved to the cancel queues of the relevant friends.
 fn collect_outgoing_move_token<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
-    failure_public_keys: &'a mut HashSet<PublicKey>,
+    cancel_public_keys: &'a mut HashSet<PublicKey>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
     identity_client: &'a mut IdentityClient,
@@ -566,14 +531,12 @@ where
     /*
     - Check if last sent local address is up to date.
     - Collect as many operations as possible (Not more than max ops per batch)
-        1. Responses (response, failure)
+        1. Responses (response, cancel, collect)
         2. Pending requests
         3. User pending requests
     - When adding requests, check the following:
-        - Valid by freeze guard.
         - Valid from credits point of view.
-    - If a request is not valid, Pass it as a failure message to
-        relevant friend.
+    - If a request is not valid, queue a Cancel message to relevant friend.
     */
 
     // Send update about local address if needed:
@@ -635,10 +598,10 @@ where
 
     if friend.wanted_remote_max_debt != remote_max_debt {
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            failure_public_keys,
+            cancel_public_keys,
             outgoing_control,
             &operation
         )?;
@@ -663,17 +626,17 @@ where
         } else {
             FriendTcOp::DisableRequests
         };
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            failure_public_keys,
+            cancel_public_keys,
             outgoing_control,
             &friend_op
         )?;
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    // Send pending responses (responses and failures)
+    // Send pending responses (Response, Cancel, Collect)
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
@@ -683,10 +646,11 @@ where
             identity_client,
             rng
         );
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            failure_public_keys,
+            // Not required here, as no requests are being sent.
+            cancel_public_keys,
             outgoing_control,
             &pending_op
         )?;
@@ -704,10 +668,10 @@ where
     let mut pending_requests = friend.pending_requests.clone();
     while let Some(pending_request) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            failure_public_keys,
+            cancel_public_keys,
             outgoing_control,
             &pending_op
         )?;
@@ -723,10 +687,10 @@ where
     let mut pending_user_requests = friend.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            failure_public_keys,
+            cancel_public_keys,
             outgoing_control,
             &pending_op
         )?;
@@ -738,7 +702,7 @@ where
     Ok(())
 }
 
-fn append_failures_to_move_token<'a, B, R>(
+fn append_cancels_to_move_token<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
@@ -751,7 +715,7 @@ where
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
-    // Send pending responses (responses and failures)
+    // Send pending responses (Response, Cancel, Collect):
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
@@ -762,12 +726,12 @@ where
             rng
         );
         // TODO: Find a more elegant way to do this:
-        let mut dummy_failure_public_keys = HashSet::new();
+        let mut dummy_cancel_public_keys = HashSet::new();
         let mut dummy_outgoing_control = Vec::new();
-        queue_operation_or_failure(
+        queue_operation_or_cancel(
             m_state,
             pending_move_token,
-            &mut dummy_failure_public_keys,
+            &mut dummy_cancel_public_keys,
             &mut dummy_outgoing_control,
             &pending_op
         )?;
@@ -854,17 +818,17 @@ async fn send_move_token<'a, B, R>(
     ));
 }
 
-fn init_failure_pending_move_token<B>(
+fn init_cancel_pending_move_token<B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     max_operations_in_batch: usize,
-    failure_public_keys: &HashSet<PublicKey>,
+    cancel_public_keys: &HashSet<PublicKey>,
     pending_move_tokens: &mut HashMap<PublicKey, PendingMoveToken<B>>,
 ) where
     B: Clone + Eq + CanonicalSerialize + Debug,
 {
     let pending_move_token_keys = pending_move_tokens.keys().cloned().collect::<HashSet<_>>();
-    for friend_public_key in failure_public_keys {
+    for friend_public_key in cancel_public_keys {
         // Make sure that this friend is ready,
         // and that it doesn't already have a PendingMoveToken:
 
@@ -923,7 +887,7 @@ where
     let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<B>> = HashMap::new();
 
     // First iteration:
-    let mut failure_public_keys = HashSet::new();
+    let mut cancel_public_keys = HashSet::new();
     for (friend_public_key, friend_send_commands) in &send_commands.send_commands {
         if !ephemeral.liveness.is_online(friend_public_key) {
             continue;
@@ -936,7 +900,7 @@ where
             identity_client,
             rng,
             max_operations_in_batch,
-            &mut failure_public_keys,
+            &mut cancel_public_keys,
             &mut outgoing_messages,
             &mut outgoing_control,
             &mut outgoing_channeler_config
@@ -945,18 +909,18 @@ where
 
     // Create PendingMoveToken-s for all the friends that were queued
     // new pending messages during `send_friend_iter1`:
-    init_failure_pending_move_token(
+    init_cancel_pending_move_token(
         m_state,
         ephemeral,
         max_operations_in_batch,
-        &failure_public_keys,
+        &cancel_public_keys,
         &mut pending_move_tokens,
     );
 
-    // Second iteration (Attempt to queue failures created in the first iteration):
+    // Second iteration (Attempt to queue Cancel-s created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
         assert!(ephemeral.liveness.is_online(&friend_public_key));
-        let _ = append_failures_to_move_token(
+        let _ = append_cancels_to_move_token(
             m_state,
             friend_public_key,
             pending_move_token,
