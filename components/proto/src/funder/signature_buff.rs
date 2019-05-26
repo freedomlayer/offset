@@ -1,11 +1,15 @@
 use byteorder::{BigEndian, WriteBytesExt};
+
 use crypto::hash::{self, sha_512_256, HashResult};
 use crypto::identity::{verify_signature, PublicKey};
+use crypto::invoice_id::InvoiceId;
 
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{MoveToken, PendingTransaction, Receipt, ResponseSendFundsOp};
+use super::messages::{
+    Commit, MoveToken, MultiCommit, PendingTransaction, Receipt, ResponseSendFundsOp,
+};
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
@@ -74,6 +78,57 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
         .unwrap();
     data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
+}
+
+/// Verify that a given Commit signature is valid
+fn verify_commit(
+    commit: &Commit,
+    invoice_id: &InvoiceId,
+    total_dest_payment: u128,
+    local_public_key: &PublicKey,
+) -> bool {
+    let mut data = Vec::new();
+
+    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend(commit.response_hash.as_ref());
+    data.extend_from_slice(&commit.src_plain_lock.hash());
+    data.extend_from_slice(&commit.dest_hashed_lock);
+    data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(total_dest_payment).unwrap();
+    data.extend(invoice_id.as_ref());
+    verify_signature(&data, local_public_key, &commit.signature)
+}
+
+// TODO: Possibly split nicely into two functions?
+/// Verify that all the Commit-s inside a MultiCommit are valid
+pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &PublicKey) -> bool {
+    let mut is_sig_valid = true;
+    for commit in &multi_commit.commits {
+        // We don't exit immediately on verification failure to get a constant time verification.
+        // (Not sure if this is really important here)
+        is_sig_valid &= verify_commit(
+            commit,
+            &multi_commit.invoice_id,
+            multi_commit.total_dest_payment,
+            local_public_key,
+        );
+    }
+    if !is_sig_valid {
+        return false;
+    }
+
+    // Check if the credits add up:
+    let mut sum_credits = 0u128;
+    for commit in &multi_commit.commits {
+        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(commit.dest_payment) {
+            sum_credits
+        } else {
+            return false;
+        }
+    }
+
+    // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
+    sum_credits == multi_commit.total_dest_payment
 }
 
 // Prefix used for chain hashing of token channel funds.
