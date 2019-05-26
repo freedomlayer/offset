@@ -247,7 +247,6 @@ fn test_request_cancel_send_funds() {
         left_fees: 5,
     };
 
-    let pending_transaction = create_pending_transaction(&request_send_funds);
     apply_outgoing(
         &mut mutual_credit,
         &FriendTcOp::RequestSendFunds(request_send_funds),
@@ -262,7 +261,7 @@ fn test_request_cancel_send_funds() {
 
     // -----[CancelSendFunds]--------
     // ------------------------------
-    let mut cancel_send_funds = CancelSendFundsOp { request_id };
+    let cancel_send_funds = CancelSendFundsOp { request_id };
 
     apply_incoming(
         &mut mutual_credit,
@@ -365,7 +364,7 @@ fn test_request_response_cancel_send_funds() {
 
     // -----[CancelSendFunds]--------
     // ------------------------------
-    let mut cancel_send_funds = CancelSendFundsOp { request_id };
+    let cancel_send_funds = CancelSendFundsOp { request_id };
 
     apply_incoming(
         &mut mutual_credit,

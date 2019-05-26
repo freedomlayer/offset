@@ -1,11 +1,10 @@
 use crypto::identity::verify_signature;
 
-use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp, TransactionStage,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
+    ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
@@ -118,7 +117,7 @@ impl OutgoingMc {
         }
 
         // Find ourselves on the route. If we are not there, abort.
-        let local_index = request_send_funds
+        let _local_index = request_send_funds
             .route
             .find_pk_pair(
                 &self.mutual_credit.state().idents.local_public_key,

@@ -28,10 +28,8 @@ mod funder;
 mod handler;
 #[allow(unused)]
 mod liveness;
-#[allow(unused)]
 mod mutual_credit;
 pub mod report;
-#[allow(unused)]
 mod state;
 #[cfg(test)]
 mod tests;

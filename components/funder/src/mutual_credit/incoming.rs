@@ -1,6 +1,5 @@
 use crypto::identity::verify_signature;
 
-use common::int_convert::usize_to_u32;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
@@ -53,15 +52,12 @@ pub enum ProcessOperationError {
     /// The Route contains some public key twice.
     InvalidRoute,
     RequestsAlreadyDisabled,
-    RouteTooLong,
     InsufficientTrust,
-    InsufficientFee,
     CreditsCalcOverflow,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
     LocalRequestsClosed,
-    CalcFeeError,
     NotExpectingResponse,
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
@@ -193,7 +189,7 @@ fn process_request_send_funds(
     }
 
     // Find ourselves (And remote side) on the route. If we are not there, abort.
-    let remote_index = request_send_funds
+    let _remote_index = request_send_funds
         .route
         .find_pk_pair(
             &mutual_credit.state().idents.remote_public_key,
@@ -205,21 +201,6 @@ fn process_request_send_funds(
     if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
-
-    // Calculate the amount of credits we want for passing this request.
-    // (Note: We are for sure not the origin of this request message, because it was received from a
-    // remote side)
-    //
-    // TODO: Should be done outside of MutualCredit:
-    /*
-    let own_fee = calc_fee(&mutual_credit.state().rate, request_send_funds.dest_payment)
-        .ok_or(ProcessOperationError::CalcFeeError)?;
-
-    let new_left_fees = request_send_funds
-        .left_fees
-        .checked_sub(own_fee)
-        .ok_or(ProcessOperationError::InsufficientFee)?;
-    */
 
     // Calculate amount of credits to freeze
     let own_freeze_credits = request_send_funds
