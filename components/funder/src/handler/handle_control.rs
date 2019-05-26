@@ -15,10 +15,10 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp, CreatePayment,
-    CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl, MultiCommit, ReceiptAck,
+    CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl, MultiCommit,
     RemoveFriend, RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
     SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult, UserRequestSendFunds,
+    SetRequestsStatus, TransactionResult,
 };
 use proto::funder::signature_buff::verify_multi_commit;
 
@@ -42,9 +42,6 @@ pub enum HandleControlError {
     InvalidRoute,
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
-    ReceiptDoesNotExist,
-    ReceiptSignatureMismatch,
-    UserRequestInvalid,
     FriendNotReady,
     MaxNodeRelaysReached,
     PaymentAlreadyOpen,
@@ -483,13 +480,6 @@ where
     Ok(())
 }
 
-fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) -> Option<()> {
-    if !user_request_send_funds.route.is_valid() {
-        return None;
-    }
-    Some(())
-}
-
 fn control_create_payment<B>(
     m_state: &mut MutableFunderState<B>,
     create_payment: CreatePayment,
@@ -523,7 +513,6 @@ where
 fn control_create_transaction_inner<B, R>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
-    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     send_commands: &mut SendCommands,
     rng: &R,
     max_pending_user_requests: usize,
@@ -664,7 +653,6 @@ where
     if let Err(e) = control_create_transaction_inner(
         m_state,
         ephemeral,
-        outgoing_control,
         send_commands,
         rng,
         max_pending_user_requests,
@@ -768,11 +756,11 @@ where
         .ok_or(HandleControlError::PaymentDoesNotExist)?
         .clone();
 
-    let new_payment = match payment {
+    match payment {
         Payment::NewTransactions(_) | Payment::InProgress(_) | Payment::AfterSuccessAck(_) => {
             return Err(HandleControlError::AckStateInvalid)
         }
-        Payment::Success((num_transactions, receipt, ack_uid)) => {
+        Payment::Success((num_transactions, _receipt, ack_uid)) => {
             // Make sure that ack matches:
             if user_ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
@@ -800,6 +788,7 @@ where
             m_state.mutate(funder_mutation);
         }
     };
+
     Ok(())
 }
 

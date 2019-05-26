@@ -1,6 +1,5 @@
 #[allow(unused)]
 mod canceler;
-#[allow(unused)]
 mod handle_control;
 mod handle_friend;
 mod handle_init;
