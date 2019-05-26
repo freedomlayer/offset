@@ -1022,8 +1022,7 @@ where
         return Err(HandleControlError::InvalidMultiCommit);
     }
 
-    // TODO:
-    // - Push collect messages for all pending requests
+    // Push collect messages for all pending requests
     for commit in &multi_commit.commits {
         let incoming_transaction = if let Some(incoming_transaction) = open_invoice
             .incoming_transactions
