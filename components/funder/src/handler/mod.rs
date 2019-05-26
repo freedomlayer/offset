@@ -10,7 +10,6 @@ mod handle_init;
 mod handle_liveness;
 #[allow(unused)]
 mod handler;
-#[allow(unused)]
 mod sender;
 mod state_wrap;
 mod utils;

@@ -5,7 +5,6 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::identity::PublicKey;
-use crypto::hash_lock::PlainLock;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -377,8 +376,6 @@ async fn send_friend_iter1<'a, B, R>(
         cancel_public_keys,
         friend_public_key,
         pending_move_token,
-        identity_client,
-        rng
     );
 }
 
@@ -494,18 +491,11 @@ where
     Ok(())
 }
 
-fn backwards_op_to_friend_tc_op<'a, B, R>(
-    m_state: &'a mut MutableFunderState<B>,
+fn backwards_op_to_friend_tc_op(
     backwards_op: BackwardsOp,
-    mut identity_client: &'a mut IdentityClient,
-    rng: &'a R,
-) -> FriendTcOp
-where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-    R: CryptoRandom,
-{
+) -> FriendTcOp {
     match backwards_op {
-        BackwardsOp::Response(response) => FriendTcOp::ResponseSendFunds(response),
+        BackwardsOp::Response(response_send_funds) => FriendTcOp::ResponseSendFunds(response_send_funds),
         BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
         BackwardsOp::Collect(collect_send_funds) => FriendTcOp::CollectSendFunds(collect_send_funds),
     }
@@ -514,19 +504,16 @@ where
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side.
 /// Requests that fail to be processed are moved to the cancel queues of the relevant friends.
-fn collect_outgoing_move_token<'a, B, R>(
+fn collect_outgoing_move_token<'a, B>(
     m_state: &'a mut MutableFunderState<B>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     cancel_public_keys: &'a mut HashSet<PublicKey>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
-    identity_client: &'a mut IdentityClient,
-    rng: &'a R,
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
-    R: CryptoRandom,
 {
     /*
     - Check if last sent local address is up to date.
@@ -641,10 +628,7 @@ where
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(
-            m_state,
             pending_backwards_op,
-            identity_client,
-            rng
         );
         queue_operation_or_cancel(
             m_state,
@@ -702,16 +686,13 @@ where
     Ok(())
 }
 
-fn append_cancels_to_move_token<'a, B, R>(
-    m_state: &'a mut MutableFunderState<B>,
-    friend_public_key: &'a PublicKey,
-    pending_move_token: &'a mut PendingMoveToken<B>,
-    identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+fn append_cancels_to_move_token<B>(
+    m_state: &mut MutableFunderState<B>,
+    friend_public_key: &PublicKey,
+    pending_move_token: &mut PendingMoveToken<B>,
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-    R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -720,10 +701,7 @@ where
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(
-            m_state,
             pending_backwards_op,
-            identity_client,
-            rng
         );
         // TODO: Find a more elegant way to do this:
         let mut dummy_cancel_public_keys = HashSet::new();
@@ -924,8 +902,6 @@ where
             m_state,
             friend_public_key,
             pending_move_token,
-            identity_client,
-            rng
         );
     }
 
