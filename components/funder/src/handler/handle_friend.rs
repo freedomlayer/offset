@@ -31,7 +31,7 @@ use crate::mutual_credit::types::calc_fee;
 
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
-    reply_with_cancel,
+    remove_transaction, reply_with_cancel,
 };
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
@@ -261,25 +261,29 @@ fn handle_response_send_funds<B>(
     }
 }
 
-fn handle_cancel_send_funds<B>(
+fn handle_cancel_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
     cancel_send_funds: CancelSendFundsOp,
     pending_transaction: PendingTransaction,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     match find_request_origin(m_state.state(), &cancel_send_funds.request_id).cloned() {
         None => {
             // We are the origin of this request, and we got a cancellation.
-            // We should pass it back to encryptor.
 
-            let request_result = RequestResult::Failure;
+            // Update buyer transactions (requests that were originated by us):
+            remove_transaction(m_state, rng, &cancel_send_funds.request_id);
+
+            // Inform user about the transaction failure:
             outgoing_control.push(FunderOutgoingControl::TransactionResult(
                 TransactionResult {
                     request_id: pending_transaction.request_id,
-                    result: request_result,
+                    result: RequestResult::Failure,
                 },
             ));
         }
@@ -309,15 +313,17 @@ fn handle_collect_send_funds<B>(
 }
 
 /// Process valid incoming operations from remote side.
-fn handle_move_token_output<B>(
+fn handle_move_token_output<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
     remote_public_key: &PublicKey,
     incoming_messages: Vec<IncomingMessage>,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     for incoming_message in incoming_messages {
         match incoming_message {
@@ -350,6 +356,7 @@ fn handle_move_token_output<B>(
                     m_state,
                     send_commands,
                     outgoing_control,
+                    rng,
                     incoming_cancel,
                     pending_transaction,
                 );
@@ -533,6 +540,7 @@ fn handle_move_token_success<B, R>(
                 m_ephemeral,
                 send_commands,
                 outgoing_control,
+                rng,
                 remote_public_key,
                 incoming_messages,
             );
