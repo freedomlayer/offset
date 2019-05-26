@@ -179,7 +179,7 @@ pub struct Receipt {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
-    Response(HashedLock), // inner: dest_hashed_lock. TOOD: Change to use bcrypt
+    Response(HashedLock), // inner: dest_hashed_lock.
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]

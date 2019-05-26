@@ -359,6 +359,7 @@ where
                 Vec::new()
             }
         }
+        FunderMutation::SetTransactionResponse(_) => vec![],
         FunderMutation::UpdatePayment(_) | FunderMutation::RemovePayment(_) => {
             if funder_state_after.payments.len() != funder_state.payments.len() {
                 vec![FunderReportMutation::SetNumPayments(

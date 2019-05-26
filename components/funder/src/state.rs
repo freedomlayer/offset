@@ -9,7 +9,7 @@ use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::NamedRelayAddress;
-use proto::funder::messages::{AddFriend, Receipt};
+use proto::funder::messages::{AddFriend, Receipt, ResponseSendFundsOp};
 
 use crate::friend::{FriendMutation, FriendState};
 
@@ -85,6 +85,8 @@ pub struct OpenTransaction {
     pub payment_id: PaymentId,
     /// The plain part of a hash lock for the generated transaction.
     pub src_plain_lock: PlainLock,
+    /// A response (if we got one):
+    pub opt_response: Option<ResponseSendFundsOp>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -98,8 +100,9 @@ pub enum FunderMutation<B: Clone> {
     AddInvoice((InvoiceId, u128)), // (InvoiceId, total_dest_payment)
     AddIncomingTransaction((InvoiceId, Uid, PlainLock)), // (invoice_id, request_id, dest_plain_lock)
     RemoveInvoice(InvoiceId),
-    AddTransaction((Uid, PaymentId, PlainLock)), // (transaction_id, payment_id,src_plain_lock)
-    RemoveTransaction(Uid),                      // transaction_id
+    AddTransaction((Uid, PaymentId, PlainLock)), // (request_id, payment_id,src_plain_lock)
+    SetTransactionResponse((Uid, ResponseSendFundsOp)), // (request_id, response_send_funds)
+    RemoveTransaction(Uid),                      // request_id
     UpdatePayment((PaymentId, Payment)),
     RemovePayment(PaymentId),
 }
@@ -177,17 +180,24 @@ where
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);
             }
-            FunderMutation::AddTransaction((transaction_id, payment_id, src_plain_lock)) => {
+            FunderMutation::AddTransaction((request_id, payment_id, src_plain_lock)) => {
                 let open_transaction = OpenTransaction {
                     payment_id: payment_id.clone(),
                     src_plain_lock: src_plain_lock.clone(),
+                    opt_response: None,
                 };
                 let _ = self
                     .open_transactions
-                    .insert(transaction_id.clone(), open_transaction);
+                    .insert(request_id.clone(), open_transaction);
             }
-            FunderMutation::RemoveTransaction(transaction_id) => {
-                let _ = self.open_transactions.remove(transaction_id);
+            FunderMutation::SetTransactionResponse((request_id, response_send_funds)) => {
+                let open_transaction = self.open_transactions.get_mut(&request_id).unwrap();
+                // We assert that no response was received so far:
+                assert!(open_transaction.opt_response.take().is_none());
+                open_transaction.opt_response = Some(response_send_funds.clone());
+            }
+            FunderMutation::RemoveTransaction(request_id) => {
+                let _ = self.open_transactions.remove(request_id);
             }
             FunderMutation::UpdatePayment((payment_id, payment)) => {
                 let _ = self.payments.insert(payment_id.clone(), payment.clone());
