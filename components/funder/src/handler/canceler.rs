@@ -37,7 +37,7 @@ pub fn reply_with_cancel<B>(
 }
 
 /// Remove a local transaction (Where this node is the buyer side)
-fn remove_transaction<B, R>(m_state: &mut MutableFunderState<B>, rng: &R, request_id: &Uid)
+pub fn remove_transaction<B, R>(m_state: &mut MutableFunderState<B>, rng: &R, request_id: &Uid)
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
