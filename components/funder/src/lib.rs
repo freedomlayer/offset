@@ -21,7 +21,6 @@ extern crate serde_derive;
 // #[allow(unused)]
 // mod credit_calc;
 mod ephemeral;
-#[allow(unused)]
 mod friend;
 mod funder;
 mod handler;
