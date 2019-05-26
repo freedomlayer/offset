@@ -9,7 +9,8 @@ use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
 use super::messages::{
-    Commit, MoveToken, MultiCommit, PendingTransaction, Receipt, ResponseSendFundsOp,
+    CollectSendFundsOp, Commit, MoveToken, MultiCommit, PendingTransaction, Receipt,
+    ResponseSendFundsOp,
 };
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
@@ -65,6 +66,30 @@ pub fn prepare_receipt(
     }
 }
 */
+
+pub fn prepare_receipt(
+    collect_send_funds: &CollectSendFundsOp,
+    response_send_funds: &ResponseSendFundsOp,
+    pending_transaction: &PendingTransaction,
+) -> Receipt {
+    let mut hash_buff = Vec::new();
+    hash_buff.extend_from_slice(&pending_transaction.request_id);
+    hash_buff.extend_from_slice(&pending_transaction.route.hash());
+    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
+    let response_hash = hash::sha_512_256(&hash_buff);
+    // = sha512/256(requestId || sha512/256(route) || randNonce)
+
+    Receipt {
+        response_hash,
+        // = sha512/256(requestId || sha512/256(route) || randNonce)
+        invoice_id: pending_transaction.invoice_id.clone(),
+        src_plain_lock: collect_send_funds.src_plain_lock.clone(),
+        dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
+        dest_payment: pending_transaction.dest_payment,
+        total_dest_payment: pending_transaction.total_dest_payment,
+        signature: response_send_funds.signature.clone(),
+    }
+}
 
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
