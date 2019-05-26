@@ -14,7 +14,6 @@ mod handler;
 mod sender;
 #[allow(unused)]
 mod state_wrap;
-#[allow(unused)]
 mod utils;
 
 // #[cfg(test)]

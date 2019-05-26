@@ -2,22 +2,13 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::app_server::messages::RelayAddress;
-use proto::funder::messages::FunderOutgoingControl;
-use proto::report::messages::{FunderReportMutation, FunderReportMutations};
+use crate::state::FunderState;
 
-use identity::IdentityClient;
-
-use crate::state::{FunderMutation, FunderState};
-
-use crate::ephemeral::{Ephemeral, EphemeralMutation};
+use crate::ephemeral::Ephemeral;
 use crate::friend::ChannelStatus;
-use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
-use crate::types::{ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm};
 
 /// Find the originator of a pending local request.
 /// This should be a pending remote request at some other friend.
