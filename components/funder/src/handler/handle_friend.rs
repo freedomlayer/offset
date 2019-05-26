@@ -370,10 +370,22 @@ fn handle_move_token_error<B, R>(
     let local_reset_terms = gen_reset_terms(&token_channel, rng);
 
     // Cancel all internal pending requests inside token channel:
-    cancel_local_pending_transactions(m_state, send_commands, outgoing_control, remote_public_key);
+    cancel_local_pending_transactions(
+        m_state,
+        send_commands,
+        outgoing_control,
+        rng,
+        remote_public_key,
+    );
     // Cancel all pending requests to this friend:
-    cancel_pending_requests(m_state, send_commands, outgoing_control, remote_public_key);
-    cancel_pending_user_requests(m_state, outgoing_control, remote_public_key);
+    cancel_pending_requests(
+        m_state,
+        send_commands,
+        outgoing_control,
+        rng,
+        remote_public_key,
+    );
+    cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
 
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
@@ -389,17 +401,19 @@ fn handle_move_token_error<B, R>(
 }
 
 /// Handle success with incoming move token.
-fn handle_move_token_success<B>(
+fn handle_move_token_success<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     remote_public_key: &PublicKey,
     receive_move_token_output: ReceiveMoveTokenOutput<B>,
     token_wanted: bool,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {}
@@ -487,9 +501,10 @@ fn handle_move_token_success<B>(
                     m_state,
                     send_commands,
                     outgoing_control,
+                    rng,
                     remote_public_key,
                 );
-                cancel_pending_user_requests(m_state, outgoing_control, remote_public_key);
+                cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
             }
 
             handle_move_token_output(
@@ -555,6 +570,7 @@ where
                 send_commands,
                 outgoing_control,
                 outgoing_channeler_config,
+                rng,
                 remote_public_key,
                 receive_move_token_output,
                 token_wanted,
@@ -592,8 +608,14 @@ where
     }?;
 
     // Cancel all pending requests to this friend:
-    cancel_pending_requests(m_state, send_commands, outgoing_control, remote_public_key);
-    cancel_pending_user_requests(m_state, outgoing_control, remote_public_key);
+    cancel_pending_requests(
+        m_state,
+        send_commands,
+        outgoing_control,
+        rng,
+        remote_public_key,
+    );
+    cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
 
     // Save remote incoming inconsistency details:
     let new_remote_reset_terms = remote_reset_terms;

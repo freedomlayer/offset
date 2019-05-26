@@ -1,5 +1,8 @@
-use common::canonical_serialize::CanonicalSerialize;
 use std::fmt::Debug;
+
+use common::canonical_serialize::CanonicalSerialize;
+
+use crypto::crypto_rand::CryptoRandom;
 
 use proto::funder::messages::{FriendStatus, FunderOutgoingControl};
 
@@ -19,15 +22,17 @@ pub enum HandleLivenessError {
     FriendAlreadyOnline,
 }
 
-pub fn handle_liveness_message<B>(
+pub fn handle_liveness_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
     liveness_message: IncomingLivenessMessage,
 ) -> Result<(), HandleLivenessError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
 {
     match liveness_message {
         IncomingLivenessMessage::Online(friend_public_key) => {
@@ -72,8 +77,14 @@ where
             }
 
             // Cancel all messages pending for this friend:
-            cancel_pending_requests(m_state, send_commands, outgoing_control, &friend_public_key);
-            cancel_pending_user_requests(m_state, outgoing_control, &friend_public_key);
+            cancel_pending_requests(
+                m_state,
+                send_commands,
+                outgoing_control,
+                rng,
+                &friend_public_key,
+            );
+            cancel_pending_user_requests(m_state, outgoing_control, rng, &friend_public_key);
         }
     };
     Ok(())
@@ -158,6 +169,7 @@ mod tests {
             &mut m_ephemeral,
             &mut send_commands,
             &mut outgoing_control,
+            &rng1,
             liveness_message,
         )
         .unwrap();

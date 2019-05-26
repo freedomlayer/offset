@@ -150,19 +150,27 @@ fn enable_friend<B>(
     outgoing_channeler_config.push(channeler_config);
 }
 
-fn disable_friend<B>(
+fn disable_friend<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     friend_public_key: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Cancel all pending requests to this friend:
-    cancel_pending_requests(m_state, send_commands, outgoing_control, friend_public_key);
+    cancel_pending_requests(
+        m_state,
+        send_commands,
+        outgoing_control,
+        rng,
+        friend_public_key,
+    );
 
-    cancel_pending_user_requests(m_state, outgoing_control, friend_public_key);
+    cancel_pending_user_requests(m_state, outgoing_control, rng, friend_public_key);
 
     // Notify Channeler:
     let channeler_config = ChannelerConfig::RemoveFriend(friend_public_key.clone());
@@ -249,15 +257,17 @@ where
 
 /// This is a violent operation, as it removes all the known state with the remote friend.
 /// An inconsistency will occur if the friend is added again.
-fn control_remove_friend<B>(
+fn control_remove_friend<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     remove_friend: RemoveFriend,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that friend exists:
     let _friend = m_state
@@ -271,6 +281,7 @@ where
         send_commands,
         outgoing_control,
         outgoing_channeler_config,
+        rng,
         &remove_friend.friend_public_key,
     );
 
@@ -278,6 +289,7 @@ where
         m_state,
         send_commands,
         outgoing_control,
+        rng,
         &remove_friend.friend_public_key,
     );
 
@@ -287,15 +299,17 @@ where
     Ok(())
 }
 
-fn control_set_friend_status<B>(
+fn control_set_friend_status<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     set_friend_status: SetFriendStatus,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that friend exists:
     let _ = m_state
@@ -332,6 +346,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             &friend_public_key,
         ),
     };
@@ -961,6 +976,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             remove_friend,
         ),
 
@@ -969,6 +985,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             set_friend_status,
         ),
 
