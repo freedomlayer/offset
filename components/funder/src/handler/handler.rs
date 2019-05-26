@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::CryptoRandom;
-use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
@@ -22,7 +21,6 @@ use crate::handler::sender::{create_friend_messages, SendCommands};
 use crate::handler::state_wrap::{MutableFunderState, MutableEphemeral};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::friend::ChannelStatus;
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
 use crate::types::{ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm};
 
@@ -216,8 +214,7 @@ where
         outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));
     }
 
-    // Sign all unsigned responses (Async):
-    let (initial_state, funder_mutations, state) = m_state.done();
+    let (initial_state, funder_mutations, _state) = m_state.done();
     let (ephemeral_mutations, _ephemeral) = m_ephemeral.done();
 
     // Add reports:
