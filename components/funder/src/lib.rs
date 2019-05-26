@@ -24,7 +24,7 @@ extern crate serde_derive;
 mod ephemeral;
 #[allow(unused)]
 mod friend;
-// mod funder;
+mod funder;
 mod handler;
 #[allow(unused)]
 mod liveness;
@@ -35,9 +35,8 @@ pub mod report;
 mod state;
 #[cfg(test)]
 mod tests;
-#[allow(unused)]
 mod token_channel;
 pub mod types;
 
-// pub use self::funder::{funder_loop, FunderError};
+pub use self::funder::{funder_loop, FunderError};
 pub use self::state::{FunderMutation, FunderState};
