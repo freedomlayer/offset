@@ -96,7 +96,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
             assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message =
                 FunderIncomingComm::Friend((src_public_key.clone(), friend_message));
-            await!(node.comm_out.send(incoming_comm_message)).unwrap();
+            let _ = await!(node.comm_out.send(incoming_comm_message));
         }
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
@@ -113,13 +113,13 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
                         let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()),
                         );
-                        await!(remote_node_comm_out.send(incoming_comm_message)).unwrap();
+                        let _ = await!(remote_node_comm_out.send(incoming_comm_message));
 
                         let incoming_comm_message =
                             FunderIncomingComm::Liveness(IncomingLivenessMessage::Online(
                                 channeler_add_friend.friend_public_key.clone(),
                             ));
-                        await!(comm_out.send(incoming_comm_message)).unwrap();
+                        let _ = await!(comm_out.send(incoming_comm_message));
                     }
                 }
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
@@ -136,7 +136,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
                         let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()),
                         );
-                        await!(comm_out.send(incoming_comm_message)).unwrap();
+                        let _ = await!(comm_out.send(incoming_comm_message));
                     }
                 }
                 ChannelerConfig::SetRelays(_) => {
