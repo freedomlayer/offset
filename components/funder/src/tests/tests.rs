@@ -545,7 +545,6 @@ fn test_funder_inconsistency_basic() {
     thread_pool.run(task_funder_inconsistency_basic(thread_pool.clone()));
 }
 
-/*
 
 /// Test setting relay address for local node
 async fn task_funder_add_relay(spawner: impl Spawn + Clone + Send + 'static) {
@@ -566,6 +565,5 @@ fn test_funder_add_relay() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_add_relay(thread_pool.clone()));
 }
-*/
 
 // TODO: Add a test for multi-route payment
