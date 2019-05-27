@@ -13,6 +13,8 @@ use crypto::identity::{
 };
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
+use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FriendStatusReport, FunderReport,
@@ -200,6 +202,7 @@ pub struct NodeControl<B: Clone> {
     send_control: mpsc::Sender<FunderIncomingControl<B>>,
     recv_control: mpsc::Receiver<FunderOutgoingControl<B>>,
     pub report: FunderReport<B>,
+    next_app_request_id: u64,
 }
 
 #[derive(Debug)]
@@ -213,8 +216,37 @@ impl<B> NodeControl<B>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize,
 {
-    pub async fn send(&mut self, msg: FunderIncomingControl<B>) -> Option<()> {
-        await!(self.send_control.send(msg)).ok().map(|_| ())
+    pub async fn send(&mut self, funder_control: FunderControl<B>) {
+
+        // Convert self.next_app_request_id to a Uid:
+        let mut app_request_id_inner = [0u8; UID_LEN];
+        let mut next_app_request_id = self.next_app_request_id;
+        for j in 0 .. 8 {
+            app_request_id_inner[j] = (next_app_request_id & 0xff) as u8;
+            next_app_request_id >>= 8;
+        }
+
+        // Advance self.next_app_request_id:
+        self.next_app_request_id = self.next_app_request_id.checked_add(1).unwrap();
+
+
+        let app_request_id = Uid::from(&app_request_id_inner);
+        let funder_incoming_control = FunderIncomingControl {
+            app_request_id: app_request_id.clone(),
+            funder_control,
+        };
+        await!(self.send_control.send(funder_incoming_control)).unwrap();
+
+        loop {
+            match await!(self.recv()).unwrap() {
+                NodeRecv::ReportMutations(funder_report_mutations) => {
+                    if funder_report_mutations.opt_app_request_id == Some(app_request_id) {
+                        break;
+                    }
+                }
+                _ => {},
+            };
+        }
     }
 
     pub async fn recv(&mut self) -> Option<NodeRecv<B>> {
@@ -248,7 +280,7 @@ where
         }
     }
 
-    pub async fn recv_until_response(&mut self) -> Option<TransactionResult> {
+    pub async fn recv_until_transaction_result(&mut self) -> Option<TransactionResult> {
         loop {
             match await!(self.recv())? {
                 NodeRecv::ReportMutations(_) => {}
@@ -258,22 +290,24 @@ where
         }
     }
 
+    pub async fn recv_until_response_close_payment(&mut self) -> Option<ResponseClosePayment> {
+        loop {
+            match await!(self.recv())? {
+                NodeRecv::ReportMutations(_) => {}
+                NodeRecv::TransactionResult(transaction_result) => {},
+                NodeRecv::ResponseClosePayment(response_close_payment) => return Some(response_close_payment)
+            };
+        }
+    }
+
     pub async fn add_relay<'a>(&'a mut self, named_relay_address: NamedRelayAddress<B>) {
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[33; UID_LEN]),
-            FunderControl::AddRelay(named_relay_address.clone()),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::AddRelay(named_relay_address.clone())));
         let pred = |report: &FunderReport<_>| report.relays.contains(&named_relay_address);
         await!(self.recv_until(pred));
     }
 
     pub async fn remove_relay<'a>(&'a mut self, public_key: PublicKey) {
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[34; UID_LEN]),
-            FunderControl::RemoveRelay(public_key.clone()),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::RemoveRelay(public_key.clone())));
         let pred = |report: &FunderReport<_>| {
             for relay in &report.relays {
                 if relay.public_key == public_key {
@@ -298,11 +332,7 @@ where
             name: name.into(),
             balance,
         };
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[35; UID_LEN]),
-            FunderControl::AddFriend(add_friend),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::AddFriend(add_friend)));
         let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
         await!(self.recv_until(pred));
     }
@@ -316,11 +346,7 @@ where
             friend_public_key: friend_public_key.clone(),
             status: status.clone(),
         };
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[36; UID_LEN]),
-            FunderControl::SetFriendStatus(set_friend_status),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::SetFriendStatus(set_friend_status)));
         let pred = |report: &FunderReport<_>| match report.friends.get(&friend_public_key) {
             None => false,
             Some(friend) => friend.status == FriendStatusReport::from(&status),
@@ -337,11 +363,7 @@ where
             friend_public_key: friend_public_key.clone(),
             remote_max_debt: remote_max_debt,
         };
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[36; UID_LEN]),
-            FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)));
 
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {
@@ -366,11 +388,7 @@ where
             friend_public_key: friend_public_key.clone(),
             status: requests_status.clone(),
         };
-        let incoming_control_message = FunderIncomingControl::new(
-            Uid::from(&[37; UID_LEN]),
-            FunderControl::SetRequestsStatus(set_requests_status),
-        );
-        await!(self.send(incoming_control_message)).unwrap();
+        await!(self.send(FunderControl::SetRequestsStatus(set_requests_status)));
 
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {
@@ -497,6 +515,7 @@ where
             send_control,
             recv_control,
             report: base_report,
+            next_app_request_id: 0,
         });
     }
     node_controls
