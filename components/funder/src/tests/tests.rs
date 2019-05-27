@@ -281,6 +281,35 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         tc_report.balance.balance == -6 + 15
     };
     await!(node_controls[2].recv_until(pred));
+
+    // Make sure that node1 got his fees:
+    let pred = |report: &FunderReport<_>| {
+        // Balance with node 0:
+        let friend = match report.friends.get(&public_keys[0]) {
+            None => return false,
+            Some(friend) => friend,
+        };
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
+        };
+
+        if tc_report.balance.balance != -8 + 20 {
+            return false;
+        }
+
+        // Balance with node 2:
+        let friend = match report.friends.get(&public_keys[2]) {
+            None => return false,
+            Some(friend) => friend,
+        };
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
+        };
+        tc_report.balance.balance == 6 - 15
+    };
+    await!(node_controls[1].recv_until(pred));
 }
 
 #[test]
