@@ -539,3 +539,5 @@ fn test_funder_add_relay() {
     thread_pool.run(task_funder_add_relay(thread_pool.clone()));
 }
 */
+
+// TODO: Add a test for multi-route payment
