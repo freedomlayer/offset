@@ -39,6 +39,7 @@ pub enum HandleControlError {
     NotInvitedToReset,
     ResetTokenMismatch,
     NotFirstInRoute,
+    PaymentDestNotLastInRoute,
     InvalidRoute,
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
@@ -541,6 +542,11 @@ where
     match route.public_keys.first() {
         Some(first) if *first == m_state.state().local_public_key => Ok(()),
         _ => Err(HandleControlError::NotFirstInRoute),
+    }?;
+
+    match route.public_keys.last() {
+        Some(last) if *last == new_transactions.dest_public_key => Ok(()),
+        _ => Err(HandleControlError::PaymentDestNotLastInRoute),
     }?;
 
     // We want to have at least two public keys on the route (source and destination).
