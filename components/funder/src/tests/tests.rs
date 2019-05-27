@@ -209,7 +209,7 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
         total_dest_payment: 15,
-        dest_public_key: node_controls[0].public_key.clone(),
+        dest_public_key: node_controls[2].public_key.clone(),
     };
     await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
 
@@ -318,7 +318,6 @@ fn test_funder_forward_payment() {
     thread_pool.run(task_funder_forward_payment(thread_pool.clone()));
 }
 
-/*
 
 async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'static) {
     /*
@@ -340,16 +339,20 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
     let relays2 = vec![dummy_relay_address(2)];
-    await!(node_controls[0].add_friend(&public_keys[1], relays1.clone(), "node1", 8));
-    await!(node_controls[1].add_friend(&public_keys[0], relays0, "node0", -8));
+    await!(node_controls[0].add_friend(&public_keys[1], relays1, "node1", 8));
+    await!(node_controls[1].add_friend(&public_keys[0], relays0.clone(), "node0", -8));
     await!(node_controls[1].add_friend(&public_keys[2], relays2, "node2", 6));
-    await!(node_controls[2].add_friend(&public_keys[1], relays1, "node0", -6));
+    await!(node_controls[2].add_friend(&public_keys[1], relays0, "node0", -6));
 
     // Enable friends:
     await!(node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled));
     await!(node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled));
     await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled));
     await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled));
+
+    // Set rate:
+    // This is the amount of credits node 1 takes from node 0 for forwarding messages.
+    await!(node_controls[1].set_friend_rate(&public_keys[0], Rate {mul: 0, add: 5}));
 
     // Set remote max debt:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
@@ -367,9 +370,21 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[0].wait_until_ready(&public_keys[1]));
     await!(node_controls[1].wait_until_ready(&public_keys[2]));
 
-    // Send credits 0 --> 2
-    let user_request_send_funds = UserRequestSendFunds {
-        request_id: Uid::from(&[3; UID_LEN]),
+
+
+    // Create payment 0 --> 3 (Where 3 does not exist)
+    let create_payment = CreatePayment {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        total_dest_payment: 15,
+        dest_public_key: node_controls[3].public_key.clone(),
+    };
+    await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
+
+    // Create transaction 0 --> 3 (3 does not exist):
+    let create_transaction = CreateTransaction {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        request_id: Uid::from(&[5u8; UID_LEN]),
         route: FriendsRoute {
             public_keys: vec![
                 public_keys[0].clone(),
@@ -378,33 +393,47 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
                 public_keys[3].clone(),
             ],
         },
-        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
-        dest_payment: 20,
+        dest_payment: 15,
+        fees: 5,
     };
-    let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[44; UID_LEN]),
-        FunderControl::RequestSendFunds(user_request_send_funds),
-    );
-    await!(node_controls[0].send(incoming_control_message)).unwrap();
-    let response_received = await!(node_controls[0].recv_until_response()).unwrap();
-    assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
-    let reporting_public_key = match response_received.result {
-        ResponseSendFundsResult::Failure(reporting_public_key) => reporting_public_key,
-        ResponseSendFundsResult::Success(_) => unreachable!(),
-    };
+    await!(node_controls[0].send(FunderControl::CreateTransaction(create_transaction)));
+    let transaction_result = await!(node_controls[0].recv_until_transaction_result()).unwrap();
 
-    assert_eq!(reporting_public_key, public_keys[2]);
-
-    let friend = node_controls[2]
-        .report
-        .friends
-        .get(&public_keys[1])
-        .unwrap();
-    let tc_report = match &friend.channel_status {
-        ChannelStatusReport::Consistent(tc_report) => tc_report,
+    // We expect failure:
+    match transaction_result.result {
+        RequestResult::Failure => {},
         _ => unreachable!(),
+    }
+
+
+    // 0: Expect that the payment was canceled:
+    let ack_uid = loop {
+        await!(node_controls[0].send(
+                FunderControl::RequestClosePayment(PaymentId::from(&[2u8; PAYMENT_ID_LEN]))));
+        let response_close_payment = await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+        match response_close_payment {
+            ResponseClosePayment::Canceled(ack_uid) => break ack_uid,
+            _ => {},
+        }
     };
-    assert_eq!(tc_report.balance.balance, -6);
+
+    // 0: Acknowledge response close:
+    await!(node_controls[0].send(
+            FunderControl::AckClosePayment((PaymentId::from(&[2u8; PAYMENT_ID_LEN]), ack_uid))));
+
+    // Make sure that node0's balance is left unchanged:
+    let pred = |report: &FunderReport<_>| {
+        let friend = match report.friends.get(&public_keys[1]) {
+            None => return false,
+            Some(friend) => friend,
+        };
+        let tc_report = match &friend.channel_status {
+            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            _ => return false,
+        };
+        tc_report.balance.balance == 8
+    };
+    await!(node_controls[0].recv_until(pred));
 }
 
 #[test]
@@ -412,6 +441,8 @@ fn test_funder_payment_failure() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_payment_failure(thread_pool.clone()));
 }
+
+/*
 
 /// Test a basic inconsistency between two adjacent nodes
 async fn task_funder_inconsistency_basic<S>(spawner: S)
