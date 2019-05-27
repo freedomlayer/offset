@@ -46,27 +46,6 @@ pub fn create_response_signature_buffer<S>(
     sbuffer
 }
 
-/*
-pub fn prepare_receipt(
-    response_send_funds: &ResponseSendFundsOp,
-    pending_transaction: &PendingTransaction,
-) -> Receipt {
-    let mut hash_buff = Vec::new();
-    hash_buff.extend_from_slice(&pending_transaction.request_id);
-    hash_buff.extend_from_slice(&pending_transaction.route.hash());
-    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
-    let response_hash = hash::sha_512_256(&hash_buff);
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
-
-    Receipt {
-        response_hash,
-        invoice_id: pending_transaction.invoice_id.clone(),
-        dest_payment: pending_transaction.dest_payment,
-        signature: response_send_funds.signature.clone(),
-    }
-}
-*/
-
 pub fn prepare_receipt(
     collect_send_funds: &CollectSendFundsOp,
     response_send_funds: &ResponseSendFundsOp,
