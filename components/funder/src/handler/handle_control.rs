@@ -20,7 +20,7 @@ use proto::funder::messages::{
     SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
     SetRequestsStatus, TransactionResult,
 };
-use proto::funder::signature_buff::verify_multi_commit;
+use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
@@ -29,7 +29,7 @@ use crate::handler::canceler::{
 };
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
-use crate::handler::utils::{find_request_origin, is_friend_ready};
+use crate::handler::utils::{find_local_pending_transaction, find_request_origin, is_friend_ready};
 
 use crate::types::ChannelerConfig;
 
@@ -654,6 +654,39 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
+    // If we already have this transaction:
+    // - If we have a ready response, we return a Commit message.
+    // - Else, we do nothing.
+    //
+    // This could happen if the user has disconnected before managing to obtain the
+    // `RequestResult::Success` message.
+    if let Some(open_transaction) = m_state
+        .state()
+        .open_transactions
+        .get(&create_transaction.request_id)
+    {
+        match (
+            &open_transaction.opt_response,
+            find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
+        ) {
+            (Some(response_send_funds), Some(pending_transaction)) => {
+                let commit = prepare_commit(
+                    response_send_funds,
+                    pending_transaction,
+                    open_transaction.src_plain_lock.clone(),
+                );
+
+                let transaction_result = TransactionResult {
+                    request_id: response_send_funds.request_id.clone(),
+                    result: RequestResult::Success(commit),
+                };
+                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     // If we managed to push the message, we return an Ok(()).
     // Otherwise, we return the internal error and return a response failure message.
     if let Err(e) = control_create_transaction_inner(

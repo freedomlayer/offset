@@ -2,6 +2,8 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
+use proto::funder::messages::PendingTransaction;
+
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
@@ -35,6 +37,33 @@ where
                     .contains_key(request_id)
                 {
                     return Some(friend_public_key);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Find an outgoing pending transaction
+pub fn find_local_pending_transaction<'a, B>(
+    state: &'a FunderState<B>,
+    request_id: &Uid,
+) -> Option<&'a PendingTransaction>
+where
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+{
+    for (_friend_public_key, friend) in &state.friends {
+        match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => continue,
+            ChannelStatus::Consistent(token_channel) => {
+                if let Some(pending_transaction) = token_channel
+                    .get_mutual_credit()
+                    .state()
+                    .pending_transactions
+                    .local
+                    .get(request_id)
+                {
+                    return Some(pending_transaction);
                 }
             }
         }
