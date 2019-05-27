@@ -685,7 +685,7 @@ where
     } else {
         // Payment not found:
         outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
-            ResponseClosePayment::InProgress,
+            ResponseClosePayment::PaymentNotFound,
         ));
         return Ok(());
     };
