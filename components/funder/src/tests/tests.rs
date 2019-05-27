@@ -7,8 +7,8 @@ use crypto::uid::{Uid, UID_LEN};
 use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 
 use proto::funder::messages::{
-    FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, ReceiptAck, RequestsStatus,
-    ResetFriendChannel, AddInvoice, CreatePayment, CreateTransaction, TransactionResult, RequestResult, MultiCommit,
+    FriendStatus, FriendsRoute, FunderControl, RequestsStatus,
+    ResetFriendChannel, AddInvoice, CreatePayment, CreateTransaction, RequestResult, MultiCommit,
     ResponseClosePayment, Rate,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
