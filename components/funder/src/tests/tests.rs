@@ -13,6 +13,7 @@ use proto::report::messages::{ChannelStatusReport, FunderReport};
 
 use super::utils::{create_node_controls, dummy_named_relay_address, dummy_relay_address};
 
+
 async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     let num_nodes = 2;
     let mut node_controls = await!(create_node_controls(num_nodes, spawner));

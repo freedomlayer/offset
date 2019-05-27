@@ -30,8 +30,7 @@ use database::DatabaseClient;
 use identity::{create_identity, IdentityClient};
 
 use crate::ephemeral::Ephemeral;
-// TODO: Add this back later:
-// use crate::funder::inner_funder_loop;
+use crate::funder::inner_funder_loop;
 use crate::report::create_report;
 use crate::state::FunderState;
 
@@ -406,7 +405,6 @@ where
     }
 }
 
-/*
 
 // TODO: Add this back later:
 /// Create a few node_controls, together with a router connecting them all.
@@ -503,4 +501,3 @@ where
     }
     node_controls
 }
-*/
