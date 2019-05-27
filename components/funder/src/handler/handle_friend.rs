@@ -160,7 +160,36 @@ fn handle_request_send_funds<B>(
     let local_index = remote_index.checked_add(1).unwrap();
     let next_index = local_index.checked_add(1).unwrap();
     if next_index >= request_send_funds.route.len() {
-        // We are the destination of this request. We return a response:
+        // We are the destination of this request.
+
+        // First make sure that we have a matching open invoice for this transaction:
+        let is_invoice_match = if let Some(open_invoice) = m_state
+            .state()
+            .open_invoices
+            .get(&request_send_funds.invoice_id)
+        {
+            if (open_invoice.total_dest_payment == request_send_funds.total_dest_payment)
+                && (request_send_funds.dest_payment <= request_send_funds.total_dest_payment)
+            {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if !is_invoice_match {
+            reply_with_cancel(
+                m_state,
+                send_commands,
+                remote_public_key,
+                &request_send_funds.request_id,
+            );
+            return;
+        };
+
+        // We return a response:
         let pending_transaction = create_pending_transaction(&request_send_funds);
         m_state.queue_unsigned_response(remote_public_key.clone(), pending_transaction);
         /*
