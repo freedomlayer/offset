@@ -605,10 +605,10 @@ pub struct TransactionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseClosePayment {
+    PaymentNotFound,
     InProgress,              // Can not be acked
     Success((Receipt, Uid)), // (Receipt, ack_id)
     Canceled(Uid),           // ack_id
-    PaymentNotFound,
 }
 
 #[derive(Debug)]
