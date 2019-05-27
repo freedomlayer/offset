@@ -442,7 +442,6 @@ fn test_funder_payment_failure() {
     thread_pool.run(task_funder_payment_failure(thread_pool.clone()));
 }
 
-/*
 
 /// Test a basic inconsistency between two adjacent nodes
 async fn task_funder_inconsistency_basic<S>(spawner: S)
@@ -510,11 +509,7 @@ where
         friend_public_key: public_keys[1].clone(),
         reset_token: reset_terms_report.reset_token.clone(), // TODO: Rename reset_token to reset_token?
     };
-    let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[45; UID_LEN]),
-        FunderControl::ResetFriendChannel(reset_friend_channel),
-    );
-    await!(node_controls[0].send(incoming_control_message)).unwrap();
+    await!(node_controls[0].send(FunderControl::ResetFriendChannel(reset_friend_channel)));
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
@@ -549,6 +544,8 @@ fn test_funder_inconsistency_basic() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_inconsistency_basic(thread_pool.clone()));
 }
+
+/*
 
 /// Test setting relay address for local node
 async fn task_funder_add_relay(spawner: impl Spawn + Clone + Send + 'static) {
