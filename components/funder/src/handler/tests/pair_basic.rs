@@ -18,7 +18,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
     RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    UserRequestSendFunds, CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl, MultiCommit, ResponseClosePayment,
+    CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl, MultiCommit, ResponseClosePayment,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -834,7 +834,7 @@ async fn task_handler_pair_basic<'a>(
     // Node2 receives Collect message from node1:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
@@ -902,7 +902,7 @@ async fn task_handler_pair_basic<'a>(
         FunderControl::AckClosePayment((PaymentId::from(&[3u8; PAYMENT_ID_LEN]), ack_uid.clone())),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
