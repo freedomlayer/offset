@@ -8,7 +8,7 @@ mod sender;
 mod state_wrap;
 mod utils;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 pub use self::handler::{funder_handle_message, FunderHandlerError};
