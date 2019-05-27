@@ -13,11 +13,10 @@ use crypto::identity::{
 };
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 
 
 use proto::report::messages::{
-    ChannelStatusReport, FriendLivenessReport, FriendStatusReport, FunderReport,
+    ChannelStatusReport, FriendLivenessReport, FunderReport,
     FunderReportMutations, RequestsStatusReport,
 };
 
@@ -295,7 +294,7 @@ where
         loop {
             match await!(self.recv())? {
                 NodeRecv::ReportMutations(_) => {}
-                NodeRecv::TransactionResult(transaction_result) => {},
+                NodeRecv::TransactionResult(_) => {},
                 NodeRecv::ResponseClosePayment(response_close_payment) => return Some(response_close_payment)
             };
         }
