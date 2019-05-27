@@ -672,13 +672,15 @@ where
     Ok(())
 }
 
-fn control_request_close_payment<B>(
+fn control_request_close_payment<B, R>(
     m_state: &mut MutableFunderState<B>,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
     payment_id: PaymentId,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     let payment = if let Some(payment) = m_state.state().payments.get(&payment_id) {
         payment
@@ -695,10 +697,20 @@ where
             Some(Payment::InProgress(new_transactions.num_transactions)),
             ResponseClosePayment::InProgress,
         ),
-        Payment::InProgress(num_transactions) => (
-            Some(Payment::InProgress(*num_transactions)),
-            ResponseClosePayment::InProgress,
-        ),
+        Payment::InProgress(num_transactions) => {
+            (if *num_transactions == 0 {
+                let ack_uid = Uid::new(rng);
+                (
+                    Some(Payment::Canceled(ack_uid.clone())),
+                    ResponseClosePayment::Canceled(ack_uid),
+                )
+            } else {
+                (
+                    Some(Payment::InProgress(*num_transactions)),
+                    ResponseClosePayment::InProgress,
+                )
+            })
+        }
         Payment::Success((num_transactions, receipt, ack_uid)) => (
             Some(Payment::Success((
                 *num_transactions,
@@ -1007,7 +1019,7 @@ where
             create_transaction,
         ),
         FunderControl::RequestClosePayment(payment_id) => {
-            control_request_close_payment(m_state, outgoing_control, payment_id)
+            control_request_close_payment(m_state, outgoing_control, rng, payment_id)
         }
         FunderControl::AckClosePayment((payment_id, ack_uid)) => {
             control_ack_close_payment(m_state, payment_id, ack_uid)
