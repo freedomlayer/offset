@@ -24,7 +24,8 @@ use proto::report::messages::{
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult, ResponseClosePayment,
+    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    ResponseClosePayment, SetFriendRate, Rate,
 };
 
 use database::DatabaseClient;
@@ -302,21 +303,10 @@ where
 
     pub async fn add_relay<'a>(&'a mut self, named_relay_address: NamedRelayAddress<B>) {
         await!(self.send(FunderControl::AddRelay(named_relay_address.clone())));
-        let pred = |report: &FunderReport<_>| report.relays.contains(&named_relay_address);
-        await!(self.recv_until(pred));
     }
 
     pub async fn remove_relay<'a>(&'a mut self, public_key: PublicKey) {
         await!(self.send(FunderControl::RemoveRelay(public_key.clone())));
-        let pred = |report: &FunderReport<_>| {
-            for relay in &report.relays {
-                if relay.public_key == public_key {
-                    return true;
-                }
-            }
-            false
-        };
-        await!(self.recv_until(pred));
     }
 
     pub async fn add_friend<'a>(
@@ -333,8 +323,6 @@ where
             balance,
         };
         await!(self.send(FunderControl::AddFriend(add_friend)));
-        let pred = |report: &FunderReport<_>| report.friends.contains_key(&friend_public_key);
-        await!(self.recv_until(pred));
     }
 
     pub async fn set_friend_status<'a>(
@@ -347,11 +335,6 @@ where
             status: status.clone(),
         };
         await!(self.send(FunderControl::SetFriendStatus(set_friend_status)));
-        let pred = |report: &FunderReport<_>| match report.friends.get(&friend_public_key) {
-            None => false,
-            Some(friend) => friend.status == FriendStatusReport::from(&status),
-        };
-        await!(self.recv_until(pred));
     }
 
     pub async fn set_remote_max_debt<'a>(
@@ -364,19 +347,6 @@ where
             remote_max_debt: remote_max_debt,
         };
         await!(self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)));
-
-        let pred = |report: &FunderReport<_>| {
-            let friend = match report.friends.get(&friend_public_key) {
-                Some(friend) => friend,
-                None => return false,
-            };
-            let tc_report = match &friend.channel_status {
-                ChannelStatusReport::Consistent(tc_report) => tc_report,
-                _ => return false,
-            };
-            tc_report.balance.remote_max_debt == remote_max_debt
-        };
-        await!(self.recv_until(pred));
     }
 
     pub async fn set_requests_status<'a>(
@@ -389,19 +359,18 @@ where
             status: requests_status.clone(),
         };
         await!(self.send(FunderControl::SetRequestsStatus(set_requests_status)));
+    }
 
-        let pred = |report: &FunderReport<_>| {
-            let friend = match report.friends.get(&friend_public_key) {
-                Some(friend) => friend,
-                None => return false,
-            };
-            let tc_report = match &friend.channel_status {
-                ChannelStatusReport::Consistent(tc_report) => tc_report,
-                _ => return false,
-            };
-            tc_report.requests_status.local == RequestsStatusReport::from(&requests_status)
+    pub async fn set_friend_rate<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        rate: Rate,
+    ) {
+        let set_friend_rate = SetFriendRate {
+            friend_public_key: friend_public_key.clone(),
+            rate,
         };
-        await!(self.recv_until(pred));
+        await!(self.send(FunderControl::SetFriendRate(set_friend_rate)));
     }
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {

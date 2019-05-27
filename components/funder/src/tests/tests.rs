@@ -9,7 +9,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, ReceiptAck, RequestsStatus,
     ResetFriendChannel, AddInvoice, CreatePayment, CreateTransaction, TransactionResult, RequestResult, MultiCommit,
-    ResponseClosePayment,
+    ResponseClosePayment, Rate,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
@@ -146,7 +146,6 @@ fn test_funder_basic() {
     thread_pool.run(task_funder_basic(thread_pool.clone()));
 }
 
-/*
 
 async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'static) {
     /*
@@ -177,6 +176,10 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled));
     await!(node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled));
 
+    // Set rate:
+    // This is the amount of credits node 1 takes from node 0 for forwarding messages.
+    await!(node_controls[1].set_friend_rate(&public_keys[0], Rate {mul: 0, add: 5}));
+
     // Set remote max debt:
     await!(node_controls[0].set_remote_max_debt(&public_keys[1], 200));
     await!(node_controls[1].set_remote_max_debt(&public_keys[0], 100));
@@ -193,9 +196,27 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     await!(node_controls[0].wait_until_ready(&public_keys[1]));
     await!(node_controls[1].wait_until_ready(&public_keys[2]));
 
-    // Send credits 0 --> 2
-    let user_request_send_funds = UserRequestSendFunds {
-        request_id: Uid::from(&[3; UID_LEN]),
+
+    // Let node 2 open an invoice:
+    let add_invoice = AddInvoice {
+        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        total_dest_payment: 15,
+    };
+    await!(node_controls[2].send(FunderControl::AddInvoice(add_invoice)));
+
+    // Create payment 0 --> 2
+    let create_payment = CreatePayment {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        total_dest_payment: 15,
+        dest_public_key: node_controls[0].public_key.clone(),
+    };
+    await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
+
+    // Create transaction 0 --> 2:
+    let create_transaction = CreateTransaction {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        request_id: Uid::from(&[5u8; UID_LEN]),
         route: FriendsRoute {
             public_keys: vec![
                 public_keys[0].clone(),
@@ -203,34 +224,49 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
                 public_keys[2].clone(),
             ],
         },
-        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
-        dest_payment: 20,
+        dest_payment: 15,
+        fees: 5,
     };
-    let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[42; UID_LEN]),
-        FunderControl::RequestSendFunds(user_request_send_funds),
-    );
-    await!(node_controls[0].send(incoming_control_message)).unwrap();
-    let response_received = await!(node_controls[0].recv_until_response()).unwrap();
-    assert_eq!(response_received.request_id, Uid::from(&[3; UID_LEN]));
-    let receipt = match response_received.result {
-        ResponseSendFundsResult::Failure(_) => unreachable!(),
-        ResponseSendFundsResult::Success(send_funds_receipt) => send_funds_receipt,
+    await!(node_controls[0].send(FunderControl::CreateTransaction(create_transaction)));
+    let transaction_result = await!(node_controls[0].recv_until_transaction_result()).unwrap();
+
+    let commit = match transaction_result.result {
+        RequestResult::Success(commit) => commit,
+        _ => unreachable!(),
     };
 
-    // Send ReceiptAck:
-    let receipt_ack = ReceiptAck {
-        request_id: Uid::from(&[3; UID_LEN]),
-        receipt_signature: receipt.signature.clone(),
-    };
-    let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[43; UID_LEN]),
-        FunderControl::ReceiptAck(receipt_ack),
-    );
-    await!(node_controls[0].send(incoming_control_message)).unwrap();
 
-    let pred = |report: &FunderReport<_>| report.num_ready_receipts == 0;
-    await!(node_controls[0].recv_until(pred));
+    // 0: Create multi commit:
+    let multi_commit = MultiCommit {
+        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        total_dest_payment: 15,
+        commits: vec![commit],
+    };
+
+    // MultiCommit: 0 ==> 2  (Out of band)
+
+    // 2: Apply MultiCommit:
+    await!(node_controls[2].send(FunderControl::CommitInvoice(multi_commit)));
+
+    // 0: Expect a receipt:
+    let (receipt, ack_uid) = loop {
+        await!(node_controls[0].send(
+                FunderControl::RequestClosePayment(PaymentId::from(&[2u8; PAYMENT_ID_LEN]))));
+        let response_close_payment = await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+        match response_close_payment {
+            ResponseClosePayment::Success((receipt, ack_uid)) => break (receipt, ack_uid),
+            _ => {},
+        }
+    };
+
+    // 0: Acknowledge response close:
+    await!(node_controls[0].send(
+            FunderControl::AckClosePayment((PaymentId::from(&[2u8; PAYMENT_ID_LEN]), ack_uid))));
+
+    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
+    assert_eq!(receipt.dest_payment, 15);
+    assert_eq!(receipt.total_dest_payment, 15);
+
 
     // Make sure that node2 got the credits:
     let pred = |report: &FunderReport<_>| {
@@ -242,7 +278,7 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
             ChannelStatusReport::Consistent(tc_report) => tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == -6 + 20
+        tc_report.balance.balance == -6 + 15
     };
     await!(node_controls[2].recv_until(pred));
 }
@@ -252,6 +288,8 @@ fn test_funder_forward_payment() {
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_funder_forward_payment(thread_pool.clone()));
 }
+
+/*
 
 async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'static) {
     /*
