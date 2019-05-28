@@ -13,7 +13,6 @@
     clippy::new_without_default
 )]
 
-#[allow(unused)]
 #[macro_use]
 extern crate log;
 
@@ -24,9 +23,9 @@ extern crate common;
 mod backoff_connector;
 #[allow(unused)]
 mod graph;
-// mod net_server;
+mod net_server;
 #[allow(unused)]
 mod server;
 mod verifier;
 
-// pub use net_server::{net_index_server, NetIndexServerError};
+pub use net_server::{net_index_server, NetIndexServerError};
