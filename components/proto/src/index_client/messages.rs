@@ -5,7 +5,7 @@ use crypto::uid::Uid;
 
 use crate::funder::messages::Rate;
 pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};
-use crate::index_server::messages::{NamedIndexServerAddress, RouteWithCapacity};
+use crate::index_server::messages::{MultiRoute, NamedIndexServerAddress};
 
 #[derive(Debug, Clone)]
 pub struct FriendInfo {
@@ -48,7 +48,7 @@ pub enum IndexClientReportMutation<ISA> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseRoutesResult {
-    Success(Vec<RouteWithCapacity>),
+    Success(Vec<MultiRoute>),
     Failure,
 }
 

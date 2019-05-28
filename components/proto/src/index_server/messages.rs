@@ -15,22 +15,34 @@ pub struct RequestRoutes {
     pub capacity: u128,
     pub source: PublicKey,
     pub destination: PublicKey,
-    /// This directed edge must not show up in the route.
+    /// This directed edge must not show up any any route inside the multi-route.
     /// Useful for finding non trivial directed loops.
     pub opt_exclude: Option<(PublicKey, PublicKey)>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RouteWithCapacity {
+pub struct RouteCapacityRate {
     pub route: FriendsRoute,
+    /// How many credits we can push along this route?
     pub capacity: u128,
+    /// Combined rate of pushing credits along this route.
+    pub rate: Rate,
+}
+
+/// Multiple routes that together allow to pass a certain amount of credits to a destination.
+/// All routes must have the same beginning and the same end.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct MultiRoute {
+    pub routes: Vec<RouteCapacityRate>,
 }
 
 /// IndexServer -> IndexClient
 #[derive(Debug, Clone)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
-    pub routes: Vec<RouteWithCapacity>,
+    /// A few separate multi routes that allow to send the wanted amount of credits to the
+    /// requested destination:
+    pub multi_routes: Vec<MultiRoute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -20,9 +20,7 @@ use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use crate::report::serialize::{
     deser_node_report, deser_node_report_mutation, ser_node_report, ser_node_report_mutation,
 };
-use index_server::serialize::{
-    deser_request_routes, deser_route_with_capacity, ser_request_routes, ser_route_with_capacity,
-};
+use index_server::serialize::{deser_request_routes, ser_request_routes};
 
 use crate::funder::messages::{
     AddFriend, ReceiptAck,
@@ -305,6 +303,8 @@ fn ser_response_routes_result(
     response_routes_result: &ResponseRoutesResult,
     response_routes_result_builder: &mut app_server_capnp::response_routes_result::Builder,
 ) {
+    unimplemented!();
+    /*
     match response_routes_result {
         ResponseRoutesResult::Success(routes_with_capacity) => {
             let routes_len = usize_to_u32(routes_with_capacity.len()).unwrap();
@@ -320,11 +320,14 @@ fn ser_response_routes_result(
         }
         ResponseRoutesResult::Failure => response_routes_result_builder.reborrow().set_failure(()),
     }
+    */
 }
 
 fn deser_response_routes_result(
     response_routes_result_reader: &app_server_capnp::response_routes_result::Reader,
 ) -> Result<ResponseRoutesResult, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match response_routes_result_reader.which()? {
         app_server_capnp::response_routes_result::Success(routes_with_capacity_reader) => {
             let mut routes_with_capacity = Vec::new();
@@ -335,6 +338,7 @@ fn deser_response_routes_result(
         }
         app_server_capnp::response_routes_result::Failure(()) => ResponseRoutesResult::Failure,
     })
+    */
 }
 
 fn ser_client_response_routes(
