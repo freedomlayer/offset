@@ -8,7 +8,7 @@ use structopt::StructOpt;
 
 use app::gen::gen_uid;
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
-use app::route::{FriendsRoute, RouteWithCapacity};
+use app::route::{FriendsRoute, MultiRoute};
 
 use crate::file::invoice::load_invoice_from_file;
 use crate::file::receipt::store_receipt_to_file;
@@ -66,40 +66,38 @@ pub enum FundsError {
     WriteError,
 }
 
+// TODO: The algorithm here might not be accurate in all cases.
+// Fix later.
+/// Can we push the given amount of credits through this multi route?
+fn is_good_multi_route(
+    multi_route: &MultiRoute,
+    mut amount: u128) -> bool {
+
+    let mut credit_count = 0u128;
+    let mut fees_count = 0u128;
+
+    for route_capacity_rate in multi_route.routes {
+        let route_fees = route_capacity_rate.rate.calc_fees(route_capacity_rate.capacity)?;
+        fees_count = fees_count.checked_add(route_fees)?;
+        // Amount of capacity we are left with for actual payment:
+        let left_capacity = route_capacity_rate.capacity.checked_sub(route_fees)?;
+        credit_count = credit_count.checked_add(left_capacity)?;
+    }
+
+    credit_count >= amount
+
+}
+
 /// Choose a route for pushing `amount` credits
-fn choose_route(
-    routes_with_capacity: Vec<RouteWithCapacity>,
+fn choose_multi_route(
+    multi_routes: Vec<MultiRoute>,
     amount: u128,
-) -> Result<FriendsRoute, FundsError> {
-    // We naively select the first route we find suitable:
+) -> Result<MultiRoute, FundsError> {
+    // We naively select the first multi-route we find suitable:
     // TODO: Possibly improve this later:
-    for route_with_capacity in routes_with_capacity {
-        // TODO: Is this dangerous? How can we do this safely?
-        let length = route_with_capacity.route.len() as u128;
-
-        // For route of length 2 we pay 0. (source and destination are included)
-        // For route of length 3 we pay 1.
-        // ...
-        let extra: u128 = if let Some(extra) = length.checked_sub(2) {
-            extra
-        } else {
-            // This is an invalid route
-            warn!(
-                "Received invalid route of length: {}. Skipping route",
-                route_with_capacity.route.len()
-            );
-            continue;
-        };
-
-        let total: u128 = if let Some(total) = extra.checked_add(amount) {
-            total
-        } else {
-            warn!("Overflow when calculating total payment. Skipping route");
-            continue;
-        };
-
-        if total <= route_with_capacity.capacity {
-            return Ok(route_with_capacity.route);
+    for multi_route in multi_routes {
+        if is_good_multi_route(&multi_route, amount) {
+            return Ok(multi_route)
         }
     }
     Err(FundsError::NoSuitableRoute)
@@ -144,8 +142,8 @@ async fn funds_send_funds(
     )) // No exclusion of edges
     .map_err(|_| FundsError::AppRoutesError)?;
 
-    let route = choose_route(routes_with_capacity, dest_payment)?;
-    let fees = route.len().checked_sub(2).unwrap();
+    let multi_route = choose_multi_route(routes_with_capacity, dest_payment)?;
+    // TODO: Calculate fees?
 
     // A trivial invoice:
     let request_id = gen_uid();
