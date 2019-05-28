@@ -9,7 +9,7 @@ use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
-use proto::index_server::messages::{RequestRoutes, RouteWithCapacity};
+use proto::index_server::messages::{MultiRoute, RequestRoutes};
 
 #[derive(Debug)]
 pub struct AppRoutesError;

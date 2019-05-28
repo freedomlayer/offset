@@ -12,18 +12,22 @@
     clippy::new_without_default
 )]
 
+#[allow(unused)]
 #[macro_use]
 extern crate log;
 
+#[allow(unused)]
 #[macro_use]
 extern crate serde_derive;
 
+#[allow(unused)]
 mod adapters;
-pub mod connect;
-mod net_node;
-mod node;
+// pub mod connect;
+// mod net_node;
+// mod node;
+#[allow(unused)]
 mod types;
 
-pub use self::net_node::{net_node, NetNodeError};
+// pub use self::net_node::{net_node, NetNodeError};
 pub use self::types::{NodeConfig, NodeState};
-pub use app_server::IncomingAppConnection;
+// pub use app_server::IncomingAppConnection;
