@@ -70,7 +70,7 @@ where
         source: PublicKey,
         destination: PublicKey,
         opt_exclude: Option<(PublicKey, PublicKey)>,
-    ) -> Result<Vec<RouteWithCapacity>, AppRoutesError> {
+    ) -> Result<Vec<MultiRoute>, AppRoutesError> {
         let request_routes_id = Uid::new(&self.rng);
         let request_routes = RequestRoutes {
             request_id: request_routes_id,
@@ -96,9 +96,7 @@ where
                 continue;
             }
             match client_response_routes.result {
-                ResponseRoutesResult::Success(routes_with_capacity) => {
-                    return Ok(routes_with_capacity)
-                }
+                ResponseRoutesResult::Success(multi_routes) => return Ok(multi_routes),
                 ResponseRoutesResult::Failure => return Err(AppRoutesError),
             }
         }
