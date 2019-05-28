@@ -3,7 +3,7 @@ use std::{cmp, hash};
 
 use super::bfs::bfs;
 use super::capacity_graph::{
-    CapacityEdge, CapacityGraph, CapacityMultiRoute, CapacityPair, CapacityRoute, LinearRate,
+    CapacityEdge, CapacityGraph, CapacityMultiRoute, CapacityRoute, LinearRate,
 };
 use super::utils::{option_to_vec, OptionIterator};
 

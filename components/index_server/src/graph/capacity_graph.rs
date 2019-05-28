@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 pub type CapacityPair<C> = (C, C);
 
 pub trait LinearRate
@@ -24,6 +22,7 @@ pub struct CapacityEdge<C, T> {
     pub rate: T,
 }
 
+#[allow(unused)]
 impl<C, T> CapacityEdge<C, T> {
     pub fn new(capacity: CapacityPair<C>, rate: T) -> Self {
         Self { capacity, rate }

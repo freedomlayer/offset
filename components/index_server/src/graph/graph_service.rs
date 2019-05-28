@@ -2,7 +2,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
-use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityRoute, CapacityMultiRoute};
+use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityMultiRoute};
 
 pub enum GraphRequest<N, C, T> {
     /// Change capacities on a directed edge:
@@ -224,6 +224,7 @@ mod tests {
     use super::*;
     use super::super::simple_capacity_graph::SimpleCapacityGraph;
     use super::super::test_utils::ConstRate;
+    use super::super::capacity_graph::CapacityRoute;
     use futures::executor::ThreadPool;
 
 
