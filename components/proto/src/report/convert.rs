@@ -6,7 +6,7 @@ use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 
 use crypto::identity::PublicKey;
 
-use crate::index_client::messages::IndexClientState;
+use crate::index_client::messages::{FriendInfo, IndexClientState};
 use crate::index_server::messages::{IndexMutation, UpdateFriend};
 
 use crate::report::messages::{
@@ -76,13 +76,18 @@ where
         .friends
         .iter()
         .map(|(friend_public_key, friend_report)| {
+            let (send_capacity, recv_capacity) = calc_friend_capacities(friend_report);
             (
                 friend_public_key.clone(),
-                calc_friend_capacities(friend_report),
+                FriendInfo {
+                    send_capacity,
+                    recv_capacity,
+                    rate: friend_report.rate.clone(),
+                },
             )
         })
-        .filter(|(_, (send_capacity, recv_capacity))| *send_capacity != 0 || *recv_capacity != 0)
-        .collect::<HashMap<PublicKey, (u128, u128)>>();
+        .filter(|(_, friend_info)| friend_info.send_capacity != 0 || friend_info.recv_capacity != 0)
+        .collect::<HashMap<PublicKey, FriendInfo>>();
 
     IndexClientState { friends }
 }
@@ -95,10 +100,16 @@ where
     B: Clone + Debug,
 {
     let create_update_friend = |public_key: &PublicKey| {
-        let opt_old_capacities = funder_report
-            .friends
-            .get(public_key)
-            .map(|old_friend_report| calc_friend_capacities(&old_friend_report));
+        let opt_old_capacities_rate =
+            funder_report
+                .friends
+                .get(public_key)
+                .map(|old_friend_report| {
+                    (
+                        calc_friend_capacities(&old_friend_report),
+                        old_friend_report.rate.clone(),
+                    )
+                });
 
         let mut new_funder_report = funder_report.clone();
         new_funder_report.mutate(funder_report_mutation).unwrap();
@@ -106,14 +117,16 @@ where
         let new_friend_report = new_funder_report.friends.get(public_key).unwrap(); // We assert that a new friend was added
 
         let new_capacities = calc_friend_capacities(new_friend_report);
+        let new_rate = new_friend_report.rate.clone();
 
-        // Return UpdateFriend if the new capacities are different than the old ones:
-        if opt_old_capacities != Some(new_capacities) {
+        // Return UpdateFriend if something has changed:
+        if opt_old_capacities_rate != Some((new_capacities, new_rate.clone())) {
             let (send_capacity, recv_capacity) = new_capacities;
             let update_friend = UpdateFriend {
                 public_key: public_key.clone(),
                 send_capacity,
                 recv_capacity,
+                rate: new_rate,
             };
             Some(IndexMutation::UpdateFriend(update_friend))
         } else {

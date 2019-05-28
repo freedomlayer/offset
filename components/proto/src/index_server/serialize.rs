@@ -155,13 +155,16 @@ fn ser_update_friend(
 }
 
 fn deser_update_friend(
-    update_friend_reader: &index_capnp::update_friend::Reader,
+    _update_friend_reader: &index_capnp::update_friend::Reader,
 ) -> Result<UpdateFriend, SerializeError> {
+    unimplemented!();
+    /*
     Ok(UpdateFriend {
         public_key: read_public_key(&update_friend_reader.get_public_key()?)?,
         send_capacity: read_custom_u_int128(&update_friend_reader.get_send_capacity()?)?,
         recv_capacity: read_custom_u_int128(&update_friend_reader.get_recv_capacity()?)?,
     })
+    */
 }
 
 fn ser_index_mutation(

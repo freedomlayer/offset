@@ -3,11 +3,11 @@ use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
 use crypto::identity::PublicKey;
-use proto::index_client::messages::{IndexMutation, UpdateFriend};
+use proto::index_client::messages::{IndexMutation, UpdateFriend, FriendInfo};
 
 use crate::seq_map::SeqMap;
 
-pub type SeqFriends = SeqMap<PublicKey, (u128, u128)>;
+pub type SeqFriends = SeqMap<PublicKey, FriendInfo>;
 
 pub enum SeqFriendsRequest {
     Mutate(IndexMutation, oneshot::Sender<()>),
@@ -29,8 +29,12 @@ pub struct SeqFriendsClient {
 fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMutation) {
     match index_mutation {
         IndexMutation::UpdateFriend(update_friend) => {
-            let capacity_pair = (update_friend.send_capacity, update_friend.recv_capacity);
-            let _ = seq_friends.update(update_friend.public_key.clone(), capacity_pair);
+            let friend_info = FriendInfo {
+                send_capacity: update_friend.send_capacity,
+                recv_capacity: update_friend.recv_capacity,
+                rate: update_friend.rate.clone(),
+            };
+            let _ = seq_friends.update(update_friend.public_key.clone(), friend_info);
         }
         IndexMutation::RemoveFriend(public_key) => {
             let _ = seq_friends.remove(public_key);
@@ -56,12 +60,13 @@ async fn seq_friends_loop(
                 let update_friend =
                     seq_friends
                         .next()
-                        .map(|(cycle_countdown, (public_key, capacities))| {
-                            let (send_capacity, recv_capacity) = capacities;
+                        .map(|(cycle_countdown, (public_key, friend_info))| {
+                            let FriendInfo {send_capacity, recv_capacity, rate} = friend_info;
                             let update_friend = UpdateFriend {
                                 public_key,
                                 send_capacity,
                                 recv_capacity,
+                                rate,
                             };
                             (cycle_countdown, update_friend)
                         });

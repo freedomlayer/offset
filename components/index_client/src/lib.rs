@@ -28,8 +28,8 @@ mod seq_map;
 mod single_client;
 mod spawn;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 pub use self::index_client::{IndexClientConfig, IndexClientConfigMutation, IndexClientError};
 pub use self::spawn::{spawn_index_client, SpawnIndexClientError};

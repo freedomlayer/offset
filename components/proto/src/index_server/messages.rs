@@ -3,7 +3,7 @@ use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
-use crate::funder::messages::FriendsRoute;
+use crate::funder::messages::{FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
 
 /// IndexClient -> IndexServer
@@ -41,6 +41,14 @@ pub struct UpdateFriend {
     pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
     pub recv_capacity: u128,
+    /// The rate we charge for forwarding messages to another friend from this friend.
+    /// For example, in the following diagram we are X and A is the friend we are updating:
+    /// A -- X -- B
+    ///      \
+    ///       --- C
+    /// We can set how much we charge A for forwarding funds. The same rate applies either when A
+    /// sends funds to B or to C.
+    pub rate: Rate,
 }
 
 /// IndexClient -> IndexServer

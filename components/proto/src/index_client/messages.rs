@@ -3,12 +3,20 @@ use std::collections::HashMap;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
+use crate::funder::messages::Rate;
 pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};
 use crate::index_server::messages::{NamedIndexServerAddress, RouteWithCapacity};
 
 #[derive(Debug, Clone)]
+pub struct FriendInfo {
+    pub send_capacity: u128,
+    pub recv_capacity: u128,
+    pub rate: Rate,
+}
+
+#[derive(Debug, Clone)]
 pub struct IndexClientState {
-    pub friends: HashMap<PublicKey, (u128, u128)>,
+    pub friends: HashMap<PublicKey, FriendInfo>,
 }
 
 // ---------------------------------------------------
