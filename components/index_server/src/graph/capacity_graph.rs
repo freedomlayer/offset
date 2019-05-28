@@ -13,9 +13,9 @@ where
     fn zero() -> Self;
     /// Calculate the fee for forwarding a certain amount of credits being passed.
     /// The resulting fee is also an amount of credits.
-    fn calc_fee(self, k: Self::K) -> Self::K;
+    fn calc_fee(&self, k: Self::K) -> Option<Self::K>;
     /// Attempt to add two rates.
-    fn checked_add(self, other: &Self) -> Option<Self>;
+    fn checked_add(&self, other: &Self) -> Option<Self>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -17,6 +17,7 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
 extern crate common;
 
 #[allow(unused)]
@@ -24,7 +25,8 @@ mod backoff_connector;
 #[allow(unused)]
 mod graph;
 // mod net_server;
-// mod server;
+#[allow(unused)]
+mod server;
 mod verifier;
 
 // pub use net_server::{net_index_server, NetIndexServerError};

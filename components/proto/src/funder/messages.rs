@@ -1,6 +1,9 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use std::collections::HashSet;
 
+use num_bigint::BigUint;
+use num_traits::cast::ToPrimitive;
+
 use crypto::crypto_rand::RandValue;
 use crypto::hash::{self, HashResult};
 use crypto::hash_lock::{HashedLock, PlainLock};
@@ -416,6 +419,12 @@ pub struct Rate {
 impl Rate {
     pub fn new() -> Self {
         Rate { mul: 0, add: 0 }
+    }
+
+    pub fn calc_fee(&self, dest_payment: u128) -> Option<u128> {
+        let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
+        let res = mul_res + BigUint::from(self.add);
+        res.to_u128()
     }
 }
 

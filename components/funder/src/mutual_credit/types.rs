@@ -1,12 +1,10 @@
 use im::hashmap::HashMap as ImHashMap;
-use num_bigint::BigUint;
-use num_traits::cast::ToPrimitive;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
-use proto::funder::messages::{PendingTransaction, Rate, RequestsStatus, TransactionStage};
+use proto::funder::messages::{PendingTransaction, RequestsStatus, TransactionStage};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
@@ -84,13 +82,6 @@ impl McRequestsStatus {
             remote: RequestsStatus::Closed,
         }
     }
-}
-
-/// Calculate fee for forwarding a transaction given a `rate` and `dest_payment`.
-pub fn calc_fee(rate: &Rate, dest_payment: u128) -> Option<u128> {
-    let mul_res = (BigUint::from(dest_payment) * BigUint::from(rate.mul)) >> 32;
-    let res = mul_res + BigUint::from(rate.add);
-    res.to_u128()
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

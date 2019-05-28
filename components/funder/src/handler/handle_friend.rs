@@ -28,8 +28,6 @@ use crate::state::{FunderMutation, Payment};
 
 use crate::ephemeral::Ephemeral;
 
-use crate::mutual_credit::types::calc_fee;
-
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
     remove_transaction, reply_with_cancel,
@@ -221,7 +219,7 @@ fn handle_request_send_funds<B>(
     // Note that the rate is determined by the rate we set with the node that sent us the request
     // (And **not** with the node that we forward the request to).
     let rate = &m_state.state().friends.get(remote_public_key).unwrap().rate;
-    let opt_local_fee = calc_fee(rate, request_send_funds.dest_payment);
+    let opt_local_fee = rate.calc_fee(request_send_funds.dest_payment);
 
     let request_id = request_send_funds.request_id.clone();
 

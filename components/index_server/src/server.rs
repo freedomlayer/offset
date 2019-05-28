@@ -14,16 +14,39 @@ use crypto::uid::Uid;
 
 use proto::index_server::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
-    IndexServerToServer, MutationsUpdate, ResponseRoutes, MultiRoute, TimeProofLink,
+    IndexServerToServer, MutationsUpdate, ResponseRoutes, MultiRoute, TimeProofLink, RouteCapacityRate,
 };
 
-use proto::funder::messages::FriendsRoute;
+use proto::funder::messages::{FriendsRoute, Rate};
 
 use crate::graph::graph_service::{GraphClient, GraphClientError};
+use crate::graph::capacity_graph::{LinearRate, CapacityEdge};
+
 use crate::verifier::Verifier;
 
 pub type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 pub type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
+
+impl LinearRate for Rate {
+    /// Type used to count credits
+    type K = u128;
+
+    fn zero() -> Self {
+        Rate { mul: 0, add: 0 }
+    }
+
+    fn calc_fee(&self, k: Self::K) -> Option<Self::K> {
+        self.calc_fee(k)
+    }
+
+    fn checked_add(&self, other: &Self) -> Option<Self> {
+        // Entry wise addition:
+        Some(Rate { 
+            mul: self.mul.checked_add(other.mul)?,
+            add: self.add.checked_add(other.add)?,
+        })
+    }
+}
 
 #[derive(Debug)]
 pub enum ServerLoopError {
@@ -89,7 +112,7 @@ struct RemoteServer<A> {
 struct IndexServer<A, S, SC, V, CMP> {
     local_public_key: PublicKey,
     server_connector: SC,
-    graph_client: GraphClient<PublicKey, u128>,
+    graph_client: GraphClient<PublicKey, u128, Rate>,
     verifier: V,
     compare_public_key: CMP,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
@@ -143,7 +166,7 @@ where
         local_public_key: PublicKey,
         trusted_servers: HashMap<PublicKey, A>,
         server_connector: SC,
-        graph_client: GraphClient<PublicKey, u128>,
+        graph_client: GraphClient<PublicKey, u128, Rate>,
         compare_public_key: CMP,
         verifier: V,
         event_sender: mpsc::Sender<IndexServerEvent>,
@@ -301,10 +324,15 @@ where
                         update_friend.rate,
                     );
 
+                    let capacity_edge = CapacityEdge {
+                        capacity: (update_friend.send_capacity, update_friend.recv_capacity),
+                        rate: update_friend.rate.clone(),
+                    };
+
                     await!(self.graph_client.update_edge(
                         mutations_update.node_public_key.clone(),
                         update_friend.public_key.clone(),
-                        (update_friend.send_capacity, update_friend.recv_capacity)
+                        capacity_edge,
                     ))?;
                 }
                 IndexMutation::RemoveFriend(friend_public_key) => {
@@ -369,7 +397,7 @@ where
 }
 
 async fn client_handler(
-    mut graph_client: GraphClient<PublicKey, u128>,
+    mut graph_client: GraphClient<PublicKey, u128, Rate>,
     _public_key: PublicKey, // TODO: unused?
     client_conn: ClientConn,
     mut event_sender: mpsc::Sender<IndexServerEvent>,
@@ -384,26 +412,29 @@ async fn client_handler(
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
-                let graph_multi_routes = await!(graph_client.get_routes(
+                let graph_multi_routes = await!(graph_client.get_multi_routes(
                     request_routes.source.clone(),
                     request_routes.destination.clone(),
                     request_routes.capacity,
                     request_routes.opt_exclude.clone()
                 ))?;
-                let routes = graph_multi_routes
+                let multi_routes = graph_multi_routes
                     .into_iter()
                     .map(|graph_multi_route| MultiRoute {
-                        routes: graph_multi_route.routes.map(|graph_route| RouteCapacityRate {
-                            route: FriendRoute {public_keys: graph_route.route},
-                            capacity: graph_route.capacity,
-                            rate: graph_route.rate,
-                        }),
+                        routes: graph_multi_route.routes
+                            .into_iter()
+                            .map(|graph_route| RouteCapacityRate {
+                                route: FriendsRoute {public_keys: graph_route.route},
+                                capacity: graph_route.capacity,
+                                rate: graph_route.rate,
+                            })
+                            .collect(),
                     })
                     .collect::<Vec<_>>();
 
                 let response_routes = ResponseRoutes {
                     request_id: request_routes.request_id,
-                    routes,
+                    multi_routes,
                 };
                 let message = IndexServerToClient::ResponseRoutes(response_routes);
                 await!(sender.send(message)).map_err(|_| ServerLoopError::ClientSenderError)?;
@@ -419,7 +450,7 @@ pub async fn server_loop<A, IS, IC, SC, CMP, V, TS, S>(
     incoming_server_connections: IS,
     incoming_client_connections: IC,
     server_connector: SC,
-    graph_client: GraphClient<PublicKey, u128>,
+    graph_client: GraphClient<PublicKey, u128, Rate>,
     compare_public_key: CMP,
     verifier: V,
     timer_stream: TS,
@@ -731,7 +762,7 @@ mod tests {
 
         // Handle the graph request:
         match await!(graph_requests_receiver.next()).unwrap() {
-            GraphRequest::GetRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
                 assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
                 assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
                 assert_eq!(capacity, 100);
@@ -813,7 +844,7 @@ mod tests {
         tick_sender: mpsc::Sender<()>,
         server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
-        graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128>>,
+        graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128, Rate>>,
         server_conn_request_receiver:
             mpsc::Receiver<ConnRequest<(PublicKey, u8), Option<ServerConn>>>,
         debug_event_receiver: mpsc::Receiver<()>,
@@ -996,7 +1027,7 @@ mod tests {
 
         // Handle the graph request:
         match await!(test_servers[0].graph_requests_receiver.next()).unwrap() {
-            GraphRequest::GetRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
                 assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
                 assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
                 assert_eq!(capacity, 100);

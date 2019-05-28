@@ -12,11 +12,11 @@ impl LinearRate for ConstRate {
         ConstRate(0)
     }
 
-    fn calc_fee(self, k: Self::K) -> Self::K {
-        self.0
+    fn calc_fee(&self, k: Self::K) -> Option<Self::K> {
+        Some(self.0)
     }
 
-    fn checked_add(self, other: &Self) -> Option<Self> {
+    fn checked_add(&self, other: &Self) -> Option<Self> {
         Some(ConstRate(self.0.checked_add(other.0)?))
     }
 }
