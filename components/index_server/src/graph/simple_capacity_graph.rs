@@ -2,29 +2,35 @@ use std::collections::HashMap;
 use std::{cmp, hash};
 
 use super::bfs::bfs;
-use super::capacity_graph::{CapacityEdge, CapacityGraph};
+use super::capacity_graph::{CapacityEdge, CapacityGraph, GraphMultiRoute, GraphRoute, LinearRate};
 use super::utils::{option_to_vec, OptionIterator};
 
 /// Amount of ticks an edge could live regardless of coupon collector's approximation.
 /// This is useful to allow the first edges build (n*log(n) is very small for small n).
 const BASE_MAX_EDGE_AGE: u128 = 16;
 
-struct Edge {
+#[derive(Debug, Clone)]
+struct Edge<T> {
     capacity: CapacityEdge<u128>,
+    rate: T,
     age: u128,
 }
 
-impl Edge {
-    fn new(capacity: CapacityEdge<u128>) -> Self {
-        Edge { capacity, age: 0 }
+impl<T> Edge<T> {
+    fn new(capacity: CapacityEdge<u128>, rate: T) -> Self {
+        Edge {
+            capacity,
+            rate,
+            age: 0,
+        }
     }
 }
 
-struct NodeEdges<N> {
-    edges: HashMap<N, Edge>,
+struct NodeEdges<N, T> {
+    edges: HashMap<N, Edge<T>>,
 }
 
-impl<N> NodeEdges<N>
+impl<N, T> NodeEdges<N, T>
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
 {
@@ -45,7 +51,7 @@ fn max_edge_age(num_edges: usize) -> u128 {
     BASE_MAX_EDGE_AGE + 3 * (num_edges as u128)
 }
 
-impl<N> NodeEdges<N>
+impl<N, T> NodeEdges<N, T>
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
 {
@@ -59,27 +65,28 @@ where
     }
 }
 
-pub struct SimpleCapacityGraph<N> {
-    nodes: HashMap<N, NodeEdges<N>>,
+pub struct SimpleCapacityGraph<N, T> {
+    nodes: HashMap<N, NodeEdges<N, T>>,
 }
 
-impl<N> SimpleCapacityGraph<N>
+impl<N, T> SimpleCapacityGraph<N, T>
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
+    T: LinearRate + Clone,
 {
-    pub fn new() -> SimpleCapacityGraph<N> {
-        SimpleCapacityGraph {
+    pub fn new() -> SimpleCapacityGraph<N, T> {
+        Self {
             nodes: HashMap::new(),
         }
     }
 
     /// Get a directed edge (if exists)
-    fn get_edge(&self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
+    fn get_edge(&self, a: &N, b: &N) -> Option<Edge<T>> {
         match self.nodes.get(a) {
             None => None,
             Some(a_edges) => match a_edges.edges.get(b) {
                 None => None,
-                Some(a_b_edge) => Some(a_b_edge.capacity),
+                Some(a_b_edge) => Some(a_b_edge.clone()),
             },
         }
     }
@@ -89,13 +96,13 @@ where
     /// capacity reported by `b`.
     fn get_send_capacity(&self, a: &N, b: &N) -> u128 {
         let a_b_edge = if let Some(a_b_edge) = self.get_edge(&a, &b) {
-            a_b_edge
+            a_b_edge.capacity
         } else {
             return 0;
         };
 
         let b_a_edge = if let Some(b_a_edge) = self.get_edge(&b, &a) {
-            b_a_edge
+            b_a_edge.capacity
         } else {
             return 0;
         };
@@ -130,18 +137,32 @@ where
             .min()
     }
 
+    /// Calculate the total rate of sending credits along a given route
+    fn get_route_rate(&self, route: &[N]) -> Option<T> {
+        let mut total_rate = T::zero();
+        for i in 0..route.len().checked_sub(1)? {
+            let edge = self.get_edge(&route[i], &route[i + 1])?;
+            total_rate = total_rate.checked_add(&edge.rate)?;
+        }
+        Some(total_rate)
+    }
+
     /// Get a route with capacity at least `capacity`.
     /// Returns the route together with the capacity it is possible to send through the route.
     ///
     /// opt_exclude is an optional edge to exclude (The returned route must not go through this
     /// edge). This can be useful for finding non trivial loops.
-    fn get_route(
+    fn get_multi_route(
         &self,
         a: &N,
         b: &N,
         capacity: u128,
         opt_exclude: Option<(&N, &N)>,
-    ) -> Option<(Vec<N>, u128)> {
+    ) -> Option<GraphMultiRoute<N, u128, T>> {
+        // TODO: Update this implementation:
+        // Currently get_route does not attemp to find the cheapest route (according to rate)
+        // It only finds the shortest route and then calculates the rate.
+
         let (opt_e_start, opt_e_end) = match opt_exclude {
             Some((e_start, e_end)) => (Some(e_start), Some(e_end)),
             None => (None, None),
@@ -155,23 +176,41 @@ where
         // We assert that we will always have valid capacity here:
         let capacity = self.get_route_capacity(&route).unwrap();
 
-        Some((route, capacity))
+        let rate = self.get_route_rate(&route)?;
+
+        let graph_route = GraphRoute {
+            route,
+            capacity,
+            rate,
+        };
+
+        Some(GraphMultiRoute {
+            routes: vec![graph_route],
+        })
     }
 }
 
-impl<N> CapacityGraph for SimpleCapacityGraph<N>
+impl<N, T> CapacityGraph for SimpleCapacityGraph<N, T>
 where
     N: cmp::Eq + hash::Hash + Clone + std::fmt::Debug,
+    T: LinearRate + Clone,
 {
     type Node = N;
     type Capacity = u128;
+    type Rate = T;
 
     /// Add or update edge
-    fn update_edge(&mut self, a: N, b: N, edge: CapacityEdge<u128>) -> Option<CapacityEdge<u128>> {
+    fn update_edge(
+        &mut self,
+        a: N,
+        b: N,
+        rate: T,
+        capacity_edge: CapacityEdge<u128>,
+    ) -> Option<CapacityEdge<u128>> {
         let a_entry = self.nodes.entry(a).or_insert_with(NodeEdges::new);
         a_entry
             .edges
-            .insert(b, Edge::new(edge))
+            .insert(b, Edge::new(capacity_edge, rate))
             .map(|edge| edge.capacity)
     }
 
@@ -200,14 +239,14 @@ where
         self.nodes.remove(a).is_some()
     }
 
-    fn get_routes(
+    fn get_multi_routes(
         &self,
         a: &N,
         b: &N,
         capacity: u128,
         opt_exclude: Option<(&N, &N)>,
-    ) -> Vec<(Vec<N>, u128)> {
-        option_to_vec(self.get_route(a, b, capacity, opt_exclude))
+    ) -> Vec<GraphMultiRoute<N, u128, T>> {
+        option_to_vec(self.get_multi_route(a, b, capacity, opt_exclude))
     }
 
     fn tick(&mut self, a: &N) {
@@ -221,11 +260,31 @@ where
 mod tests {
     use super::*;
 
+    /// A contant rate, used for testing
+    #[derive(Debug, Clone)]
+    struct ConstRate(pub u32);
+
+    impl LinearRate for ConstRate {
+        type K = u32;
+
+        fn zero() -> Self {
+            ConstRate(0)
+        }
+
+        fn calc_fee(self, k: Self::K) -> Self::K {
+            self.0
+        }
+
+        fn checked_add(self, other: &Self) -> Option<Self> {
+            Some(ConstRate(self.0.checked_add(other.0)?))
+        }
+    }
+
     #[test]
     fn test_get_send_capacity_basic() {
-        let mut cg = SimpleCapacityGraph::<u32>::new();
-        cg.update_edge(0, 1, (10, 20));
-        cg.update_edge(1, 0, (15, 5));
+        let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
+        cg.update_edge(0, 1, ConstRate(1), (10, 20));
+        cg.update_edge(1, 0, ConstRate(1), (15, 5));
 
         assert_eq!(cg.get_send_capacity(&0, &1), cmp::min(5, 10));
         assert_eq!(cg.get_send_capacity(&1, &0), cmp::min(15, 20));
@@ -233,8 +292,8 @@ mod tests {
 
     #[test]
     fn test_get_send_capacity_one_sided() {
-        let mut cg = SimpleCapacityGraph::<u32>::new();
-        cg.update_edge(0, 1, (10, 20));
+        let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
+        cg.update_edge(0, 1, ConstRate(1), (10, 20));
 
         assert_eq!(cg.get_send_capacity(&0, &1), 0);
         assert_eq!(cg.get_send_capacity(&1, &0), 0);
@@ -242,21 +301,21 @@ mod tests {
 
     #[test]
     fn test_add_remove_edge() {
-        let mut cg = SimpleCapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
         assert_eq!(cg.remove_edge(&0, &1), None);
-        cg.update_edge(0, 1, (10, 20));
+        cg.update_edge(0, 1, ConstRate(1), (10, 20));
         assert_eq!(cg.nodes.len(), 1);
 
         assert_eq!(cg.remove_edge(&0, &1), Some((10, 20)));
         assert_eq!(cg.nodes.len(), 0);
 
-        cg.update_edge(0, 1, (10, 20));
+        cg.update_edge(0, 1, ConstRate(1), (10, 20));
         assert_eq!(cg.nodes.len(), 1);
         cg.remove_node(&1);
         assert_eq!(cg.nodes.len(), 1);
     }
 
-    fn example_capacity_graph() -> SimpleCapacityGraph<u32> {
+    fn example_capacity_graph() -> SimpleCapacityGraph<u32, ConstRate> {
         /*
          * Example graph:
          *
@@ -267,96 +326,116 @@ mod tests {
          *
          */
 
-        let mut cg = SimpleCapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, (30, 10));
-        cg.update_edge(1, 0, (10, 30));
+        cg.update_edge(0, 1, ConstRate(1), (30, 10));
+        cg.update_edge(1, 0, ConstRate(1), (10, 30));
 
-        cg.update_edge(1, 2, (10, 10));
-        cg.update_edge(2, 1, (10, 10));
+        cg.update_edge(1, 2, ConstRate(1), (10, 10));
+        cg.update_edge(2, 1, ConstRate(1), (10, 10));
 
-        cg.update_edge(2, 5, (30, 5));
-        cg.update_edge(5, 2, (5, 30));
+        cg.update_edge(2, 5, ConstRate(1), (30, 5));
+        cg.update_edge(5, 2, ConstRate(1), (5, 30));
 
-        cg.update_edge(1, 3, (30, 8));
-        cg.update_edge(3, 1, (8, 30));
+        cg.update_edge(1, 3, ConstRate(1), (30, 8));
+        cg.update_edge(3, 1, ConstRate(1), (8, 30));
 
-        cg.update_edge(3, 4, (30, 6));
-        cg.update_edge(4, 3, (6, 30));
+        cg.update_edge(3, 4, ConstRate(1), (30, 6));
+        cg.update_edge(4, 3, ConstRate(1), (6, 30));
 
-        cg.update_edge(4, 2, (30, 18));
-        cg.update_edge(2, 4, (18, 30));
+        cg.update_edge(4, 2, ConstRate(1), (30, 18));
+        cg.update_edge(2, 4, ConstRate(1), (18, 30));
 
         cg
     }
 
     #[test]
-    fn test_get_route() {
+    fn test_get_multi_route() {
         let cg = example_capacity_graph();
 
-        assert_eq!(cg.get_route(&2, &5, 29, None), Some((vec![2, 5], 30)));
-        assert_eq!(cg.get_route(&2, &5, 30, None), Some((vec![2, 5], 30)));
-        assert_eq!(cg.get_route(&2, &5, 31, None), None);
+        let multi_route = cg.get_multi_route(&2, &5, 29, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
 
-        assert_eq!(
-            cg.get_route(&0, &5, 25, None),
-            Some((vec![0, 1, 3, 4, 2, 5], 30))
-        );
-        assert_eq!(
-            cg.get_route(&0, &5, 29, None),
-            Some((vec![0, 1, 3, 4, 2, 5], 30))
-        );
-        assert_eq!(
-            cg.get_route(&0, &5, 30, None),
-            Some((vec![0, 1, 3, 4, 2, 5], 30))
-        );
-        assert_eq!(cg.get_route(&0, &5, 31, None), None);
+        let multi_route = cg.get_multi_route(&2, &5, 30, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
+        assert!(cg.get_multi_route(&2, &5, 31, None).is_none());
+
+        let multi_route = cg.get_multi_route(&0, &5, 25, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1, 3, 4, 2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
+        let multi_route = cg.get_multi_route(&0, &5, 29, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1, 3, 4, 2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
+        let multi_route = cg.get_multi_route(&0, &5, 30, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1, 3, 4, 2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
+        assert!(cg.get_multi_route(&0, &5, 31, None).is_none());
 
         // Block an essential edge:
-        assert_eq!(cg.get_route(&0, &5, 25, Some((&3, &4))), None);
+        assert!(cg.get_multi_route(&0, &5, 25, Some((&3, &4))).is_none());
+
         // Block an essential edge but the at the reversed direction:
-        assert_eq!(
-            cg.get_route(&0, &5, 25, Some((&4, &3))),
-            Some((vec![0, 1, 3, 4, 2, 5], 30))
-        );
+        let multi_route = cg.get_multi_route(&0, &5, 25, Some((&4, &3))).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1, 3, 4, 2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
         // Block an edge not used for the route:
-        assert_eq!(
-            cg.get_route(&0, &5, 25, Some((&1, &2))),
-            Some((vec![0, 1, 3, 4, 2, 5], 30))
-        );
+        let multi_route = cg.get_multi_route(&0, &5, 25, Some((&1, &2))).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1, 3, 4, 2, 5]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
 
         // Use excluded edge to find a loop from 1 to 1:
-        assert_eq!(
-            cg.get_route(&2, &1, 6, Some((&2, &1))),
-            Some((vec![2, 4, 3, 1], 6))
-        );
-        // Require too much capacity:
-        assert_eq!(cg.get_route(&2, &1, 7, Some((&2, &1))), None);
+        let multi_route = cg.get_multi_route(&2, &1, 6, Some((&2, &1))).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![2, 4, 3, 1]);
+        assert_eq!(multi_route.routes[0].capacity, 6);
+
+        // Request for too much capacity:
+        assert!(cg.get_multi_route(&2, &1, 7, Some((&2, &1))).is_none());
     }
 
     #[test]
     fn test_simple_capacity_graph_tick() {
-        let mut cg = SimpleCapacityGraph::<u32>::new();
+        let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, (30, 10));
-        cg.update_edge(1, 0, (10, 30));
+        cg.update_edge(0, 1, ConstRate(1), (30, 10));
+        cg.update_edge(1, 0, ConstRate(1), (10, 30));
 
-        cg.update_edge(2, 3, (30, 10));
-        cg.update_edge(3, 2, (10, 30));
+        cg.update_edge(2, 3, ConstRate(1), (30, 10));
+        cg.update_edge(3, 2, ConstRate(1), (10, 30));
 
-        assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0, 1], 30)));
-        assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2, 3], 30)));
+        let multi_route = cg.get_multi_route(&0, &1, 30, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![0, 1]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
+
+        let multi_route = cg.get_multi_route(&2, &3, 30, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![2, 3]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
 
         let max_edge_age = max_edge_age(1);
         for _ in 0..max_edge_age - 1 {
             cg.tick(&0);
-            assert_eq!(cg.get_route(&0, &1, 30, None), Some((vec![0, 1], 30)));
-            assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2, 3], 30)));
+
+            let multi_route = cg.get_multi_route(&0, &1, 30, None).unwrap();
+            assert_eq!(multi_route.routes[0].route, vec![0, 1]);
+            assert_eq!(multi_route.routes[0].capacity, 30);
+
+            let multi_route = cg.get_multi_route(&2, &3, 30, None).unwrap();
+            assert_eq!(multi_route.routes[0].route, vec![2, 3]);
+            assert_eq!(multi_route.routes[0].capacity, 30);
         }
 
         // At this point 0->1 and 1->0 should expire, but 2->3 and 3->2 don't expire:
         cg.tick(&0);
-        assert_eq!(cg.get_route(&0, &1, 30, None), None);
-        assert_eq!(cg.get_route(&2, &3, 30, None), Some((vec![2, 3], 30)));
+        assert!(cg.get_multi_route(&0, &1, 30, None).is_none());
+
+        let multi_route = cg.get_multi_route(&2, &3, 30, None).unwrap();
+        assert_eq!(multi_route.routes[0].route, vec![2, 3]);
+        assert_eq!(multi_route.routes[0].capacity, 30);
     }
 }
