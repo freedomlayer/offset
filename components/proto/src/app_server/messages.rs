@@ -6,7 +6,8 @@ use crypto::uid::Uid;
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, CreatePayment, CreateTransaction, ResetFriendChannel,
-    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
+    ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
+    TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -84,6 +85,7 @@ where
 {
     /// Funds:
     TransactionResult(TransactionResult),
+    ResponseClosePayment(ResponseClosePayment),
     /// Reports about current state:
     Report(NodeReport<B>),
     ReportMutations(ReportMutations<B>),

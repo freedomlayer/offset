@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::Unpin;
 
@@ -10,6 +10,7 @@ use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
 // use common::mutable_state::MutableState;
 use crypto::uid::Uid;
+use crypto::payment_id::PaymentId;
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RemoveFriend,
@@ -64,8 +65,6 @@ where
         App {
             permissions,
             opt_sender: Some(sender),
-            open_route_requests: HashSet::new(),
-            open_send_funds_requests: HashSet::new(),
         }
     }
 
@@ -89,11 +88,11 @@ pub struct AppServer<B: Clone, TF, TIC, S> {
     /// Required because an app (with one public key) might have multiple connections.
     app_counter: u128,
     apps: HashMap<u128, App<B>>,
-    /// Data structures to track open requests.
+    /// Data structures to track ongoing requests.
     /// This allows us to multiplex requests/responses to multiple apps:
-    open_route_requests: HashMap<Uid, u128>,
-    open_payments: HashMap<PaymentId, u128>,
-    open_transactions: HashMap<Uid, u128>,
+    route_requests: HashMap<Uid, u128>,
+    close_payment_requests: HashMap<PaymentId, u128>,
+    transactions: HashMap<Uid, u128>,
     spawner: S,
 }
 
@@ -145,6 +144,9 @@ where
             incoming_connections_closed: false,
             app_counter: 0,
             apps: HashMap::new(),
+            route_requests: HashMap::new(),
+            close_payment_requests: HashMap::new(),
+            transactions: HashMap::new(),
             spawner,
         }
     }
@@ -207,21 +209,31 @@ where
         match funder_message {
             FunderOutgoingControl::TransactionResult(transaction_result) => {
                 // Find the app that issued the request, and forward the response to this app:
-                // TODO: Should we break the loop if found?
-                for app in self.apps.values_mut() {
-                    if app
-                        .open_send_funds_requests
-                        .remove(&transaction_result.request_id)
-                    {
-                        await!(
-                            app.send(AppServerToApp::TransactionResult(transaction_result.clone()))
-                        );
-                    }
+                let app_id = if let Some(app_id) = self.transactions.remove(&transaction_result.request_id) {
+                    app_id
+                } else {
+                    warn!("TransactionResult: Could not find app that initiated CreateTransaction");
+                    return Ok(());
+                };
+                if let Some(app) = self.apps.get_mut(&app_id) {
+                    await!(
+                        app.send(AppServerToApp::TransactionResult(transaction_result.clone()))
+                    );
                 }
             },
-            FunderOutgoingControl::ResponseClosePayment(_response_close_payment) => {
-                // TODO:
-                unimplemented!();
+            FunderOutgoingControl::ResponseClosePayment(response_close_payment) => {
+                // Find the app that issued the request, and forward the response to this app:
+                let app_id = if let Some(app_id) = self.close_payment_requests.remove(&response_close_payment.payment_id) {
+                    app_id
+                } else {
+                    warn!("ResponseClosePayment: Could not find app that initiated RequestClosePayment");
+                    return Ok(());
+                };
+                if let Some(app) = self.apps.get_mut(&app_id) {
+                    await!(
+                        app.send(AppServerToApp::ResponseClosePayment(response_close_payment.clone()))
+                    );
+                }
             },
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 let mut index_mutations = Vec::new();
@@ -284,16 +296,17 @@ where
             }
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 // We search for the app that issued the request, and send it the response.
-                // TODO: Should we break the loop if we found one originating app?
-                for app in self.apps.values_mut() {
-                    if app
-                        .open_route_requests
-                        .remove(&client_response_routes.request_id)
-                    {
-                        await!(app.send(AppServerToApp::ResponseRoutes(
-                            client_response_routes.clone()
-                        )));
-                    }
+                let app_id = if let Some(app_id) = self.route_requests.remove(&client_response_routes.request_id) {
+                    app_id
+                } else {
+                    warn!("ResponseRoutes: Could not find the app that issued RequestRoutes request");
+                    return Ok(());
+                };
+
+                if let Some(app) = self.apps.get_mut(&app_id) {
+                    await!(app.send(AppServerToApp::ResponseRoutes(
+                        client_response_routes.clone()
+                    )));
                 }
             }
         };
@@ -346,7 +359,7 @@ where
             .map_err(|_| AppServerError::SendToFunderError),
             AppRequest::CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
-                self.open_transactions.insert(create_transaction.request_id.clone(), app_uid);
+                self.transactions.insert(create_transaction.request_id.clone(), app_id);
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
                     FunderControl::CreateTransaction(create_transaction)
@@ -454,7 +467,9 @@ where
             }
             AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
-                self.open_route_requests.insert(request_routes.request_id.clone(), app_id)
+                if let Some(_) = self.route_requests.insert(request_routes.request_id.clone(), app_id) {
+                    warn!("RequestRoutes: request_id clash.");
+                }
                 await!(self
                     .to_index_client
                     .send(AppServerToIndexClient::AppRequest((
