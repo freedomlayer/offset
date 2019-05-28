@@ -11,7 +11,7 @@ use crypto::uid::Uid;
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{
     AckClosePayment, Commit, CreatePayment, CreateTransaction, FriendsRoute, PaymentStatus,
-    Receipt, ReceiptAck, RequestResult, ResponseClosePayment, TransactionResult,
+    RequestResult, ResponseClosePayment, TransactionResult,
 };
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
@@ -27,12 +27,6 @@ pub enum SendFundsError {
     /// The request should be saved (By the caller) and resent at another time.
     NoResponse,
 }
-
-#[derive(Debug)]
-pub struct CreatePaymentError;
-
-#[derive(Debug)]
-pub struct ReceiptAckError;
 
 #[derive(Clone)]
 pub struct AppSendFunds<R = OffstSystemRandom> {
