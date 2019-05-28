@@ -5,8 +5,8 @@ use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{
-    AddFriend, CreatePayment, CreateTransaction, ReceiptAck, ResetFriendChannel, SetFriendName,
-    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
+    AckClosePayment, AddFriend, CreatePayment, CreateTransaction, ResetFriendChannel,
+    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -117,8 +117,7 @@ pub enum AppRequest<B = NetAddress> {
     CreatePayment(CreatePayment),
     CreateTransaction(CreateTransaction),
     RequestClosePayment(PaymentId),
-    AckClosePayment(PaymentId),
-    ReceiptAck(ReceiptAck),
+    AckClosePayment(AckClosePayment),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:

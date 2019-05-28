@@ -99,8 +99,10 @@ fn check_permissions<B>(app_permissions: &AppPermissions, app_request: &AppReque
     match app_request {
         AppRequest::AddRelay(_) => app_permissions.config,
         AppRequest::RemoveRelay(_) => app_permissions.config,
-        AppRequest::RequestSendFunds(_) => app_permissions.send_funds,
-        AppRequest::ReceiptAck(_) => app_permissions.send_funds,
+        AppRequest::CreatePayment(_) => app_permissions.send_funds,
+        AppRequest::CreateTransaction(_) => app_permissions.send_funds,
+        AppRequest::RequestClosePayment(_) => app_permissions.send_funds,
+        AppRequest::AckClosePayment(_) => app_permissions.send_funds,
         AppRequest::AddFriend(_) => app_permissions.config,
         AppRequest::SetFriendRelays(_) => app_permissions.config,
         AppRequest::SetFriendName(_) => app_permissions.config,
@@ -110,6 +112,7 @@ fn check_permissions<B>(app_permissions: &AppPermissions, app_request: &AppReque
         AppRequest::OpenFriend(_) => app_permissions.config,
         AppRequest::CloseFriend(_) => app_permissions.config,
         AppRequest::SetFriendRemoteMaxDebt(_) => app_permissions.config,
+        AppRequest::SetFriendRate(_) => app_permissions.config,
         AppRequest::ResetFriendChannel(_) => app_permissions.config,
         AppRequest::RequestRoutes(_) => app_permissions.routes,
         AppRequest::AddIndexServer(_) => app_permissions.config,
@@ -212,6 +215,10 @@ where
                         );
                     }
                 }
+            },
+            FunderOutgoingControl::ResponseClosePayment(_response_close_payment) => {
+                // TODO:
+                unimplemented!();
             },
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 let mut index_mutations = Vec::new();
@@ -327,18 +334,26 @@ where
                 FunderIncomingControl::new(app_request_id, FunderControl::RemoveRelay(public_key))
             ))
             .map_err(|_| AppServerError::SendToFunderError),
-            AppRequest::RequestSendFunds(user_request_send_funds) => {
+            AppRequest::CreatePayment(create_payment) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::CreatePayment(create_payment))
+            ))
+            .map_err(|_| AppServerError::SendToFunderError),
+            AppRequest::CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
                 app.open_send_funds_requests
-                    .insert(user_request_send_funds.request_id);
+                    .insert(create_transaction.request_id);
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
-                    FunderControl::RequestSendFunds(user_request_send_funds)
+                    FunderControl::CreateTransaction(create_transaction)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
-            AppRequest::ReceiptAck(receipt_ack) => await!(self.to_funder.send(
-                FunderIncomingControl::new(app_request_id, FunderControl::ReceiptAck(receipt_ack))
+            AppRequest::RequestClosePayment(request_close_payment) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::RequestClosePayment(request_close_payment))
+            ))
+            .map_err(|_| AppServerError::SendToFunderError),
+            AppRequest::AckClosePayment(ack_close_payment) => await!(self.to_funder.send(
+                FunderIncomingControl::new(app_request_id, FunderControl::AckClosePayment(ack_close_payment))
             ))
             .map_err(|_| AppServerError::SendToFunderError),
             AppRequest::AddFriend(add_friend) => await!(self.to_funder.send(
@@ -415,6 +430,13 @@ where
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
                     FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
+            AppRequest::SetFriendRate(set_friend_rate) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::SetFriendRate(set_friend_rate)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
