@@ -2,30 +2,29 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
-use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityRoute};
+use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityRoute, CapacityMultiRoute};
 
 pub enum GraphRequest<N, C, T> {
     /// Change capacities on a directed edge:
     UpdateEdge(
         N,
         N,
-        T,
-        CapacityEdge<C>,
-        oneshot::Sender<Option<CapacityEdge<C>>>,
+        CapacityEdge<C,T>,
+        oneshot::Sender<Option<CapacityEdge<C,T>>>,
     ),
     /// Remove a directed edge:
-    RemoveEdge(N, N, oneshot::Sender<Option<CapacityEdge<C>>>),
+    RemoveEdge(N, N, oneshot::Sender<Option<CapacityEdge<C,T>>>),
     /// Remove a node and all edges starting from this node.
     /// Note: This will not remove edges going to this node.
     RemoveNode(N, oneshot::Sender<bool>),
     /// Get some routes from one node to another of at least certain capacity.
     /// If an exclude directed edge is provided, the routes must not contain this directed edge.
-    GetRoutes(
+    GetMultiRoutes(
         N,
         N,
         C,
         Option<(N, N)>,
-        oneshot::Sender<Vec<CapacityRoute<N, C>>>,
+        oneshot::Sender<Vec<CapacityMultiRoute<N, C, T>>>,
     ), // (from, to, capacity, opt_exclude)
     /// Expire old outgoing edges for the specified node
     Tick(N, oneshot::Sender<()>),
@@ -44,8 +43,8 @@ where
     CG: CapacityGraph<Node = N, Capacity = C, Rate = T>,
 {
     match graph_request {
-        GraphRequest::UpdateEdge(a, b, rate, capacity_edge, sender) => {
-            let _ = sender.send(capacity_graph.update_edge(a, b, rate, capacity_edge));
+        GraphRequest::UpdateEdge(a, b, capacity_edge, sender) => {
+            let _ = sender.send(capacity_graph.update_edge(a, b, capacity_edge));
         }
         GraphRequest::RemoveEdge(a, b, sender) => {
             let _ = sender.send(capacity_graph.remove_edge(&a, &b));
@@ -53,7 +52,7 @@ where
         GraphRequest::RemoveNode(a, sender) => {
             let _ = sender.send(capacity_graph.remove_node(&a));
         }
-        GraphRequest::GetRoutes(a, b, capacity, opt_exclude, sender) => {
+        GraphRequest::GetMultiRoutes(a, b, capacity, opt_exclude, sender) => {
             let routes = match opt_exclude {
                 Some((c, d)) => capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d))),
                 None => capacity_graph.get_multi_routes(&a, &b, capacity, None),
@@ -130,13 +129,12 @@ impl<N, C, T> GraphClient<N, C, T> {
         &mut self,
         a: N,
         b: N,
-        rate: T,
-        edge: CapacityEdge<C>,
-    ) -> Result<Option<CapacityEdge<C>>, GraphClientError> {
-        let (sender, receiver) = oneshot::channel::<Option<CapacityEdge<C>>>();
+        capacity_edge: CapacityEdge<C,T>,
+    ) -> Result<Option<CapacityEdge<C,T>>, GraphClientError> {
+        let (sender, receiver) = oneshot::channel::<Option<CapacityEdge<C,T>>>();
         await!(self
             .requests_sender
-            .send(GraphRequest::UpdateEdge(a, b, rate, edge, sender)))?;
+            .send(GraphRequest::UpdateEdge(a, b, capacity_edge, sender)))?;
         Ok(await!(receiver)?)
     }
 
@@ -145,7 +143,7 @@ impl<N, C, T> GraphClient<N, C, T> {
         &mut self,
         a: N,
         b: N,
-    ) -> Result<Option<CapacityEdge<C>>, GraphClientError> {
+    ) -> Result<Option<CapacityEdge<C,T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
         await!(self
             .requests_sender
@@ -169,15 +167,15 @@ impl<N, C, T> GraphClient<N, C, T> {
     ///
     /// opt_exclude is an optional edge to exclude (The returned route must not go through this
     /// edge). This can be useful for finding non trivial loops.
-    pub async fn get_routes(
+    pub async fn get_multi_routes(
         &mut self,
         a: N,
         b: N,
         capacity: C,
         opt_exclude: Option<(N, N)>,
-    ) -> Result<Vec<CapacityRoute<N, C>>, GraphClientError> {
+    ) -> Result<Vec<CapacityMultiRoute<N, C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
-        await!(self.requests_sender.send(GraphRequest::GetRoutes(
+        await!(self.requests_sender.send(GraphRequest::GetMultiRoutes(
             a,
             b,
             capacity,
@@ -206,7 +204,7 @@ where
     N: Send + 'static,
     C: Send + 'static,
     T: Send + 'static,
-    CG: CapacityGraph<Node = N, Capacity = C> + Send + 'static,
+    CG: CapacityGraph<Node = N, Capacity = C, Rate = T> + Send + 'static,
     GS: Spawn + Send + 'static,
     S: Spawn,
 {
@@ -223,9 +221,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::simple_capacity_graph::SimpleCapacityGraph;
     use super::*;
+    use super::super::simple_capacity_graph::SimpleCapacityGraph;
+    use super::super::test_utils::ConstRate;
     use futures::executor::ThreadPool;
+
 
     async fn task_create_graph_service_basic<S>(spawner: S)
     where
@@ -236,19 +236,35 @@ mod tests {
         let mut graph_client =
             create_graph_service(capacity_graph, graph_service_spawner, spawner).unwrap();
 
-        await!(graph_client.update_edge(2u32, 5u32, (30, 5))).unwrap();
-        await!(graph_client.update_edge(5, 2, (5, 30))).unwrap();
+        await!(graph_client.update_edge(2u32, 5u32, CapacityEdge::new((30, 5), ConstRate(1)))).unwrap();
+        await!(graph_client.update_edge(5, 2, CapacityEdge::new((5, 30), ConstRate(1)))).unwrap();
 
         assert_eq!(
-            await!(graph_client.get_routes(2, 5, 29, None)).unwrap(),
-            vec![(vec![2, 5], 30)]
+            await!(graph_client.get_multi_routes(2, 5, 29, None)).unwrap(),
+            vec![CapacityMultiRoute {
+                routes: vec![
+                    CapacityRoute {
+                        route: vec![2,5],
+                        capacity: 30,
+                        rate: ConstRate(1),
+                    }
+                ],
+            }]
         );
         assert_eq!(
-            await!(graph_client.get_routes(2, 5, 30, None)).unwrap(),
-            vec![(vec![2, 5], 30)]
+            await!(graph_client.get_multi_routes(2, 5, 30, None)).unwrap(),
+            vec![CapacityMultiRoute {
+                routes: vec![
+                    CapacityRoute {
+                        route: vec![2,5],
+                        capacity: 30,
+                        rate: ConstRate(1),
+                    }
+                ],
+            }]
         );
         assert_eq!(
-            await!(graph_client.get_routes(2, 5, 31, None)).unwrap(),
+            await!(graph_client.get_multi_routes(2, 5, 31, None)).unwrap(),
             vec![]
         );
 
@@ -256,7 +272,7 @@ mod tests {
 
         assert_eq!(
             await!(graph_client.remove_edge(2, 5)).unwrap(),
-            Some((30, 5))
+            Some(CapacityEdge::new((30, 5), ConstRate(1)))
         );
         assert_eq!(await!(graph_client.remove_node(2)).unwrap(), false);
         assert_eq!(await!(graph_client.remove_node(5)).unwrap(), true);
