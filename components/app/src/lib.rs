@@ -58,7 +58,7 @@ pub mod invoice {
 
 pub mod route {
     pub use proto::funder::messages::FriendsRoute;
-    pub use proto::index_server::messages::RouteWithCapacity;
+    pub use proto::index_server::messages::MultiRoute;
 
 }
 
