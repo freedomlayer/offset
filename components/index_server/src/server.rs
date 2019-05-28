@@ -294,10 +294,11 @@ where
             match index_mutation {
                 IndexMutation::UpdateFriend(update_friend) => {
                     info!(
-                        "pk: {}, send: {}, recv: {}",
+                        "pk: {}, send: {}, recv: {}, rate: {:?}",
                         update_friend.public_key[0],
                         update_friend.send_capacity,
-                        update_friend.recv_capacity
+                        update_friend.recv_capacity,
+                        update_friend.rate,
                     );
 
                     await!(self.graph_client.update_edge(
