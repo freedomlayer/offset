@@ -512,6 +512,8 @@ fn ser_app_request(
     app_request: &AppRequest,
     app_request_builder: &mut app_server_capnp::app_request::Builder,
 ) {
+    unimplemented!();
+    /*
     match app_request {
         AppRequest::AddRelay(named_relay_address) => write_named_relay_address(
             named_relay_address,
@@ -588,11 +590,14 @@ fn ser_app_request(
             &mut app_request_builder.reborrow().init_remove_index_server(),
         ),
     }
+    */
 }
 
 fn deser_app_request(
     app_request: &app_server_capnp::app_request::Reader,
 ) -> Result<AppRequest, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match app_request.which()? {
         app_server_capnp::app_request::AddRelay(named_relay_address_reader) => {
             AppRequest::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -652,6 +657,7 @@ fn deser_app_request(
             AppRequest::RemoveIndexServer(read_public_key(&public_key_reader?)?)
         }
     })
+    */
 }
 
 fn ser_app_to_app_server(

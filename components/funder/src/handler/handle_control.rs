@@ -14,11 +14,11 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp, CreatePayment,
-    CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl, MultiCommit,
-    RemoveFriend, RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
-    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult,
+    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
+    CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
+    MultiCommit, RemoveFriend, RequestResult, RequestSendFundsOp, ResetFriendChannel,
+    ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
+    SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
 use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 
@@ -794,8 +794,7 @@ where
 
 fn control_ack_close_payment<B>(
     m_state: &mut MutableFunderState<B>,
-    payment_id: PaymentId,
-    user_ack_uid: Uid,
+    ack_close_payment: AckClosePayment,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -803,7 +802,7 @@ where
     let payment = m_state
         .state()
         .payments
-        .get(&payment_id)
+        .get(&ack_close_payment.payment_id)
         .ok_or(HandleControlError::PaymentDoesNotExist)?
         .clone();
 
@@ -813,29 +812,34 @@ where
         }
         Payment::Success((num_transactions, _receipt, ack_uid)) => {
             // Make sure that ack matches:
-            if user_ack_uid != ack_uid {
+            if ack_close_payment.ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
             }
 
             if num_transactions > 0 {
                 // Update payment to be `AfterSuccessAck`:
                 let new_payment = Payment::AfterSuccessAck(num_transactions);
-                let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
+                let funder_mutation = FunderMutation::UpdatePayment((
+                    ack_close_payment.payment_id.clone(),
+                    new_payment,
+                ));
                 m_state.mutate(funder_mutation);
             } else {
                 // Remove payment (no pending transactions):
-                let funder_mutation = FunderMutation::RemovePayment(payment_id);
+                let funder_mutation =
+                    FunderMutation::RemovePayment(ack_close_payment.payment_id.clone());
                 m_state.mutate(funder_mutation);
             }
         }
         Payment::Canceled(ack_uid) => {
             // Make sure that ack matches:
-            if user_ack_uid != ack_uid {
+            if ack_close_payment.ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
             }
 
             // Remove payment:
-            let funder_mutation = FunderMutation::RemovePayment(payment_id);
+            let funder_mutation =
+                FunderMutation::RemovePayment(ack_close_payment.payment_id.clone());
             m_state.mutate(funder_mutation);
         }
     };
@@ -1060,8 +1064,8 @@ where
         FunderControl::RequestClosePayment(payment_id) => {
             control_request_close_payment(m_state, outgoing_control, rng, payment_id)
         }
-        FunderControl::AckClosePayment((payment_id, ack_uid)) => {
-            control_ack_close_payment(m_state, payment_id, ack_uid)
+        FunderControl::AckClosePayment(ack_close_payment) => {
+            control_ack_close_payment(m_state, ack_close_payment)
         }
 
         // Seller API:

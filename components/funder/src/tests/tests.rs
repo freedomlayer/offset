@@ -9,7 +9,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     FriendStatus, FriendsRoute, FunderControl, RequestsStatus,
     ResetFriendChannel, AddInvoice, CreatePayment, CreateTransaction, RequestResult, MultiCommit,
-    ResponseClosePayment, Rate,
+    ResponseClosePayment, Rate, AckClosePayment,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
@@ -110,8 +110,12 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
     };
 
     // 0: Acknowledge response close:
+    let ack_close_payment = AckClosePayment {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        ack_uid,
+    };
     await!(node_controls[0].send(
-            FunderControl::AckClosePayment((PaymentId::from(&[2u8; PAYMENT_ID_LEN]), ack_uid))));
+            FunderControl::AckClosePayment(ack_close_payment)));
 
     assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
     assert_eq!(receipt.dest_payment, 4);
@@ -260,8 +264,12 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     };
 
     // 0: Acknowledge response close:
+    let ack_close_payment = AckClosePayment {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        ack_uid,
+    };
     await!(node_controls[0].send(
-            FunderControl::AckClosePayment((PaymentId::from(&[2u8; PAYMENT_ID_LEN]), ack_uid))));
+            FunderControl::AckClosePayment(ack_close_payment)));
 
     assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
     assert_eq!(receipt.dest_payment, 15);
@@ -418,8 +426,12 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
     };
 
     // 0: Acknowledge response close:
+    let ack_close_payment = AckClosePayment {
+        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        ack_uid,
+    };
     await!(node_controls[0].send(
-            FunderControl::AckClosePayment((PaymentId::from(&[2u8; PAYMENT_ID_LEN]), ack_uid))));
+            FunderControl::AckClosePayment(ack_close_payment)));
 
     // Make sure that node0's balance is left unchanged:
     let pred = |report: &FunderReport<_>| {

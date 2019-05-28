@@ -18,7 +18,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
     RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl, MultiCommit, ResponseClosePayment,
+    CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl, MultiCommit, ResponseClosePayment, AckClosePayment,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -896,10 +896,14 @@ async fn task_handler_pair_basic<'a>(
     assert_eq!(receipt.dest_payment, 16);
     assert_eq!(receipt.total_dest_payment, 16);
 
+    let ack_close_payment = AckClosePayment {
+        payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
+        ack_uid: ack_uid.clone(),
+    };
     // Node2: Send ack for closing the payment:
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[22; UID_LEN]),
-        FunderControl::AckClosePayment((PaymentId::from(&[3u8; PAYMENT_ID_LEN]), ack_uid.clone())),
+        FunderControl::AckClosePayment(ack_close_payment),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (_outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(

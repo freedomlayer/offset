@@ -1,11 +1,12 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, SetFriendName, SetFriendRelays,
-    SetFriendRemoteMaxDebt, TransactionResult, UserRequestSendFunds,
+    AddFriend, CreatePayment, CreateTransaction, ReceiptAck, ResetFriendChannel, SetFriendName,
+    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -100,9 +101,6 @@ pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
-    /// Sending funds:
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<B>),
     SetFriendRelays(SetFriendRelays<B>),
@@ -113,7 +111,14 @@ pub enum AppRequest<B = NetAddress> {
     OpenFriend(PublicKey),
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),
+    /// Sending funds:
+    CreatePayment(CreatePayment),
+    CreateTransaction(CreateTransaction),
+    RequestClosePayment(PaymentId),
+    AckClosePayment(PaymentId),
+    ReceiptAck(ReceiptAck),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:

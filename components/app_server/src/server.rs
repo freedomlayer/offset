@@ -199,20 +199,20 @@ where
         funder_message: FunderOutgoingControl<B>,
     ) -> Result<(), AppServerError> {
         match funder_message {
-            FunderOutgoingControl::ResponseReceived(response_received) => {
+            FunderOutgoingControl::TransactionResult(transaction_result) => {
                 // Find the app that issued the request, and forward the response to this app:
                 // TODO: Should we break the loop if found?
                 for app in self.apps.values_mut() {
                     if app
                         .open_send_funds_requests
-                        .remove(&response_received.request_id)
+                        .remove(&transaction_result.request_id)
                     {
                         await!(
-                            app.send(AppServerToApp::ResponseReceived(response_received.clone()))
+                            app.send(AppServerToApp::TransactionResult(transaction_result.clone()))
                         );
                     }
                 }
-            }
+            },
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 let mut index_mutations = Vec::new();
                 for funder_report_mutation in &funder_report_mutations.mutations {

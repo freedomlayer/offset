@@ -529,6 +529,13 @@ pub struct AddInvoice {
     pub total_dest_payment: u128,
 }
 
+/// Start an invoice (A request for payment).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AckClosePayment {
+    pub payment_id: PaymentId,
+    pub ack_uid: Uid,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderControl<B> {
     AddRelay(NamedRelayAddress<B>),
@@ -546,7 +553,7 @@ pub enum FunderControl<B> {
     CreatePayment(CreatePayment),
     CreateTransaction(CreateTransaction), // TODO
     RequestClosePayment(PaymentId),
-    AckClosePayment((PaymentId, Uid)), // (payment_id, ack_id)
+    AckClosePayment(AckClosePayment),
     // Seller API:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
