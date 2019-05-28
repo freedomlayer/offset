@@ -2,7 +2,9 @@ use std::collections::HashMap;
 use std::{cmp, hash};
 
 use super::bfs::bfs;
-use super::capacity_graph::{CapacityEdge, CapacityGraph, GraphMultiRoute, GraphRoute, LinearRate};
+use super::capacity_graph::{
+    CapacityEdge, CapacityGraph, CapacityMultiRoute, CapacityPair, CapacityRoute, LinearRate,
+};
 use super::utils::{option_to_vec, OptionIterator};
 
 /// Amount of ticks an edge could live regardless of coupon collector's approximation.
@@ -11,16 +13,14 @@ const BASE_MAX_EDGE_AGE: u128 = 16;
 
 #[derive(Debug, Clone)]
 struct Edge<T> {
-    capacity: CapacityEdge<u128>,
-    rate: T,
+    capacity_edge: CapacityEdge<u128, T>,
     age: u128,
 }
 
 impl<T> Edge<T> {
-    fn new(capacity: CapacityEdge<u128>, rate: T) -> Self {
+    fn new(capacity_edge: CapacityEdge<u128, T>) -> Self {
         Edge {
-            capacity,
-            rate,
+            capacity_edge,
             age: 0,
         }
     }
@@ -96,13 +96,13 @@ where
     /// capacity reported by `b`.
     fn get_send_capacity(&self, a: &N, b: &N) -> u128 {
         let a_b_edge = if let Some(a_b_edge) = self.get_edge(&a, &b) {
-            a_b_edge.capacity
+            a_b_edge.capacity_edge.capacity
         } else {
             return 0;
         };
 
         let b_a_edge = if let Some(b_a_edge) = self.get_edge(&b, &a) {
-            b_a_edge.capacity
+            b_a_edge.capacity_edge.capacity
         } else {
             return 0;
         };
@@ -142,7 +142,7 @@ where
         let mut total_rate = T::zero();
         for i in 0..route.len().checked_sub(1)? {
             let edge = self.get_edge(&route[i], &route[i + 1])?;
-            total_rate = total_rate.checked_add(&edge.rate)?;
+            total_rate = total_rate.checked_add(&edge.capacity_edge.rate)?;
         }
         Some(total_rate)
     }
@@ -158,7 +158,7 @@ where
         b: &N,
         capacity: u128,
         opt_exclude: Option<(&N, &N)>,
-    ) -> Option<GraphMultiRoute<N, u128, T>> {
+    ) -> Option<CapacityMultiRoute<N, u128, T>> {
         // TODO: Update this implementation:
         // Currently get_route does not attemp to find the cheapest route (according to rate)
         // It only finds the shortest route and then calculates the rate.
@@ -178,13 +178,13 @@ where
 
         let rate = self.get_route_rate(&route)?;
 
-        let graph_route = GraphRoute {
+        let graph_route = CapacityRoute {
             route,
             capacity,
             rate,
         };
 
-        Some(GraphMultiRoute {
+        Some(CapacityMultiRoute {
             routes: vec![graph_route],
         })
     }
@@ -204,18 +204,17 @@ where
         &mut self,
         a: N,
         b: N,
-        rate: T,
-        capacity_edge: CapacityEdge<u128>,
-    ) -> Option<CapacityEdge<u128>> {
+        capacity_edge: CapacityEdge<u128, T>,
+    ) -> Option<CapacityEdge<u128, T>> {
         let a_entry = self.nodes.entry(a).or_insert_with(NodeEdges::new);
         a_entry
             .edges
-            .insert(b, Edge::new(capacity_edge, rate))
-            .map(|edge| edge.capacity)
+            .insert(b, Edge::new(capacity_edge))
+            .map(|edge| edge.capacity_edge)
     }
 
     /// Remove an edge from the graph
-    fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge<u128>> {
+    fn remove_edge(&mut self, a: &N, b: &N) -> Option<CapacityEdge<u128, T>> {
         let a_edges = match self.nodes.get_mut(a) {
             Some(a_edges) => a_edges,
             None => return None,
@@ -230,7 +229,7 @@ where
             self.nodes.remove(a);
         }
 
-        Some(old_edge.capacity)
+        Some(old_edge.capacity_edge)
     }
 
     /// Remove a node and all related edges known from him.
@@ -245,7 +244,7 @@ where
         b: &N,
         capacity: u128,
         opt_exclude: Option<(&N, &N)>,
-    ) -> Vec<GraphMultiRoute<N, u128, T>> {
+    ) -> Vec<CapacityMultiRoute<N, u128, T>> {
         option_to_vec(self.get_multi_route(a, b, capacity, opt_exclude))
     }
 
@@ -261,7 +260,7 @@ mod tests {
     use super::*;
 
     /// A contant rate, used for testing
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     struct ConstRate(pub u32);
 
     impl LinearRate for ConstRate {
@@ -283,8 +282,8 @@ mod tests {
     #[test]
     fn test_get_send_capacity_basic() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
-        cg.update_edge(0, 1, ConstRate(1), (10, 20));
-        cg.update_edge(1, 0, ConstRate(1), (15, 5));
+        cg.update_edge(0, 1, CapacityEdge::new((10, 20), ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new((15, 5), ConstRate(1)));
 
         assert_eq!(cg.get_send_capacity(&0, &1), cmp::min(5, 10));
         assert_eq!(cg.get_send_capacity(&1, &0), cmp::min(15, 20));
@@ -293,7 +292,7 @@ mod tests {
     #[test]
     fn test_get_send_capacity_one_sided() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
-        cg.update_edge(0, 1, ConstRate(1), (10, 20));
+        cg.update_edge(0, 1, CapacityEdge::new((10, 20), ConstRate(1)));
 
         assert_eq!(cg.get_send_capacity(&0, &1), 0);
         assert_eq!(cg.get_send_capacity(&1, &0), 0);
@@ -303,13 +302,16 @@ mod tests {
     fn test_add_remove_edge() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
         assert_eq!(cg.remove_edge(&0, &1), None);
-        cg.update_edge(0, 1, ConstRate(1), (10, 20));
+        cg.update_edge(0, 1, CapacityEdge::new((10, 20), ConstRate(1)));
         assert_eq!(cg.nodes.len(), 1);
 
-        assert_eq!(cg.remove_edge(&0, &1), Some((10, 20)));
+        assert_eq!(
+            cg.remove_edge(&0, &1),
+            Some(CapacityEdge::new((10, 20), ConstRate(1)))
+        );
         assert_eq!(cg.nodes.len(), 0);
 
-        cg.update_edge(0, 1, ConstRate(1), (10, 20));
+        cg.update_edge(0, 1, CapacityEdge::new((10, 20), ConstRate(1)));
         assert_eq!(cg.nodes.len(), 1);
         cg.remove_node(&1);
         assert_eq!(cg.nodes.len(), 1);
@@ -328,23 +330,23 @@ mod tests {
 
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, ConstRate(1), (30, 10));
-        cg.update_edge(1, 0, ConstRate(1), (10, 30));
+        cg.update_edge(0, 1, CapacityEdge::new((30, 10), ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new((10, 30), ConstRate(1)));
 
-        cg.update_edge(1, 2, ConstRate(1), (10, 10));
-        cg.update_edge(2, 1, ConstRate(1), (10, 10));
+        cg.update_edge(1, 2, CapacityEdge::new((10, 10), ConstRate(1)));
+        cg.update_edge(2, 1, CapacityEdge::new((10, 10), ConstRate(1)));
 
-        cg.update_edge(2, 5, ConstRate(1), (30, 5));
-        cg.update_edge(5, 2, ConstRate(1), (5, 30));
+        cg.update_edge(2, 5, CapacityEdge::new((30, 5), ConstRate(1)));
+        cg.update_edge(5, 2, CapacityEdge::new((5, 30), ConstRate(1)));
 
-        cg.update_edge(1, 3, ConstRate(1), (30, 8));
-        cg.update_edge(3, 1, ConstRate(1), (8, 30));
+        cg.update_edge(1, 3, CapacityEdge::new((30, 8), ConstRate(1)));
+        cg.update_edge(3, 1, CapacityEdge::new((8, 30), ConstRate(1)));
 
-        cg.update_edge(3, 4, ConstRate(1), (30, 6));
-        cg.update_edge(4, 3, ConstRate(1), (6, 30));
+        cg.update_edge(3, 4, CapacityEdge::new((30, 6), ConstRate(1)));
+        cg.update_edge(4, 3, CapacityEdge::new((6, 30), ConstRate(1)));
 
-        cg.update_edge(4, 2, ConstRate(1), (30, 18));
-        cg.update_edge(2, 4, ConstRate(1), (18, 30));
+        cg.update_edge(4, 2, CapacityEdge::new((30, 18), ConstRate(1)));
+        cg.update_edge(2, 4, CapacityEdge::new((18, 30), ConstRate(1)));
 
         cg
     }
@@ -403,11 +405,11 @@ mod tests {
     fn test_simple_capacity_graph_tick() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, ConstRate(1), (30, 10));
-        cg.update_edge(1, 0, ConstRate(1), (10, 30));
+        cg.update_edge(0, 1, CapacityEdge::new((30, 30), ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new((10, 30), ConstRate(1)));
 
-        cg.update_edge(2, 3, ConstRate(1), (30, 10));
-        cg.update_edge(3, 2, ConstRate(1), (10, 30));
+        cg.update_edge(2, 3, CapacityEdge::new((30, 10), ConstRate(1)));
+        cg.update_edge(3, 2, CapacityEdge::new((10, 30), ConstRate(1)));
 
         let multi_route = cg.get_multi_route(&0, &1, 30, None).unwrap();
         assert_eq!(multi_route.routes[0].route, vec![0, 1]);

@@ -4,11 +4,12 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityRoute};
 
-pub enum GraphRequest<N, C> {
+pub enum GraphRequest<N, C, T> {
     /// Change capacities on a directed edge:
     UpdateEdge(
         N,
         N,
+        T,
         CapacityEdge<C>,
         oneshot::Sender<Option<CapacityEdge<C>>>,
     ),
@@ -38,13 +39,13 @@ pub enum GraphServiceError {
 
 /// Process one GraphRequest, and send the response through the provided sender.
 /// This function might perform a long computation and take a long time to complete.
-fn process_request<N, C, CG>(capacity_graph: &mut CG, graph_request: GraphRequest<N, C>)
+fn process_request<N, C, T, CG>(capacity_graph: &mut CG, graph_request: GraphRequest<N, C, T>)
 where
-    CG: CapacityGraph<Node = N, Capacity = C>,
+    CG: CapacityGraph<Node = N, Capacity = C, Rate = T>,
 {
     match graph_request {
-        GraphRequest::UpdateEdge(a, b, capacity_edge, sender) => {
-            let _ = sender.send(capacity_graph.update_edge(a, b, capacity_edge));
+        GraphRequest::UpdateEdge(a, b, rate, capacity_edge, sender) => {
+            let _ = sender.send(capacity_graph.update_edge(a, b, rate, capacity_edge));
         }
         GraphRequest::RemoveEdge(a, b, sender) => {
             let _ = sender.send(capacity_graph.remove_edge(&a, &b));
@@ -54,8 +55,8 @@ where
         }
         GraphRequest::GetRoutes(a, b, capacity, opt_exclude, sender) => {
             let routes = match opt_exclude {
-                Some((c, d)) => capacity_graph.get_routes(&a, &b, capacity, Some((&c, &d))),
-                None => capacity_graph.get_routes(&a, &b, capacity, None),
+                Some((c, d)) => capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d))),
+                None => capacity_graph.get_multi_routes(&a, &b, capacity, None),
             };
             let _ = sender.send(routes);
         }
@@ -66,15 +67,16 @@ where
     }
 }
 
-async fn graph_service_loop<N, C, CG, GS>(
+async fn graph_service_loop<N, C, T, CG, GS>(
     mut capacity_graph: CG,
-    mut incoming_requests: mpsc::Receiver<GraphRequest<N, C>>,
+    mut incoming_requests: mpsc::Receiver<GraphRequest<N, C, T>>,
     mut graph_service_spawner: GS,
 ) -> Result<(), GraphServiceError>
 where
     N: Send + 'static,
     C: Send + 'static,
-    CG: CapacityGraph<Node = N, Capacity = C> + Send + 'static,
+    T: Send + 'static,
+    CG: CapacityGraph<Node = N, Capacity = C, Rate = T> + Send + 'static,
     GS: Spawn,
 {
     // We use a separate spawner to be used for long graph computations.
@@ -114,12 +116,12 @@ impl From<mpsc::SendError> for GraphClientError {
 }
 
 #[derive(Clone)]
-pub struct GraphClient<N, C> {
-    requests_sender: mpsc::Sender<GraphRequest<N, C>>,
+pub struct GraphClient<N, C, T> {
+    requests_sender: mpsc::Sender<GraphRequest<N, C, T>>,
 }
 
-impl<N, C> GraphClient<N, C> {
-    pub fn new(requests_sender: mpsc::Sender<GraphRequest<N, C>>) -> Self {
+impl<N, C, T> GraphClient<N, C, T> {
+    pub fn new(requests_sender: mpsc::Sender<GraphRequest<N, C, T>>) -> Self {
         GraphClient { requests_sender }
     }
 
@@ -128,12 +130,13 @@ impl<N, C> GraphClient<N, C> {
         &mut self,
         a: N,
         b: N,
+        rate: T,
         edge: CapacityEdge<C>,
     ) -> Result<Option<CapacityEdge<C>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel::<Option<CapacityEdge<C>>>();
         await!(self
             .requests_sender
-            .send(GraphRequest::UpdateEdge(a, b, edge, sender)))?;
+            .send(GraphRequest::UpdateEdge(a, b, rate, edge, sender)))?;
         Ok(await!(receiver)?)
     }
 
@@ -194,14 +197,15 @@ impl<N, C> GraphClient<N, C> {
 
 /// Spawn a graph service, returning a GraphClient on success.
 /// GraphClient can be cloned to allow multiple clients.
-pub fn create_graph_service<N, C, CG, GS, S>(
+pub fn create_graph_service<N, C, T, CG, GS, S>(
     capacity_graph: CG,
     graph_service_spawner: GS,
     mut spawner: S,
-) -> Result<GraphClient<N, C>, SpawnError>
+) -> Result<GraphClient<N, C, T>, SpawnError>
 where
     N: Send + 'static,
     C: Send + 'static,
+    T: Send + 'static,
     CG: CapacityGraph<Node = N, Capacity = C> + Send + 'static,
     GS: Spawn + Send + 'static,
     S: Spawn,
