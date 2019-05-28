@@ -9,7 +9,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     FriendStatus, FriendsRoute, FunderControl, RequestsStatus,
     ResetFriendChannel, AddInvoice, CreatePayment, CreateTransaction, RequestResult, MultiCommit,
-    ResponseClosePayment, Rate, AckClosePayment,
+    Rate, AckClosePayment, PaymentStatus,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
@@ -103,8 +103,8 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         await!(node_controls[0].send(
                 FunderControl::RequestClosePayment(PaymentId::from(&[2u8; PAYMENT_ID_LEN]))));
         let response_close_payment = await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment {
-            ResponseClosePayment::Success((receipt, ack_uid)) => break (receipt, ack_uid),
+        match response_close_payment.status {
+            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
             _ => {},
         }
     };
@@ -257,8 +257,8 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
         await!(node_controls[0].send(
                 FunderControl::RequestClosePayment(PaymentId::from(&[2u8; PAYMENT_ID_LEN]))));
         let response_close_payment = await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment {
-            ResponseClosePayment::Success((receipt, ack_uid)) => break (receipt, ack_uid),
+        match response_close_payment.status {
+            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
             _ => {},
         }
     };
@@ -419,8 +419,8 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
         await!(node_controls[0].send(
                 FunderControl::RequestClosePayment(PaymentId::from(&[2u8; PAYMENT_ID_LEN]))));
         let response_close_payment = await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment {
-            ResponseClosePayment::Canceled(ack_uid) => break ack_uid,
+        match response_close_payment.status {
+            PaymentStatus::Canceled(ack_uid) => break ack_uid,
             _ => {},
         }
     };

@@ -611,11 +611,17 @@ pub struct TransactionResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResponseClosePayment {
+pub enum PaymentStatus {
     PaymentNotFound,
     InProgress,              // Can not be acked
     Success((Receipt, Uid)), // (Receipt, ack_id)
     Canceled(Uid),           // ack_id
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResponseClosePayment {
+    pub payment_id: PaymentId,
+    pub status: PaymentStatus,
 }
 
 #[derive(Debug)]

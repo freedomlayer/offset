@@ -54,8 +54,6 @@ pub enum AppServerEvent<B: Clone> {
 pub struct App<B: Clone> {
     permissions: AppPermissions,
     opt_sender: Option<mpsc::Sender<AppServerToApp<B>>>,
-    open_route_requests: HashSet<Uid>,
-    open_send_funds_requests: HashSet<Uid>,
 }
 
 impl<B> App<B>
@@ -91,6 +89,11 @@ pub struct AppServer<B: Clone, TF, TIC, S> {
     /// Required because an app (with one public key) might have multiple connections.
     app_counter: u128,
     apps: HashMap<u128, App<B>>,
+    /// Data structures to track open requests.
+    /// This allows us to multiplex requests/responses to multiple apps:
+    open_route_requests: HashMap<Uid, u128>,
+    open_payments: HashMap<PaymentId, u128>,
+    open_transactions: HashMap<Uid, u128>,
     spawner: S,
 }
 
@@ -303,21 +306,24 @@ where
         app_message: AppToAppServer<B>,
     ) -> Result<(), AppServerError> {
         // Get the relevant application:
-        let app = match self.apps.get_mut(&app_id) {
-            Some(app) => app,
-            None => {
-                warn!("App {:?} does not exist!", app_id);
+
+        {
+            let app = match self.apps.get(&app_id) {
+                Some(app) => app,
+                None => {
+                    warn!("App {:?} does not exist!", app_id);
+                    return Ok(());
+                }
+            };
+
+            // Make sure this message is allowed for this application:
+            if !check_permissions(&app.permissions, &app_message.app_request) {
+                warn!(
+                    "App {:?} does not have permissions for {:?}",
+                    app_id, app_message
+                );
                 return Ok(());
             }
-        };
-
-        // Make sure this message is allowed for this application:
-        if !check_permissions(&app.permissions, &app_message.app_request) {
-            warn!(
-                "App {:?} does not have permissions for {:?}",
-                app_id, app_message
-            );
-            return Ok(());
         }
 
         let app_request_id = app_message.app_request_id;
@@ -340,8 +346,7 @@ where
             .map_err(|_| AppServerError::SendToFunderError),
             AppRequest::CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
-                app.open_send_funds_requests
-                    .insert(create_transaction.request_id);
+                self.open_transactions.insert(create_transaction.request_id.clone(), app_uid);
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
                     FunderControl::CreateTransaction(create_transaction)
@@ -449,7 +454,7 @@ where
             }
             AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
-                app.open_route_requests.insert(request_routes.request_id);
+                self.open_route_requests.insert(request_routes.request_id.clone(), app_id)
                 await!(self
                     .to_index_client
                     .send(AppServerToIndexClient::AppRequest((

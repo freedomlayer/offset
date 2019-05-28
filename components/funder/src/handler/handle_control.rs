@@ -16,9 +16,9 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, RemoveFriend, RequestResult, RequestSendFundsOp, ResetFriendChannel,
-    ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
-    SetFriendStatus, SetRequestsStatus, TransactionResult,
+    MultiCommit, PaymentStatus, RemoveFriend, RequestResult, RequestSendFundsOp,
+    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
 use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 
@@ -725,28 +725,32 @@ where
         payment
     } else {
         // Payment not found:
+        let response_close_payment = ResponseClosePayment {
+            payment_id: payment_id.clone(),
+            status: PaymentStatus::PaymentNotFound,
+        };
         outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
-            ResponseClosePayment::PaymentNotFound,
+            response_close_payment,
         ));
         return Ok(());
     };
 
-    let (opt_new_payment, response_close_payment) = match payment {
+    let (opt_new_payment, payment_status) = match payment {
         Payment::NewTransactions(new_transactions) => (
             Some(Payment::InProgress(new_transactions.num_transactions)),
-            ResponseClosePayment::InProgress,
+            PaymentStatus::InProgress,
         ),
         Payment::InProgress(num_transactions) => {
             (if *num_transactions == 0 {
                 let ack_uid = Uid::new(rng);
                 (
                     Some(Payment::Canceled(ack_uid.clone())),
-                    ResponseClosePayment::Canceled(ack_uid),
+                    PaymentStatus::Canceled(ack_uid),
                 )
             } else {
                 (
                     Some(Payment::InProgress(*num_transactions)),
-                    ResponseClosePayment::InProgress,
+                    PaymentStatus::InProgress,
                 )
             })
         }
@@ -756,19 +760,23 @@ where
                 receipt.clone(),
                 *ack_uid,
             ))),
-            ResponseClosePayment::Success((receipt.clone(), *ack_uid)),
+            PaymentStatus::Success((receipt.clone(), *ack_uid)),
         ),
         Payment::Canceled(ack_uid) => (
             Some(Payment::Canceled(*ack_uid)),
-            ResponseClosePayment::Canceled(*ack_uid),
+            PaymentStatus::Canceled(*ack_uid),
         ),
         Payment::AfterSuccessAck(num_transactions) => (
             Some(Payment::AfterSuccessAck(*num_transactions)),
-            ResponseClosePayment::PaymentNotFound,
+            PaymentStatus::PaymentNotFound,
         ),
     };
 
     // Send back a ResponseClosePayment:
+    let response_close_payment = ResponseClosePayment {
+        payment_id: payment_id.clone(),
+        status: payment_status,
+    };
     outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
         response_close_payment,
     ));

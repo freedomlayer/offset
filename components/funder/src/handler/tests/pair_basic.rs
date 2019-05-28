@@ -18,7 +18,8 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
     RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl, MultiCommit, ResponseClosePayment, AckClosePayment,
+    CreatePayment, AddInvoice, CreateTransaction, RequestResult, FunderOutgoingControl,
+    MultiCommit, AckClosePayment, PaymentStatus,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -887,8 +888,9 @@ async fn task_handler_pair_basic<'a>(
         _ => unreachable!(),
     };
 
-    let (receipt, ack_uid) = match response_close_payment {
-        ResponseClosePayment::Success((receipt, ack_uid)) => (receipt, ack_uid),
+    assert_eq!(response_close_payment.payment_id, PaymentId::from(&[3u8; PAYMENT_ID_LEN]));
+    let (receipt, ack_uid) = match &response_close_payment.status {
+        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
         _ => unreachable!(),
     };
 
@@ -939,8 +941,8 @@ async fn task_handler_pair_basic<'a>(
         _ => unreachable!(),
     };
 
-    match response_close_payment {
-        ResponseClosePayment::PaymentNotFound => {},
+    match response_close_payment.status {
+        PaymentStatus::PaymentNotFound => {},
         _ => unreachable!(),
     }
 }
