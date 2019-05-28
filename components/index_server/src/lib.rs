@@ -25,6 +25,6 @@ mod backoff_connector;
 mod graph;
 // mod net_server;
 // mod server;
-// mod verifier;
+mod verifier;
 
 // pub use net_server::{net_index_server, NetIndexServerError};
