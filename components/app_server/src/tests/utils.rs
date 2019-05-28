@@ -63,7 +63,9 @@ where
             .into_iter()
             .collect(),
         friends: ImHashMap::new(),
-        num_ready_receipts: 0,
+        num_open_invoices: 0,
+        num_payments: 0,
+        num_open_transactions: 0,
     };
 
     let server100 = NamedIndexServerAddress {

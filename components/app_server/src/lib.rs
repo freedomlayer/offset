@@ -20,7 +20,7 @@ extern crate common;
 
 mod server;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 pub use self::server::{app_server_loop, AppServerError, IncomingAppConnection};
