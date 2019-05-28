@@ -2,20 +2,27 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
-use proto::app_server::messages::AppServerToApp;
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
 
 use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 use common::mutable_state::BatchMutable;
 use common::state_service::{state_service, StateClient};
+use common::conn::{ConnPair};
+
 
 use super::config::AppConfig;
 use super::report::AppReport;
 use super::routes::AppRoutes;
 use super::send_funds::AppSendFunds;
 
-use crate::connect::connect::NodeConnectionTuple;
+
+pub type NodeConnectionTuple = (
+    AppPermissions,
+    NodeReport,
+    ConnPair<AppToAppServer, AppServerToApp>,
+);
 
 #[derive(Debug)]
 pub enum NodeConnectionError {
@@ -71,14 +78,24 @@ where
             .spawn(routes_fut)
             .map_err(|_| NodeConnectionError::SpawnError)?;
 
-        let (mut incoming_send_funds_sender, incoming_send_funds) = mpsc::channel(0);
+        let (mut incoming_transaction_results_sender, incoming_transaction_results) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
-        let send_funds_mc = MultiConsumerClient::new(requests_sender);
-        let send_funds_fut = multi_consumer_service(incoming_send_funds, incoming_requests)
+        let transaction_results_mc = MultiConsumerClient::new(requests_sender);
+        let transaction_results_fut = multi_consumer_service(incoming_transaction_results, incoming_requests)
             .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
             .map(|_| ());
         spawner
-            .spawn(send_funds_fut)
+            .spawn(transaction_results_fut)
+            .map_err(|_| NodeConnectionError::SpawnError)?;
+
+        let (mut incoming_response_close_payments_sender, incoming_response_close_payments) = mpsc::channel(0);
+        let (requests_sender, incoming_requests) = mpsc::channel(0);
+        let response_close_payments_mc = MultiConsumerClient::new(requests_sender);
+        let response_close_payments_fut = multi_consumer_service(incoming_response_close_payments, incoming_requests)
+            .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
+            .map(|_| ());
+        spawner
+            .spawn(response_close_payments_fut)
             .map_err(|_| NodeConnectionError::SpawnError)?;
 
         let (mut incoming_done_app_requests_sender, incoming_done_app_requests) = mpsc::channel(0);
@@ -96,8 +113,11 @@ where
             .spawn(async move {
                 while let Some(message) = await!(receiver.next()) {
                     match message {
-                        AppServerToApp::ResponseReceived(response_received) => {
-                            let _ = await!(incoming_send_funds_sender.send(response_received));
+                        AppServerToApp::TransactionResult(transaction_result) => {
+                            let _ = await!(incoming_transaction_results_sender.send(transaction_result));
+                        }
+                        AppServerToApp::ResponseClosePayment(response_close_payment) => {
+                            let _ = await!(incoming_response_close_payments_sender.send(response_close_payment));
                         }
                         AppServerToApp::Report(_node_report) => {
                             // TODO: Maybe somehow redesign the type AppServerToApp
@@ -145,7 +165,8 @@ where
         let opt_send_funds = if app_permissions.send_funds {
             Some(AppSendFunds::new(
                 sender.clone(),
-                send_funds_mc.clone(),
+                transaction_results_mc.clone(),
+                response_close_payments_mc.clone(),
                 done_app_requests_mc.clone(),
                 rng.clone(),
             ))

@@ -37,8 +37,8 @@ pub struct ReceiptAckError;
 #[derive(Clone)]
 pub struct AppSendFunds<R = OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
-    transaction_result_mc: MultiConsumerClient<TransactionResult>,
-    response_close_payment_mc: MultiConsumerClient<ResponseClosePayment>,
+    transaction_results_mc: MultiConsumerClient<TransactionResult>,
+    response_close_payments_mc: MultiConsumerClient<ResponseClosePayment>,
     done_app_requests_mc: MultiConsumerClient<Uid>,
     rng: R,
 }
@@ -49,15 +49,15 @@ where
 {
     pub(super) fn new(
         sender: mpsc::Sender<AppToAppServer>,
-        transaction_result_mc: MultiConsumerClient<TransactionResult>,
-        response_close_payment_mc: MultiConsumerClient<ResponseClosePayment>,
+        transaction_results_mc: MultiConsumerClient<TransactionResult>,
+        response_close_payments_mc: MultiConsumerClient<ResponseClosePayment>,
         done_app_requests_mc: MultiConsumerClient<Uid>,
         rng: R,
     ) -> Self {
         AppSendFunds {
             sender,
-            transaction_result_mc,
-            response_close_payment_mc,
+            transaction_results_mc,
+            response_close_payments_mc,
             done_app_requests_mc,
             rng,
         }
@@ -119,7 +119,7 @@ where
             AppRequest::CreateTransaction(create_transaction),
         );
 
-        let mut incoming_transaction_results = await!(self.transaction_result_mc.request_stream())
+        let mut incoming_transaction_results = await!(self.transaction_results_mc.request_stream())
             .map_err(|_| SendFundsError::ConnectivityError)?;
 
         await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
@@ -150,7 +150,7 @@ where
         );
 
         let mut incoming_response_close_payment =
-            await!(self.response_close_payment_mc.request_stream())
+            await!(self.response_close_payments_mc.request_stream())
                 .map_err(|_| SendFundsError::ConnectivityError)?;
 
         await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
