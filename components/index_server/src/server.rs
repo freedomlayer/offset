@@ -14,7 +14,7 @@ use crypto::uid::Uid;
 
 use proto::index_server::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
-    IndexServerToServer, MutationsUpdate, ResponseRoutes, RouteWithCapacity, TimeProofLink,
+    IndexServerToServer, MutationsUpdate, ResponseRoutes, MultiRoute, TimeProofLink,
 };
 
 use proto::funder::messages::FriendsRoute;
@@ -384,17 +384,20 @@ async fn client_handler(
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
-                let route_tuples = await!(graph_client.get_routes(
+                let graph_multi_routes = await!(graph_client.get_routes(
                     request_routes.source.clone(),
                     request_routes.destination.clone(),
                     request_routes.capacity,
                     request_routes.opt_exclude.clone()
                 ))?;
-                let routes = route_tuples
+                let routes = graph_multi_routes
                     .into_iter()
-                    .map(|(route, capacity)| RouteWithCapacity {
-                        route: FriendsRoute { public_keys: route },
-                        capacity,
+                    .map(|graph_multi_route| MultiRoute {
+                        routes: graph_multi_route.routes.map(|graph_route| RouteCapacityRate {
+                            route: FriendRoute {public_keys: graph_route.route},
+                            capacity: graph_route.capacity,
+                            rate: graph_route.rate,
+                        }),
                     })
                     .collect::<Vec<_>>();
 
@@ -741,7 +744,7 @@ mod tests {
         match await!(client_receiver.next()).unwrap() {
             IndexServerToClient::ResponseRoutes(response_routes) => {
                 assert_eq!(response_routes.request_id, request_id);
-                assert!(response_routes.routes.is_empty());
+                assert!(response_routes.multi_routes.is_empty());
             }
             _ => unreachable!(),
         };
@@ -1006,7 +1009,7 @@ mod tests {
         match await!(client_receiver.next()).unwrap() {
             IndexServerToClient::ResponseRoutes(response_routes) => {
                 assert_eq!(response_routes.request_id, request_id);
-                assert!(response_routes.routes.is_empty());
+                assert!(response_routes.multi_routes.is_empty());
             }
             _ => unreachable!(),
         };
