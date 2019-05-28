@@ -22,7 +22,7 @@ extern crate serde_derive;
 
 #[allow(unused)]
 mod adapters;
-// pub mod connect;
+pub mod connect;
 // mod net_node;
 // mod node;
 #[allow(unused)]

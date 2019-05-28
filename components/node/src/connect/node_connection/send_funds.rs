@@ -8,10 +8,7 @@ use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
-use proto::funder::messages::{
-    FriendsRoute, Receipt, ReceiptAck, ResponseReceived, ResponseSendFundsResult,
-    UserRequestSendFunds,
-};
+use proto::funder::messages::{FriendsRoute, Receipt, ReceiptAck, UserRequestSendFunds};
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
