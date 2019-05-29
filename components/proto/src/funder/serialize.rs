@@ -435,6 +435,7 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, Serializ
     deser_friend_message(&friend_message_reader)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -542,3 +543,4 @@ mod tests {
         assert_eq!(friend_message, friend_message2);
     }
 }
+*/
