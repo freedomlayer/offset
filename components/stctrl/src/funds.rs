@@ -217,6 +217,14 @@ async fn funds_pay_invoice(
     )) // No exclusion of edges
     .map_err(|_| FundsError::AppRoutesError)?;
 
+
+    // TODO:
+    // - Pick suitable routes and decide how much to pay on every route.
+    // - Create a new payment
+    // - Create new transactions (One for every route). On the first failure cancel all
+    //      transactions. Succeed only if all transaction succeed.
+    // - Create a MultiCommit and save it to file.
+
     unimplemented!();
 
     /*
@@ -237,11 +245,6 @@ async fn funds_pay_invoice(
     writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
     writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
-    // Store receipt to file:
-    store_receipt_to_file(&receipt, &receipt_file).map_err(|_| FundsError::StoreReceiptError)?;
-
-    // We only send the ack if we managed to get the receipt:
-    await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
     */
 }
 
