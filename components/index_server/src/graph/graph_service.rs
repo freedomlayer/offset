@@ -247,7 +247,7 @@ mod tests {
                     CapacityRoute {
                         route: vec![2,5],
                         capacity: 30,
-                        rate: ConstRate(1),
+                        rate: ConstRate(0),
                     }
                 ],
             }]
@@ -259,7 +259,7 @@ mod tests {
                     CapacityRoute {
                         route: vec![2,5],
                         capacity: 30,
-                        rate: ConstRate(1),
+                        rate: ConstRate(0),
                     }
                 ],
             }]

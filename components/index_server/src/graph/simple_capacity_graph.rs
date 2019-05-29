@@ -140,7 +140,9 @@ where
     /// Calculate the total rate of sending credits along a given route
     fn get_route_rate(&self, route: &[N]) -> Option<T> {
         let mut total_rate = T::zero();
-        for i in 0..route.len().checked_sub(1)? {
+        // If the route is only of length 2, the rate will be 0.
+        // No fees are paid for the last hop. TODO: Is this the right behaviour?
+        for i in 0..route.len().checked_sub(2)? {
             let edge = self.get_edge(&route[i], &route[i + 1])?;
             total_rate = total_rate.checked_add(&edge.capacity_edge.rate)?;
         }
