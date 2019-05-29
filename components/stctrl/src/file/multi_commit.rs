@@ -156,7 +156,7 @@ mod tests {
         let multi_commit_file: MultiCommitFile = toml::from_str(
             r#"
             invoice_id = 'invoice_id'
-            total_dest_payment = '200'
+            total_dest_payment = 'total_dest_payment'
 
             [[commits]]
             response_hash = 'response_hash0'
@@ -176,7 +176,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(multi_commit_file.invoice_id, "invoice_id");
-        assert_eq!(multi_commit_file.total_dest_payment, "200");
+        assert_eq!(multi_commit_file.total_dest_payment, "total_dest_payment");
         assert_eq!(multi_commit_file.commits[0].response_hash, "response_hash0");
         assert_eq!(multi_commit_file.commits[1].signature, "signature1");
     }
