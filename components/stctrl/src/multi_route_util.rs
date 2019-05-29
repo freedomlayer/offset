@@ -39,9 +39,9 @@ fn fill_amount(amount: u128, sorted_routes: &[(Option<usize>, u128)]) -> Option<
         // sorted_routes is sorted, therefore we can be sure that the next
         // checked_sub(...).unwrap() will not panic:
         let added_credits: BigUint = BigUint::from(
-            sorted_routes[i]
+            sorted_routes[prev_i]
                 .1
-                .checked_sub(sorted_routes[prev_i].1)
+                .checked_sub(sorted_routes[i].1)
                 .unwrap(),
         ) * i;
 
@@ -83,13 +83,7 @@ fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Mu
     let mut chosen_routes = Vec::new();
     let mut accum_credits = 0u128;
     for i in (0..num_routes).rev() {
-        let next_i = i.checked_add(1).unwrap();
-        let diff = sorted_routes[next_i]
-            .1
-            .checked_sub(sorted_routes[i].1)
-            .unwrap();
-        accum_credits = accum_credits.checked_add(diff).unwrap();
-
+        // Add the extra part to accum_credits
         let num_credits = accum_credits.checked_add(div_extra).unwrap();
         let num_credits = if (i as u128) < mod_extra {
             num_credits.checked_add(1).unwrap()
@@ -97,6 +91,15 @@ fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Mu
             num_credits
         };
         chosen_routes.push((sorted_routes[i].0.unwrap(), num_credits));
+
+        // TODO: How to do this part more elegantly?
+        if let Some(prev_i) = i.checked_sub(1) {
+            let diff = sorted_routes[prev_i]
+                .1
+                .checked_sub(sorted_routes[i].1)
+                .unwrap();
+            accum_credits = accum_credits.checked_add(diff).unwrap();
+        }
     }
     Some(chosen_routes)
 }
@@ -117,9 +120,64 @@ pub fn choose_multi_route(
     None
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use app::route::{FriendsRoute, RouteCapacityRate};
+    use app::{PublicKey, Rate, PUBLIC_KEY_LEN};
+
+    /// A helper function to create a test public key
+    fn pk(i: u8) -> PublicKey {
+        PublicKey::from(&[i; PUBLIC_KEY_LEN])
+    }
+
+    #[test]
+    fn test_safe_multi_route_amounts() {
+        let mut multi_route = MultiRoute { routes: vec![] };
+        multi_route.routes.push(RouteCapacityRate {
+            route: FriendsRoute {
+                public_keys: vec![pk(0), pk(1), pk(2), pk(3), pk(4)],
+            },
+            capacity: 100u128,
+            rate: Rate {
+                add: 1,
+                mul: 0x12345678,
+            },
+        });
+
+        multi_route.routes.push(RouteCapacityRate {
+            route: FriendsRoute {
+                public_keys: vec![pk(0), pk(5), pk(6), pk(4)],
+            },
+            capacity: 200u128,
+            rate: Rate {
+                add: 5,
+                mul: 0x00100000,
+            },
+        });
+
+        multi_route.routes.push(RouteCapacityRate {
+            route: FriendsRoute {
+                public_keys: vec![pk(0), pk(7), pk(8), pk(9), pk(4)],
+            },
+            capacity: 300u128,
+            rate: Rate {
+                add: 20,
+                mul: 0x20000000,
+            },
+        });
+        assert!(safe_multi_route_amounts(&multi_route, 601).is_none());
+
+        let multi_route_choice = safe_multi_route_amounts(&multi_route, 300).unwrap();
+
+        let mut total_credits = 0u128;
+        for route_choice in &multi_route_choice {
+            let route = &multi_route.routes[route_choice.0];
+            // Make sure that we don't take too much:
+            assert!(route_choice.1 < route.rate.max_payable(route.capacity));
+            total_credits = total_credits.checked_add(route_choice.1).unwrap();
+        }
+        assert_eq!(total_credits, 300);
+    }
 }
-*/
