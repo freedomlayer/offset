@@ -196,11 +196,13 @@ async fn funds_pay_invoice(
     unimplemented!();
 
     /*
-    // Make sure that we will be able to write the receipt
+
+    // Make sure that we will be able to write the Commit
     // before we do the actual payment:
     if receipt_file.exists() {
         return Err(FundsError::ReceiptFileAlreadyExists);
     }
+
 
     let invoice =
         load_invoice_from_file(&invoice_file).map_err(|_| FundsError::LoadInvoiceError)?;

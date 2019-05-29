@@ -64,4 +64,5 @@ pub mod route {
 
 pub use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
+pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
 pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
