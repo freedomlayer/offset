@@ -6,11 +6,12 @@ use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
 
 use structopt::StructOpt;
 
-use app::gen::gen_uid;
+use app::gen::{gen_uid, gen_payment_id};
 use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, MultiRoute};
 
 use crate::file::invoice::load_invoice_from_file;
+use crate::multi_route_util::choose_multi_route;
 // use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
@@ -62,6 +63,7 @@ pub enum FundsError {
     ReceiptAckError,
     LoadInvoiceError,
     WriteError,
+    CreatePaymentFailed,
 }
 
 
@@ -170,41 +172,55 @@ async fn funds_pay_invoice(
     let multi_routes = await!(app_routes.request_routes(
         invoice.dest_payment,
         local_public_key, // source
-        invoice.dest_public_key,
+        invoice.dest_public_key.clone(),
         None
     )) // No exclusion of edges
     .map_err(|_| FundsError::AppRoutesError)?;
 
 
+    let (route_index, multi_route_choice) = choose_multi_route(&multi_routes, invoice.dest_payment)
+        .ok_or(FundsError::NoSuitableRoute)?;
+    let multi_route = &multi_routes[route_index];
+
+    // Create a new payment
+    let payment_id = gen_payment_id();
+    await!(app_send_funds.create_payment(payment_id, 
+                                  invoice.invoice_id.clone(),
+                                  invoice.dest_payment.clone(),
+                                  invoice.dest_public_key.clone()))
+        .map_err(|_| FundsError::CreatePaymentFailed)?;
+
+    // TODO: Run all of those `create_transaction`-s at the same time:
     // TODO:
-    // - Pick suitable routes and decide how much to pay on every route.
-    // - Create a new payment
     // - Create new transactions (One for every route). On the first failure cancel all
-    //      transactions. Succeed only if all transaction succeed.
+    //      transactions. Succeed only if all transactions succeed.
+    for (route_index, dest_payment) in multi_route_choice {
+        let route = &multi_route.routes[route_index];
+        let request_id = gen_uid();
+        await!(app_send_funds.create_transaction(
+            payment_id.clone(),
+            request_id,
+            route.route.clone(),
+            dest_payment,
+            route.rate.calc_fee(dest_payment).unwrap(),
+        ));
+    }
+
+    // TODO:
     // - Create a MultiCommit and save it to file.
+    // - Print back PaymentId, to allow the user get the receipt later.
 
     unimplemented!();
 
     /*
-    let route = choose_route(routes_with_capacity, invoice.dest_payment)?;
-    let fees = route.len().checked_sub(2).unwrap();
-
-    // Randomly generate a request id:
-    let request_id = gen_uid();
-
-    let receipt = await!(app_send_funds.request_send_funds(
-        request_id,
-        route,
-        invoice.invoice_id,
-        invoice.dest_payment
-    ))
-    .map_err(|_| FundsError::SendFundsError)?;
 
     writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
     writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
 
     */
 }
+
+// TODO: Add a command to check information about payment progress.
 
 pub async fn funds(
     funds_cmd: FundsCmd,

@@ -5,27 +5,6 @@ use num_traits::ops::checked::CheckedSub;
 
 use app::route::MultiRoute;
 
-/*
-/// Can we push the given amount of credits through this multi route?
-fn is_good_multi_route(multi_route: &MultiRoute, mut amount: u128) -> bool {
-    let mut credit_count = 0u128;
-
-    for route_capacity_rate in &multi_route.routes {
-        let max_payable = route_capacity_rate
-            .rate
-            .max_payable(route_capacity_rate.capacity);
-        credit_count = if let Some(new_credit_count) = credit_count.checked_add(max_payable) {
-            new_credit_count
-        } else {
-            // An overflow happened. This means we can definitely pay `amount`.
-            return true;
-        };
-    }
-
-    credit_count >= amount
-}
-*/
-
 pub type MultiRouteChoice = Vec<(usize, u128)>;
 
 /// Attempt to fill the given amount as much as possible, trying not to saturate any route.
@@ -104,7 +83,6 @@ fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Mu
     Some(chosen_routes)
 }
 
-#[allow(unused)]
 /// Choose a route for pushing `amount` credits
 pub fn choose_multi_route(
     multi_routes: &[MultiRoute],
