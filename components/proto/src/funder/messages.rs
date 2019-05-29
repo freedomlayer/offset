@@ -421,10 +421,35 @@ impl Rate {
         Rate { mul: 0, add: 0 }
     }
 
+    /// Calculate the amount of additional fee credits we have to pay if
+    /// we want to pay `dest_payment` credits.
     pub fn calc_fee(&self, dest_payment: u128) -> Option<u128> {
         let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
         let res = mul_res + BigUint::from(self.add);
         res.to_u128()
+    }
+
+    /// Maximum amount of credits we should be able to pay
+    /// through a given capacity.
+    ///
+    /// Solves the equation:
+    /// x + (mx + n) <= c
+    /// As:
+    /// x <= (c - n) / (m + 1)
+    /// When m = m0 / 2^32, we get:
+    /// x <= ((c - n) * 2^32) / (m0 + 2^32)
+    pub fn max_payable(&self, capacity: u128) -> u128 {
+        let long_add = u128::from(self.add);
+        let c_minus_n = if let Some(c_minus_n) = capacity.checked_sub(long_add) {
+            c_minus_n
+        } else {
+            // Right hand side is going to be non-positive, this means maximum payable is 0.
+            return 0;
+        };
+
+        let numerator = BigUint::from(c_minus_n) << 32;
+        let denominator = BigUint::from(self.mul) + (BigUint::from(1u128) << 32);
+        (numerator / denominator).to_u128().unwrap()
     }
 }
 
