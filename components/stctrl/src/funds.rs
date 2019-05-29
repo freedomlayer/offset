@@ -64,48 +64,6 @@ pub enum FundsError {
     WriteError,
 }
 
-/// Can we push the given amount of credits through this multi route?
-fn is_good_multi_route(
-    multi_route: &MultiRoute,
-    mut amount: u128) -> bool {
-
-    let mut credit_count = 0u128;
-
-    for route_capacity_rate in &multi_route.routes {
-        let max_payable = route_capacity_rate.rate.max_payable(route_capacity_rate.capacity);
-        credit_count = if let Some(new_credit_count) = credit_count.checked_add(max_payable) {
-            new_credit_count
-        } else {
-            // An overflow happened. This means we can definitely pay `amount`.
-            return true;
-        };
-    }
-
-    credit_count >= amount
-}
-
-/// Choose a route for pushing `amount` credits
-fn choose_multi_route(
-    multi_routes: Vec<MultiRoute>,
-    amount: u128,
-) -> Result<MultiRoute, FundsError> {
-    // We naively select the first multi-route we find suitable:
-    // TODO: Possibly improve this later:
-    for multi_route in multi_routes {
-        if is_good_multi_route(&multi_route, amount) {
-            return Ok(multi_route)
-        }
-    }
-    Err(FundsError::NoSuitableRoute)
-}
-
-/// Find a safe choice for how much credits to push through each route in a MultiRoute (Give that we
-/// know this is possible)
-/// Returns a vector representing how many credits to push through every route.
-fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Vec<u128>> {
-    // let max_payables: Vec<_> = multi_route.route.iter().map(|route| route.rate.max_payable(route.capacity)).collect();
-    unimplemented!();
-}
 
 
 /*

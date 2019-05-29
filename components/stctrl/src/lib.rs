@@ -22,6 +22,8 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
+mod multi_route_util;
+
 pub mod config;
 #[allow(unused)]
 pub mod funds;
