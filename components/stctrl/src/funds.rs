@@ -33,9 +33,9 @@ pub struct PayInvoiceCmd {
     /// Path to invoice file to pay
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
     pub invoice_file: PathBuf,
-    /// Output receipt file
-    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
-    pub receipt_file: PathBuf,
+    /// Output commit file
+    #[structopt(parse(from_os_str), short = "c", long = "commit")]
+    pub commit_file: PathBuf,
 }
 
 /// Funds sending related commands
@@ -56,6 +56,7 @@ pub enum FundsError {
     AppRoutesError,
     SendFundsError,
     NoSuitableRoute,
+    CommitFileAlreadyExists,
     ReceiptFileAlreadyExists,
     StoreReceiptError,
     ReceiptAckError,
@@ -190,19 +191,15 @@ async fn funds_pay_invoice(
 ) -> Result<(), FundsError> {
     let PayInvoiceCmd {
         invoice_file,
-        receipt_file,
+        commit_file,
     } = pay_invoice_cmd;
 
-    unimplemented!();
 
-    /*
-
-    // Make sure that we will be able to write the Commit
+    // Make sure that we will be able to write the MultiCommit
     // before we do the actual payment:
-    if receipt_file.exists() {
-        return Err(FundsError::ReceiptFileAlreadyExists);
+    if commit_file.exists() {
+        return Err(FundsError::CommitFileAlreadyExists);
     }
-
 
     let invoice =
         load_invoice_from_file(&invoice_file).map_err(|_| FundsError::LoadInvoiceError)?;
@@ -212,7 +209,7 @@ async fn funds_pay_invoice(
     // we also need to pay nodes on the way.
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
-    let routes_with_capacity = await!(app_routes.request_multi_routes(
+    let multi_routes = await!(app_routes.request_routes(
         invoice.dest_payment,
         local_public_key, // source
         invoice.dest_public_key,
@@ -220,6 +217,9 @@ async fn funds_pay_invoice(
     )) // No exclusion of edges
     .map_err(|_| FundsError::AppRoutesError)?;
 
+    unimplemented!();
+
+    /*
     let route = choose_route(routes_with_capacity, invoice.dest_payment)?;
     let fees = route.len().checked_sub(2).unwrap();
 
