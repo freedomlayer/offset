@@ -1,8 +1,10 @@
 use std::io;
 use std::path::PathBuf;
 
+use futures::future::select_all;
+
 use app::ser_string::string_to_public_key;
-use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey};
+use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey, MultiCommit};
 
 use structopt::StructOpt;
 
@@ -12,6 +14,7 @@ use app::route::{FriendsRoute, MultiRoute};
 
 use crate::file::invoice::load_invoice_from_file;
 use crate::multi_route_util::choose_multi_route;
+use crate::file::multi_commit::store_multi_commit_to_file;
 // use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
@@ -64,6 +67,8 @@ pub enum FundsError {
     LoadInvoiceError,
     WriteError,
     CreatePaymentFailed,
+    CreateTransactionFailed,
+    StoreCommitError,
 }
 
 
@@ -182,6 +187,16 @@ async fn funds_pay_invoice(
         .ok_or(FundsError::NoSuitableRoute)?;
     let multi_route = &multi_routes[route_index];
 
+
+    // Calculate total fees:
+    // TODO: Possibly ask the user if he wants to pay this amount of fees at this point.
+    let mut total_fees = 0u128;
+    for (route_index, dest_payment) in &multi_route_choice {
+        let fee = multi_route.routes[*route_index].rate.calc_fee(*dest_payment).unwrap();
+        total_fees = total_fees.checked_add(fee).unwrap();
+    }
+    writeln!(writer, "Total fees: {}", total_fees).map_err(|_| FundsError::WriteError)?;
+
     // Create a new payment
     let payment_id = gen_payment_id();
     await!(app_send_funds.create_payment(payment_id, 
@@ -194,30 +209,53 @@ async fn funds_pay_invoice(
     // TODO:
     // - Create new transactions (One for every route). On the first failure cancel all
     //      transactions. Succeed only if all transactions succeed.
-    for (route_index, dest_payment) in multi_route_choice {
-        let route = &multi_route.routes[route_index];
+    
+    let mut fut_list = Vec::new();
+    for (route_index, dest_payment) in &multi_route_choice {
+        let route = &multi_route.routes[*route_index];
         let request_id = gen_uid();
-        await!(app_send_funds.create_transaction(
-            payment_id.clone(),
-            request_id,
-            route.route.clone(),
-            dest_payment,
-            route.rate.calc_fee(dest_payment).unwrap(),
-        ));
+        let mut c_app_send_funds = app_send_funds.clone();
+        fut_list.push(
+            // TODO: Possibly a more efficient way than Box::pin?
+            Box::pin(async move {
+                await!(c_app_send_funds.create_transaction(
+                    payment_id.clone(),
+                    request_id,
+                    route.route.clone(),
+                    *dest_payment,
+                    route.rate.calc_fee(*dest_payment).unwrap(),
+                ))
+            })
+        );
     }
 
+    let mut commits = Vec::new();
+    for _ in 0 .. multi_route_choice.len() {
+        let (output, fut_index, new_fut_list) = await!(select_all(fut_list));
+        match output {
+            Ok(commit) => commits.push(commit),
+            Err(_) => return Err(FundsError::CreateTransactionFailed),
+        }
+        fut_list = new_fut_list;
+    }
+
+    let multi_commit = MultiCommit {
+        invoice_id: invoice.invoice_id.clone(),
+        total_dest_payment: invoice.dest_payment,
+        commits,
+    };
+
+    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+
+    // Store MultiCommit to file:
+    store_multi_commit_to_file(&multi_commit, &commit_file)
+        .map_err(|_| FundsError::StoreCommitError)?;
+
     // TODO:
-    // - Create a MultiCommit and save it to file.
     // - Print back PaymentId, to allow the user get the receipt later.
 
     unimplemented!();
 
-    /*
-
-    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
-    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
-
-    */
 }
 
 // TODO: Add a command to check information about payment progress.
