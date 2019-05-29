@@ -13,12 +13,17 @@
 
 #[macro_use]
 extern crate prettytable;
+
+#[allow(unused)]
 #[macro_use]
 extern crate log;
+
+#[allow(unused)]
 #[macro_use]
 extern crate serde_derive;
 
 pub mod config;
+#[allow(unused)]
 pub mod funds;
 pub mod info;
 
@@ -26,4 +31,4 @@ pub mod file;
 pub mod utils;
 
 pub mod stctrllib;
-pub mod stregisterlib;
+// pub mod stregisterlib;

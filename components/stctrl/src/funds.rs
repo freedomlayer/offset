@@ -11,7 +11,7 @@ use app::invoice::{InvoiceId, INVOICE_ID_LEN};
 use app::route::{FriendsRoute, MultiRoute};
 
 use crate::file::invoice::load_invoice_from_file;
-use crate::file::receipt::store_receipt_to_file;
+// use crate::file::receipt::store_receipt_to_file;
 
 /// Send funds to a remote destination
 #[derive(Clone, Debug, StructOpt)]
@@ -41,9 +41,6 @@ pub struct PayInvoiceCmd {
 /// Funds sending related commands
 #[derive(Clone, Debug, StructOpt)]
 pub enum FundsCmd {
-    /// Send funds to a remote destination (Using destination public key)
-    #[structopt(name = "send-funds")]
-    SendFunds(SendFundsCmd),
     /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
@@ -66,26 +63,24 @@ pub enum FundsError {
     WriteError,
 }
 
-// TODO: The algorithm here might not be accurate in all cases.
-// Fix later.
 /// Can we push the given amount of credits through this multi route?
 fn is_good_multi_route(
     multi_route: &MultiRoute,
     mut amount: u128) -> bool {
 
     let mut credit_count = 0u128;
-    let mut fees_count = 0u128;
 
-    for route_capacity_rate in multi_route.routes {
-        let route_fees = route_capacity_rate.rate.calc_fees(route_capacity_rate.capacity)?;
-        fees_count = fees_count.checked_add(route_fees)?;
-        // Amount of capacity we are left with for actual payment:
-        let left_capacity = route_capacity_rate.capacity.checked_sub(route_fees)?;
-        credit_count = credit_count.checked_add(left_capacity)?;
+    for route_capacity_rate in &multi_route.routes {
+        let max_payable = route_capacity_rate.rate.max_payable(route_capacity_rate.capacity);
+        credit_count = if let Some(new_credit_count) = credit_count.checked_add(max_payable) {
+            new_credit_count
+        } else {
+            // An overflow happened. This means we can definitely pay `amount`.
+            return true;
+        };
     }
 
     credit_count >= amount
-
 }
 
 /// Choose a route for pushing `amount` credits
@@ -103,6 +98,16 @@ fn choose_multi_route(
     Err(FundsError::NoSuitableRoute)
 }
 
+/// Find a safe choice for how much credits to push through each route in a MultiRoute (Give that we
+/// know this is possible)
+/// Returns a vector representing how many credits to push through every route.
+fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Vec<u128>> {
+    // let max_payables: Vec<_> = multi_route.route.iter().map(|route| route.rate.max_payable(route.capacity)).collect();
+    unimplemented!();
+}
+
+
+/*
 /// Send funds to a remote destination without using an invoice.
 async fn funds_send_funds(
     send_raw_cmd: SendFundsCmd,
@@ -143,7 +148,14 @@ async fn funds_send_funds(
     .map_err(|_| FundsError::AppRoutesError)?;
 
     let multi_route = choose_multi_route(routes_with_capacity, dest_payment)?;
-    // TODO: Calculate fees?
+    let amounts = safe_multi_route_amounts(&multi_route).unwrap();
+
+    // TODO: 
+    // - Create Payment
+    // - Create a transaction for every route
+    // - Wait until the first a first failure happens or all transactions succeeded.
+    // - Close payment
+    // - Return result (MultiCommit or failure)
 
     // A trivial invoice:
     let request_id = gen_uid();
@@ -166,6 +178,7 @@ async fn funds_send_funds(
     // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
 }
+*/
 
 /// Pay an invoice
 async fn funds_pay_invoice(
@@ -180,6 +193,9 @@ async fn funds_pay_invoice(
         receipt_file,
     } = pay_invoice_cmd;
 
+    unimplemented!();
+
+    /*
     // Make sure that we will be able to write the receipt
     // before we do the actual payment:
     if receipt_file.exists() {
@@ -194,7 +210,7 @@ async fn funds_pay_invoice(
     // we also need to pay nodes on the way.
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
-    let routes_with_capacity = await!(app_routes.request_routes(
+    let routes_with_capacity = await!(app_routes.request_multi_routes(
         invoice.dest_payment,
         local_public_key, // source
         invoice.dest_public_key,
@@ -224,7 +240,9 @@ async fn funds_pay_invoice(
 
     // We only send the ack if we managed to get the receipt:
     await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
+    */
 }
+
 pub async fn funds(
     funds_cmd: FundsCmd,
     mut node_connection: NodeConnection,
@@ -250,13 +268,6 @@ pub async fn funds(
         .clone();
 
     match funds_cmd {
-        FundsCmd::SendFunds(send_raw_cmd) => await!(funds_send_funds(
-            send_raw_cmd,
-            local_public_key,
-            app_routes,
-            app_send_funds,
-            writer,
-        ))?,
         FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
