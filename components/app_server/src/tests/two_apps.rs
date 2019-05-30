@@ -31,7 +31,8 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
-        send_funds: true,
+        buyer: true,
+        seller: true,
         config: true,
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
@@ -41,7 +42,8 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
-        send_funds: true,
+        buyer: true,
+        seller: true,
         config: true,
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
