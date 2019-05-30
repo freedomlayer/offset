@@ -153,7 +153,8 @@ mod tests {
         let file_path = dir.path().join("trusted_app2");
         let permissions = AppPermissions {
             routes: false,
-            send_funds: true,
+            buyer: true,
+            seller: true,
             config: false,
         };
         let trusted_app2 = TrustedApp {
