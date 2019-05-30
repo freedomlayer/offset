@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use futures::future::select_all;
 
-use app::ser_string::{string_to_public_key, payment_id_to_string};
-use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey, MultiCommit};
+use app::ser_string::{string_to_public_key, payment_id_to_string, string_to_payment_id};
+use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey, MultiCommit, PaymentStatus};
 
 use structopt::StructOpt;
 
@@ -15,21 +15,8 @@ use app::route::{FriendsRoute, MultiRoute};
 use crate::file::invoice::load_invoice_from_file;
 use crate::multi_route_util::choose_multi_route;
 use crate::file::multi_commit::store_multi_commit_to_file;
-// use crate::file::receipt::store_receipt_to_file;
+use crate::file::receipt::store_receipt_to_file;
 
-/// Send funds to a remote destination
-#[derive(Clone, Debug, StructOpt)]
-pub struct SendFundsCmd {
-    /// recipient's public key
-    #[structopt(short = "d", long = "dest")]
-    pub destination_str: String,
-    /// Amount of credits to send
-    #[structopt(short = "a", long = "amount")]
-    pub dest_payment: u128,
-    /// Output receipt file
-    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
-    pub opt_receipt_file: Option<PathBuf>,
-}
 
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]
@@ -42,12 +29,25 @@ pub struct PayInvoiceCmd {
     pub commit_file: PathBuf,
 }
 
+/// Check payment status (And obtain receipt if successful)
+#[derive(Clone, Debug, StructOpt)]
+pub struct PaymentStatusCmd {
+    /// Payment identifier
+    #[structopt(short = "p", long = "payment")]
+    pub payment_id: String,
+    /// Output receipt file (in case a receipt is ready)
+    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
+    pub receipt_file: PathBuf,
+}
+
+
 /// Funds sending related commands
 #[derive(Clone, Debug, StructOpt)]
 pub enum FundsCmd {
     /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
+    PaymentStatus(PaymentStatusCmd),
 }
 
 #[derive(Debug)]
@@ -69,6 +69,9 @@ pub enum FundsError {
     CreatePaymentFailed,
     CreateTransactionFailed,
     StoreCommitError,
+    RequestClosePaymentError,
+    AckClosePaymentError,
+    ParsePaymentIdError,
 }
 
 
@@ -199,15 +202,17 @@ async fn funds_pay_invoice(
 
     // Create a new payment
     let payment_id = gen_payment_id();
+
+    writeln!(writer, "Payment id: {:?}", payment_id_to_string(&payment_id)).map_err(|_| FundsError::WriteError)?;
+
     await!(app_send_funds.create_payment(payment_id, 
                                   invoice.invoice_id.clone(),
                                   invoice.dest_payment.clone(),
                                   invoice.dest_public_key.clone()))
         .map_err(|_| FundsError::CreatePaymentFailed)?;
 
-    // TODO:
-    // - Create new transactions (One for every route). On the first failure cancel all
-    //      transactions. Succeed only if all transactions succeed.
+    // Create new transactions (One for every route). On the first failure cancel all
+    // transactions. Succeed only if all transactions succeed.
     
     let mut fut_list = Vec::new();
     for (route_index, dest_payment) in &multi_route_choice {
@@ -234,11 +239,14 @@ async fn funds_pay_invoice(
         match output {
             Ok(commit) => commits.push(commit),
             Err(_) => {
+                let _ = await!(app_send_funds.request_close_payment(payment_id.clone()));
                 return Err(FundsError::CreateTransactionFailed);
             },
         }
         fut_list = new_fut_list;
     }
+
+    let _ = await!(app_send_funds.request_close_payment(payment_id.clone()));
 
     let multi_commit = MultiCommit {
         invoice_id: invoice.invoice_id.clone(),
@@ -247,20 +255,69 @@ async fn funds_pay_invoice(
     };
 
     writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
-    writeln!(writer, "Payment id: {:?}", payment_id_to_string(&payment_id)).map_err(|_| FundsError::WriteError)?;
 
     // Store MultiCommit to file:
     store_multi_commit_to_file(&multi_commit, &commit_file)
         .map_err(|_| FundsError::StoreCommitError)?;
 
-    // TODO:
-    // - Print back PaymentId, to allow the user get the receipt later.
-
-    unimplemented!();
-
+    Ok(())
 }
 
-// TODO: Add a command to check information about payment progress.
+/// Get the current status of a payment
+async fn funds_payment_status(
+    payment_status_cmd: PaymentStatusCmd,
+    local_public_key: PublicKey,
+    mut app_send_funds: AppSendFunds,
+    writer: &mut impl io::Write,
+) -> Result<(), FundsError> {
+    let PaymentStatusCmd {
+        payment_id,
+        receipt_file,
+    } = payment_status_cmd;
+
+    // Make sure that we will be able to write the receipt
+    // before we do the actual payment:
+    if receipt_file.exists() {
+        return Err(FundsError::ReceiptFileAlreadyExists);
+    }
+
+    let payment_id = string_to_payment_id(&payment_id)
+        .map_err(|_| FundsError::ParsePaymentIdError)?;
+
+    let payment_status = await!(app_send_funds.request_close_payment(payment_id.clone()))
+        .map_err(|_| FundsError::RequestClosePaymentError)?;
+
+    let opt_ack_uid = match payment_status {
+        PaymentStatus::PaymentNotFound => {
+            writeln!(writer, "Payment could not be found").map_err(|_| FundsError::WriteError)?;
+            None
+        },
+        PaymentStatus::InProgress => {
+            writeln!(writer, "Payment is in progress").map_err(|_| FundsError::WriteError)?;
+            None
+        },
+        PaymentStatus::Success((receipt, ack_uid)) => {
+            writeln!(writer, "Payment succeeded. Saving receipt to file.").map_err(|_| FundsError::WriteError)?;
+            // Store receipt to file:
+            store_receipt_to_file(&receipt, &receipt_file)
+                .map_err(|_| FundsError::StoreReceiptError)?;
+            // Note that we must save the receipt to file before we let the node discard it.
+            Some(ack_uid)
+        }
+        PaymentStatus::Canceled(ack_uid) => {
+            writeln!(writer, "Payment was canceled.").map_err(|_| FundsError::WriteError)?;
+            Some(ack_uid)
+        }
+    };
+
+    if let Some(ack_uid) = opt_ack_uid {
+        await!(app_send_funds.ack_close_payment(payment_id.clone(), ack_uid))
+            .map_err(|_| FundsError::AckClosePaymentError)?;
+    }
+
+    Ok(())
+}
+
 
 pub async fn funds(
     funds_cmd: FundsCmd,
@@ -291,6 +348,12 @@ pub async fn funds(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
+            app_send_funds,
+            writer,
+        ))?,
+        FundsCmd::PaymentStatus(payment_status_cmd) => await!(funds_payment_status(
+            payment_status_cmd,
+            local_public_key,
             app_send_funds,
             writer,
         ))?,

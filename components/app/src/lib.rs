@@ -26,7 +26,7 @@ pub use proto::file::relay::load_relay_from_file;
 pub use proto::file::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
-pub use proto::funder::messages::{Commit, MultiCommit, Rate, Receipt};
+pub use proto::funder::messages::{Commit, MultiCommit, PaymentStatus, Rate, Receipt};
 pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 pub use proto::report::signature_buff::verify_move_token_hashed_report;
