@@ -1,4 +1,7 @@
 use std::path::PathBuf;
+use std::io;
+
+use app::{NodeConnection, PublicKey, AppSendFunds};
 
 use structopt::StructOpt;
 
@@ -50,4 +53,47 @@ pub enum SellerCmd {
 }
 
 #[derive(Debug)]
-pub enum SellerError {}
+pub enum SellerError {
+    GetReportError,
+    NoFundsPermissions,
+}
+
+async fn seller_create_invoice(create_invoice_cmd: CreateInvoiceCmd,
+                         local_public_key: PublicKey,
+                        mut app_send_funds: AppSendFunds,
+                        writer: &mut impl io::Write) -> Result<(), SellerError> {
+    unimplemented!();
+}
+
+pub async fn seller(
+    seller_cmd: SellerCmd,
+    mut node_connection: NodeConnection,
+    writer: &mut impl io::Write,
+) -> Result<(), SellerError> {
+    // Get our local public key:
+    let mut app_report = node_connection.report().clone();
+    let (node_report, incoming_mutations) =
+        await!(app_report.incoming_reports()).map_err(|_| SellerError::GetReportError)?;
+    // We currently don't need live updates about report mutations:
+    drop(incoming_mutations);
+
+    let local_public_key = node_report.funder_report.local_public_key.clone();
+
+    let app_send_funds = node_connection
+        .send_funds()
+        .ok_or(SellerError::NoFundsPermissions)?
+        .clone();
+
+    match seller_cmd {
+        SellerCmd::CreateInvoice(create_invoice_cmd) => await!(seller_create_invoice(
+            create_invoice_cmd,
+            local_public_key,
+            app_send_funds,
+            writer,
+        ))?,
+        SellerCmd::CancelInvoice(_create_invoice_cmd) => unimplemented!(),
+        SellerCmd::CommitInvoice(_commit_invoice_cmd) => unimplemented!(),
+    }
+
+    Ok(())
+}

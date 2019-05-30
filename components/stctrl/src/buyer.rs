@@ -78,7 +78,7 @@ pub enum BuyerError {
 
 
 /// Pay an invoice
-async fn funds_pay_invoice(
+async fn buyer_pay_invoice(
     pay_invoice_cmd: PayInvoiceCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
@@ -192,7 +192,7 @@ async fn funds_pay_invoice(
 }
 
 /// Get the current status of a payment
-async fn funds_payment_status(
+async fn buyer_payment_status(
     payment_status_cmd: PaymentStatusCmd,
     local_public_key: PublicKey,
     mut app_send_funds: AppSendFunds,
@@ -272,14 +272,14 @@ pub async fn buyer(
         .clone();
 
     match buyer_cmd {
-        BuyerCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
+        BuyerCmd::PayInvoice(pay_invoice_cmd) => await!(buyer_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
             app_send_funds,
             writer,
         ))?,
-        BuyerCmd::PaymentStatus(payment_status_cmd) => await!(funds_payment_status(
+        BuyerCmd::PaymentStatus(payment_status_cmd) => await!(buyer_payment_status(
             payment_status_cmd,
             local_public_key,
             app_send_funds,
