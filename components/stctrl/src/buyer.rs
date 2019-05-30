@@ -3,14 +3,12 @@ use std::path::PathBuf;
 
 use futures::future::select_all;
 
-use app::ser_string::{payment_id_to_string, string_to_payment_id, string_to_public_key};
+use app::ser_string::{payment_id_to_string, string_to_payment_id};
 use app::{AppRoutes, AppBuyer, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
 
 use structopt::StructOpt;
 
 use app::gen::{gen_payment_id, gen_uid};
-use app::invoice::{InvoiceId, INVOICE_ID_LEN};
-use app::route::{FriendsRoute, MultiRoute};
 
 use crate::file::invoice::load_invoice_from_file;
 use crate::file::multi_commit::store_multi_commit_to_file;
@@ -166,7 +164,7 @@ async fn buyer_pay_invoice(
 
     let mut commits = Vec::new();
     for _ in 0..multi_route_choice.len() {
-        let (output, fut_index, new_fut_list) = await!(select_all(fut_list));
+        let (output, _fut_index, new_fut_list) = await!(select_all(fut_list));
         match output {
             Ok(commit) => commits.push(commit),
             Err(_) => {
@@ -197,7 +195,6 @@ async fn buyer_pay_invoice(
 /// Get the current status of a payment
 async fn buyer_payment_status(
     payment_status_cmd: PaymentStatusCmd,
-    local_public_key: PublicKey,
     mut app_buyer: AppBuyer,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
@@ -284,7 +281,6 @@ pub async fn buyer(
         ))?,
         BuyerCmd::PaymentStatus(payment_status_cmd) => await!(buyer_payment_status(
             payment_status_cmd,
-            local_public_key,
             app_buyer,
             writer,
         ))?,
