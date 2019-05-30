@@ -28,6 +28,8 @@ mod multi_route_util;
 pub mod buyer;
 pub mod config;
 pub mod info;
+#[allow(unused)]
+pub mod seller;
 
 pub mod file;
 pub mod utils;
