@@ -216,4 +216,8 @@ where
     pub fn buyer(&mut self) -> Option<&mut AppBuyer<R>> {
         self.opt_buyer.as_mut()
     }
+
+    pub fn seller(&mut self) -> Option<&mut AppSeller<R>> {
+        self.opt_seller.as_mut()
+    }
 }

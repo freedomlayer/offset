@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use app::{NodeConnection, PublicKey};
+use app::{NodeConnection, PublicKey, AppSeller};
 
 use structopt::StructOpt;
 
