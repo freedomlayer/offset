@@ -797,7 +797,7 @@ where
 
     let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
     m_state.mutate(funder_mutation);
-    return Ok(());
+    Ok(())
 }
 
 fn control_ack_close_payment<B>(

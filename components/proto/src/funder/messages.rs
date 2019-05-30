@@ -644,6 +644,7 @@ pub struct TransactionResult {
     pub result: RequestResult,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaymentStatus {
     PaymentNotFound,
@@ -658,6 +659,7 @@ pub struct ResponseClosePayment {
     pub status: PaymentStatus,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),

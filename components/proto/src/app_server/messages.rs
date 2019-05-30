@@ -79,6 +79,7 @@ where
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B = NetAddress>
 where

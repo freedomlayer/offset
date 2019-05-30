@@ -513,9 +513,9 @@ where
             }
             AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
-                if let Some(_) = self
+                if self
                     .route_requests
-                    .insert(request_routes.request_id.clone(), app_id)
+                    .insert(request_routes.request_id, app_id).is_some()
                 {
                     warn!("RequestRoutes: request_id clash.");
                 }

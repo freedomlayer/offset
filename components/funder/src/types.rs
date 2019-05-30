@@ -75,7 +75,7 @@ pub async fn create_response_send_funds<'a>(
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
     CancelSendFundsOp {
-        request_id: request_id,
+        request_id,
     }
 }
 
