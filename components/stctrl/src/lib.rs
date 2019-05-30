@@ -14,11 +14,9 @@
 #[macro_use]
 extern crate prettytable;
 
-#[allow(unused)]
-#[macro_use]
-extern crate log;
+// #[macro_use]
+// extern crate log;
 
-#[allow(unused)]
 #[macro_use]
 extern crate serde_derive;
 
