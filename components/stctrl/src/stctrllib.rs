@@ -6,6 +6,7 @@ use futures::executor::ThreadPool;
 use structopt::StructOpt;
 
 use crate::buyer::{buyer, BuyerCmd, BuyerError};
+use crate::seller::{seller, SellerCmd, SellerError};
 use crate::config::{config, ConfigCmd, ConfigError};
 use crate::info::{info, InfoCmd, InfoError};
 
@@ -24,6 +25,7 @@ pub enum StCtrlError {
     InfoError(InfoError),
     ConfigError(ConfigError),
     BuyerError(BuyerError),
+    SellerError(SellerError),
 }
 
 impl From<InfoError> for StCtrlError {
@@ -44,6 +46,12 @@ impl From<BuyerError> for StCtrlError {
     }
 }
 
+impl From<SellerError> for StCtrlError {
+    fn from(e: SellerError) -> Self {
+        StCtrlError::SellerError(e)
+    }
+}
+
 #[derive(Clone, Debug, StructOpt)]
 pub enum StCtrlSubcommand {
     /// Get information about current state of node
@@ -52,9 +60,12 @@ pub enum StCtrlSubcommand {
     /// Configure node's state
     #[structopt(name = "config")]
     Config(ConfigCmd),
-    /// Payments and funds related commands
+    /// Sending funds (Buyer)
     #[structopt(name = "buyer")]
     Buyer(BuyerCmd),
+    /// Receiving funds (Seller)
+    #[structopt(name = "seller")]
+    Seller(SellerCmd),
 }
 
 /// stctrl: offST ConTRoL
@@ -116,6 +127,9 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
             StCtrlSubcommand::Config(config_cmd) => await!(config(config_cmd, node_connection))?,
             StCtrlSubcommand::Buyer(buyer_cmd) => {
                 await!(buyer(buyer_cmd, node_connection, writer))?
+            }
+            StCtrlSubcommand::Seller(seller_cmd) => {
+                await!(seller(seller_cmd, node_connection))?
             }
         }
         Ok(())
