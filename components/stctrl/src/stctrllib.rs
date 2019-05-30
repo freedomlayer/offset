@@ -6,7 +6,7 @@ use futures::executor::ThreadPool;
 use structopt::StructOpt;
 
 use crate::config::{config, ConfigCmd, ConfigError};
-use crate::funds::{funds, FundsCmd, FundsError};
+use crate::buyer::{buyer, BuyerCmd, BuyerError};
 use crate::info::{info, InfoCmd, InfoError};
 
 use app::{connect, identity_from_file, load_node_from_file};
@@ -23,7 +23,7 @@ pub enum StCtrlError {
     ConnectionError,
     InfoError(InfoError),
     ConfigError(ConfigError),
-    FundsError(FundsError),
+    BuyerError(BuyerError),
 }
 
 impl From<InfoError> for StCtrlError {
@@ -38,9 +38,9 @@ impl From<ConfigError> for StCtrlError {
     }
 }
 
-impl From<FundsError> for StCtrlError {
-    fn from(e: FundsError) -> Self {
-        StCtrlError::FundsError(e)
+impl From<BuyerError> for StCtrlError {
+    fn from(e: BuyerError) -> Self {
+        StCtrlError::BuyerError(e)
     }
 }
 
@@ -53,8 +53,8 @@ pub enum StCtrlSubcommand {
     #[structopt(name = "config")]
     Config(ConfigCmd),
     /// Payments and funds related commands
-    #[structopt(name = "funds")]
-    Funds(FundsCmd),
+    #[structopt(name = "buyer")]
+    Buyer(BuyerCmd),
 }
 
 /// stctrl: offST ConTRoL
@@ -114,8 +114,8 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         match subcommand {
             StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection, writer))?,
             StCtrlSubcommand::Config(config_cmd) => await!(config(config_cmd, node_connection))?,
-            StCtrlSubcommand::Funds(funds_cmd) => {
-                await!(funds(funds_cmd, node_connection, writer))?
+            StCtrlSubcommand::Buyer(buyer_cmd) => {
+                await!(buyer(buyer_cmd, node_connection, writer))?
             }
         }
         Ok(())

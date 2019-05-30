@@ -43,7 +43,7 @@ pub struct PaymentStatusCmd {
 
 /// Funds sending related commands
 #[derive(Clone, Debug, StructOpt)]
-pub enum FundsCmd {
+pub enum BuyerCmd {
     /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
@@ -52,14 +52,14 @@ pub enum FundsCmd {
 }
 
 #[derive(Debug)]
-pub enum FundsError {
+pub enum BuyerError {
     GetReportError,
     NoFundsPermissions,
     NoRoutesPermissions,
     InvalidDestination,
     ParseAmountError,
     AppRoutesError,
-    SendFundsError,
+    SendBuyerError,
     NoSuitableRoute,
     CommitFileAlreadyExists,
     ReceiptFileAlreadyExists,
@@ -77,79 +77,6 @@ pub enum FundsError {
 
 
 
-/*
-/// Send funds to a remote destination without using an invoice.
-async fn funds_send_funds(
-    send_raw_cmd: SendFundsCmd,
-    local_public_key: PublicKey,
-    mut app_routes: AppRoutes,
-    mut app_send_funds: AppSendFunds,
-    writer: &mut impl io::Write,
-) -> Result<(), FundsError> {
-    let SendFundsCmd {
-        destination_str,
-        dest_payment,
-        opt_receipt_file,
-    } = send_raw_cmd;
-
-    // In case the user wants a receipt, make sure that we will be able to write the receipt
-    // before we do the actual payment:
-    if let Some(receipt_file) = &opt_receipt_file {
-        if receipt_file.exists() {
-            return Err(FundsError::ReceiptFileAlreadyExists);
-        }
-    }
-
-    // Destination public key:
-    let destination =
-        string_to_public_key(&destination_str).map_err(|_| FundsError::InvalidDestination)?;
-
-    // TODO: We might get routes with the exact capacity,
-    // but this will not be enough for sending our amount because
-    // we also need to pay nodes on the way.
-    // We might need to solve this issue at the index server side
-    // (Should the Server take into account the extra credits that should be paid along the way?).
-    let routes_with_capacity = await!(app_routes.request_routes(
-        dest_payment,
-        local_public_key, // source
-        destination,
-        None
-    )) // No exclusion of edges
-    .map_err(|_| FundsError::AppRoutesError)?;
-
-    let multi_route = choose_multi_route(routes_with_capacity, dest_payment)?;
-    let amounts = safe_multi_route_amounts(&multi_route).unwrap();
-
-    // TODO: 
-    // - Create Payment
-    // - Create a transaction for every route
-    // - Wait until the first a first failure happens or all transactions succeeded.
-    // - Close payment
-    // - Return result (MultiCommit or failure)
-
-    // A trivial invoice:
-    let request_id = gen_uid();
-    let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
-
-    let receipt =
-        await!(app_send_funds.request_send_funds(request_id, route, invoice_id, dest_payment))
-            .map_err(|_| FundsError::SendFundsError)?;
-
-    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
-    writeln!(writer, "Fees: {}", fees).map_err(|_| FundsError::WriteError)?;
-
-    // If the user wanted a receipt, we provide one:
-    if let Some(receipt_file) = opt_receipt_file {
-        // Store receipt to file:
-        store_receipt_to_file(&receipt, &receipt_file)
-            .map_err(|_| FundsError::StoreReceiptError)?;
-    }
-
-    // We only send the ack if we managed to get the receipt:
-    await!(app_send_funds.receipt_ack(request_id, receipt)).map_err(|_| FundsError::ReceiptAckError)
-}
-*/
-
 /// Pay an invoice
 async fn funds_pay_invoice(
     pay_invoice_cmd: PayInvoiceCmd,
@@ -157,7 +84,7 @@ async fn funds_pay_invoice(
     mut app_routes: AppRoutes,
     mut app_send_funds: AppSendFunds,
     writer: &mut impl io::Write,
-) -> Result<(), FundsError> {
+) -> Result<(), BuyerError> {
     let PayInvoiceCmd {
         invoice_file,
         commit_file,
@@ -167,11 +94,11 @@ async fn funds_pay_invoice(
     // Make sure that we will be able to write the MultiCommit
     // before we do the actual payment:
     if commit_file.exists() {
-        return Err(FundsError::CommitFileAlreadyExists);
+        return Err(BuyerError::CommitFileAlreadyExists);
     }
 
     let invoice =
-        load_invoice_from_file(&invoice_file).map_err(|_| FundsError::LoadInvoiceError)?;
+        load_invoice_from_file(&invoice_file).map_err(|_| BuyerError::LoadInvoiceError)?;
 
     // TODO: We might get routes with the exact capacity,
     // but this will not be enough for sending our amount because
@@ -184,11 +111,11 @@ async fn funds_pay_invoice(
         invoice.dest_public_key.clone(),
         None
     )) // No exclusion of edges
-    .map_err(|_| FundsError::AppRoutesError)?;
+    .map_err(|_| BuyerError::AppRoutesError)?;
 
 
     let (route_index, multi_route_choice) = choose_multi_route(&multi_routes, invoice.dest_payment)
-        .ok_or(FundsError::NoSuitableRoute)?;
+        .ok_or(BuyerError::NoSuitableRoute)?;
     let multi_route = &multi_routes[route_index];
 
 
@@ -199,18 +126,18 @@ async fn funds_pay_invoice(
         let fee = multi_route.routes[*route_index].rate.calc_fee(*dest_payment).unwrap();
         total_fees = total_fees.checked_add(fee).unwrap();
     }
-    writeln!(writer, "Total fees: {}", total_fees).map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Total fees: {}", total_fees).map_err(|_| BuyerError::WriteError)?;
 
     // Create a new payment
     let payment_id = gen_payment_id();
 
-    writeln!(writer, "Payment id: {:?}", payment_id_to_string(&payment_id)).map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Payment id: {:?}", payment_id_to_string(&payment_id)).map_err(|_| BuyerError::WriteError)?;
 
     await!(app_send_funds.create_payment(payment_id, 
                                   invoice.invoice_id.clone(),
                                   invoice.dest_payment.clone(),
                                   invoice.dest_public_key.clone()))
-        .map_err(|_| FundsError::CreatePaymentFailed)?;
+        .map_err(|_| BuyerError::CreatePaymentFailed)?;
 
     // Create new transactions (One for every route). On the first failure cancel all
     // transactions. Succeed only if all transactions succeed.
@@ -241,7 +168,7 @@ async fn funds_pay_invoice(
             Ok(commit) => commits.push(commit),
             Err(_) => {
                 let _ = await!(app_send_funds.request_close_payment(payment_id.clone()));
-                return Err(FundsError::CreateTransactionFailed);
+                return Err(BuyerError::CreateTransactionFailed);
             },
         }
         fut_list = new_fut_list;
@@ -255,11 +182,11 @@ async fn funds_pay_invoice(
         commits,
     };
 
-    writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Payment successful!").map_err(|_| BuyerError::WriteError)?;
 
     // Store MultiCommit to file:
     store_multi_commit_to_file(&multi_commit, &commit_file)
-        .map_err(|_| FundsError::StoreCommitError)?;
+        .map_err(|_| BuyerError::StoreCommitError)?;
 
     Ok(())
 }
@@ -270,7 +197,7 @@ async fn funds_payment_status(
     local_public_key: PublicKey,
     mut app_send_funds: AppSendFunds,
     writer: &mut impl io::Write,
-) -> Result<(), FundsError> {
+) -> Result<(), BuyerError> {
     let PaymentStatusCmd {
         payment_id,
         receipt_file,
@@ -279,56 +206,56 @@ async fn funds_payment_status(
     // Make sure that we will be able to write the receipt
     // before we do the actual payment:
     if receipt_file.exists() {
-        return Err(FundsError::ReceiptFileAlreadyExists);
+        return Err(BuyerError::ReceiptFileAlreadyExists);
     }
 
     let payment_id = string_to_payment_id(&payment_id)
-        .map_err(|_| FundsError::ParsePaymentIdError)?;
+        .map_err(|_| BuyerError::ParsePaymentIdError)?;
 
     let payment_status = await!(app_send_funds.request_close_payment(payment_id.clone()))
-        .map_err(|_| FundsError::RequestClosePaymentError)?;
+        .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     let opt_ack_uid = match payment_status {
         PaymentStatus::PaymentNotFound => {
-            writeln!(writer, "Payment could not be found").map_err(|_| FundsError::WriteError)?;
+            writeln!(writer, "Payment could not be found").map_err(|_| BuyerError::WriteError)?;
             None
         },
         PaymentStatus::InProgress => {
-            writeln!(writer, "Payment is in progress").map_err(|_| FundsError::WriteError)?;
+            writeln!(writer, "Payment is in progress").map_err(|_| BuyerError::WriteError)?;
             None
         },
         PaymentStatus::Success((receipt, ack_uid)) => {
-            writeln!(writer, "Payment succeeded. Saving receipt to file.").map_err(|_| FundsError::WriteError)?;
+            writeln!(writer, "Payment succeeded. Saving receipt to file.").map_err(|_| BuyerError::WriteError)?;
             // Store receipt to file:
             store_receipt_to_file(&receipt, &receipt_file)
-                .map_err(|_| FundsError::StoreReceiptError)?;
+                .map_err(|_| BuyerError::StoreReceiptError)?;
             // Note that we must save the receipt to file before we let the node discard it.
             Some(ack_uid)
         }
         PaymentStatus::Canceled(ack_uid) => {
-            writeln!(writer, "Payment was canceled.").map_err(|_| FundsError::WriteError)?;
+            writeln!(writer, "Payment was canceled.").map_err(|_| BuyerError::WriteError)?;
             Some(ack_uid)
         }
     };
 
     if let Some(ack_uid) = opt_ack_uid {
         await!(app_send_funds.ack_close_payment(payment_id.clone(), ack_uid))
-            .map_err(|_| FundsError::AckClosePaymentError)?;
+            .map_err(|_| BuyerError::AckClosePaymentError)?;
     }
 
     Ok(())
 }
 
 
-pub async fn funds(
-    funds_cmd: FundsCmd,
+pub async fn buyer(
+    buyer_cmd: BuyerCmd,
     mut node_connection: NodeConnection,
     writer: &mut impl io::Write,
-) -> Result<(), FundsError> {
+) -> Result<(), BuyerError> {
     // Get our local public key:
     let mut app_report = node_connection.report().clone();
     let (node_report, incoming_mutations) =
-        await!(app_report.incoming_reports()).map_err(|_| FundsError::GetReportError)?;
+        await!(app_report.incoming_reports()).map_err(|_| BuyerError::GetReportError)?;
     // We currently don't need live updates about report mutations:
     drop(incoming_mutations);
 
@@ -336,23 +263,23 @@ pub async fn funds(
 
     let app_send_funds = node_connection
         .send_funds()
-        .ok_or(FundsError::NoFundsPermissions)?
+        .ok_or(BuyerError::NoFundsPermissions)?
         .clone();
 
     let app_routes = node_connection
         .routes()
-        .ok_or(FundsError::NoRoutesPermissions)?
+        .ok_or(BuyerError::NoRoutesPermissions)?
         .clone();
 
-    match funds_cmd {
-        FundsCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
+    match buyer_cmd {
+        BuyerCmd::PayInvoice(pay_invoice_cmd) => await!(funds_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
             app_send_funds,
             writer,
         ))?,
-        FundsCmd::PaymentStatus(payment_status_cmd) => await!(funds_payment_status(
+        BuyerCmd::PaymentStatus(payment_status_cmd) => await!(funds_payment_status(
             payment_status_cmd,
             local_public_key,
             app_send_funds,
