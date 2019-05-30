@@ -47,6 +47,7 @@ pub enum FundsCmd {
     /// Pay an invoice (Using an invoice file)
     #[structopt(name = "pay-invoice")]
     PayInvoice(PayInvoiceCmd),
+    #[structopt(name = "payment-status")]
     PaymentStatus(PaymentStatusCmd),
 }
 
