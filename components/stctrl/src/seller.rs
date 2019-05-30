@@ -6,6 +6,7 @@ use app::gen::gen_invoice_id;
 use app::ser_string::string_to_public_key;
 
 use crate::file::invoice::{Invoice, store_invoice_to_file, load_invoice_from_file};
+use crate::file::multi_commit::load_multi_commit_from_file;
 
 
 use structopt::StructOpt;
@@ -64,7 +65,11 @@ pub enum SellerError {
     AddInvoiceError,
     LoadInvoiceError,
     CancelInvoiceError,
+    LoadCommitError,
+    CommitInvoiceError,
+    InvoiceCommitMismatch,
 }
+
 
 async fn seller_create_invoice(
     create_invoice_cmd: CreateInvoiceCmd,
@@ -116,10 +121,35 @@ async fn seller_cancel_invoice(
 
 }
 
+async fn seller_commit_invoice(
+    commit_invoice_cmd: CommitInvoiceCmd,
+    mut app_seller: AppSeller,
+) -> Result<(), SellerError> {
+    let CommitInvoiceCmd {
+        invoice_file,
+        commit_file,
+    } = commit_invoice_cmd;
+
+    // Note: We don't really need the invoice for the internal API.
+    // We require it here to enforce the user to understand that the commit file corresponds to a
+    // certain invoice file.
+    let invoice = load_invoice_from_file(&invoice_file)
+        .map_err(|_| SellerError::LoadInvoiceError)?;
+
+    let multi_commit = load_multi_commit_from_file(&commit_file)
+        .map_err(|_| SellerError::LoadCommitError)?;
+
+    if multi_commit.invoice_id != invoice.invoice_id {
+        return Err(SellerError::InvoiceCommitMismatch);
+    }
+
+    await!(app_seller.commit_invoice(multi_commit))
+        .map_err(|_| SellerError::CommitInvoiceError)
+}
+
 pub async fn seller(
     seller_cmd: SellerCmd,
     mut node_connection: NodeConnection,
-    writer: &mut impl io::Write,
 ) -> Result<(), SellerError> {
     // Get our local public key:
     let mut app_report = node_connection.report().clone();
@@ -145,7 +175,9 @@ pub async fn seller(
                 cancel_invoice_cmd,
                 app_seller))?,
 
-        SellerCmd::CommitInvoice(_commit_invoice_cmd) => unimplemented!(),
+        SellerCmd::CommitInvoice(commit_invoice_cmd) => await!(seller_commit_invoice(
+                commit_invoice_cmd,
+                app_seller))?,
     }
 
     Ok(())
