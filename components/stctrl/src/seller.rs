@@ -2,6 +2,11 @@ use std::io;
 use std::path::PathBuf;
 
 use app::{NodeConnection, PublicKey, AppSeller};
+use app::gen::gen_invoice_id;
+use app::ser_string::string_to_public_key;
+
+use crate::file::invoice::{Invoice, store_invoice_to_file};
+
 
 use structopt::StructOpt;
 
@@ -56,6 +61,9 @@ pub enum SellerCmd {
 pub enum SellerError {
     GetReportError,
     NoSellerPermissions,
+    ParsePublicKeyError,
+    InvoiceFileAlreadyExists,
+    StoreInvoiceError,
 }
 
 async fn seller_create_invoice(
@@ -64,7 +72,31 @@ async fn seller_create_invoice(
     mut app_seller: AppSeller,
     writer: &mut impl io::Write,
 ) -> Result<(), SellerError> {
-    unimplemented!();
+    let CreateInvoiceCmd {
+        public_key,
+        amount,
+        output,
+    } = create_invoice_cmd;
+
+    let invoice_id = gen_invoice_id();
+
+    let dest_public_key = string_to_public_key(&public_key)
+        .map_err(|_| SellerError::ParsePublicKeyError)?;
+
+    let invoice = Invoice {
+        invoice_id,
+        dest_public_key,
+        dest_payment: amount,
+    };
+
+    // Make sure we don't override an existing invoice file:
+    if output.exists() {
+        return Err(SellerError::InvoiceFileAlreadyExists);
+    }
+
+    store_invoice_to_file(&invoice, &output)
+        .map_err(|_| SellerError::StoreInvoiceError)
+
 }
 
 pub async fn seller(
