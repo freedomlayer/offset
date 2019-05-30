@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use futures::future::select_all;
 
-use app::ser_string::string_to_public_key;
+use app::ser_string::{string_to_public_key, payment_id_to_string};
 use app::{AppRoutes, AppSendFunds, NodeConnection, PublicKey, MultiCommit};
 
 use structopt::StructOpt;
@@ -205,7 +205,6 @@ async fn funds_pay_invoice(
                                   invoice.dest_public_key.clone()))
         .map_err(|_| FundsError::CreatePaymentFailed)?;
 
-    // TODO: Run all of those `create_transaction`-s at the same time:
     // TODO:
     // - Create new transactions (One for every route). On the first failure cancel all
     //      transactions. Succeed only if all transactions succeed.
@@ -234,7 +233,9 @@ async fn funds_pay_invoice(
         let (output, fut_index, new_fut_list) = await!(select_all(fut_list));
         match output {
             Ok(commit) => commits.push(commit),
-            Err(_) => return Err(FundsError::CreateTransactionFailed),
+            Err(_) => {
+                return Err(FundsError::CreateTransactionFailed);
+            },
         }
         fut_list = new_fut_list;
     }
@@ -246,6 +247,7 @@ async fn funds_pay_invoice(
     };
 
     writeln!(writer, "Payment successful!").map_err(|_| FundsError::WriteError)?;
+    writeln!(writer, "Payment id: {:?}", payment_id_to_string(&payment_id)).map_err(|_| FundsError::WriteError)?;
 
     // Store MultiCommit to file:
     store_multi_commit_to_file(&multi_commit, &commit_file)
