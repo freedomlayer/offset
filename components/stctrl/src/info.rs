@@ -8,9 +8,12 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress, verify_move_token_hashed_report};
+use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, 
+    RelayAddress, verify_move_token_hashed_report, verify_receipt};
 
 use crate::file::token::{store_token_to_file, load_token_from_file};
+use crate::file::receipt::load_receipt_from_file;
+use crate::file::invoice::load_invoice_from_file;
 use crate::utils::friend_public_key_by_name;
 
 /// Display local public key (Used as address for sending funds)
@@ -61,6 +64,17 @@ pub struct ExportTicketCmd {
     pub output_file: PathBuf,
 }
 
+/// Verify receipt file
+#[derive(Clone, Debug, StructOpt)]
+pub struct VerifyReceiptCmd {
+    /// Path of invoice file (Locally generated)
+    #[structopt(parse(from_os_str), short = "i", long = "invoice")]
+    pub invoice: PathBuf,
+    /// Path of receipt file (Received from buyer)
+    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
+    pub receipt: PathBuf,
+}
+
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
@@ -88,6 +102,9 @@ pub enum InfoCmd {
     /// Export ticket for this node
     #[structopt(name = "export-ticket")]
     ExportTicket(ExportTicketCmd),
+    /// Verify a receipt against an invoice
+    #[structopt(name = "verify-receipt")]
+    VerifyReceipt(VerifyReceiptCmd),
 }
 
 #[derive(Debug)]
@@ -102,6 +119,11 @@ pub enum InfoError {
     WriteError,
     TokenInvalid,
     LoadTokenError,
+    LoadInvoiceError,
+    LoadReceiptError,
+    InvalidReceipt,
+    DestPaymentMismatch,
+    InvoiceIdMismatch,
 }
 
 /// Get a most recently known node report:
@@ -445,6 +467,35 @@ pub async fn info_export_ticket(
     Ok(())
 }
 
+/// Verify a given receipt
+fn info_verify_receipt(
+    verify_receipt_cmd: VerifyReceiptCmd,
+    writer: &mut impl io::Write,
+) -> Result<(), InfoError> {
+    let invoice = load_invoice_from_file(&verify_receipt_cmd.invoice)
+        .map_err(|_| InfoError::LoadInvoiceError)?;
+
+    let receipt = load_receipt_from_file(&verify_receipt_cmd.receipt)
+        .map_err(|_| InfoError::LoadReceiptError)?;
+
+    // Make sure that the invoice and receipt files match:
+    // Verify invoice_id match:
+    if invoice.invoice_id != receipt.invoice_id {
+        return Err(InfoError::InvoiceIdMismatch);
+    }
+    // Verify dest_payment match:
+    if invoice.dest_payment != receipt.total_dest_payment {
+        return Err(InfoError::DestPaymentMismatch);
+    }
+
+    if verify_receipt(&receipt, &invoice.dest_public_key) {
+        writeln!(writer, "Receipt is valid!").map_err(|_| InfoError::WriteError)?;
+        Ok(())
+    } else {
+        Err(InfoError::InvalidReceipt)
+    }
+}
+
 pub async fn info(
     info_cmd: InfoCmd,
     mut node_connection: NodeConnection,
@@ -466,6 +517,9 @@ pub async fn info(
         InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report, writer))?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
             await!(info_export_ticket(export_ticket_cmd, app_report))?
+        }
+        InfoCmd::VerifyReceipt(verify_receipt_cmd) => {
+            info_verify_receipt(verify_receipt_cmd, writer)?
         }
     }
     Ok(())
