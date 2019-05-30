@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use app::{AppSendFunds, NodeConnection, PublicKey};
+use app::{NodeConnection, PublicKey};
 
 use structopt::StructOpt;
 
@@ -55,13 +55,13 @@ pub enum SellerCmd {
 #[derive(Debug)]
 pub enum SellerError {
     GetReportError,
-    NoFundsPermissions,
+    NoSellerPermissions,
 }
 
 async fn seller_create_invoice(
     create_invoice_cmd: CreateInvoiceCmd,
     local_public_key: PublicKey,
-    mut app_send_funds: AppSendFunds,
+    mut app_seller: AppSeller,
     writer: &mut impl io::Write,
 ) -> Result<(), SellerError> {
     unimplemented!();
@@ -81,16 +81,16 @@ pub async fn seller(
 
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
-    let app_send_funds = node_connection
-        .send_funds()
-        .ok_or(SellerError::NoFundsPermissions)?
+    let app_seller = node_connection
+        .seller()
+        .ok_or(SellerError::NoSellerPermissions)?
         .clone();
 
     match seller_cmd {
         SellerCmd::CreateInvoice(create_invoice_cmd) => await!(seller_create_invoice(
             create_invoice_cmd,
             local_public_key,
-            app_send_funds,
+            app_seller,
             writer,
         ))?,
         SellerCmd::CancelInvoice(_create_invoice_cmd) => unimplemented!(),

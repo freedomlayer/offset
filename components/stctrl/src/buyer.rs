@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use futures::future::select_all;
 
 use app::ser_string::{payment_id_to_string, string_to_payment_id, string_to_public_key};
-use app::{AppRoutes, AppSendFunds, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
+use app::{AppRoutes, AppBuyer, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
 
 use structopt::StructOpt;
 
@@ -52,7 +52,7 @@ pub enum BuyerCmd {
 #[derive(Debug)]
 pub enum BuyerError {
     GetReportError,
-    NoFundsPermissions,
+    NoBuyerPermissions,
     NoRoutesPermissions,
     InvalidDestination,
     ParseAmountError,
@@ -78,7 +78,7 @@ async fn buyer_pay_invoice(
     pay_invoice_cmd: PayInvoiceCmd,
     local_public_key: PublicKey,
     mut app_routes: AppRoutes,
-    mut app_send_funds: AppSendFunds,
+    mut app_buyer: AppBuyer,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PayInvoiceCmd {
@@ -134,7 +134,7 @@ async fn buyer_pay_invoice(
     )
     .map_err(|_| BuyerError::WriteError)?;
 
-    await!(app_send_funds.create_payment(
+    await!(app_buyer.create_payment(
         payment_id,
         invoice.invoice_id.clone(),
         invoice.dest_payment.clone(),
@@ -149,11 +149,11 @@ async fn buyer_pay_invoice(
     for (route_index, dest_payment) in &multi_route_choice {
         let route = &multi_route.routes[*route_index];
         let request_id = gen_uid();
-        let mut c_app_send_funds = app_send_funds.clone();
+        let mut c_app_buyer = app_buyer.clone();
         fut_list.push(
             // TODO: Possibly a more efficient way than Box::pin?
             Box::pin(async move {
-                await!(c_app_send_funds.create_transaction(
+                await!(c_app_buyer.create_transaction(
                     payment_id.clone(),
                     request_id,
                     route.route.clone(),
@@ -170,14 +170,14 @@ async fn buyer_pay_invoice(
         match output {
             Ok(commit) => commits.push(commit),
             Err(_) => {
-                let _ = await!(app_send_funds.request_close_payment(payment_id.clone()));
+                let _ = await!(app_buyer.request_close_payment(payment_id.clone()));
                 return Err(BuyerError::CreateTransactionFailed);
             }
         }
         fut_list = new_fut_list;
     }
 
-    let _ = await!(app_send_funds.request_close_payment(payment_id.clone()));
+    let _ = await!(app_buyer.request_close_payment(payment_id.clone()));
 
     let multi_commit = MultiCommit {
         invoice_id: invoice.invoice_id.clone(),
@@ -198,7 +198,7 @@ async fn buyer_pay_invoice(
 async fn buyer_payment_status(
     payment_status_cmd: PaymentStatusCmd,
     local_public_key: PublicKey,
-    mut app_send_funds: AppSendFunds,
+    mut app_buyer: AppBuyer,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PaymentStatusCmd {
@@ -215,7 +215,7 @@ async fn buyer_payment_status(
     let payment_id =
         string_to_payment_id(&payment_id).map_err(|_| BuyerError::ParsePaymentIdError)?;
 
-    let payment_status = await!(app_send_funds.request_close_payment(payment_id.clone()))
+    let payment_status = await!(app_buyer.request_close_payment(payment_id.clone()))
         .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     let opt_ack_uid = match payment_status {
@@ -243,7 +243,7 @@ async fn buyer_payment_status(
     };
 
     if let Some(ack_uid) = opt_ack_uid {
-        await!(app_send_funds.ack_close_payment(payment_id.clone(), ack_uid))
+        await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid))
             .map_err(|_| BuyerError::AckClosePaymentError)?;
     }
 
@@ -264,9 +264,9 @@ pub async fn buyer(
 
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
-    let app_send_funds = node_connection
-        .send_funds()
-        .ok_or(BuyerError::NoFundsPermissions)?
+    let app_buyer = node_connection
+        .buyer()
+        .ok_or(BuyerError::NoBuyerPermissions)?
         .clone();
 
     let app_routes = node_connection
@@ -279,13 +279,13 @@ pub async fn buyer(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
-            app_send_funds,
+            app_buyer,
             writer,
         ))?,
         BuyerCmd::PaymentStatus(payment_status_cmd) => await!(buyer_payment_status(
             payment_status_cmd,
             local_public_key,
-            app_send_funds,
+            app_buyer,
             writer,
         ))?,
     }

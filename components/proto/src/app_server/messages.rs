@@ -1,13 +1,14 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
+use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, CreatePayment, CreateTransaction, ResetFriendChannel,
-    ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
-    TransactionResult,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,
+    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -115,11 +116,15 @@ pub enum AppRequest<B = NetAddress> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),
-    /// Sending funds:
+    /// Buyer:
     CreatePayment(CreatePayment),
     CreateTransaction(CreateTransaction),
     RequestClosePayment(PaymentId),
     AckClosePayment(AckClosePayment),
+    /// Seller:
+    AddInvoice(AddInvoice),
+    CancelInvoice(InvoiceId),
+    CommitInvoice(MultiCommit),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
@@ -179,8 +184,10 @@ where
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,
-    /// Can send credits
-    pub send_funds: bool,
+    /// Can send credits as a buyer
+    pub buyer: bool,
+    /// Can receive credits as a seller
+    pub seller: bool,
     /// Can configure friends
     pub config: bool,
 }

@@ -14,7 +14,7 @@ use common::state_service::{state_service, StateClient};
 use super::config::AppConfig;
 use super::report::AppReport;
 use super::routes::AppRoutes;
-use super::send_funds::AppSendFunds;
+use super::buyer::AppBuyer;
 
 pub type NodeConnectionTuple = (
     AppPermissions,
@@ -34,7 +34,7 @@ pub struct NodeConnection<R = OffstSystemRandom> {
     report: AppReport,
     opt_config: Option<AppConfig<R>>,
     opt_routes: Option<AppRoutes<R>>,
-    opt_send_funds: Option<AppSendFunds<R>>,
+    opt_buyer: Option<AppBuyer<R>>,
     rng: R,
 }
 
@@ -82,7 +82,7 @@ where
         let transaction_results_mc = MultiConsumerClient::new(requests_sender);
         let transaction_results_fut =
             multi_consumer_service(incoming_transaction_results, incoming_requests)
-                .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
+                .map_err(|e| error!("Buyer multi_consumer_service() error: {:?}", e))
                 .map(|_| ());
         spawner
             .spawn(transaction_results_fut)
@@ -94,7 +94,7 @@ where
         let response_close_payments_mc = MultiConsumerClient::new(requests_sender);
         let response_close_payments_fut =
             multi_consumer_service(incoming_response_close_payments, incoming_requests)
-                .map_err(|e| error!("SendFunds multi_consumer_service() error: {:?}", e))
+                .map_err(|e| error!("Buyer multi_consumer_service() error: {:?}", e))
                 .map(|_| ());
         spawner
             .spawn(response_close_payments_fut)
@@ -167,8 +167,8 @@ where
             None
         };
 
-        let opt_send_funds = if app_permissions.send_funds {
-            Some(AppSendFunds::new(
+        let opt_buyer = if app_permissions.buyer {
+            Some(AppBuyer::new(
                 sender.clone(),
                 transaction_results_mc.clone(),
                 response_close_payments_mc.clone(),
@@ -183,7 +183,7 @@ where
             report: AppReport::new(report_client.clone()),
             opt_config,
             opt_routes,
-            opt_send_funds,
+            opt_buyer,
             rng,
         })
     }
@@ -200,7 +200,7 @@ where
         self.opt_routes.as_mut()
     }
 
-    pub fn send_funds(&mut self) -> Option<&mut AppSendFunds<R>> {
-        self.opt_send_funds.as_mut()
+    pub fn buyer(&mut self) -> Option<&mut AppBuyer<R>> {
+        self.opt_buyer.as_mut()
     }
 }

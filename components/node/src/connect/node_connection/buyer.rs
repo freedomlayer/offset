@@ -16,7 +16,7 @@ use proto::funder::messages::{
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
-pub enum SendFundsError {
+pub enum BuyerError {
     /// A local error occurred when trying to send funds.
     /// (Connectivity error)
     ConnectivityError,
@@ -29,7 +29,7 @@ pub enum SendFundsError {
 }
 
 #[derive(Clone)]
-pub struct AppSendFunds<R = OffstSystemRandom> {
+pub struct AppBuyer<R = OffstSystemRandom> {
     sender: mpsc::Sender<AppToAppServer>,
     transaction_results_mc: MultiConsumerClient<TransactionResult>,
     response_close_payments_mc: MultiConsumerClient<ResponseClosePayment>,
@@ -37,7 +37,7 @@ pub struct AppSendFunds<R = OffstSystemRandom> {
     rng: R,
 }
 
-impl<R> AppSendFunds<R>
+impl<R> AppBuyer<R>
 where
     R: CryptoRandom,
 {
@@ -48,7 +48,7 @@ where
         done_app_requests_mc: MultiConsumerClient<Uid>,
         rng: R,
     ) -> Self {
-        AppSendFunds {
+        AppBuyer {
             sender,
             transaction_results_mc,
             response_close_payments_mc,
@@ -63,7 +63,7 @@ where
         invoice_id: InvoiceId,
         total_dest_payment: u128,
         dest_public_key: PublicKey,
-    ) -> Result<(), SendFundsError> {
+    ) -> Result<(), BuyerError> {
         let create_payment = CreatePayment {
             payment_id,
             invoice_id,
@@ -77,10 +77,10 @@ where
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
-            .map_err(|_| SendFundsError::ConnectivityError)?;
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Send CreatePayment:
-        await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
+        await!(self.sender.send(to_app_server)).map_err(|_| BuyerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
         while let Some(done_request_id) = await!(incoming_done_requests.next()) {
@@ -89,7 +89,7 @@ where
             }
         }
         // We lost connectivity before we got any response:
-        Err(SendFundsError::NoResponse)
+        Err(BuyerError::NoResponse)
     }
 
     pub async fn create_transaction(
@@ -99,7 +99,7 @@ where
         route: FriendsRoute,
         dest_payment: u128,
         fees: u128,
-    ) -> Result<Commit, SendFundsError> {
+    ) -> Result<Commit, BuyerError> {
         let create_transaction = CreateTransaction {
             payment_id,
             request_id,
@@ -114,9 +114,9 @@ where
         );
 
         let mut incoming_transaction_results = await!(self.transaction_results_mc.request_stream())
-            .map_err(|_| SendFundsError::ConnectivityError)?;
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
-        await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
+        await!(self.sender.send(to_app_server)).map_err(|_| BuyerError::ConnectivityError)?;
 
         while let Some(transaction_result) = await!(incoming_transaction_results.next()) {
             if transaction_result.request_id != request_id {
@@ -125,18 +125,18 @@ where
             }
             match transaction_result.result {
                 RequestResult::Success(commit) => return Ok(commit),
-                RequestResult::Failure => return Err(SendFundsError::NodeError),
+                RequestResult::Failure => return Err(BuyerError::NodeError),
             }
         }
 
         // We lost connectivity before we got any response:
-        Err(SendFundsError::NoResponse)
+        Err(BuyerError::NoResponse)
     }
 
     pub async fn request_close_payment(
         &mut self,
         payment_id: PaymentId,
-    ) -> Result<PaymentStatus, SendFundsError> {
+    ) -> Result<PaymentStatus, BuyerError> {
         let app_request_id = Uid::new(&self.rng);
         let to_app_server = AppToAppServer::new(
             app_request_id,
@@ -145,9 +145,9 @@ where
 
         let mut incoming_response_close_payment =
             await!(self.response_close_payments_mc.request_stream())
-                .map_err(|_| SendFundsError::ConnectivityError)?;
+                .map_err(|_| BuyerError::ConnectivityError)?;
 
-        await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
+        await!(self.sender.send(to_app_server)).map_err(|_| BuyerError::ConnectivityError)?;
 
         while let Some(response_close_payment) = await!(incoming_response_close_payment.next()) {
             if response_close_payment.payment_id != payment_id {
@@ -158,14 +158,14 @@ where
         }
 
         // We lost connectivity before we got any response:
-        Err(SendFundsError::NoResponse)
+        Err(BuyerError::NoResponse)
     }
 
     pub async fn ack_close_payment(
         &mut self,
         payment_id: PaymentId,
         ack_uid: Uid,
-    ) -> Result<(), SendFundsError> {
+    ) -> Result<(), BuyerError> {
         let app_request_id = Uid::new(&self.rng);
         let ack_close_payment = AckClosePayment {
             payment_id: payment_id,
@@ -179,10 +179,10 @@ where
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
-            .map_err(|_| SendFundsError::ConnectivityError)?;
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Send ReceiptAck:
-        await!(self.sender.send(to_app_server)).map_err(|_| SendFundsError::ConnectivityError)?;
+        await!(self.sender.send(to_app_server)).map_err(|_| BuyerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
         while let Some(done_request_id) = await!(incoming_done_requests.next()) {
@@ -192,6 +192,6 @@ where
         }
 
         // We lost connectivity before we got any response:
-        Err(SendFundsError::NoResponse)
+        Err(BuyerError::NoResponse)
     }
 }

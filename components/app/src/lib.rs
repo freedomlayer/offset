@@ -31,7 +31,7 @@ pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 pub use proto::report::signature_buff::verify_move_token_hashed_report;
 
-pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
+pub use node::connect::{AppBuyer, AppConfig, AppReport, AppRoutes, NodeConnection};
 
 pub use self::connect::{connect, ConnectError};
 pub use self::identity::{identity_from_file, IdentityFromFileError};

@@ -101,10 +101,15 @@ fn check_permissions<B>(app_permissions: &AppPermissions, app_request: &AppReque
     match app_request {
         AppRequest::AddRelay(_) => app_permissions.config,
         AppRequest::RemoveRelay(_) => app_permissions.config,
-        AppRequest::CreatePayment(_) => app_permissions.send_funds,
-        AppRequest::CreateTransaction(_) => app_permissions.send_funds,
-        AppRequest::RequestClosePayment(_) => app_permissions.send_funds,
-        AppRequest::AckClosePayment(_) => app_permissions.send_funds,
+        AppRequest::CreatePayment(_) => app_permissions.buyer,
+        AppRequest::CreateTransaction(_) => app_permissions.buyer,
+        AppRequest::RequestClosePayment(_) => app_permissions.buyer,
+        AppRequest::AckClosePayment(_) => app_permissions.buyer,
+
+        AppRequest::AddInvoice(_) => app_permissions.seller,
+        AppRequest::CancelInvoice(_) => app_permissions.seller,
+        AppRequest::CommitInvoice(_) => app_permissions.seller,
+
         AppRequest::AddFriend(_) => app_permissions.config,
         AppRequest::SetFriendRelays(_) => app_permissions.config,
         AppRequest::SetFriendName(_) => app_permissions.config,
@@ -391,6 +396,27 @@ where
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
                     FunderControl::AckClosePayment(ack_close_payment)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
+            AppRequest::AddInvoice(add_invoice) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::AddInvoice(add_invoice)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
+            AppRequest::CancelInvoice(invoice_id) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::CancelInvoice(invoice_id)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
+            AppRequest::CommitInvoice(multi_commit) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::CommitInvoice(multi_commit)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
