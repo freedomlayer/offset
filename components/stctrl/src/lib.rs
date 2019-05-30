@@ -30,7 +30,6 @@ pub mod config;
 // #[allow(unused)]
 pub mod file;
 pub mod info;
-#[allow(unused)]
 pub mod seller;
 pub mod utils;
 

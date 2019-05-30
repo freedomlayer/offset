@@ -1,9 +1,7 @@
-use std::io;
 use std::path::PathBuf;
 
 use app::{NodeConnection, PublicKey, AppSeller};
 use app::gen::gen_invoice_id;
-use app::ser_string::string_to_public_key;
 
 use crate::file::invoice::{Invoice, store_invoice_to_file, load_invoice_from_file};
 use crate::file::multi_commit::load_multi_commit_from_file;
