@@ -5,7 +5,7 @@ use app::{NodeConnection, PublicKey, AppSeller};
 use app::gen::gen_invoice_id;
 use app::ser_string::string_to_public_key;
 
-use crate::file::invoice::{Invoice, store_invoice_to_file};
+use crate::file::invoice::{Invoice, store_invoice_to_file, load_invoice_from_file};
 
 
 use structopt::StructOpt;
@@ -13,9 +13,6 @@ use structopt::StructOpt;
 /// Create invoice
 #[derive(Clone, Debug, StructOpt)]
 pub struct CreateInvoiceCmd {
-    /// Payment recipient's public key (In base 64)
-    #[structopt(short = "p", long = "pubkey")]
-    pub public_key: String,
     /// Amount of credits to pay (A non negative integer)
     #[structopt(short = "a", long = "amount")]
     pub amount: u128,
@@ -64,38 +61,58 @@ pub enum SellerError {
     ParsePublicKeyError,
     InvoiceFileAlreadyExists,
     StoreInvoiceError,
+    AddInvoiceError,
+    LoadInvoiceError,
+    CancelInvoiceError,
 }
 
 async fn seller_create_invoice(
     create_invoice_cmd: CreateInvoiceCmd,
     local_public_key: PublicKey,
     mut app_seller: AppSeller,
-    writer: &mut impl io::Write,
 ) -> Result<(), SellerError> {
     let CreateInvoiceCmd {
-        public_key,
         amount,
         output,
     } = create_invoice_cmd;
-
-    let invoice_id = gen_invoice_id();
-
-    let dest_public_key = string_to_public_key(&public_key)
-        .map_err(|_| SellerError::ParsePublicKeyError)?;
-
-    let invoice = Invoice {
-        invoice_id,
-        dest_public_key,
-        dest_payment: amount,
-    };
 
     // Make sure we don't override an existing invoice file:
     if output.exists() {
         return Err(SellerError::InvoiceFileAlreadyExists);
     }
 
+    let invoice_id = gen_invoice_id();
+
+    let dest_public_key = local_public_key;
+
+    let invoice = Invoice {
+        invoice_id: invoice_id.clone(),
+        dest_public_key,
+        dest_payment: amount,
+    };
+
+    await!(app_seller.add_invoice(invoice_id.clone(), amount))
+        .map_err(|_| SellerError::AddInvoiceError)?;
+
+
     store_invoice_to_file(&invoice, &output)
         .map_err(|_| SellerError::StoreInvoiceError)
+
+}
+
+async fn seller_cancel_invoice(
+    cancel_invoice_cmd: CancelInvoiceCmd,
+    mut app_seller: AppSeller,
+) -> Result<(), SellerError> {
+    let CancelInvoiceCmd {
+        invoice_file
+    } = cancel_invoice_cmd;
+
+    let invoice = load_invoice_from_file(&invoice_file)
+        .map_err(|_| SellerError::LoadInvoiceError)?;
+
+    await!(app_seller.cancel_invoice(invoice.invoice_id))
+        .map_err(|_| SellerError::CancelInvoiceError)
 
 }
 
@@ -123,9 +140,11 @@ pub async fn seller(
             create_invoice_cmd,
             local_public_key,
             app_seller,
-            writer,
         ))?,
-        SellerCmd::CancelInvoice(_create_invoice_cmd) => unimplemented!(),
+        SellerCmd::CancelInvoice(cancel_invoice_cmd) => await!(seller_cancel_invoice(
+                cancel_invoice_cmd,
+                app_seller))?,
+
         SellerCmd::CommitInvoice(_commit_invoice_cmd) => unimplemented!(),
     }
 
