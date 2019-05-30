@@ -5,8 +5,8 @@ use futures::executor::ThreadPool;
 
 use structopt::StructOpt;
 
-use crate::config::{config, ConfigCmd, ConfigError};
 use crate::buyer::{buyer, BuyerCmd, BuyerError};
+use crate::config::{config, ConfigCmd, ConfigError};
 use crate::info::{info, InfoCmd, InfoError};
 
 use app::{connect, identity_from_file, load_node_from_file};

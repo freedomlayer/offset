@@ -3,7 +3,7 @@ use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
 use crypto::identity::PublicKey;
-use proto::index_client::messages::{IndexMutation, UpdateFriend, FriendInfo};
+use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriend};
 
 use crate::seq_map::SeqMap;
 
@@ -61,7 +61,11 @@ async fn seq_friends_loop(
                     seq_friends
                         .next()
                         .map(|(cycle_countdown, (public_key, friend_info))| {
-                            let FriendInfo {send_capacity, recv_capacity, rate} = friend_info;
+                            let FriendInfo {
+                                send_capacity,
+                                recv_capacity,
+                                rate,
+                            } = friend_info;
                             let update_friend = UpdateFriend {
                                 public_key,
                                 send_capacity,

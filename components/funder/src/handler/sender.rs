@@ -9,19 +9,19 @@ use crypto::identity::PublicKey;
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestsStatus, TransactionResult, RequestResult
+    RequestResult, RequestsStatus, TransactionResult,
 };
 
 use identity::IdentityClient;
 
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
 use crate::types::{
-    create_pending_transaction, 
-    create_unsigned_move_token, sign_move_token, ChannelerConfig, create_cancel_send_funds,
+    create_cancel_send_funds, create_pending_transaction, create_unsigned_move_token,
+    sign_move_token, ChannelerConfig,
 };
 
 use crate::friend::{
-    ChannelInconsistent, ChannelStatus, FriendMutation, BackwardsOp, SentLocalRelays,
+    BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
 use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
 
@@ -470,7 +470,9 @@ where
             // The friend with public key `origin_public_key` is the origin of this request.
             // We send him back a Cancel message:
             let pending_transaction = create_pending_transaction(request_send_funds);
-            let cancel_send_funds = BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id.clone()));
+            let cancel_send_funds = BackwardsOp::Cancel(create_cancel_send_funds(
+                pending_transaction.request_id.clone(),
+            ));
             let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_send_funds);
             let funder_mutation =
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
@@ -491,13 +493,15 @@ where
     Ok(())
 }
 
-fn backwards_op_to_friend_tc_op(
-    backwards_op: BackwardsOp,
-) -> FriendTcOp {
+fn backwards_op_to_friend_tc_op(backwards_op: BackwardsOp) -> FriendTcOp {
     match backwards_op {
-        BackwardsOp::Response(response_send_funds) => FriendTcOp::ResponseSendFunds(response_send_funds),
+        BackwardsOp::Response(response_send_funds) => {
+            FriendTcOp::ResponseSendFunds(response_send_funds)
+        }
         BackwardsOp::Cancel(cancel_send_funds) => FriendTcOp::CancelSendFunds(cancel_send_funds),
-        BackwardsOp::Collect(collect_send_funds) => FriendTcOp::CollectSendFunds(collect_send_funds),
+        BackwardsOp::Collect(collect_send_funds) => {
+            FriendTcOp::CollectSendFunds(collect_send_funds)
+        }
     }
 }
 
@@ -590,7 +594,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
-            &operation
+            &operation,
         )?;
     }
 
@@ -618,7 +622,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
-            &friend_op
+            &friend_op,
         )?;
     }
 
@@ -627,16 +631,14 @@ where
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
-        let pending_op = backwards_op_to_friend_tc_op(
-            pending_backwards_op,
-        );
+        let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         queue_operation_or_cancel(
             m_state,
             pending_move_token,
             // Not required here, as no requests are being sent.
             cancel_public_keys,
             outgoing_control,
-            &pending_op
+            &pending_op,
         )?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
@@ -657,7 +659,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
-            &pending_op
+            &pending_op,
         )?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
         let funder_mutation =
@@ -676,7 +678,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
-            &pending_op
+            &pending_op,
         )?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation =
@@ -700,9 +702,7 @@ where
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
-        let pending_op = backwards_op_to_friend_tc_op(
-            pending_backwards_op,
-        );
+        let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         // TODO: Find a more elegant way to do this:
         let mut dummy_cancel_public_keys = HashSet::new();
         let mut dummy_outgoing_control = Vec::new();
@@ -711,7 +711,7 @@ where
             pending_move_token,
             &mut dummy_cancel_public_keys,
             &mut dummy_outgoing_control,
-            &pending_op
+            &pending_op,
         )?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
@@ -898,11 +898,7 @@ where
     // Second iteration (Attempt to queue Cancel-s created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
         assert!(ephemeral.liveness.is_online(&friend_public_key));
-        let _ = append_cancels_to_move_token(
-            m_state,
-            friend_public_key,
-            pending_move_token,
-        );
+        let _ = append_cancels_to_move_token(m_state, friend_public_key, pending_move_token);
     }
 
     // Send all pending move tokens:

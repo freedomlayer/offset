@@ -8,14 +8,13 @@ use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerUpdateFriend, CancelSendFundsOp, FriendMessage, FriendTcOp, FunderIncomingControl,
-    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
-    CollectSendFundsOp, TransactionStage,
+    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, FriendTcOp,
+    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
+    RequestSendFundsOp, ResponseSendFundsOp, TransactionStage,
 };
 
 use proto::funder::signature_buff::{
-    create_response_signature_buffer, move_token_signature_buff,
-    prefix_hash,
+    create_response_signature_buffer, move_token_signature_buff, prefix_hash,
 };
 
 use identity::IdentityClient;
@@ -55,7 +54,6 @@ pub async fn create_response_send_funds<'a>(
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
-
     let u_response_send_funds = ResponseSendFundsOp {
         request_id: pending_transaction.request_id,
         dest_hashed_lock,
@@ -63,7 +61,8 @@ pub async fn create_response_send_funds<'a>(
         signature: (),
     };
 
-    let signature_buff = create_response_signature_buffer(&u_response_send_funds, pending_transaction);
+    let signature_buff =
+        create_response_signature_buffer(&u_response_send_funds, pending_transaction);
     let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
 
     ResponseSendFundsOp {
@@ -74,15 +73,11 @@ pub async fn create_response_send_funds<'a>(
     }
 }
 
-pub fn create_cancel_send_funds(
-    request_id: Uid,
-) -> CancelSendFundsOp {
-
+pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
     CancelSendFundsOp {
         request_id: request_id,
     }
 }
-
 
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
     PendingTransaction {
@@ -108,7 +103,6 @@ pub enum UnsignedFriendTcOp {
     CancelSendFunds(CancelSendFundsOp),
     CollectSendFunds(CollectSendFundsOp),
 }
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {

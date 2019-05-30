@@ -124,7 +124,6 @@ where
             ephemeral.mutate(mutation);
         }
 
-
         // Send outgoing communication messages:
         let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
         await!(comm_sender.send_all(&mut comm_stream)).map_err(|_| FunderError::SendCommError)?;

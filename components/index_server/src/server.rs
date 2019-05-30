@@ -14,13 +14,14 @@ use crypto::uid::Uid;
 
 use proto::index_server::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
-    IndexServerToServer, MutationsUpdate, ResponseRoutes, MultiRoute, TimeProofLink, RouteCapacityRate,
+    IndexServerToServer, MultiRoute, MutationsUpdate, ResponseRoutes, RouteCapacityRate,
+    TimeProofLink,
 };
 
 use proto::funder::messages::{FriendsRoute, Rate};
 
+use crate::graph::capacity_graph::{CapacityEdge, LinearRate};
 use crate::graph::graph_service::{GraphClient, GraphClientError};
-use crate::graph::capacity_graph::{LinearRate, CapacityEdge};
 
 use crate::verifier::Verifier;
 
@@ -41,7 +42,7 @@ impl LinearRate for Rate {
 
     fn checked_add(&self, other: &Self) -> Option<Self> {
         // Entry wise addition:
-        Some(Rate { 
+        Some(Rate {
             mul: self.mul.checked_add(other.mul)?,
             add: self.add.checked_add(other.add)?,
         })
@@ -421,10 +422,13 @@ async fn client_handler(
                 let multi_routes = graph_multi_routes
                     .into_iter()
                     .map(|graph_multi_route| MultiRoute {
-                        routes: graph_multi_route.routes
+                        routes: graph_multi_route
+                            .routes
                             .into_iter()
                             .map(|graph_route| RouteCapacityRate {
-                                route: FriendsRoute {public_keys: graph_route.route},
+                                route: FriendsRoute {
+                                    public_keys: graph_route.route,
+                                },
                                 capacity: graph_route.capacity,
                                 rate: graph_route.rate,
                             })

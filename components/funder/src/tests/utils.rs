@@ -14,17 +14,16 @@ use crypto::identity::{
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
-
 use proto::report::messages::{
-    ChannelStatusReport, FriendLivenessReport, FunderReport,
-    FunderReportMutations, RequestsStatusReport,
+    ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
+    RequestsStatusReport,
 };
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    RequestsStatus, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
-    ResponseClosePayment, SetFriendRate, Rate,
+    AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
+    RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
+    SetRequestsStatus, TransactionResult,
 };
 
 use database::DatabaseClient;
@@ -217,18 +216,16 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize,
 {
     pub async fn send(&mut self, funder_control: FunderControl<B>) {
-
         // Convert self.next_app_request_id to a Uid:
         let mut app_request_id_inner = [0u8; UID_LEN];
         let mut next_app_request_id = self.next_app_request_id;
-        for j in 0 .. 8 {
+        for j in 0..8 {
             app_request_id_inner[j] = (next_app_request_id & 0xff) as u8;
             next_app_request_id >>= 8;
         }
 
         // Advance self.next_app_request_id:
         self.next_app_request_id = self.next_app_request_id.checked_add(1).unwrap();
-
 
         let app_request_id = Uid::from(&app_request_id_inner);
         let funder_incoming_control = FunderIncomingControl {
@@ -244,7 +241,7 @@ where
                         break;
                     }
                 }
-                _ => {},
+                _ => {}
             };
         }
     }
@@ -294,8 +291,10 @@ where
         loop {
             match await!(self.recv())? {
                 NodeRecv::ReportMutations(_) => {}
-                NodeRecv::TransactionResult(_) => {},
-                NodeRecv::ResponseClosePayment(response_close_payment) => return Some(response_close_payment)
+                NodeRecv::TransactionResult(_) => {}
+                NodeRecv::ResponseClosePayment(response_close_payment) => {
+                    return Some(response_close_payment)
+                }
             };
         }
     }
@@ -360,11 +359,7 @@ where
         await!(self.send(FunderControl::SetRequestsStatus(set_requests_status)));
     }
 
-    pub async fn set_friend_rate<'a>(
-        &'a mut self,
-        friend_public_key: &'a PublicKey,
-        rate: Rate,
-    ) {
+    pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, rate: Rate) {
         let set_friend_rate = SetFriendRate {
             friend_public_key: friend_public_key.clone(),
             rate,
@@ -390,7 +385,6 @@ where
         await!(self.recv_until(pred));
     }
 }
-
 
 // TODO: Add this back later:
 /// Create a few node_controls, together with a router connecting them all.

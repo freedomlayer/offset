@@ -5,13 +5,13 @@ use futures::{SinkExt, StreamExt};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::uid::{Uid, UID_LEN};
 use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+use crypto::uid::{Uid, UID_LEN};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
-    FriendsRoute, FunderControl, FunderOutgoingControl, CreatePayment, CreateTransaction,
-    TransactionResult, RequestResult,
+    CreatePayment, CreateTransaction, FriendsRoute, FunderControl, FunderOutgoingControl,
+    RequestResult, TransactionResult,
 };
 
 use super::utils::spawn_dummy_app_server;
@@ -115,7 +115,8 @@ where
         request_id: Uid::from(&[2; UID_LEN]),
         result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result))).unwrap();
+    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+        .unwrap();
 
     // We shouldn't get an message at any of the apps:
     assert!(app_receiver0.try_next().is_err());
@@ -148,7 +149,8 @@ where
         request_id: Uid::from(&[3; UID_LEN]),
         result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result))).unwrap();
+    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+        .unwrap();
 
     // We shouldn't get an message at any of the apps:
     assert!(app_receiver0.try_next().is_err());

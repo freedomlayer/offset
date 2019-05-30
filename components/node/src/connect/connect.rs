@@ -17,15 +17,12 @@ use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
 use identity::IdentityClient;
 
-
 pub use super::node_connection::NodeConnection;
 use super::node_connection::NodeConnectionTuple;
-
 
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
-
 
 #[derive(Debug)]
 pub enum SetupConnectionError {

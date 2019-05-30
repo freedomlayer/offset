@@ -18,7 +18,7 @@ use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_init::handle_init;
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use crate::handler::sender::{create_friend_messages, SendCommands};
-use crate::handler::state_wrap::{MutableFunderState, MutableEphemeral};
+use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
@@ -40,7 +40,6 @@ where
     pub outgoing_comms: Vec<FunderOutgoingComm<B>>,
     pub outgoing_control: Vec<FunderOutgoingControl<B>>,
 }
-
 
 type FunderHandleIncomingOutput<B> = (
     SendCommands,
@@ -91,7 +90,7 @@ where
 
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
-                FunderIncomingComm::Liveness(liveness_message) => handle_liveness_message::<B,R>(
+                FunderIncomingComm::Liveness(liveness_message) => handle_liveness_message::<B, R>(
                     &mut m_state,
                     &mut m_ephemeral,
                     &mut send_commands,

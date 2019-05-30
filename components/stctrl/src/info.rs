@@ -8,12 +8,14 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, 
-    RelayAddress, verify_move_token_hashed_report, verify_receipt};
+use app::{
+    store_friend_to_file, verify_move_token_hashed_report, verify_receipt, AppReport,
+    FriendAddress, NodeConnection, RelayAddress,
+};
 
-use crate::file::token::{store_token_to_file, load_token_from_file};
-use crate::file::receipt::load_receipt_from_file;
 use crate::file::invoice::load_invoice_from_file;
+use crate::file::receipt::load_receipt_from_file;
+use crate::file::token::{load_token_from_file, store_token_to_file};
 use crate::utils::friend_public_key_by_name;
 
 /// Display local public key (Used as address for sending funds)
@@ -74,7 +76,6 @@ pub struct VerifyReceiptCmd {
     #[structopt(parse(from_os_str), short = "r", long = "receipt")]
     pub receipt: PathBuf,
 }
-
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
@@ -356,8 +357,8 @@ fn info_verify_token(
     verify_token_cmd: VerifyTokenCmd,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let move_token_hashed_report = load_token_from_file(&verify_token_cmd.token)
-        .map_err(|_| InfoError::LoadTokenError)?;
+    let move_token_hashed_report =
+        load_token_from_file(&verify_token_cmd.token).map_err(|_| InfoError::LoadTokenError)?;
 
     if verify_move_token_hashed_report(
         &move_token_hashed_report,
@@ -511,9 +512,7 @@ pub async fn info(
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
             await!(info_friend_last_token(friend_last_token_cmd, app_report))?
         }
-        InfoCmd::VerifyToken(verify_token_cmd) => {
-            info_verify_token(verify_token_cmd, writer)?
-        }
+        InfoCmd::VerifyToken(verify_token_cmd) => info_verify_token(verify_token_cmd, writer)?,
         InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report, writer))?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
             await!(info_export_ticket(export_ticket_cmd, app_report))?

@@ -9,8 +9,8 @@ use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
 // use common::mutable_state::MutableState;
-use crypto::uid::Uid;
 use crypto::payment_id::PaymentId;
+use crypto::uid::Uid;
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RemoveFriend,
@@ -209,32 +209,37 @@ where
         match funder_message {
             FunderOutgoingControl::TransactionResult(transaction_result) => {
                 // Find the app that issued the request, and forward the response to this app:
-                let app_id = if let Some(app_id) = self.transactions.remove(&transaction_result.request_id) {
+                let app_id = if let Some(app_id) =
+                    self.transactions.remove(&transaction_result.request_id)
+                {
                     app_id
                 } else {
                     warn!("TransactionResult: Could not find app that initiated CreateTransaction");
                     return Ok(());
                 };
                 if let Some(app) = self.apps.get_mut(&app_id) {
-                    await!(
-                        app.send(AppServerToApp::TransactionResult(transaction_result.clone()))
-                    );
+                    await!(app.send(AppServerToApp::TransactionResult(
+                        transaction_result.clone()
+                    )));
                 }
-            },
+            }
             FunderOutgoingControl::ResponseClosePayment(response_close_payment) => {
                 // Find the app that issued the request, and forward the response to this app:
-                let app_id = if let Some(app_id) = self.close_payment_requests.remove(&response_close_payment.payment_id) {
+                let app_id = if let Some(app_id) = self
+                    .close_payment_requests
+                    .remove(&response_close_payment.payment_id)
+                {
                     app_id
                 } else {
                     warn!("ResponseClosePayment: Could not find app that initiated RequestClosePayment");
                     return Ok(());
                 };
                 if let Some(app) = self.apps.get_mut(&app_id) {
-                    await!(
-                        app.send(AppServerToApp::ResponseClosePayment(response_close_payment.clone()))
-                    );
+                    await!(app.send(AppServerToApp::ResponseClosePayment(
+                        response_close_payment.clone()
+                    )));
                 }
-            },
+            }
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 let mut index_mutations = Vec::new();
                 for funder_report_mutation in &funder_report_mutations.mutations {
@@ -296,10 +301,15 @@ where
             }
             IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
                 // We search for the app that issued the request, and send it the response.
-                let app_id = if let Some(app_id) = self.route_requests.remove(&client_response_routes.request_id) {
+                let app_id = if let Some(app_id) = self
+                    .route_requests
+                    .remove(&client_response_routes.request_id)
+                {
                     app_id
                 } else {
-                    warn!("ResponseRoutes: Could not find the app that issued RequestRoutes request");
+                    warn!(
+                        "ResponseRoutes: Could not find the app that issued RequestRoutes request"
+                    );
                     return Ok(());
                 };
 
@@ -353,27 +363,37 @@ where
                 FunderIncomingControl::new(app_request_id, FunderControl::RemoveRelay(public_key))
             ))
             .map_err(|_| AppServerError::SendToFunderError),
-            AppRequest::CreatePayment(create_payment) => await!(self.to_funder.send(
-                FunderIncomingControl::new(app_request_id, FunderControl::CreatePayment(create_payment))
-            ))
-            .map_err(|_| AppServerError::SendToFunderError),
+            AppRequest::CreatePayment(create_payment) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::CreatePayment(create_payment)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
             AppRequest::CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
-                self.transactions.insert(create_transaction.request_id.clone(), app_id);
+                self.transactions
+                    .insert(create_transaction.request_id.clone(), app_id);
                 await!(self.to_funder.send(FunderIncomingControl::new(
                     app_request_id,
                     FunderControl::CreateTransaction(create_transaction)
                 )))
                 .map_err(|_| AppServerError::SendToFunderError)
             }
-            AppRequest::RequestClosePayment(request_close_payment) => await!(self.to_funder.send(
-                FunderIncomingControl::new(app_request_id, FunderControl::RequestClosePayment(request_close_payment))
-            ))
-            .map_err(|_| AppServerError::SendToFunderError),
-            AppRequest::AckClosePayment(ack_close_payment) => await!(self.to_funder.send(
-                FunderIncomingControl::new(app_request_id, FunderControl::AckClosePayment(ack_close_payment))
-            ))
-            .map_err(|_| AppServerError::SendToFunderError),
+            AppRequest::RequestClosePayment(request_close_payment) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::RequestClosePayment(request_close_payment)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
+            AppRequest::AckClosePayment(ack_close_payment) => {
+                await!(self.to_funder.send(FunderIncomingControl::new(
+                    app_request_id,
+                    FunderControl::AckClosePayment(ack_close_payment)
+                )))
+                .map_err(|_| AppServerError::SendToFunderError)
+            }
             AppRequest::AddFriend(add_friend) => await!(self.to_funder.send(
                 FunderIncomingControl::new(app_request_id, FunderControl::AddFriend(add_friend))
             ))
@@ -467,7 +487,10 @@ where
             }
             AppRequest::RequestRoutes(request_routes) => {
                 // Keep track of which application issued this request:
-                if let Some(_) = self.route_requests.insert(request_routes.request_id.clone(), app_id) {
+                if let Some(_) = self
+                    .route_requests
+                    .insert(request_routes.request_id.clone(), app_id)
+                {
                     warn!("RequestRoutes: request_id clash.");
                 }
                 await!(self

@@ -14,8 +14,8 @@ use crypto::uid::Uid;
 use identity::IdentityClient;
 
 use proto::index_server::messages::{
-    IndexClientToServer, IndexMutation, IndexServerToClient, MutationsUpdate, RequestRoutes,
-    ResponseRoutes, MultiRoute,
+    IndexClientToServer, IndexMutation, IndexServerToClient, MultiRoute, MutationsUpdate,
+    RequestRoutes, ResponseRoutes,
 };
 
 pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
@@ -90,7 +90,10 @@ where
         match index_server_to_client {
             IndexServerToClient::TimeHash(time_hash) => self.server_time_hash = time_hash,
             IndexServerToClient::ResponseRoutes(response_routes) => {
-                let ResponseRoutes { request_id, multi_routes } = response_routes;
+                let ResponseRoutes {
+                    request_id,
+                    multi_routes,
+                } = response_routes;
                 let request_sender = match self.open_requests.remove(&request_id) {
                     Some(request_sender) => request_sender,
                     None => {
