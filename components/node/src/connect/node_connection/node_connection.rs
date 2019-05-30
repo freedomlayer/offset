@@ -15,6 +15,7 @@ use super::config::AppConfig;
 use super::report::AppReport;
 use super::routes::AppRoutes;
 use super::buyer::AppBuyer;
+use super::seller::AppSeller;
 
 pub type NodeConnectionTuple = (
     AppPermissions,
@@ -35,6 +36,7 @@ pub struct NodeConnection<R = OffstSystemRandom> {
     opt_config: Option<AppConfig<R>>,
     opt_routes: Option<AppRoutes<R>>,
     opt_buyer: Option<AppBuyer<R>>,
+    opt_seller: Option<AppSeller<R>>,
     rng: R,
 }
 
@@ -179,11 +181,22 @@ where
             None
         };
 
+        let opt_seller = if app_permissions.seller {
+            Some(AppSeller::new(
+                sender.clone(),
+                done_app_requests_mc.clone(),
+                rng.clone(),
+            ))
+        } else {
+            None
+        };
+
         Ok(NodeConnection {
             report: AppReport::new(report_client.clone()),
             opt_config,
             opt_routes,
             opt_buyer,
+            opt_seller,
             rng,
         })
     }
