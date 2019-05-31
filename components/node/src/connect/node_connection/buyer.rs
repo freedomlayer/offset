@@ -138,10 +138,8 @@ where
         payment_id: PaymentId,
     ) -> Result<PaymentStatus, BuyerError> {
         let app_request_id = Uid::new(&self.rng);
-        let to_app_server = AppToAppServer::new(
-            app_request_id,
-            AppRequest::RequestClosePayment(payment_id.clone()),
-        );
+        let to_app_server =
+            AppToAppServer::new(app_request_id, AppRequest::RequestClosePayment(payment_id));
 
         let mut incoming_response_close_payment =
             await!(self.response_close_payments_mc.request_stream())
@@ -168,8 +166,8 @@ where
     ) -> Result<(), BuyerError> {
         let app_request_id = Uid::new(&self.rng);
         let ack_close_payment = AckClosePayment {
-            payment_id: payment_id,
-            ack_uid: ack_uid,
+            payment_id,
+            ack_uid,
         };
 
         let to_app_server = AppToAppServer::new(

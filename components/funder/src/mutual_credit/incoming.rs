@@ -297,7 +297,7 @@ fn process_response_send_funds(
 
     // Set the stage to Response, and remember dest_hashed_lock:
     let mc_mutation = McMutation::SetLocalPendingTransactionStage((
-        response_send_funds.request_id.clone(),
+        response_send_funds.request_id,
         TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
     ));
     mutual_credit.mutate(&mc_mutation);

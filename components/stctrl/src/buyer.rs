@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use futures::future::select_all;
 
 use app::ser_string::{payment_id_to_string, string_to_payment_id};
-use app::{AppRoutes, AppBuyer, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
+use app::{AppBuyer, AppRoutes, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
 
 use structopt::StructOpt;
 
@@ -135,7 +135,7 @@ async fn buyer_pay_invoice(
     await!(app_buyer.create_payment(
         payment_id,
         invoice.invoice_id.clone(),
-        invoice.dest_payment.clone(),
+        invoice.dest_payment,
         invoice.dest_public_key.clone()
     ))
     .map_err(|_| BuyerError::CreatePaymentFailed)?;
@@ -152,7 +152,7 @@ async fn buyer_pay_invoice(
             // TODO: Possibly a more efficient way than Box::pin?
             Box::pin(async move {
                 await!(c_app_buyer.create_transaction(
-                    payment_id.clone(),
+                    payment_id,
                     request_id,
                     route.route.clone(),
                     *dest_payment,
@@ -168,14 +168,14 @@ async fn buyer_pay_invoice(
         match output {
             Ok(commit) => commits.push(commit),
             Err(_) => {
-                let _ = await!(app_buyer.request_close_payment(payment_id.clone()));
+                let _ = await!(app_buyer.request_close_payment(payment_id));
                 return Err(BuyerError::CreateTransactionFailed);
             }
         }
         fut_list = new_fut_list;
     }
 
-    let _ = await!(app_buyer.request_close_payment(payment_id.clone()));
+    let _ = await!(app_buyer.request_close_payment(payment_id));
 
     let multi_commit = MultiCommit {
         invoice_id: invoice.invoice_id.clone(),
@@ -212,7 +212,7 @@ async fn buyer_payment_status(
     let payment_id =
         string_to_payment_id(&payment_id).map_err(|_| BuyerError::ParsePaymentIdError)?;
 
-    let payment_status = await!(app_buyer.request_close_payment(payment_id.clone()))
+    let payment_status = await!(app_buyer.request_close_payment(payment_id))
         .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     let opt_ack_uid = match payment_status {
@@ -240,7 +240,7 @@ async fn buyer_payment_status(
     };
 
     if let Some(ack_uid) = opt_ack_uid {
-        await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid))
+        await!(app_buyer.ack_close_payment(payment_id, ack_uid))
             .map_err(|_| BuyerError::AckClosePaymentError)?;
     }
 
@@ -279,11 +279,9 @@ pub async fn buyer(
             app_buyer,
             writer,
         ))?,
-        BuyerCmd::PaymentStatus(payment_status_cmd) => await!(buyer_payment_status(
-            payment_status_cmd,
-            app_buyer,
-            writer,
-        ))?,
+        BuyerCmd::PaymentStatus(payment_status_cmd) => {
+            await!(buyer_payment_status(payment_status_cmd, app_buyer, writer,))?
+        }
     }
 
     Ok(())

@@ -470,9 +470,8 @@ where
             // The friend with public key `origin_public_key` is the origin of this request.
             // We send him back a Cancel message:
             let pending_transaction = create_pending_transaction(request_send_funds);
-            let cancel_send_funds = BackwardsOp::Cancel(create_cancel_send_funds(
-                pending_transaction.request_id.clone(),
-            ));
+            let cancel_send_funds =
+                BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id));
             let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_send_funds);
             let funder_mutation =
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));

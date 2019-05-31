@@ -25,7 +25,7 @@ pub fn reply_with_cancel<B>(
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    let cancel_send_funds = create_cancel_send_funds(request_id.clone());
+    let cancel_send_funds = create_cancel_send_funds(*request_id);
     let friend_mutation =
         FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Cancel(cancel_send_funds));
     let funder_mutation =
@@ -57,7 +57,7 @@ where
         .clone();
 
     // Remove transaction:
-    let funder_mutation = FunderMutation::RemoveTransaction(request_id.clone());
+    let funder_mutation = FunderMutation::RemoveTransaction(*request_id);
     m_state.mutate(funder_mutation);
 
     // Update payment:

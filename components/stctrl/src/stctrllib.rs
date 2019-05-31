@@ -6,9 +6,9 @@ use futures::executor::ThreadPool;
 use structopt::StructOpt;
 
 use crate::buyer::{buyer, BuyerCmd, BuyerError};
-use crate::seller::{seller, SellerCmd, SellerError};
 use crate::config::{config, ConfigCmd, ConfigError};
 use crate::info::{info, InfoCmd, InfoError};
+use crate::seller::{seller, SellerCmd, SellerError};
 
 use app::{connect, identity_from_file, load_node_from_file};
 
@@ -128,9 +128,7 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
             StCtrlSubcommand::Buyer(buyer_cmd) => {
                 await!(buyer(buyer_cmd, node_connection, writer))?
             }
-            StCtrlSubcommand::Seller(seller_cmd) => {
-                await!(seller(seller_cmd, node_connection))?
-            }
+            StCtrlSubcommand::Seller(seller_cmd) => await!(seller(seller_cmd, node_connection))?,
         }
         Ok(())
     })

@@ -13,8 +13,8 @@ use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{
-    FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    RequestsStatus, SetFriendStatus, SetRequestsStatus,
+    FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RequestsStatus,
+    SetFriendStatus, SetRequestsStatus,
 };
 use proto::report::convert::funder_report_mutation_to_index_mutation;
 
@@ -41,6 +41,7 @@ pub enum AppServerError {
     AllAppsClosed,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum AppServerEvent<B: Clone> {
     IncomingConnection(IncomingAppConnection<B>),
@@ -372,6 +373,8 @@ where
         true
     }
 
+    // Clippy doesn't like `match {}` blocks with that many arms
+    #[allow(clippy::cognitive_complexity)]
     async fn handle_app_message(
         &mut self,
         app_id: u128,
@@ -389,7 +392,8 @@ where
         macro_rules! to_funder {
             ( $x:expr ) => {{
                 use FunderControl::*;
-                await!(self.to_funder
+                await!(self
+                    .to_funder
                     .send(FunderIncomingControl::new(app_request_id, $x)))
                 .map_err(|_| AppServerError::SendToFunderError)
             }};
@@ -398,8 +402,10 @@ where
         macro_rules! to_index_client {
             ( $x:expr ) => {{
                 use IndexClientRequest::*;
-                await!(self.to_index_client.send(AppServerToIndexClient::AppRequest((app_request_id, $x))))
-                    .map_err(|_| AppServerError::SendToIndexClientError)
+                await!(self
+                    .to_index_client
+                    .send(AppServerToIndexClient::AppRequest((app_request_id, $x))))
+                .map_err(|_| AppServerError::SendToIndexClientError)
             }};
         }
 
@@ -466,7 +472,8 @@ where
                 // Keep track of which application issued this request:
                 if self
                     .route_requests
-                    .insert(request_routes.request_id, app_id).is_some()
+                    .insert(request_routes.request_id, app_id)
+                    .is_some()
                 {
                     warn!("RequestRoutes: request_id clash.");
                 }

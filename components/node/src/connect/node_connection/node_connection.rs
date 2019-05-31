@@ -11,10 +11,10 @@ use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 use common::mutable_state::BatchMutable;
 use common::state_service::{state_service, StateClient};
 
+use super::buyer::AppBuyer;
 use super::config::AppConfig;
 use super::report::AppReport;
 use super::routes::AppRoutes;
-use super::buyer::AppBuyer;
 use super::seller::AppSeller;
 
 pub type NodeConnectionTuple = (

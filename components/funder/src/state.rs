@@ -38,6 +38,7 @@ pub struct NewTransactions {
     pub dest_public_key: PublicKey,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum Payment {
     /// User can add new transactions
@@ -56,7 +57,7 @@ pub enum Payment {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct IncomingTransaction {
     pub request_id: Uid,
-    /// The lock we used on our ResponseSendFundsOp message.  
+    /// The lock we used on our ResponseSendFundsOp message.
     /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.
     pub dest_plain_lock: PlainLock,
 }
@@ -170,7 +171,7 @@ where
             FunderMutation::AddIncomingTransaction((invoice_id, request_id, dest_plain_lock)) => {
                 let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
                 let incoming_transaction = IncomingTransaction {
-                    request_id: request_id.clone(),
+                    request_id: *request_id,
                     dest_plain_lock: dest_plain_lock.clone(),
                 };
                 open_invoice
@@ -182,7 +183,7 @@ where
             }
             FunderMutation::AddTransaction((request_id, payment_id, src_plain_lock)) => {
                 let open_transaction = OpenTransaction {
-                    payment_id: payment_id.clone(),
+                    payment_id: *payment_id,
                     src_plain_lock: src_plain_lock.clone(),
                     opt_response: None,
                 };

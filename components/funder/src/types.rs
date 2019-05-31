@@ -74,9 +74,7 @@ pub async fn create_response_send_funds<'a>(
 }
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
-    CancelSendFundsOp {
-        request_id,
-    }
+    CancelSendFundsOp { request_id }
 }
 
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
