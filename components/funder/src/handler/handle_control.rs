@@ -669,19 +669,17 @@ where
             &open_transaction.opt_response,
             find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
         ) {
+            let commit = prepare_commit(
+                response_send_funds,
+                pending_transaction,
+                open_transaction.src_plain_lock.clone(),
+            );
 
-                let commit = prepare_commit(
-                    response_send_funds,
-                    pending_transaction,
-                    open_transaction.src_plain_lock.clone(),
-                );
-
-                let transaction_result = TransactionResult {
-                    request_id: response_send_funds.request_id,
-                    result: RequestResult::Success(commit),
-                };
-                outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
-
+            let transaction_result = TransactionResult {
+                request_id: response_send_funds.request_id,
+                result: RequestResult::Success(commit),
+            };
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }
         return Ok(());
     }
@@ -826,15 +824,12 @@ where
             if num_transactions > 0 {
                 // Update payment to be `AfterSuccessAck`:
                 let new_payment = Payment::AfterSuccessAck(num_transactions);
-                let funder_mutation = FunderMutation::UpdatePayment((
-                    ack_close_payment.payment_id,
-                    new_payment,
-                ));
+                let funder_mutation =
+                    FunderMutation::UpdatePayment((ack_close_payment.payment_id, new_payment));
                 m_state.mutate(funder_mutation);
             } else {
                 // Remove payment (no pending transactions):
-                let funder_mutation =
-                    FunderMutation::RemovePayment(ack_close_payment.payment_id);
+                let funder_mutation = FunderMutation::RemovePayment(ack_close_payment.payment_id);
                 m_state.mutate(funder_mutation);
             }
         }
@@ -845,8 +840,7 @@ where
             }
 
             // Remove payment:
-            let funder_mutation =
-                FunderMutation::RemovePayment(ack_close_payment.payment_id);
+            let funder_mutation = FunderMutation::RemovePayment(ack_close_payment.payment_id);
             m_state.mutate(funder_mutation);
         }
     };
