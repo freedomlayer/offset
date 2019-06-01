@@ -665,11 +665,11 @@ where
         .open_transactions
         .get(&create_transaction.request_id)
     {
-        match (
+        if let (Some(response_send_funds), Some(pending_transaction)) = (
             &open_transaction.opt_response,
             find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
         ) {
-            (Some(response_send_funds), Some(pending_transaction)) => {
+
                 let commit = prepare_commit(
                     response_send_funds,
                     pending_transaction,
@@ -677,12 +677,11 @@ where
                 );
 
                 let transaction_result = TransactionResult {
-                    request_id: response_send_funds.request_id.clone(),
+                    request_id: response_send_funds.request_id,
                     result: RequestResult::Success(commit),
                 };
                 outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
-            }
-            _ => {}
+
         }
         return Ok(());
     }
@@ -726,7 +725,7 @@ where
     } else {
         // Payment not found:
         let response_close_payment = ResponseClosePayment {
-            payment_id: payment_id.clone(),
+            payment_id,
             status: PaymentStatus::PaymentNotFound,
         };
         outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
@@ -744,7 +743,7 @@ where
             (if *num_transactions == 0 {
                 let ack_uid = Uid::new(rng);
                 (
-                    Some(Payment::Canceled(ack_uid.clone())),
+                    Some(Payment::Canceled(ack_uid)),
                     PaymentStatus::Canceled(ack_uid),
                 )
             } else {
@@ -774,7 +773,7 @@ where
 
     // Send back a ResponseClosePayment:
     let response_close_payment = ResponseClosePayment {
-        payment_id: payment_id.clone(),
+        payment_id,
         status: payment_status,
     };
     outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
@@ -828,14 +827,14 @@ where
                 // Update payment to be `AfterSuccessAck`:
                 let new_payment = Payment::AfterSuccessAck(num_transactions);
                 let funder_mutation = FunderMutation::UpdatePayment((
-                    ack_close_payment.payment_id.clone(),
+                    ack_close_payment.payment_id,
                     new_payment,
                 ));
                 m_state.mutate(funder_mutation);
             } else {
                 // Remove payment (no pending transactions):
                 let funder_mutation =
-                    FunderMutation::RemovePayment(ack_close_payment.payment_id.clone());
+                    FunderMutation::RemovePayment(ack_close_payment.payment_id);
                 m_state.mutate(funder_mutation);
             }
         }
@@ -847,7 +846,7 @@ where
 
             // Remove payment:
             let funder_mutation =
-                FunderMutation::RemovePayment(ack_close_payment.payment_id.clone());
+                FunderMutation::RemovePayment(ack_close_payment.payment_id);
             m_state.mutate(funder_mutation);
         }
     };
@@ -954,7 +953,7 @@ where
         };
 
         let collect_send_funds = CollectSendFundsOp {
-            request_id: incoming_transaction.request_id.clone(),
+            request_id: incoming_transaction.request_id,
             src_plain_lock: commit.src_plain_lock.clone(),
             dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
         };

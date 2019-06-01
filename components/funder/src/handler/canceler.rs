@@ -84,7 +84,7 @@ where
             Some(Payment::Success((
                 new_num_transactions,
                 receipt.clone(),
-                request_id.clone(),
+                request_id,
             )))
         }
         Payment::Canceled(_) => {
@@ -101,9 +101,9 @@ where
     };
 
     let funder_mutation = if let Some(new_payment) = opt_new_payment {
-        FunderMutation::UpdatePayment((open_transaction.payment_id.clone(), new_payment))
+        FunderMutation::UpdatePayment((open_transaction.payment_id, new_payment))
     } else {
-        FunderMutation::RemovePayment(open_transaction.payment_id.clone())
+        FunderMutation::RemovePayment(open_transaction.payment_id)
     };
     m_state.mutate(funder_mutation);
 }
@@ -147,7 +147,7 @@ pub fn cancel_local_pending_transactions<B, R>(
                 // We have found the friend that is the origin of this request.
                 // We send him a cancel message.
                 let cancel_send_funds =
-                    create_cancel_send_funds(pending_local_transaction.request_id.clone());
+                    create_cancel_send_funds(pending_local_transaction.request_id);
                 let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
                     BackwardsOp::Cancel(cancel_send_funds),
                 );
@@ -197,7 +197,7 @@ pub fn cancel_pending_requests<B, R>(
             Some(origin_public_key) => {
                 let pending_local_transaction = create_pending_transaction(&pending_request);
                 let cancel_send_funds =
-                    create_cancel_send_funds(pending_local_transaction.request_id.clone());
+                    create_cancel_send_funds(pending_local_transaction.request_id);
                 let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(
                     BackwardsOp::Cancel(cancel_send_funds),
                 );
