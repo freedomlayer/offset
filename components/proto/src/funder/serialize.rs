@@ -1,7 +1,7 @@
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, /*read_invoice_id,*/ read_public_key,
+    read_custom_int128, read_custom_u_int128, read_hashed_lock, read_invoice_id, read_public_key,
     read_rand_nonce, read_relay_address, read_signature, read_uid, write_custom_int128,
-    write_custom_u_int128, write_invoice_id, write_public_key, write_rand_nonce,
+    write_custom_u_int128, write_hashed_lock, write_invoice_id, write_public_key, write_rand_nonce,
     write_relay_address, write_signature, write_uid,
 };
 use capnp;
@@ -44,6 +44,13 @@ fn ser_request_send_funds_op(
         &mut request_send_funds_op_builder.reborrow().init_request_id(),
     );
 
+    write_hashed_lock(
+        &request_send_funds.src_hashed_lock,
+        &mut request_send_funds_op_builder
+            .reborrow()
+            .init_src_hashed_lock(),
+    );
+
     let mut route_builder = request_send_funds_op_builder.reborrow().init_route();
     ser_friends_route(&request_send_funds.route, &mut route_builder);
 
@@ -52,9 +59,21 @@ fn ser_request_send_funds_op(
         &mut request_send_funds_op_builder.reborrow().init_dest_payment(),
     );
 
+    write_custom_u_int128(
+        request_send_funds.total_dest_payment,
+        &mut request_send_funds_op_builder
+            .reborrow()
+            .init_total_dest_payment(),
+    );
+
     write_invoice_id(
         &request_send_funds.invoice_id,
         &mut request_send_funds_op_builder.reborrow().init_invoice_id(),
+    );
+
+    write_custom_u_int128(
+        request_send_funds.left_fees,
+        &mut request_send_funds_op_builder.reborrow().init_left_fees(),
     );
 }
 
@@ -267,15 +286,17 @@ pub fn deser_friends_route(
 fn deser_request_send_funds_op(
     request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader,
 ) -> Result<RequestSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
-    Ok(RequestSendFunds {
+    Ok(RequestSendFundsOp {
         request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
+        src_hashed_lock: read_hashed_lock(&request_send_funds_op_reader.get_src_hashed_lock()?)?,
         route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
+        total_dest_payment: read_custom_u_int128(
+            &request_send_funds_op_reader.get_total_dest_payment()?,
+        )?,
         invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
+        left_fees: read_custom_u_int128(&request_send_funds_op_reader.get_left_fees()?)?,
     })
-    */
 }
 
 fn deser_response_send_funds_op(
