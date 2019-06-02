@@ -174,16 +174,17 @@ struct FriendReportMutation {
         union {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
-                setSentLocalRelays @2: SentLocalRelaysReport;
-                setChannelStatus @3: ChannelStatusReport;
-                setWantedRemoteMaxDebt @4: CustomUInt128;
-                setWantedLocalRequestsStatus @5: RequestsStatusReport;
-                setNumPendingRequests @6: UInt64;
-                setNumPendingResponses @7: UInt64;
-                setStatus @8: FriendStatusReport;
-                setNumPendingUserRequests @9: UInt64;
-                setOptLastIncomingMoveToken @10: OptLastIncomingMoveToken;
-                setLiveness @11: FriendLivenessReport;
+                setRate @2: Rate;
+                setSentLocalRelays @3: SentLocalRelaysReport;
+                setChannelStatus @4: ChannelStatusReport;
+                setWantedRemoteMaxDebt @5: CustomUInt128;
+                setWantedLocalRequestsStatus @6: RequestsStatusReport;
+                setNumPendingRequests @7: UInt64;
+                setNumPendingBackwardsOps @8: UInt64;
+                setStatus @9: FriendStatusReport;
+                setNumPendingUserRequests @10: UInt64;
+                setOptLastIncomingMoveToken @11: OptLastIncomingMoveToken;
+                setLiveness @12: FriendLivenessReport;
         }
 }
 
@@ -200,7 +201,9 @@ struct FunderReportMutation {
                 addFriend @2: AddFriendReport;
                 removeFriend @3: PublicKey;
                 pkFriendReportMutation @4: PkFriendReportMutation;
-                setNumReadyReceipts @5: UInt64;
+                setNumOpenInvoices @5: UInt64;
+                setNumPayments @6: UInt64;
+                setNumOpenTransactions @7: UInt64;
         }
 }
 

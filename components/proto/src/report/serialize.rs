@@ -784,8 +784,6 @@ fn ser_friend_report_mutation(
     friend_report_mutation: &FriendReportMutation,
     friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder,
 ) {
-    unimplemented!();
-    /*
     match friend_report_mutation {
         FriendReportMutation::SetRemoteRelays(relays) => {
             let relays_len = usize_to_u32(relays.len()).unwrap();
@@ -801,6 +799,10 @@ fn ser_friend_report_mutation(
         FriendReportMutation::SetName(name) => {
             friend_report_mutation_builder.reborrow().set_set_name(name)
         }
+        FriendReportMutation::SetRate(rate) => write_rate(
+            rate,
+            &mut friend_report_mutation_builder.reborrow().init_set_rate(),
+        ),
         FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) => {
             ser_sent_local_relays_report(
                 sent_local_relays_report,
@@ -836,10 +838,10 @@ fn ser_friend_report_mutation(
                 .reborrow()
                 .set_set_num_pending_requests(*num_pending_requests)
         }
-        FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
+        FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
             friend_report_mutation_builder
                 .reborrow()
-                .set_set_num_pending_responses(*num_pending_responses)
+                .set_set_num_pending_backwards_ops(*num_pending_backwards_ops)
         }
         FriendReportMutation::SetStatus(friend_status_report) => ser_friend_status_report(
             friend_status_report,
@@ -865,15 +867,11 @@ fn ser_friend_report_mutation(
                 .init_set_liveness(),
         ),
     };
-    */
 }
 
 fn deser_friend_report_mutation(
     friend_report_mutation: &report_capnp::friend_report_mutation::Reader,
 ) -> Result<FriendReportMutation, SerializeError> {
-    unimplemented!();
-
-    /*
     Ok(match friend_report_mutation.which()? {
         report_capnp::friend_report_mutation::SetRemoteRelays(relays_reader) => {
             let mut relays = Vec::new();
@@ -884,6 +882,9 @@ fn deser_friend_report_mutation(
         }
         report_capnp::friend_report_mutation::SetName(name) => {
             FriendReportMutation::SetName(name?.to_owned())
+        }
+        report_capnp::friend_report_mutation::SetRate(rate_reader) => {
+            FriendReportMutation::SetRate(read_rate(&rate_reader?)?)
         }
         report_capnp::friend_report_mutation::SetSentLocalRelays(
             sent_local_relays_report_reader,
@@ -908,9 +909,9 @@ fn deser_friend_report_mutation(
         report_capnp::friend_report_mutation::SetNumPendingRequests(num_pending_requests) => {
             FriendReportMutation::SetNumPendingRequests(num_pending_requests)
         }
-        report_capnp::friend_report_mutation::SetNumPendingResponses(num_pending_responses) => {
-            FriendReportMutation::SetNumPendingResponses(num_pending_responses)
-        }
+        report_capnp::friend_report_mutation::SetNumPendingBackwardsOps(
+            num_pending_backwards_ops,
+        ) => FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops),
         report_capnp::friend_report_mutation::SetStatus(friend_status_report_reader) => {
             FriendReportMutation::SetStatus(deser_friend_status_report(
                 &friend_status_report_reader?,
@@ -930,7 +931,6 @@ fn deser_friend_report_mutation(
             )?)
         }
     })
-    */
 }
 
 fn ser_pk_friend_report_mutation(
@@ -968,8 +968,6 @@ fn ser_funder_report_mutation(
     funder_report_mutation: &FunderReportMutation,
     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder,
 ) {
-    unimplemented!();
-    /*
     match funder_report_mutation {
         FunderReportMutation::AddRelay(named_relay_address) => {
             write_named_relay_address(
@@ -1007,20 +1005,27 @@ fn ser_funder_report_mutation(
                     .init_pk_friend_report_mutation(),
             );
         }
-        FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
+        FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
             funder_report_mutation_builder
                 .reborrow()
-                .set_set_num_ready_receipts(*num_ready_receipts);
+                .set_set_num_open_invoices(*num_open_invoices);
+        }
+        FunderReportMutation::SetNumPayments(num_payments) => {
+            funder_report_mutation_builder
+                .reborrow()
+                .set_set_num_payments(*num_payments);
+        }
+        FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {
+            funder_report_mutation_builder
+                .reborrow()
+                .set_set_num_open_transactions(*num_open_transactions);
         }
     }
-    */
 }
 
 fn deser_funder_report_mutation(
     funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader,
 ) -> Result<FunderReportMutation, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match funder_report_mutation_reader.which()? {
         report_capnp::funder_report_mutation::AddRelay(named_relay_address_reader) => {
             FunderReportMutation::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -1039,8 +1044,16 @@ fn deser_funder_report_mutation(
         ) => FunderReportMutation::FriendReportMutation(deser_pk_friend_report_mutation(
             &pk_friend_report_mutation_reader?,
         )?),
+        report_capnp::funder_report_mutation::SetNumOpenInvoices(num_open_invoices) => {
+            FunderReportMutation::SetNumOpenInvoices(num_open_invoices)
+        }
+        report_capnp::funder_report_mutation::SetNumPayments(num_payments) => {
+            FunderReportMutation::SetNumPayments(num_payments)
+        }
+        report_capnp::funder_report_mutation::SetNumOpenTransactions(set_num_open_transactions) => {
+            FunderReportMutation::SetNumOpenTransactions(set_num_open_transactions)
+        }
     })
-    */
 }
 
 fn ser_index_client_report(
