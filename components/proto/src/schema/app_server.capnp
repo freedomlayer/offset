@@ -162,7 +162,7 @@ struct TransactionResult {
 
 struct PaymentStatusSuccess {
         receipt @0: Receipt;
-        ackUid @1: Receipt;
+        ackUid @1: Uid;
 }
 
 struct PaymentStatus {

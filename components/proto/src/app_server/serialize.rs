@@ -3,11 +3,10 @@ use std::io;
 use crate::capnp_common::{
     read_commit, read_custom_int128, read_custom_u_int128, read_invoice_id, read_multi_commit,
     read_named_index_server_address, read_named_relay_address, read_payment_id, read_public_key,
-    read_rate, /*read_receipt,*/ read_relay_address, read_signature, read_uid, write_commit,
+    read_rate, read_receipt, read_relay_address, read_signature, read_uid, write_commit,
     write_custom_int128, write_custom_u_int128, write_invoice_id, write_multi_commit,
     write_named_index_server_address, write_named_relay_address, write_payment_id,
-    write_public_key, /*write_receipt,*/
-    write_rate, write_relay_address, write_signature, write_uid,
+    write_public_key, write_rate, write_receipt, write_relay_address, write_signature, write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -26,9 +25,10 @@ use index_server::serialize::{
 };
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, ReceiptAck,
-    RequestResult, ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, TransactionResult, UserRequestSendFunds,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, PaymentStatus,
+    ReceiptAck, RequestResult, ResetFriendChannel, ResponseClosePayment, SetFriendName,
+    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
+    UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
@@ -517,6 +517,76 @@ fn deser_transaction_result(
     Ok(TransactionResult {
         request_id: read_uid(&transaction_result_reader.get_request_id()?)?,
         result: deser_request_result(&transaction_result_reader.get_result()?)?,
+    })
+}
+
+fn ser_payment_status(
+    payment_status: &PaymentStatus,
+    payment_status_builder: &mut app_server_capnp::payment_status::Builder,
+) {
+    match payment_status {
+        PaymentStatus::PaymentNotFound => {
+            payment_status_builder.reborrow().set_payment_not_found(())
+        }
+        PaymentStatus::InProgress => payment_status_builder.reborrow().set_in_progress(()),
+        PaymentStatus::Success((receipt, ack_uid)) => {
+            let mut payment_success_builder = payment_status_builder.reborrow().init_success();
+            write_receipt(
+                receipt,
+                &mut payment_success_builder.reborrow().init_receipt(),
+            );
+            write_uid(
+                ack_uid,
+                &mut payment_success_builder.reborrow().init_ack_uid(),
+            );
+        }
+        PaymentStatus::Canceled(ack_uid) => {
+            let mut ack_uid_builder = payment_status_builder.reborrow().init_canceled();
+            write_uid(ack_uid, &mut ack_uid_builder);
+        }
+    }
+}
+
+fn deser_payment_status(
+    payment_status_reader: &app_server_capnp::payment_status::Reader,
+) -> Result<PaymentStatus, SerializeError> {
+    Ok(match payment_status_reader.which()? {
+        app_server_capnp::payment_status::PaymentNotFound(()) => PaymentStatus::PaymentNotFound,
+        app_server_capnp::payment_status::InProgress(()) => PaymentStatus::InProgress,
+        app_server_capnp::payment_status::Success(res_payment_success_reader) => {
+            let payment_success_reader = res_payment_success_reader?;
+            PaymentStatus::Success((
+                read_receipt(&payment_success_reader.get_receipt()?)?,
+                read_uid(&payment_success_reader.get_ack_uid()?)?,
+            ))
+        }
+        app_server_capnp::payment_status::Canceled(ack_uid_reader) => {
+            PaymentStatus::Canceled(read_uid(&ack_uid_reader?)?)
+        }
+    })
+}
+
+fn ser_response_close_payment(
+    response_close_payment: &ResponseClosePayment,
+    response_close_payment_builder: &mut app_server_capnp::response_close_payment::Builder,
+) {
+    write_payment_id(
+        &response_close_payment.payment_id,
+        &mut response_close_payment_builder.reborrow().init_payment_id(),
+    );
+
+    ser_payment_status(
+        &response_close_payment.status,
+        &mut response_close_payment_builder.reborrow().init_status(),
+    );
+}
+
+fn deser_response_close_payment(
+    response_close_payment_reader: &app_server_capnp::response_close_payment::Reader,
+) -> Result<ResponseClosePayment, SerializeError> {
+    Ok(ResponseClosePayment {
+        payment_id: read_payment_id(&response_close_payment_reader.get_payment_id()?)?,
+        status: deser_payment_status(&response_close_payment_reader.get_status()?)?,
     })
 }
 
