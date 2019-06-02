@@ -69,12 +69,21 @@ struct Uid {
         inner @0: Buffer128;
 }
 
+struct PaymentId {
+        inner @0: Buffer128;
+}
+
 struct PlainLock {
         inner @0: Buffer256;
 }
 
 struct HashedLock {
         inner @0: Buffer256;
+}
+
+struct Rate {
+        mul @0: UInt32;
+        add @1: UInt32;
 }
 
 

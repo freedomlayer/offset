@@ -25,7 +25,7 @@ use index_server::serialize::{deser_request_routes, ser_request_routes};
 use crate::funder::messages::{
     AddFriend, ReceiptAck,
     ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
-    SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
@@ -33,12 +33,12 @@ use crate::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, ReportMutations,
 };
 
+/*
 fn ser_user_request_send_funds(
     user_request_send_funds: &UserRequestSendFunds,
     user_request_send_funds_builder: &mut app_server_capnp::user_request_send_funds::Builder,
 ) {
     unimplemented!();
-    /*
     write_uid(
         &user_request_send_funds.request_id,
         &mut user_request_send_funds_builder.reborrow().init_request_id(),
@@ -58,22 +58,21 @@ fn ser_user_request_send_funds(
         &user_request_send_funds.invoice_id,
         &mut user_request_send_funds_builder.reborrow().init_invoice_id(),
     );
-    */
 }
 
 fn deser_user_request_send_funds(
     user_request_send_funds_reader: &app_server_capnp::user_request_send_funds::Reader,
 ) -> Result<UserRequestSendFunds, SerializeError> {
     unimplemented!();
-    /*
+
     Ok(UserRequestSendFunds {
         request_id: read_uid(&user_request_send_funds_reader.get_request_id()?)?,
         route: deser_friends_route(&user_request_send_funds_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&user_request_send_funds_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&user_request_send_funds_reader.get_invoice_id()?)?,
     })
-    */
 }
+*/
 
 /*
 fn ser_response_received(
@@ -520,8 +519,6 @@ fn ser_app_request(
     app_request: &AppRequest,
     app_request_builder: &mut app_server_capnp::app_request::Builder,
 ) {
-    unimplemented!();
-    /*
     match app_request {
         AppRequest::AddRelay(named_relay_address) => write_named_relay_address(
             named_relay_address,
@@ -531,14 +528,13 @@ fn ser_app_request(
             public_key,
             &mut app_request_builder.reborrow().init_remove_relay(),
         ),
-        AppRequest::RequestSendFunds(user_request_send_funds) => ser_user_request_send_funds(
-            user_request_send_funds,
-            &mut app_request_builder.reborrow().init_request_send_funds(),
-        ),
-        AppRequest::ReceiptAck(receipt_ack) => ser_receipt_ack(
-            receipt_ack,
-            &mut app_request_builder.reborrow().init_receipt_ack(),
-        ),
+        AppRequest::CreatePayment(_create_payment) => unimplemented!(),
+        AppRequest::CreateTransaction(_create_transaction) => unimplemented!(),
+        AppRequest::RequestClosePayment(_request_close_payment) => unimplemented!(),
+        AppRequest::AckClosePayment(_ack_close_payment) => unimplemented!(),
+        AppRequest::AddInvoice(_add_invoice) => unimplemented!(),
+        AppRequest::CancelInvoice(_cancel_invoice) => unimplemented!(),
+        AppRequest::CommitInvoice(_commit_invoice) => unimplemented!(),
         AppRequest::AddFriend(add_friend) => ser_add_friend(
             add_friend,
             &mut app_request_builder.reborrow().init_add_friend(),
@@ -579,6 +575,7 @@ fn ser_app_request(
                     .init_set_friend_remote_max_debt(),
             )
         }
+        AppRequest::SetFriendRate(_set_friend_rate) => unimplemented!(),
         AppRequest::ResetFriendChannel(reset_friend_channel) => ser_reset_friend_channel(
             reset_friend_channel,
             &mut app_request_builder.reborrow().init_reset_friend_channel(),
@@ -598,14 +595,11 @@ fn ser_app_request(
             &mut app_request_builder.reborrow().init_remove_index_server(),
         ),
     }
-    */
 }
 
 fn deser_app_request(
     app_request: &app_server_capnp::app_request::Reader,
 ) -> Result<AppRequest, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match app_request.which()? {
         app_server_capnp::app_request::AddRelay(named_relay_address_reader) => {
             AppRequest::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -613,14 +607,17 @@ fn deser_app_request(
         app_server_capnp::app_request::RemoveRelay(public_key_reader) => {
             AppRequest::RemoveRelay(read_public_key(&public_key_reader?)?)
         }
-        app_server_capnp::app_request::RequestSendFunds(request_send_funds_reader) => {
-            AppRequest::RequestSendFunds(deser_user_request_send_funds(
-                &request_send_funds_reader?,
-            )?)
+        app_server_capnp::app_request::CreatePayment(_create_payment_reader) => unimplemented!(),
+        app_server_capnp::app_request::CreateTransaction(_create_transaction_reader) => {
+            unimplemented!()
         }
-        app_server_capnp::app_request::ReceiptAck(receipt_ack_reader) => {
-            AppRequest::ReceiptAck(deser_receipt_ack(&receipt_ack_reader?)?)
+        app_server_capnp::app_request::RequestClosePayment(_request_close_payment) => {
+            unimplemented!()
         }
+        app_server_capnp::app_request::AckClosePayment(_ack_close_payment) => unimplemented!(),
+        app_server_capnp::app_request::AddInvoice(_add_invoice) => unimplemented!(),
+        app_server_capnp::app_request::CancelInvoice(_cancel_invoice) => unimplemented!(),
+        app_server_capnp::app_request::CommitInvoice(_commit_invoice) => unimplemented!(),
         app_server_capnp::app_request::AddFriend(add_friend_reader) => {
             AppRequest::AddFriend(deser_add_friend(&add_friend_reader?)?)
         }
@@ -645,6 +642,7 @@ fn deser_app_request(
         app_server_capnp::app_request::CloseFriend(public_key_reader) => {
             AppRequest::CloseFriend(read_public_key(&public_key_reader?)?)
         }
+        app_server_capnp::app_request::SetFriendRate(_set_friend_rate) => unimplemented!(),
         app_server_capnp::app_request::SetFriendRemoteMaxDebt(
             set_friend_remote_max_debt_reader,
         ) => AppRequest::SetFriendRemoteMaxDebt(deser_set_friend_remote_max_debt(
@@ -665,7 +663,6 @@ fn deser_app_request(
             AppRequest::RemoveIndexServer(read_public_key(&public_key_reader?)?)
         }
     })
-    */
 }
 
 fn ser_app_to_app_server(
