@@ -142,8 +142,6 @@ fn ser_friend_operation(
     operation: &FriendTcOp,
     operation_builder: &mut funder_capnp::friend_operation::Builder,
 ) {
-    unimplemented!();
-    /*
     match operation {
         FriendTcOp::EnableRequests => operation_builder.set_enable_requests(()),
         FriendTcOp::DisableRequests => operation_builder.set_disable_requests(()),
@@ -167,8 +165,12 @@ fn ser_friend_operation(
                 operation_builder.reborrow().init_cancel_send_funds();
             ser_cancel_send_funds_op(cancel_send_funds, &mut cancel_send_funds_builder);
         }
+        FriendTcOp::CollectSendFunds(collect_send_funds) => {
+            let mut collect_send_funds_builder =
+                operation_builder.reborrow().init_collect_send_funds();
+            ser_collect_send_funds_op(collect_send_funds, &mut collect_send_funds_builder);
+        }
     };
-    */
 }
 
 fn ser_move_token(
@@ -364,8 +366,6 @@ fn deser_collect_send_funds_op(
 fn deser_friend_operation(
     friend_operation_reader: &funder_capnp::friend_operation::Reader,
 ) -> Result<FriendTcOp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match friend_operation_reader.which()? {
         funder_capnp::friend_operation::EnableRequests(()) => FriendTcOp::EnableRequests,
         funder_capnp::friend_operation::DisableRequests(()) => FriendTcOp::DisableRequests,
@@ -383,8 +383,10 @@ fn deser_friend_operation(
         funder_capnp::friend_operation::CancelSendFunds(cancel_send_funds_reader) => {
             FriendTcOp::CancelSendFunds(deser_cancel_send_funds_op(&cancel_send_funds_reader?)?)
         }
+        funder_capnp::friend_operation::CollectSendFunds(collect_send_funds_reader) => {
+            FriendTcOp::CollectSendFunds(deser_collect_send_funds_op(&collect_send_funds_reader?)?)
+        }
     })
-    */
 }
 
 fn deser_move_token(
