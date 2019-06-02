@@ -11,8 +11,8 @@ use index_capnp;
 
 use super::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
-    IndexServerToServer, MutationsUpdate, RequestRoutes, ResponseRoutes, RouteCapacityRate,
-    TimeProofLink, UpdateFriend,
+    IndexServerToServer, MultiRoute, MutationsUpdate, RequestRoutes, ResponseRoutes,
+    RouteCapacityRate, TimeProofLink, UpdateFriend,
 };
 
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
@@ -107,6 +107,31 @@ pub fn deser_route_capacity_rate(
         capacity: read_custom_u_int128(&route_capacity_rate_reader.get_capacity()?)?,
         rate: read_rate(&route_capacity_rate_reader.get_rate()?)?,
     })
+}
+
+pub fn ser_multi_route(
+    multi_route: &MultiRoute,
+    multi_route_builder: &mut index_capnp::multi_route::Builder,
+) {
+    let routes_len = usize_to_u32(multi_route.routes.len()).unwrap();
+    let mut routes_builder = multi_route_builder.reborrow().init_routes(routes_len);
+
+    for (index, route) in multi_route.routes.iter().enumerate() {
+        let mut route_capacity_rate_builder =
+            routes_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_route_capacity_rate(&route, &mut route_capacity_rate_builder);
+    }
+}
+
+fn deser_multi_route(
+    multi_route_reader: &index_capnp::multi_route::Reader,
+) -> Result<MultiRoute, SerializeError> {
+    let mut routes = Vec::new();
+    for route_capacity_rate in multi_route_reader.get_routes()? {
+        routes.push(deser_route_capacity_rate(&route_capacity_rate)?);
+    }
+
+    Ok(MultiRoute { routes })
 }
 
 fn ser_response_routes(
