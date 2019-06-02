@@ -80,27 +80,10 @@ fn ser_cancel_send_funds_op(
     cancel_send_funds: &CancelSendFundsOp,
     cancel_send_funds_op_builder: &mut funder_capnp::cancel_send_funds_op::Builder,
 ) {
-    unimplemented!();
-    /*
     write_uid(
         &cancel_send_funds.request_id,
         &mut cancel_send_funds_op_builder.reborrow().init_request_id(),
     );
-    write_public_key(
-        &cancel_send_funds.reporting_public_key,
-        &mut cancel_send_funds_op_builder
-            .reborrow()
-            .init_reporting_public_key(),
-    );
-    write_rand_nonce(
-        &cancel_send_funds.rand_nonce,
-        &mut cancel_send_funds_op_builder.reborrow().init_rand_nonce(),
-    );
-    write_signature(
-        &cancel_send_funds.signature,
-        &mut cancel_send_funds_op_builder.reborrow().init_signature(),
-    );
-    */
 }
 
 fn ser_friend_operation(
@@ -311,17 +294,9 @@ fn deser_response_send_funds_op(
 fn deser_cancel_send_funds_op(
     cancel_send_funds_op_reader: &funder_capnp::cancel_send_funds_op::Reader,
 ) -> Result<CancelSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(CancelSendFundsOp {
         request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
-        reporting_public_key: read_public_key(
-            &cancel_send_funds_op_reader.get_reporting_public_key()?,
-        )?,
-        rand_nonce: read_rand_nonce(&cancel_send_funds_op_reader.get_rand_nonce()?)?,
-        signature: read_signature(&cancel_send_funds_op_reader.get_signature()?)?,
     })
-    */
 }
 
 fn deser_friend_operation(
