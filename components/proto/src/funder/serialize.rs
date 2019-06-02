@@ -85,6 +85,14 @@ fn ser_response_send_funds_op(
         &response_send_funds.request_id,
         &mut response_send_funds_op_builder.reborrow().init_request_id(),
     );
+
+    write_hashed_lock(
+        &response_send_funds.dest_hashed_lock,
+        &mut response_send_funds_op_builder
+            .reborrow()
+            .init_dest_hashed_lock(),
+    );
+
     write_rand_nonce(
         &response_send_funds.rand_nonce,
         &mut response_send_funds_op_builder.reborrow().init_rand_nonce(),
@@ -302,14 +310,12 @@ fn deser_request_send_funds_op(
 fn deser_response_send_funds_op(
     response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader,
 ) -> Result<ResponseSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
-    Ok(ResponseSendFunds {
+    Ok(ResponseSendFundsOp {
         request_id: read_uid(&response_send_funds_op_reader.get_request_id()?)?,
+        dest_hashed_lock: read_hashed_lock(&response_send_funds_op_reader.get_dest_hashed_lock()?)?,
         rand_nonce: read_rand_nonce(&response_send_funds_op_reader.get_rand_nonce()?)?,
         signature: read_signature(&response_send_funds_op_reader.get_signature()?)?,
     })
-    */
 }
 
 fn deser_cancel_send_funds_op(
