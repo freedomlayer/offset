@@ -24,9 +24,8 @@ use crate::report::serialize::{
 use index_server::serialize::{deser_request_routes, ser_request_routes};
 
 use crate::funder::messages::{
-    AddFriend, CreatePayment, ReceiptAck,
-    ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
-    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    AddFriend, CreatePayment, CreateTransaction, ReceiptAck, ResetFriendChannel, SetFriendName,
+    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
@@ -449,6 +448,48 @@ fn deser_create_payment(
     })
 }
 
+fn ser_create_transaction(
+    create_transaction: &CreateTransaction,
+    create_transaction_builder: &mut app_server_capnp::create_transaction::Builder,
+) {
+    write_payment_id(
+        &create_transaction.payment_id,
+        &mut create_transaction_builder.reborrow().init_payment_id(),
+    );
+
+    write_uid(
+        &create_transaction.request_id,
+        &mut create_transaction_builder.reborrow().init_request_id(),
+    );
+
+    ser_friends_route(
+        &create_transaction.route,
+        &mut create_transaction_builder.reborrow().init_route(),
+    );
+
+    write_custom_u_int128(
+        create_transaction.dest_payment,
+        &mut create_transaction_builder.reborrow().init_dest_payment(),
+    );
+
+    write_custom_u_int128(
+        create_transaction.fees,
+        &mut create_transaction_builder.reborrow().init_fees(),
+    );
+}
+
+fn deser_create_transaction(
+    create_transaction_reader: &app_server_capnp::create_transaction::Reader,
+) -> Result<CreateTransaction, SerializeError> {
+    Ok(CreateTransaction {
+        payment_id: read_payment_id(&create_transaction_reader.get_payment_id()?)?,
+        request_id: read_uid(&create_transaction_reader.get_request_id()?)?,
+        route: deser_friends_route(&create_transaction_reader.get_route()?)?,
+        dest_payment: read_custom_u_int128(&create_transaction_reader.get_dest_payment()?)?,
+        fees: read_custom_u_int128(&create_transaction_reader.get_fees()?)?,
+    })
+}
+
 fn ser_set_friend_rate(
     set_friend_rate: &SetFriendRate,
     set_friend_rate_builder: &mut app_server_capnp::set_friend_rate::Builder,
@@ -593,7 +634,10 @@ fn ser_app_request(
             create_payment,
             &mut app_request_builder.reborrow().init_create_payment(),
         ),
-        AppRequest::CreateTransaction(_create_transaction) => unimplemented!(),
+        AppRequest::CreateTransaction(create_transaction) => ser_create_transaction(
+            create_transaction,
+            &mut app_request_builder.reborrow().init_create_transaction(),
+        ),
         AppRequest::RequestClosePayment(payment_id) => write_payment_id(
             payment_id,
             &mut app_request_builder.reborrow().init_request_close_payment(),
@@ -686,8 +730,8 @@ fn deser_app_request(
         app_server_capnp::app_request::CreatePayment(create_payment_reader) => {
             AppRequest::CreatePayment(deser_create_payment(&create_payment_reader?)?)
         }
-        app_server_capnp::app_request::CreateTransaction(_create_transaction_reader) => {
-            unimplemented!()
+        app_server_capnp::app_request::CreateTransaction(create_transaction_reader) => {
+            AppRequest::CreateTransaction(deser_create_transaction(&create_transaction_reader?)?)
         }
         app_server_capnp::app_request::RequestClosePayment(payment_id_reader) => {
             AppRequest::RequestClosePayment(read_payment_id(&payment_id_reader?)?)
