@@ -78,7 +78,7 @@ fn ser_response_send_funds_op(
 
 fn ser_cancel_send_funds_op(
     cancel_send_funds: &CancelSendFundsOp,
-    cancel_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder,
+    cancel_send_funds_op_builder: &mut funder_capnp::cancel_send_funds_op::Builder,
 ) {
     unimplemented!();
     /*
@@ -309,7 +309,7 @@ fn deser_response_send_funds_op(
 }
 
 fn deser_cancel_send_funds_op(
-    cancel_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
+    cancel_send_funds_op_reader: &funder_capnp::cancel_send_funds_op::Reader,
 ) -> Result<CancelSendFundsOp, SerializeError> {
     unimplemented!();
     /*
