@@ -21,7 +21,9 @@ use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use crate::report::serialize::{
     deser_node_report, deser_node_report_mutation, ser_node_report, ser_node_report_mutation,
 };
-use index_server::serialize::{deser_request_routes, ser_request_routes};
+use index_server::serialize::{
+    deser_multi_route, deser_request_routes, ser_multi_route, ser_request_routes,
+};
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, ReceiptAck,
@@ -303,42 +305,36 @@ fn ser_response_routes_result(
     response_routes_result: &ResponseRoutesResult,
     response_routes_result_builder: &mut app_server_capnp::response_routes_result::Builder,
 ) {
-    unimplemented!();
-    /*
     match response_routes_result {
-        ResponseRoutesResult::Success(routes_with_capacity) => {
-            let routes_len = usize_to_u32(routes_with_capacity.len()).unwrap();
-            let mut routes_with_capacity_builder = response_routes_result_builder
+        ResponseRoutesResult::Success(multi_routes) => {
+            let multi_routes_len = usize_to_u32(multi_routes.len()).unwrap();
+            let mut multi_routes_builder = response_routes_result_builder
                 .reborrow()
-                .init_success(routes_len);
-            for (index, route_with_capacity) in routes_with_capacity.iter().enumerate() {
-                let mut route_with_capacity_builder = routes_with_capacity_builder
+                .init_success(multi_routes_len);
+            for (index, multi_route) in multi_routes.iter().enumerate() {
+                let mut multi_route_builder = multi_routes_builder
                     .reborrow()
                     .get(usize_to_u32(index).unwrap());
-                ser_route_with_capacity(route_with_capacity, &mut route_with_capacity_builder);
+                ser_multi_route(multi_route, &mut multi_route_builder);
             }
         }
         ResponseRoutesResult::Failure => response_routes_result_builder.reborrow().set_failure(()),
     }
-    */
 }
 
 fn deser_response_routes_result(
     response_routes_result_reader: &app_server_capnp::response_routes_result::Reader,
 ) -> Result<ResponseRoutesResult, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match response_routes_result_reader.which()? {
-        app_server_capnp::response_routes_result::Success(routes_with_capacity_reader) => {
-            let mut routes_with_capacity = Vec::new();
-            for route_with_capacity in routes_with_capacity_reader? {
-                routes_with_capacity.push(deser_route_with_capacity(&route_with_capacity)?);
+        app_server_capnp::response_routes_result::Success(multi_routes_reader) => {
+            let mut multi_routes = Vec::new();
+            for multi_route_reader in multi_routes_reader? {
+                multi_routes.push(deser_multi_route(&multi_route_reader)?);
             }
-            ResponseRoutesResult::Success(routes_with_capacity)
+            ResponseRoutesResult::Success(multi_routes)
         }
         app_server_capnp::response_routes_result::Failure(()) => ResponseRoutesResult::Failure,
     })
-    */
 }
 
 fn ser_client_response_routes(

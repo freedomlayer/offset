@@ -123,7 +123,7 @@ pub fn ser_multi_route(
     }
 }
 
-fn deser_multi_route(
+pub fn deser_multi_route(
     multi_route_reader: &index_capnp::multi_route::Reader,
 ) -> Result<MultiRoute, SerializeError> {
     let mut routes = Vec::new();
