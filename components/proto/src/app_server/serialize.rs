@@ -2,11 +2,11 @@ use std::io;
 
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_payment_id, read_public_key,
+    read_named_relay_address, read_payment_id, read_public_key, read_rate,
     /*read_receipt,*/ read_relay_address, read_signature, read_uid, write_custom_int128,
     write_custom_u_int128, write_invoice_id, write_named_index_server_address,
     write_named_relay_address, write_payment_id, write_public_key, /*write_receipt,*/
-    write_relay_address, write_signature, write_uid,
+    write_rate, write_relay_address, write_signature, write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -448,6 +448,30 @@ fn deser_create_payment(
     })
 }
 
+fn ser_set_friend_rate(
+    set_friend_rate: &SetFriendRate,
+    set_friend_rate_builder: &mut app_server_capnp::set_friend_rate::Builder,
+) {
+    write_public_key(
+        &set_friend_rate.friend_public_key,
+        &mut set_friend_rate_builder.reborrow().init_friend_public_key(),
+    );
+
+    write_rate(
+        &set_friend_rate.rate,
+        &mut set_friend_rate_builder.reborrow().init_rate(),
+    );
+}
+
+fn deser_set_friend_rate(
+    set_friend_rate_reader: &app_server_capnp::set_friend_rate::Reader,
+) -> Result<SetFriendRate, SerializeError> {
+    Ok(SetFriendRate {
+        friend_public_key: read_public_key(&set_friend_rate_reader.get_friend_public_key()?)?,
+        rate: read_rate(&set_friend_rate_reader.get_rate()?)?,
+    })
+}
+
 fn ser_report_mutations(
     report_mutations: &ReportMutations,
     report_mutations_builder: &mut app_server_capnp::report_mutations::Builder,
@@ -620,7 +644,10 @@ fn ser_app_request(
                     .init_set_friend_remote_max_debt(),
             )
         }
-        AppRequest::SetFriendRate(_set_friend_rate) => unimplemented!(),
+        AppRequest::SetFriendRate(set_friend_rate) => ser_set_friend_rate(
+            set_friend_rate,
+            &mut app_request_builder.reborrow().init_set_friend_rate(),
+        ),
         AppRequest::ResetFriendChannel(reset_friend_channel) => ser_reset_friend_channel(
             reset_friend_channel,
             &mut app_request_builder.reborrow().init_reset_friend_channel(),
@@ -691,7 +718,9 @@ fn deser_app_request(
         app_server_capnp::app_request::CloseFriend(public_key_reader) => {
             AppRequest::CloseFriend(read_public_key(&public_key_reader?)?)
         }
-        app_server_capnp::app_request::SetFriendRate(_set_friend_rate) => unimplemented!(),
+        app_server_capnp::app_request::SetFriendRate(set_friend_rate_reader) => {
+            AppRequest::SetFriendRate(deser_set_friend_rate(&set_friend_rate_reader?)?)
+        }
         app_server_capnp::app_request::SetFriendRemoteMaxDebt(
             set_friend_remote_max_debt_reader,
         ) => AppRequest::SetFriendRemoteMaxDebt(deser_set_friend_remote_max_debt(
