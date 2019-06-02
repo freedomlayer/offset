@@ -613,15 +613,9 @@ fn ser_app_server_to_app(
     app_server_to_app: &AppServerToApp,
     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder,
 ) {
-    unimplemented!();
-    /*
     match app_server_to_app {
-        AppServerToApp::ResponseReceived(response_received) => ser_response_received(
-            response_received,
-            &mut app_server_to_app_builder
-                .reborrow()
-                .init_response_received(),
-        ),
+        AppServerToApp::TransactionResult(_transaction_result) => unimplemented!(),
+        AppServerToApp::ResponseClosePayment(_response_close_payment) => unimplemented!(),
         AppServerToApp::Report(node_report) => ser_node_report(
             node_report,
             &mut app_server_to_app_builder.reborrow().init_report(),
@@ -635,18 +629,18 @@ fn ser_app_server_to_app(
             &mut app_server_to_app_builder.reborrow().init_response_routes(),
         ),
     }
-    */
 }
 
 fn deser_app_server_to_app(
     app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader,
 ) -> Result<AppServerToApp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match app_server_to_app_reader.which()? {
-        app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) => {
-            AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?)
+        app_server_capnp::app_server_to_app::TransactionResult(_transaction_result_reader) => {
+            unimplemented!()
         }
+        app_server_capnp::app_server_to_app::ResponseClosePayment(
+            _response_close_payment_reader,
+        ) => unimplemented!(),
         app_server_capnp::app_server_to_app::Report(node_report_reader) => {
             AppServerToApp::Report(deser_node_report(&node_report_reader?)?)
         }
@@ -659,7 +653,6 @@ fn deser_app_server_to_app(
             )?)
         }
     })
-    */
 }
 
 fn ser_app_request(
