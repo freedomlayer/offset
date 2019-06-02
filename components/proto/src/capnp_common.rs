@@ -5,7 +5,7 @@ use std::io;
 use common_capnp::{
     buffer128, buffer256, buffer512, custom_int128, custom_u_int128, dh_public_key, hash,
     hashed_lock, invoice_id, named_index_server_address, named_relay_address, net_address,
-    plain_lock, public_key, rand_nonce, receipt, relay_address, salt, signature, uid,
+    payment_id, plain_lock, public_key, rand_nonce, receipt, relay_address, salt, signature, uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -20,6 +20,7 @@ use crypto::hash::HashResult;
 use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
@@ -150,6 +151,7 @@ type_capnp_serde!(
     read_buffer256,
     write_buffer256
 );
+
 type_capnp_serde!(
     invoice_id,
     InvoiceId,
@@ -157,6 +159,15 @@ type_capnp_serde!(
     write_invoice_id,
     read_buffer256,
     write_buffer256
+);
+
+type_capnp_serde!(
+    payment_id,
+    PaymentId,
+    read_payment_id,
+    write_payment_id,
+    read_buffer128,
+    write_buffer128
 );
 
 // 512 bits:

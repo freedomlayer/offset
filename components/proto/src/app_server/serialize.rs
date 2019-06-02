@@ -2,10 +2,10 @@ use std::io;
 
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_public_key, /*read_receipt,*/ read_relay_address,
-    read_signature, read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
-    write_named_index_server_address, write_named_relay_address,
-    write_public_key, /*write_receipt,*/
+    read_named_relay_address, read_payment_id, read_public_key,
+    /*read_receipt,*/ read_relay_address, read_signature, read_uid, write_custom_int128,
+    write_custom_u_int128, write_invoice_id, write_named_index_server_address,
+    write_named_relay_address, write_payment_id, write_public_key, /*write_receipt,*/
     write_relay_address, write_signature, write_uid,
 };
 use capnp;
@@ -530,10 +530,16 @@ fn ser_app_request(
         ),
         AppRequest::CreatePayment(_create_payment) => unimplemented!(),
         AppRequest::CreateTransaction(_create_transaction) => unimplemented!(),
-        AppRequest::RequestClosePayment(_request_close_payment) => unimplemented!(),
+        AppRequest::RequestClosePayment(payment_id) => write_payment_id(
+            payment_id,
+            &mut app_request_builder.reborrow().init_request_close_payment(),
+        ),
         AppRequest::AckClosePayment(_ack_close_payment) => unimplemented!(),
         AppRequest::AddInvoice(_add_invoice) => unimplemented!(),
-        AppRequest::CancelInvoice(_cancel_invoice) => unimplemented!(),
+        AppRequest::CancelInvoice(invoice_id) => write_invoice_id(
+            invoice_id,
+            &mut app_request_builder.reborrow().init_cancel_invoice(),
+        ),
         AppRequest::CommitInvoice(_commit_invoice) => unimplemented!(),
         AppRequest::AddFriend(add_friend) => ser_add_friend(
             add_friend,
@@ -611,12 +617,14 @@ fn deser_app_request(
         app_server_capnp::app_request::CreateTransaction(_create_transaction_reader) => {
             unimplemented!()
         }
-        app_server_capnp::app_request::RequestClosePayment(_request_close_payment) => {
-            unimplemented!()
+        app_server_capnp::app_request::RequestClosePayment(payment_id_reader) => {
+            AppRequest::RequestClosePayment(read_payment_id(&payment_id_reader?)?)
         }
         app_server_capnp::app_request::AckClosePayment(_ack_close_payment) => unimplemented!(),
         app_server_capnp::app_request::AddInvoice(_add_invoice) => unimplemented!(),
-        app_server_capnp::app_request::CancelInvoice(_cancel_invoice) => unimplemented!(),
+        app_server_capnp::app_request::CancelInvoice(invoice_id_reader) => {
+            AppRequest::CancelInvoice(read_invoice_id(&invoice_id_reader?)?)
+        }
         app_server_capnp::app_request::CommitInvoice(_commit_invoice) => unimplemented!(),
         app_server_capnp::app_request::AddFriend(add_friend_reader) => {
             AppRequest::AddFriend(deser_add_friend(&add_friend_reader?)?)
