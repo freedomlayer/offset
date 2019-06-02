@@ -54,6 +54,9 @@ struct UpdateFriend {
         # To denote remote requests closed, assign 0 to sendCapacity
         recvCapacity @2: CustomUInt128;
         # To denote local requests closed, assign 0 to recvCapacity
+        rate @3: Rate;
+        # Rate a node takes for forwarding messages for this friend (to another
+        # node).
 }
 
 

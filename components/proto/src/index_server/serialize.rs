@@ -185,19 +185,21 @@ fn ser_update_friend(
         update_friend.recv_capacity,
         &mut update_friend_builder.reborrow().init_recv_capacity(),
     );
+    write_rate(
+        &update_friend.rate,
+        &mut update_friend_builder.reborrow().init_rate(),
+    );
 }
 
 fn deser_update_friend(
-    _update_friend_reader: &index_capnp::update_friend::Reader,
+    update_friend_reader: &index_capnp::update_friend::Reader,
 ) -> Result<UpdateFriend, SerializeError> {
-    unimplemented!();
-    /*
     Ok(UpdateFriend {
         public_key: read_public_key(&update_friend_reader.get_public_key()?)?,
         send_capacity: read_custom_u_int128(&update_friend_reader.get_send_capacity()?)?,
         recv_capacity: read_custom_u_int128(&update_friend_reader.get_recv_capacity()?)?,
+        rate: read_rate(&update_friend_reader.get_rate()?)?,
     })
-    */
 }
 
 fn ser_index_mutation(
