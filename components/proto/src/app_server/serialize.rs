@@ -24,8 +24,9 @@ use crate::report::serialize::{
 use index_server::serialize::{deser_request_routes, ser_request_routes};
 
 use crate::funder::messages::{
-    AddFriend, AddInvoice, CreatePayment, CreateTransaction, ReceiptAck, ResetFriendChannel,
-    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, ReceiptAck,
+    ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
+    UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
@@ -514,6 +515,30 @@ fn deser_add_invoice(
     })
 }
 
+fn ser_ack_close_payment(
+    ack_close_payment: &AckClosePayment,
+    ack_close_payment_builder: &mut app_server_capnp::ack_close_payment::Builder,
+) {
+    write_payment_id(
+        &ack_close_payment.payment_id,
+        &mut ack_close_payment_builder.reborrow().init_payment_id(),
+    );
+
+    write_uid(
+        &ack_close_payment.ack_uid,
+        &mut ack_close_payment_builder.reborrow().init_ack_uid(),
+    );
+}
+
+fn deser_ack_close_payment(
+    ack_close_payment_reader: &app_server_capnp::ack_close_payment::Reader,
+) -> Result<AckClosePayment, SerializeError> {
+    Ok(AckClosePayment {
+        payment_id: read_payment_id(&ack_close_payment_reader.get_payment_id()?)?,
+        ack_uid: read_uid(&ack_close_payment_reader.get_ack_uid()?)?,
+    })
+}
+
 fn ser_set_friend_rate(
     set_friend_rate: &SetFriendRate,
     set_friend_rate_builder: &mut app_server_capnp::set_friend_rate::Builder,
@@ -666,7 +691,10 @@ fn ser_app_request(
             payment_id,
             &mut app_request_builder.reborrow().init_request_close_payment(),
         ),
-        AppRequest::AckClosePayment(_ack_close_payment) => unimplemented!(),
+        AppRequest::AckClosePayment(ack_close_payment) => ser_ack_close_payment(
+            ack_close_payment,
+            &mut app_request_builder.reborrow().init_ack_close_payment(),
+        ),
         AppRequest::AddInvoice(add_invoice) => ser_add_invoice(
             add_invoice,
             &mut app_request_builder.reborrow().init_add_invoice(),
@@ -763,8 +791,8 @@ fn deser_app_request(
         app_server_capnp::app_request::RequestClosePayment(payment_id_reader) => {
             AppRequest::RequestClosePayment(read_payment_id(&payment_id_reader?)?)
         }
-        app_server_capnp::app_request::AckClosePayment(_ack_close_payment_reader) => {
-            unimplemented!()
+        app_server_capnp::app_request::AckClosePayment(ack_close_payment_reader) => {
+            AppRequest::AckClosePayment(deser_ack_close_payment(&ack_close_payment_reader?)?)
         }
         app_server_capnp::app_request::AddInvoice(add_invoice_reader) => {
             AppRequest::AddInvoice(deser_add_invoice(&add_invoice_reader?)?)
