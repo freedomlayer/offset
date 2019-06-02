@@ -5,11 +5,12 @@ use std::io;
 use common_capnp::{
     buffer128, buffer256, buffer512, custom_int128, custom_u_int128, dh_public_key, hash,
     hashed_lock, invoice_id, named_index_server_address, named_relay_address, net_address,
-    payment_id, plain_lock, public_key, rand_nonce, receipt, relay_address, salt, signature, uid,
+    payment_id, plain_lock, public_key, rand_nonce, rate, receipt, relay_address, salt, signature,
+    uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::Receipt;
+use crate::funder::messages::{Rate, Receipt};
 use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 use crate::serialize::SerializeError;
@@ -330,4 +331,16 @@ pub fn write_receipt(from: &Receipt, to: &mut receipt::Builder) {
         &mut to.reborrow().init_total_dest_payment(),
     );
     write_signature(&from.signature, &mut to.reborrow().init_signature());
+}
+
+pub fn read_rate(from: &rate::Reader) -> Result<Rate, SerializeError> {
+    Ok(Rate {
+        mul: from.get_mul(),
+        add: from.get_add(),
+    })
+}
+
+pub fn write_rate(from: &Rate, to: &mut rate::Builder) {
+    to.reborrow().set_mul(from.mul);
+    to.reborrow().set_add(from.add);
 }
