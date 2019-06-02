@@ -1,12 +1,12 @@
 use std::io;
 
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_public_key, /*read_receipt,*/ read_relay_address,
-    read_signature, read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
-    write_named_index_server_address, write_named_relay_address,
-    write_public_key, /*write_receipt,*/
-    write_relay_address, write_signature, write_uid,
+    read_commit, read_custom_int128, read_custom_u_int128, read_invoice_id, read_multi_commit,
+    read_named_index_server_address, read_named_relay_address, read_payment_id, read_public_key,
+    read_rate, read_receipt, read_relay_address, read_signature, read_uid, write_commit,
+    write_custom_int128, write_custom_u_int128, write_invoice_id, write_multi_commit,
+    write_named_index_server_address, write_named_relay_address, write_payment_id,
+    write_public_key, write_rate, write_receipt, write_relay_address, write_signature, write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -20,108 +20,21 @@ use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use crate::report::serialize::{
     deser_node_report, deser_node_report_mutation, ser_node_report, ser_node_report_mutation,
 };
-use index_server::serialize::{deser_request_routes, ser_request_routes};
+use index_server::serialize::{
+    deser_multi_route, deser_request_routes, ser_multi_route, ser_request_routes,
+};
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck,
-    ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
-    SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, PaymentStatus,
+    ReceiptAck, RequestResult, ResetFriendChannel, ResponseClosePayment, SetFriendName,
+    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
+    UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
 use crate::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, ReportMutations,
 };
-
-fn ser_user_request_send_funds(
-    user_request_send_funds: &UserRequestSendFunds,
-    user_request_send_funds_builder: &mut app_server_capnp::user_request_send_funds::Builder,
-) {
-    unimplemented!();
-    /*
-    write_uid(
-        &user_request_send_funds.request_id,
-        &mut user_request_send_funds_builder.reborrow().init_request_id(),
-    );
-
-    let mut route_builder = user_request_send_funds_builder.reborrow().init_route();
-    ser_friends_route(&user_request_send_funds.route, &mut route_builder);
-
-    write_custom_u_int128(
-        user_request_send_funds.dest_payment,
-        &mut user_request_send_funds_builder
-            .reborrow()
-            .init_dest_payment(),
-    );
-
-    write_invoice_id(
-        &user_request_send_funds.invoice_id,
-        &mut user_request_send_funds_builder.reborrow().init_invoice_id(),
-    );
-    */
-}
-
-fn deser_user_request_send_funds(
-    user_request_send_funds_reader: &app_server_capnp::user_request_send_funds::Reader,
-) -> Result<UserRequestSendFunds, SerializeError> {
-    unimplemented!();
-    /*
-    Ok(UserRequestSendFunds {
-        request_id: read_uid(&user_request_send_funds_reader.get_request_id()?)?,
-        route: deser_friends_route(&user_request_send_funds_reader.get_route()?)?,
-        dest_payment: read_custom_u_int128(&user_request_send_funds_reader.get_dest_payment()?)?,
-        invoice_id: read_invoice_id(&user_request_send_funds_reader.get_invoice_id()?)?,
-    })
-    */
-}
-
-/*
-fn ser_response_received(
-    response_received: &ResponseReceived,
-    response_received_builder: &mut app_server_capnp::response_received::Builder,
-) {
-    unimplemented!();
-    write_uid(
-        &response_received.request_id,
-        &mut response_received_builder.reborrow().init_request_id(),
-    );
-
-    let result_builder = response_received_builder.reborrow().init_result();
-    match &response_received.result {
-        ResponseSendFundsResult::Success(receipt) => {
-            let mut success_builder = result_builder.init_success();
-            write_receipt(receipt, &mut success_builder);
-        }
-        ResponseSendFundsResult::Failure(public_key) => {
-            let mut failure_builder = result_builder.init_failure();
-            write_public_key(public_key, &mut failure_builder);
-        }
-    };
-}
-*/
-
-/*
-fn deser_response_received(
-    response_received_reader: &app_server_capnp::response_received::Reader,
-) -> Result<ResponseReceived, SerializeError> {
-    unimplemented!();
-    let result = match response_received_reader.get_result().which()? {
-        app_server_capnp::response_received::result::Success(receipt_reader) => {
-            let receipt_reader = receipt_reader?;
-            ResponseSendFundsResult::Success(read_receipt(&receipt_reader)?)
-        }
-        app_server_capnp::response_received::result::Failure(public_key_reader) => {
-            let public_key_reader = public_key_reader?;
-            ResponseSendFundsResult::Failure(read_public_key(&public_key_reader)?)
-        }
-    };
-
-    Ok(ResponseReceived {
-        request_id: read_uid(&response_received_reader.get_request_id()?)?,
-        result,
-    })
-}
-*/
 
 fn ser_receipt_ack(
     receipt_ack: &ReceiptAck,
@@ -303,42 +216,36 @@ fn ser_response_routes_result(
     response_routes_result: &ResponseRoutesResult,
     response_routes_result_builder: &mut app_server_capnp::response_routes_result::Builder,
 ) {
-    unimplemented!();
-    /*
     match response_routes_result {
-        ResponseRoutesResult::Success(routes_with_capacity) => {
-            let routes_len = usize_to_u32(routes_with_capacity.len()).unwrap();
-            let mut routes_with_capacity_builder = response_routes_result_builder
+        ResponseRoutesResult::Success(multi_routes) => {
+            let multi_routes_len = usize_to_u32(multi_routes.len()).unwrap();
+            let mut multi_routes_builder = response_routes_result_builder
                 .reborrow()
-                .init_success(routes_len);
-            for (index, route_with_capacity) in routes_with_capacity.iter().enumerate() {
-                let mut route_with_capacity_builder = routes_with_capacity_builder
+                .init_success(multi_routes_len);
+            for (index, multi_route) in multi_routes.iter().enumerate() {
+                let mut multi_route_builder = multi_routes_builder
                     .reborrow()
                     .get(usize_to_u32(index).unwrap());
-                ser_route_with_capacity(route_with_capacity, &mut route_with_capacity_builder);
+                ser_multi_route(multi_route, &mut multi_route_builder);
             }
         }
         ResponseRoutesResult::Failure => response_routes_result_builder.reborrow().set_failure(()),
     }
-    */
 }
 
 fn deser_response_routes_result(
     response_routes_result_reader: &app_server_capnp::response_routes_result::Reader,
 ) -> Result<ResponseRoutesResult, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match response_routes_result_reader.which()? {
-        app_server_capnp::response_routes_result::Success(routes_with_capacity_reader) => {
-            let mut routes_with_capacity = Vec::new();
-            for route_with_capacity in routes_with_capacity_reader? {
-                routes_with_capacity.push(deser_route_with_capacity(&route_with_capacity)?);
+        app_server_capnp::response_routes_result::Success(multi_routes_reader) => {
+            let mut multi_routes = Vec::new();
+            for multi_route_reader in multi_routes_reader? {
+                multi_routes.push(deser_multi_route(&multi_route_reader)?);
             }
-            ResponseRoutesResult::Success(routes_with_capacity)
+            ResponseRoutesResult::Success(multi_routes)
         }
         app_server_capnp::response_routes_result::Failure(()) => ResponseRoutesResult::Failure,
     })
-    */
 }
 
 fn ser_client_response_routes(
@@ -388,32 +295,299 @@ fn ser_app_permissions(
     app_permissions: &AppPermissions,
     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder,
 ) {
-    unimplemented!();
-    /*
     app_permissions_builder
         .reborrow()
         .set_routes(app_permissions.routes);
     app_permissions_builder
         .reborrow()
-        .set_send_funds(app_permissions.buyer);
+        .set_buyer(app_permissions.buyer);
+    app_permissions_builder
+        .reborrow()
+        .set_seller(app_permissions.seller);
     app_permissions_builder
         .reborrow()
         .set_config(app_permissions.config);
-    */
 }
 
 fn deser_app_permissions(
     app_permissions_reader: &app_server_capnp::app_permissions::Reader,
 ) -> Result<AppPermissions, SerializeError> {
-    unimplemented!();
-    /*
     Ok(AppPermissions {
         routes: app_permissions_reader.get_routes(),
-        buyer: app_permissions_reader.get_send_funds(),
-        seller: app_permissions_reader.get_send_funds(),
+        buyer: app_permissions_reader.get_buyer(),
+        seller: app_permissions_reader.get_seller(),
         config: app_permissions_reader.get_config(),
     })
-    */
+}
+
+fn ser_create_payment(
+    create_payment: &CreatePayment,
+    create_payment_builder: &mut app_server_capnp::create_payment::Builder,
+) {
+    write_payment_id(
+        &create_payment.payment_id,
+        &mut create_payment_builder.reborrow().init_payment_id(),
+    );
+
+    write_invoice_id(
+        &create_payment.invoice_id,
+        &mut create_payment_builder.reborrow().init_invoice_id(),
+    );
+
+    write_custom_u_int128(
+        create_payment.total_dest_payment,
+        &mut create_payment_builder.reborrow().init_total_dest_payment(),
+    );
+
+    write_public_key(
+        &create_payment.dest_public_key,
+        &mut create_payment_builder.reborrow().init_dest_public_key(),
+    );
+}
+
+fn deser_create_payment(
+    create_payment_reader: &app_server_capnp::create_payment::Reader,
+) -> Result<CreatePayment, SerializeError> {
+    Ok(CreatePayment {
+        payment_id: read_payment_id(&create_payment_reader.get_payment_id()?)?,
+        invoice_id: read_invoice_id(&create_payment_reader.get_invoice_id()?)?,
+        total_dest_payment: read_custom_u_int128(&create_payment_reader.get_total_dest_payment()?)?,
+        dest_public_key: read_public_key(&create_payment_reader.get_dest_public_key()?)?,
+    })
+}
+
+fn ser_create_transaction(
+    create_transaction: &CreateTransaction,
+    create_transaction_builder: &mut app_server_capnp::create_transaction::Builder,
+) {
+    write_payment_id(
+        &create_transaction.payment_id,
+        &mut create_transaction_builder.reborrow().init_payment_id(),
+    );
+
+    write_uid(
+        &create_transaction.request_id,
+        &mut create_transaction_builder.reborrow().init_request_id(),
+    );
+
+    ser_friends_route(
+        &create_transaction.route,
+        &mut create_transaction_builder.reborrow().init_route(),
+    );
+
+    write_custom_u_int128(
+        create_transaction.dest_payment,
+        &mut create_transaction_builder.reborrow().init_dest_payment(),
+    );
+
+    write_custom_u_int128(
+        create_transaction.fees,
+        &mut create_transaction_builder.reborrow().init_fees(),
+    );
+}
+
+fn deser_create_transaction(
+    create_transaction_reader: &app_server_capnp::create_transaction::Reader,
+) -> Result<CreateTransaction, SerializeError> {
+    Ok(CreateTransaction {
+        payment_id: read_payment_id(&create_transaction_reader.get_payment_id()?)?,
+        request_id: read_uid(&create_transaction_reader.get_request_id()?)?,
+        route: deser_friends_route(&create_transaction_reader.get_route()?)?,
+        dest_payment: read_custom_u_int128(&create_transaction_reader.get_dest_payment()?)?,
+        fees: read_custom_u_int128(&create_transaction_reader.get_fees()?)?,
+    })
+}
+
+fn ser_add_invoice(
+    add_invoice: &AddInvoice,
+    add_invoice_builder: &mut app_server_capnp::add_invoice::Builder,
+) {
+    write_invoice_id(
+        &add_invoice.invoice_id,
+        &mut add_invoice_builder.reborrow().init_invoice_id(),
+    );
+
+    write_custom_u_int128(
+        add_invoice.total_dest_payment,
+        &mut add_invoice_builder.reborrow().init_total_dest_payment(),
+    );
+}
+
+fn deser_add_invoice(
+    add_invoice_reader: &app_server_capnp::add_invoice::Reader,
+) -> Result<AddInvoice, SerializeError> {
+    Ok(AddInvoice {
+        invoice_id: read_invoice_id(&add_invoice_reader.get_invoice_id()?)?,
+        total_dest_payment: read_custom_u_int128(&add_invoice_reader.get_total_dest_payment()?)?,
+    })
+}
+
+fn ser_ack_close_payment(
+    ack_close_payment: &AckClosePayment,
+    ack_close_payment_builder: &mut app_server_capnp::ack_close_payment::Builder,
+) {
+    write_payment_id(
+        &ack_close_payment.payment_id,
+        &mut ack_close_payment_builder.reborrow().init_payment_id(),
+    );
+
+    write_uid(
+        &ack_close_payment.ack_uid,
+        &mut ack_close_payment_builder.reborrow().init_ack_uid(),
+    );
+}
+
+fn deser_ack_close_payment(
+    ack_close_payment_reader: &app_server_capnp::ack_close_payment::Reader,
+) -> Result<AckClosePayment, SerializeError> {
+    Ok(AckClosePayment {
+        payment_id: read_payment_id(&ack_close_payment_reader.get_payment_id()?)?,
+        ack_uid: read_uid(&ack_close_payment_reader.get_ack_uid()?)?,
+    })
+}
+
+fn ser_set_friend_rate(
+    set_friend_rate: &SetFriendRate,
+    set_friend_rate_builder: &mut app_server_capnp::set_friend_rate::Builder,
+) {
+    write_public_key(
+        &set_friend_rate.friend_public_key,
+        &mut set_friend_rate_builder.reborrow().init_friend_public_key(),
+    );
+
+    write_rate(
+        &set_friend_rate.rate,
+        &mut set_friend_rate_builder.reborrow().init_rate(),
+    );
+}
+
+fn deser_set_friend_rate(
+    set_friend_rate_reader: &app_server_capnp::set_friend_rate::Reader,
+) -> Result<SetFriendRate, SerializeError> {
+    Ok(SetFriendRate {
+        friend_public_key: read_public_key(&set_friend_rate_reader.get_friend_public_key()?)?,
+        rate: read_rate(&set_friend_rate_reader.get_rate()?)?,
+    })
+}
+
+fn ser_request_result(
+    request_result: &RequestResult,
+    request_result_builder: &mut app_server_capnp::request_result::Builder,
+) {
+    match request_result {
+        RequestResult::Success(commit) => {
+            write_commit(
+                commit,
+                &mut request_result_builder.reborrow().init_success(),
+            );
+        }
+        RequestResult::Failure => request_result_builder.reborrow().set_failure(()),
+    }
+}
+
+fn deser_request_result(
+    request_result_reader: &app_server_capnp::request_result::Reader,
+) -> Result<RequestResult, SerializeError> {
+    Ok(match request_result_reader.which()? {
+        app_server_capnp::request_result::Success(commit_reader) => {
+            RequestResult::Success(read_commit(&commit_reader?)?)
+        }
+        app_server_capnp::request_result::Failure(()) => RequestResult::Failure,
+    })
+}
+
+fn ser_transaction_result(
+    transaction_result: &TransactionResult,
+    transaction_result_builder: &mut app_server_capnp::transaction_result::Builder,
+) {
+    write_uid(
+        &transaction_result.request_id,
+        &mut transaction_result_builder.reborrow().init_request_id(),
+    );
+
+    ser_request_result(
+        &transaction_result.result,
+        &mut transaction_result_builder.reborrow().init_result(),
+    );
+}
+
+fn deser_transaction_result(
+    transaction_result_reader: &app_server_capnp::transaction_result::Reader,
+) -> Result<TransactionResult, SerializeError> {
+    Ok(TransactionResult {
+        request_id: read_uid(&transaction_result_reader.get_request_id()?)?,
+        result: deser_request_result(&transaction_result_reader.get_result()?)?,
+    })
+}
+
+fn ser_payment_status(
+    payment_status: &PaymentStatus,
+    payment_status_builder: &mut app_server_capnp::payment_status::Builder,
+) {
+    match payment_status {
+        PaymentStatus::PaymentNotFound => {
+            payment_status_builder.reborrow().set_payment_not_found(())
+        }
+        PaymentStatus::InProgress => payment_status_builder.reborrow().set_in_progress(()),
+        PaymentStatus::Success((receipt, ack_uid)) => {
+            let mut payment_success_builder = payment_status_builder.reborrow().init_success();
+            write_receipt(
+                receipt,
+                &mut payment_success_builder.reborrow().init_receipt(),
+            );
+            write_uid(
+                ack_uid,
+                &mut payment_success_builder.reborrow().init_ack_uid(),
+            );
+        }
+        PaymentStatus::Canceled(ack_uid) => {
+            let mut ack_uid_builder = payment_status_builder.reborrow().init_canceled();
+            write_uid(ack_uid, &mut ack_uid_builder);
+        }
+    }
+}
+
+fn deser_payment_status(
+    payment_status_reader: &app_server_capnp::payment_status::Reader,
+) -> Result<PaymentStatus, SerializeError> {
+    Ok(match payment_status_reader.which()? {
+        app_server_capnp::payment_status::PaymentNotFound(()) => PaymentStatus::PaymentNotFound,
+        app_server_capnp::payment_status::InProgress(()) => PaymentStatus::InProgress,
+        app_server_capnp::payment_status::Success(res_payment_success_reader) => {
+            let payment_success_reader = res_payment_success_reader?;
+            PaymentStatus::Success((
+                read_receipt(&payment_success_reader.get_receipt()?)?,
+                read_uid(&payment_success_reader.get_ack_uid()?)?,
+            ))
+        }
+        app_server_capnp::payment_status::Canceled(ack_uid_reader) => {
+            PaymentStatus::Canceled(read_uid(&ack_uid_reader?)?)
+        }
+    })
+}
+
+fn ser_response_close_payment(
+    response_close_payment: &ResponseClosePayment,
+    response_close_payment_builder: &mut app_server_capnp::response_close_payment::Builder,
+) {
+    write_payment_id(
+        &response_close_payment.payment_id,
+        &mut response_close_payment_builder.reborrow().init_payment_id(),
+    );
+
+    ser_payment_status(
+        &response_close_payment.status,
+        &mut response_close_payment_builder.reborrow().init_status(),
+    );
+}
+
+fn deser_response_close_payment(
+    response_close_payment_reader: &app_server_capnp::response_close_payment::Reader,
+) -> Result<ResponseClosePayment, SerializeError> {
+    Ok(ResponseClosePayment {
+        payment_id: read_payment_id(&response_close_payment_reader.get_payment_id()?)?,
+        status: deser_payment_status(&response_close_payment_reader.get_status()?)?,
+    })
 }
 
 fn ser_report_mutations(
@@ -470,14 +644,18 @@ fn ser_app_server_to_app(
     app_server_to_app: &AppServerToApp,
     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder,
 ) {
-    unimplemented!();
-    /*
     match app_server_to_app {
-        AppServerToApp::ResponseReceived(response_received) => ser_response_received(
-            response_received,
+        AppServerToApp::TransactionResult(transaction_result) => ser_transaction_result(
+            transaction_result,
             &mut app_server_to_app_builder
                 .reborrow()
-                .init_response_received(),
+                .init_transaction_result(),
+        ),
+        AppServerToApp::ResponseClosePayment(response_close_payment) => ser_response_close_payment(
+            response_close_payment,
+            &mut app_server_to_app_builder
+                .reborrow()
+                .init_response_close_payment(),
         ),
         AppServerToApp::Report(node_report) => ser_node_report(
             node_report,
@@ -492,18 +670,22 @@ fn ser_app_server_to_app(
             &mut app_server_to_app_builder.reborrow().init_response_routes(),
         ),
     }
-    */
 }
 
 fn deser_app_server_to_app(
     app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader,
 ) -> Result<AppServerToApp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match app_server_to_app_reader.which()? {
-        app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) => {
-            AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?)
+        app_server_capnp::app_server_to_app::TransactionResult(transaction_result_reader) => {
+            AppServerToApp::TransactionResult(deser_transaction_result(
+                &transaction_result_reader?,
+            )?)
         }
+        app_server_capnp::app_server_to_app::ResponseClosePayment(
+            response_close_payment_reader,
+        ) => AppServerToApp::ResponseClosePayment(deser_response_close_payment(
+            &response_close_payment_reader?,
+        )?),
         app_server_capnp::app_server_to_app::Report(node_report_reader) => {
             AppServerToApp::Report(deser_node_report(&node_report_reader?)?)
         }
@@ -516,15 +698,12 @@ fn deser_app_server_to_app(
             )?)
         }
     })
-    */
 }
 
 fn ser_app_request(
     app_request: &AppRequest,
     app_request_builder: &mut app_server_capnp::app_request::Builder,
 ) {
-    unimplemented!();
-    /*
     match app_request {
         AppRequest::AddRelay(named_relay_address) => write_named_relay_address(
             named_relay_address,
@@ -534,13 +713,33 @@ fn ser_app_request(
             public_key,
             &mut app_request_builder.reborrow().init_remove_relay(),
         ),
-        AppRequest::RequestSendFunds(user_request_send_funds) => ser_user_request_send_funds(
-            user_request_send_funds,
-            &mut app_request_builder.reborrow().init_request_send_funds(),
+        AppRequest::CreatePayment(create_payment) => ser_create_payment(
+            create_payment,
+            &mut app_request_builder.reborrow().init_create_payment(),
         ),
-        AppRequest::ReceiptAck(receipt_ack) => ser_receipt_ack(
-            receipt_ack,
-            &mut app_request_builder.reborrow().init_receipt_ack(),
+        AppRequest::CreateTransaction(create_transaction) => ser_create_transaction(
+            create_transaction,
+            &mut app_request_builder.reborrow().init_create_transaction(),
+        ),
+        AppRequest::RequestClosePayment(payment_id) => write_payment_id(
+            payment_id,
+            &mut app_request_builder.reborrow().init_request_close_payment(),
+        ),
+        AppRequest::AckClosePayment(ack_close_payment) => ser_ack_close_payment(
+            ack_close_payment,
+            &mut app_request_builder.reborrow().init_ack_close_payment(),
+        ),
+        AppRequest::AddInvoice(add_invoice) => ser_add_invoice(
+            add_invoice,
+            &mut app_request_builder.reborrow().init_add_invoice(),
+        ),
+        AppRequest::CancelInvoice(invoice_id) => write_invoice_id(
+            invoice_id,
+            &mut app_request_builder.reborrow().init_cancel_invoice(),
+        ),
+        AppRequest::CommitInvoice(multi_commit) => write_multi_commit(
+            multi_commit,
+            &mut app_request_builder.reborrow().init_commit_invoice(),
         ),
         AppRequest::AddFriend(add_friend) => ser_add_friend(
             add_friend,
@@ -582,6 +781,10 @@ fn ser_app_request(
                     .init_set_friend_remote_max_debt(),
             )
         }
+        AppRequest::SetFriendRate(set_friend_rate) => ser_set_friend_rate(
+            set_friend_rate,
+            &mut app_request_builder.reborrow().init_set_friend_rate(),
+        ),
         AppRequest::ResetFriendChannel(reset_friend_channel) => ser_reset_friend_channel(
             reset_friend_channel,
             &mut app_request_builder.reborrow().init_reset_friend_channel(),
@@ -601,14 +804,11 @@ fn ser_app_request(
             &mut app_request_builder.reborrow().init_remove_index_server(),
         ),
     }
-    */
 }
 
 fn deser_app_request(
     app_request: &app_server_capnp::app_request::Reader,
 ) -> Result<AppRequest, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match app_request.which()? {
         app_server_capnp::app_request::AddRelay(named_relay_address_reader) => {
             AppRequest::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -616,13 +816,26 @@ fn deser_app_request(
         app_server_capnp::app_request::RemoveRelay(public_key_reader) => {
             AppRequest::RemoveRelay(read_public_key(&public_key_reader?)?)
         }
-        app_server_capnp::app_request::RequestSendFunds(request_send_funds_reader) => {
-            AppRequest::RequestSendFunds(deser_user_request_send_funds(
-                &request_send_funds_reader?,
-            )?)
+        app_server_capnp::app_request::CreatePayment(create_payment_reader) => {
+            AppRequest::CreatePayment(deser_create_payment(&create_payment_reader?)?)
         }
-        app_server_capnp::app_request::ReceiptAck(receipt_ack_reader) => {
-            AppRequest::ReceiptAck(deser_receipt_ack(&receipt_ack_reader?)?)
+        app_server_capnp::app_request::CreateTransaction(create_transaction_reader) => {
+            AppRequest::CreateTransaction(deser_create_transaction(&create_transaction_reader?)?)
+        }
+        app_server_capnp::app_request::RequestClosePayment(payment_id_reader) => {
+            AppRequest::RequestClosePayment(read_payment_id(&payment_id_reader?)?)
+        }
+        app_server_capnp::app_request::AckClosePayment(ack_close_payment_reader) => {
+            AppRequest::AckClosePayment(deser_ack_close_payment(&ack_close_payment_reader?)?)
+        }
+        app_server_capnp::app_request::AddInvoice(add_invoice_reader) => {
+            AppRequest::AddInvoice(deser_add_invoice(&add_invoice_reader?)?)
+        }
+        app_server_capnp::app_request::CancelInvoice(invoice_id_reader) => {
+            AppRequest::CancelInvoice(read_invoice_id(&invoice_id_reader?)?)
+        }
+        app_server_capnp::app_request::CommitInvoice(multi_commit_reader) => {
+            AppRequest::CommitInvoice(read_multi_commit(&multi_commit_reader?)?)
         }
         app_server_capnp::app_request::AddFriend(add_friend_reader) => {
             AppRequest::AddFriend(deser_add_friend(&add_friend_reader?)?)
@@ -648,6 +861,9 @@ fn deser_app_request(
         app_server_capnp::app_request::CloseFriend(public_key_reader) => {
             AppRequest::CloseFriend(read_public_key(&public_key_reader?)?)
         }
+        app_server_capnp::app_request::SetFriendRate(set_friend_rate_reader) => {
+            AppRequest::SetFriendRate(deser_set_friend_rate(&set_friend_rate_reader?)?)
+        }
         app_server_capnp::app_request::SetFriendRemoteMaxDebt(
             set_friend_remote_max_debt_reader,
         ) => AppRequest::SetFriendRemoteMaxDebt(deser_set_friend_remote_max_debt(
@@ -668,7 +884,6 @@ fn deser_app_request(
             AppRequest::RemoveIndexServer(read_public_key(&public_key_reader?)?)
         }
     })
-    */
 }
 
 fn ser_app_to_app_server(
@@ -757,7 +972,6 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer, Seri
     deser_app_to_app_server(&app_to_app_server)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -772,8 +986,9 @@ mod tests {
     fn test_serialize_app_permissions() {
         let app_permissions = AppPermissions {
             routes: false,
-            send_funds: true,
-            config: false,
+            buyer: true,
+            seller: false,
+            config: true,
         };
 
         let data = serialize_app_permissions(&app_permissions);
@@ -837,4 +1052,3 @@ mod tests {
 
     // TODO: More tests are required here
 }
-*/

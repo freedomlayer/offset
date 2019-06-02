@@ -1,8 +1,9 @@
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, /*read_invoice_id,*/ read_public_key,
-    read_rand_nonce, read_relay_address, read_signature, read_uid, write_custom_int128,
-    write_custom_u_int128, write_invoice_id, write_public_key, write_rand_nonce,
-    write_relay_address, write_signature, write_uid,
+    read_custom_int128, read_custom_u_int128, read_hashed_lock, read_invoice_id, read_plain_lock,
+    read_public_key, read_rand_nonce, read_relay_address, read_signature, read_uid,
+    write_custom_int128, write_custom_u_int128, write_hashed_lock, write_invoice_id,
+    write_plain_lock, write_public_key, write_rand_nonce, write_relay_address, write_signature,
+    write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -12,8 +13,8 @@ use std::io;
 use funder_capnp;
 
 use super::messages::{
-    CancelSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
-    RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken,
+    MoveTokenRequest, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::serialize::SerializeError;
@@ -44,6 +45,13 @@ fn ser_request_send_funds_op(
         &mut request_send_funds_op_builder.reborrow().init_request_id(),
     );
 
+    write_hashed_lock(
+        &request_send_funds.src_hashed_lock,
+        &mut request_send_funds_op_builder
+            .reborrow()
+            .init_src_hashed_lock(),
+    );
+
     let mut route_builder = request_send_funds_op_builder.reborrow().init_route();
     ser_friends_route(&request_send_funds.route, &mut route_builder);
 
@@ -52,9 +60,21 @@ fn ser_request_send_funds_op(
         &mut request_send_funds_op_builder.reborrow().init_dest_payment(),
     );
 
+    write_custom_u_int128(
+        request_send_funds.total_dest_payment,
+        &mut request_send_funds_op_builder
+            .reborrow()
+            .init_total_dest_payment(),
+    );
+
     write_invoice_id(
         &request_send_funds.invoice_id,
         &mut request_send_funds_op_builder.reborrow().init_invoice_id(),
+    );
+
+    write_custom_u_int128(
+        request_send_funds.left_fees,
+        &mut request_send_funds_op_builder.reborrow().init_left_fees(),
     );
 }
 
@@ -66,6 +86,14 @@ fn ser_response_send_funds_op(
         &response_send_funds.request_id,
         &mut response_send_funds_op_builder.reborrow().init_request_id(),
     );
+
+    write_hashed_lock(
+        &response_send_funds.dest_hashed_lock,
+        &mut response_send_funds_op_builder
+            .reborrow()
+            .init_dest_hashed_lock(),
+    );
+
     write_rand_nonce(
         &response_send_funds.rand_nonce,
         &mut response_send_funds_op_builder.reborrow().init_rand_nonce(),
@@ -78,37 +106,42 @@ fn ser_response_send_funds_op(
 
 fn ser_cancel_send_funds_op(
     cancel_send_funds: &CancelSendFundsOp,
-    cancel_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder,
+    cancel_send_funds_op_builder: &mut funder_capnp::cancel_send_funds_op::Builder,
 ) {
-    unimplemented!();
-    /*
     write_uid(
         &cancel_send_funds.request_id,
         &mut cancel_send_funds_op_builder.reborrow().init_request_id(),
     );
-    write_public_key(
-        &cancel_send_funds.reporting_public_key,
-        &mut cancel_send_funds_op_builder
+}
+
+fn ser_collect_send_funds_op(
+    collect_send_funds: &CollectSendFundsOp,
+    collect_send_funds_op_builder: &mut funder_capnp::collect_send_funds_op::Builder,
+) {
+    write_uid(
+        &collect_send_funds.request_id,
+        &mut collect_send_funds_op_builder.reborrow().init_request_id(),
+    );
+
+    write_plain_lock(
+        &collect_send_funds.src_plain_lock,
+        &mut collect_send_funds_op_builder
             .reborrow()
-            .init_reporting_public_key(),
+            .init_src_plain_lock(),
     );
-    write_rand_nonce(
-        &cancel_send_funds.rand_nonce,
-        &mut cancel_send_funds_op_builder.reborrow().init_rand_nonce(),
+
+    write_plain_lock(
+        &collect_send_funds.dest_plain_lock,
+        &mut collect_send_funds_op_builder
+            .reborrow()
+            .init_dest_plain_lock(),
     );
-    write_signature(
-        &cancel_send_funds.signature,
-        &mut cancel_send_funds_op_builder.reborrow().init_signature(),
-    );
-    */
 }
 
 fn ser_friend_operation(
     operation: &FriendTcOp,
     operation_builder: &mut funder_capnp::friend_operation::Builder,
 ) {
-    unimplemented!();
-    /*
     match operation {
         FriendTcOp::EnableRequests => operation_builder.set_enable_requests(()),
         FriendTcOp::DisableRequests => operation_builder.set_disable_requests(()),
@@ -132,8 +165,12 @@ fn ser_friend_operation(
                 operation_builder.reborrow().init_cancel_send_funds();
             ser_cancel_send_funds_op(cancel_send_funds, &mut cancel_send_funds_builder);
         }
+        FriendTcOp::CollectSendFunds(collect_send_funds) => {
+            let mut collect_send_funds_builder =
+                operation_builder.reborrow().init_collect_send_funds();
+            ser_collect_send_funds_op(collect_send_funds, &mut collect_send_funds_builder);
+        }
     };
-    */
 }
 
 fn ser_move_token(
@@ -284,51 +321,51 @@ pub fn deser_friends_route(
 fn deser_request_send_funds_op(
     request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader,
 ) -> Result<RequestSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
-    Ok(RequestSendFunds {
+    Ok(RequestSendFundsOp {
         request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
+        src_hashed_lock: read_hashed_lock(&request_send_funds_op_reader.get_src_hashed_lock()?)?,
         route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
+        total_dest_payment: read_custom_u_int128(
+            &request_send_funds_op_reader.get_total_dest_payment()?,
+        )?,
         invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
+        left_fees: read_custom_u_int128(&request_send_funds_op_reader.get_left_fees()?)?,
     })
-    */
 }
 
 fn deser_response_send_funds_op(
     response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader,
 ) -> Result<ResponseSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
-    Ok(ResponseSendFunds {
+    Ok(ResponseSendFundsOp {
         request_id: read_uid(&response_send_funds_op_reader.get_request_id()?)?,
+        dest_hashed_lock: read_hashed_lock(&response_send_funds_op_reader.get_dest_hashed_lock()?)?,
         rand_nonce: read_rand_nonce(&response_send_funds_op_reader.get_rand_nonce()?)?,
         signature: read_signature(&response_send_funds_op_reader.get_signature()?)?,
     })
-    */
 }
 
 fn deser_cancel_send_funds_op(
-    cancel_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
+    cancel_send_funds_op_reader: &funder_capnp::cancel_send_funds_op::Reader,
 ) -> Result<CancelSendFundsOp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(CancelSendFundsOp {
         request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
-        reporting_public_key: read_public_key(
-            &cancel_send_funds_op_reader.get_reporting_public_key()?,
-        )?,
-        rand_nonce: read_rand_nonce(&cancel_send_funds_op_reader.get_rand_nonce()?)?,
-        signature: read_signature(&cancel_send_funds_op_reader.get_signature()?)?,
     })
-    */
+}
+
+fn deser_collect_send_funds_op(
+    collect_send_funds_op_reader: &funder_capnp::collect_send_funds_op::Reader,
+) -> Result<CollectSendFundsOp, SerializeError> {
+    Ok(CollectSendFundsOp {
+        request_id: read_uid(&collect_send_funds_op_reader.get_request_id()?)?,
+        src_plain_lock: read_plain_lock(&collect_send_funds_op_reader.get_src_plain_lock()?)?,
+        dest_plain_lock: read_plain_lock(&collect_send_funds_op_reader.get_dest_plain_lock()?)?,
+    })
 }
 
 fn deser_friend_operation(
     friend_operation_reader: &funder_capnp::friend_operation::Reader,
 ) -> Result<FriendTcOp, SerializeError> {
-    unimplemented!();
-    /*
     Ok(match friend_operation_reader.which()? {
         funder_capnp::friend_operation::EnableRequests(()) => FriendTcOp::EnableRequests,
         funder_capnp::friend_operation::DisableRequests(()) => FriendTcOp::DisableRequests,
@@ -346,8 +383,10 @@ fn deser_friend_operation(
         funder_capnp::friend_operation::CancelSendFunds(cancel_send_funds_reader) => {
             FriendTcOp::CancelSendFunds(deser_cancel_send_funds_op(&cancel_send_funds_reader?)?)
         }
+        funder_capnp::friend_operation::CollectSendFunds(collect_send_funds_reader) => {
+            FriendTcOp::CollectSendFunds(deser_collect_send_funds_op(&collect_send_funds_reader?)?)
+        }
     })
-    */
 }
 
 fn deser_move_token(
@@ -435,12 +474,12 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, Serializ
     deser_friend_message(&friend_message_reader)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app_server::messages::RelayAddress;
     use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
+    use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
     use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
     use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
     use crypto::uid::{Uid, UID_LEN};
@@ -459,21 +498,28 @@ mod tests {
 
         let request_send_funds = RequestSendFundsOp {
             request_id: Uid::from(&[22; UID_LEN]),
+            src_hashed_lock: HashedLock::from(&[1u8; HASHED_LOCK_LEN]),
             route,
             dest_payment: 48,
+            total_dest_payment: 60,
             invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
+            left_fees: 14,
         };
         let response_send_funds = ResponseSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
+            dest_hashed_lock: HashedLock::from(&[2u8; HASHED_LOCK_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
             signature: Signature::from(&[3; SIGNATURE_LEN]),
         };
 
         let cancel_send_funds = CancelSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
-            reporting_public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
-            signature: Signature::from(&[3; SIGNATURE_LEN]),
+        };
+
+        let collect_send_funds = CollectSendFundsOp {
+            request_id: Uid::from(&[10; UID_LEN]),
+            src_plain_lock: PlainLock::from(&[4u8; PLAIN_LOCK_LEN]),
+            dest_plain_lock: PlainLock::from(&[5u8; PLAIN_LOCK_LEN]),
         };
 
         let operations = vec![
@@ -483,6 +529,7 @@ mod tests {
             FriendTcOp::RequestSendFunds(request_send_funds),
             FriendTcOp::ResponseSendFunds(response_send_funds),
             FriendTcOp::CancelSendFunds(cancel_send_funds),
+            FriendTcOp::CollectSendFunds(collect_send_funds),
         ];
 
         let relay_address4 = RelayAddress {
@@ -543,4 +590,3 @@ mod tests {
         assert_eq!(friend_message, friend_message2);
     }
 }
-*/

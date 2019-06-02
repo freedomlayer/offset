@@ -2,17 +2,17 @@ use capnp::serialize_packed;
 use std::io;
 
 use crate::capnp_common::{
-    read_custom_u_int128, read_hash, read_public_key, read_rand_nonce, read_signature, read_uid,
-    write_custom_u_int128, write_hash, write_public_key, write_rand_nonce, write_signature,
-    write_uid,
+    read_custom_u_int128, read_hash, read_public_key, read_rand_nonce, read_rate, read_signature,
+    read_uid, write_custom_u_int128, write_hash, write_public_key, write_rand_nonce, write_rate,
+    write_signature, write_uid,
 };
 use common::int_convert::usize_to_u32;
 use index_capnp;
 
 use super::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
-    IndexServerToServer, MutationsUpdate, RequestRoutes, ResponseRoutes, TimeProofLink,
-    UpdateFriend,
+    IndexServerToServer, MultiRoute, MutationsUpdate, RequestRoutes, ResponseRoutes,
+    RouteCapacityRate, TimeProofLink, UpdateFriend,
 };
 
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
@@ -81,70 +81,92 @@ pub fn deser_request_routes(
     })
 }
 
-/*
-pub fn ser_route_with_capacity(
-    route_with_capacity: &RouteWithCapacity,
-    route_with_capacity_builder: &mut index_capnp::route_with_capacity::Builder,
+pub fn ser_route_capacity_rate(
+    route_capacity_rate: &RouteCapacityRate,
+    route_capacity_rate_builder: &mut index_capnp::route_capacity_rate::Builder,
 ) {
-    unimplemented!();
-    /*
     ser_friends_route(
-        &route_with_capacity.route,
-        &mut route_with_capacity_builder.reborrow().init_route(),
+        &route_capacity_rate.route,
+        &mut route_capacity_rate_builder.reborrow().init_route(),
     );
     write_custom_u_int128(
-        route_with_capacity.capacity,
-        &mut route_with_capacity_builder.reborrow().init_capacity(),
+        route_capacity_rate.capacity,
+        &mut route_capacity_rate_builder.reborrow().init_capacity(),
     );
-    */
+    write_rate(
+        &route_capacity_rate.rate,
+        &mut route_capacity_rate_builder.reborrow().init_rate(),
+    );
 }
 
-pub fn deser_route_with_capacity(
-    route_with_capacity_reader: &index_capnp::route_with_capacity::Reader,
-) -> Result<RouteWithCapacity, SerializeError> {
-    Ok(RouteWithCapacity {
-        route: deser_friends_route(&route_with_capacity_reader.get_route()?)?,
-        capacity: read_custom_u_int128(&route_with_capacity_reader.get_capacity()?)?,
+pub fn deser_route_capacity_rate(
+    route_capacity_rate_reader: &index_capnp::route_capacity_rate::Reader,
+) -> Result<RouteCapacityRate, SerializeError> {
+    Ok(RouteCapacityRate {
+        route: deser_friends_route(&route_capacity_rate_reader.get_route()?)?,
+        capacity: read_custom_u_int128(&route_capacity_rate_reader.get_capacity()?)?,
+        rate: read_rate(&route_capacity_rate_reader.get_rate()?)?,
     })
 }
-*/
+
+pub fn ser_multi_route(
+    multi_route: &MultiRoute,
+    multi_route_builder: &mut index_capnp::multi_route::Builder,
+) {
+    let routes_len = usize_to_u32(multi_route.routes.len()).unwrap();
+    let mut routes_builder = multi_route_builder.reborrow().init_routes(routes_len);
+
+    for (index, route) in multi_route.routes.iter().enumerate() {
+        let mut route_capacity_rate_builder =
+            routes_builder.reborrow().get(usize_to_u32(index).unwrap());
+        ser_route_capacity_rate(&route, &mut route_capacity_rate_builder);
+    }
+}
+
+pub fn deser_multi_route(
+    multi_route_reader: &index_capnp::multi_route::Reader,
+) -> Result<MultiRoute, SerializeError> {
+    let mut routes = Vec::new();
+    for route_capacity_rate in multi_route_reader.get_routes()? {
+        routes.push(deser_route_capacity_rate(&route_capacity_rate)?);
+    }
+
+    Ok(MultiRoute { routes })
+}
 
 fn ser_response_routes(
     response_routes: &ResponseRoutes,
     response_routes_builder: &mut index_capnp::response_routes::Builder,
 ) {
-    unimplemented!();
-    /*
     write_uid(
         &response_routes.request_id,
         &mut response_routes_builder.reborrow().init_request_id(),
     );
-    let routes_len = usize_to_u32(response_routes.routes.len()).unwrap();
-    let mut routes_builder = response_routes_builder.reborrow().init_routes(routes_len);
+    let multi_routes_len = usize_to_u32(response_routes.multi_routes.len()).unwrap();
+    let mut multi_routes_builder = response_routes_builder
+        .reborrow()
+        .init_multi_routes(multi_routes_len);
 
-    for (index, route) in response_routes.routes.iter().enumerate() {
-        let mut route_with_capacity_builder =
-            routes_builder.reborrow().get(usize_to_u32(index).unwrap());
-        ser_route_with_capacity(&route, &mut route_with_capacity_builder);
+    for (index, multi_route) in response_routes.multi_routes.iter().enumerate() {
+        let mut multi_route_builder = multi_routes_builder
+            .reborrow()
+            .get(usize_to_u32(index).unwrap());
+        ser_multi_route(&multi_route, &mut multi_route_builder);
     }
-    */
 }
 
 fn deser_response_routes(
     response_routes_reader: &index_capnp::response_routes::Reader,
 ) -> Result<ResponseRoutes, SerializeError> {
-    unimplemented!();
-    /*
-    let mut routes = Vec::new();
-    for route_with_capacity in response_routes_reader.get_routes()? {
-        routes.push(deser_route_with_capacity(&route_with_capacity)?);
+    let mut multi_routes = Vec::new();
+    for multi_route_reader in response_routes_reader.get_multi_routes()? {
+        multi_routes.push(deser_multi_route(&multi_route_reader)?);
     }
 
     Ok(ResponseRoutes {
         request_id: read_uid(&response_routes_reader.get_request_id()?)?,
-        routes,
+        multi_routes,
     })
-    */
 }
 
 fn ser_update_friend(
@@ -163,19 +185,21 @@ fn ser_update_friend(
         update_friend.recv_capacity,
         &mut update_friend_builder.reborrow().init_recv_capacity(),
     );
+    write_rate(
+        &update_friend.rate,
+        &mut update_friend_builder.reborrow().init_rate(),
+    );
 }
 
 fn deser_update_friend(
-    _update_friend_reader: &index_capnp::update_friend::Reader,
+    update_friend_reader: &index_capnp::update_friend::Reader,
 ) -> Result<UpdateFriend, SerializeError> {
-    unimplemented!();
-    /*
     Ok(UpdateFriend {
         public_key: read_public_key(&update_friend_reader.get_public_key()?)?,
         send_capacity: read_custom_u_int128(&update_friend_reader.get_send_capacity()?)?,
         recv_capacity: read_custom_u_int128(&update_friend_reader.get_recv_capacity()?)?,
+        rate: read_rate(&update_friend_reader.get_rate()?)?,
     })
-    */
 }
 
 fn ser_index_mutation(

@@ -9,8 +9,12 @@ using import "common.capnp".PublicKey;
 using import "common.capnp".Hash;
 using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
+using import "common.capnp".PaymentId;
+using import "common.capnp".Rate;
 
 using import "common.capnp".Receipt;
+using import "common.capnp".Commit;
+using import "common.capnp".MultiCommit;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
@@ -20,7 +24,7 @@ using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
-using import "index.capnp".RouteWithCapacity;
+using import "index.capnp".MultiRoute;
 
 
 # Interface between AppServer and an Application
@@ -71,6 +75,11 @@ struct SetFriendRemoteMaxDebt {
         remoteMaxDebt @1: CustomUInt128;
 }
 
+struct SetFriendRate {
+        friendPublicKey @0: PublicKey;
+        rate @1: Rate;
+}
+
 # Application -> AppServer
 struct ResetFriendChannel {
         friendPublicKey @0: PublicKey;
@@ -79,7 +88,7 @@ struct ResetFriendChannel {
 
 struct ResponseRoutesResult {
         union {
-                success @0: List(RouteWithCapacity);
+                success @0: List(MultiRoute);
                 failure @1: Void;
         }
 }
@@ -89,14 +98,41 @@ struct ClientResponseRoutes {
         result @1: ResponseRoutesResult;
 }
 
+struct CreatePayment {
+        paymentId @0: PaymentId;
+        invoiceId @1: InvoiceId;
+        totalDestPayment @2: CustomUInt128;
+        destPublicKey @3: PublicKey;
+}
+
+struct CreateTransaction {
+        paymentId @0: PaymentId;
+        requestId @1: Uid;
+        route @2: FriendsRoute;
+        destPayment @3: CustomUInt128;
+        fees @4: CustomUInt128;
+}
+
+struct AckClosePayment {
+        paymentId @0: PaymentId;
+        ackUid @1: Uid;
+}
+
+struct AddInvoice {
+        invoiceId @0: InvoiceId;
+        totalDestPayment @1: CustomUInt128;
+}
+
 #####################################################################
 
 struct AppPermissions {
         routes @0: Bool;
-        # Can request routes
-        sendFunds @1: Bool;
-        # Can send credits
-        config @2: Bool;
+        # Can request for routes
+        buyer @1: Bool;
+        # Can buy (Send credits)
+        seller @2: Bool;
+        # Can sell (Receive credits)
+        config @3: Bool;
         # Can configure friends
 }
 
@@ -112,18 +148,50 @@ struct ReportMutations {
         # A list of mutations
 }
 
+struct RequestResult {
+        union {
+                success @0: Commit;
+                failure @1: Void;
+        }
+}
+
+struct TransactionResult {
+        requestId @0: Uid;
+        result @1: RequestResult;
+}
+
+struct PaymentStatusSuccess {
+        receipt @0: Receipt;
+        ackUid @1: Uid;
+}
+
+struct PaymentStatus {
+        union {
+                paymentNotFound @0: Void;
+                inProgress @1: Void;
+                success @2: PaymentStatusSuccess;
+                canceled @3: Uid;
+        }
+}
+
+struct ResponseClosePayment {
+        paymentId @0: PaymentId;
+        status @1: PaymentStatus;
+}
+
 
 struct AppServerToApp {
     union {
         # Funds
-        responseReceived @0: ResponseReceived;
+        transactionResult @0: TransactionResult;
+        responseClosePayment @1: ResponseClosePayment;
 
         # Reports about current state:
-        report @1: NodeReport;
-        reportMutations @2: ReportMutations;
+        report @2: NodeReport;
+        reportMutations @3: ReportMutations;
 
         # Routes:
-        responseRoutes @3: ClientResponseRoutes;
+        responseRoutes @4: ClientResponseRoutes;
 
     }
 }
@@ -134,28 +202,36 @@ struct AppRequest {
         addRelay @0: NamedRelayAddress;
         removeRelay @1: PublicKey;
 
-        # Sending Funds:
-        requestSendFunds @2: UserRequestSendFunds;
-        receiptAck @3: ReceiptAck;
+        # Buyer (Sending Funds):
+        createPayment @2: CreatePayment;
+        createTransaction @3: CreateTransaction;
+        requestClosePayment @4: PaymentId;
+        ackClosePayment @5: AckClosePayment;
+
+        # Seller (Receiving funds):
+        addInvoice @6: AddInvoice;
+        cancelInvoice @7: InvoiceId;
+        commitInvoice @8: MultiCommit;
 
         # Friends management
-        addFriend @4: AddFriend;
-        setFriendRelays @5: SetFriendRelays;
-        setFriendName @6: SetFriendName;
-        removeFriend @7: PublicKey;
-        enableFriend @8: PublicKey;
-        disableFriend @9: PublicKey;
-        openFriend @10: PublicKey;
-        closeFriend @11: PublicKey;
-        setFriendRemoteMaxDebt @12: SetFriendRemoteMaxDebt;
-        resetFriendChannel @13: ResetFriendChannel;
+        addFriend @9: AddFriend;
+        setFriendRelays @10: SetFriendRelays;
+        setFriendName @11: SetFriendName;
+        removeFriend @12: PublicKey;
+        enableFriend @13: PublicKey;
+        disableFriend @14: PublicKey;
+        openFriend @15: PublicKey;
+        closeFriend @16: PublicKey;
+        setFriendRemoteMaxDebt @17: SetFriendRemoteMaxDebt;
+        setFriendRate @18: SetFriendRate;
+        resetFriendChannel @19: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @14: RequestRoutes;
+        requestRoutes @20: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @15: NamedIndexServerAddress;
-        removeIndexServer @16: PublicKey;
+        addIndexServer @21: NamedIndexServerAddress;
+        removeIndexServer @22: PublicKey;
     }
 }
 

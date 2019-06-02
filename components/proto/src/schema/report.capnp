@@ -6,6 +6,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
+using import "common.capnp".Rate;
 
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
@@ -127,17 +128,18 @@ struct SentLocalRelaysReport {
 
 struct FriendReport {
         name @0: Text;
-        remoteRelays @1: List(RelayAddress);
-        sentLocalRelays @2: SentLocalRelaysReport;
-        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
-        liveness @4: FriendLivenessReport;
-        channelStatus @5: ChannelStatusReport;
-        wantedRemoteMaxDebt @6: CustomUInt128;
-        wantedLocalRequestsStatus @7: RequestsStatusReport;
-        numPendingRequests @8: UInt64;
-        numPendingResponses @9: UInt64;
-        status @10: FriendStatusReport;
-        numPendingUserRequests @11: UInt64;
+        rate @1: Rate;
+        remoteRelays @2: List(RelayAddress);
+        sentLocalRelays @3: SentLocalRelaysReport;
+        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
+        liveness @5: FriendLivenessReport;
+        channelStatus @6: ChannelStatusReport;
+        wantedRemoteMaxDebt @7: CustomUInt128;
+        wantedLocalRequestsStatus @8: RequestsStatusReport;
+        numPendingRequests @9: UInt64;
+        numPendingBackwardsOps @10: UInt64;
+        status @11: FriendStatusReport;
+        numPendingUserRequests @12: UInt64;
 }
 
 struct PkFriendReport {
@@ -150,7 +152,9 @@ struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(NamedRelayAddress);
         friends @2: List(PkFriendReport);
-        numReadyReceipts @3: UInt64;
+        numOpenInvoices @3: UInt64;
+        numPayments @4: UInt64;
+        numOpenTransactions @5: UInt64;
 }
 
 
@@ -170,16 +174,17 @@ struct FriendReportMutation {
         union {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
-                setSentLocalRelays @2: SentLocalRelaysReport;
-                setChannelStatus @3: ChannelStatusReport;
-                setWantedRemoteMaxDebt @4: CustomUInt128;
-                setWantedLocalRequestsStatus @5: RequestsStatusReport;
-                setNumPendingRequests @6: UInt64;
-                setNumPendingResponses @7: UInt64;
-                setStatus @8: FriendStatusReport;
-                setNumPendingUserRequests @9: UInt64;
-                setOptLastIncomingMoveToken @10: OptLastIncomingMoveToken;
-                setLiveness @11: FriendLivenessReport;
+                setRate @2: Rate;
+                setSentLocalRelays @3: SentLocalRelaysReport;
+                setChannelStatus @4: ChannelStatusReport;
+                setWantedRemoteMaxDebt @5: CustomUInt128;
+                setWantedLocalRequestsStatus @6: RequestsStatusReport;
+                setNumPendingRequests @7: UInt64;
+                setNumPendingBackwardsOps @8: UInt64;
+                setStatus @9: FriendStatusReport;
+                setNumPendingUserRequests @10: UInt64;
+                setOptLastIncomingMoveToken @11: OptLastIncomingMoveToken;
+                setLiveness @12: FriendLivenessReport;
         }
 }
 
@@ -196,7 +201,9 @@ struct FunderReportMutation {
                 addFriend @2: AddFriendReport;
                 removeFriend @3: PublicKey;
                 pkFriendReportMutation @4: PkFriendReportMutation;
-                setNumReadyReceipts @5: UInt64;
+                setNumOpenInvoices @5: UInt64;
+                setNumPayments @6: UInt64;
+                setNumOpenTransactions @7: UInt64;
         }
 }
 

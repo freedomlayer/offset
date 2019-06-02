@@ -2,14 +2,17 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 use std::convert::{TryFrom, TryInto};
 use std::io;
 
+use common::int_convert::usize_to_u32;
+
 use common_capnp::{
-    buffer128, buffer256, buffer512, custom_int128, custom_u_int128, dh_public_key, hash,
-    invoice_id, named_index_server_address, named_relay_address, net_address, public_key,
-    rand_nonce, receipt, relay_address, salt, signature, uid,
+    buffer128, buffer256, buffer512, commit, custom_int128, custom_u_int128, dh_public_key, hash,
+    hashed_lock, invoice_id, multi_commit, named_index_server_address, named_relay_address,
+    net_address, payment_id, plain_lock, public_key, rand_nonce, rate, receipt, relay_address,
+    salt, signature, uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::Receipt;
+use crate::funder::messages::{Commit, MultiCommit, Rate, Receipt};
 use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 use crate::serialize::SerializeError;
@@ -17,8 +20,10 @@ use crate::serialize::SerializeError;
 use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::hash::HashResult;
+use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
@@ -149,6 +154,7 @@ type_capnp_serde!(
     read_buffer256,
     write_buffer256
 );
+
 type_capnp_serde!(
     invoice_id,
     InvoiceId,
@@ -156,6 +162,15 @@ type_capnp_serde!(
     write_invoice_id,
     read_buffer256,
     write_buffer256
+);
+
+type_capnp_serde!(
+    payment_id,
+    PaymentId,
+    read_payment_id,
+    write_payment_id,
+    read_buffer128,
+    write_buffer128
 );
 
 // 512 bits:
@@ -166,6 +181,26 @@ type_capnp_serde!(
     write_signature,
     read_buffer512,
     write_buffer512
+);
+
+// 256 bits:
+type_capnp_serde!(
+    plain_lock,
+    PlainLock,
+    read_plain_lock,
+    write_plain_lock,
+    read_buffer256,
+    write_buffer256
+);
+
+// 256 bits:
+type_capnp_serde!(
+    hashed_lock,
+    HashedLock,
+    read_hashed_lock,
+    write_hashed_lock,
+    read_buffer256,
+    write_buffer256
 );
 
 pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, SerializeError> {
@@ -270,23 +305,98 @@ pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_serv
 */
 
 pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, SerializeError> {
-    unimplemented!();
-    /*
     Ok(Receipt {
         response_hash: read_hash(&from.get_response_hash()?)?,
         invoice_id: read_invoice_id(&from.get_invoice_id()?)?,
+        src_plain_lock: read_plain_lock(&from.get_src_plain_lock()?)?,
+        dest_plain_lock: read_plain_lock(&from.get_dest_plain_lock()?)?,
         dest_payment: read_custom_u_int128(&from.get_dest_payment()?)?,
+        total_dest_payment: read_custom_u_int128(&from.get_total_dest_payment()?)?,
         signature: read_signature(&from.get_signature()?)?,
     })
-    */
 }
 
 pub fn write_receipt(from: &Receipt, to: &mut receipt::Builder) {
-    unimplemented!();
-    /*
     write_hash(&from.response_hash, &mut to.reborrow().init_response_hash());
     write_invoice_id(&from.invoice_id, &mut to.reborrow().init_invoice_id());
+    write_plain_lock(
+        &from.src_plain_lock,
+        &mut to.reborrow().init_src_plain_lock(),
+    );
+    write_plain_lock(
+        &from.dest_plain_lock,
+        &mut to.reborrow().init_dest_plain_lock(),
+    );
     write_custom_u_int128(from.dest_payment, &mut to.reborrow().init_dest_payment());
+    write_custom_u_int128(
+        from.total_dest_payment,
+        &mut to.reborrow().init_total_dest_payment(),
+    );
     write_signature(&from.signature, &mut to.reborrow().init_signature());
-    */
+}
+
+pub fn read_commit(from: &commit::Reader) -> Result<Commit, SerializeError> {
+    Ok(Commit {
+        response_hash: read_hash(&from.get_response_hash()?)?,
+        dest_payment: read_custom_u_int128(&from.get_dest_payment()?)?,
+        src_plain_lock: read_plain_lock(&from.get_src_plain_lock()?)?,
+        dest_hashed_lock: read_hashed_lock(&from.get_dest_hashed_lock()?)?,
+        signature: read_signature(&from.get_signature()?)?,
+    })
+}
+
+pub fn write_commit(from: &Commit, to: &mut commit::Builder) {
+    write_hash(&from.response_hash, &mut to.reborrow().init_response_hash());
+    write_custom_u_int128(from.dest_payment, &mut to.reborrow().init_dest_payment());
+    write_plain_lock(
+        &from.src_plain_lock,
+        &mut to.reborrow().init_src_plain_lock(),
+    );
+    write_hashed_lock(
+        &from.dest_hashed_lock,
+        &mut to.reborrow().init_dest_hashed_lock(),
+    );
+    write_signature(&from.signature, &mut to.reborrow().init_signature());
+}
+
+pub fn read_multi_commit(from: &multi_commit::Reader) -> Result<MultiCommit, SerializeError> {
+    let mut commits = Vec::new();
+    for commit_reader in from.get_commits()? {
+        commits.push(read_commit(&commit_reader)?);
+    }
+
+    Ok(MultiCommit {
+        invoice_id: read_invoice_id(&from.get_invoice_id()?)?,
+        total_dest_payment: read_custom_u_int128(&from.get_total_dest_payment()?)?,
+        commits,
+    })
+}
+
+pub fn write_multi_commit(from: &MultiCommit, to: &mut multi_commit::Builder) {
+    write_invoice_id(&from.invoice_id, &mut to.reborrow().init_invoice_id());
+    write_custom_u_int128(
+        from.total_dest_payment,
+        &mut to.reborrow().init_total_dest_payment(),
+    );
+
+    let mut commits_builder = to
+        .reborrow()
+        .init_commits(usize_to_u32(from.commits.len()).unwrap());
+
+    for (index, commit) in from.commits.iter().enumerate() {
+        let mut commit_builder = commits_builder.reborrow().get(usize_to_u32(index).unwrap());
+        write_commit(commit, &mut commit_builder);
+    }
+}
+
+pub fn read_rate(from: &rate::Reader) -> Result<Rate, SerializeError> {
+    Ok(Rate {
+        mul: from.get_mul(),
+        add: from.get_add(),
+    })
+}
+
+pub fn write_rate(from: &Rate, to: &mut rate::Builder) {
+    to.reborrow().set_mul(from.mul);
+    to.reborrow().set_add(from.add);
 }

@@ -8,6 +8,9 @@ using import "common.capnp".Uid;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".RelayAddress;
+using import "common.capnp".HashedLock;
+using import "common.capnp".PlainLock;
+using import "common.capnp".Hash;
 
 
 # Token channel messages
@@ -108,19 +111,33 @@ struct Ratio128 {
 
 struct RequestSendFundsOp {
         requestId @0: Uid;
-        route @1: FriendsRoute;
-        destPayment @2: CustomUInt128;
-        invoiceId @3: InvoiceId;
+        # Id number of this request. Used to identify the whole transaction
+        # over this route.
+        srcHashedLock @1: HashedLock;
+        # A hash lock created by the originator of this request
+        route @2: FriendsRoute;
+        destPayment @3: CustomUInt128;
+        totalDestPayment @4: CustomUInt128;
+        invoiceId @5: InvoiceId;
+        # Id number of the invoice we are attempting to pay
+        leftFees @6: CustomUInt128;
+        # Amount of fees left to give to mediators
+        # Every mediator takes the amount of fees he wants and subtracts this
+        # value accordingly.
 }
 
 struct ResponseSendFundsOp {
         requestId @0: Uid;
-        randNonce @1: RandNonce;
-        signature @2: Signature;
-        # Signature{key=recipientKey}(
-        #   sha512/256("FUND_SUCCESS") ||
+        destHashedLock @1: HashedLock;
+        randNonce @2: RandNonce;
+        signature @3: Signature;
+        # Signature{key=destinationKey}(
+        #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||
+        #   srcHashedLock || 
+        #   destHashedLock || 
         #   destPayment ||
+        #   totalDestPayment ||
         #   invoiceId
         # )
         #
@@ -129,22 +146,14 @@ struct ResponseSendFundsOp {
         # See also the Receipt structure.
 }
 
-struct FailureSendFundsOp {
+struct CancelSendFundsOp {
         requestId @0: Uid;
-        reportingPublicKey @1: PublicKey;
-        # Index of the reporting node in the route of the corresponding request.
-        # The reporting node cannot be the destination node.
-        randNonce @2: RandNonce;
-        signature @3: Signature;
-        # Signature{key=recipientKey}(
-        #   sha512/256("FUND_FAILURE") ||
-        #   requestId ||
-        #   sha512/256(route) ||
-        #   destPayment ||
-        #   invoiceId ||
-        #   reportingPublicKey ||
-        #   randNonce
-        # )
+}
+
+struct CollectSendFundsOp {
+        requestId @0: Uid;
+        srcPlainLock @1: PlainLock;
+        destPlainLock @2: PlainLock;
 }
 
 
@@ -155,6 +164,8 @@ struct FriendOperation {
                 setRemoteMaxDebt @2: CustomUInt128;
                 requestSendFunds @3: RequestSendFundsOp;
                 responseSendFunds @4: ResponseSendFundsOp;
-                failureSendFunds @5: FailureSendFundsOp;
+                cancelSendFunds @5: CancelSendFundsOp;
+                collectSendFunds @6: CollectSendFundsOp;
         }
 }
+
