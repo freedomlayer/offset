@@ -23,7 +23,7 @@ use crate::report::serialize::{
 use index_server::serialize::{deser_request_routes, ser_request_routes};
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck,
+    AddFriend, CreatePayment, ReceiptAck,
     ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
     SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
@@ -412,6 +412,42 @@ fn deser_app_permissions(
     })
 }
 
+fn ser_create_payment(
+    create_payment: &CreatePayment,
+    create_payment_builder: &mut app_server_capnp::create_payment::Builder,
+) {
+    write_payment_id(
+        &create_payment.payment_id,
+        &mut create_payment_builder.reborrow().init_payment_id(),
+    );
+
+    write_invoice_id(
+        &create_payment.invoice_id,
+        &mut create_payment_builder.reborrow().init_invoice_id(),
+    );
+
+    write_custom_u_int128(
+        create_payment.total_dest_payment,
+        &mut create_payment_builder.reborrow().init_total_dest_payment(),
+    );
+
+    write_public_key(
+        &create_payment.dest_public_key,
+        &mut create_payment_builder.reborrow().init_dest_public_key(),
+    );
+}
+
+fn deser_create_payment(
+    create_payment_reader: &app_server_capnp::create_payment::Reader,
+) -> Result<CreatePayment, SerializeError> {
+    Ok(CreatePayment {
+        payment_id: read_payment_id(&create_payment_reader.get_payment_id()?)?,
+        invoice_id: read_invoice_id(&create_payment_reader.get_invoice_id()?)?,
+        total_dest_payment: read_custom_u_int128(&create_payment_reader.get_total_dest_payment()?)?,
+        dest_public_key: read_public_key(&create_payment_reader.get_dest_public_key()?)?,
+    })
+}
+
 fn ser_report_mutations(
     report_mutations: &ReportMutations,
     report_mutations_builder: &mut app_server_capnp::report_mutations::Builder,
@@ -528,7 +564,10 @@ fn ser_app_request(
             public_key,
             &mut app_request_builder.reborrow().init_remove_relay(),
         ),
-        AppRequest::CreatePayment(_create_payment) => unimplemented!(),
+        AppRequest::CreatePayment(create_payment) => ser_create_payment(
+            create_payment,
+            &mut app_request_builder.reborrow().init_create_payment(),
+        ),
         AppRequest::CreateTransaction(_create_transaction) => unimplemented!(),
         AppRequest::RequestClosePayment(payment_id) => write_payment_id(
             payment_id,
@@ -613,7 +652,9 @@ fn deser_app_request(
         app_server_capnp::app_request::RemoveRelay(public_key_reader) => {
             AppRequest::RemoveRelay(read_public_key(&public_key_reader?)?)
         }
-        app_server_capnp::app_request::CreatePayment(_create_payment_reader) => unimplemented!(),
+        app_server_capnp::app_request::CreatePayment(create_payment_reader) => {
+            AppRequest::CreatePayment(deser_create_payment(&create_payment_reader?)?)
+        }
         app_server_capnp::app_request::CreateTransaction(_create_transaction_reader) => {
             unimplemented!()
         }
