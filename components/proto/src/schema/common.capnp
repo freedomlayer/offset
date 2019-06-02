@@ -69,6 +69,14 @@ struct Uid {
         inner @0: Buffer128;
 }
 
+struct PlainLock {
+        inner @0: Buffer256;
+}
+
+struct HashedLock {
+        inner @0: Buffer256;
+}
+
 
 # A receipt for payment to the Funder
 struct Receipt {

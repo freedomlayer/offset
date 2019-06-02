@@ -4,8 +4,8 @@ use std::io;
 
 use common_capnp::{
     buffer128, buffer256, buffer512, custom_int128, custom_u_int128, dh_public_key, hash,
-    invoice_id, named_index_server_address, named_relay_address, net_address, public_key,
-    rand_nonce, receipt, relay_address, salt, signature, uid,
+    hashed_lock, invoice_id, named_index_server_address, named_relay_address, net_address,
+    plain_lock, public_key, rand_nonce, receipt, relay_address, salt, signature, uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -17,6 +17,7 @@ use crate::serialize::SerializeError;
 use crypto::crypto_rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::hash::HashResult;
+use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
 use crypto::uid::Uid;
@@ -166,6 +167,26 @@ type_capnp_serde!(
     write_signature,
     read_buffer512,
     write_buffer512
+);
+
+// 256 bits:
+type_capnp_serde!(
+    plain_lock,
+    PlainLock,
+    read_plain_lock,
+    write_plain_lock,
+    read_buffer256,
+    write_buffer256
+);
+
+// 256 bits:
+type_capnp_serde!(
+    hashed_lock,
+    HashedLock,
+    read_hashed_lock,
+    write_hashed_lock,
+    read_buffer256,
+    write_buffer256
 );
 
 pub fn read_custom_u_int128(from: &custom_u_int128::Reader) -> Result<u128, SerializeError> {
