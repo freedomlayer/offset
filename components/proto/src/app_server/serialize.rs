@@ -1,9 +1,9 @@
 use std::io;
 
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_invoice_id, read_multi_commit,
+    read_commit, read_custom_int128, read_custom_u_int128, read_invoice_id, read_multi_commit,
     read_named_index_server_address, read_named_relay_address, read_payment_id, read_public_key,
-    read_rate, /*read_receipt,*/ read_relay_address, read_signature, read_uid,
+    read_rate, /*read_receipt,*/ read_relay_address, read_signature, read_uid, write_commit,
     write_custom_int128, write_custom_u_int128, write_invoice_id, write_multi_commit,
     write_named_index_server_address, write_named_relay_address, write_payment_id,
     write_public_key, /*write_receipt,*/
@@ -27,8 +27,8 @@ use index_server::serialize::{
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, ReceiptAck,
-    ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
-    UserRequestSendFunds,
+    RequestResult, ResetFriendChannel, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, TransactionResult, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
 
@@ -556,6 +556,56 @@ fn deser_set_friend_rate(
     Ok(SetFriendRate {
         friend_public_key: read_public_key(&set_friend_rate_reader.get_friend_public_key()?)?,
         rate: read_rate(&set_friend_rate_reader.get_rate()?)?,
+    })
+}
+
+fn ser_request_result(
+    request_result: &RequestResult,
+    request_result_builder: &mut app_server_capnp::request_result::Builder,
+) {
+    match request_result {
+        RequestResult::Success(commit) => {
+            write_commit(
+                commit,
+                &mut request_result_builder.reborrow().init_success(),
+            );
+        }
+        RequestResult::Failure => request_result_builder.reborrow().set_failure(()),
+    }
+}
+
+fn deser_request_result(
+    request_result_reader: &app_server_capnp::request_result::Reader,
+) -> Result<RequestResult, SerializeError> {
+    Ok(match request_result_reader.which()? {
+        app_server_capnp::request_result::Success(commit_reader) => {
+            RequestResult::Success(read_commit(&commit_reader?)?)
+        }
+        app_server_capnp::request_result::Failure(()) => RequestResult::Failure,
+    })
+}
+
+fn ser_tranaction_result(
+    transaction_result: &TransactionResult,
+    transaction_result_builder: &mut app_server_capnp::transaction_result::Builder,
+) {
+    write_uid(
+        &transaction_result.request_id,
+        &mut transaction_result_builder.reborrow().init_request_id(),
+    );
+
+    ser_request_result(
+        &transaction_result.result,
+        &mut transaction_result_builder.reborrow().init_result(),
+    );
+}
+
+fn deser_transaction_result(
+    transaction_result_reader: &app_server_capnp::transaction_result::Reader,
+) -> Result<TransactionResult, SerializeError> {
+    Ok(TransactionResult {
+        request_id: read_uid(&transaction_result_reader.get_request_id()?)?,
+        result: deser_request_result(&transaction_result_reader.get_result()?)?,
     })
 }
 
