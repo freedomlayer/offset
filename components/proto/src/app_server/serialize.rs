@@ -987,8 +987,9 @@ mod tests {
     fn test_serialize_app_permissions() {
         let app_permissions = AppPermissions {
             routes: false,
-            send_funds: true,
-            config: false,
+            buyer: true,
+            seller: false,
+            config: true,
         };
 
         let data = serialize_app_permissions(&app_permissions);
