@@ -6,6 +6,7 @@ using import "common.capnp".Hash;
 using import "common.capnp".RandNonce;
 using import "common.capnp".Uid;
 using import "common.capnp".CustomUInt128;
+using import "common.capnp".Rate;
 
 using import "funder.capnp".FriendsRoute;
 
@@ -30,15 +31,20 @@ struct RequestRoutes {
 }
 
 
-struct RouteWithCapacity {
+struct RouteCapacityRate {
         route @0: FriendsRoute;
         capacity @1: CustomUInt128;
+        rate @2: Rate;
+}
+
+struct MultiRoute {
+        routes @0: List(RouteCapacityRate);
 }
 
 # IndexServer -> IndexClient
 struct ResponseRoutes {
         requestId @0: Uid;
-        routes @1: List(RouteWithCapacity);
+        multiRoutes @1: List(MultiRoute);
 }
 
 struct UpdateFriend {

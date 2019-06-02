@@ -24,7 +24,7 @@ using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
-using import "index.capnp".RouteWithCapacity;
+using import "index.capnp".MultiRoute;
 
 
 # Interface between AppServer and an Application
@@ -88,7 +88,7 @@ struct ResetFriendChannel {
 
 struct ResponseRoutesResult {
         union {
-                success @0: List(RouteWithCapacity);
+                success @0: List(MultiRoute);
                 failure @1: Void;
         }
 }
