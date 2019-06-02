@@ -93,10 +93,12 @@ struct ClientResponseRoutes {
 
 struct AppPermissions {
         routes @0: Bool;
-        # Can request routes
-        sendFunds @1: Bool;
-        # Can send credits
-        config @2: Bool;
+        # Can request for routes
+        buyer @1: Bool;
+        # Can buy (Send credits)
+        seller @2: Bool;
+        # Can sell (Receive credits)
+        config @3: Bool;
         # Can configure friends
 }
 

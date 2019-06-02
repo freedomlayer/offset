@@ -388,32 +388,29 @@ fn ser_app_permissions(
     app_permissions: &AppPermissions,
     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder,
 ) {
-    unimplemented!();
-    /*
     app_permissions_builder
         .reborrow()
         .set_routes(app_permissions.routes);
     app_permissions_builder
         .reborrow()
-        .set_send_funds(app_permissions.buyer);
+        .set_buyer(app_permissions.buyer);
+    app_permissions_builder
+        .reborrow()
+        .set_seller(app_permissions.seller);
     app_permissions_builder
         .reborrow()
         .set_config(app_permissions.config);
-    */
 }
 
 fn deser_app_permissions(
     app_permissions_reader: &app_server_capnp::app_permissions::Reader,
 ) -> Result<AppPermissions, SerializeError> {
-    unimplemented!();
-    /*
     Ok(AppPermissions {
         routes: app_permissions_reader.get_routes(),
-        buyer: app_permissions_reader.get_send_funds(),
-        seller: app_permissions_reader.get_send_funds(),
+        buyer: app_permissions_reader.get_buyer(),
+        seller: app_permissions_reader.get_seller(),
         config: app_permissions_reader.get_config(),
     })
-    */
 }
 
 fn ser_report_mutations(
