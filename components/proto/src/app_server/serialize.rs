@@ -651,7 +651,12 @@ fn ser_app_server_to_app(
                 .reborrow()
                 .init_transaction_result(),
         ),
-        AppServerToApp::ResponseClosePayment(_response_close_payment) => unimplemented!(),
+        AppServerToApp::ResponseClosePayment(response_close_payment) => ser_response_close_payment(
+            response_close_payment,
+            &mut app_server_to_app_builder
+                .reborrow()
+                .init_response_close_payment(),
+        ),
         AppServerToApp::Report(node_report) => ser_node_report(
             node_report,
             &mut app_server_to_app_builder.reborrow().init_report(),
@@ -677,8 +682,10 @@ fn deser_app_server_to_app(
             )?)
         }
         app_server_capnp::app_server_to_app::ResponseClosePayment(
-            _response_close_payment_reader,
-        ) => unimplemented!(),
+            response_close_payment_reader,
+        ) => AppServerToApp::ResponseClosePayment(deser_response_close_payment(
+            &response_close_payment_reader?,
+        )?),
         app_server_capnp::app_server_to_app::Report(node_report_reader) => {
             AppServerToApp::Report(deser_node_report(&node_report_reader?)?)
         }
