@@ -972,7 +972,6 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer, Seri
     deser_app_to_app_server(&app_to_app_server)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1053,4 +1052,3 @@ mod tests {
 
     // TODO: More tests are required here
 }
-*/
