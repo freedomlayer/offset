@@ -671,8 +671,6 @@ fn ser_funder_report(
     funder_report: &FunderReport,
     funder_report_builder: &mut report_capnp::funder_report::Builder,
 ) {
-    unimplemented!();
-    /*
     write_public_key(
         &funder_report.local_public_key,
         &mut funder_report_builder.reborrow().init_local_public_key(),
@@ -693,15 +691,14 @@ fn ser_funder_report(
         ser_pk_friend_report(pk_friend, &mut pk_friend_builder);
     }
 
-    funder_report_builder.set_num_ready_receipts(funder_report.num_ready_receipts);
-    */
+    funder_report_builder.set_num_open_invoices(funder_report.num_open_invoices);
+    funder_report_builder.set_num_payments(funder_report.num_payments);
+    funder_report_builder.set_num_open_transactions(funder_report.num_open_transactions);
 }
 
 fn deser_funder_report(
     funder_report_reader: &report_capnp::funder_report::Reader,
 ) -> Result<FunderReport, SerializeError> {
-    unimplemented!();
-    /*
     let mut named_relays = Vec::new();
     for named_relay_address in funder_report_reader.get_relays()? {
         named_relays.push(read_named_relay_address(&named_relay_address)?);
@@ -717,9 +714,10 @@ fn deser_funder_report(
         local_public_key: read_public_key(&funder_report_reader.get_local_public_key()?)?,
         relays: named_relays.into_iter().collect(),
         friends,
-        num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
+        num_open_invoices: funder_report_reader.get_num_open_invoices(),
+        num_payments: funder_report_reader.get_num_payments(),
+        num_open_transactions: funder_report_reader.get_num_open_transactions(),
     })
-    */
 }
 
 fn ser_add_friend_report(
