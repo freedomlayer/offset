@@ -14,15 +14,15 @@ use crypto::uid::Uid;
 use identity::IdentityClient;
 
 use proto::index_server::messages::{
-    IndexClientToServer, IndexMutation, IndexServerToClient, MutationsUpdate, RequestRoutes,
-    ResponseRoutes, RouteWithCapacity,
+    IndexClientToServer, IndexMutation, IndexServerToClient, MultiRoute, MutationsUpdate,
+    RequestRoutes, ResponseRoutes,
 };
 
 pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 
 #[derive(Debug)]
 pub enum SingleClientControl {
-    RequestRoutes((RequestRoutes, oneshot::Sender<Vec<RouteWithCapacity>>)),
+    RequestRoutes((RequestRoutes, oneshot::Sender<Vec<MultiRoute>>)),
     SendMutations(Vec<IndexMutation>),
 }
 
@@ -54,7 +54,7 @@ struct SingleClient<TS, R> {
     /// We use this value to prove that our signatures are recent
     server_time_hash: HashResult,
     /// Unanswered requests, waiting for a response from the server
-    open_requests: HashMap<Uid, oneshot::Sender<Vec<RouteWithCapacity>>>,
+    open_requests: HashMap<Uid, oneshot::Sender<Vec<MultiRoute>>>,
 }
 
 impl<TS, R> SingleClient<TS, R>
@@ -90,7 +90,10 @@ where
         match index_server_to_client {
             IndexServerToClient::TimeHash(time_hash) => self.server_time_hash = time_hash,
             IndexServerToClient::ResponseRoutes(response_routes) => {
-                let ResponseRoutes { request_id, routes } = response_routes;
+                let ResponseRoutes {
+                    request_id,
+                    multi_routes,
+                } = response_routes;
                 let request_sender = match self.open_requests.remove(&request_id) {
                     Some(request_sender) => request_sender,
                     None => {
@@ -101,7 +104,7 @@ where
                         return Ok(());
                     }
                 };
-                if request_sender.send(routes).is_err() {
+                if request_sender.send(multi_routes).is_err() {
                     warn!(
                         "Failed to return response for request_id: {:?} ",
                         &request_id
@@ -348,15 +351,15 @@ mod tests {
         // Server sends response routes:
         let response_routes = ResponseRoutes {
             request_id: Uid::from(&[3; UID_LEN]),
-            routes: vec![], // No suitable routes were found
+            multi_routes: vec![], // No suitable routes were found
         };
 
         await!(server_sender.send(IndexServerToClient::ResponseRoutes(response_routes.clone())))
             .unwrap();
 
         // Client receives response routes:
-        let routes = await!(response_receiver).unwrap();
-        assert_eq!(routes, vec![]);
+        let multi_routes = await!(response_receiver).unwrap();
+        assert_eq!(multi_routes, vec![]);
 
         for iter in 0..3 {
             // Counter should increment every time

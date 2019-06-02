@@ -13,10 +13,6 @@ path = "src/lib.rs"
 name = "stctrl"
 path = "src/bin/stctrl.rs"
 
-[[bin]]
-name = "stregister"
-path = "src/bin/stregister.rs"
-
 [dependencies]
 
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
@@ -35,6 +31,9 @@ toml = "0.4.10"
 structopt = "0.2.15"
 
 derive_more = "0.14.0"
+
+num-bigint = "0.2.2"
+num-traits = "0.2.6"
 
 [dev_dependencies]
 

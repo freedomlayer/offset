@@ -7,6 +7,7 @@ use common::dummy_connector::{ConnRequest, DummyConnector};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::uid::{Uid, UID_LEN};
+use proto::funder::messages::Rate;
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientReportMutation, IndexClientRequest, IndexClientToAppServer,
     IndexMutation, RequestRoutes, ResponseRoutesResult, UpdateFriend,
@@ -154,6 +155,7 @@ where
                     public_key: PublicKey::from(PublicKey::from(&[0xaa; PUBLIC_KEY_LEN])),
                     send_capacity: 100,
                     recv_capacity: 50,
+                    rate: Rate { mul: 0, add: 1 },
                 };
                 response_sender.send(Some((0, update_friend))).unwrap();
             }
@@ -320,6 +322,7 @@ where
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
         send_capacity: 200,
         recv_capacity: 100,
+        rate: Rate { mul: 0, add: 1 },
     };
     let index_mutation = IndexMutation::UpdateFriend(update_friend);
     let mutations = vec![index_mutation.clone()];
@@ -343,6 +346,7 @@ where
         public_key: PublicKey::from(PublicKey::from(&[0xcc; PUBLIC_KEY_LEN])),
         send_capacity: 20,
         recv_capacity: 30,
+        rate: Rate { mul: 0, add: 1 },
     };
 
     match await!(icc.seq_friends_receiver.next()).unwrap() {
@@ -464,6 +468,7 @@ where
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
         send_capacity: 200,
         recv_capacity: 100,
+        rate: Rate { mul: 0, add: 1 },
     };
     let index_mutation = IndexMutation::UpdateFriend(update_friend);
     let mutations = vec![index_mutation.clone()];

@@ -4,23 +4,22 @@ use std::fmt::Debug;
 use crypto::identity::PublicKey;
 
 use common::canonical_serialize::CanonicalSerialize;
-use common::safe_arithmetic::SafeUnsignedArithmetic;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    FailureSendFunds, FriendStatus, PendingRequest, RequestSendFunds, RequestsStatus, ResetTerms,
-    ResponseSendFunds,
+    CancelSendFundsOp, CollectSendFundsOp, FriendStatus, Rate, RequestSendFundsOp, RequestsStatus,
+    ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
 
+/// Any operation that goes backwards (With respect to the initial request)
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub enum ResponseOp {
-    Response(ResponseSendFunds),
-    UnsignedResponse(PendingRequest),
-    Failure(FailureSendFunds),
-    UnsignedFailure(PendingRequest),
+pub enum BackwardsOp {
+    Response(ResponseSendFundsOp),
+    Cancel(CancelSendFundsOp),
+    Collect(CollectSendFundsOp),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,27 +61,6 @@ where
         }
     }
 }
-
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum FriendMutation<B: Clone> {
-    TcMutation(TcMutation<B>),
-    SetInconsistent(ChannelInconsistent),
-    SetConsistent(TokenChannel<B>),
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingRequest(RequestSendFunds),
-    PopFrontPendingRequest,
-    PushBackPendingResponse(ResponseOp),
-    PopFrontPendingResponse,
-    PushBackPendingUserRequest(RequestSendFunds),
-    PopFrontPendingUserRequest,
-    SetStatus(FriendStatus),
-    SetRemoteRelays(Vec<RelayAddress<B>>),
-    SetName(String),
-    SetSentLocalRelays(SentLocalRelays<B>),
-}
-
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
@@ -115,21 +93,64 @@ where
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
+    /// Public key of this node
     pub local_public_key: PublicKey,
+    /// Public key of the friend node
     pub remote_public_key: PublicKey,
+    /// Relays on which the friend node can be found.
+    /// This list of relays corresponds to the last report of relays we got from the remote friend.
     pub remote_relays: Vec<RelayAddress<B>>,
+    /// The last list of our used relays we have sent to the remote friend.
+    /// We maintain this list to deal with relays drift.
     pub sent_local_relays: SentLocalRelays<B>,
+    /// Locally maintained name of the remote friend node.
     pub name: String,
-    pub channel_status: ChannelStatus<B>,
-    pub wanted_remote_max_debt: u128,
-    pub wanted_local_requests_status: RequestsStatus,
-    pub pending_requests: ImVec<RequestSendFunds>,
-    pub pending_responses: ImVec<ResponseOp>,
-    // Pending operations to be sent to the token channel.
+    /// Rate of forwarding transactions that arrived from this friend to any other friend.
+    pub rate: Rate,
+    /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
+    /// we are offline).
     pub status: FriendStatus,
-    pub pending_user_requests: ImVec<RequestSendFunds>,
-    // Request that the user has sent to this neighbor,
-    // but have not been processed yet. Bounded in size.
+    /// Mutual credit channel information
+    pub channel_status: ChannelStatus<B>,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatus,
+    /// A queue of requests that need to be sent to the remote friend
+    pub pending_requests: ImVec<RequestSendFundsOp>,
+    /// A queue of backwards operations (Response, Cancel, Commit) that need to be sent to the remote side
+    /// We keep backwards op on a separate queue because those operations are not supposed to fail
+    /// (While requests may fail due to lack of trust for example)
+    pub pending_backwards_ops: ImVec<BackwardsOp>,
+    /// Pending requests originating from the user.
+    /// We care more about these requests, because those are payments that our user wants to make.
+    /// This queue is bounded in size (TODO: Check this)
+    pub pending_user_requests: ImVec<RequestSendFundsOp>,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FriendMutation<B: Clone> {
+    TcMutation(TcMutation<B>),
+    SetInconsistent(ChannelInconsistent),
+    SetConsistent(TokenChannel<B>),
+    SetWantedRemoteMaxDebt(u128),
+    SetWantedLocalRequestsStatus(RequestsStatus),
+    PushBackPendingRequest(RequestSendFundsOp),
+    PopFrontPendingRequest,
+    PushBackPendingBackwardsOp(BackwardsOp),
+    PopFrontPendingBackwardsOp,
+    PushBackPendingUserRequest(RequestSendFundsOp),
+    PopFrontPendingUserRequest,
+    SetStatus(FriendStatus),
+    SetRemoteRelays(Vec<RelayAddress<B>>),
+    SetName(String),
+    SetRate(Rate),
+    SetSentLocalRelays(SentLocalRelays<B>),
 }
 
 impl<B> FriendState<B>
@@ -151,6 +172,9 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
+            // Initial rate is 0 for a new friend:
+            rate: Rate::new(),
+            status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(token_channel),
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
@@ -160,12 +184,12 @@ where
             // The local_send_price we want to have (Or possibly close requests, by having an empty
             // send price). When possible, this will be updated with the TokenChannel.
             pending_requests: ImVec::new(),
-            pending_responses: ImVec::new(),
-            status: FriendStatus::Disabled,
+            pending_backwards_ops: ImVec::new(),
             pending_user_requests: ImVec::new(),
         }
     }
 
+    /*
     // TODO: Do we use this function somewhere?
     /// Find the shared credits we have with this friend.
     /// This value is used for freeze guard calculations.
@@ -192,6 +216,7 @@ where
             .local_max_debt
             .saturating_add_signed(balance.balance)
     }
+    */
 
     pub fn mutate(&mut self, friend_mutation: &FriendMutation<B>) {
         match friend_mutation {
@@ -219,11 +244,11 @@ where
             FriendMutation::PopFrontPendingRequest => {
                 let _ = self.pending_requests.pop_front();
             }
-            FriendMutation::PushBackPendingResponse(response_op) => {
-                self.pending_responses.push_back(response_op.clone());
+            FriendMutation::PushBackPendingBackwardsOp(backwards_op) => {
+                self.pending_backwards_ops.push_back(backwards_op.clone());
             }
-            FriendMutation::PopFrontPendingResponse => {
-                let _ = self.pending_responses.pop_front();
+            FriendMutation::PopFrontPendingBackwardsOp => {
+                let _ = self.pending_backwards_ops.pop_front();
             }
             FriendMutation::PushBackPendingUserRequest(request_send_funds) => {
                 self.pending_user_requests
@@ -240,6 +265,9 @@ where
             }
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
+            }
+            FriendMutation::SetRate(friend_rate) => {
+                self.rate = friend_rate.clone();
             }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();

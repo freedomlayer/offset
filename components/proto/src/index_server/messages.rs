@@ -3,7 +3,7 @@ use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
-use crate::funder::messages::FriendsRoute;
+use crate::funder::messages::{FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
 
 /// IndexClient -> IndexServer
@@ -15,22 +15,34 @@ pub struct RequestRoutes {
     pub capacity: u128,
     pub source: PublicKey,
     pub destination: PublicKey,
-    /// This directed edge must not show up in the route.
+    /// This directed edge must not show up any any route inside the multi-route.
     /// Useful for finding non trivial directed loops.
     pub opt_exclude: Option<(PublicKey, PublicKey)>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct RouteWithCapacity {
+pub struct RouteCapacityRate {
     pub route: FriendsRoute,
+    /// How many credits we can push along this route?
     pub capacity: u128,
+    /// Combined rate of pushing credits along this route.
+    pub rate: Rate,
+}
+
+/// Multiple routes that together allow to pass a certain amount of credits to a destination.
+/// All routes must have the same beginning and the same end.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct MultiRoute {
+    pub routes: Vec<RouteCapacityRate>,
 }
 
 /// IndexServer -> IndexClient
 #[derive(Debug, Clone)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
-    pub routes: Vec<RouteWithCapacity>,
+    /// A few separate multi routes that allow to send the wanted amount of credits to the
+    /// requested destination:
+    pub multi_routes: Vec<MultiRoute>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +53,14 @@ pub struct UpdateFriend {
     pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
     pub recv_capacity: u128,
+    /// The rate we charge for forwarding messages to another friend from this friend.
+    /// For example, in the following diagram we are X and A is the friend we are updating:
+    /// A -- X -- B
+    ///      \
+    ///       --- C
+    /// We can set how much we charge A for forwarding funds. The same rate applies either when A
+    /// sends funds to B or to C.
+    pub rate: Rate,
 }
 
 /// IndexClient -> IndexServer

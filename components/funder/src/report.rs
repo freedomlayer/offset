@@ -85,17 +85,11 @@ where
             balance: McBalanceReport::from(&mutual_credit_state.balance),
             requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
             num_local_pending_requests: usize_to_u64(
-                mutual_credit_state
-                    .pending_requests
-                    .pending_local_requests
-                    .len(),
+                mutual_credit_state.pending_transactions.local.len(),
             )
             .unwrap(),
             num_remote_pending_requests: usize_to_u64(
-                mutual_credit_state
-                    .pending_requests
-                    .pending_remote_requests
-                    .len(),
+                mutual_credit_state.pending_transactions.remote.len(),
             )
             .unwrap(),
         }
@@ -142,6 +136,7 @@ where
 
     FriendReport {
         name: friend_state.name.clone(),
+        rate: friend_state.rate.clone(),
         remote_relays: friend_state.remote_relays.clone(),
         sent_local_relays: (&friend_state.sent_local_relays).into(),
         opt_last_incoming_move_token: friend_state
@@ -155,7 +150,7 @@ where
             &friend_state.wanted_local_requests_status,
         ),
         num_pending_requests: usize_to_u64(friend_state.pending_requests.len()).unwrap(),
-        num_pending_responses: usize_to_u64(friend_state.pending_responses.len()).unwrap(),
+        num_pending_backwards_ops: usize_to_u64(friend_state.pending_backwards_ops.len()).unwrap(),
         status: FriendStatusReport::from(&friend_state.status),
         num_pending_user_requests: usize_to_u64(friend_state.pending_user_requests.len()).unwrap(),
     }
@@ -180,7 +175,9 @@ where
         local_public_key: funder_state.local_public_key.clone(),
         relays: funder_state.relays.clone(),
         friends,
-        num_ready_receipts: usize_to_u64(funder_state.ready_receipts.len()).unwrap(),
+        num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
+        num_payments: usize_to_u64(funder_state.payments.len()).unwrap(),
+        num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),
     }
 }
 
@@ -238,14 +235,14 @@ where
                 usize_to_u64(friend_after.pending_requests.len()).unwrap(),
             )]
         }
-        FriendMutation::PushBackPendingResponse(_response_op) => {
-            vec![FriendReportMutation::SetNumPendingResponses(
-                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+        FriendMutation::PushBackPendingBackwardsOp(_backwards_op) => {
+            vec![FriendReportMutation::SetNumPendingBackwardsOps(
+                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
             )]
         }
-        FriendMutation::PopFrontPendingResponse => {
-            vec![FriendReportMutation::SetNumPendingResponses(
-                usize_to_u64(friend_after.pending_responses.len()).unwrap(),
+        FriendMutation::PopFrontPendingBackwardsOp => {
+            vec![FriendReportMutation::SetNumPendingBackwardsOps(
+                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
             )]
         }
         FriendMutation::PushBackPendingUserRequest(_request_send_funds) => {
@@ -265,6 +262,7 @@ where
             vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())]
         }
         FriendMutation::SetName(name) => vec![FriendReportMutation::SetName(name.clone())],
+        FriendMutation::SetRate(rate) => vec![FriendReportMutation::SetRate(rate.clone())],
         FriendMutation::SetSentLocalRelays(sent_local_relays) => {
             vec![FriendReportMutation::SetSentLocalRelays(
                 sent_local_relays.into(),
@@ -342,19 +340,30 @@ where
                 friend_public_key.clone(),
             )]
         }
-        FunderMutation::AddReceipt((_uid, _receipt)) => {
-            if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(
-                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
+        FunderMutation::AddInvoice(_) | FunderMutation::RemoveInvoice(_) => {
+            if funder_state_after.open_invoices.len() != funder_state.open_invoices.len() {
+                vec![FunderReportMutation::SetNumOpenInvoices(
+                    usize_to_u64(funder_state_after.open_invoices.len()).unwrap(),
                 )]
             } else {
                 Vec::new()
             }
         }
-        FunderMutation::RemoveReceipt(_uid) => {
-            if funder_state_after.ready_receipts.len() != funder_state.ready_receipts.len() {
-                vec![FunderReportMutation::SetNumReadyReceipts(
-                    usize_to_u64(funder_state_after.ready_receipts.len()).unwrap(),
+        FunderMutation::AddIncomingTransaction(_) => vec![],
+        FunderMutation::AddTransaction(_) | FunderMutation::RemoveTransaction(_) => {
+            if funder_state_after.open_transactions.len() != funder_state.open_transactions.len() {
+                vec![FunderReportMutation::SetNumOpenTransactions(
+                    usize_to_u64(funder_state_after.open_transactions.len()).unwrap(),
+                )]
+            } else {
+                Vec::new()
+            }
+        }
+        FunderMutation::SetTransactionResponse(_) => vec![],
+        FunderMutation::UpdatePayment(_) | FunderMutation::RemovePayment(_) => {
+            if funder_state_after.payments.len() != funder_state.payments.len() {
+                vec![FunderReportMutation::SetNumPayments(
+                    usize_to_u64(funder_state_after.payments.len()).unwrap(),
                 )]
             } else {
                 Vec::new()

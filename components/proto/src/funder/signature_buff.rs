@@ -1,102 +1,71 @@
 use byteorder::{BigEndian, WriteBytesExt};
+
 use crypto::hash::{self, sha_512_256, HashResult};
+use crypto::hash_lock::PlainLock;
 use crypto::identity::{verify_signature, PublicKey};
+use crypto::invoice_id::InvoiceId;
 
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{FailureSendFunds, MoveToken, PendingRequest, Receipt, ResponseSendFunds};
+use super::messages::{
+    CollectSendFundsOp, Commit, MoveToken, MultiCommit, PendingTransaction, Receipt,
+    ResponseSendFundsOp,
+};
 
-pub const FUND_SUCCESS_PREFIX: &[u8] = b"FUND_SUCCESS";
-pub const FUND_FAILURE_PREFIX: &[u8] = b"FUND_FAILURE";
+pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
+pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_response_signature_buffer<S>(
-    response_send_funds: &ResponseSendFunds<S>,
-    pending_request: &PendingRequest,
+    response_send_funds: &ResponseSendFundsOp<S>,
+    pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
     let mut sbuffer = Vec::new();
 
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
+    sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
 
     let mut inner_blob = Vec::new();
-    inner_blob.extend_from_slice(&pending_request.request_id);
-    inner_blob.extend_from_slice(&pending_request.route.hash());
+    inner_blob.extend_from_slice(&pending_transaction.request_id);
+    inner_blob.extend_from_slice(&pending_transaction.route.hash());
     inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
-    sbuffer.extend_from_slice(&pending_request.invoice_id);
+    sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
+    sbuffer.extend_from_slice(&response_send_funds.dest_hashed_lock);
     sbuffer
-        .write_u128::<BigEndian>(pending_request.dest_payment)
+        .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
-
     sbuffer
-}
-
-// TODO: How to keep in sync with verify_receipt and prepare receipt?
-// TODO: Add tests for synchronization between those functions? Possibly share code?
-/// Create the buffer we sign over at the Failure funds.
-/// Note that the signature is not just over the Response funds bytes. The signed buffer also
-/// contains information from the Request funds.
-pub fn create_failure_signature_buffer<S>(
-    failure_send_funds: &FailureSendFunds<S>,
-    pending_request: &PendingRequest,
-) -> Vec<u8> {
-    let mut sbuffer = Vec::new();
-
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUND_FAILURE_PREFIX));
-    sbuffer.extend_from_slice(&pending_request.request_id);
-    sbuffer.extend_from_slice(&pending_request.route.hash());
-
-    sbuffer
-        .write_u128::<BigEndian>(pending_request.dest_payment)
+        .write_u128::<BigEndian>(pending_transaction.total_dest_payment)
         .unwrap();
-    sbuffer.extend_from_slice(&pending_request.invoice_id);
-    sbuffer.extend_from_slice(&failure_send_funds.reporting_public_key);
-    sbuffer.extend_from_slice(&failure_send_funds.rand_nonce);
+    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
 
     sbuffer
-}
-
-/// Verify a failure signature
-pub fn verify_failure_signature(
-    failure_send_funds: &FailureSendFunds,
-    pending_request: &PendingRequest,
-) -> Option<()> {
-    let failure_signature_buffer =
-        create_failure_signature_buffer(&failure_send_funds, &pending_request);
-    let reporting_public_key = &failure_send_funds.reporting_public_key;
-    // Make sure that the reporting_public_key is on the route:
-    // TODO: Should we check that it is after us? Is it checked somewhere else?
-    let _ = pending_request.route.pk_to_index(&reporting_public_key)?;
-
-    if !verify_signature(
-        &failure_signature_buffer,
-        reporting_public_key,
-        &failure_send_funds.signature,
-    ) {
-        return None;
-    }
-    Some(())
 }
 
 pub fn prepare_receipt(
-    response_send_funds: &ResponseSendFunds,
-    pending_request: &PendingRequest,
+    collect_send_funds: &CollectSendFundsOp,
+    response_send_funds: &ResponseSendFundsOp,
+    pending_transaction: &PendingTransaction,
 ) -> Receipt {
     let mut hash_buff = Vec::new();
-    hash_buff.extend_from_slice(&pending_request.request_id);
-    hash_buff.extend_from_slice(&pending_request.route.hash());
+    hash_buff.extend_from_slice(&pending_transaction.request_id);
+    hash_buff.extend_from_slice(&pending_transaction.route.hash());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || sha512/256(route) || randNonce)
 
     Receipt {
         response_hash,
-        invoice_id: pending_request.invoice_id.clone(),
-        dest_payment: pending_request.dest_payment,
+        // = sha512/256(requestId || sha512/256(route) || randNonce)
+        invoice_id: pending_transaction.invoice_id.clone(),
+        src_plain_lock: collect_send_funds.src_plain_lock.clone(),
+        dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
+        dest_payment: pending_transaction.dest_payment,
+        total_dest_payment: pending_transaction.total_dest_payment,
         signature: response_send_funds.signature.clone(),
     }
 }
@@ -104,11 +73,89 @@ pub fn prepare_receipt(
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
-    data.extend_from_slice(&hash::sha_512_256(FUND_SUCCESS_PREFIX));
+
+    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
     data.extend(receipt.response_hash.as_ref());
-    data.extend(receipt.invoice_id.as_ref());
+    data.extend_from_slice(&receipt.src_plain_lock.hash());
+    data.extend_from_slice(&receipt.dest_plain_lock.hash());
     data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(receipt.total_dest_payment)
+        .unwrap();
+    data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
+}
+
+/// Create a Commit (out of band) message given a ResponseSendFunds
+pub fn prepare_commit(
+    response_send_funds: &ResponseSendFundsOp,
+    pending_transaction: &PendingTransaction,
+    src_plain_lock: PlainLock,
+) -> Commit {
+    let mut hash_buff = Vec::new();
+    hash_buff.extend_from_slice(&pending_transaction.request_id);
+    hash_buff.extend_from_slice(&pending_transaction.route.hash());
+    hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
+    let response_hash = hash::sha_512_256(&hash_buff);
+    // = sha512/256(requestId || sha512/256(route) || randNonce)
+
+    Commit {
+        response_hash,
+        dest_payment: pending_transaction.dest_payment,
+        src_plain_lock,
+        dest_hashed_lock: response_send_funds.dest_hashed_lock.clone(),
+        signature: response_send_funds.signature.clone(),
+    }
+}
+
+/// Verify that a given Commit signature is valid
+fn verify_commit(
+    commit: &Commit,
+    invoice_id: &InvoiceId,
+    total_dest_payment: u128,
+    local_public_key: &PublicKey,
+) -> bool {
+    let mut data = Vec::new();
+
+    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend(commit.response_hash.as_ref());
+    data.extend_from_slice(&commit.src_plain_lock.hash());
+    data.extend_from_slice(&commit.dest_hashed_lock);
+    data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(total_dest_payment).unwrap();
+    data.extend(invoice_id.as_ref());
+    verify_signature(&data, local_public_key, &commit.signature)
+}
+
+// TODO: Possibly split nicely into two functions?
+/// Verify that all the Commit-s inside a MultiCommit are valid
+pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &PublicKey) -> bool {
+    let mut is_sig_valid = true;
+    for commit in &multi_commit.commits {
+        // We don't exit immediately on verification failure to get a constant time verification.
+        // (Not sure if this is really important here)
+        is_sig_valid &= verify_commit(
+            commit,
+            &multi_commit.invoice_id,
+            multi_commit.total_dest_payment,
+            local_public_key,
+        );
+    }
+    if !is_sig_valid {
+        return false;
+    }
+
+    // Check if the credits add up:
+    let mut sum_credits = 0u128;
+    for commit in &multi_commit.commits {
+        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(commit.dest_payment) {
+            sum_credits
+        } else {
+            return false;
+        }
+    }
+
+    // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
+    sum_credits == multi_commit.total_dest_payment
 }
 
 // Prefix used for chain hashing of token channel funds.

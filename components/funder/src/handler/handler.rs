@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::crypto_rand::CryptoRandom;
-use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
@@ -19,69 +18,11 @@ use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_init::handle_init;
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
 use crate::handler::sender::{create_friend_messages, SendCommands};
+use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::friend::ChannelStatus;
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
 use crate::types::{ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm};
-
-pub struct MutableFunderState<B: Clone> {
-    initial_state: FunderState<B>,
-    state: FunderState<B>,
-    mutations: Vec<FunderMutation<B>>,
-}
-
-impl<B> MutableFunderState<B>
-where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-{
-    pub fn new(state: FunderState<B>) -> Self {
-        MutableFunderState {
-            initial_state: state.clone(),
-            state,
-            mutations: Vec::new(),
-        }
-    }
-
-    pub fn mutate(&mut self, mutation: FunderMutation<B>) {
-        self.state.mutate(&mutation);
-        self.mutations.push(mutation);
-    }
-
-    pub fn state(&self) -> &FunderState<B> {
-        &self.state
-    }
-
-    pub fn done(self) -> (FunderState<B>, Vec<FunderMutation<B>>, FunderState<B>) {
-        (self.initial_state, self.mutations, self.state)
-    }
-}
-
-pub struct MutableEphemeral {
-    ephemeral: Ephemeral,
-    mutations: Vec<EphemeralMutation>,
-}
-
-impl MutableEphemeral {
-    pub fn new(ephemeral: Ephemeral) -> Self {
-        MutableEphemeral {
-            ephemeral,
-            mutations: Vec::new(),
-        }
-    }
-    pub fn mutate(&mut self, mutation: EphemeralMutation) {
-        self.ephemeral.mutate(&mutation);
-        self.mutations.push(mutation);
-    }
-
-    pub fn ephemeral(&self) -> &Ephemeral {
-        &self.ephemeral
-    }
-
-    pub fn done(self) -> (Vec<EphemeralMutation>, Ephemeral) {
-        (self.mutations, self.ephemeral)
-    }
-}
 
 #[derive(Debug)]
 pub enum FunderHandlerError {
@@ -98,66 +39,6 @@ where
     pub ephemeral_mutations: Vec<EphemeralMutation>,
     pub outgoing_comms: Vec<FunderOutgoingComm<B>>,
     pub outgoing_control: Vec<FunderOutgoingControl<B>>,
-}
-
-/// Find the originator of a pending local request.
-/// This should be a pending remote request at some other friend.
-/// Returns the public key of a friend. If we are the origin of this request, the function returns None.
-///
-/// TODO: We need to change this search to be O(1) in the future. Possibly by maintaining a map
-/// between request_id and (friend_public_key, friend).
-pub fn find_request_origin<'a, B>(
-    state: &'a FunderState<B>,
-    request_id: &Uid,
-) -> Option<&'a PublicKey>
-where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-{
-    for (friend_public_key, friend) in &state.friends {
-        match &friend.channel_status {
-            ChannelStatus::Inconsistent(_) => continue,
-            ChannelStatus::Consistent(token_channel) => {
-                if token_channel
-                    .get_mutual_credit()
-                    .state()
-                    .pending_requests
-                    .pending_remote_requests
-                    .contains_key(request_id)
-                {
-                    return Some(friend_public_key);
-                }
-            }
-        }
-    }
-    None
-}
-
-pub fn is_friend_ready<B>(
-    state: &FunderState<B>,
-    ephemeral: &Ephemeral,
-    friend_public_key: &PublicKey,
-) -> bool
-where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-{
-    let friend = state.friends.get(friend_public_key).unwrap();
-    if !ephemeral.liveness.is_online(friend_public_key) {
-        return false;
-    }
-
-    // Make sure that the channel is consistent:
-    let token_channel = match &friend.channel_status {
-        ChannelStatus::Inconsistent(_) => return false,
-        ChannelStatus::Consistent(token_channel) => token_channel,
-    };
-
-    // Make sure that the remote side has open requests:
-    token_channel
-        .get_mutual_credit()
-        .state()
-        .requests_status
-        .remote
-        .is_open()
 }
 
 type FunderHandleIncomingOutput<B> = (
@@ -197,6 +78,7 @@ where
                 &mut send_commands,
                 &mut outgoing_control,
                 &mut outgoing_channeler_config,
+                rng,
                 max_node_relays,
                 max_pending_user_requests,
                 funder_incoming_control.funder_control,
@@ -208,11 +90,12 @@ where
 
         FunderIncoming::Comm(incoming_comm) => {
             match incoming_comm {
-                FunderIncomingComm::Liveness(liveness_message) => handle_liveness_message::<B>(
+                FunderIncomingComm::Liveness(liveness_message) => handle_liveness_message::<B, R>(
                     &mut m_state,
                     &mut m_ephemeral,
                     &mut send_commands,
                     &mut outgoing_control,
+                    rng,
                     liveness_message,
                 )
                 .map_err(FunderHandlerError::HandleLivenessError)?,
@@ -306,6 +189,9 @@ where
         outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));
     }
 
+    // Sign all unsigned responses and then queue them as mutations
+    await!(m_state.sign_responses(identity_client, rng));
+
     // Send all possible messages according to SendCommands
     // TODO: Maybe we should output outgoing_comms instead of friend_messages and
     // outgoing_channeler_config. When we merge the two, we might be out of order!
@@ -327,9 +213,10 @@ where
         outgoing_comms.push(FunderOutgoingComm::FriendMessage(friend_message));
     }
 
-    // Add reports:
     let (initial_state, funder_mutations, _state) = m_state.done();
     let (ephemeral_mutations, _ephemeral) = m_ephemeral.done();
+
+    // Add reports:
     let report_mutations = create_report_mutations(
         initial_state,
         &funder_mutations[..],

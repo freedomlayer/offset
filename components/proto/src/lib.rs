@@ -30,9 +30,13 @@ extern crate tempfile;
 #[macro_use]
 extern crate derive_more;
 
+extern crate num_bigint;
+extern crate num_traits;
+
 #[macro_use]
 pub mod macros;
 pub mod app_server;
+#[allow(unused)]
 pub mod capnp_common;
 pub mod consts;
 pub mod file;

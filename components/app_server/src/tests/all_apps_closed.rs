@@ -32,7 +32,8 @@ where
 
     let app_permissions = AppPermissions {
         routes: true,
-        send_funds: true,
+        buyer: true,
+        seller: true,
         config: true,
     };
 

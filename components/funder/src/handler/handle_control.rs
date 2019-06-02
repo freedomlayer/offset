@@ -2,25 +2,34 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
+use crypto::crypto_rand::CryptoRandom;
+use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
+use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
+use crypto::uid::Uid;
 
-use crate::friend::{ChannelStatus, FriendMutation};
-use crate::state::FunderMutation;
+use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
+use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, ChannelerUpdateFriend, FriendStatus, FunderControl, FunderOutgoingControl,
-    ReceiptAck, RemoveFriend, ResetFriendChannel, ResponseReceived, ResponseSendFundsResult,
-    SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus,
-    UserRequestSendFunds,
+    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
+    CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
+    MultiCommit, PaymentStatus, RemoveFriend, RequestResult, RequestSendFundsOp,
+    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
+use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
-    cancel_local_pending_requests, cancel_pending_requests, cancel_pending_user_requests,
+    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
+    reply_with_cancel,
 };
-use crate::handler::handler::{is_friend_ready, MutableEphemeral, MutableFunderState};
 use crate::handler::sender::SendCommands;
+use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::utils::{find_local_pending_transaction, find_request_origin, is_friend_ready};
 
 use crate::types::ChannelerConfig;
 
@@ -30,14 +39,21 @@ pub enum HandleControlError {
     NotInvitedToReset,
     ResetTokenMismatch,
     NotFirstInRoute,
+    PaymentDestNotLastInRoute,
     InvalidRoute,
     RequestAlreadyInProgress,
     PendingUserRequestsFull,
-    ReceiptDoesNotExist,
-    ReceiptSignatureMismatch,
-    UserRequestInvalid,
     FriendNotReady,
     MaxNodeRelaysReached,
+    PaymentAlreadyOpen,
+    OpenPaymentNotFound,
+    NewTransactionsNotAllowed,
+    PaymentDoesNotExist,
+    AckStateInvalid,
+    AckMismatch,
+    InvoiceAlreadyExists,
+    InvoiceDoesNotExist,
+    InvalidMultiCommit,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -132,19 +148,27 @@ fn enable_friend<B>(
     outgoing_channeler_config.push(channeler_config);
 }
 
-fn disable_friend<B>(
+fn disable_friend<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     friend_public_key: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Cancel all pending requests to this friend:
-    cancel_pending_requests(m_state, send_commands, outgoing_control, friend_public_key);
+    cancel_pending_requests(
+        m_state,
+        send_commands,
+        outgoing_control,
+        rng,
+        friend_public_key,
+    );
 
-    cancel_pending_user_requests(m_state, outgoing_control, friend_public_key);
+    cancel_pending_user_requests(m_state, outgoing_control, rng, friend_public_key);
 
     // Notify Channeler:
     let channeler_config = ChannelerConfig::RemoveFriend(friend_public_key.clone());
@@ -231,15 +255,17 @@ where
 
 /// This is a violent operation, as it removes all the known state with the remote friend.
 /// An inconsistency will occur if the friend is added again.
-fn control_remove_friend<B>(
+fn control_remove_friend<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     remove_friend: RemoveFriend,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that friend exists:
     let _friend = m_state
@@ -253,13 +279,15 @@ where
         send_commands,
         outgoing_control,
         outgoing_channeler_config,
+        rng,
         &remove_friend.friend_public_key,
     );
 
-    cancel_local_pending_requests(
+    cancel_local_pending_transactions(
         m_state,
         send_commands,
         outgoing_control,
+        rng,
         &remove_friend.friend_public_key,
     );
 
@@ -269,15 +297,17 @@ where
     Ok(())
 }
 
-fn control_set_friend_status<B>(
+fn control_set_friend_status<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     set_friend_status: SetFriendStatus,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that friend exists:
     let _ = m_state
@@ -314,6 +344,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             &friend_public_key,
         ),
     };
@@ -421,49 +452,101 @@ where
     Ok(())
 }
 
-fn check_user_request_valid(user_request_send_funds: &UserRequestSendFunds) -> Option<()> {
-    if !user_request_send_funds.route.is_valid() {
-        return None;
-    }
-    Some(())
-}
-
-fn control_request_send_funds_inner<B>(
+fn control_set_friend_rate<B>(
     m_state: &mut MutableFunderState<B>,
-    ephemeral: &Ephemeral,
-    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    send_commands: &mut SendCommands,
-    max_pending_user_requests: usize,
-    user_request_send_funds: UserRequestSendFunds,
+    set_friend_rate: SetFriendRate,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    check_user_request_valid(&user_request_send_funds)
-        .ok_or(HandleControlError::UserRequestInvalid)?;
-
-    // If we already have a receipt for this request, we return the receipt immediately and
-    // exit. Note that we don't erase the receipt yet. This will only be done when a receipt
-    // ack is received.
-    if let Some(receipt) = m_state
+    // Make sure that friend exists:
+    let friend = m_state
         .state()
-        .ready_receipts
-        .get(&user_request_send_funds.request_id)
-    {
-        let response_received = ResponseReceived {
-            request_id: user_request_send_funds.request_id,
-            result: ResponseSendFundsResult::Success(receipt.clone()),
-        };
-        outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+        .friends
+        .get(&set_friend_rate.friend_public_key)
+        .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+    // If the newly proposed rate is the same as the old one, we do nothing:
+    if friend.rate == set_friend_rate.rate {
         return Ok(());
     }
 
-    let route = &user_request_send_funds.route;
+    let friend_mutation = FriendMutation::SetRate(set_friend_rate.rate);
+    let funder_mutation = FunderMutation::FriendMutation((
+        set_friend_rate.friend_public_key.clone(),
+        friend_mutation,
+    ));
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
+fn control_create_payment<B>(
+    m_state: &mut MutableFunderState<B>,
+    create_payment: CreatePayment,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Make sure that a payment with the same payment_id doesn't exist:
+    if m_state
+        .state()
+        .payments
+        .contains_key(&create_payment.payment_id)
+    {
+        return Err(HandleControlError::PaymentAlreadyOpen);
+    }
+
+    let payment = Payment::NewTransactions(NewTransactions {
+        num_transactions: 0,
+        invoice_id: create_payment.invoice_id.clone(),
+        total_dest_payment: create_payment.total_dest_payment,
+        dest_public_key: create_payment.dest_public_key.clone(),
+    });
+
+    // Add a new payment entry:
+    let m_mutation = FunderMutation::UpdatePayment((create_payment.payment_id, payment));
+
+    m_state.mutate(m_mutation);
+    Ok(())
+}
+
+fn control_create_transaction_inner<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    ephemeral: &Ephemeral,
+    send_commands: &mut SendCommands,
+    rng: &R,
+    max_pending_user_requests: usize,
+    create_transaction: CreateTransaction,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
+{
+    // Make sure that a corresponding payment is open
+    let payment = m_state
+        .state()
+        .payments
+        .get(&create_transaction.payment_id)
+        .ok_or(HandleControlError::OpenPaymentNotFound)?;
+
+    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+        new_transactions.clone()
+    } else {
+        return Err(HandleControlError::NewTransactionsNotAllowed)?;
+    };
+
+    let route = &create_transaction.route;
 
     // We have to be the first on the route:
     match route.public_keys.first() {
         Some(first) if *first == m_state.state().local_public_key => Ok(()),
         _ => Err(HandleControlError::NotFirstInRoute),
+    }?;
+
+    match route.public_keys.last() {
+        Some(last) if *last == new_transactions.dest_public_key => Ok(()),
+        _ => Err(HandleControlError::PaymentDestNotLastInRoute),
     }?;
 
     // We want to have at least two public keys on the route (source and destination).
@@ -482,16 +565,20 @@ where
         return Err(HandleControlError::FriendNotReady);
     }
 
-    // If request is already in progress, we do nothing:
-    // Check if there is already a pending user request with the same request_id:
+    // If payment is already in progress, we do nothing:
+    // Check if there is already a pending user payment with the same payment_id:
     for user_request in &friend.pending_user_requests {
-        if user_request_send_funds.request_id == user_request.request_id {
+        if create_transaction.request_id == user_request.request_id {
             return Err(HandleControlError::RequestAlreadyInProgress);
         }
     }
 
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Inconsistent(_) => {
+            // It is impossible that the Channel is Inconsistent, because we know that this friend is
+            // in ready state:
+            unreachable!();
+        }
         ChannelStatus::Consistent(token_channel) => token_channel,
     };
 
@@ -499,9 +586,9 @@ where
     if token_channel
         .get_mutual_credit()
         .state()
-        .pending_requests
-        .pending_local_requests
-        .contains_key(&user_request_send_funds.request_id)
+        .pending_transactions
+        .local
+        .contains_key(&create_transaction.request_id)
     {
         return Err(HandleControlError::RequestAlreadyInProgress);
     }
@@ -511,90 +598,391 @@ where
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
-    let request_send_funds = user_request_send_funds.into_request();
+    // Randomly generate a new PlainLock:
+    let src_plain_lock = PlainLock::new(rng);
+
+    // Keep PlainLock:
+    let funder_mutation = FunderMutation::AddTransaction((
+        create_transaction.request_id,
+        create_transaction.payment_id,
+        src_plain_lock.clone(),
+    ));
+    m_state.mutate(funder_mutation);
+
+    // Update OpenPayment (Increase open transactions count):
+    let mut updated_new_transactions = new_transactions.clone();
+    updated_new_transactions.num_transactions =
+        new_transactions.num_transactions.checked_add(1).unwrap();
+
+    let funder_mutation = FunderMutation::UpdatePayment((
+        create_transaction.payment_id,
+        Payment::NewTransactions(updated_new_transactions),
+    ));
+    m_state.mutate(funder_mutation);
+
+    // Push the request:
+    let request_send_funds = RequestSendFundsOp {
+        request_id: create_transaction.request_id,
+        src_hashed_lock: src_plain_lock.hash(),
+        route: create_transaction.route,
+        dest_payment: create_transaction.dest_payment,
+        total_dest_payment: new_transactions.total_dest_payment,
+        invoice_id: new_transactions.invoice_id.clone(),
+        left_fees: create_transaction.fees,
+    };
+
     let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
-    send_commands.set_try_send(&friend_public_key);
 
+    // Signal the sender to attempt to send:
+    send_commands.set_try_send(&friend_public_key);
     Ok(())
 }
 
-fn control_request_send_funds<B>(
+fn control_create_transaction<B, R>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     send_commands: &mut SendCommands,
+    rng: &R,
     max_pending_user_requests: usize,
-    user_request_send_funds: UserRequestSendFunds,
+    create_transaction: CreateTransaction,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
-    // If we managed to push the message, we return an Ok(()).
-    // Otherwise, we return the internal error and return a response failure message.
-    if let Err(e) = control_request_send_funds_inner(
-        m_state,
-        ephemeral,
-        outgoing_control,
-        send_commands,
-        max_pending_user_requests,
-        user_request_send_funds.clone(),
-    ) {
-        error!("control_request_send_funds_inner() failed: {:?}", e);
-        let response_received = ResponseReceived {
-            request_id: user_request_send_funds.request_id,
-            result: ResponseSendFundsResult::Failure(m_state.state().local_public_key.clone()),
-        };
+    // If we already have this transaction:
+    // - If we have a ready response, we return a Commit message.
+    // - Else, we do nothing.
+    //
+    // This could happen if the user has disconnected before managing to obtain the
+    // `RequestResult::Success` message.
+    if let Some(open_transaction) = m_state
+        .state()
+        .open_transactions
+        .get(&create_transaction.request_id)
+    {
+        if let (Some(response_send_funds), Some(pending_transaction)) = (
+            &open_transaction.opt_response,
+            find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
+        ) {
+            let commit = prepare_commit(
+                response_send_funds,
+                pending_transaction,
+                open_transaction.src_plain_lock.clone(),
+            );
 
-        outgoing_control.push(FunderOutgoingControl::ResponseReceived(response_received));
+            let transaction_result = TransactionResult {
+                request_id: response_send_funds.request_id,
+                result: RequestResult::Success(commit),
+            };
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+        }
+        return Ok(());
     }
 
-    // Every RequestSendFunds must have a matching response. Therefore we don't return an error
+    // If we managed to push the message, we return an Ok(()).
+    // Otherwise, we return the internal error and return a response failure message.
+    if let Err(e) = control_create_transaction_inner(
+        m_state,
+        ephemeral,
+        send_commands,
+        rng,
+        max_pending_user_requests,
+        create_transaction.clone(),
+    ) {
+        error!("control_create_transaction_inner() failed: {:?}", e);
+        let transaction_result = TransactionResult {
+            request_id: create_transaction.request_id,
+            result: RequestResult::Failure,
+        };
+
+        outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+    }
+
+    // Every CreateTransaction must have a matching response. Therefore we don't return an error
     // here. We have to make sure the response arrives back to the user.
     Ok(())
 }
 
-/// Handle an incoming receipt ack message
-fn control_receipt_ack<B>(
+fn control_request_close_payment<B, R>(
     m_state: &mut MutableFunderState<B>,
-    receipt_ack: ReceiptAck,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
+    payment_id: PaymentId,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
+{
+    let payment = if let Some(payment) = m_state.state().payments.get(&payment_id) {
+        payment
+    } else {
+        // Payment not found:
+        let response_close_payment = ResponseClosePayment {
+            payment_id,
+            status: PaymentStatus::PaymentNotFound,
+        };
+        outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+            response_close_payment,
+        ));
+        return Ok(());
+    };
+
+    let (opt_new_payment, payment_status) = match payment {
+        Payment::NewTransactions(new_transactions) => (
+            Some(Payment::InProgress(new_transactions.num_transactions)),
+            PaymentStatus::InProgress,
+        ),
+        Payment::InProgress(num_transactions) => {
+            (if *num_transactions == 0 {
+                let ack_uid = Uid::new(rng);
+                (
+                    Some(Payment::Canceled(ack_uid)),
+                    PaymentStatus::Canceled(ack_uid),
+                )
+            } else {
+                (
+                    Some(Payment::InProgress(*num_transactions)),
+                    PaymentStatus::InProgress,
+                )
+            })
+        }
+        Payment::Success((num_transactions, receipt, ack_uid)) => (
+            Some(Payment::Success((
+                *num_transactions,
+                receipt.clone(),
+                *ack_uid,
+            ))),
+            PaymentStatus::Success((receipt.clone(), *ack_uid)),
+        ),
+        Payment::Canceled(ack_uid) => (
+            Some(Payment::Canceled(*ack_uid)),
+            PaymentStatus::Canceled(*ack_uid),
+        ),
+        Payment::AfterSuccessAck(num_transactions) => (
+            Some(Payment::AfterSuccessAck(*num_transactions)),
+            PaymentStatus::PaymentNotFound,
+        ),
+    };
+
+    // Send back a ResponseClosePayment:
+    let response_close_payment = ResponseClosePayment {
+        payment_id,
+        status: payment_status,
+    };
+    outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+        response_close_payment,
+    ));
+
+    // Update or remove payment record:
+    let new_payment = if let Some(new_payment) = opt_new_payment {
+        new_payment
+    } else {
+        let funder_mutation = FunderMutation::RemovePayment(payment_id);
+        m_state.mutate(funder_mutation);
+        return Ok(());
+    };
+
+    // We perform no mutations if no changes happened:
+    if new_payment == *payment {
+        return Ok(());
+    }
+
+    let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
+    m_state.mutate(funder_mutation);
+    Ok(())
+}
+
+fn control_ack_close_payment<B>(
+    m_state: &mut MutableFunderState<B>,
+    ack_close_payment: AckClosePayment,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let receipt = m_state
+    let payment = m_state
         .state()
-        .ready_receipts
-        .get(&receipt_ack.request_id)
-        .ok_or(HandleControlError::ReceiptDoesNotExist)?;
+        .payments
+        .get(&ack_close_payment.payment_id)
+        .ok_or(HandleControlError::PaymentDoesNotExist)?
+        .clone();
 
-    // Make sure that the provided signature matches the one we have at the ready receipt.
-    // We do this to make sure the user doesn't send a receipt ack before he actually got the
-    // receipt (the user can not predict the receipt_signature ahead of time)
-    if receipt_ack.receipt_signature != receipt.signature {
-        return Err(HandleControlError::ReceiptSignatureMismatch);
+    match payment {
+        Payment::NewTransactions(_) | Payment::InProgress(_) | Payment::AfterSuccessAck(_) => {
+            return Err(HandleControlError::AckStateInvalid)
+        }
+        Payment::Success((num_transactions, _receipt, ack_uid)) => {
+            // Make sure that ack matches:
+            if ack_close_payment.ack_uid != ack_uid {
+                return Err(HandleControlError::AckMismatch);
+            }
+
+            if num_transactions > 0 {
+                // Update payment to be `AfterSuccessAck`:
+                let new_payment = Payment::AfterSuccessAck(num_transactions);
+                let funder_mutation =
+                    FunderMutation::UpdatePayment((ack_close_payment.payment_id, new_payment));
+                m_state.mutate(funder_mutation);
+            } else {
+                // Remove payment (no pending transactions):
+                let funder_mutation = FunderMutation::RemovePayment(ack_close_payment.payment_id);
+                m_state.mutate(funder_mutation);
+            }
+        }
+        Payment::Canceled(ack_uid) => {
+            // Make sure that ack matches:
+            if ack_close_payment.ack_uid != ack_uid {
+                return Err(HandleControlError::AckMismatch);
+            }
+
+            // Remove payment:
+            let funder_mutation = FunderMutation::RemovePayment(ack_close_payment.payment_id);
+            m_state.mutate(funder_mutation);
+        }
+    };
+
+    Ok(())
+}
+
+fn control_add_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    add_invoice: AddInvoice,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    if m_state
+        .state()
+        .open_invoices
+        .contains_key(&add_invoice.invoice_id)
+    {
+        return Err(HandleControlError::InvoiceAlreadyExists);
     }
 
-    let funder_mutation = FunderMutation::RemoveReceipt(receipt_ack.request_id);
+    // Add new invoice:
+    let funder_mutation =
+        FunderMutation::AddInvoice((add_invoice.invoice_id, add_invoice.total_dest_payment));
     m_state.mutate(funder_mutation);
 
     Ok(())
 }
 
-pub fn handle_control_message<B>(
+fn control_cancel_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    invoice_id: InvoiceId,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    let open_invoice = m_state
+        .state()
+        .open_invoices
+        .get(&invoice_id)
+        .ok_or(HandleControlError::InvoiceDoesNotExist)?
+        .clone();
+
+    // Cancel all pending transactions related to this invoice
+    for (_, incoming_transaction) in open_invoice.incoming_transactions {
+        let request_id = &incoming_transaction.request_id;
+        // Explaining the unwrap() below:
+        // We expect that the origin of this request must be from an existing friend.
+        // We can not be the originator of this request.
+        let friend_public_key = find_request_origin(m_state.state(), &request_id)
+            .unwrap()
+            .clone();
+        reply_with_cancel(m_state, send_commands, &friend_public_key, &request_id);
+    }
+
+    // Remove invoice:
+    let funder_mutation = FunderMutation::RemoveInvoice(invoice_id);
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
+fn control_commit_invoice<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    multi_commit: &MultiCommit,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Find matching open invoice:
+    let open_invoice = m_state
+        .state()
+        .open_invoices
+        .get(&multi_commit.invoice_id)
+        .ok_or(HandleControlError::InvoiceDoesNotExist)?
+        .clone();
+
+    if !verify_multi_commit(multi_commit, &m_state.state().local_public_key) {
+        return Err(HandleControlError::InvalidMultiCommit);
+    }
+
+    // Push collect messages for all pending requests
+    for commit in &multi_commit.commits {
+        let incoming_transaction = if let Some(incoming_transaction) = open_invoice
+            .incoming_transactions
+            .get(&commit.dest_hashed_lock)
+        {
+            incoming_transaction
+        } else {
+            warn!("control_commit_invoice(): Failed to find matching incoming transaction.");
+            continue;
+        };
+
+        let friend_public_key = if let Some(friend_public_key) =
+            find_request_origin(m_state.state(), &incoming_transaction.request_id)
+        {
+            friend_public_key.clone()
+        } else {
+            warn!("control_commit_invoice(): Failed to find request origin");
+            continue;
+        };
+
+        let collect_send_funds = CollectSendFundsOp {
+            request_id: incoming_transaction.request_id,
+            src_plain_lock: commit.src_plain_lock.clone(),
+            dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
+        };
+
+        let friend_mutation =
+            FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Collect(collect_send_funds));
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
+
+        // Signal the sender to attempt to send:
+        send_commands.set_try_send(&friend_public_key);
+    }
+
+    // Remove invoice:
+    let funder_mutation = FunderMutation::RemoveInvoice(multi_commit.invoice_id.clone());
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
+pub fn handle_control_message<B, R>(
     m_state: &mut MutableFunderState<B>,
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
+    rng: &R,
     max_node_relays: usize,
     max_pending_user_requests: usize,
     incoming_control: FunderControl<B>,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     match incoming_control {
         FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
@@ -633,6 +1021,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             remove_friend,
         ),
 
@@ -641,6 +1030,7 @@ where
             send_commands,
             outgoing_control,
             outgoing_channeler_config,
+            rng,
             set_friend_status,
         ),
 
@@ -655,16 +1045,37 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
+        FunderControl::SetFriendRate(set_friend_rate) => {
+            control_set_friend_rate(m_state, set_friend_rate)
+        }
 
-        FunderControl::RequestSendFunds(user_request_send_funds) => control_request_send_funds(
+        // Buyer API:
+        FunderControl::CreatePayment(create_payment) => {
+            control_create_payment(m_state, create_payment)
+        }
+        FunderControl::CreateTransaction(create_transaction) => control_create_transaction(
             m_state,
             m_ephemeral.ephemeral(),
             outgoing_control,
             send_commands,
+            rng,
             max_pending_user_requests,
-            user_request_send_funds,
+            create_transaction,
         ),
+        FunderControl::RequestClosePayment(payment_id) => {
+            control_request_close_payment(m_state, outgoing_control, rng, payment_id)
+        }
+        FunderControl::AckClosePayment(ack_close_payment) => {
+            control_ack_close_payment(m_state, ack_close_payment)
+        }
 
-        FunderControl::ReceiptAck(receipt_ack) => control_receipt_ack(m_state, receipt_ack),
+        // Seller API:
+        FunderControl::AddInvoice(add_invoice) => control_add_invoice(m_state, add_invoice),
+        FunderControl::CancelInvoice(invoice_id) => {
+            control_cancel_invoice(m_state, send_commands, invoice_id)
+        }
+        FunderControl::CommitInvoice(multi_commit) => {
+            control_commit_invoice(m_state, send_commands, &multi_commit)
+        }
     }
 }

@@ -1,10 +1,15 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use std::collections::HashSet;
 
+use num_bigint::BigUint;
+use num_traits::cast::ToPrimitive;
+
 use crypto::crypto_rand::RandValue;
 use crypto::hash::{self, HashResult};
+use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -60,26 +65,50 @@ pub struct FriendsRoute {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct RequestSendFunds {
+pub struct RequestSendFundsOp {
     pub request_id: Uid,
+    pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub invoice_id: InvoiceId,
+    pub left_fees: u128,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFunds<S = Signature> {
+pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
+    pub dest_hashed_lock: HashedLock,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct FailureSendFunds<S = Signature> {
+pub struct CancelSendFundsOp {
     pub request_id: Uid,
-    pub reporting_public_key: PublicKey,
-    pub rand_nonce: RandValue,
-    pub signature: S,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct Commit {
+    pub response_hash: HashResult,
+    pub dest_payment: u128,
+    pub src_plain_lock: PlainLock,
+    pub dest_hashed_lock: HashedLock,
+    pub signature: Signature,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct MultiCommit {
+    pub invoice_id: InvoiceId,
+    pub total_dest_payment: u128,
+    pub commits: Vec<Commit>,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct CollectSendFundsOp {
+    pub request_id: Uid,
+    pub src_plain_lock: PlainLock,
+    pub dest_plain_lock: PlainLock,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -87,9 +116,10 @@ pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
     SetRemoteMaxDebt(u128),
-    RequestSendFunds(RequestSendFunds),
-    ResponseSendFunds(ResponseSendFunds),
-    FailureSendFunds(FailureSendFunds),
+    RequestSendFunds(RequestSendFundsOp),
+    ResponseSendFunds(ResponseSendFundsOp),
+    CancelSendFunds(CancelSendFundsOp),
+    CollectSendFunds(CollectSendFundsOp),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -136,55 +166,87 @@ pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || sha512/256(route) || randNonce)
     pub invoice_id: InvoiceId,
+    pub src_plain_lock: PlainLock,
+    pub dest_plain_lock: PlainLock,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub signature: Signature,
-    // Signature{key=recipientKey}(
-    //   "FUND_SUCCESS" ||
-    //   sha512/256(requestId || sha512/256(route) || randNonce) ||
-    //   invoiceId ||
-    //   destPayment
-    // )
+    /*
+    # Signature{key=destinationKey}(
+    #   sha512/256("FUNDS_RESPONSE") ||
+    #   sha512/256(requestId || sha512/256(route) || randNonce) ||
+    #   srcHashedLock ||
+    #   dstHashedLock ||
+    #   destPayment ||
+    #   totalDestPayment ||
+    #   invoiceId
+    # )
+    */
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum TransactionStage {
+    Request,
+    Response(HashedLock), // inner: dest_hashed_lock.
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct PendingRequest {
+pub struct PendingTransaction {
     pub request_id: Uid,
     pub route: FriendsRoute,
     pub dest_payment: u128,
+    pub total_dest_payment: u128,
     pub invoice_id: InvoiceId,
+    pub left_fees: u128,
+    pub src_hashed_lock: HashedLock,
+    pub stage: TransactionStage,
 }
 
 // ==================================================================
 // ==================================================================
 
-impl CanonicalSerialize for RequestSendFunds {
+impl CanonicalSerialize for RequestSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.src_hashed_lock);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes
             .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
+        res_bytes.extend_from_slice(&self.invoice_id);
+        // We do not sign over`left_fees`, because this field changes as the request message is
+        // forwarded.
+        // res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
         res_bytes
     }
 }
 
-impl CanonicalSerialize for ResponseSendFunds {
+impl CanonicalSerialize for ResponseSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.dest_hashed_lock);
         res_bytes.extend_from_slice(&self.rand_nonce);
         res_bytes.extend_from_slice(&self.signature);
         res_bytes
     }
 }
 
-impl CanonicalSerialize for FailureSendFunds {
+impl CanonicalSerialize for CancelSendFundsOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.reporting_public_key);
-        res_bytes.extend_from_slice(&self.signature);
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for CollectSendFundsOp {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.request_id);
+        res_bytes.extend_from_slice(&self.src_plain_lock);
+        res_bytes.extend_from_slice(&self.dest_plain_lock);
         res_bytes
     }
 }
@@ -211,9 +273,13 @@ impl CanonicalSerialize for FriendTcOp {
                 res_bytes.push(4u8);
                 res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
-            FriendTcOp::FailureSendFunds(failure_send_funds) => {
+            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
                 res_bytes.push(5u8);
-                res_bytes.append(&mut failure_send_funds.canonical_serialize())
+                res_bytes.append(&mut cancel_send_funds.canonical_serialize())
+            }
+            FriendTcOp::CollectSendFunds(commit_send_funds) => {
+                res_bytes.push(6u8);
+                res_bytes.append(&mut commit_send_funds.canonical_serialize())
             }
         }
         res_bytes
@@ -339,6 +405,54 @@ impl RequestsStatus {
     }
 }
 
+/// Rates for forwarding a transaction
+/// For a transaction of `x` credits, the amount of fees will be:
+/// `(x * mul) / 2^32 + add`
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Rate {
+    /// Commission
+    pub mul: u32,
+    /// Flat rate
+    pub add: u32,
+}
+
+impl Rate {
+    pub fn new() -> Self {
+        Rate { mul: 0, add: 0 }
+    }
+
+    /// Calculate the amount of additional fee credits we have to pay if
+    /// we want to pay `dest_payment` credits.
+    pub fn calc_fee(&self, dest_payment: u128) -> Option<u128> {
+        let mul_res = (BigUint::from(dest_payment) * BigUint::from(self.mul)) >> 32;
+        let res = mul_res + BigUint::from(self.add);
+        res.to_u128()
+    }
+
+    /// Maximum amount of credits we should be able to pay
+    /// through a given capacity.
+    ///
+    /// Solves the equation:
+    /// x + (mx + n) <= c
+    /// As:
+    /// x <= (c - n) / (m + 1)
+    /// When m = m0 / 2^32, we get:
+    /// x <= ((c - n) * 2^32) / (m0 + 2^32)
+    pub fn max_payable(&self, capacity: u128) -> u128 {
+        let long_add = u128::from(self.add);
+        let c_minus_n = if let Some(c_minus_n) = capacity.checked_sub(long_add) {
+            c_minus_n
+        } else {
+            // Right hand side is going to be non-positive, this means maximum payable is 0.
+            return 0;
+        };
+
+        let numerator = BigUint::from(c_minus_n) << 32;
+        let denominator = BigUint::from(self.mul) + (BigUint::from(1u128) << 32);
+        (numerator / denominator).to_u128().unwrap()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
@@ -388,10 +502,23 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetFriendRate {
+    pub friend_public_key: PublicKey,
+    pub rate: Rate,
+}
+
+/// A friend's route with known capacity
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FriendsRouteCapacity {
+    route: FriendsRoute,
+    capacity: u128,
+}
+
 /// A request to send funds that originates from the user
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserRequestSendFunds {
-    pub request_id: Uid,
+    pub payment_id: PaymentId,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
     pub dest_payment: u128,
@@ -401,6 +528,46 @@ pub struct UserRequestSendFunds {
 pub struct ReceiptAck {
     pub request_id: Uid,
     pub receipt_signature: Signature,
+}
+
+/// Start a payment, possibly by paying through multiple routes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatePayment {
+    /// payment_id is a randomly generated value (by the user), allowing the user to refer to a
+    /// certain payment.
+    pub payment_id: PaymentId,
+    pub invoice_id: InvoiceId,
+    pub total_dest_payment: u128,
+    pub dest_public_key: PublicKey,
+}
+
+/// Start a payment, possibly by paying through multiple routes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateTransaction {
+    /// A payment id of an existing payment.
+    pub payment_id: PaymentId,
+    /// Randomly generated request_id (by the user),
+    /// allows the user to refer to this request later.
+    pub request_id: Uid,
+    pub route: FriendsRoute,
+    pub dest_payment: u128,
+    pub fees: u128,
+}
+
+/// Start an invoice (A request for payment).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddInvoice {
+    /// Randomly generated invoice_id, allows to refer to this invoice.
+    pub invoice_id: InvoiceId,
+    /// Total amount of credits to be paid.
+    pub total_dest_payment: u128,
+}
+
+/// Start an invoice (A request for payment).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AckClosePayment {
+    pub payment_id: PaymentId,
+    pub ack_uid: Uid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -414,9 +581,17 @@ pub enum FunderControl<B> {
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
+    SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
+    // Buyer API:
+    CreatePayment(CreatePayment),
+    CreateTransaction(CreateTransaction), // TODO
+    RequestClosePayment(PaymentId),
+    AckClosePayment(AckClosePayment),
+    // Seller API:
+    AddInvoice(AddInvoice),
+    CancelInvoice(InvoiceId),
+    CommitInvoice(MultiCommit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -435,6 +610,7 @@ impl<B> FunderIncomingControl<B> {
 }
 
 impl UserRequestSendFunds {
+    /*
     pub fn into_request(self) -> RequestSendFunds {
         RequestSendFunds {
             request_id: self.request_id,
@@ -444,30 +620,49 @@ impl UserRequestSendFunds {
         }
     }
 
-    pub fn create_pending_request(&self) -> PendingRequest {
-        PendingRequest {
+    pub fn create_pending_transaction(&self) -> PendingTransaction {
+        PendingTransaction {
             request_id: self.request_id,
             route: self.route.clone(),
             dest_payment: self.dest_payment,
             invoice_id: self.invoice_id.clone(),
         }
     }
+    */
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResponseSendFundsResult {
-    Success(Receipt),
-    Failure(PublicKey), // Reporting public key.
+pub enum RequestResult {
+    Success(Commit),
+    // TODO: Should we add more information to the failure here?
+    Failure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResponseReceived {
+pub struct TransactionResult {
     pub request_id: Uid,
-    pub result: ResponseSendFundsResult,
+    pub result: RequestResult,
 }
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PaymentStatus {
+    PaymentNotFound,
+    InProgress,              // Can not be acked
+    Success((Receipt, Uid)), // (Receipt, ack_id)
+    Canceled(Uid),           // ack_id
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResponseClosePayment {
+    pub payment_id: PaymentId,
+    pub status: PaymentStatus,
+}
+
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoingControl<B: Clone> {
-    ResponseReceived(ResponseReceived),
+    TransactionResult(TransactionResult),
+    ResponseClosePayment(ResponseClosePayment),
     ReportMutations(FunderReportMutations<B>),
 }

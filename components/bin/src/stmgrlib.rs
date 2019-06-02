@@ -55,9 +55,12 @@ pub struct AppTicketCmd {
     /// Permission to request routes
     #[structopt(long = "proutes")]
     pub proutes: bool,
-    /// Permission to send funds
-    #[structopt(long = "pfunds")]
-    pub pfunds: bool,
+    /// Permission to send funds (buyer)
+    #[structopt(long = "pbuyer")]
+    pub pbuyer: bool,
+    /// Permission to receive funds (seller)
+    #[structopt(long = "pseller")]
+    pub pseller: bool,
     /// Permission to change configuration
     #[structopt(long = "pconfig")]
     pub pconfig: bool,
@@ -186,7 +189,8 @@ fn app_ticket(
         idfile,
         output,
         proutes,
-        pfunds,
+        pbuyer,
+        pseller,
         pconfig,
     }: AppTicketCmd,
 ) -> Result<(), AppTicketError> {
@@ -203,7 +207,8 @@ fn app_ticket(
     // Get app's permissions:
     let permissions = AppPermissions {
         routes: proutes,
-        send_funds: pfunds,
+        buyer: pbuyer,
+        seller: pseller,
         config: pconfig,
     };
 

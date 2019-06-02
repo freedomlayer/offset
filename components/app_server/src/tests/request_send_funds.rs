@@ -5,12 +5,13 @@ use futures::{SinkExt, StreamExt};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::uid::{Uid, UID_LEN};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
-    FriendsRoute, FunderControl, FunderOutgoingControl, ResponseReceived, ResponseSendFundsResult,
-    UserRequestSendFunds,
+    CreatePayment, CreateTransaction, FriendsRoute, FunderControl, FunderOutgoingControl,
+    RequestResult, TransactionResult,
 };
 
 use super::utils::spawn_dummy_app_server;
@@ -34,7 +35,8 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
-        send_funds: true,
+        buyer: true,
+        seller: true,
         config: true,
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
@@ -44,7 +46,8 @@ where
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
-        send_funds: true,
+        buyer: true,
+        seller: true,
         config: true,
     };
     await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
@@ -56,59 +59,85 @@ where
     let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
     let pk_f = PublicKey::from(&[0xff; PUBLIC_KEY_LEN]);
 
-    let user_request_send_funds = UserRequestSendFunds {
-        request_id: Uid::from(&[3; UID_LEN]),
-        route: FriendsRoute {
-            public_keys: vec![pk_e.clone(), pk_f.clone()],
-        },
-        invoice_id: InvoiceId::from(&[1; INVOICE_ID_LEN]),
-        dest_payment: 20,
+    let create_payment = CreatePayment {
+        payment_id: PaymentId::from(&[1; PAYMENT_ID_LEN]),
+        invoice_id: InvoiceId::from(&[2; INVOICE_ID_LEN]),
+        total_dest_payment: 20,
+        dest_public_key: pk_f.clone(),
     };
-
     let to_app_server = AppToAppServer::new(
         Uid::from(&[22; UID_LEN]),
-        AppRequest::RequestSendFunds(user_request_send_funds.clone()),
+        AppRequest::CreatePayment(create_payment.clone()),
     );
     await!(app_sender0.send(to_app_server)).unwrap();
 
-    // RequestRoutes command should be forwarded to IndexClient:
+    // CreatePayment command should be forwarded to the Funder:
     let funder_incoming_control = await!(funder_receiver.next()).unwrap();
     assert_eq!(
         funder_incoming_control.app_request_id,
         Uid::from(&[22; UID_LEN])
     );
     match funder_incoming_control.funder_control {
-        FunderControl::RequestSendFunds(received_user_request_send_funds) => {
-            assert_eq!(received_user_request_send_funds, user_request_send_funds)
+        FunderControl::CreatePayment(received_create_payment) => {
+            assert_eq!(received_create_payment, create_payment)
         }
         _ => unreachable!(),
     };
 
-    // Funder returns a response that is not related to any open request.
-    let response_received = ResponseReceived {
-        request_id: Uid::from(&[2; UID_LEN]),
-        result: ResponseSendFundsResult::Failure(pk_e.clone()),
+    let create_transaction = CreateTransaction {
+        payment_id: PaymentId::from(&[1; PAYMENT_ID_LEN]),
+        request_id: Uid::from(&[3; UID_LEN]),
+        route: FriendsRoute {
+            public_keys: vec![pk_e.clone(), pk_f.clone()],
+        },
+        dest_payment: 20,
+        fees: 4,
     };
-    await!(funder_sender.send(FunderOutgoingControl::ResponseReceived(response_received))).unwrap();
+    let to_app_server = AppToAppServer::new(
+        Uid::from(&[23; UID_LEN]),
+        AppRequest::CreateTransaction(create_transaction.clone()),
+    );
+    await!(app_sender0.send(to_app_server)).unwrap();
+
+    // CreateTransaction command should be forwarded to the Funder:
+    let funder_incoming_control = await!(funder_receiver.next()).unwrap();
+    assert_eq!(
+        funder_incoming_control.app_request_id,
+        Uid::from(&[23; UID_LEN])
+    );
+    match funder_incoming_control.funder_control {
+        FunderControl::CreateTransaction(received_create_transaction) => {
+            assert_eq!(received_create_transaction, create_transaction)
+        }
+        _ => unreachable!(),
+    };
+
+    // Funder returns a TransactionResult that is not related to any open request.
+    let transaction_result = TransactionResult {
+        request_id: Uid::from(&[2; UID_LEN]),
+        result: RequestResult::Failure,
+    };
+    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+        .unwrap();
 
     // We shouldn't get an message at any of the apps:
     assert!(app_receiver0.try_next().is_err());
     assert!(app_receiver1.try_next().is_err());
 
     // Funder returns a response that corresponds to the open request:
-    let response_received = ResponseReceived {
+    let transaction_result = TransactionResult {
         request_id: Uid::from(&[3; UID_LEN]),
-        result: ResponseSendFundsResult::Failure(pk_e.clone()),
+        result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::ResponseReceived(
-        response_received.clone()
+    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(
+        transaction_result.clone()
     )))
     .unwrap();
 
     let to_app_message = await!(app_receiver0.next()).unwrap();
     match to_app_message {
-        AppServerToApp::ResponseReceived(obtained_response_received) => {
-            assert_eq!(obtained_response_received, response_received);
+        AppServerToApp::TransactionResult(received_transaction_result) => {
+            assert_eq!(received_transaction_result, transaction_result);
         }
         _ => unreachable!(),
     }
@@ -118,11 +147,12 @@ where
     // Funder again returns the same response,
     // however, this time it will be discarded, because no open request
     // has a matching id:
-    let response_received = ResponseReceived {
+    let transaction_result = TransactionResult {
         request_id: Uid::from(&[3; UID_LEN]),
-        result: ResponseSendFundsResult::Failure(pk_e),
+        result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::ResponseReceived(response_received))).unwrap();
+    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+        .unwrap();
 
     // We shouldn't get an message at any of the apps:
     assert!(app_receiver0.try_next().is_err());

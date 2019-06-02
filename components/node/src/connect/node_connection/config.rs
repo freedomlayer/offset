@@ -9,7 +9,7 @@ use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, ResetFriendChannel, SetFriendRelays, SetFriendRemoteMaxDebt,
+    AddFriend, Rate, ResetFriendChannel, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -149,6 +149,18 @@ where
         await!(self.send_request(AppRequest::SetFriendRemoteMaxDebt(
             set_friend_remote_max_debt
         )))
+    }
+
+    pub async fn set_friend_rate(
+        &mut self,
+        friend_public_key: PublicKey,
+        rate: Rate,
+    ) -> Result<(), AppConfigError> {
+        let set_friend_rate = SetFriendRate {
+            friend_public_key,
+            rate,
+        };
+        await!(self.send_request(AppRequest::SetFriendRate(set_friend_rate)))
     }
 
     pub async fn reset_friend_channel(

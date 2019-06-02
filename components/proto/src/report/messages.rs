@@ -9,7 +9,7 @@ use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{FriendStatus, RequestsStatus};
+use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};
 use crate::net::messages::NetAddress;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,6 +144,7 @@ where
     B: Clone,
 {
     pub name: String,
+    pub rate: Rate,
     pub remote_relays: Vec<RelayAddress<B>>,
     pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
@@ -156,7 +157,7 @@ where
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
     pub num_pending_requests: u64,
-    pub num_pending_responses: u64,
+    pub num_pending_backwards_ops: u64,
     // Pending operations to be sent to the token channel.
     pub status: FriendStatusReport,
     pub num_pending_user_requests: u64,
@@ -175,7 +176,9 @@ where
     pub local_public_key: PublicKey,
     pub relays: ImVec<NamedRelayAddress<B>>,
     pub friends: ImHashMap<PublicKey, FriendReport<B>>,
-    pub num_ready_receipts: u64,
+    pub num_open_invoices: u64,
+    pub num_payments: u64,
+    pub num_open_transactions: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -186,12 +189,13 @@ where
 {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
+    SetRate(Rate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
-    SetNumPendingResponses(u64),
+    SetNumPendingBackwardsOps(u64),
     SetStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
@@ -219,7 +223,9 @@ where
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
     FriendReportMutation((PublicKey, FriendReportMutation<B>)),
-    SetNumReadyReceipts(u64),
+    SetNumOpenInvoices(u64),
+    SetNumPayments(u64),
+    SetNumOpenTransactions(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,6 +270,9 @@ where
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             }
+            FriendReportMutation::SetRate(rate) => {
+                self.rate = rate.clone();
+            }
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
             }
@@ -279,8 +288,8 @@ where
             FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
             }
-            FriendReportMutation::SetNumPendingResponses(num_pending_responses) => {
-                self.num_pending_responses = *num_pending_responses;
+            FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
+                self.num_pending_backwards_ops = *num_pending_backwards_ops;
             }
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
                 self.num_pending_requests = *num_pending_requests;
@@ -329,6 +338,7 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
+                    rate: Rate::new(),
                     remote_relays: add_friend_report.relays.clone(),
                     sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report
@@ -340,7 +350,7 @@ where
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &RequestsStatus::Closed,
                     ),
-                    num_pending_responses: 0,
+                    num_pending_backwards_ops: 0,
                     num_pending_requests: 0,
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                     num_pending_user_requests: 0,
@@ -373,8 +383,16 @@ where
                 friend.mutate(friend_report_mutation)?;
                 Ok(())
             }
-            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts) => {
-                self.num_ready_receipts = *num_ready_receipts;
+            FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
+                self.num_open_invoices = *num_open_invoices;
+                Ok(())
+            }
+            FunderReportMutation::SetNumPayments(num_payments) => {
+                self.num_payments = *num_payments;
+                Ok(())
+            }
+            FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {
+                self.num_open_transactions = *num_open_transactions;
                 Ok(())
             }
         }

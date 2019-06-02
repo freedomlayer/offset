@@ -1,5 +1,3 @@
-#![warn(unused)]
-
 use std::convert::TryFrom;
 // use utils::int_convert::usize_to_u32;
 

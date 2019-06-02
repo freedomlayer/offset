@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{ChannelerUpdateFriend, FriendStatus};
 
-use crate::handler::handler::MutableFunderState;
+use crate::handler::state_wrap::MutableFunderState;
 use crate::types::ChannelerConfig;
 
 pub fn handle_init<B>(
@@ -61,7 +61,7 @@ mod tests {
     use crate::friend::FriendMutation;
     use crate::state::{FunderMutation, FunderState};
 
-    use crate::handler::handler::MutableFunderState;
+    use crate::handler::state_wrap::MutableFunderState;
     use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]

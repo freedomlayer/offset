@@ -1,8 +1,8 @@
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_invoice_id, read_public_key, read_rand_nonce,
-    read_relay_address, read_signature, read_uid, write_custom_int128, write_custom_u_int128,
-    write_invoice_id, write_public_key, write_rand_nonce, write_relay_address, write_signature,
-    write_uid,
+    read_custom_int128, read_custom_u_int128, /*read_invoice_id,*/ read_public_key,
+    read_rand_nonce, read_relay_address, read_signature, read_uid, write_custom_int128,
+    write_custom_u_int128, write_invoice_id, write_public_key, write_rand_nonce,
+    write_relay_address, write_signature, write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -12,8 +12,8 @@ use std::io;
 use funder_capnp;
 
 use super::messages::{
-    FailureSendFunds, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
-    RequestSendFunds, ResetTerms, ResponseSendFunds,
+    CancelSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
+    RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::serialize::SerializeError;
@@ -36,7 +36,7 @@ pub fn ser_friends_route(
 }
 
 fn ser_request_send_funds_op(
-    request_send_funds: &RequestSendFunds,
+    request_send_funds: &RequestSendFundsOp,
     request_send_funds_op_builder: &mut funder_capnp::request_send_funds_op::Builder,
 ) {
     write_uid(
@@ -59,7 +59,7 @@ fn ser_request_send_funds_op(
 }
 
 fn ser_response_send_funds_op(
-    response_send_funds: &ResponseSendFunds,
+    response_send_funds: &ResponseSendFundsOp,
     response_send_funds_op_builder: &mut funder_capnp::response_send_funds_op::Builder,
 ) {
     write_uid(
@@ -76,34 +76,39 @@ fn ser_response_send_funds_op(
     );
 }
 
-fn ser_failure_send_funds_op(
-    failure_send_funds: &FailureSendFunds,
-    failure_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder,
+fn ser_cancel_send_funds_op(
+    cancel_send_funds: &CancelSendFundsOp,
+    cancel_send_funds_op_builder: &mut funder_capnp::failure_send_funds_op::Builder,
 ) {
+    unimplemented!();
+    /*
     write_uid(
-        &failure_send_funds.request_id,
-        &mut failure_send_funds_op_builder.reborrow().init_request_id(),
+        &cancel_send_funds.request_id,
+        &mut cancel_send_funds_op_builder.reborrow().init_request_id(),
     );
     write_public_key(
-        &failure_send_funds.reporting_public_key,
-        &mut failure_send_funds_op_builder
+        &cancel_send_funds.reporting_public_key,
+        &mut cancel_send_funds_op_builder
             .reborrow()
             .init_reporting_public_key(),
     );
     write_rand_nonce(
-        &failure_send_funds.rand_nonce,
-        &mut failure_send_funds_op_builder.reborrow().init_rand_nonce(),
+        &cancel_send_funds.rand_nonce,
+        &mut cancel_send_funds_op_builder.reborrow().init_rand_nonce(),
     );
     write_signature(
-        &failure_send_funds.signature,
-        &mut failure_send_funds_op_builder.reborrow().init_signature(),
+        &cancel_send_funds.signature,
+        &mut cancel_send_funds_op_builder.reborrow().init_signature(),
     );
+    */
 }
 
 fn ser_friend_operation(
     operation: &FriendTcOp,
     operation_builder: &mut funder_capnp::friend_operation::Builder,
 ) {
+    unimplemented!();
+    /*
     match operation {
         FriendTcOp::EnableRequests => operation_builder.set_enable_requests(()),
         FriendTcOp::DisableRequests => operation_builder.set_disable_requests(()),
@@ -122,12 +127,13 @@ fn ser_friend_operation(
                 operation_builder.reborrow().init_response_send_funds();
             ser_response_send_funds_op(response_send_funds, &mut response_send_funds_builder);
         }
-        FriendTcOp::FailureSendFunds(failure_send_funds) => {
-            let mut failure_send_funds_builder =
-                operation_builder.reborrow().init_failure_send_funds();
-            ser_failure_send_funds_op(failure_send_funds, &mut failure_send_funds_builder);
+        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
+            let mut cancel_send_funds_builder =
+                operation_builder.reborrow().init_cancel_send_funds();
+            ser_cancel_send_funds_op(cancel_send_funds, &mut cancel_send_funds_builder);
         }
     };
+    */
 }
 
 fn ser_move_token(
@@ -277,41 +283,52 @@ pub fn deser_friends_route(
 
 fn deser_request_send_funds_op(
     request_send_funds_op_reader: &funder_capnp::request_send_funds_op::Reader,
-) -> Result<RequestSendFunds, SerializeError> {
+) -> Result<RequestSendFundsOp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(RequestSendFunds {
         request_id: read_uid(&request_send_funds_op_reader.get_request_id()?)?,
         route: deser_friends_route(&request_send_funds_op_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&request_send_funds_op_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&request_send_funds_op_reader.get_invoice_id()?)?,
     })
+    */
 }
 
 fn deser_response_send_funds_op(
     response_send_funds_op_reader: &funder_capnp::response_send_funds_op::Reader,
-) -> Result<ResponseSendFunds, SerializeError> {
+) -> Result<ResponseSendFundsOp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(ResponseSendFunds {
         request_id: read_uid(&response_send_funds_op_reader.get_request_id()?)?,
         rand_nonce: read_rand_nonce(&response_send_funds_op_reader.get_rand_nonce()?)?,
         signature: read_signature(&response_send_funds_op_reader.get_signature()?)?,
     })
+    */
 }
 
-fn deser_failure_send_funds_op(
-    failure_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
-) -> Result<FailureSendFunds, SerializeError> {
-    Ok(FailureSendFunds {
-        request_id: read_uid(&failure_send_funds_op_reader.get_request_id()?)?,
+fn deser_cancel_send_funds_op(
+    cancel_send_funds_op_reader: &funder_capnp::failure_send_funds_op::Reader,
+) -> Result<CancelSendFundsOp, SerializeError> {
+    unimplemented!();
+    /*
+    Ok(CancelSendFundsOp {
+        request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
         reporting_public_key: read_public_key(
-            &failure_send_funds_op_reader.get_reporting_public_key()?,
+            &cancel_send_funds_op_reader.get_reporting_public_key()?,
         )?,
-        rand_nonce: read_rand_nonce(&failure_send_funds_op_reader.get_rand_nonce()?)?,
-        signature: read_signature(&failure_send_funds_op_reader.get_signature()?)?,
+        rand_nonce: read_rand_nonce(&cancel_send_funds_op_reader.get_rand_nonce()?)?,
+        signature: read_signature(&cancel_send_funds_op_reader.get_signature()?)?,
     })
+    */
 }
 
 fn deser_friend_operation(
     friend_operation_reader: &funder_capnp::friend_operation::Reader,
 ) -> Result<FriendTcOp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match friend_operation_reader.which()? {
         funder_capnp::friend_operation::EnableRequests(()) => FriendTcOp::EnableRequests,
         funder_capnp::friend_operation::DisableRequests(()) => FriendTcOp::DisableRequests,
@@ -326,10 +343,11 @@ fn deser_friend_operation(
                 &response_send_funds_reader?,
             )?)
         }
-        funder_capnp::friend_operation::FailureSendFunds(failure_send_funds_reader) => {
-            FriendTcOp::FailureSendFunds(deser_failure_send_funds_op(&failure_send_funds_reader?)?)
+        funder_capnp::friend_operation::CancelSendFunds(cancel_send_funds_reader) => {
+            FriendTcOp::CancelSendFunds(deser_cancel_send_funds_op(&cancel_send_funds_reader?)?)
         }
     })
+    */
 }
 
 fn deser_move_token(
@@ -417,6 +435,7 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, Serializ
     deser_friend_message(&friend_message_reader)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -438,19 +457,19 @@ mod tests {
             ],
         };
 
-        let request_send_funds = RequestSendFunds {
+        let request_send_funds = RequestSendFundsOp {
             request_id: Uid::from(&[22; UID_LEN]),
             route,
             dest_payment: 48,
             invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
         };
-        let response_send_funds = ResponseSendFunds {
+        let response_send_funds = ResponseSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
             signature: Signature::from(&[3; SIGNATURE_LEN]),
         };
 
-        let failure_send_funds = FailureSendFunds {
+        let cancel_send_funds = CancelSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
             reporting_public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
@@ -463,7 +482,7 @@ mod tests {
             FriendTcOp::SetRemoteMaxDebt(101),
             FriendTcOp::RequestSendFunds(request_send_funds),
             FriendTcOp::ResponseSendFunds(response_send_funds),
-            FriendTcOp::FailureSendFunds(failure_send_funds),
+            FriendTcOp::CancelSendFunds(cancel_send_funds),
         ];
 
         let relay_address4 = RelayAddress {
@@ -524,3 +543,4 @@ mod tests {
         assert_eq!(friend_message, friend_message2);
     }
 }
+*/

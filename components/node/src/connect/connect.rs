@@ -2,9 +2,9 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPair, ConnPairVec, FutTransform};
+use common::conn::{ConnPairVec, FutTransform};
 
-use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
+use proto::app_server::messages::AppServerToApp;
 use proto::app_server::serialize::{
     deserialize_app_permissions, deserialize_app_server_to_app, serialize_app_to_app_server,
 };
@@ -18,16 +18,11 @@ use crypto::identity::PublicKey;
 use identity::IdentityClient;
 
 pub use super::node_connection::NodeConnection;
+use super::node_connection::NodeConnectionTuple;
 
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
-
-pub type NodeConnectionTuple = (
-    AppPermissions,
-    NodeReport,
-    ConnPair<AppToAppServer, AppServerToApp>,
-);
 
 #[derive(Debug)]
 pub enum SetupConnectionError {

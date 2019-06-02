@@ -2,9 +2,10 @@ use std::io;
 
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_public_key, read_receipt, read_relay_address, read_signature,
-    read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
-    write_named_index_server_address, write_named_relay_address, write_public_key, write_receipt,
+    read_named_relay_address, read_public_key, /*read_receipt,*/ read_relay_address,
+    read_signature, read_uid, write_custom_int128, write_custom_u_int128, write_invoice_id,
+    write_named_index_server_address, write_named_relay_address,
+    write_public_key, /*write_receipt,*/
     write_relay_address, write_signature, write_uid,
 };
 use capnp;
@@ -19,12 +20,11 @@ use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use crate::report::serialize::{
     deser_node_report, deser_node_report_mutation, ser_node_report, ser_node_report_mutation,
 };
-use index_server::serialize::{
-    deser_request_routes, deser_route_with_capacity, ser_request_routes, ser_route_with_capacity,
-};
+use index_server::serialize::{deser_request_routes, ser_request_routes};
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, ResponseSendFundsResult,
+    AddFriend, ReceiptAck,
+    ResetFriendChannel, /* ResponseReceived, ResponseSendFundsResult, */
     SetFriendName, SetFriendRelays, SetFriendRemoteMaxDebt, UserRequestSendFunds,
 };
 use crate::funder::serialize::{deser_friends_route, ser_friends_route};
@@ -37,6 +37,8 @@ fn ser_user_request_send_funds(
     user_request_send_funds: &UserRequestSendFunds,
     user_request_send_funds_builder: &mut app_server_capnp::user_request_send_funds::Builder,
 ) {
+    unimplemented!();
+    /*
     write_uid(
         &user_request_send_funds.request_id,
         &mut user_request_send_funds_builder.reborrow().init_request_id(),
@@ -56,23 +58,29 @@ fn ser_user_request_send_funds(
         &user_request_send_funds.invoice_id,
         &mut user_request_send_funds_builder.reborrow().init_invoice_id(),
     );
+    */
 }
 
 fn deser_user_request_send_funds(
     user_request_send_funds_reader: &app_server_capnp::user_request_send_funds::Reader,
 ) -> Result<UserRequestSendFunds, SerializeError> {
+    unimplemented!();
+    /*
     Ok(UserRequestSendFunds {
         request_id: read_uid(&user_request_send_funds_reader.get_request_id()?)?,
         route: deser_friends_route(&user_request_send_funds_reader.get_route()?)?,
         dest_payment: read_custom_u_int128(&user_request_send_funds_reader.get_dest_payment()?)?,
         invoice_id: read_invoice_id(&user_request_send_funds_reader.get_invoice_id()?)?,
     })
+    */
 }
 
+/*
 fn ser_response_received(
     response_received: &ResponseReceived,
     response_received_builder: &mut app_server_capnp::response_received::Builder,
 ) {
+    unimplemented!();
     write_uid(
         &response_received.request_id,
         &mut response_received_builder.reborrow().init_request_id(),
@@ -90,10 +98,13 @@ fn ser_response_received(
         }
     };
 }
+*/
 
+/*
 fn deser_response_received(
     response_received_reader: &app_server_capnp::response_received::Reader,
 ) -> Result<ResponseReceived, SerializeError> {
+    unimplemented!();
     let result = match response_received_reader.get_result().which()? {
         app_server_capnp::response_received::result::Success(receipt_reader) => {
             let receipt_reader = receipt_reader?;
@@ -110,6 +121,7 @@ fn deser_response_received(
         result,
     })
 }
+*/
 
 fn ser_receipt_ack(
     receipt_ack: &ReceiptAck,
@@ -291,6 +303,8 @@ fn ser_response_routes_result(
     response_routes_result: &ResponseRoutesResult,
     response_routes_result_builder: &mut app_server_capnp::response_routes_result::Builder,
 ) {
+    unimplemented!();
+    /*
     match response_routes_result {
         ResponseRoutesResult::Success(routes_with_capacity) => {
             let routes_len = usize_to_u32(routes_with_capacity.len()).unwrap();
@@ -306,11 +320,14 @@ fn ser_response_routes_result(
         }
         ResponseRoutesResult::Failure => response_routes_result_builder.reborrow().set_failure(()),
     }
+    */
 }
 
 fn deser_response_routes_result(
     response_routes_result_reader: &app_server_capnp::response_routes_result::Reader,
 ) -> Result<ResponseRoutesResult, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match response_routes_result_reader.which()? {
         app_server_capnp::response_routes_result::Success(routes_with_capacity_reader) => {
             let mut routes_with_capacity = Vec::new();
@@ -321,6 +338,7 @@ fn deser_response_routes_result(
         }
         app_server_capnp::response_routes_result::Failure(()) => ResponseRoutesResult::Failure,
     })
+    */
 }
 
 fn ser_client_response_routes(
@@ -370,25 +388,32 @@ fn ser_app_permissions(
     app_permissions: &AppPermissions,
     app_permissions_builder: &mut app_server_capnp::app_permissions::Builder,
 ) {
+    unimplemented!();
+    /*
     app_permissions_builder
         .reborrow()
         .set_routes(app_permissions.routes);
     app_permissions_builder
         .reborrow()
-        .set_send_funds(app_permissions.send_funds);
+        .set_send_funds(app_permissions.buyer);
     app_permissions_builder
         .reborrow()
         .set_config(app_permissions.config);
+    */
 }
 
 fn deser_app_permissions(
     app_permissions_reader: &app_server_capnp::app_permissions::Reader,
 ) -> Result<AppPermissions, SerializeError> {
+    unimplemented!();
+    /*
     Ok(AppPermissions {
         routes: app_permissions_reader.get_routes(),
-        send_funds: app_permissions_reader.get_send_funds(),
+        buyer: app_permissions_reader.get_send_funds(),
+        seller: app_permissions_reader.get_send_funds(),
         config: app_permissions_reader.get_config(),
     })
+    */
 }
 
 fn ser_report_mutations(
@@ -445,6 +470,8 @@ fn ser_app_server_to_app(
     app_server_to_app: &AppServerToApp,
     app_server_to_app_builder: &mut app_server_capnp::app_server_to_app::Builder,
 ) {
+    unimplemented!();
+    /*
     match app_server_to_app {
         AppServerToApp::ResponseReceived(response_received) => ser_response_received(
             response_received,
@@ -465,11 +492,14 @@ fn ser_app_server_to_app(
             &mut app_server_to_app_builder.reborrow().init_response_routes(),
         ),
     }
+    */
 }
 
 fn deser_app_server_to_app(
     app_server_to_app_reader: &app_server_capnp::app_server_to_app::Reader,
 ) -> Result<AppServerToApp, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match app_server_to_app_reader.which()? {
         app_server_capnp::app_server_to_app::ResponseReceived(response_received_reader) => {
             AppServerToApp::ResponseReceived(deser_response_received(&response_received_reader?)?)
@@ -486,12 +516,15 @@ fn deser_app_server_to_app(
             )?)
         }
     })
+    */
 }
 
 fn ser_app_request(
     app_request: &AppRequest,
     app_request_builder: &mut app_server_capnp::app_request::Builder,
 ) {
+    unimplemented!();
+    /*
     match app_request {
         AppRequest::AddRelay(named_relay_address) => write_named_relay_address(
             named_relay_address,
@@ -568,11 +601,14 @@ fn ser_app_request(
             &mut app_request_builder.reborrow().init_remove_index_server(),
         ),
     }
+    */
 }
 
 fn deser_app_request(
     app_request: &app_server_capnp::app_request::Reader,
 ) -> Result<AppRequest, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match app_request.which()? {
         app_server_capnp::app_request::AddRelay(named_relay_address_reader) => {
             AppRequest::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -632,6 +668,7 @@ fn deser_app_request(
             AppRequest::RemoveIndexServer(read_public_key(&public_key_reader?)?)
         }
     })
+    */
 }
 
 fn ser_app_to_app_server(
@@ -720,6 +757,7 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer, Seri
     deser_app_to_app_server(&app_to_app_server)
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -799,3 +837,4 @@ mod tests {
 
     // TODO: More tests are required here
 }
+*/

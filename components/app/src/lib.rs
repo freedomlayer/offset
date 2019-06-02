@@ -26,12 +26,12 @@ pub use proto::file::relay::load_relay_from_file;
 pub use proto::file::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
-pub use proto::funder::messages::Receipt;
+pub use proto::funder::messages::{Commit, MultiCommit, PaymentStatus, Rate, Receipt};
 pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 pub use proto::report::signature_buff::verify_move_token_hashed_report;
 
-pub use node::connect::{AppConfig, AppReport, AppRoutes, AppSendFunds, NodeConnection};
+pub use node::connect::{AppBuyer, AppConfig, AppReport, AppRoutes, AppSeller, NodeConnection};
 
 pub use self::connect::{connect, ConnectError};
 pub use self::identity::{identity_from_file, IdentityFromFileError};
@@ -58,10 +58,11 @@ pub mod invoice {
 
 pub mod route {
     pub use proto::funder::messages::FriendsRoute;
-    pub use proto::index_server::messages::RouteWithCapacity;
+    pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
 
 }
 
 pub use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
+pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
 pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};

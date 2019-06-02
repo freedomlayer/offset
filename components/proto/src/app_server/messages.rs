@@ -1,11 +1,14 @@
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 use crypto::identity::PublicKey;
+use crypto::invoice_id::InvoiceId;
+use crypto::payment_id::PaymentId;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{
-    AddFriend, ReceiptAck, ResetFriendChannel, ResponseReceived, SetFriendName, SetFriendRelays,
-    SetFriendRemoteMaxDebt, UserRequestSendFunds,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,
+    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
+    SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -76,13 +79,15 @@ where
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B = NetAddress>
 where
     B: Clone,
 {
     /// Funds:
-    ResponseReceived(ResponseReceived),
+    TransactionResult(TransactionResult),
+    ResponseClosePayment(ResponseClosePayment),
     /// Reports about current state:
     Report(NodeReport<B>),
     ReportMutations(ReportMutations<B>),
@@ -100,9 +105,6 @@ pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
-    /// Sending funds:
-    RequestSendFunds(UserRequestSendFunds),
-    ReceiptAck(ReceiptAck),
     /// Friend management:
     AddFriend(AddFriend<B>),
     SetFriendRelays(SetFriendRelays<B>),
@@ -113,7 +115,17 @@ pub enum AppRequest<B = NetAddress> {
     OpenFriend(PublicKey),
     CloseFriend(PublicKey),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),
+    /// Buyer:
+    CreatePayment(CreatePayment),
+    CreateTransaction(CreateTransaction),
+    RequestClosePayment(PaymentId),
+    AckClosePayment(AckClosePayment),
+    /// Seller:
+    AddInvoice(AddInvoice),
+    CancelInvoice(InvoiceId),
+    CommitInvoice(MultiCommit),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
@@ -173,8 +185,10 @@ where
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,
-    /// Can send credits
-    pub send_funds: bool,
+    /// Can send credits as a buyer
+    pub buyer: bool,
+    /// Can receive credits as a seller
+    pub seller: bool,
     /// Can configure friends
     pub config: bool,
 }

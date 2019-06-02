@@ -18,7 +18,6 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 
-mod credit_calc;
 mod ephemeral;
 mod friend;
 mod funder;

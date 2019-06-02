@@ -544,6 +544,9 @@ fn ser_friend_report(
     friend_report: &FriendReport,
     friend_report_builder: &mut report_capnp::friend_report::Builder,
 ) {
+    unimplemented!();
+
+    /*
     friend_report_builder
         .reborrow()
         .set_name(&friend_report.name);
@@ -603,11 +606,14 @@ fn ser_friend_report(
     );
 
     friend_report_builder.set_num_pending_user_requests(friend_report.num_pending_user_requests);
+    */
 }
 
 fn deser_friend_report(
     friend_report_reader: &report_capnp::friend_report::Reader,
 ) -> Result<FriendReport, SerializeError> {
+    unimplemented!();
+    /*
     let mut remote_relays = Vec::new();
     for relay_address in friend_report_reader.get_remote_relays()? {
         remote_relays.push(read_relay_address(&relay_address)?);
@@ -635,6 +641,7 @@ fn deser_friend_report(
         status: deser_friend_status_report(&friend_report_reader.get_status()?)?,
         num_pending_user_requests: friend_report_reader.get_num_pending_user_requests(),
     })
+    */
 }
 
 fn ser_pk_friend_report(
@@ -665,6 +672,8 @@ fn ser_funder_report(
     funder_report: &FunderReport,
     funder_report_builder: &mut report_capnp::funder_report::Builder,
 ) {
+    unimplemented!();
+    /*
     write_public_key(
         &funder_report.local_public_key,
         &mut funder_report_builder.reborrow().init_local_public_key(),
@@ -686,11 +695,14 @@ fn ser_funder_report(
     }
 
     funder_report_builder.set_num_ready_receipts(funder_report.num_ready_receipts);
+    */
 }
 
 fn deser_funder_report(
     funder_report_reader: &report_capnp::funder_report::Reader,
 ) -> Result<FunderReport, SerializeError> {
+    unimplemented!();
+    /*
     let mut named_relays = Vec::new();
     for named_relay_address in funder_report_reader.get_relays()? {
         named_relays.push(read_named_relay_address(&named_relay_address)?);
@@ -708,6 +720,7 @@ fn deser_funder_report(
         friends,
         num_ready_receipts: funder_report_reader.get_num_ready_receipts(),
     })
+    */
 }
 
 fn ser_add_friend_report(
@@ -774,6 +787,8 @@ fn ser_friend_report_mutation(
     friend_report_mutation: &FriendReportMutation,
     friend_report_mutation_builder: &mut report_capnp::friend_report_mutation::Builder,
 ) {
+    unimplemented!();
+    /*
     match friend_report_mutation {
         FriendReportMutation::SetRemoteRelays(relays) => {
             let relays_len = usize_to_u32(relays.len()).unwrap();
@@ -853,11 +868,15 @@ fn ser_friend_report_mutation(
                 .init_set_liveness(),
         ),
     };
+    */
 }
 
 fn deser_friend_report_mutation(
     friend_report_mutation: &report_capnp::friend_report_mutation::Reader,
 ) -> Result<FriendReportMutation, SerializeError> {
+    unimplemented!();
+
+    /*
     Ok(match friend_report_mutation.which()? {
         report_capnp::friend_report_mutation::SetRemoteRelays(relays_reader) => {
             let mut relays = Vec::new();
@@ -914,6 +933,7 @@ fn deser_friend_report_mutation(
             )?)
         }
     })
+    */
 }
 
 fn ser_pk_friend_report_mutation(
@@ -951,6 +971,8 @@ fn ser_funder_report_mutation(
     funder_report_mutation: &FunderReportMutation,
     funder_report_mutation_builder: &mut report_capnp::funder_report_mutation::Builder,
 ) {
+    unimplemented!();
+    /*
     match funder_report_mutation {
         FunderReportMutation::AddRelay(named_relay_address) => {
             write_named_relay_address(
@@ -994,11 +1016,14 @@ fn ser_funder_report_mutation(
                 .set_set_num_ready_receipts(*num_ready_receipts);
         }
     }
+    */
 }
 
 fn deser_funder_report_mutation(
     funder_report_mutation_reader: &report_capnp::funder_report_mutation::Reader,
 ) -> Result<FunderReportMutation, SerializeError> {
+    unimplemented!();
+    /*
     Ok(match funder_report_mutation_reader.which()? {
         report_capnp::funder_report_mutation::AddRelay(named_relay_address_reader) => {
             FunderReportMutation::AddRelay(read_named_relay_address(&named_relay_address_reader?)?)
@@ -1017,10 +1042,8 @@ fn deser_funder_report_mutation(
         ) => FunderReportMutation::FriendReportMutation(deser_pk_friend_report_mutation(
             &pk_friend_report_mutation_reader?,
         )?),
-        report_capnp::funder_report_mutation::SetNumReadyReceipts(num_ready_receipts) => {
-            FunderReportMutation::SetNumReadyReceipts(num_ready_receipts)
-        }
     })
+    */
 }
 
 fn ser_index_client_report(
