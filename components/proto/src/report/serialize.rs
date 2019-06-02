@@ -3,10 +3,10 @@ use im::vector::Vector as ImVec;
 
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_hash, read_named_index_server_address,
-    read_named_relay_address, read_public_key, read_rand_nonce, read_relay_address, read_signature,
-    write_custom_int128, write_custom_u_int128, write_hash, write_named_index_server_address,
-    write_named_relay_address, write_public_key, write_rand_nonce, write_relay_address,
-    write_signature,
+    read_named_relay_address, read_public_key, read_rand_nonce, read_rate, read_relay_address,
+    read_signature, write_custom_int128, write_custom_u_int128, write_hash,
+    write_named_index_server_address, write_named_relay_address, write_public_key,
+    write_rand_nonce, write_rate, write_relay_address, write_signature,
 };
 use common::int_convert::usize_to_u32;
 use crypto::identity::PublicKey;
@@ -544,12 +544,14 @@ fn ser_friend_report(
     friend_report: &FriendReport,
     friend_report_builder: &mut report_capnp::friend_report::Builder,
 ) {
-    unimplemented!();
-
-    /*
     friend_report_builder
         .reborrow()
         .set_name(&friend_report.name);
+
+    write_rate(
+        &friend_report.rate,
+        &mut friend_report_builder.reborrow().init_rate(),
+    );
 
     // remote_relays:
     let relays_len = usize_to_u32(friend_report.remote_relays.len()).unwrap();
@@ -598,7 +600,7 @@ fn ser_friend_report(
     );
 
     friend_report_builder.set_num_pending_requests(friend_report.num_pending_requests);
-    friend_report_builder.set_num_pending_responses(friend_report.num_pending_responses);
+    friend_report_builder.set_num_pending_backwards_ops(friend_report.num_pending_backwards_ops);
 
     ser_friend_status_report(
         &friend_report.status,
@@ -606,14 +608,11 @@ fn ser_friend_report(
     );
 
     friend_report_builder.set_num_pending_user_requests(friend_report.num_pending_user_requests);
-    */
 }
 
 fn deser_friend_report(
     friend_report_reader: &report_capnp::friend_report::Reader,
 ) -> Result<FriendReport, SerializeError> {
-    unimplemented!();
-    /*
     let mut remote_relays = Vec::new();
     for relay_address in friend_report_reader.get_remote_relays()? {
         remote_relays.push(read_relay_address(&relay_address)?);
@@ -621,6 +620,7 @@ fn deser_friend_report(
 
     Ok(FriendReport {
         name: friend_report_reader.get_name()?.to_owned(),
+        rate: read_rate(&friend_report_reader.get_rate()?)?,
         remote_relays,
         sent_local_relays: deser_sent_local_relays_report(
             &friend_report_reader.get_sent_local_relays()?,
@@ -637,11 +637,10 @@ fn deser_friend_report(
             &friend_report_reader.get_wanted_local_requests_status()?,
         )?,
         num_pending_requests: friend_report_reader.get_num_pending_requests(),
-        num_pending_responses: friend_report_reader.get_num_pending_responses(),
+        num_pending_backwards_ops: friend_report_reader.get_num_pending_backwards_ops(),
         status: deser_friend_status_report(&friend_report_reader.get_status()?)?,
         num_pending_user_requests: friend_report_reader.get_num_pending_user_requests(),
     })
-    */
 }
 
 fn ser_pk_friend_report(
