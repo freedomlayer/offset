@@ -1,11 +1,12 @@
 use std::io;
 
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_invoice_id, read_named_index_server_address,
-    read_named_relay_address, read_payment_id, read_public_key, read_rate,
-    /*read_receipt,*/ read_relay_address, read_signature, read_uid, write_custom_int128,
-    write_custom_u_int128, write_invoice_id, write_named_index_server_address,
-    write_named_relay_address, write_payment_id, write_public_key, /*write_receipt,*/
+    read_custom_int128, read_custom_u_int128, read_invoice_id, read_multi_commit,
+    read_named_index_server_address, read_named_relay_address, read_payment_id, read_public_key,
+    read_rate, /*read_receipt,*/ read_relay_address, read_signature, read_uid,
+    write_custom_int128, write_custom_u_int128, write_invoice_id, write_multi_commit,
+    write_named_index_server_address, write_named_relay_address, write_payment_id,
+    write_public_key, /*write_receipt,*/
     write_rate, write_relay_address, write_signature, write_uid,
 };
 use capnp;
@@ -603,7 +604,10 @@ fn ser_app_request(
             invoice_id,
             &mut app_request_builder.reborrow().init_cancel_invoice(),
         ),
-        AppRequest::CommitInvoice(_commit_invoice) => unimplemented!(),
+        AppRequest::CommitInvoice(multi_commit) => write_multi_commit(
+            multi_commit,
+            &mut app_request_builder.reborrow().init_commit_invoice(),
+        ),
         AppRequest::AddFriend(add_friend) => ser_add_friend(
             add_friend,
             &mut app_request_builder.reborrow().init_add_friend(),
@@ -693,7 +697,9 @@ fn deser_app_request(
         app_server_capnp::app_request::CancelInvoice(invoice_id_reader) => {
             AppRequest::CancelInvoice(read_invoice_id(&invoice_id_reader?)?)
         }
-        app_server_capnp::app_request::CommitInvoice(_commit_invoice) => unimplemented!(),
+        app_server_capnp::app_request::CommitInvoice(multi_commit_reader) => {
+            AppRequest::CommitInvoice(read_multi_commit(&multi_commit_reader?)?)
+        }
         app_server_capnp::app_request::AddFriend(add_friend_reader) => {
             AppRequest::AddFriend(deser_add_friend(&add_friend_reader?)?)
         }
