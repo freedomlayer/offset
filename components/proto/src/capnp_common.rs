@@ -291,23 +291,32 @@ pub fn write_index_server_address(from: &IndexServerAddress, to: &mut index_serv
 */
 
 pub fn read_receipt(from: &receipt::Reader) -> Result<Receipt, SerializeError> {
-    unimplemented!();
-    /*
     Ok(Receipt {
         response_hash: read_hash(&from.get_response_hash()?)?,
         invoice_id: read_invoice_id(&from.get_invoice_id()?)?,
+        src_plain_lock: read_plain_lock(&from.get_src_plain_lock()?)?,
+        dest_plain_lock: read_plain_lock(&from.get_dest_plain_lock()?)?,
         dest_payment: read_custom_u_int128(&from.get_dest_payment()?)?,
+        total_dest_payment: read_custom_u_int128(&from.get_total_dest_payment()?)?,
         signature: read_signature(&from.get_signature()?)?,
     })
-    */
 }
 
 pub fn write_receipt(from: &Receipt, to: &mut receipt::Builder) {
-    unimplemented!();
-    /*
     write_hash(&from.response_hash, &mut to.reborrow().init_response_hash());
     write_invoice_id(&from.invoice_id, &mut to.reborrow().init_invoice_id());
+    write_plain_lock(
+        &from.src_plain_lock,
+        &mut to.reborrow().init_src_plain_lock(),
+    );
+    write_plain_lock(
+        &from.dest_plain_lock,
+        &mut to.reborrow().init_dest_plain_lock(),
+    );
     write_custom_u_int128(from.dest_payment, &mut to.reborrow().init_dest_payment());
+    write_custom_u_int128(
+        from.total_dest_payment,
+        &mut to.reborrow().init_total_dest_payment(),
+    );
     write_signature(&from.signature, &mut to.reborrow().init_signature());
-    */
 }
