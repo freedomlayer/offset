@@ -1,8 +1,9 @@
 use crate::capnp_common::{
-    read_custom_int128, read_custom_u_int128, read_hashed_lock, read_invoice_id, read_public_key,
-    read_rand_nonce, read_relay_address, read_signature, read_uid, write_custom_int128,
-    write_custom_u_int128, write_hashed_lock, write_invoice_id, write_public_key, write_rand_nonce,
-    write_relay_address, write_signature, write_uid,
+    read_custom_int128, read_custom_u_int128, read_hashed_lock, read_invoice_id, read_plain_lock,
+    read_public_key, read_rand_nonce, read_relay_address, read_signature, read_uid,
+    write_custom_int128, write_custom_u_int128, write_hashed_lock, write_invoice_id,
+    write_plain_lock, write_public_key, write_rand_nonce, write_relay_address, write_signature,
+    write_uid,
 };
 use capnp;
 use capnp::serialize_packed;
@@ -12,8 +13,8 @@ use std::io;
 use funder_capnp;
 
 use super::messages::{
-    CancelSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken, MoveTokenRequest,
-    RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken,
+    MoveTokenRequest, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::serialize::SerializeError;
@@ -110,6 +111,30 @@ fn ser_cancel_send_funds_op(
     write_uid(
         &cancel_send_funds.request_id,
         &mut cancel_send_funds_op_builder.reborrow().init_request_id(),
+    );
+}
+
+fn ser_collect_send_funds_op(
+    collect_send_funds: &CollectSendFundsOp,
+    collect_send_funds_op_builder: &mut funder_capnp::collect_send_funds_op::Builder,
+) {
+    write_uid(
+        &collect_send_funds.request_id,
+        &mut collect_send_funds_op_builder.reborrow().init_request_id(),
+    );
+
+    write_plain_lock(
+        &collect_send_funds.src_plain_lock,
+        &mut collect_send_funds_op_builder
+            .reborrow()
+            .init_src_plain_lock(),
+    );
+
+    write_plain_lock(
+        &collect_send_funds.dest_plain_lock,
+        &mut collect_send_funds_op_builder
+            .reborrow()
+            .init_dest_plain_lock(),
     );
 }
 
@@ -323,6 +348,16 @@ fn deser_cancel_send_funds_op(
 ) -> Result<CancelSendFundsOp, SerializeError> {
     Ok(CancelSendFundsOp {
         request_id: read_uid(&cancel_send_funds_op_reader.get_request_id()?)?,
+    })
+}
+
+fn deser_collect_send_funds_op(
+    collect_send_funds_op_reader: &funder_capnp::collect_send_funds_op::Reader,
+) -> Result<CollectSendFundsOp, SerializeError> {
+    Ok(CollectSendFundsOp {
+        request_id: read_uid(&collect_send_funds_op_reader.get_request_id()?)?,
+        src_plain_lock: read_plain_lock(&collect_send_funds_op_reader.get_src_plain_lock()?)?,
+        dest_plain_lock: read_plain_lock(&collect_send_funds_op_reader.get_dest_plain_lock()?)?,
     })
 }
 
