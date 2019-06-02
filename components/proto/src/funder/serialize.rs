@@ -474,12 +474,12 @@ pub fn deserialize_friend_message(data: &[u8]) -> Result<FriendMessage, Serializ
     deser_friend_message(&friend_message_reader)
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app_server::messages::RelayAddress;
     use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
+    use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
     use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
     use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
     use crypto::uid::{Uid, UID_LEN};
@@ -498,21 +498,28 @@ mod tests {
 
         let request_send_funds = RequestSendFundsOp {
             request_id: Uid::from(&[22; UID_LEN]),
+            src_hashed_lock: HashedLock::from(&[1u8; HASHED_LOCK_LEN]),
             route,
             dest_payment: 48,
+            total_dest_payment: 60,
             invoice_id: InvoiceId::from(&[0x99; INVOICE_ID_LEN]),
+            left_fees: 14,
         };
         let response_send_funds = ResponseSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
+            dest_hashed_lock: HashedLock::from(&[2u8; HASHED_LOCK_LEN]),
             rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
             signature: Signature::from(&[3; SIGNATURE_LEN]),
         };
 
         let cancel_send_funds = CancelSendFundsOp {
             request_id: Uid::from(&[10; UID_LEN]),
-            reporting_public_key: PublicKey::from(&[0x11; PUBLIC_KEY_LEN]),
-            rand_nonce: RandValue::from(&[0xbb; RAND_VALUE_LEN]),
-            signature: Signature::from(&[3; SIGNATURE_LEN]),
+        };
+
+        let collect_send_funds = CollectSendFundsOp {
+            request_id: Uid::from(&[10; UID_LEN]),
+            src_plain_lock: PlainLock::from(&[4u8; PLAIN_LOCK_LEN]),
+            dest_plain_lock: PlainLock::from(&[5u8; PLAIN_LOCK_LEN]),
         };
 
         let operations = vec![
@@ -522,6 +529,7 @@ mod tests {
             FriendTcOp::RequestSendFunds(request_send_funds),
             FriendTcOp::ResponseSendFunds(response_send_funds),
             FriendTcOp::CancelSendFunds(cancel_send_funds),
+            FriendTcOp::CollectSendFunds(collect_send_funds),
         ];
 
         let relay_address4 = RelayAddress {
@@ -582,4 +590,3 @@ mod tests {
         assert_eq!(friend_message, friend_message2);
     }
 }
-*/
