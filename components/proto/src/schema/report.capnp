@@ -6,6 +6,7 @@ using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
 using import "common.capnp".RandNonce;
+using import "common.capnp".Rate;
 
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
@@ -127,17 +128,18 @@ struct SentLocalRelaysReport {
 
 struct FriendReport {
         name @0: Text;
-        remoteRelays @1: List(RelayAddress);
-        sentLocalRelays @2: SentLocalRelaysReport;
-        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
-        liveness @4: FriendLivenessReport;
-        channelStatus @5: ChannelStatusReport;
-        wantedRemoteMaxDebt @6: CustomUInt128;
-        wantedLocalRequestsStatus @7: RequestsStatusReport;
-        numPendingRequests @8: UInt64;
-        numPendingResponses @9: UInt64;
-        status @10: FriendStatusReport;
-        numPendingUserRequests @11: UInt64;
+        rate @1: Rate;
+        remoteRelays @2: List(RelayAddress);
+        sentLocalRelays @3: SentLocalRelaysReport;
+        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
+        liveness @5: FriendLivenessReport;
+        channelStatus @6: ChannelStatusReport;
+        wantedRemoteMaxDebt @7: CustomUInt128;
+        wantedLocalRequestsStatus @8: RequestsStatusReport;
+        numPendingRequests @9: UInt64;
+        numPendingBackwardsOps @10: UInt64;
+        status @11: FriendStatusReport;
+        numPendingUserRequests @12: UInt64;
 }
 
 struct PkFriendReport {
@@ -150,7 +152,9 @@ struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(NamedRelayAddress);
         friends @2: List(PkFriendReport);
-        numReadyReceipts @3: UInt64;
+        numOpenInvoices @3: UInt64;
+        numPayments @4: UInt64;
+        numOpenTransactions @5: UInt64;
 }
 
 
