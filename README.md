@@ -1,6 +1,6 @@
 # Offst
 
-[![Build Status](https://travis-ci.com/freedomlayer/offst.svg?branch=master)](https://travis-ci.com/freedomlayer/offst)
+[![Build Status](https://travis-ci.com/freedomlayer/offst.svg?branch=master)](https://travis-ci.com/freedomlayer/offst/branches)
 [![codecov](https://codecov.io/gh/freedomlayer/offst/branch/master/graph/badge.svg)](https://codecov.io/gh/freedomlayer/offst)
 [![Documentation Status](https://readthedocs.org/projects/offst/badge/?version=latest)](https://offst.readthedocs.io/en/latest/?badge=latest)
 [![Gitter chat](https://badges.gitter.im/freedomlayer/offst.svg)](https://gitter.im/freedomlayer/offst)
@@ -31,7 +31,7 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 - Install [Rust](https://www.rust-lang.org/tools/install).
 - Install [capnproto](https://capnproto.org):
   - On Ubuntu, run: `sudo apt install capnproto`
-  - On MacOS, run: `brew install canpnp` 
+  - On MacOS, run: `brew install canpnp`
 
 ### Pinned toolchain version
 
