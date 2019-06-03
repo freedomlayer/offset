@@ -4,12 +4,13 @@
 
 exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
+    echo ">>> kcov: " ${exe}
     ${HOME}/install/kcov-${TARGET}/bin/kcov \
         --verify \
         --exclude-path=/usr/include \
         --include-pattern="components" \
         target/kcov \
-        ${exe}
+        ${exe} | ts '[%M:%.S]'
 done
 
 # Automatically reads from CODECOV_TOKEN environment variable:
