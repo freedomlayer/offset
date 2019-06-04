@@ -2,6 +2,15 @@
 
 # CODECOV_TOKEN Must be set at this point.
 
+wait_forever() {
+    while :
+    do
+        echo .
+        sleep 60
+    done
+}
+wait_forever &
+
 exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
     echo ">>> kcov: " ${exe}
