@@ -5,21 +5,21 @@
 wait_forever() {
     while :
     do
-        echo .
-        sleep 60
+        echo -n .
+        sleep 10
     done
 }
 wait_forever &
 
 exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
-    echo ">>> kcov: " ${exe}
+    echo ">>> kcov: " ${exe} | ts '[%H:%M:%.S]'
     ${HOME}/install/kcov-${TARGET}/bin/kcov \
         --verify \
-        --exclude-path=/usr/include \
+        --exclude-pattern=/.cargo,/usr/lib,/usr/include \
         --include-pattern="components" \
         target/kcov \
-        ${exe} | ts '[%M:%.S]'
+        ${exe} --nocapture | ts '[%H:%M:%.S]'
 done
 
 # Automatically reads from CODECOV_TOKEN environment variable:

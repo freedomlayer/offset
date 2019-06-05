@@ -42,7 +42,7 @@ matrix:
       # TODO: Enable these two lints when clippy bugs are solved:
     - cargo clippy -- -A clippy::needless_lifetimes -A clippy::identity_conversion
       # We add target dir so that kcov can find the test files to run:
-    - cargo test --target ${TARGET}
+    - cargo test --target ${TARGET} -- --nocapture
     - travis/trusty/post/kcov/try-install.sh
     - travis/trusty/post/kcov/run.sh
 
