@@ -87,25 +87,25 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         commits: vec![commit],
     };
 
-    // MultiCommit: 0 --> 1  (Out of band)
+    // MultiCommit: 0 ==> 1  (Out of band)
 
     // 1: Apply MultiCommit:
     await!(node_controls[1].send(FunderControl::CommitInvoice(multi_commit)));
 
+    // Wait until no more progress can be made (We should get a receipt)
+    await!(test_executor.wait());
+
     // 0: Expect a receipt:
-    let (receipt, ack_uid) = loop {
-        await!(
-            node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PAYMENT_ID_LEN]
-            )))
-        );
-        await!(test_executor.wait());
-        let response_close_payment =
-            await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment.status {
-            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
-            _ => {}
-        }
+    await!(
+        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PAYMENT_ID_LEN]
+        )))
+    );
+    let response_close_payment =
+        await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+    let (receipt, ack_uid) = match response_close_payment.status {
+        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        _ => unreachable!(),
     };
 
     // 0: Acknowledge response close:
@@ -153,7 +153,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
      * 0 -- 1 -- 2
      */
     let num_nodes = 3;
-    let mut node_controls = await!(create_node_controls(num_nodes, test_executor));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor.clone()));
 
     // Create topology:
     // ----------------
@@ -247,19 +247,20 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // 2: Apply MultiCommit:
     await!(node_controls[2].send(FunderControl::CommitInvoice(multi_commit)));
 
+    // Wait until no more progress can be made (We should get a receipt)
+    await!(test_executor.wait());
+
     // 0: Expect a receipt:
-    let (receipt, ack_uid) = loop {
-        await!(
-            node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PAYMENT_ID_LEN]
-            )))
-        );
-        let response_close_payment =
-            await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment.status {
-            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
-            _ => {}
-        }
+    await!(
+        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PAYMENT_ID_LEN]
+        )))
+    );
+    let response_close_payment =
+        await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+    let (receipt, ack_uid) = match response_close_payment.status {
+        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        _ => unreachable!(),
     };
 
     // 0: Acknowledge response close:
@@ -415,7 +416,6 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
                 &[2u8; PAYMENT_ID_LEN]
             )))
         );
-        await!(test_executor.wait());
         let response_close_payment =
             await!(node_controls[0].recv_until_response_close_payment()).unwrap();
         match response_close_payment.status {
