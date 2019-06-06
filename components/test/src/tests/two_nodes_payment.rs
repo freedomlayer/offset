@@ -301,12 +301,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Node1: Apply the MultiCommit
     await!(seller1.commit_invoice(multi_commit)).unwrap();
 
-    dbg!("Was here1");
-
     // Wait some time:
     await!(advance_time(40, &mut tick_sender, &test_executor));
-
-    dbg!("Was here2");
 
 
     // Node0: Expect a receipt:
