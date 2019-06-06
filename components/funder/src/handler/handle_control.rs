@@ -742,7 +742,7 @@ where
             } else {
                 let ack_uid = Uid::new(rng);
                 (
-                    Some(Payment::Canceled(ack_uid.clone())),
+                    Some(Payment::Canceled(ack_uid)),
                     PaymentStatus::Canceled(ack_uid),
                 )
             }
