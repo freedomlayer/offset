@@ -8,7 +8,7 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{MultiCommit, PaymentStatus, FriendsRoute};
+use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus};
 
 use timer::create_timer_incoming;
 
@@ -412,7 +412,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Use the route (pk1, pk0)
-    let route = FriendsRoute { public_keys: vec![node_public_key(1), node_public_key(0)] };
+    let route = FriendsRoute {
+        public_keys: vec![node_public_key(1), node_public_key(0)],
+    };
     // Node1: Create one transaction for the given route:
     let res = await!(buyer1.create_transaction(
         payment_id.clone(),

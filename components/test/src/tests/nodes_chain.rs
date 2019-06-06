@@ -7,13 +7,13 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{Rate, MultiCommit, PaymentStatus};
+use proto::funder::messages::{MultiCommit, PaymentStatus, Rate};
 
 use timer::create_timer_incoming;
 
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::uid::{Uid, UID_LEN};
 use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+use crypto::uid::{Uid, UID_LEN};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -229,7 +229,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     await!(apps[1]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(0), Rate {mul: 0, add: 1} ))
+        .set_friend_rate(node_public_key(0), Rate { mul: 0, add: 1 }))
     .unwrap();
 
     // 1 --> 2
@@ -266,7 +266,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     await!(apps[2]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(1), Rate {mul: 0, add: 1} ))
+        .set_friend_rate(node_public_key(1), Rate { mul: 0, add: 1 }))
     .unwrap();
 
     // 1 --> 3
@@ -369,7 +369,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     await!(apps[4]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(2), Rate {mul: 0, add: 1} ))
+        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 1 }))
     .unwrap();
 
     // Wait some time:
@@ -384,10 +384,9 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     };
     assert!(friend_report.liveness.is_online());
 
-
     // Perform a payment through the chain: 0 -> 1 -> 2 -> 4
     // ======================================================
-    
+
     let payment_id = PaymentId::from(&[0u8; PAYMENT_ID_LEN]);
     let invoice_id = InvoiceId::from(&[1u8; INVOICE_ID_LEN]);
     let request_id = Uid::from(&[2u8; UID_LEN]);
@@ -395,7 +394,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let fees = 2u128; // Fees for Node1 and Node2
 
     // Node4: Create an invoice:
-    await!(apps[4].seller().unwrap().add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
+    await!(apps[4]
+        .seller()
+        .unwrap()
+        .add_invoice(invoice_id.clone(), total_dest_payment))
+    .unwrap();
 
     // Node0: Request a route to node 4:
     let mut multi_routes = await!(apps[0].routes().unwrap().request_routes(
@@ -433,7 +436,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = await!(apps[0].buyer().unwrap().request_close_payment(payment_id.clone())).unwrap();
+    let _ = await!(apps[0]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone()))
+    .unwrap();
 
     // Node0: Compose a MultiCommit:
     let multi_commit = MultiCommit {
@@ -451,23 +458,31 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     await!(advance_time(5, &mut tick_sender, &test_executor));
 
     // Node0: Check the payment's result:
-    let payment_status = await!(apps[0].buyer().unwrap().request_close_payment(payment_id.clone())).unwrap();
+    let payment_status = await!(apps[0]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone()))
+    .unwrap();
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
         PaymentStatus::Success((receipt, ack_uid)) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
-            await!(apps[0].buyer().unwrap().ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();
+            await!(apps[0]
+                .buyer()
+                .unwrap()
+                .ack_close_payment(payment_id.clone(), ack_uid.clone()))
+            .unwrap();
         }
         _ => unreachable!(),
     }
 
     /*
-     
+
     // Perform a payment through the chain: 5 -> 2 -> 1 -> 3
     // ======================================================
-    
+
     // TODO: Add code to send funds from 5 to 3
 
 

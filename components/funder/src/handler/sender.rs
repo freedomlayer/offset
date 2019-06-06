@@ -26,9 +26,9 @@ use crate::friend::{
 use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
 
 use crate::ephemeral::Ephemeral;
+use crate::handler::canceler::remove_transaction;
 use crate::handler::state_wrap::MutableFunderState;
 use crate::handler::utils::find_request_origin;
-use crate::handler::canceler::remove_transaction;
 use crate::state::{FunderMutation, FunderState};
 
 #[derive(Debug, Clone)]
