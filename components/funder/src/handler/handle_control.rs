@@ -733,10 +733,20 @@ where
     };
 
     let (opt_new_payment, payment_status) = match payment {
-        Payment::NewTransactions(new_transactions) => (
-            Some(Payment::InProgress(new_transactions.num_transactions)),
-            PaymentStatus::InProgress,
-        ),
+        Payment::NewTransactions(new_transactions) => {
+            if new_transactions.num_transactions > 0 {
+                (
+                    Some(Payment::InProgress(new_transactions.num_transactions)),
+                    PaymentStatus::InProgress,
+                )
+            } else {
+                let ack_uid = Uid::new(rng);
+                (
+                    Some(Payment::Canceled(ack_uid.clone())),
+                    PaymentStatus::Canceled(ack_uid),
+                )
+            }
+        }
         Payment::InProgress(num_transactions) => {
             (if *num_transactions == 0 {
                 let ack_uid = Uid::new(rng);
