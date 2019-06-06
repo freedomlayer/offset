@@ -28,6 +28,7 @@ use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
 use crate::ephemeral::Ephemeral;
 use crate::handler::state_wrap::MutableFunderState;
 use crate::handler::utils::find_request_origin;
+use crate::handler::canceler::remove_transaction;
 use crate::state::{FunderMutation, FunderState};
 
 #[derive(Debug, Clone)]
@@ -371,6 +372,7 @@ async fn send_friend_iter1<'a, B, R>(
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
     let _ = collect_outgoing_move_token(
         m_state,
+        rng,
         outgoing_channeler_config,
         outgoing_control,
         cancel_public_keys,
@@ -436,8 +438,9 @@ where
 /// Queue an operation to a PendingMoveToken.
 /// On cancel, queue a Cancel message to the relevant friend,
 /// or (if we are the origin of the request): send a failure notification through the control.
-fn queue_operation_or_cancel<'a, B>(
+fn queue_operation_or_cancel<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
+    rng: &'a R,
     pending_move_token: &'a mut PendingMoveToken<B>,
     cancel_public_keys: &'a mut HashSet<PublicKey>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
@@ -445,6 +448,7 @@ fn queue_operation_or_cancel<'a, B>(
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
 {
     match pending_move_token.queue_operation(operation, m_state) {
         Ok(()) => return Ok(()),
@@ -464,11 +468,11 @@ where
 
     // We are here if an error occurred.
     // We cancel the request:
-
     match find_request_origin(m_state.state(), &request_send_funds.request_id).cloned() {
         Some(origin_public_key) => {
             // The friend with public key `origin_public_key` is the origin of this request.
             // We send him back a Cancel message:
+
             let pending_transaction = create_pending_transaction(request_send_funds);
             let cancel_send_funds =
                 BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id));
@@ -481,6 +485,8 @@ where
         }
         None => {
             // We are the origin of this request
+            remove_transaction(m_state, rng, &request_send_funds.request_id);
+
             let transaction_result = TransactionResult {
                 request_id: request_send_funds.request_id,
                 result: RequestResult::Failure,
@@ -507,8 +513,9 @@ fn backwards_op_to_friend_tc_op(backwards_op: BackwardsOp) -> FriendTcOp {
 /// Given a friend with an incoming move token state, create the largest possible move token to
 /// send to the remote side.
 /// Requests that fail to be processed are moved to the cancel queues of the relevant friends.
-fn collect_outgoing_move_token<'a, B>(
+fn collect_outgoing_move_token<'a, B, R>(
     m_state: &'a mut MutableFunderState<B>,
+    rng: &'a R,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     cancel_public_keys: &'a mut HashSet<PublicKey>,
@@ -517,6 +524,7 @@ fn collect_outgoing_move_token<'a, B>(
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     /*
     - Check if last sent local address is up to date.
@@ -590,6 +598,7 @@ where
         let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
@@ -618,6 +627,7 @@ where
         };
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
@@ -633,6 +643,7 @@ where
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             // Not required here, as no requests are being sent.
             cancel_public_keys,
@@ -655,6 +666,7 @@ where
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
@@ -674,6 +686,7 @@ where
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
@@ -687,13 +700,15 @@ where
     Ok(())
 }
 
-fn append_cancels_to_move_token<B>(
+fn append_cancels_to_move_token<B, R>(
     m_state: &mut MutableFunderState<B>,
+    rng: &R,
     friend_public_key: &PublicKey,
     pending_move_token: &mut PendingMoveToken<B>,
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -707,6 +722,7 @@ where
         let mut dummy_outgoing_control = Vec::new();
         queue_operation_or_cancel(
             m_state,
+            rng,
             pending_move_token,
             &mut dummy_cancel_public_keys,
             &mut dummy_outgoing_control,
@@ -897,7 +913,7 @@ where
     // Second iteration (Attempt to queue Cancel-s created in the first iteration):
     for (friend_public_key, pending_move_token) in &mut pending_move_tokens {
         assert!(ephemeral.liveness.is_online(&friend_public_key));
-        let _ = append_cancels_to_move_token(m_state, friend_public_key, pending_move_token);
+        let _ = append_cancels_to_move_token(m_state, rng, friend_public_key, pending_move_token);
     }
 
     // Send all pending move tokens:
