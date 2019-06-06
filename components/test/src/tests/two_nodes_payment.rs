@@ -30,9 +30,9 @@ const TIMER_CHANNEL_LEN: usize = 0;
 
 /// Perform a basic payment between a buyer and a seller.
 async fn make_test_payment<'a, R>(
-    mut app_buyer: &'a mut AppBuyer<R>,
-    mut app_seller: &'a mut AppSeller<R>,
-    mut app_routes: &'a mut AppRoutes<R>,
+    app_buyer: &'a mut AppBuyer<R>,
+    app_seller: &'a mut AppSeller<R>,
+    app_routes: &'a mut AppRoutes<R>,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     total_dest_payment: u128,
