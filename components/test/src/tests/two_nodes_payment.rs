@@ -8,7 +8,8 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{MultiCommit, PaymentStatus};
+use proto::funder::messages::{MultiCommit, PaymentStatus, FriendsRoute};
+
 use timer::create_timer_incoming;
 
 use crypto::crypto_rand::CryptoRandom;
@@ -28,10 +29,10 @@ use crate::utils::{
 const TIMER_CHANNEL_LEN: usize = 0;
 
 /// Perform a basic payment between a buyer and a seller.
-async fn make_test_payment<R>(
-    mut app_buyer: AppBuyer<R>,
-    mut app_seller: AppSeller<R>,
-    mut app_routes: AppRoutes<R>,
+async fn make_test_payment<'a, R>(
+    mut app_buyer: &'a mut AppBuyer<R>,
+    mut app_seller: &'a mut AppSeller<R>,
+    mut app_routes: &'a mut AppRoutes<R>,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     total_dest_payment: u128,
@@ -350,9 +351,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     await!(advance_time(40, &mut tick_sender, &test_executor));
 
     let payment_status = await!(make_test_payment(
-        buyer0,
-        seller1,
-        routes0,
+        &mut buyer0,
+        &mut seller1,
+        &mut routes0,
         node_public_key(0),
         node_public_key(1),
         8u128, // total_dest_payment
@@ -375,9 +376,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Node1: Send 5 = 3 + 2 credits to Node0:
     let payment_status = await!(make_test_payment(
-        buyer1,
-        seller0,
-        routes1,
+        &mut buyer1,
+        &mut seller0,
+        &mut routes1,
         node_public_key(1),
         node_public_key(0),
         3u128, // total_dest_payment
@@ -391,22 +392,47 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         unreachable!();
     };
 
-    /*
-     // TODO; Sending more credits should not work:
+    // Node1: Attempt to send 6 more credits.
+    // This should not work, because 6 + 5 = 11 > 8.
+    let total_dest_payment = 6;
+    let fees = 0;
+    let payment_id = PaymentId::from(&[8u8; PAYMENT_ID_LEN]);
+    let invoice_id = InvoiceId::from(&[9u8; INVOICE_ID_LEN]);
+    let request_id = Uid::from(&[10u8; UID_LEN]);
 
-    // Node1 tries to send credits again: (6 credits):
-    // This payment should not work, because we do not have enough trust:
-    let request_id = Uid::from(&[0x2; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[2; INVOICE_ID_LEN]);
-    let dest_payment = 6;
-    let res = await!(send_funds1.request_send_funds(
-        request_id,
-        chosen_route.clone(),
-        invoice_id,
-        dest_payment
+    await!(seller0.add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
+
+    // Node1: Open a payment to pay the invoice issued by Node1:
+    await!(buyer1.create_payment(
+        payment_id.clone(),
+        invoice_id.clone(),
+        total_dest_payment,
+        node_public_key(0),
+    ))
+    .unwrap();
+
+    // Use the route (pk1, pk0)
+    let route = FriendsRoute { public_keys: vec![node_public_key(1), node_public_key(0)] };
+    // Node1: Create one transaction for the given route:
+    let res = await!(buyer1.create_transaction(
+        payment_id.clone(),
+        request_id.clone(),
+        route,
+        total_dest_payment,
+        fees,
     ));
     assert!(res.is_err());
-    */
+
+    // Node0: Check the payment's result:
+    let payment_status = await!(buyer1.request_close_payment(payment_id.clone())).unwrap();
+
+    // Acknowledge the payment closing result if required:
+    match &payment_status {
+        PaymentStatus::Canceled(ack_uid) => {
+            await!(buyer1.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[test]
