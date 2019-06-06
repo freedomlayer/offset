@@ -418,13 +418,13 @@ where
             RequestClosePayment(payment_id) => {
                 if self
                     .close_payment_requests
-                    .insert(payment_id.clone(), app_id)
+                    .insert(payment_id, app_id)
                     .is_some()
                 {
                     warn!("RequestClosePayment: payment_id clash.");
                 }
                 to_funder!(RequestClosePayment(payment_id))
-            },
+            }
             AckClosePayment(x) => to_funder!(AckClosePayment(x)),
             AddInvoice(x) => to_funder!(AddInvoice(x)),
             CancelInvoice(x) => to_funder!(CancelInvoice(x)),
