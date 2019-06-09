@@ -30,3 +30,4 @@ pub mod seller;
 pub mod utils;
 
 pub mod stctrllib;
+pub mod stverifylib;
