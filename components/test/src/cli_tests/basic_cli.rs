@@ -18,6 +18,7 @@ use stctrl::info::{
 };
 use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError, StCtrlSubcommand};
+use stctrl::stverifylib::{stverify, StVerifyCmd, VerifyReceiptCmd, VerifyTokenCmd};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -650,7 +651,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         receipt_file: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("receipt_40.commit"),
+            .join("receipt_40.receipt"),
     };
     let buyer_cmd = BuyerCmd::PaymentStatus(payment_status_cmd);
     let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
@@ -664,7 +665,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         subcommand,
     };
 
-    // Keep asking, until we get a receipt:
+    // Node1: Keep asking, until we get a receipt:
     loop {
         let mut output = Vec::new();
         stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
@@ -682,7 +683,6 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         .join("payment_40.payment")
         .exists());
 
-    /*
     // Verify the receipt:
     // ------------------
     let verify_receipt_cmd = VerifyReceiptCmd {
@@ -696,11 +696,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             .join("receipt_40.receipt"),
     };
 
-    let stregister_cmd = StRegisterCmd::VerifyReceipt(verify_receipt_cmd);
+    let stverify_cmd = StVerifyCmd::VerifyReceipt(verify_receipt_cmd);
     let mut output = Vec::new();
-    stregister(stregister_cmd, &mut output).unwrap();
+    stverify(stverify_cmd, &mut output).unwrap();
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
-    */
 }
 
 /*
