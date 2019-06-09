@@ -629,6 +629,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     };
     stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
 
+    // Node1: Wait for a receipt:
+    // -----------------------
+    // TODO:
+
     /*
     // Verify the receipt:
     // ------------------
