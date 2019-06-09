@@ -12,12 +12,12 @@ use stctrl::config::{
 };
 // use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
 // use stctrl::info::VerifyTokenCmd;
-use stctrl::buyer::{BuyerCmd, PayInvoiceCmd, PaymentStatusCmd};
+use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
 use stctrl::info::{
     BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
 };
 use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
-use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
+use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError, StCtrlSubcommand};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -439,9 +439,6 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
         }
         thread::sleep(time::Duration::from_millis(100));
     }
-
-    // Wait until index servers are up to date:
-    thread::sleep(time::Duration::from_millis(200));
 }
 
 /*
@@ -552,7 +549,8 @@ fn send_funds(stctrl_setup: &StCtrlSetup) {
 
 /// Node0: generate an invoice
 /// Node1: pay the invoice
-/// Node0: verify the receipt
+/// Node0: Commit invoice
+/// Node1: Wait for receipt
 fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // Get the public key of node0:
     let node0_pk_string = get_node_public_key(stctrl_setup, 0);
@@ -581,32 +579,41 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
 
     // Node1: pay the invoice:
     // -----------------------
-    let pay_invoice_cmd = PayInvoiceCmd {
-        invoice_file: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0_40.invoice"),
-        payment_file: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("payment_40.payment"),
-        commit_file: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("commit_40.commit"),
-    };
-    let buyer_cmd = BuyerCmd::PayInvoice(pay_invoice_cmd);
-    let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
+    loop {
+        let pay_invoice_cmd = PayInvoiceCmd {
+            invoice_file: stctrl_setup
+                .temp_dir_path
+                .join("node0")
+                .join("node0_40.invoice"),
+            payment_file: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("payment_40.payment"),
+            commit_file: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("commit_40.commit"),
+        };
+        let buyer_cmd = BuyerCmd::PayInvoice(pay_invoice_cmd);
+        let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
 
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
-    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("node1.ticket"),
+            subcommand,
+        };
+
+        // We should try again if no suitable route was found:
+        match stctrl(st_ctrl_cmd.clone(), &mut Vec::new()) {
+            Ok(_) => break,
+            Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
+            _ => unreachable!(),
+        }
+        thread::sleep(time::Duration::from_millis(100));
+    }
 
     // Node0: Commit the invoice:
     let commit_invoice_cmd = CommitInvoiceCmd {
@@ -635,7 +642,45 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
 
     // Node1: Wait for a receipt:
     // -----------------------
-    // TODO:
+    let payment_status_cmd = PaymentStatusCmd {
+        payment_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("payment_40.payment"),
+        receipt_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("receipt_40.commit"),
+    };
+    let buyer_cmd = BuyerCmd::PaymentStatus(payment_status_cmd);
+    let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("node1.ticket"),
+        subcommand,
+    };
+
+    // Keep asking, until we get a receipt:
+    loop {
+        let mut output = Vec::new();
+        stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+        let output_string = str::from_utf8(&output).unwrap();
+        if output_string.contains("Saving receipt to file.") {
+            break;
+        }
+        thread::sleep(time::Duration::from_millis(100));
+    }
+
+    // Make sure that the payment file was removed:
+    assert!(!stctrl_setup
+        .temp_dir_path
+        .join("node1")
+        .join("payment_40.payment")
+        .exists());
 
     /*
     // Verify the receipt:
