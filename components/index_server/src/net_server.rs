@@ -20,7 +20,7 @@ use proto::index_server::serialize::{
 
 use timer::TimerClient;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::identity::{compare_public_key, PublicKey};
 
 use identity::IdentityClient;
