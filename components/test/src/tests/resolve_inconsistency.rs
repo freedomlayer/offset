@@ -42,7 +42,8 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         0,
         AppPermissions {
             routes: true,
-            send_funds: true,
+            buyer: true,
+            seller: true,
             config: true,
         },
     );
@@ -74,7 +75,8 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         1,
         AppPermissions {
             routes: true,
-            send_funds: true,
+            buyer: true,
+            seller: true,
             config: true,
         },
     );

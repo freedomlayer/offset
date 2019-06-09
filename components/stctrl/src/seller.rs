@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 
 use app::gen::gen_invoice_id;
@@ -15,8 +16,8 @@ pub struct CreateInvoiceCmd {
     #[structopt(short = "a", long = "amount")]
     pub amount: u128,
     /// Path of output invoice file
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    #[structopt(parse(from_os_str), short = "i", long = "invoice")]
+    pub invoice_file: PathBuf,
 }
 
 /// Cancel invoice
@@ -65,6 +66,7 @@ pub enum SellerError {
     LoadCommitError,
     CommitInvoiceError,
     InvoiceCommitMismatch,
+    RemoveInvoiceError,
 }
 
 async fn seller_create_invoice(
@@ -72,10 +74,13 @@ async fn seller_create_invoice(
     local_public_key: PublicKey,
     mut app_seller: AppSeller,
 ) -> Result<(), SellerError> {
-    let CreateInvoiceCmd { amount, output } = create_invoice_cmd;
+    let CreateInvoiceCmd {
+        amount,
+        invoice_file,
+    } = create_invoice_cmd;
 
     // Make sure we don't override an existing invoice file:
-    if output.exists() {
+    if invoice_file.exists() {
         return Err(SellerError::InvoiceFileAlreadyExists);
     }
 
@@ -92,7 +97,7 @@ async fn seller_create_invoice(
     await!(app_seller.add_invoice(invoice_id.clone(), amount))
         .map_err(|_| SellerError::AddInvoiceError)?;
 
-    store_invoice_to_file(&invoice, &output).map_err(|_| SellerError::StoreInvoiceError)
+    store_invoice_to_file(&invoice, &invoice_file).map_err(|_| SellerError::StoreInvoiceError)
 }
 
 async fn seller_cancel_invoice(
@@ -105,7 +110,9 @@ async fn seller_cancel_invoice(
         load_invoice_from_file(&invoice_file).map_err(|_| SellerError::LoadInvoiceError)?;
 
     await!(app_seller.cancel_invoice(invoice.invoice_id))
-        .map_err(|_| SellerError::CancelInvoiceError)
+        .map_err(|_| SellerError::CancelInvoiceError)?;
+
+    fs::remove_file(&invoice_file).map_err(|_| SellerError::RemoveInvoiceError)
 }
 
 async fn seller_commit_invoice(

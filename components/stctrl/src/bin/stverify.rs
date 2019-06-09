@@ -1,10 +1,7 @@
-#![crate_type = "lib"]
 #![feature(async_await, await_macro, arbitrary_self_types)]
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-#![feature(unboxed_closures)]
-#![type_length_limit = "8388608"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
@@ -14,21 +11,22 @@
     clippy::new_without_default
 )]
 
-#[cfg(test)]
 #[macro_use]
 extern crate log;
 
-#[cfg(test)]
-mod sim_network;
+use std::io;
+use structopt::StructOpt;
 
-#[cfg(test)]
-mod utils;
+use stctrl::stverifylib::{stverify, StVerifyCmd, StVerifyError};
 
-#[cfg(test)]
-mod tests;
+fn run() -> Result<(), StVerifyError> {
+    env_logger::init();
+    let st_verify_cmd = StVerifyCmd::from_args();
+    stverify(st_verify_cmd, &mut io::stdout())
+}
 
-// TODO: Adjust tests to new atomic payment design
-// and restore them.
-
-#[cfg(test)]
-mod cli_tests;
+fn main() {
+    if let Err(e) = run() {
+        error!("error: {:?}", e);
+    }
+}

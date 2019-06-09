@@ -1,5 +1,4 @@
-use futures::executor::ThreadPool;
-use futures::task::Spawn;
+use common::test_executor::TestExecutor;
 
 use crypto::identity::PublicKey;
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
@@ -15,9 +14,9 @@ use proto::report::messages::{ChannelStatusReport, FunderReport};
 
 use super::utils::{create_node_controls, dummy_named_relay_address, dummy_relay_address};
 
-async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
+async fn task_funder_basic(test_executor: TestExecutor) {
     let num_nodes = 2;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor.clone()));
 
     let public_keys = node_controls
         .iter()
@@ -88,24 +87,25 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
         commits: vec![commit],
     };
 
-    // MultiCommit: 0 --> 1  (Out of band)
+    // MultiCommit: 0 ==> 1  (Out of band)
 
     // 1: Apply MultiCommit:
     await!(node_controls[1].send(FunderControl::CommitInvoice(multi_commit)));
 
+    // Wait until no more progress can be made (We should get a receipt)
+    await!(test_executor.wait());
+
     // 0: Expect a receipt:
-    let (receipt, ack_uid) = loop {
-        await!(
-            node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PAYMENT_ID_LEN]
-            )))
-        );
-        let response_close_payment =
-            await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment.status {
-            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
-            _ => {}
-        }
+    await!(
+        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PAYMENT_ID_LEN]
+        )))
+    );
+    let response_close_payment =
+        await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+    let (receipt, ack_uid) = match response_close_payment.status {
+        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        _ => unreachable!(),
     };
 
     // 0: Acknowledge response close:
@@ -143,16 +143,17 @@ async fn task_funder_basic(spawner: impl Spawn + Clone + Send + 'static) {
 
 #[test]
 fn test_funder_basic() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_funder_basic(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_funder_basic(test_executor.clone()));
+    assert!(res.is_output());
 }
 
-async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'static) {
+async fn task_funder_forward_payment(test_executor: TestExecutor) {
     /*
      * 0 -- 1 -- 2
      */
     let num_nodes = 3;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor.clone()));
 
     // Create topology:
     // ----------------
@@ -246,19 +247,20 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
     // 2: Apply MultiCommit:
     await!(node_controls[2].send(FunderControl::CommitInvoice(multi_commit)));
 
+    // Wait until no more progress can be made (We should get a receipt)
+    await!(test_executor.wait());
+
     // 0: Expect a receipt:
-    let (receipt, ack_uid) = loop {
-        await!(
-            node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PAYMENT_ID_LEN]
-            )))
-        );
-        let response_close_payment =
-            await!(node_controls[0].recv_until_response_close_payment()).unwrap();
-        match response_close_payment.status {
-            PaymentStatus::Success((receipt, ack_uid)) => break (receipt, ack_uid),
-            _ => {}
-        }
+    await!(
+        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PAYMENT_ID_LEN]
+        )))
+    );
+    let response_close_payment =
+        await!(node_controls[0].recv_until_response_close_payment()).unwrap();
+    let (receipt, ack_uid) = match response_close_payment.status {
+        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        _ => unreachable!(),
     };
 
     // 0: Acknowledge response close:
@@ -318,18 +320,19 @@ async fn task_funder_forward_payment(spawner: impl Spawn + Clone + Send + 'stati
 
 #[test]
 fn test_funder_forward_payment() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_funder_forward_payment(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_funder_forward_payment(test_executor.clone()));
+    assert!(res.is_output());
 }
 
-async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'static) {
+async fn task_funder_payment_failure(test_executor: TestExecutor) {
     /*
      * 0 -- 1 -- 2
      * We will try to send payment from 0 along the route 0 -- 1 -- 2 -- 3,
      * where 3 does not exist. We expect that node 2 will return a failure response.
      */
     let num_nodes = 4;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor.clone()));
 
     // Create topology:
     // ----------------
@@ -445,17 +448,15 @@ async fn task_funder_payment_failure(spawner: impl Spawn + Clone + Send + 'stati
 
 #[test]
 fn test_funder_payment_failure() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_funder_payment_failure(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_funder_payment_failure(test_executor.clone()));
+    assert!(res.is_output());
 }
 
 /// Test a basic inconsistency between two adjacent nodes
-async fn task_funder_inconsistency_basic<S>(spawner: S)
-where
-    S: Spawn + Clone + Send + 'static,
-{
+async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     let num_nodes = 2;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor));
 
     let public_keys = node_controls
         .iter()
@@ -547,14 +548,15 @@ where
 
 #[test]
 fn test_funder_inconsistency_basic() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_funder_inconsistency_basic(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_funder_inconsistency_basic(test_executor.clone()));
+    assert!(res.is_output());
 }
 
 /// Test setting relay address for local node
-async fn task_funder_add_relay(spawner: impl Spawn + Clone + Send + 'static) {
+async fn task_funder_add_relay(test_executor: TestExecutor) {
     let num_nodes = 1;
-    let mut node_controls = await!(create_node_controls(num_nodes, spawner));
+    let mut node_controls = await!(create_node_controls(num_nodes, test_executor));
 
     // Change the node's relay address:
     let named_relay = dummy_named_relay_address(5);
@@ -567,8 +569,9 @@ async fn task_funder_add_relay(spawner: impl Spawn + Clone + Send + 'static) {
 
 #[test]
 fn test_funder_add_relay() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_funder_add_relay(thread_pool.clone()));
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_funder_add_relay(test_executor.clone()));
+    assert!(res.is_output());
 }
 
 // TODO: Add a test for multi-route payment

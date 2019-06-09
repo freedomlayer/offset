@@ -8,10 +8,17 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
+use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus};
+
 use timer::create_timer_incoming;
 
+use crypto::crypto_rand::CryptoRandom;
+use crypto::identity::PublicKey;
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::uid::{Uid, UID_LEN};
+
+use node::connect::{AppBuyer, AppRoutes, AppSeller};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -20,6 +27,95 @@ use crate::utils::{
 };
 
 const TIMER_CHANNEL_LEN: usize = 0;
+
+/// Perform a basic payment between a buyer and a seller.
+async fn make_test_payment<'a, R>(
+    app_buyer: &'a mut AppBuyer<R>,
+    app_seller: &'a mut AppSeller<R>,
+    app_routes: &'a mut AppRoutes<R>,
+    buyer_public_key: PublicKey,
+    seller_public_key: PublicKey,
+    total_dest_payment: u128,
+    fees: u128,
+    mut tick_sender: mpsc::Sender<()>,
+    test_executor: TestExecutor,
+) -> PaymentStatus
+where
+    R: CryptoRandom,
+{
+    let payment_id = PaymentId::from(&[4u8; PAYMENT_ID_LEN]);
+    let invoice_id = InvoiceId::from(&[3u8; INVOICE_ID_LEN]);
+    let request_id = Uid::from(&[5u8; UID_LEN]);
+
+    await!(app_seller.add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
+
+    // Node0: Request routes:
+    let mut routes = await!(app_routes.request_routes(
+        total_dest_payment.checked_add(fees).unwrap(),
+        buyer_public_key.clone(),
+        seller_public_key.clone(),
+        None
+    ))
+    .unwrap();
+
+    let multi_route = routes.pop().unwrap();
+    let route = multi_route.routes[0].clone();
+
+    // Node0: Open a payment to pay the invoice issued by Node1:
+    await!(app_buyer.create_payment(
+        payment_id.clone(),
+        invoice_id.clone(),
+        total_dest_payment,
+        seller_public_key.clone()
+    ))
+    .unwrap();
+
+    // Node0: Create one transaction for the given route:
+    let commit = await!(app_buyer.create_transaction(
+        payment_id.clone(),
+        request_id.clone(),
+        route.route.clone(),
+        total_dest_payment,
+        fees,
+    ))
+    .unwrap();
+
+    // Node0: Close payment (No more transactions will be sent through this payment)
+    let _ = await!(app_buyer.request_close_payment(payment_id.clone())).unwrap();
+
+    // Node0: Compose a MultiCommit:
+    let multi_commit = MultiCommit {
+        invoice_id: invoice_id.clone(),
+        total_dest_payment,
+        commits: vec![commit],
+    };
+
+    // Node0 now passes the MultiCommit to Node1 out of band.
+
+    // Node1: Apply the MultiCommit
+    await!(app_seller.commit_invoice(multi_commit)).unwrap();
+
+    // Wait some time:
+    await!(advance_time(5, &mut tick_sender, &test_executor));
+
+    // Node0: Check the payment's result:
+    let payment_status = await!(app_buyer.request_close_payment(payment_id.clone())).unwrap();
+
+    // Acknowledge the payment closing result if required:
+    match &payment_status {
+        PaymentStatus::Success((receipt, ack_uid)) => {
+            assert_eq!(receipt.total_dest_payment, total_dest_payment);
+            assert_eq!(receipt.invoice_id, invoice_id);
+            await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();
+        }
+        PaymentStatus::Canceled(ack_uid) => {
+            await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();
+        }
+        _ => unreachable!(),
+    }
+
+    payment_status
+}
 
 async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Create timer_client:
@@ -44,7 +140,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         0,
         AppPermissions {
             routes: true,
-            send_funds: true,
+            buyer: true,
+            seller: true,
             config: true,
         },
     );
@@ -86,7 +183,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         1,
         AppPermissions {
             routes: true,
-            send_funds: true,
+            buyer: true,
+            seller: true,
             config: true,
         },
     );
@@ -158,8 +256,10 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let mut routes0 = app0.routes().unwrap().clone();
     let mut routes1 = app1.routes().unwrap().clone();
 
-    let mut send_funds0 = app0.send_funds().unwrap().clone();
-    let mut send_funds1 = app1.send_funds().unwrap().clone();
+    let mut buyer0 = app0.buyer().unwrap().clone();
+    let mut seller0 = app0.seller().unwrap().clone();
+    let mut buyer1 = app1.buyer().unwrap().clone();
+    let mut seller1 = app1.seller().unwrap().clone();
 
     let mut report0 = app0.report().clone();
     let mut report1 = app1.report().clone();
@@ -250,27 +350,22 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Wait some time, to let the index servers exchange information:
     await!(advance_time(40, &mut tick_sender, &test_executor));
 
-    // Node0: Send 10 credits to Node1:
-    // Node0: Request routes:
-    let mut routes_0_1 =
-        await!(routes0.request_routes(20, node_public_key(0), node_public_key(1), None)).unwrap();
+    let payment_status = await!(make_test_payment(
+        &mut buyer0,
+        &mut seller1,
+        &mut routes0,
+        node_public_key(0),
+        node_public_key(1),
+        8u128, // total_dest_payment
+        2u128, // fees
+        tick_sender.clone(),
+        test_executor.clone()
+    ));
 
-    assert_eq!(routes_0_1.len(), 1);
-    let chosen_route_with_capacity = routes_0_1.pop().unwrap();
-    assert_eq!(chosen_route_with_capacity.capacity, 100);
-    let chosen_route = chosen_route_with_capacity.route;
-
-    let request_id = Uid::from(&[0x0; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
-    let dest_payment = 10;
-    let receipt = await!(send_funds0.request_send_funds(
-        request_id.clone(),
-        chosen_route,
-        invoice_id,
-        dest_payment
-    ))
-    .unwrap();
-    await!(send_funds0.receipt_ack(request_id, receipt.clone())).unwrap();
+    if let PaymentStatus::Success(_) = payment_status {
+    } else {
+        unreachable!();
+    };
 
     // Node0 allows node1 to have maximum debt of 100
     // (This should allow to node1 to pay back).
@@ -279,39 +374,67 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Allow some time for the index servers to be updated about the new state:
     await!(advance_time(40, &mut tick_sender, &test_executor));
 
-    // Node1: Send 5 credits to Node0:
-    let mut routes_1_0 =
-        await!(routes1.request_routes(10, node_public_key(1), node_public_key(0), None)).unwrap();
+    // Node1: Send 5 = 3 + 2 credits to Node0:
+    let payment_status = await!(make_test_payment(
+        &mut buyer1,
+        &mut seller0,
+        &mut routes1,
+        node_public_key(1),
+        node_public_key(0),
+        3u128, // total_dest_payment
+        2u128, // fees
+        tick_sender.clone(),
+        test_executor.clone()
+    ));
 
-    assert_eq!(routes_1_0.len(), 1);
-    let chosen_route_with_capacity = routes_1_0.pop().unwrap();
-    assert_eq!(chosen_route_with_capacity.capacity, 10);
-    let chosen_route = chosen_route_with_capacity.route;
+    if let PaymentStatus::Success(_) = payment_status {
+    } else {
+        unreachable!();
+    };
 
-    let request_id = Uid::from(&[0x1; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[1; INVOICE_ID_LEN]);
-    let dest_payment = 5;
-    let receipt = await!(send_funds1.request_send_funds(
-        request_id,
-        chosen_route.clone(),
+    // Node1: Attempt to send 6 more credits.
+    // This should not work, because 6 + 5 = 11 > 8.
+    let total_dest_payment = 6;
+    let fees = 0;
+    let payment_id = PaymentId::from(&[8u8; PAYMENT_ID_LEN]);
+    let invoice_id = InvoiceId::from(&[9u8; INVOICE_ID_LEN]);
+    let request_id = Uid::from(&[10u8; UID_LEN]);
+
+    await!(seller0.add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
+
+    // Node1: Open a payment to pay the invoice issued by Node1:
+    await!(buyer1.create_payment(
+        payment_id.clone(),
         invoice_id.clone(),
-        dest_payment
+        total_dest_payment,
+        node_public_key(0),
     ))
     .unwrap();
-    await!(send_funds1.receipt_ack(request_id, receipt.clone())).unwrap();
 
-    // Node1 tries to send credits again: (6 credits):
-    // This payment should not work, because we do not have enough trust:
-    let request_id = Uid::from(&[0x2; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[2; INVOICE_ID_LEN]);
-    let dest_payment = 6;
-    let res = await!(send_funds1.request_send_funds(
-        request_id,
-        chosen_route.clone(),
-        invoice_id,
-        dest_payment
+    // Use the route (pk1, pk0)
+    let route = FriendsRoute {
+        public_keys: vec![node_public_key(1), node_public_key(0)],
+    };
+    // Node1: Create one transaction for the given route:
+    let res = await!(buyer1.create_transaction(
+        payment_id.clone(),
+        request_id.clone(),
+        route,
+        total_dest_payment,
+        fees,
     ));
     assert!(res.is_err());
+
+    // Node0: Check the payment's result:
+    let payment_status = await!(buyer1.request_close_payment(payment_id.clone())).unwrap();
+
+    // Acknowledge the payment closing result if required:
+    match &payment_status {
+        PaymentStatus::Canceled(ack_uid) => {
+            await!(buyer1.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[test]

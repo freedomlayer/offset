@@ -8,19 +8,16 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{
-    store_friend_to_file, verify_move_token_hashed_report, verify_receipt, AppReport,
-    FriendAddress, NodeConnection, RelayAddress,
-};
+use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
 
-use crate::file::invoice::load_invoice_from_file;
-use crate::file::receipt::load_receipt_from_file;
-use crate::file::token::{load_token_from_file, store_token_to_file};
+use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
 
+/*
 /// Display local public key (Used as address for sending funds)
 #[derive(Clone, Debug, StructOpt)]
 pub struct PublicKeyCmd {}
+*/
 
 /// Show all configured relays
 #[derive(Clone, Debug, StructOpt)]
@@ -41,17 +38,8 @@ pub struct FriendLastTokenCmd {
     #[structopt(short = "n", long = "name")]
     pub friend_name: String,
     /// Path for output token file
-    #[structopt(short = "o", long = "output")]
-    pub output_file: PathBuf,
-}
-
-/// Verify a token received from a friend.
-/// A token is some recent commitment of a friend to the mutual credit balance.
-#[derive(Clone, Debug, StructOpt)]
-pub struct VerifyTokenCmd {
-    /// Path of token file
-    #[structopt(parse(from_os_str), short = "t", long = "token")]
-    pub token: PathBuf,
+    #[structopt(short = "t", long = "token")]
+    pub token_file: PathBuf,
 }
 
 /// Display balance summary
@@ -62,26 +50,15 @@ pub struct BalanceCmd {}
 #[derive(Clone, Debug, StructOpt)]
 pub struct ExportTicketCmd {
     /// Path to output ticket file
-    #[structopt(short = "o", long = "output")]
-    pub output_file: PathBuf,
-}
-
-/// Verify receipt file
-#[derive(Clone, Debug, StructOpt)]
-pub struct VerifyReceiptCmd {
-    /// Path of invoice file (Locally generated)
-    #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice: PathBuf,
-    /// Path of receipt file (Received from buyer)
-    #[structopt(parse(from_os_str), short = "r", long = "receipt")]
-    pub receipt: PathBuf,
+    #[structopt(short = "t", long = "ticket")]
+    pub ticket_file: PathBuf,
 }
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
-    /// Show local public key (Used as address for sending funds)
-    #[structopt(name = "public-key")]
-    PublicKey(PublicKeyCmd),
+    // /// Show local public key (Used as address for sending funds)
+    // #[structopt(name = "public-key")]
+    // PublicKey(PublicKeyCmd),
     /// Show information about configured relay servers
     #[structopt(name = "relays")]
     Relays(RelaysCmd),
@@ -94,18 +71,12 @@ pub enum InfoCmd {
     /// Export friend's last token
     #[structopt(name = "friend-last-token")]
     FriendLastToken(FriendLastTokenCmd),
-    /// Verify friend's last token
-    #[structopt(name = "verify-token")]
-    VerifyToken(VerifyTokenCmd),
     /// Show current balance
     #[structopt(name = "balance")]
     Balance(BalanceCmd),
     /// Export ticket for this node
     #[structopt(name = "export-ticket")]
     ExportTicket(ExportTicketCmd),
-    /// Verify a receipt against an invoice
-    #[structopt(name = "verify-receipt")]
-    VerifyReceipt(VerifyReceiptCmd),
 }
 
 #[derive(Debug)]
@@ -319,10 +290,10 @@ pub async fn info_friend_last_token(
 ) -> Result<(), InfoError> {
     let FriendLastTokenCmd {
         friend_name,
-        output_file,
+        token_file,
     } = friend_last_token_cmd;
 
-    if output_file.exists() {
+    if token_file.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -347,68 +318,8 @@ pub async fn info_friend_last_token(
         None => return Err(InfoError::MissingLastIncomingMoveToken),
     };
 
-    store_token_to_file(last_incoming_move_token, &output_file)
+    store_token_to_file(last_incoming_move_token, &token_file)
         .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
-}
-
-/// Verify a given friend token
-/// If the given token is valid, output token details
-fn info_verify_token(
-    verify_token_cmd: VerifyTokenCmd,
-    writer: &mut impl io::Write,
-) -> Result<(), InfoError> {
-    let move_token_hashed_report =
-        load_token_from_file(&verify_token_cmd.token).map_err(|_| InfoError::LoadTokenError)?;
-
-    if verify_move_token_hashed_report(
-        &move_token_hashed_report,
-        &move_token_hashed_report.local_public_key,
-    ) {
-        writeln!(writer, "Token is valid!").map_err(|_| InfoError::WriteError)?;
-        writeln!(writer).map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "local_public_key: {}",
-            public_key_to_string(&move_token_hashed_report.local_public_key)
-        )
-        .map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "remote_public_key: {}",
-            public_key_to_string(&move_token_hashed_report.remote_public_key)
-        )
-        .map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "inconsistency_counter: {}",
-            move_token_hashed_report.inconsistency_counter
-        )
-        .map_err(|_| InfoError::WriteError)?;
-        writeln!(writer, "balance: {}", move_token_hashed_report.balance)
-            .map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "move_token_counter: {}",
-            move_token_hashed_report.move_token_counter
-        )
-        .map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "local_pending_debt: {}",
-            move_token_hashed_report.local_pending_debt
-        )
-        .map_err(|_| InfoError::WriteError)?;
-        writeln!(
-            writer,
-            "remote_pending_debt: {}",
-            move_token_hashed_report.remote_pending_debt
-        )
-        .map_err(|_| InfoError::WriteError)?;
-
-        Ok(())
-    } else {
-        Err(InfoError::TokenInvalid)
-    }
 }
 
 /// Get an approximate value for mutual balance with a friend.
@@ -443,9 +354,9 @@ pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    let ExportTicketCmd { output_file } = export_ticket_cmd;
+    let ExportTicketCmd { ticket_file } = export_ticket_cmd;
 
-    if output_file.exists() {
+    if ticket_file.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -462,39 +373,10 @@ pub async fn info_export_ticket(
         relays,
     };
 
-    store_friend_to_file(&node_address, &output_file)
+    store_friend_to_file(&node_address, &ticket_file)
         .map_err(|_| InfoError::StoreNodeToFileError)?;
 
     Ok(())
-}
-
-/// Verify a given receipt
-fn info_verify_receipt(
-    verify_receipt_cmd: VerifyReceiptCmd,
-    writer: &mut impl io::Write,
-) -> Result<(), InfoError> {
-    let invoice = load_invoice_from_file(&verify_receipt_cmd.invoice)
-        .map_err(|_| InfoError::LoadInvoiceError)?;
-
-    let receipt = load_receipt_from_file(&verify_receipt_cmd.receipt)
-        .map_err(|_| InfoError::LoadReceiptError)?;
-
-    // Make sure that the invoice and receipt files match:
-    // Verify invoice_id match:
-    if invoice.invoice_id != receipt.invoice_id {
-        return Err(InfoError::InvoiceIdMismatch);
-    }
-    // Verify dest_payment match:
-    if invoice.dest_payment != receipt.total_dest_payment {
-        return Err(InfoError::DestPaymentMismatch);
-    }
-
-    if verify_receipt(&receipt, &invoice.dest_public_key) {
-        writeln!(writer, "Receipt is valid!").map_err(|_| InfoError::WriteError)?;
-        Ok(())
-    } else {
-        Err(InfoError::InvalidReceipt)
-    }
 }
 
 pub async fn info(
@@ -505,20 +387,16 @@ pub async fn info(
     let app_report = node_connection.report().clone();
 
     match info_cmd {
-        InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
+        // InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
         InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report, writer))?,
         InfoCmd::Index(_index_cmd) => await!(info_index(app_report, writer))?,
         InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report, writer))?,
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
             await!(info_friend_last_token(friend_last_token_cmd, app_report))?
         }
-        InfoCmd::VerifyToken(verify_token_cmd) => info_verify_token(verify_token_cmd, writer)?,
         InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report, writer))?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
             await!(info_export_ticket(export_ticket_cmd, app_report))?
-        }
-        InfoCmd::VerifyReceipt(verify_receipt_cmd) => {
-            info_verify_receipt(verify_receipt_cmd, writer)?
         }
     }
     Ok(())

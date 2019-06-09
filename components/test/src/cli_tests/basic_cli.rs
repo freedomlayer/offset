@@ -8,17 +8,15 @@ use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
-    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
+    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendRateCmd,
 };
-use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-use stctrl::info::{
-    BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
-};
-use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
-
-use stctrl::stregisterlib::{
-    stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd, VerifyTokenCmd,
-};
+// use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
+// use stctrl::info::VerifyTokenCmd;
+use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
+use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd};
+use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
+use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError, StCtrlSubcommand};
+use stctrl::stverifylib::{stverify, StVerifyCmd, VerifyReceiptCmd, VerifyTokenCmd};
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -112,6 +110,7 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
     });
 }
 
+/*
 /// Get the public key of node{index}:
 fn get_node_public_key(stctrl_setup: &StCtrlSetup, index: usize) -> String {
     let public_key_cmd = PublicKeyCmd {};
@@ -140,8 +139,9 @@ fn get_node_public_key(stctrl_setup: &StCtrlSetup, index: usize) -> String {
         .unwrap()
         .to_owned()
 }
+*/
 
-/// Cnofigure mutual credits between node0 and node1
+/// Configure mutual credits between node0 and node1
 fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     // Wait until apps can connect to nodes:
     for j in 0..2 {
@@ -235,7 +235,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     for j in 0..2 {
         // Node0: Add node1 as a friend:
         let export_ticket_cmd = ExportTicketCmd {
-            output_file: stctrl_setup
+            ticket_file: stctrl_setup
                 .temp_dir_path
                 .join(format!("app{}", j))
                 .join(format!("node{}.friend", j)),
@@ -273,6 +273,33 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
             balance,
         };
         let config_cmd = ConfigCmd::AddFriend(add_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Set rate
+    // Note: Might not be useful in the case of only a pair of nodes.
+    // Can only be tested in the case of a chain of at least 3 nodes.
+    // ---------
+    for j in 0..2 {
+        let set_friend_rate_cmd = SetFriendRateCmd {
+            friend_name: format!("node{}", 1 - j),
+            mul: 0,
+            add: 1,
+        };
+        let config_cmd = ConfigCmd::SetFriendRate(set_friend_rate_cmd);
         let subcommand = StCtrlSubcommand::Config(config_cmd);
 
         let st_ctrl_cmd = StCtrlCmd {
@@ -396,8 +423,8 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     }
 }
 
-/// Set max_debt for node1, and then send funds from node1 to node0
-fn send_funds(stctrl_setup: &StCtrlSetup) {
+/// Set max_debt for node1
+fn set_max_debt(stctrl_setup: &StCtrlSetup) {
     // node0 sets remote max debt for node1:
     let set_friend_max_debt_cmd = SetFriendMaxDebtCmd {
         friend_name: "node1".to_owned(),
@@ -440,24 +467,167 @@ fn send_funds(stctrl_setup: &StCtrlSetup) {
         }
         thread::sleep(time::Duration::from_millis(100));
     }
+}
 
-    // Get the public key of node0:
-    let node0_pk_string = get_node_public_key(stctrl_setup, 0);
-
-    // node1 sends credits to node0:
-    // -----------------------------
-    let send_funds_cmd = SendFundsCmd {
-        destination_str: node0_pk_string,
-        dest_payment: 50,
-        opt_receipt_file: Some(
-            stctrl_setup
-                .temp_dir_path
-                .join("app1")
-                .join("receipt_50.receipt"),
-        ),
+/// Create and cancel an invoice, just to make sure the API is operational.
+/// Node0: create an invoice
+/// Node0: cancel invoice
+fn create_cancel_invoice(stctrl_setup: &StCtrlSetup) {
+    // Node0: generate an invoice:
+    // ---------------------------
+    let create_invoice_cmd = CreateInvoiceCmd {
+        amount: 50,
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("temp_invoice.invoice"),
     };
-    let funds_cmd = FundsCmd::SendFunds(send_funds_cmd);
-    let subcommand = StCtrlSubcommand::Funds(funds_cmd);
+    let seller_cmd = SellerCmd::CreateInvoice(create_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Node0: cancel the invoice:
+    // ---------------------------
+    let cancel_invoice_cmd = CancelInvoiceCmd {
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("temp_invoice.invoice"),
+    };
+    let seller_cmd = SellerCmd::CancelInvoice(cancel_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Cancel invoice should remove the invoice file:
+    assert!(!stctrl_setup
+        .temp_dir_path
+        .join("node0")
+        .join("temp_invoice.invoice")
+        .exists());
+}
+
+/// Node0: generate an invoice
+/// Node1: pay the invoice
+/// Node0: Commit invoice
+/// Node1: Wait for receipt
+fn pay_invoice(stctrl_setup: &StCtrlSetup) {
+    // Node0: generate an invoice:
+    // ---------------------------
+    let create_invoice_cmd = CreateInvoiceCmd {
+        amount: 50,
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("test1.invoice"),
+    };
+    let seller_cmd = SellerCmd::CreateInvoice(create_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Node1: pay the invoice:
+    // -----------------------
+    loop {
+        let pay_invoice_cmd = PayInvoiceCmd {
+            invoice_file: stctrl_setup
+                .temp_dir_path
+                .join("node0")
+                .join("test1.invoice"),
+            payment_file: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("test1.payment"),
+            commit_file: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("test1.commit"),
+        };
+        let buyer_cmd = BuyerCmd::PayInvoice(pay_invoice_cmd);
+        let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join("node1")
+                .join("node1.ticket"),
+            subcommand,
+        };
+
+        // We should try again if no suitable route was found:
+        match stctrl(st_ctrl_cmd.clone(), &mut Vec::new()) {
+            Ok(_) => break,
+            Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
+            _ => unreachable!(),
+        }
+        thread::sleep(time::Duration::from_millis(100));
+    }
+
+    // Node0: Commit the invoice:
+    let commit_invoice_cmd = CommitInvoiceCmd {
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("test1.invoice"),
+        commit_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("test1.commit"),
+    };
+
+    let seller_cmd = SellerCmd::CommitInvoice(commit_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Node1: Wait for a receipt:
+    // -----------------------
+    let payment_status_cmd = PaymentStatusCmd {
+        payment_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("test1.payment"),
+        receipt_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("test1.receipt"),
+    };
+    let buyer_cmd = BuyerCmd::PaymentStatus(payment_status_cmd);
+    let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
 
     let st_ctrl_cmd = StCtrlCmd {
         idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
@@ -467,21 +637,46 @@ fn send_funds(stctrl_setup: &StCtrlSetup) {
             .join("node1.ticket"),
         subcommand,
     };
-    // Attempt to pay. We might need to wait a bit first until the route is registered with the
-    // index servers:
-    let mut output = Vec::new();
+
+    // Node1: Keep asking, until we get a receipt:
     loop {
-        if stctrl(st_ctrl_cmd.clone(), &mut output).is_ok() {
+        let mut output = Vec::new();
+        stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+        let output_string = str::from_utf8(&output).unwrap();
+        if output_string.contains("Saving receipt to file.") {
             break;
         }
         thread::sleep(time::Duration::from_millis(100));
-        output.clear();
     }
 
-    // node1's balance should now be -70
-    // -----------------------------------
-    // Note: -70 = -20 (initial) - 50 (last payment):
-    //
+    // Make sure that the payment file was removed:
+    assert!(!stctrl_setup
+        .temp_dir_path
+        .join("node1")
+        .join("test1.payment")
+        .exists());
+
+    // Verify the receipt:
+    // ------------------
+    let verify_receipt_cmd = VerifyReceiptCmd {
+        invoice: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("test1.invoice"),
+        receipt: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("test1.receipt"),
+    };
+
+    let stverify_cmd = StVerifyCmd::VerifyReceipt(verify_receipt_cmd);
+    let mut output = Vec::new();
+    stverify(stverify_cmd, &mut output).unwrap();
+    assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
+}
+
+/// View balance of node1
+fn check_balance(stctrl_setup: &StCtrlSetup) {
     let balance_cmd = BalanceCmd {};
     let info_cmd = InfoCmd::Balance(balance_cmd);
     let subcommand = StCtrlSubcommand::Info(info_cmd);
@@ -496,45 +691,19 @@ fn send_funds(stctrl_setup: &StCtrlSetup) {
     };
 
     let mut output = Vec::new();
-    stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+    stctrl(st_ctrl_cmd, &mut output).unwrap();
     assert!(str::from_utf8(&output).unwrap().contains("-70"));
 }
 
-/// Node0: generate an invoice
-/// Node1: pay the invoice
-/// Node0: verify the receipt
-fn pay_invoice(stctrl_setup: &StCtrlSetup) {
-    // Get the public key of node0:
-    let node0_pk_string = get_node_public_key(stctrl_setup, 0);
-
-    // Node0: generate an invoice:
-    // ---------------------------
-    let gen_invoice_cmd = GenInvoiceCmd {
-        public_key: node0_pk_string,
-        amount: 40,
-        output: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0_40.invoice"),
+/// Export a friend's last token and then verify it
+fn export_token(stctrl_setup: &StCtrlSetup) {
+    // node1: Get node0's last token:
+    let friend_last_token_cmd = FriendLastTokenCmd {
+        friend_name: "node0".to_owned(),
+        token_file: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
-
-    let stregister_cmd = StRegisterCmd::GenInvoice(gen_invoice_cmd);
-    stregister(stregister_cmd, &mut Vec::new()).unwrap();
-
-    // Node1: pay the invoice:
-    // -----------------------
-    let pay_invoice_cmd = PayInvoiceCmd {
-        invoice_file: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0_40.invoice"),
-        receipt_file: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("receipt_40.receipt"),
-    };
-    let funds_cmd = FundsCmd::PayInvoice(pay_invoice_cmd);
-    let subcommand = StCtrlSubcommand::Funds(funds_cmd);
+    let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
+    let subcommand = StCtrlSubcommand::Info(info_cmd);
 
     let st_ctrl_cmd = StCtrlCmd {
         idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
@@ -544,59 +713,21 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             .join("node1.ticket"),
         subcommand,
     };
-    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
-
-    // Verify the receipt:
-    // ------------------
-    let verify_receipt_cmd = VerifyReceiptCmd {
-        invoice: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0_40.invoice"),
-        receipt: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("receipt_40.receipt"),
-    };
-
-    let stregister_cmd = StRegisterCmd::VerifyReceipt(verify_receipt_cmd);
-    let mut output = Vec::new();
-    stregister(stregister_cmd, &mut output).unwrap();
-    assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
-}
-
-/// Export a friend's last token and then verify it
-fn export_token(stctrl_setup: &StCtrlSetup) {
-    // node0: Get node1's last token:
-    let friend_last_token_cmd = FriendLastTokenCmd {
-        friend_name: "node1".to_owned(),
-        output_file: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
-    };
-    let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0.ticket"),
-        subcommand,
-    };
     stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
 
     // Verify the token:
     // ------------------
     let verify_token_cmd = VerifyTokenCmd {
-        token: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+        token: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
 
-    let stregister_cmd = StRegisterCmd::VerifyToken(verify_token_cmd);
+    let stverify_cmd = StVerifyCmd::VerifyToken(verify_token_cmd);
     let mut output = Vec::new();
-    stregister(stregister_cmd, &mut output).unwrap();
+    stverify(stverify_cmd, &mut output).unwrap();
     let output_str = str::from_utf8(&output).unwrap();
+    println!("{}", output_str);
     assert!(output_str.contains("is valid!"));
-    assert!(output_str.contains("balance: -70"));
+    assert!(output_str.contains("balance: 70"));
 }
 
 /// Close requests and disable friends
@@ -719,8 +850,10 @@ fn basic_cli() {
 
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
-    send_funds(&stctrl_setup);
+    set_max_debt(&stctrl_setup);
+    create_cancel_invoice(&stctrl_setup);
     pay_invoice(&stctrl_setup);
+    check_balance(&stctrl_setup);
     export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
 }
