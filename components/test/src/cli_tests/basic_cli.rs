@@ -439,6 +439,9 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
         }
         thread::sleep(time::Duration::from_millis(100));
     }
+
+    // Wait until index servers are up to date:
+    thread::sleep(time::Duration::from_millis(200));
 }
 
 /*
