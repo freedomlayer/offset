@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, ByteOrder};
 use std::mem;
 
-use crypto::crypto_rand::{CryptoRandom, RandValue};
+use crypto::rand::{CryptoRandom, RandValue};
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::identity::{verify_signature, PublicKey, Signature};
 use crypto::sym_encrypt::{Decryptor, Encryptor};
