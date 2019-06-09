@@ -12,7 +12,7 @@ extern crate common;
 #[macro_use]
 extern crate serde_derive;
 
-pub mod crypto_rand;
+pub mod rand;
 pub mod dh;
 pub mod hash;
 pub mod hash_lock;

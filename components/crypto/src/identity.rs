@@ -3,7 +3,7 @@ use ring::signature;
 use std::cmp::Ordering;
 
 use super::CryptoError;
-use crate::crypto_rand::CryptoRandom;
+use crate::rand::CryptoRandom;
 use crate::hash::sha_512_256;
 use common::big_array::BigArray;
 
