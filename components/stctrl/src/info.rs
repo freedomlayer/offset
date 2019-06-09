@@ -13,9 +13,11 @@ use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayA
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
 
+/*
 /// Display local public key (Used as address for sending funds)
 #[derive(Clone, Debug, StructOpt)]
 pub struct PublicKeyCmd {}
+*/
 
 /// Show all configured relays
 #[derive(Clone, Debug, StructOpt)]
@@ -54,9 +56,9 @@ pub struct ExportTicketCmd {
 
 #[derive(Clone, Debug, StructOpt)]
 pub enum InfoCmd {
-    /// Show local public key (Used as address for sending funds)
-    #[structopt(name = "public-key")]
-    PublicKey(PublicKeyCmd),
+    // /// Show local public key (Used as address for sending funds)
+    // #[structopt(name = "public-key")]
+    // PublicKey(PublicKeyCmd),
     /// Show information about configured relay servers
     #[structopt(name = "relays")]
     Relays(RelaysCmd),
@@ -385,7 +387,7 @@ pub async fn info(
     let app_report = node_connection.report().clone();
 
     match info_cmd {
-        InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
+        // InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
         InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report, writer))?,
         InfoCmd::Index(_index_cmd) => await!(info_index(app_report, writer))?,
         InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report, writer))?,
