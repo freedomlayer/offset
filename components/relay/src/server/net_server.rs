@@ -11,7 +11,7 @@ use common::transform_pool::transform_pool_loop;
 
 use proto::consts::{CONN_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
 use identity::IdentityClient;
