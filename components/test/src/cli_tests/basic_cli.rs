@@ -559,11 +559,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // Node0: generate an invoice:
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
-        amount: 40,
+        amount: 50,
         output: stctrl_setup
             .temp_dir_path
             .join("node0")
-            .join("node0_40.invoice"),
+            .join("test1.invoice"),
     };
     let seller_cmd = SellerCmd::CreateInvoice(create_invoice_cmd);
     let subcommand = StCtrlSubcommand::Seller(seller_cmd);
@@ -585,15 +585,15 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             invoice_file: stctrl_setup
                 .temp_dir_path
                 .join("node0")
-                .join("node0_40.invoice"),
+                .join("test1.invoice"),
             payment_file: stctrl_setup
                 .temp_dir_path
                 .join("node1")
-                .join("payment_40.payment"),
+                .join("test1.payment"),
             commit_file: stctrl_setup
                 .temp_dir_path
                 .join("node1")
-                .join("commit_40.commit"),
+                .join("test1.commit"),
         };
         let buyer_cmd = BuyerCmd::PayInvoice(pay_invoice_cmd);
         let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
@@ -621,11 +621,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         invoice_file: stctrl_setup
             .temp_dir_path
             .join("node0")
-            .join("node0_40.invoice"),
+            .join("test1.invoice"),
         commit_file: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("commit_40.commit"),
+            .join("test1.commit"),
     };
 
     let seller_cmd = SellerCmd::CommitInvoice(commit_invoice_cmd);
@@ -647,11 +647,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         payment_file: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("payment_40.payment"),
+            .join("test1.payment"),
         receipt_file: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("receipt_40.receipt"),
+            .join("test1.receipt"),
     };
     let buyer_cmd = BuyerCmd::PaymentStatus(payment_status_cmd);
     let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
@@ -680,7 +680,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     assert!(!stctrl_setup
         .temp_dir_path
         .join("node1")
-        .join("payment_40.payment")
+        .join("test1.payment")
         .exists());
 
     // Verify the receipt:
@@ -689,11 +689,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         invoice: stctrl_setup
             .temp_dir_path
             .join("node0")
-            .join("node0_40.invoice"),
+            .join("test1.invoice"),
         receipt: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("receipt_40.receipt"),
+            .join("test1.receipt"),
     };
 
     let stverify_cmd = StVerifyCmd::VerifyReceipt(verify_receipt_cmd);
@@ -702,24 +702,22 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
 }
 
-/*
-
 /// Export a friend's last token and then verify it
 fn export_token(stctrl_setup: &StCtrlSetup) {
-    // node0: Get node1's last token:
+    // node1: Get node0's last token:
     let friend_last_token_cmd = FriendLastTokenCmd {
-        friend_name: "node1".to_owned(),
-        output_file: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+        friend_name: "node0".to_owned(),
+        output_file: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
     let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
     let subcommand = StCtrlSubcommand::Info(info_cmd);
 
     let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
         node_ticket: stctrl_setup
             .temp_dir_path
-            .join("node0")
-            .join("node0.ticket"),
+            .join("node1")
+            .join("node1.ticket"),
         subcommand,
     };
     stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
@@ -727,17 +725,17 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     // Verify the token:
     // ------------------
     let verify_token_cmd = VerifyTokenCmd {
-        token: stctrl_setup.temp_dir_path.join("node0").join("node1.token"),
+        token: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
 
-    let stregister_cmd = StRegisterCmd::VerifyToken(verify_token_cmd);
+    let stverify_cmd = StVerifyCmd::VerifyToken(verify_token_cmd);
     let mut output = Vec::new();
-    stregister(stregister_cmd, &mut output).unwrap();
+    stverify(stverify_cmd, &mut output).unwrap();
     let output_str = str::from_utf8(&output).unwrap();
+    println!("{}", output_str);
     assert!(output_str.contains("is valid!"));
-    assert!(output_str.contains("balance: -70"));
+    assert!(output_str.contains("balance: 70"));
 }
-*/
 
 /// Close requests and disable friends
 fn close_disable(stctrl_setup: &StCtrlSetup) {
@@ -862,6 +860,6 @@ fn basic_cli() {
     // send_funds(&stctrl_setup);
     set_max_debt(&stctrl_setup);
     pay_invoice(&stctrl_setup);
-    // export_token(&stctrl_setup);
+    export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
 }
