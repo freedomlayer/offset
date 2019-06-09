@@ -247,6 +247,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .set_friend_remote_max_debt(node_public_key(2), 100))
     .unwrap();
+    await!(apps[1]
+        .config()
+        .unwrap()
+        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 2 }))
+    .unwrap();
 
     // 2 --> 1
     await!(apps[2].config().unwrap().add_friend(
@@ -315,6 +320,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .config()
         .unwrap()
         .set_friend_remote_max_debt(node_public_key(5), 100))
+    .unwrap();
+    await!(apps[2]
+        .config()
+        .unwrap()
+        .set_friend_rate(node_public_key(5), Rate { mul: 0x80000000, add: 0 }))
     .unwrap();
 
     // 5 --> 2
@@ -478,48 +488,99 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         _ => unreachable!(),
     }
 
-    /*
-
     // Perform a payment through the chain: 5 -> 2 -> 1 -> 3
     // ======================================================
 
-    // TODO: Add code to send funds from 5 to 3
+    let payment_id = PaymentId::from(&[3u8; PAYMENT_ID_LEN]);
+    let invoice_id = InvoiceId::from(&[4u8; INVOICE_ID_LEN]);
+    let request_id = Uid::from(&[5u8; UID_LEN]);
+    let total_dest_payment = 10u128;
+    let fees = 5u128 + 2u128; // Fees for Node2 (5 = 10/2) and Node1 (2).
 
+    // Node3: Create an invoice:
+    await!(apps[3]
+        .seller()
+        .unwrap()
+        .add_invoice(invoice_id.clone(), total_dest_payment))
+    .unwrap();
 
-    // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &test_executor));
-
-    // Node0: Request routes:
-    let mut routes_5_3 = await!(apps[5].routes().unwrap().request_routes(
-        20,
+    // Node5: Request a route to node 3:
+    let mut multi_routes = await!(apps[5].routes().unwrap().request_routes(
+        10,
         node_public_key(5),
         node_public_key(3),
         None
     ))
     .unwrap();
 
-    assert!(routes_5_3.len() > 0);
+    assert!(multi_routes.len() > 0);
 
-    // Node5: Send 10 credits to Node3:
-    let chosen_route_with_capacity = routes_5_3.pop().unwrap();
-    let chosen_route = chosen_route_with_capacity.route;
+    let multi_route = multi_routes[0].clone();
+    assert_eq!(multi_route.routes.len(), 1);
 
-    let request_id = Uid::from(&[0x1; UID_LEN]);
-    let invoice_id = InvoiceId::from(&[1; INVOICE_ID_LEN]);
-    let dest_payment = 10;
-    let receipt = await!(apps[5].send_funds().unwrap().request_send_funds(
-        request_id.clone(),
-        chosen_route,
-        invoice_id,
-        dest_payment
+    let route = multi_route.routes[0].route.clone();
+
+    // Node5: Open a payment to pay the invoice issued by Node4:
+    await!(apps[5].buyer().unwrap().create_payment(
+        payment_id.clone(),
+        invoice_id.clone(),
+        total_dest_payment,
+        node_public_key(3),
     ))
     .unwrap();
-    await!(apps[5]
-        .send_funds()
-        .unwrap()
-        .receipt_ack(request_id, receipt.clone()))
+
+    // Node5: Create one transaction for the given route:
+    let commit = await!(apps[5].buyer().unwrap().create_transaction(
+        payment_id.clone(),
+        request_id.clone(),
+        route,
+        total_dest_payment,
+        fees,
+    ))
     .unwrap();
-    */
+
+    // Node5: Close payment (No more transactions will be sent through this payment)
+    let _ = await!(apps[5]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone()))
+    .unwrap();
+
+    // Node5: Compose a MultiCommit:
+    let multi_commit = MultiCommit {
+        invoice_id: invoice_id.clone(),
+        total_dest_payment,
+        commits: vec![commit],
+    };
+
+    // Node5 now passes the MultiCommit to Node3 out of band.
+
+    // Node3: Apply the MultiCommit
+    await!(apps[3].seller().unwrap().commit_invoice(multi_commit)).unwrap();
+
+    // Wait some time:
+    await!(advance_time(5, &mut tick_sender, &test_executor));
+
+    // Node5: Check the payment's result:
+    let payment_status = await!(apps[5]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone()))
+    .unwrap();
+
+    // Acknowledge the payment closing result if required:
+    match &payment_status {
+        PaymentStatus::Success((receipt, ack_uid)) => {
+            assert_eq!(receipt.total_dest_payment, total_dest_payment);
+            assert_eq!(receipt.invoice_id, invoice_id);
+            await!(apps[5]
+                .buyer()
+                .unwrap()
+                .ack_close_payment(payment_id.clone(), ack_uid.clone()))
+            .unwrap();
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[test]
