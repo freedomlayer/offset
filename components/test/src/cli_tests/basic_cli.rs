@@ -11,17 +11,13 @@ use stctrl::config::{
     EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
 };
 // use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-use stctrl::info::VerifyTokenCmd;
+// use stctrl::info::VerifyTokenCmd;
+use stctrl::buyer::{BuyerCmd, PayInvoiceCmd, PaymentStatusCmd};
 use stctrl::info::{
     BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
 };
+use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
-
-/*
-use stctrl::stregisterlib::{
-    stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd, VerifyTokenCmd,
-};
-*/
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -399,6 +395,52 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     }
 }
 
+/// Set max_debt for node1
+fn set_max_debt(stctrl_setup: &StCtrlSetup) {
+    // node0 sets remote max debt for node1:
+    let set_friend_max_debt_cmd = SetFriendMaxDebtCmd {
+        friend_name: "node1".to_owned(),
+        max_debt: 200,
+    };
+    let config_cmd = ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd);
+    let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+
+    // Wait until node1 sees that his local max debt is 200:
+    // -----------------------------------------------------
+    let friends_cmd = FriendsCmd {};
+    let info_cmd = InfoCmd::Friends(friends_cmd);
+    let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("node1.ticket"),
+        subcommand,
+    };
+
+    loop {
+        let mut output = Vec::new();
+        stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
+        let output_string = str::from_utf8(&output).unwrap();
+        if output_string.contains("LMD=200") {
+            break;
+        }
+        thread::sleep(time::Duration::from_millis(100));
+    }
+}
+
 /*
 /// Set max_debt for node1, and then send funds from node1 to node0
 fn send_funds(stctrl_setup: &StCtrlSetup) {
@@ -503,6 +545,7 @@ fn send_funds(stctrl_setup: &StCtrlSetup) {
     stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
     assert!(str::from_utf8(&output).unwrap().contains("-70"));
 }
+*/
 
 /// Node0: generate an invoice
 /// Node1: pay the invoice
@@ -513,17 +556,25 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
 
     // Node0: generate an invoice:
     // ---------------------------
-    let gen_invoice_cmd = GenInvoiceCmd {
-        public_key: node0_pk_string,
+    let create_invoice_cmd = CreateInvoiceCmd {
         amount: 40,
         output: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("node0_40.invoice"),
     };
+    let seller_cmd = SellerCmd::CreateInvoice(create_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
 
-    let stregister_cmd = StRegisterCmd::GenInvoice(gen_invoice_cmd);
-    stregister(stregister_cmd, &mut Vec::new()).unwrap();
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
 
     // Node1: pay the invoice:
     // -----------------------
@@ -532,13 +583,13 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             .temp_dir_path
             .join("node0")
             .join("node0_40.invoice"),
-        receipt_file: stctrl_setup
+        commit_file: stctrl_setup
             .temp_dir_path
             .join("node1")
-            .join("receipt_40.receipt"),
+            .join("commit_40.commit"),
     };
-    let funds_cmd = FundsCmd::PayInvoice(pay_invoice_cmd);
-    let subcommand = StCtrlSubcommand::Funds(funds_cmd);
+    let buyer_cmd = BuyerCmd::PayInvoice(pay_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Buyer(buyer_cmd);
 
     let st_ctrl_cmd = StCtrlCmd {
         idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
@@ -550,6 +601,32 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     };
     stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
 
+    // Node0: Commit the invoice:
+    let commit_invoice_cmd = CommitInvoiceCmd {
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0_40.invoice"),
+        commit_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("commit_40.commit"),
+    };
+
+    let seller_cmd = SellerCmd::CommitInvoice(commit_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    /*
     // Verify the receipt:
     // ------------------
     let verify_receipt_cmd = VerifyReceiptCmd {
@@ -567,8 +644,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     let mut output = Vec::new();
     stregister(stregister_cmd, &mut output).unwrap();
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
+    */
 }
 
+/*
 
 /// Export a friend's last token and then verify it
 fn export_token(stctrl_setup: &StCtrlSetup) {
@@ -726,7 +805,8 @@ fn basic_cli() {
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
     // send_funds(&stctrl_setup);
-    // pay_invoice(&stctrl_setup);
+    set_max_debt(&stctrl_setup);
+    pay_invoice(&stctrl_setup);
     // export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
 }
