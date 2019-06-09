@@ -268,7 +268,7 @@ mod tests {
             let receiver = receiver.map(|_| ());
 
             let new_join = join(joined_receivers, receiver).map(|_| ());
-            joined_receivers = Box::pin(new_join) as Pin<Box<Future<Output = ()> + Send>>;
+            joined_receivers = Box::pin(new_join) as Pin<Box<dyn Future<Output = ()> + Send>>;
         }
 
         let (sender_done, receiver_done) = oneshot::channel::<()>();
