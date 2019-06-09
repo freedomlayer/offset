@@ -5,7 +5,7 @@ use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 use derive_more::*;
 
 use common::conn::{ConnPairVec, FutTransform};
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
 use database::DatabaseClient;
