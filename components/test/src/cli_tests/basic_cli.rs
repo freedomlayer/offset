@@ -477,7 +477,7 @@ fn create_cancel_invoice(stctrl_setup: &StCtrlSetup) {
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
         amount: 50,
-        output: stctrl_setup
+        invoice_file: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("temp_invoice.invoice"),
@@ -533,7 +533,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
         amount: 50,
-        output: stctrl_setup
+        invoice_file: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("test1.invoice"),
