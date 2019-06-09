@@ -141,7 +141,7 @@ fn get_node_public_key(stctrl_setup: &StCtrlSetup, index: usize) -> String {
         .to_owned()
 }
 
-/// Cnofigure mutual credits between node0 and node1
+/// Configure mutual credits between node0 and node1
 fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     // Wait until apps can connect to nodes:
     for j in 0..2 {
