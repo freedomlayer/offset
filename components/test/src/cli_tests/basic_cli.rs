@@ -8,7 +8,7 @@ use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
-    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
+    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendRateCmd,
 };
 // use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
 // use stctrl::info::VerifyTokenCmd;
@@ -273,6 +273,33 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
             balance,
         };
         let config_cmd = ConfigCmd::AddFriend(add_friend_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    // Set rate
+    // Note: Might not be useful in the case of only a pair of nodes.
+    // Can only be tested in the case of a chain of at least 3 nodes.
+    // ---------
+    for j in 0..2 {
+        let set_friend_rate_cmd = SetFriendRateCmd {
+            friend_name: format!("node{}", 1 - j),
+            mul: 0,
+            add: 1,
+        };
+        let config_cmd = ConfigCmd::SetFriendRate(set_friend_rate_cmd);
         let subcommand = StCtrlSubcommand::Config(config_cmd);
 
         let st_ctrl_cmd = StCtrlCmd {
