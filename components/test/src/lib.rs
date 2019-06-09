@@ -21,15 +21,14 @@ extern crate log;
 #[cfg(test)]
 mod sim_network;
 
-// TODO: Adjust tests to new atomic payment design
-// and restore them.
-
-#[allow(unused)]
 #[cfg(test)]
 mod utils;
 
 #[cfg(test)]
 mod tests;
+
+// TODO: Adjust tests to new atomic payment design
+// and restore them.
 
 /*
 #[cfg(test)]

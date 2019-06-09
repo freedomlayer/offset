@@ -1,4 +1,3 @@
-#[allow(unused)]
 mod nodes_chain;
 mod relay_migration;
 mod resolve_inconsistency;

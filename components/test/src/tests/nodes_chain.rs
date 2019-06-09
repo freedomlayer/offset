@@ -411,7 +411,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Node0: Request a route to node 4:
-    let mut multi_routes = await!(apps[0].routes().unwrap().request_routes(
+    let multi_routes = await!(apps[0].routes().unwrap().request_routes(
         20,
         node_public_key(0),
         node_public_key(4),
@@ -505,7 +505,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Node5: Request a route to node 3:
-    let mut multi_routes = await!(apps[5].routes().unwrap().request_routes(
+    let multi_routes = await!(apps[5].routes().unwrap().request_routes(
         10,
         node_public_key(5),
         node_public_key(3),
