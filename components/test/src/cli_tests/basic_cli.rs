@@ -442,112 +442,6 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
     }
 }
 
-/*
-/// Set max_debt for node1, and then send funds from node1 to node0
-fn send_funds(stctrl_setup: &StCtrlSetup) {
-    // node0 sets remote max debt for node1:
-    let set_friend_max_debt_cmd = SetFriendMaxDebtCmd {
-        friend_name: "node1".to_owned(),
-        max_debt: 200,
-    };
-    let config_cmd = ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd);
-    let subcommand = StCtrlSubcommand::Config(config_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node0")
-            .join("node0.ticket"),
-        subcommand,
-    };
-    stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
-
-    // Wait until node1 sees that his local max debt is 200:
-    // -----------------------------------------------------
-    let friends_cmd = FriendsCmd {};
-    let info_cmd = InfoCmd::Friends(friends_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
-
-    loop {
-        let mut output = Vec::new();
-        stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
-        let output_string = str::from_utf8(&output).unwrap();
-        if output_string.contains("LMD=200") {
-            break;
-        }
-        thread::sleep(time::Duration::from_millis(100));
-    }
-
-    // Get the public key of node0:
-    let node0_pk_string = get_node_public_key(stctrl_setup, 0);
-
-    // node1 sends credits to node0:
-    // -----------------------------
-    let send_funds_cmd = SendFundsCmd {
-        destination_str: node0_pk_string,
-        dest_payment: 50,
-        opt_receipt_file: Some(
-            stctrl_setup
-                .temp_dir_path
-                .join("app1")
-                .join("receipt_50.receipt"),
-        ),
-    };
-    let funds_cmd = FundsCmd::SendFunds(send_funds_cmd);
-    let subcommand = StCtrlSubcommand::Funds(funds_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
-    // Attempt to pay. We might need to wait a bit first until the route is registered with the
-    // index servers:
-    let mut output = Vec::new();
-    loop {
-        if stctrl(st_ctrl_cmd.clone(), &mut output).is_ok() {
-            break;
-        }
-        thread::sleep(time::Duration::from_millis(100));
-        output.clear();
-    }
-
-    // node1's balance should now be -70
-    // -----------------------------------
-    // Note: -70 = -20 (initial) - 50 (last payment):
-    //
-    let balance_cmd = BalanceCmd {};
-    let info_cmd = InfoCmd::Balance(balance_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
-
-    let mut output = Vec::new();
-    stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
-    assert!(str::from_utf8(&output).unwrap().contains("-70"));
-}
-*/
-
 /// Node0: generate an invoice
 /// Node1: pay the invoice
 /// Node0: Commit invoice
@@ -857,7 +751,6 @@ fn basic_cli() {
 
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
-    // send_funds(&stctrl_setup);
     set_max_debt(&stctrl_setup);
     pay_invoice(&stctrl_setup);
     export_token(&stctrl_setup);
