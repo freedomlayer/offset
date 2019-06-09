@@ -13,9 +13,7 @@ use stctrl::config::{
 // use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
 // use stctrl::info::VerifyTokenCmd;
 use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
-use stctrl::info::{
-    BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
-};
+use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd};
 use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlError, StCtrlSubcommand};
 use stctrl::stverifylib::{stverify, StVerifyCmd, VerifyReceiptCmd, VerifyTokenCmd};
@@ -112,6 +110,7 @@ fn spawn_entities(stctrl_setup: &StCtrlSetup) {
     });
 }
 
+/*
 /// Get the public key of node{index}:
 fn get_node_public_key(stctrl_setup: &StCtrlSetup, index: usize) -> String {
     let public_key_cmd = PublicKeyCmd {};
@@ -140,6 +139,7 @@ fn get_node_public_key(stctrl_setup: &StCtrlSetup, index: usize) -> String {
         .unwrap()
         .to_owned()
 }
+*/
 
 /// Configure mutual credits between node0 and node1
 fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
@@ -675,6 +675,26 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
 }
 
+/// View balance of node1
+fn check_balance(stctrl_setup: &StCtrlSetup) {
+    let balance_cmd = BalanceCmd {};
+    let info_cmd = InfoCmd::Balance(balance_cmd);
+    let subcommand = StCtrlSubcommand::Info(info_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("node1.ticket"),
+        subcommand,
+    };
+
+    let mut output = Vec::new();
+    stctrl(st_ctrl_cmd, &mut output).unwrap();
+    assert!(str::from_utf8(&output).unwrap().contains("-70"));
+}
+
 /// Export a friend's last token and then verify it
 fn export_token(stctrl_setup: &StCtrlSetup) {
     // node1: Get node0's last token:
@@ -833,6 +853,7 @@ fn basic_cli() {
     set_max_debt(&stctrl_setup);
     create_cancel_invoice(&stctrl_setup);
     pay_invoice(&stctrl_setup);
+    check_balance(&stctrl_setup);
     export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
 }
