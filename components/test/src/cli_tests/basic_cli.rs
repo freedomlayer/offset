@@ -469,14 +469,66 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
     }
 }
 
+/// Create and cancel an invoice, just to make sure the API is operational.
+/// Node0: create an invoice
+/// Node0: cancel invoice
+fn create_cancel_invoice(stctrl_setup: &StCtrlSetup) {
+    // Node0: generate an invoice:
+    // ---------------------------
+    let create_invoice_cmd = CreateInvoiceCmd {
+        amount: 50,
+        output: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("temp_invoice.invoice"),
+    };
+    let seller_cmd = SellerCmd::CreateInvoice(create_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Node0: cancel the invoice:
+    // ---------------------------
+    let cancel_invoice_cmd = CancelInvoiceCmd {
+        invoice_file: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("temp_invoice.invoice"),
+    };
+    let seller_cmd = SellerCmd::CancelInvoice(cancel_invoice_cmd);
+    let subcommand = StCtrlSubcommand::Seller(seller_cmd);
+
+    let st_ctrl_cmd = StCtrlCmd {
+        idfile: stctrl_setup.temp_dir_path.join("app0").join("app0.ident"),
+        node_ticket: stctrl_setup
+            .temp_dir_path
+            .join("node0")
+            .join("node0.ticket"),
+        subcommand,
+    };
+    stctrl(st_ctrl_cmd.clone(), &mut Vec::new()).unwrap();
+
+    // Cancel invoice should remove the invoice file:
+    assert!(!stctrl_setup
+        .temp_dir_path
+        .join("node0")
+        .join("temp_invoice.invoice")
+        .exists());
+}
+
 /// Node0: generate an invoice
 /// Node1: pay the invoice
 /// Node0: Commit invoice
 /// Node1: Wait for receipt
 fn pay_invoice(stctrl_setup: &StCtrlSetup) {
-    // Get the public key of node0:
-    let node0_pk_string = get_node_public_key(stctrl_setup, 0);
-
     // Node0: generate an invoice:
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
@@ -779,6 +831,7 @@ fn basic_cli() {
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
     set_max_debt(&stctrl_setup);
+    create_cancel_invoice(&stctrl_setup);
     pay_invoice(&stctrl_setup);
     export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
