@@ -465,19 +465,17 @@ async fn config_set_friend_rate(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let SetFriendRateCmd {
         friend_name,
         mul,
         add,
     } = set_friend_rate_cmd;
 
-
     let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    let rate = Rate {mul, add};
+    let rate = Rate { mul, add };
 
     await!(app_config.set_friend_rate(friend_public_key, rate))
         .map_err(|_| ConfigError::AppConfigError)
@@ -584,9 +582,11 @@ pub async fn config(
         ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => await!(
             config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report)
         )?,
-        ConfigCmd::SetFriendRate(set_friend_rate_cmd) => await!(
-            config_set_friend_rate(set_friend_rate_cmd, app_config, node_report)
-        )?,
+        ConfigCmd::SetFriendRate(set_friend_rate_cmd) => await!(config_set_friend_rate(
+            set_friend_rate_cmd,
+            app_config,
+            node_report
+        ))?,
         ConfigCmd::ResetFriend(reset_friend_cmd) => await!(config_reset_friend(
             reset_friend_cmd,
             app_config,

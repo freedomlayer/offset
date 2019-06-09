@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::fs;
+use std::path::PathBuf;
 
 use app::gen::gen_invoice_id;
 use app::{AppSeller, NodeConnection, PublicKey};
@@ -74,7 +74,10 @@ async fn seller_create_invoice(
     local_public_key: PublicKey,
     mut app_seller: AppSeller,
 ) -> Result<(), SellerError> {
-    let CreateInvoiceCmd { amount, invoice_file } = create_invoice_cmd;
+    let CreateInvoiceCmd {
+        amount,
+        invoice_file,
+    } = create_invoice_cmd;
 
     // Make sure we don't override an existing invoice file:
     if invoice_file.exists() {
