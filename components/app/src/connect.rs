@@ -8,7 +8,7 @@ use common::int_convert::usize_to_u64;
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use proto::net::messages::NetAddress;
 
-use crypto::crypto_rand::{system_random, CryptoRandom};
+use crypto::rand::{system_random, CryptoRandom};
 use crypto::identity::PublicKey;
 
 use identity::IdentityClient;
