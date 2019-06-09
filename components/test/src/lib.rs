@@ -30,7 +30,5 @@ mod tests;
 // TODO: Adjust tests to new atomic payment design
 // and restore them.
 
-/*
 #[cfg(test)]
 mod cli_tests;
-*/

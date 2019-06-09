@@ -207,7 +207,8 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
             .join("trusted")
             .join("app0.ticket"),
         proutes: true,
-        pfunds: true,
+        pbuyer: true,
+        pseller: true,
         pconfig: true,
     };
     stmgr(StMgrCmd::AppTicket(app_ticket_cmd)).unwrap();
@@ -219,7 +220,8 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
             .join("trusted")
             .join("app1.ticket"),
         proutes: true,
-        pfunds: true,
+        pbuyer: true,
+        pseller: true,
         pconfig: true,
     };
     stmgr(StMgrCmd::AppTicket(app_ticket_cmd)).unwrap();
