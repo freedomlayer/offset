@@ -6,7 +6,7 @@ use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
 use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
-use crypto::crypto_rand::{CryptoRandom, RandValue};
+use crypto::rand::{CryptoRandom, RandValue};
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;

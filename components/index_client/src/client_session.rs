@@ -2,7 +2,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::FutureExt;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
 use identity::IdentityClient;

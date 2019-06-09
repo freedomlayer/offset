@@ -9,7 +9,7 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::identity::PublicKey;
 
 use proto::index_client::messages::{
