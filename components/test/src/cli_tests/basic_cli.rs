@@ -10,15 +10,18 @@ use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
     EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd,
 };
-use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
+// use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
+use stctrl::info::VerifyTokenCmd;
 use stctrl::info::{
     BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd, PublicKeyCmd,
 };
 use stctrl::stctrllib::{stctrl, StCtrlCmd, StCtrlSubcommand};
 
+/*
 use stctrl::stregisterlib::{
     stregister, GenInvoiceCmd, StRegisterCmd, VerifyReceiptCmd, VerifyTokenCmd,
 };
+*/
 
 use crate::cli_tests::stctrl_setup::{create_stctrl_setup, StCtrlSetup};
 
@@ -396,6 +399,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     }
 }
 
+/*
 /// Set max_debt for node1, and then send funds from node1 to node0
 fn send_funds(stctrl_setup: &StCtrlSetup) {
     // node0 sets remote max debt for node1:
@@ -565,6 +569,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     assert!(str::from_utf8(&output).unwrap().contains("is valid!"));
 }
 
+
 /// Export a friend's last token and then verify it
 fn export_token(stctrl_setup: &StCtrlSetup) {
     // node0: Get node1's last token:
@@ -598,6 +603,7 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     assert!(output_str.contains("is valid!"));
     assert!(output_str.contains("balance: -70"));
 }
+*/
 
 /// Close requests and disable friends
 fn close_disable(stctrl_setup: &StCtrlSetup) {
@@ -719,8 +725,8 @@ fn basic_cli() {
 
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
-    send_funds(&stctrl_setup);
-    pay_invoice(&stctrl_setup);
-    export_token(&stctrl_setup);
+    // send_funds(&stctrl_setup);
+    // pay_invoice(&stctrl_setup);
+    // export_token(&stctrl_setup);
     close_disable(&stctrl_setup);
 }
