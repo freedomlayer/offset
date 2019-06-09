@@ -56,6 +56,10 @@ pub mod invoice {
     pub use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 }
 
+pub mod payment {
+    pub use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+}
+
 pub mod route {
     pub use proto::funder::messages::FriendsRoute;
     pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};

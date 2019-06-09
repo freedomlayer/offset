@@ -586,6 +586,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             .temp_dir_path
             .join("node0")
             .join("node0_40.invoice"),
+        payment_file: stctrl_setup
+            .temp_dir_path
+            .join("node1")
+            .join("payment_40.payment"),
         commit_file: stctrl_setup
             .temp_dir_path
             .join("node1")
