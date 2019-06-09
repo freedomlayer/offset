@@ -3,7 +3,7 @@ use im::vector::Vector as ImVec;
 
 use common::mutable_state::MutableState;
 
-use crypto::crypto_rand::RandValue;
+use crypto::rand::RandValue;
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;

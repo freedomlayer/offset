@@ -1,4 +1,4 @@
-use crypto::crypto_rand::RandValue;
+use crypto::rand::RandValue;
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::uid::Uid;

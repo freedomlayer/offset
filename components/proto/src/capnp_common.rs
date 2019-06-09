@@ -17,7 +17,7 @@ use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 use crate::serialize::SerializeError;
 
-use crypto::crypto_rand::RandValue;
+use crypto::rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::hash::HashResult;
 use crypto::hash_lock::{HashedLock, PlainLock};

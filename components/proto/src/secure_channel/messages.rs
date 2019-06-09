@@ -1,4 +1,4 @@
-use crypto::crypto_rand::RandValue;
+use crypto::rand::RandValue;
 use crypto::dh::{DhPublicKey, Salt};
 use crypto::identity::{PublicKey, Signature};
 

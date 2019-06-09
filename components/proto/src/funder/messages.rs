@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
-use crypto::crypto_rand::RandValue;
+use crypto::rand::RandValue;
 use crypto::hash::{self, HashResult};
 use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};

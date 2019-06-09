@@ -154,8 +154,8 @@ pub fn deserialize_channel_message(data: &[u8]) -> Result<ChannelMessage, Serial
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::crypto_rand::RandValue;
-    use crypto::crypto_rand::RAND_VALUE_LEN;
+    use crypto::rand::RandValue;
+    use crypto::rand::RAND_VALUE_LEN;
     use crypto::dh::{DhPublicKey, Salt};
     use crypto::dh::{DH_PUBLIC_KEY_LEN, SALT_LEN};
     use crypto::identity::{PublicKey, Signature};
