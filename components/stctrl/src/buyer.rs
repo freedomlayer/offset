@@ -1,6 +1,6 @@
+use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::fs;
 
 use futures::future::select_all;
 
@@ -12,8 +12,8 @@ use app::gen::{gen_payment_id, gen_uid};
 
 use crate::file::invoice::load_invoice_from_file;
 use crate::file::multi_commit::store_multi_commit_to_file;
+use crate::file::payment::{load_payment_from_file, store_payment_to_file, Payment};
 use crate::file::receipt::store_receipt_to_file;
-use crate::file::payment::{store_payment_to_file, load_payment_from_file, Payment};
 use crate::multi_route_util::choose_multi_route;
 
 /// Pay an invoice
@@ -33,7 +33,7 @@ pub struct PayInvoiceCmd {
 /// Check payment status (And obtain receipt if successful)
 #[derive(Clone, Debug, StructOpt)]
 pub struct PaymentStatusCmd {
-    /// Payment file 
+    /// Payment file
     #[structopt(parse(from_os_str), short = "p", long = "payment")]
     pub payment_file: PathBuf,
     /// Output receipt file (in case a receipt is ready)
@@ -142,8 +142,7 @@ async fn buyer_pay_invoice(
     let payment = Payment { payment_id };
 
     // Keep payment id for later reference:
-    store_payment_to_file(&payment, &payment_file)
-        .map_err(|_| BuyerError::StorePaymentError)?;
+    store_payment_to_file(&payment, &payment_file).map_err(|_| BuyerError::StorePaymentError)?;
 
     await!(app_buyer.create_payment(
         payment_id,
@@ -222,8 +221,8 @@ async fn buyer_payment_status(
         return Err(BuyerError::ReceiptFileAlreadyExists);
     }
 
-    let payment = load_payment_from_file(&payment_file)
-        .map_err(|_| BuyerError::LoadPaymentError)?;
+    let payment =
+        load_payment_from_file(&payment_file).map_err(|_| BuyerError::LoadPaymentError)?;
 
     let payment_id = payment.payment_id;
 
@@ -234,8 +233,7 @@ async fn buyer_payment_status(
         PaymentStatus::PaymentNotFound => {
             writeln!(writer, "Payment could not be found").map_err(|_| BuyerError::WriteError)?;
             // Remove payment file:
-            fs::remove_file(&payment_file)
-                .map_err(|_| BuyerError::RemovePaymentError)?;
+            fs::remove_file(&payment_file).map_err(|_| BuyerError::RemovePaymentError)?;
             None
         }
         PaymentStatus::InProgress => {
@@ -264,8 +262,7 @@ async fn buyer_payment_status(
             .map_err(|_| BuyerError::AckClosePaymentError)?;
 
         // Remove payment file:
-        fs::remove_file(&payment_file)
-            .map_err(|_| BuyerError::RemovePaymentError)?;
+        fs::remove_file(&payment_file).map_err(|_| BuyerError::RemovePaymentError)?;
     }
 
     Ok(())

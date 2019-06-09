@@ -321,10 +321,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .set_friend_remote_max_debt(node_public_key(5), 100))
     .unwrap();
-    await!(apps[2]
-        .config()
-        .unwrap()
-        .set_friend_rate(node_public_key(5), Rate { mul: 0x80000000, add: 0 }))
+    await!(apps[2].config().unwrap().set_friend_rate(
+        node_public_key(5),
+        Rate {
+            mul: 0x80000000,
+            add: 0
+        }
+    ))
     .unwrap();
 
     // 5 --> 2

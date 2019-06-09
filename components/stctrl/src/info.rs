@@ -8,10 +8,7 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{
-    store_friend_to_file, AppReport,
-    FriendAddress, NodeConnection, RelayAddress,
-};
+use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
 
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
@@ -42,7 +39,6 @@ pub struct FriendLastTokenCmd {
     #[structopt(short = "o", long = "output")]
     pub output_file: PathBuf,
 }
-
 
 /// Display balance summary
 #[derive(Clone, Debug, StructOpt)]
@@ -324,7 +320,6 @@ pub async fn info_friend_last_token(
         .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
 }
 
-
 /// Get an approximate value for mutual balance with a friend.
 /// In case of an inconsistency we take the local reset terms to represent the balance.
 fn friend_balance(friend_report: &FriendReport) -> i128 {
@@ -381,7 +376,6 @@ pub async fn info_export_ticket(
 
     Ok(())
 }
-
 
 pub async fn info(
     info_cmd: InfoCmd,
