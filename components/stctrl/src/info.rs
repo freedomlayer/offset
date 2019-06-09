@@ -38,8 +38,8 @@ pub struct FriendLastTokenCmd {
     #[structopt(short = "n", long = "name")]
     pub friend_name: String,
     /// Path for output token file
-    #[structopt(short = "o", long = "output")]
-    pub output_file: PathBuf,
+    #[structopt(short = "t", long = "token")]
+    pub token_file: PathBuf,
 }
 
 /// Display balance summary
@@ -50,8 +50,8 @@ pub struct BalanceCmd {}
 #[derive(Clone, Debug, StructOpt)]
 pub struct ExportTicketCmd {
     /// Path to output ticket file
-    #[structopt(short = "o", long = "output")]
-    pub output_file: PathBuf,
+    #[structopt(short = "t", long = "ticket")]
+    pub ticket_file: PathBuf,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -290,10 +290,10 @@ pub async fn info_friend_last_token(
 ) -> Result<(), InfoError> {
     let FriendLastTokenCmd {
         friend_name,
-        output_file,
+        token_file,
     } = friend_last_token_cmd;
 
-    if output_file.exists() {
+    if token_file.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -318,7 +318,7 @@ pub async fn info_friend_last_token(
         None => return Err(InfoError::MissingLastIncomingMoveToken),
     };
 
-    store_token_to_file(last_incoming_move_token, &output_file)
+    store_token_to_file(last_incoming_move_token, &token_file)
         .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
 }
 
@@ -354,9 +354,9 @@ pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    let ExportTicketCmd { output_file } = export_ticket_cmd;
+    let ExportTicketCmd { ticket_file } = export_ticket_cmd;
 
-    if output_file.exists() {
+    if ticket_file.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -373,7 +373,7 @@ pub async fn info_export_ticket(
         relays,
     };
 
-    store_friend_to_file(&node_address, &output_file)
+    store_friend_to_file(&node_address, &ticket_file)
         .map_err(|_| InfoError::StoreNodeToFileError)?;
 
     Ok(())

@@ -235,7 +235,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     for j in 0..2 {
         // Node0: Add node1 as a friend:
         let export_ticket_cmd = ExportTicketCmd {
-            output_file: stctrl_setup
+            ticket_file: stctrl_setup
                 .temp_dir_path
                 .join(format!("app{}", j))
                 .join(format!("node{}.friend", j)),
@@ -700,7 +700,7 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     // node1: Get node0's last token:
     let friend_last_token_cmd = FriendLastTokenCmd {
         friend_name: "node0".to_owned(),
-        output_file: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
+        token_file: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
     let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
     let subcommand = StCtrlSubcommand::Info(info_cmd);
