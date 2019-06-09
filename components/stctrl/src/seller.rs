@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::fs;
 
 use app::gen::gen_invoice_id;
 use app::{AppSeller, NodeConnection, PublicKey};
@@ -16,6 +17,7 @@ pub struct CreateInvoiceCmd {
     pub amount: u128,
     /// Path of output invoice file
     #[structopt(parse(from_os_str), short = "o", long = "output")]
+    // TODO: Change to invoice_file
     pub output: PathBuf,
 }
 
@@ -65,6 +67,7 @@ pub enum SellerError {
     LoadCommitError,
     CommitInvoiceError,
     InvoiceCommitMismatch,
+    RemoveInvoiceError,
 }
 
 async fn seller_create_invoice(
@@ -105,7 +108,9 @@ async fn seller_cancel_invoice(
         load_invoice_from_file(&invoice_file).map_err(|_| SellerError::LoadInvoiceError)?;
 
     await!(app_seller.cancel_invoice(invoice.invoice_id))
-        .map_err(|_| SellerError::CancelInvoiceError)
+        .map_err(|_| SellerError::CancelInvoiceError)?;
+
+    fs::remove_file(&invoice_file).map_err(|_| SellerError::RemoveInvoiceError)
 }
 
 async fn seller_commit_invoice(
