@@ -6,7 +6,7 @@ use futures::{future, stream, SinkExt, StreamExt};
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 
 // use crate::database::{AtomicDb, DbRunner, DbRunnerError};

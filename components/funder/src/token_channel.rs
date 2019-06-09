@@ -3,9 +3,9 @@ use std::convert::TryFrom;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::sha_512_256;
 use crypto::identity::{compare_public_key, PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+use crypto::rand::{RandValue, RAND_VALUE_LEN};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{FriendTcOp, MoveToken};
