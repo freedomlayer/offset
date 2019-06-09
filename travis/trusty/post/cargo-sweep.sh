@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 
-# Install cargo-sweep. If installed, cargo failure will be ignored.
-# TODO: parse ~/.cargo/.crates.toml to determine version
-#       maybe use cargo-update library for that
-cargo install cargo-sweep --vers 0.4.1 || true
+CARGO_SWEEP_VERSION=0.4.1
+
+# Install cargo-sweep if absent
+if [ ! -f ~/.cargo/bin/cargo-sweep ]; then
+    cargo install cargo-sweep --vers $CARGO_SWEEP_VERSION
+fi
+
+FOUND_VERSION=$(grep cargo-sweep ~/.cargo/.crates.toml | cut -d' ' -f2)
+
+# Update cargo-sweep if necessary
+if [ "$FOUND_VERSION" != "$CARGO_SWEEP_VERSION" ]; then
+    cargo install cargo-sweep --vers $CARGO_SWEEP_VERSION --force
+fi
 
 echo Rust toolchain version: $TRAVIS_RUST_VERSION
 
