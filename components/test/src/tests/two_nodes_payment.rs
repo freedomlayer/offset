@@ -12,10 +12,10 @@ use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus};
 
 use timer::create_timer_incoming;
 
-use crypto::rand::CryptoRandom;
 use crypto::identity::PublicKey;
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+use crypto::rand::CryptoRandom;
 use crypto::uid::{Uid, UID_LEN};
 
 use node::connect::{AppBuyer, AppRoutes, AppSeller};
