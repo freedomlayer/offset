@@ -1,6 +1,6 @@
-use crypto::rand::RandValue;
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
+use crypto::rand::RandValue;
 use crypto::uid::Uid;
 
 use crate::funder::messages::{FriendsRoute, Rate};

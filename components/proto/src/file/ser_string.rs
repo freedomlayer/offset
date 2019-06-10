@@ -1,10 +1,10 @@
 use base64::{self, URL_SAFE_NO_PAD};
-use crypto::rand::{RandValue, RAND_VALUE_LEN};
 use crypto::hash::{HashResult, HASH_RESULT_LEN};
 use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
 use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+use crypto::rand::{RandValue, RAND_VALUE_LEN};
 
 // TODO: Possibly remove this module into offst-crypto
 // Will require the extra base64 dependency in offst-crypto.

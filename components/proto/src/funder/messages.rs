@@ -4,12 +4,12 @@ use std::collections::HashSet;
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
-use crypto::rand::RandValue;
 use crypto::hash::{self, HashResult};
 use crypto::hash_lock::{HashedLock, PlainLock};
 use crypto::identity::{PublicKey, Signature};
 use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
+use crypto::rand::RandValue;
 use crypto::uid::Uid;
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
