@@ -339,17 +339,17 @@ struct ResponseSendFundsOp {
         signature @3: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || sha512/256(route) || randNonce) ||
-        #   srcHashedLock || 
-        #   destHashedLock || 
+        #   sha512/256(requestId || randNonce) ||
+        #   srcHashedLock ||
+        #   destHashedLock ||
         #   destPayment ||
         #   totalDestPayment ||
         #   invoiceId
         # )
         #
         # Note that the signature contains an inner blob (requestId || ...).
-        # This is done to make the size of the receipt shorter.
-        # See also the Receipt structure.
+        # This was done to make the size of the receipt shorter, as previously
+        # this contained a full route.
 }
 ```
 
@@ -406,7 +406,7 @@ credits.
 ```capnp
 struct Commit {
         responseHash @0: Hash;
-        # = sha512/256(requestId || sha512/256(route) || randNonce)
+        # = sha512/256(requestId || randNonce)
         destPayment @1: CustomUInt128;
         # Amount of credits paid in this Transaction.
         srcPlainLock @2: PlainLock;
@@ -494,7 +494,7 @@ Receipt.
 ```capnp
 struct Receipt {
         responseHash @0: Hash;
-        # = sha512/256(requestId || sha512/256(route) || randNonce)
+        # = sha512/256(requestId || randNonce)
         invoiceId @1: InvoiceId;
         srcPlainLock @2: PlainLock;
         destPlainLock @3: PlainLock;

@@ -164,7 +164,7 @@ pub enum FriendMessage<B = NetAddress> {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Receipt {
     pub response_hash: HashResult,
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
+    // = sha512/256(requestId || randNonce)
     pub invoice_id: InvoiceId,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
