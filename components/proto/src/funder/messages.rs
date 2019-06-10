@@ -313,7 +313,16 @@ impl FriendsRoute {
     /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
     /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
     pub fn is_valid(&self) -> bool {
-        if (self.public_keys.len() < 2) || (self.public_keys.len() > MAX_ROUTE_LEN) {
+        if self.public_keys.len() < 2 {
+            return false;
+        }
+        self.is_valid_part()
+    }
+
+    /// Checks if the remaining part of the route is valid.
+    /// Compared to regular version, this one does not check for minimal route length.
+    pub fn is_valid_part(&self) -> bool {
+        if self.public_keys.len() > MAX_ROUTE_LEN {
             return false;
         }
 
@@ -331,17 +340,6 @@ impl FriendsRoute {
             // A route with no repetitions
             seen.insert(last_pk.clone())
         }
-    }
-
-    /// Find two consecutive public keys (pk1, pk2) inside a friends route.
-    pub fn find_pk_pair(&self, pk1: &PublicKey, pk2: &PublicKey) -> Option<usize> {
-        let pks = &self.public_keys;
-        for i in 0..=pks.len().checked_sub(2)? {
-            if pk1 == &pks[i] && pk2 == &pks[i + 1] {
-                return Some(i);
-            }
-        }
-        None
     }
 
     /// Produce a cryptographic hash over the contents of the route.

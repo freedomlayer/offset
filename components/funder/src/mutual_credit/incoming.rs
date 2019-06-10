@@ -47,8 +47,6 @@ pub struct ProcessOperationOutput {
 #[derive(Debug)]
 pub enum ProcessOperationError {
     RemoteMaxDebtTooLarge(u128),
-    /// Trying to set the invoiceId, while already expecting another invoice id.
-    PkPairNotInRoute,
     /// The Route contains some public key twice.
     InvalidRoute,
     RequestsAlreadyDisabled,
@@ -180,22 +178,13 @@ fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    if !request_send_funds.route.is_valid() {
+    if !request_send_funds.route.is_valid_part() {
         return Err(ProcessOperationError::InvalidRoute);
     }
 
     if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
         return Err(ProcessOperationError::DestPaymentExceedsTotal);
     }
-
-    // Find ourselves (And remote side) on the route. If we are not there, abort.
-    let _remote_index = request_send_funds
-        .route
-        .find_pk_pair(
-            &mutual_credit.state().idents.remote_public_key,
-            &mutual_credit.state().idents.local_public_key,
-        )
-        .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
     // Make sure that we are open to requests:
     if !mutual_credit.state().requests_status.local.is_open() {

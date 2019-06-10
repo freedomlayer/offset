@@ -125,12 +125,7 @@ fn forward_request<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let index = request_send_funds
-        .route
-        .pk_to_index(&m_state.state().local_public_key)
-        .unwrap();
-    let next_index = index.checked_add(1).unwrap();
-    let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
+    let next_pk = request_send_funds.route.index_to_pk(0).unwrap();
 
     // Queue message to the relevant friend. Later this message will be queued to a specific
     // available token channel:
@@ -149,14 +144,7 @@ fn handle_request_send_funds<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    // Find ourselves on the route. If we are not there, abort.
-    let remote_index = request_send_funds
-        .route
-        .find_pk_pair(&remote_public_key, &m_state.state().local_public_key)
-        .unwrap();
-
-    let local_index = remote_index.checked_add(1).unwrap();
-    let next_index = local_index.checked_add(1).unwrap();
+    let next_index = 1;
     if next_index >= request_send_funds.route.len() {
         // We are the destination of this request.
 
@@ -230,13 +218,16 @@ fn handle_request_send_funds<B>(
         None
     };
 
-    let request_send_funds = match (opt_request_send_funds, friend_ready) {
+    let mut request_send_funds = match (opt_request_send_funds, friend_ready) {
         (Some(request_send_funds), true) => request_send_funds,
         _ => {
             reply_with_cancel(m_state, send_commands, remote_public_key, &request_id);
             return;
         }
     };
+
+    // Remove ourselves from remaining route.
+    request_send_funds.route.public_keys.remove(0);
 
     // Queue message to the next node.
     forward_request(m_state, send_commands, request_send_funds);
