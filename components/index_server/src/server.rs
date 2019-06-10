@@ -664,11 +664,11 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
-    use crypto::rand::{RandValue, RAND_VALUE_LEN};
     use crypto::identity::{
         generate_pkcs8_key_pair, PublicKey, Signature, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
         SIGNATURE_LEN,
     };
+    use crypto::rand::{RandValue, RAND_VALUE_LEN};
     use crypto::test_utils::DummyRandom;
     use crypto::uid::UID_LEN;
 
