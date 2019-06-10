@@ -4,7 +4,7 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
 
-use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
+use crypto::rand::{CryptoRandom, OffstSystemRandom};
 
 use common::conn::ConnPair;
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};

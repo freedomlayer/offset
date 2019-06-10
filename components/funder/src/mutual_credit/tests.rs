@@ -6,8 +6,8 @@ use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
-use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+use crypto::rand::{RandValue, RAND_VALUE_LEN};
 
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,

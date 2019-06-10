@@ -3,8 +3,8 @@ use ring::signature;
 use std::cmp::Ordering;
 
 use super::CryptoError;
-use crate::crypto_rand::CryptoRandom;
 use crate::hash::sha_512_256;
+use crate::rand::CryptoRandom;
 use common::big_array::BigArray;
 
 pub const PUBLIC_KEY_LEN: usize = 32;

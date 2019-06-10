@@ -1,5 +1,5 @@
-use crypto::crypto_rand::RandValue;
 use crypto::hash::{sha_512_256, HashResult};
+use crypto::rand::RandValue;
 
 use std::collections::{HashMap, VecDeque};
 
@@ -150,7 +150,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::crypto_rand::RAND_VALUE_LEN;
+    use crypto::rand::RAND_VALUE_LEN;
 
     #[test]
     fn test_hash_clock_basic() {

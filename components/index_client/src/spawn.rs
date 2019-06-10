@@ -9,8 +9,8 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientState, IndexClientToAppServer,

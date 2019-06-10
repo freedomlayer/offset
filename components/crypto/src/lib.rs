@@ -12,7 +12,6 @@ extern crate common;
 #[macro_use]
 extern crate serde_derive;
 
-pub mod crypto_rand;
 pub mod dh;
 pub mod hash;
 pub mod hash_lock;
@@ -20,6 +19,7 @@ pub mod identity;
 pub mod invoice_id;
 pub mod nonce_window;
 pub mod payment_id;
+pub mod rand;
 pub mod sym_encrypt;
 pub mod test_utils;
 pub mod uid;

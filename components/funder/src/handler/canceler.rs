@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};

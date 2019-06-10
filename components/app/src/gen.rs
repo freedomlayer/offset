@@ -1,4 +1,4 @@
-use crypto::crypto_rand::system_random;
+use crypto::rand::system_random;
 use crypto::uid::Uid;
 pub use crypto::uid::UID_LEN;
 

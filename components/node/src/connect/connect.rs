@@ -13,8 +13,8 @@ use proto::net::messages::NetAddress;
 
 use timer::TimerClient;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 
 pub use super::node_connection::NodeConnection;

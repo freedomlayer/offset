@@ -8,7 +8,7 @@ use futures::{future, FutureExt, SinkExt, TryFutureExt};
 
 use crypto::identity::{generate_pkcs8_key_pair, Identity, PublicKey, SoftwareEd25519Identity};
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;

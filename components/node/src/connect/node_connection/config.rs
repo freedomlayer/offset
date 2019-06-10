@@ -3,8 +3,8 @@ use futures::{SinkExt, StreamExt};
 
 use common::multi_consumer::MultiConsumerClient;
 
-use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
 use crypto::identity::{PublicKey, Signature};
+use crypto::rand::{CryptoRandom, OffstSystemRandom};
 use crypto::uid::Uid;
 
 use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress};

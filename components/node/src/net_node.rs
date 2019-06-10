@@ -8,8 +8,8 @@ use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 
 use proto::app_server::messages::AppPermissions;
 use proto::app_server::serialize::{
