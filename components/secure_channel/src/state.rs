@@ -1,9 +1,9 @@
 use byteorder::{BigEndian, ByteOrder};
 use std::mem;
 
-use crypto::rand::{CryptoRandom, RandValue};
 use crypto::dh::{DhPrivateKey, Salt};
 use crypto::identity::{verify_signature, PublicKey, Signature};
+use crypto::rand::{CryptoRandom, RandValue};
 use crypto::sym_encrypt::{Decryptor, Encryptor};
 use identity::IdentityClient;
 use proto::secure_channel::messages::{
