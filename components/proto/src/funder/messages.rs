@@ -299,6 +299,20 @@ impl CanonicalSerialize for FriendsRoute {
     }
 }
 
+/// Helper macro modeled after vec![].
+#[macro_export]
+macro_rules! mock_friends_route {
+    ( $($num:expr),* ) => {
+        FriendsRoute {
+            public_keys: vec![
+                $(PublicKey::from(
+                    &[$num; PUBLIC_KEY_LEN]
+                )),*
+            ],
+        }
+    }
+}
+
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
@@ -309,19 +323,30 @@ impl FriendsRoute {
     }
 
     /// Check if the route is valid.
-    /// A valid route must have at least 2 nodes, and is in one of the following forms:
+    /// A valid route must have at least 2 unique nodes, and is in one of the following forms:
     /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
     /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
     pub fn is_valid(&self) -> bool {
-        if self.public_keys.len() < 2 {
-            return false;
-        }
-        self.is_valid_part()
+        self.is_valid_internal(2, true)
     }
 
     /// Checks if the remaining part of the route is valid.
-    /// Compared to regular version, this one does not check for minimal route length.
+    /// Compared to regular version, this one does not check for minimal unique
+    /// nodes amount, though it does not accept empty route parts.
+    /// It also does not accept routes parts with a cycle.
     pub fn is_valid_part(&self) -> bool {
+        self.is_valid_internal(1, false)
+    }
+
+    /// min_unique > 0
+    fn is_valid_internal(&self, min_unique: usize, cycle_ok: bool) -> bool {
+        if self.public_keys.len() < min_unique {
+            // There is no way there are min_unique nodes.
+            // Processing further will end in panic due to
+            // array out-of-bounds access if `len() == 0`.
+            return false;
+        }
+
         if self.public_keys.len() > MAX_ROUTE_LEN {
             return false;
         }
@@ -332,13 +357,19 @@ impl FriendsRoute {
                 return false;
             }
         }
-        let last_pk = &self.public_keys[self.public_keys.len() - 1];
-        if last_pk == &self.public_keys[0] {
-            // The last public key closes a cycle
-            true
+
+        let is_min_unique = |seen: &HashSet<PublicKey>| seen.len() >= min_unique;
+        let is_cycle_ok = || cycle_ok;
+
+        let last_key = &self.public_keys[self.public_keys.len() - 1];
+        if seen.insert(last_key.clone()) {
+            // unique last key
+            is_min_unique(&seen)
+        } else if last_key == &self.public_keys[0] {
+            // single cycle, first == last
+            is_min_unique(&seen) && is_cycle_ok()
         } else {
-            // A route with no repetitions
-            seen.insert(last_pk.clone())
+            false
         }
     }
 
@@ -663,4 +694,24 @@ pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
     ReportMutations(FunderReportMutations<B>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+
+    #[test]
+    fn test_is_valid() {
+        // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
+        assert_eq!(mock_friends_route![1, 2, 3, 4].is_valid(), true); // usual route
+        assert_eq!(mock_friends_route![1, 2, 3, 4, 1].is_valid(), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
+        assert_eq!(mock_friends_route![1, 1].is_valid(), false); // cyclic route that is too short (only 2 nodes long)
+        assert_eq!(mock_friends_route![1, 2, 3, 2, 4].is_valid(), false); // Should have no repetitions that are not the first and last nodes.
+
+        assert_eq!(mock_friends_route![1, 2, 3, 4].is_valid_part(), true); // usual route
+        assert_eq!(mock_friends_route![1, 2, 3, 4, 1].is_valid_part(), false); // should have no cycles in a partial route
+        assert_eq!(mock_friends_route![1, 1].is_valid_part(), false); // should have no repetitions ins a partial route
+        assert_eq!(mock_friends_route![1, 2, 3, 2, 4].is_valid_part(), false); // should have no repetitions in a partial route
+    }
 }
