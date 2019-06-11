@@ -585,8 +585,8 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
             Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
             Err(other_err) => {
                 error!("other_err: {:?}", other_err);
-                unreachable!(),
-            },
+                unreachable!();
+            }
         }
         thread::sleep(time::Duration::from_millis(100));
     }
