@@ -200,7 +200,7 @@ fn transmit_outgoing<B>(
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
@@ -312,8 +312,8 @@ async fn send_friend_iter1<'a, B, R>(
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
-    let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
             if friend_send_commands.resend_outgoing || friend_send_commands.try_send {
                 outgoing_messages.push((
@@ -326,6 +326,8 @@ async fn send_friend_iter1<'a, B, R>(
             return;
         }
     };
+
+    let token_channel = &channel_consistent.token_channel;
 
     let tc_incoming = match &token_channel.get_direction() {
         TcDirection::Outgoing(tc_outgoing) => {
@@ -401,13 +403,13 @@ where
 
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => {
-            if friend.wanted_remote_max_debt != token_channel.get_remote_max_debt() {
+        ChannelStatus::Consistent(channel_consistent) => {
+            if friend.wanted_remote_max_debt != channel_consistent.token_channel.get_remote_max_debt() {
                 return true;
             }
 
             // Open or close requests is needed:
-            let local_requests_status = &token_channel
+            let local_requests_status = &channel_consistent.token_channel
                 .get_mutual_credit()
                 .state()
                 .requests_status
@@ -416,21 +418,15 @@ where
             if friend.wanted_local_requests_status != *local_requests_status {
                 return true;
             }
+
+            if !channel_consistent.pending_backwards_ops.is_empty() ||  
+               !channel_consistent.pending_requests.is_empty() ||
+               !channel_consistent.pending_user_requests.is_empty() {
+                return true;
+            }
         }
         ChannelStatus::Inconsistent(_) => {}
     };
-
-    if !friend.pending_backwards_ops.is_empty() {
-        return true;
-    }
-
-    if !friend.pending_requests.is_empty() {
-        return true;
-    }
-
-    if !friend.pending_user_requests.is_empty() {
-        return true;
-    }
 
     false
 }
@@ -589,7 +585,7 @@ where
 
     // Set remote_max_debt if needed:
     let remote_max_debt = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     }
     .get_remote_max_debt();
@@ -607,13 +603,13 @@ where
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
     // Open or close requests is needed:
-    let local_requests_status = &token_channel
+    let local_requests_status = &channel_consistent.token_channel
         .get_mutual_credit()
         .state()
         .requests_status
@@ -636,9 +632,14 @@ where
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+
     // Send pending responses (Response, Cancel, Collect)
     // TODO: Possibly replace this clone with something more efficient later:
-    let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
+    let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         queue_operation_or_cancel(
@@ -658,10 +659,14 @@ where
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
 
     // Send pending requests:
     // TODO: Possibly replace this clone with something more efficient later:
-    let mut pending_requests = friend.pending_requests.clone();
+    let mut pending_requests = channel_consistent.pending_requests.clone();
     while let Some(pending_request) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
         queue_operation_or_cancel(
@@ -679,9 +684,13 @@ where
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
 
     // Send as many pending user requests as possible:
-    let mut pending_user_requests = friend.pending_user_requests.clone();
+    let mut pending_user_requests = channel_consistent.pending_user_requests.clone();
     while let Some(request_send_funds) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
         queue_operation_or_cancel(
@@ -711,10 +720,14 @@ where
     R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
 
     // Send pending responses (Response, Cancel, Collect):
     // TODO: Possibly replace this clone with something more efficient later:
-    let mut pending_backwards_ops = friend.pending_backwards_ops.clone();
+    let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         // TODO: Find a more elegant way to do this:
@@ -767,12 +780,12 @@ async fn send_move_token<'a, B, R>(
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
     let rand_nonce = RandValue::new(rng);
-    let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_incoming = match token_channel.get_direction() {
+    let tc_incoming = match channel_consistent.token_channel.get_direction() {
         TcDirection::Outgoing(_) => unreachable!(),
         TcDirection::Incoming(tc_incoming) => tc_incoming,
     };
@@ -789,12 +802,12 @@ async fn send_move_token<'a, B, R>(
     m_state.mutate(funder_mutation);
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
-    let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_outgoing = match token_channel.get_direction() {
+    let tc_outgoing = match channel_consistent.token_channel.get_direction() {
         TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
         TcDirection::Incoming(_) => unreachable!(),
     };
@@ -837,7 +850,7 @@ fn init_cancel_pending_move_token<B>(
         // because we just attempted to forward a request that originated from
         // this friend.
         let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
         let tc_incoming = match &token_channel.get_direction() {

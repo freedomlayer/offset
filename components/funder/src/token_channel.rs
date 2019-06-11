@@ -32,27 +32,27 @@ pub enum TcMutation<B> {
     SetDirection(SetDirection<B>),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcOutgoing<B> {
     pub mutual_credit: MutualCredit,
     pub move_token_out: MoveToken<B>,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcIncoming {
     pub mutual_credit: MutualCredit,
     pub move_token_in: MoveTokenHashed,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum TcDirection<B> {
     Incoming(TcIncoming),
     Outgoing(TcOutgoing<B>),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
 }

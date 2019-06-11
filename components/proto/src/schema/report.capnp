@@ -98,11 +98,18 @@ struct ChannelInconsistentReport {
         }
 }
 
+struct ChannelConsistentReport {
+        tcReport @0: TcReport;
+        numPendingRequests @1: UInt64;
+        numPendingBackwardsOps @2: UInt64;
+        numPendingUserRequests @3: UInt64;
+}
+
 
 struct ChannelStatusReport {
         union {
                 inconsistent @0: ChannelInconsistentReport;
-                consistent @1: TcReport;
+                consistent @1: ChannelConsistentReport;
         }
 }
 
@@ -136,10 +143,7 @@ struct FriendReport {
         channelStatus @6: ChannelStatusReport;
         wantedRemoteMaxDebt @7: CustomUInt128;
         wantedLocalRequestsStatus @8: RequestsStatusReport;
-        numPendingRequests @9: UInt64;
-        numPendingBackwardsOps @10: UInt64;
-        status @11: FriendStatusReport;
-        numPendingUserRequests @12: UInt64;
+        status @9: FriendStatusReport;
 }
 
 struct PkFriendReport {

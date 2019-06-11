@@ -4,10 +4,10 @@ use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
 use proto::report::messages::{
-    AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, DirectionReport,
-    FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
-    FunderReportMutation, McBalanceReport, McRequestsStatusReport, MoveTokenHashedReport,
-    RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
+    AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
+    DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport,
+    FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
+    MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -118,8 +118,21 @@ where
                 };
                 ChannelStatusReport::Inconsistent(channel_inconsistent_report)
             }
-            ChannelStatus::Consistent(token_channel) => {
-                ChannelStatusReport::Consistent(TcReport::from(token_channel))
+            ChannelStatus::Consistent(channel_consistent) => {
+                let channel_consistent_report = ChannelConsistentReport {
+                    tc_report: TcReport::from(&channel_consistent.token_channel),
+                    num_pending_requests: usize_to_u64(channel_consistent.pending_requests.len())
+                        .unwrap(),
+                    num_pending_backwards_ops: usize_to_u64(
+                        channel_consistent.pending_backwards_ops.len(),
+                    )
+                    .unwrap(),
+                    num_pending_user_requests: usize_to_u64(
+                        channel_consistent.pending_user_requests.len(),
+                    )
+                    .unwrap(),
+                };
+                ChannelStatusReport::Consistent(channel_consistent_report)
             }
         }
     }
@@ -149,10 +162,7 @@ where
         wanted_local_requests_status: RequestsStatusReport::from(
             &friend_state.wanted_local_requests_status,
         ),
-        num_pending_requests: usize_to_u64(friend_state.pending_requests.len()).unwrap(),
-        num_pending_backwards_ops: usize_to_u64(friend_state.pending_backwards_ops.len()).unwrap(),
         status: FriendStatusReport::from(&friend_state.status),
-        num_pending_user_requests: usize_to_u64(friend_state.pending_user_requests.len()).unwrap(),
     }
 }
 
@@ -226,33 +236,75 @@ where
             )]
         }
         FriendMutation::PushBackPendingRequest(_request_send_funds) => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingRequests(
-                usize_to_u64(friend_after.pending_requests.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_requests.len()).unwrap(),
             )]
         }
         FriendMutation::PopFrontPendingRequest => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingRequests(
-                usize_to_u64(friend_after.pending_requests.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_requests.len()).unwrap(),
             )]
         }
         FriendMutation::PushBackPendingBackwardsOp(_backwards_op) => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingBackwardsOps(
-                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_backwards_ops.len()).unwrap(),
             )]
         }
         FriendMutation::PopFrontPendingBackwardsOp => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingBackwardsOps(
-                usize_to_u64(friend_after.pending_backwards_ops.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_backwards_ops.len()).unwrap(),
             )]
         }
         FriendMutation::PushBackPendingUserRequest(_request_send_funds) => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingUserRequests(
-                usize_to_u64(friend_after.pending_user_requests.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_user_requests.len()).unwrap(),
             )]
         }
         FriendMutation::PopFrontPendingUserRequest => {
+            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
+                &friend_after.channel_status
+            {
+                channel_consistent
+            } else {
+                unreachable!();
+            };
             vec![FriendReportMutation::SetNumPendingUserRequests(
-                usize_to_u64(friend_after.pending_user_requests.len()).unwrap(),
+                usize_to_u64(channel_consistent.pending_user_requests.len()).unwrap(),
             )]
         }
         FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(

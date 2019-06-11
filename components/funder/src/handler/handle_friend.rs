@@ -504,7 +504,7 @@ fn handle_move_token_error<B, R>(
 {
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
     let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token_hashed().cloned();
@@ -686,7 +686,7 @@ where
     }?;
 
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
             let local_reset_terms = channel_inconsistent.local_reset_terms.clone();
             try_reset_channel(
@@ -767,7 +767,8 @@ where
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
     let (should_send_outgoing, new_local_reset_terms, opt_last_incoming_move_token) =
         match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => {
+            ChannelStatus::Consistent(channel_consistent) => {
+                let token_channel = &channel_consistent.token_channel;
                 if !token_channel.is_outgoing() {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }

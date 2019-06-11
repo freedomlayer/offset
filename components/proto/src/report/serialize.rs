@@ -12,10 +12,10 @@ use common::int_convert::usize_to_u32;
 use crypto::identity::PublicKey;
 
 use crate::report::messages::{
-    AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, DirectionReport,
-    FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
-    FunderReportMutation, McBalanceReport, McRequestsStatusReport, MoveTokenHashedReport,
-    RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
+    AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
+    DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport,
+    FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
+    MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
 };
 use crate::serialize::SerializeError;
 use report_capnp;
@@ -380,6 +380,41 @@ fn deser_channel_inconsistent_report(
     })
 }
 
+fn ser_channel_consistent_report(
+    channel_consistent_report: &ChannelConsistentReport,
+    channel_consistent_report_builder: &mut report_capnp::channel_consistent_report::Builder,
+) {
+    ser_tc_report(
+        &channel_consistent_report.tc_report,
+        &mut channel_consistent_report_builder
+            .reborrow()
+            .init_tc_report(),
+    );
+
+    channel_consistent_report_builder
+        .reborrow()
+        .set_num_pending_requests(channel_consistent_report.num_pending_requests);
+
+    channel_consistent_report_builder
+        .reborrow()
+        .set_num_pending_backwards_ops(channel_consistent_report.num_pending_backwards_ops);
+
+    channel_consistent_report_builder
+        .reborrow()
+        .set_num_pending_user_requests(channel_consistent_report.num_pending_user_requests);
+}
+
+fn deser_channel_consistent_report(
+    channel_consistent_report_reader: &report_capnp::channel_consistent_report::Reader,
+) -> Result<ChannelConsistentReport, SerializeError> {
+    Ok(ChannelConsistentReport {
+        tc_report: deser_tc_report(&channel_consistent_report_reader.get_tc_report()?)?,
+        num_pending_requests: channel_consistent_report_reader.get_num_pending_requests(),
+        num_pending_backwards_ops: channel_consistent_report_reader.get_num_pending_backwards_ops(),
+        num_pending_user_requests: channel_consistent_report_reader.get_num_pending_user_requests(),
+    })
+}
+
 fn ser_channel_status_report(
     channel_status_report: &ChannelStatusReport,
     channel_status_report_builder: &mut report_capnp::channel_status_report::Builder,
@@ -390,9 +425,9 @@ fn ser_channel_status_report(
                 channel_status_report_builder.reborrow().init_inconsistent();
             ser_channel_inconsistent_report(channel_inconsistent_report, &mut inconsistent_builder);
         }
-        ChannelStatusReport::Consistent(tc_report) => {
+        ChannelStatusReport::Consistent(channel_consistent_report) => {
             let mut consistent_builder = channel_status_report_builder.reborrow().init_consistent();
-            ser_tc_report(tc_report, &mut consistent_builder);
+            ser_channel_consistent_report(channel_consistent_report, &mut consistent_builder);
         }
     };
 }
@@ -406,8 +441,10 @@ fn deser_channel_status_report(
                 &channel_inconsistent_report_reader?,
             )?)
         }
-        report_capnp::channel_status_report::Consistent(tc_report_reader) => {
-            ChannelStatusReport::Consistent(deser_tc_report(&tc_report_reader?)?)
+        report_capnp::channel_status_report::Consistent(channel_consistent_report_reader) => {
+            ChannelStatusReport::Consistent(deser_channel_consistent_report(
+                &channel_consistent_report_reader?,
+            )?)
         }
     })
 }
@@ -599,15 +636,10 @@ fn ser_friend_report(
             .init_wanted_local_requests_status(),
     );
 
-    friend_report_builder.set_num_pending_requests(friend_report.num_pending_requests);
-    friend_report_builder.set_num_pending_backwards_ops(friend_report.num_pending_backwards_ops);
-
     ser_friend_status_report(
         &friend_report.status,
         &mut friend_report_builder.reborrow().init_status(),
     );
-
-    friend_report_builder.set_num_pending_user_requests(friend_report.num_pending_user_requests);
 }
 
 fn deser_friend_report(
@@ -636,10 +668,7 @@ fn deser_friend_report(
         wanted_local_requests_status: deser_requests_status_report(
             &friend_report_reader.get_wanted_local_requests_status()?,
         )?,
-        num_pending_requests: friend_report_reader.get_num_pending_requests(),
-        num_pending_backwards_ops: friend_report_reader.get_num_pending_backwards_ops(),
         status: deser_friend_status_report(&friend_report_reader.get_status()?)?,
-        num_pending_user_requests: friend_report_reader.get_num_pending_user_requests(),
     })
 }
 
