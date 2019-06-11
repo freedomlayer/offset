@@ -10,8 +10,7 @@ use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
     EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendRateCmd,
 };
-// use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-// use stctrl::info::VerifyTokenCmd;
+
 use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
 use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd};
 use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
