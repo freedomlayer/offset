@@ -583,7 +583,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         match stctrl(st_ctrl_cmd.clone(), &mut Vec::new()) {
             Ok(_) => break,
             Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
-            _ => unreachable!(),
+            Err(other_err) => {
+                error!("other_err: {:?}", other_err);
+                unreachable!(),
+            },
         }
         thread::sleep(time::Duration::from_millis(100));
     }
