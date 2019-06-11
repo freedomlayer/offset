@@ -750,22 +750,12 @@ where
         None => Err(HandleFriendError::FriendDoesNotExist),
     }?;
 
-    // Cancel all pending requests to this friend:
-    cancel_pending_requests(
-        m_state,
-        send_commands,
-        outgoing_control,
-        rng,
-        remote_public_key,
-    );
-    cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
-
     // Save remote incoming inconsistency details:
     let new_remote_reset_terms = remote_reset_terms;
 
     // Obtain information about our reset terms:
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
-    let (should_send_outgoing, new_local_reset_terms, opt_last_incoming_move_token) =
+    let (channel_was_consistent, new_local_reset_terms, opt_last_incoming_move_token) =
         match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => {
                 let token_channel = &channel_consistent.token_channel;
@@ -785,6 +775,18 @@ where
             ),
         };
 
+    if channel_was_consistent {
+        // Cancel all pending requests to this friend:
+        cancel_pending_requests(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            remote_public_key,
+        );
+        cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
+    }
+
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
         opt_last_incoming_move_token,
@@ -797,7 +799,7 @@ where
     m_state.mutate(funder_mutation);
 
     // Send an outgoing inconsistency message if required:
-    if should_send_outgoing {
+    if channel_was_consistent {
         send_commands.set_try_send(remote_public_key);
     }
     Ok(())
