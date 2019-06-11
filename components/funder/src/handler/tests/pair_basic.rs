@@ -391,8 +391,9 @@ async fn task_handler_pair_basic<'a>(
 
     let friend2 = state1.friends.get(&pk2).unwrap();
     let remote_max_debt = match &friend2.channel_status {
-        ChannelStatus::Consistent(token_channel) => {
-            token_channel
+        ChannelStatus::Consistent(channel_consistent) => {
+            channel_consistent
+                .token_channel
                 .get_mutual_credit()
                 .state()
                 .balance
@@ -404,8 +405,9 @@ async fn task_handler_pair_basic<'a>(
 
     let friend1 = state2.friends.get(&pk1).unwrap();
     let local_max_debt = match &friend1.channel_status {
-        ChannelStatus::Consistent(token_channel) => {
-            token_channel
+        ChannelStatus::Consistent(channel_consistent) => {
+            channel_consistent
+                .token_channel
                 .get_mutual_credit()
                 .state()
                 .balance
@@ -509,7 +511,7 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel.get_mutual_credit().state(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent.token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
     assert_eq!(
@@ -605,7 +607,7 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit for Node1:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel.get_mutual_credit().state(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent.token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
     assert!(mutual_credit_state.requests_status.local.is_open());
@@ -614,7 +616,7 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit for Node2:
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel.get_mutual_credit().state(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent.token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
     assert!(!mutual_credit_state.requests_status.local.is_open());
@@ -832,7 +834,7 @@ async fn task_handler_pair_basic<'a>(
     // Current balance from Node1 point of view:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel.get_mutual_credit().state(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent.token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
     assert_eq!(mutual_credit_state.balance.balance, 20);
@@ -842,7 +844,7 @@ async fn task_handler_pair_basic<'a>(
     // Current balance from Node2 point of view:
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel.get_mutual_credit().state(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent.token_channel.get_mutual_credit().state(),
         _ => unreachable!(),
     };
     assert_eq!(mutual_credit_state.balance.balance, -20);

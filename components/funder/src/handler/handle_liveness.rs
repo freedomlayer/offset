@@ -150,7 +150,7 @@ mod tests {
         // Make sure that our side of the token channel is outgoing:
         let friend = state.friends.get(&remote_pk).unwrap();
         let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => token_channel,
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             _ => unreachable!(),
         };
         assert!(token_channel.is_outgoing());

@@ -342,9 +342,9 @@ async fn task_handler_pair_inconsistency<'a>(
 
     let friend2 = state1.friends.get(&pk2).unwrap();
     match &friend2.channel_status {
-        ChannelStatus::Consistent(token_channel) => {
+        ChannelStatus::Consistent(channel_consistent) => {
             assert_eq!(
-                token_channel.get_mutual_credit().state().balance.balance,
+                channel_consistent.token_channel.get_mutual_credit().state().balance.balance,
                 10i128
             );
         }

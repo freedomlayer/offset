@@ -377,7 +377,7 @@ where
                 return false;
             }
             let tc_report = match &friend.channel_status {
-                ChannelStatusReport::Consistent(tc_report) => tc_report,
+                ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
                 _ => return false,
             };
             tc_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
