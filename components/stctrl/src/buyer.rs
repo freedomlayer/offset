@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use futures::future::select_all;
 
-use app::{AppBuyer, AppRoutes, MultiCommit, NodeConnection, PaymentStatus, PublicKey};
+use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
 
 use structopt::StructOpt;
 
@@ -270,11 +270,11 @@ async fn buyer_payment_status(
 
 pub async fn buyer(
     buyer_cmd: BuyerCmd,
-    mut node_connection: NodeConnection,
+    mut app_conn: AppConn,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     // Get our local public key:
-    let mut app_report = node_connection.report().clone();
+    let mut app_report = app_conn.report().clone();
     let (node_report, incoming_mutations) =
         await!(app_report.incoming_reports()).map_err(|_| BuyerError::GetReportError)?;
     // We currently don't need live updates about report mutations:
@@ -282,12 +282,12 @@ pub async fn buyer(
 
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
-    let app_buyer = node_connection
+    let app_buyer = app_conn
         .buyer()
         .ok_or(BuyerError::NoBuyerPermissions)?
         .clone();
 
-    let app_routes = node_connection
+    let app_routes = app_conn
         .routes()
         .ok_or(BuyerError::NoRoutesPermissions)?
         .clone();

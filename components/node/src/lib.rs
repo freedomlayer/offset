@@ -19,7 +19,6 @@ extern crate log;
 extern crate serde_derive;
 
 mod adapters;
-pub mod connect;
 mod net_node;
 mod node;
 mod types;

@@ -20,7 +20,7 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use node::connect::{node_connect, NodeConnection};
+use app::{node_connect, AppConn};
 use node::{net_node, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
@@ -231,7 +231,7 @@ pub async fn create_app<S>(
     timer_client: TimerClient,
     node_index: u8,
     spawner: S,
-) -> Option<NodeConnection<impl CryptoRandom + Clone>>
+) -> Option<AppConn<impl CryptoRandom + Clone>>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {

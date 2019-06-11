@@ -5,8 +5,6 @@ pub use crypto::uid::UID_LEN;
 use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
 
-use node::connect::{node_connect, NodeConnection};
-
 /// Generate a random uid
 pub fn gen_uid() -> Uid {
     // Obtain secure cryptographic random:
