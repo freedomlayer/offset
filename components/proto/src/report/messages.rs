@@ -133,9 +133,17 @@ pub struct ChannelInconsistentReport {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChannelConsistentReport {
+    pub tc_report: TcReport,
+    pub num_pending_requests: u64,
+    pub num_pending_backwards_ops: u64,
+    pub num_pending_user_requests: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
-    Consistent(TcReport),
+    Consistent(ChannelConsistentReport),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -156,13 +164,7 @@ where
     pub channel_status: ChannelStatusReport,
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
-    pub num_pending_requests: u64,
-    pub num_pending_backwards_ops: u64,
-    // Pending operations to be sent to the token channel.
     pub status: FriendStatusReport,
-    pub num_pending_user_requests: u64,
-    // Request that the user has sent to this neighbor,
-    // but have not been processed yet. Bounded in size.
 }
 
 /// A FunderReport is a summary of a FunderState.
@@ -196,8 +198,8 @@ where
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingBackwardsOps(u64),
-    SetStatus(FriendStatusReport),
     SetNumPendingUserRequests(u64),
+    SetStatus(FriendStatusReport),
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
 }
@@ -289,16 +291,36 @@ where
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
             }
             FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
-                self.num_pending_backwards_ops = *num_pending_backwards_ops;
+                if let ChannelStatusReport::Consistent(channel_consistent_report) =
+                    &mut self.channel_status
+                {
+                    channel_consistent_report.num_pending_backwards_ops =
+                        *num_pending_backwards_ops;
+                } else {
+                    unreachable!();
+                }
             }
             FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
-                self.num_pending_requests = *num_pending_requests;
+                if let ChannelStatusReport::Consistent(channel_consistent_report) =
+                    &mut self.channel_status
+                {
+                    channel_consistent_report.num_pending_requests = *num_pending_requests;
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
+                if let ChannelStatusReport::Consistent(channel_consistent_report) =
+                    &mut self.channel_status
+                {
+                    channel_consistent_report.num_pending_user_requests =
+                        *num_pending_user_requests;
+                } else {
+                    unreachable!();
+                }
             }
             FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
-            }
-            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
-                self.num_pending_user_requests = *num_pending_user_requests;
             }
             FriendReportMutation::SetOptLastIncomingMoveToken(opt_last_incoming_move_token) => {
                 self.opt_last_incoming_move_token = opt_last_incoming_move_token.clone();
@@ -350,10 +372,7 @@ where
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &RequestsStatus::Closed,
                     ),
-                    num_pending_backwards_ops: 0,
-                    num_pending_requests: 0,
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
-                    num_pending_user_requests: 0,
                 };
                 if self
                     .friends

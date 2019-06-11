@@ -28,8 +28,9 @@ where
     for (friend_public_key, friend) in &state.friends {
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
-            ChannelStatus::Consistent(token_channel) => {
-                if token_channel
+            ChannelStatus::Consistent(channel_consistent) => {
+                if channel_consistent
+                    .token_channel
                     .get_mutual_credit()
                     .state()
                     .pending_transactions
@@ -55,8 +56,9 @@ where
     for (_friend_public_key, friend) in &state.friends {
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
-            ChannelStatus::Consistent(token_channel) => {
-                if let Some(pending_transaction) = token_channel
+            ChannelStatus::Consistent(channel_consistent) => {
+                if let Some(pending_transaction) = channel_consistent
+                    .token_channel
                     .get_mutual_credit()
                     .state()
                     .pending_transactions
@@ -87,7 +89,7 @@ where
     // Make sure that the channel is consistent:
     let token_channel = match &friend.channel_status {
         ChannelStatus::Inconsistent(_) => return false,
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
     };
 
     // Make sure that the remote side has open requests:

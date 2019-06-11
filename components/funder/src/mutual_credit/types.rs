@@ -11,7 +11,7 @@ use proto::funder::messages::{PendingTransaction, RequestsStatus, TransactionSta
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 
 // TODO: Rename this to McIdents
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McIdents {
     /// My public key
     pub local_public_key: PublicKey,
@@ -20,7 +20,7 @@ pub struct McIdents {
 }
 
 // TODO: Rename this to McBalance
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -50,7 +50,7 @@ impl McBalance {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
     /// Pending transactions that were opened locally and not yet completed
     pub local: ImHashMap<Uid, PendingTransaction>,
@@ -84,7 +84,7 @@ impl McRequestsStatus {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct MutualCreditState {
     /// Public identities of local and remote side
     pub idents: McIdents,
@@ -98,7 +98,7 @@ pub struct MutualCreditState {
     pub requests_status: McRequestsStatus,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct MutualCredit {
     state: MutualCreditState,
 }

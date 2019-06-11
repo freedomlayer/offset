@@ -37,7 +37,9 @@ where
 
     let tc_report = match &friend_report.channel_status {
         ChannelStatusReport::Inconsistent(_) => return (0, 0),
-        ChannelStatusReport::Consistent(tc_report) => tc_report,
+        ChannelStatusReport::Consistent(channel_consistent_report) => {
+            &channel_consistent_report.tc_report
+        }
     };
 
     let balance = &tc_report.balance;
