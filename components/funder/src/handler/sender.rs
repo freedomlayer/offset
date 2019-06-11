@@ -404,12 +404,15 @@ where
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            if friend.wanted_remote_max_debt != channel_consistent.token_channel.get_remote_max_debt() {
+            if friend.wanted_remote_max_debt
+                != channel_consistent.token_channel.get_remote_max_debt()
+            {
                 return true;
             }
 
             // Open or close requests is needed:
-            let local_requests_status = &channel_consistent.token_channel
+            let local_requests_status = &channel_consistent
+                .token_channel
                 .get_mutual_credit()
                 .state()
                 .requests_status
@@ -419,9 +422,10 @@ where
                 return true;
             }
 
-            if !channel_consistent.pending_backwards_ops.is_empty() ||  
-               !channel_consistent.pending_requests.is_empty() ||
-               !channel_consistent.pending_user_requests.is_empty() {
+            if !channel_consistent.pending_backwards_ops.is_empty()
+                || !channel_consistent.pending_requests.is_empty()
+                || !channel_consistent.pending_user_requests.is_empty()
+            {
                 return true;
             }
         }
@@ -609,7 +613,8 @@ where
     };
 
     // Open or close requests is needed:
-    let local_requests_status = &channel_consistent.token_channel
+    let local_requests_status = &channel_consistent
+        .token_channel
         .get_mutual_credit()
         .state()
         .requests_status
