@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use app::gen::gen_invoice_id;
-use app::{AppSeller, NodeConnection, PublicKey};
+use app::{AppSeller, AppConn, PublicKey};
 
 use crate::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
 use crate::file::multi_commit::load_multi_commit_from_file;
@@ -142,10 +142,10 @@ async fn seller_commit_invoice(
 
 pub async fn seller(
     seller_cmd: SellerCmd,
-    mut node_connection: NodeConnection,
+    mut app_conn: AppConn,
 ) -> Result<(), SellerError> {
     // Get our local public key:
-    let mut app_report = node_connection.report().clone();
+    let mut app_report = app_conn.report().clone();
     let (node_report, incoming_mutations) =
         await!(app_report.incoming_reports()).map_err(|_| SellerError::GetReportError)?;
     // We currently don't need live updates about report mutations:
@@ -153,7 +153,7 @@ pub async fn seller(
 
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
-    let app_seller = node_connection
+    let app_seller = app_conn
         .seller()
         .ok_or(SellerError::NoSellerPermissions)?
         .clone();

@@ -13,9 +13,9 @@ identity = { path = "../identity", version = "0.1.0" , package = "offst-identity
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
-# TODO: How can we avoid taking all of node?
-# This is a very heavy dependency:
-node = { path = "../node", version = "0.1.0" , package = "offst-node" }
+keepalive = { path = "../keepalive", version="0.1.0", package = "offst-keepalive" }
+secure_channel = { path = "../secure_channel", version="0.1.0", package = "offst-secure-channel" }
+version = { path = "../version", version="0.1.0", package = "offst-version" }
 
 
 log = "0.4"

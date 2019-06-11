@@ -5,7 +5,7 @@ use structopt::StructOpt;
 use app::report::{ChannelStatusReport, NodeReport};
 use app::{
     load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig,
-    NamedIndexServerAddress, NamedRelayAddress, NodeConnection, Rate,
+    NamedIndexServerAddress, NamedRelayAddress, AppConn, Rate,
 };
 
 use crate::utils::friend_public_key_by_name;
@@ -515,9 +515,9 @@ async fn config_reset_friend(
 
 pub async fn config(
     config_cmd: ConfigCmd,
-    mut node_connection: NodeConnection,
+    mut app_conn: AppConn,
 ) -> Result<(), ConfigError> {
-    let app_config = node_connection
+    let app_config = app_conn
         .config()
         .ok_or(ConfigError::NoPermissions)?
         .clone();
@@ -525,7 +525,7 @@ pub async fn config(
     // Obtain current report:
     let node_report = {
         // other vars should be dropped to prevent deadlock
-        let app_report = node_connection.report();
+        let app_report = app_conn.report();
         let (node_report, _incoming_mutations) =
             await!(app_report.incoming_reports()).map_err(|_| ConfigError::GetReportError)?;
         node_report

@@ -18,7 +18,7 @@ use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::rand::CryptoRandom;
 use crypto::uid::{Uid, UID_LEN};
 
-use node::connect::{AppBuyer, AppRoutes, AppSeller};
+use app::{AppBuyer, AppRoutes, AppSeller};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{

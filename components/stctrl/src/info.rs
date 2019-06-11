@@ -8,7 +8,7 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
+use app::{store_friend_to_file, AppReport, FriendAddress, AppConn, RelayAddress};
 
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
@@ -384,10 +384,10 @@ pub async fn info_export_ticket(
 
 pub async fn info(
     info_cmd: InfoCmd,
-    mut node_connection: NodeConnection,
+    mut app_conn: AppConn,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let app_report = node_connection.report().clone();
+    let app_report = app_conn.report().clone();
 
     match info_cmd {
         // InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
