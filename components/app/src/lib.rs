@@ -10,7 +10,6 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
-#![allow(unused)]
 
 #[macro_use]
 extern crate log;
