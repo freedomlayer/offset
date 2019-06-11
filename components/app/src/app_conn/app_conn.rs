@@ -44,11 +44,7 @@ impl<R> AppConn<R>
 where
     R: CryptoRandom + Clone,
 {
-    pub fn new<S>(
-        conn_tuple: AppConnTuple,
-        rng: R,
-        spawner: &mut S,
-    ) -> Result<Self, AppConnError>
+    pub fn new<S>(conn_tuple: AppConnTuple, rng: R, spawner: &mut S) -> Result<Self, AppConnError>
     where
         S: Spawn,
     {

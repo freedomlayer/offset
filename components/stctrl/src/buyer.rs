@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use futures::future::select_all;
 
-use app::{AppBuyer, AppRoutes, MultiCommit, AppConn, PaymentStatus, PublicKey};
+use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
 
 use structopt::StructOpt;
 

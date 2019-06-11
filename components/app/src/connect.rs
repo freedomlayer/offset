@@ -1,20 +1,20 @@
 use std::time::Duration;
 
-use futures::executor::ThreadPool;
 use futures::channel::mpsc;
+use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use common::int_convert::usize_to_u64;
 use common::conn::{ConnPairVec, FutTransform};
+use common::int_convert::usize_to_u64;
 
-use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
-use proto::net::messages::NetAddress;
 use proto::app_server::messages::AppServerToApp;
 use proto::app_server::serialize::{
     deserialize_app_permissions, deserialize_app_server_to_app, serialize_app_to_app_server,
 };
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
+use proto::net::messages::NetAddress;
 
 use crypto::identity::PublicKey;
 use crypto::rand::{system_random, CryptoRandom};

@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use app::gen::gen_invoice_id;
-use app::{AppSeller, AppConn, PublicKey};
+use app::{AppConn, AppSeller, PublicKey};
 
 use crate::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
 use crate::file::multi_commit::load_multi_commit_from_file;
@@ -140,10 +140,7 @@ async fn seller_commit_invoice(
     await!(app_seller.commit_invoice(multi_commit)).map_err(|_| SellerError::CommitInvoiceError)
 }
 
-pub async fn seller(
-    seller_cmd: SellerCmd,
-    mut app_conn: AppConn,
-) -> Result<(), SellerError> {
+pub async fn seller(seller_cmd: SellerCmd, mut app_conn: AppConn) -> Result<(), SellerError> {
     // Get our local public key:
     let mut app_report = app_conn.report().clone();
     let (node_report, incoming_mutations) =

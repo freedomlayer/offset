@@ -4,8 +4,8 @@ use structopt::StructOpt;
 
 use app::report::{ChannelStatusReport, NodeReport};
 use app::{
-    load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig,
-    NamedIndexServerAddress, NamedRelayAddress, AppConn, Rate,
+    load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig, AppConn,
+    NamedIndexServerAddress, NamedRelayAddress, Rate,
 };
 
 use crate::utils::friend_public_key_by_name;
@@ -513,14 +513,8 @@ async fn config_reset_friend(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-pub async fn config(
-    config_cmd: ConfigCmd,
-    mut app_conn: AppConn,
-) -> Result<(), ConfigError> {
-    let app_config = app_conn
-        .config()
-        .ok_or(ConfigError::NoPermissions)?
-        .clone();
+pub async fn config(config_cmd: ConfigCmd, mut app_conn: AppConn) -> Result<(), ConfigError> {
+    let app_config = app_conn.config().ok_or(ConfigError::NoPermissions)?.clone();
 
     // Obtain current report:
     let node_report = {

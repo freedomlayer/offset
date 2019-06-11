@@ -8,7 +8,7 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppReport, FriendAddress, AppConn, RelayAddress};
+use app::{store_friend_to_file, AppConn, AppReport, FriendAddress, RelayAddress};
 
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
