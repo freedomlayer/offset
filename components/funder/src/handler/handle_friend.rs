@@ -226,7 +226,7 @@ fn handle_request_send_funds<B>(
         }
     };
 
-    // Remove ourselves from remaining route.
+    // Remove the next node from remaining route.
     request_send_funds.route.public_keys.remove(0);
 
     // Queue message to the next node.
