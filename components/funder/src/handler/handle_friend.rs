@@ -121,11 +121,14 @@ pub fn try_reset_channel<B>(
 fn forward_request<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    request_send_funds: RequestSendFundsOp,
+    mut request_send_funds: RequestSendFundsOp,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let next_pk = request_send_funds.route.index_to_pk(0).unwrap();
+    let next_pk = request_send_funds.route.index_to_pk(0).unwrap().clone();
+
+    // Remove the next node from remaining route.
+    request_send_funds.route.public_keys.remove(0);
 
     // Queue message to the relevant friend. Later this message will be queued to a specific
     // available token channel:
@@ -144,8 +147,7 @@ fn handle_request_send_funds<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let next_index = 1;
-    if next_index >= request_send_funds.route.len() {
+    if request_send_funds.route.is_empty() {
         // We are the destination of this request.
 
         // First make sure that we have a matching open invoice for this transaction:
@@ -186,7 +188,7 @@ fn handle_request_send_funds<B>(
 
     // We are not the destination of this request.
     // The node on the route has to be one of our friends:
-    let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
+    let next_public_key = request_send_funds.route.index_to_pk(0).unwrap();
     let friend_exists = m_state.state().friends.contains_key(next_public_key);
 
     // This friend must be considered online for us to forward the message.
@@ -218,16 +220,13 @@ fn handle_request_send_funds<B>(
         None
     };
 
-    let mut request_send_funds = match (opt_request_send_funds, friend_ready) {
+    let request_send_funds = match (opt_request_send_funds, friend_ready) {
         (Some(request_send_funds), true) => request_send_funds,
         _ => {
             reply_with_cancel(m_state, send_commands, remote_public_key, &request_id);
             return;
         }
     };
-
-    // Remove the next node from remaining route.
-    request_send_funds.route.public_keys.remove(0);
 
     // Queue message to the next node.
     forward_request(m_state, send_commands, request_send_funds);

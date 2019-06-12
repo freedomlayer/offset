@@ -351,12 +351,9 @@ impl FriendsRoute {
 
     /// Checks if the remaining part of the route is valid.
     /// Compared to regular version, this one does not check for minimal unique
-    /// nodes amount, though it does not accept empty route parts.
-    /// It also does not accept routes parts with a cycle.
+    /// nodes amount. It returns `true` if the part is empty.
+    /// It does not accept routes parts with a cycle, though.
     pub fn is_valid_part(&self) -> bool {
-        if self.public_keys.is_empty() {
-            return false;
-        }
         if self.public_keys.len() > MAX_ROUTE_LEN - 1 {
             return false;
         }
@@ -710,7 +707,7 @@ mod tests {
         assert_eq!(route![1].is_valid(), false); // too short
         assert_eq!(route![1].is_valid_part(), true); // long enough
         assert_eq!(route![].is_valid(), false); // too short
-        assert_eq!(route![].is_valid_part(), false); // too short
+        assert_eq!(route![].is_valid_part(), true); // long enough
 
         // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
         assert_eq!(route![1, 2, 3, 4].is_valid(), true); // usual route

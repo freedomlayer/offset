@@ -621,8 +621,10 @@ where
     ));
     m_state.mutate(funder_mutation);
 
-    // Remove ourselves from the remaining route.
     let mut route_tail = create_transaction.route;
+    // Remove ourselves from the remaining route:
+    route_tail.public_keys.remove(0);
+    // Remove next node from the route:
     route_tail.public_keys.remove(0);
 
     // Push the request:
