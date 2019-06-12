@@ -322,12 +322,44 @@ impl FriendsRoute {
         self.public_keys.is_empty()
     }
 
+    /// Check if no element repeats twice in the array
+    fn is_unique(array: &[PublicKey]) -> bool {
+        let mut seen = HashSet::new();
+        for item in array {
+            if !seen.insert(item.clone()) {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Check if the route is valid.
     /// A valid route must have at least 2 unique nodes, and is in one of the following forms:
     /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
     /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
     pub fn is_valid(&self) -> bool {
-        self.is_valid_internal(2, true)
+        if self.public_keys.len() < 2 {
+            return false;
+        }
+        if self.public_keys.len() > MAX_ROUTE_LEN {
+            return false;
+        }
+
+        let last_key = &self.public_keys[self.public_keys.len() - 1];
+        if last_key == &self.public_keys[0] {
+            // We have a first=last cycle.
+            if self.public_keys.len() > 2 {
+                // We have a cycle that is long enough (no A, A).
+                // We just check if it's a single cycle.
+                Self::is_unique(&self.public_keys[1..])
+            } else {
+                // A, A
+                false
+            }
+        } else {
+            // No cycle or a cycle that is not first=last.
+            Self::is_unique(&self.public_keys)
+        }
     }
 
     /// Checks if the remaining part of the route is valid.
@@ -335,42 +367,14 @@ impl FriendsRoute {
     /// nodes amount, though it does not accept empty route parts.
     /// It also does not accept routes parts with a cycle.
     pub fn is_valid_part(&self) -> bool {
-        self.is_valid_internal(1, false)
-    }
-
-    /// min_unique > 0
-    fn is_valid_internal(&self, min_unique: usize, cycle_ok: bool) -> bool {
-        if self.public_keys.len() < min_unique {
-            // There is no way there are min_unique nodes.
-            // Processing further will end in panic due to
-            // array out-of-bounds access if `len() == 0`.
+        if self.public_keys.is_empty() {
+            return false;
+        }
+        if self.public_keys.len() > MAX_ROUTE_LEN - 1 {
             return false;
         }
 
-        if self.public_keys.len() > MAX_ROUTE_LEN {
-            return false;
-        }
-
-        let mut seen = HashSet::new();
-        for public_key in &self.public_keys[..self.public_keys.len() - 1] {
-            if !seen.insert(public_key.clone()) {
-                return false;
-            }
-        }
-
-        let is_min_unique = |seen: &HashSet<PublicKey>| seen.len() >= min_unique;
-        let is_cycle_ok = || cycle_ok;
-
-        let last_key = &self.public_keys[self.public_keys.len() - 1];
-        if seen.insert(last_key.clone()) {
-            // unique last key
-            is_min_unique(&seen)
-        } else if last_key == &self.public_keys[0] {
-            // single cycle, first == last
-            is_min_unique(&seen) && is_cycle_ok()
-        } else {
-            false
-        }
+        Self::is_unique(&self.public_keys)
     }
 
     /// Produce a cryptographic hash over the contents of the route.
