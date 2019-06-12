@@ -333,17 +333,18 @@ impl FriendsRoute {
 
         let last_key = &self.public_keys[self.public_keys.len() - 1];
         if last_key == &self.public_keys[0] {
-            // We have a first=last cycle.
+            // We have a first == last cycle.
             if self.public_keys.len() > 2 {
-                // We have a cycle that is long enough (no A, A).
+                // We have a cycle that is long enough (no A -- A).
                 // We just check if it's a single cycle.
                 Self::is_unique(&self.public_keys[1..])
             } else {
-                // A, A
+                // A -- A
                 false
             }
         } else {
-            // No cycle or a cycle that is not first=last.
+            // No first == last cycle.
+            // But we have to check if there is any other cycle.
             Self::is_unique(&self.public_keys)
         }
     }
