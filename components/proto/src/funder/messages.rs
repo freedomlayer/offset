@@ -299,20 +299,6 @@ impl CanonicalSerialize for FriendsRoute {
     }
 }
 
-/// Helper macro modeled after vec![].
-#[macro_export]
-macro_rules! mock_friends_route {
-    ( $($num:expr),* ) => {
-        FriendsRoute {
-            public_keys: vec![
-                $(PublicKey::from(
-                    &[$num; PUBLIC_KEY_LEN]
-                )),*
-            ],
-        }
-    }
-}
-
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
@@ -707,15 +693,28 @@ mod tests {
 
     #[test]
     fn test_is_valid() {
-        // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
-        assert_eq!(mock_friends_route![1, 2, 3, 4].is_valid(), true); // usual route
-        assert_eq!(mock_friends_route![1, 2, 3, 4, 1].is_valid(), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
-        assert_eq!(mock_friends_route![1, 1].is_valid(), false); // cyclic route that is too short (only 2 nodes long)
-        assert_eq!(mock_friends_route![1, 2, 3, 2, 4].is_valid(), false); // Should have no repetitions that are not the first and last nodes.
+        // Helper macro modeled after vec![].
+        macro_rules! route {
+            ( $($num:expr),* ) => {
+                FriendsRoute {
+                    public_keys: vec![
+                        $(PublicKey::from(
+                            &[$num; PUBLIC_KEY_LEN]
+                        )),*
+                    ],
+                }
+            }
+        }
 
-        assert_eq!(mock_friends_route![1, 2, 3, 4].is_valid_part(), true); // usual route
-        assert_eq!(mock_friends_route![1, 2, 3, 4, 1].is_valid_part(), false); // should have no cycles in a partial route
-        assert_eq!(mock_friends_route![1, 1].is_valid_part(), false); // should have no repetitions ins a partial route
-        assert_eq!(mock_friends_route![1, 2, 3, 2, 4].is_valid_part(), false); // should have no repetitions in a partial route
+        // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
+        assert_eq!(route![1, 2, 3, 4].is_valid(), true); // usual route
+        assert_eq!(route![1, 2, 3, 4, 1].is_valid(), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
+        assert_eq!(route![1, 1].is_valid(), false); // cyclic route that is too short (only 2 nodes long)
+        assert_eq!(route![1, 2, 3, 2, 4].is_valid(), false); // Should have no repetitions that are not the first and last nodes.
+
+        assert_eq!(route![1, 2, 3, 4].is_valid_part(), true); // usual route
+        assert_eq!(route![1, 2, 3, 4, 1].is_valid_part(), false); // should have no cycles in a partial route
+        assert_eq!(route![1, 1].is_valid_part(), false); // should have no repetitions ins a partial route
+        assert_eq!(route![1, 2, 3, 2, 4].is_valid_part(), false); // should have no repetitions in a partial route
     }
 }
