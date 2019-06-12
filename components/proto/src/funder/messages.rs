@@ -692,7 +692,7 @@ mod tests {
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     #[test]
-    fn test_is_valid() {
+    fn test_friends_route_is_valid() {
         // Helper macro modeled after vec![].
         macro_rules! route {
             ( $($num:expr),* ) => {
@@ -705,6 +705,11 @@ mod tests {
                 }
             }
         }
+
+        assert_eq!(route![1].is_valid(), false); // too short
+        assert_eq!(route![1].is_valid_part(), true); // long enough
+        assert_eq!(route![].is_valid(), false); // too short
+        assert_eq!(route![].is_valid_part(), false); // too short
 
         // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
         assert_eq!(route![1, 2, 3, 4].is_valid(), true); // usual route
