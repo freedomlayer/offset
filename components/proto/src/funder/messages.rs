@@ -695,7 +695,7 @@ mod tests {
         assert_eq!(route![1].is_valid(), false); // too short
         assert_eq!(route![1].is_valid_part(), true); // long enough
         assert_eq!(route![].is_valid(), false); // too short
-        assert_eq!(route![].is_valid_part(), true); // long enough
+        assert_eq!(route![].is_valid_part(), true); // partial routes may be empty
 
         // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
         assert_eq!(route![1, 2, 3, 4].is_valid(), true); // usual route
