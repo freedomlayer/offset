@@ -366,18 +366,6 @@ impl FriendsRoute {
         hash::sha_512_256(&self.canonical_serialize())
     }
 
-    /// Find the index of a public key inside the route.
-    /// source is considered to be index 0.
-    /// dest is considered to be the last index.
-    ///
-    /// Note that the returned index does not map directly to an
-    /// index of self.route_links vector.
-    pub fn pk_to_index(&self, public_key: &PublicKey) -> Option<usize> {
-        self.public_keys
-            .iter()
-            .position(|cur_public_key| cur_public_key == public_key)
-    }
-
     /// Get the public key of a node according to its index.
     pub fn index_to_pk(&self, index: usize) -> Option<&PublicKey> {
         self.public_keys.get(index)
