@@ -121,21 +121,17 @@ pub fn try_reset_channel<B>(
 fn forward_request<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    mut request_send_funds: RequestSendFundsOp,
+    request_send_funds: RequestSendFundsOp,
+    next_pk: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let next_pk = request_send_funds.route.index_to_pk(0).unwrap().clone();
-
-    // Remove the next node from remaining route.
-    request_send_funds.route.public_keys.remove(0);
-
     // Queue message to the relevant friend. Later this message will be queued to a specific
     // available token channel:
     let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
     let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
-    send_commands.set_try_send(&next_pk);
+    send_commands.set_try_send(next_pk);
 }
 
 fn handle_request_send_funds<B>(
@@ -188,8 +184,8 @@ fn handle_request_send_funds<B>(
 
     // We are not the destination of this request.
     // The node on the route has to be one of our friends:
-    let next_public_key = request_send_funds.route.index_to_pk(0).unwrap();
-    let friend_exists = m_state.state().friends.contains_key(next_public_key);
+    let next_public_key = request_send_funds.route.index_to_pk(0).unwrap().clone();
+    let friend_exists = m_state.state().friends.contains_key(&next_public_key);
 
     // This friend must be considered online for us to forward the message.
     // If we forward the request to an offline friend, the request could be stuck for a long
@@ -220,7 +216,7 @@ fn handle_request_send_funds<B>(
         None
     };
 
-    let request_send_funds = match (opt_request_send_funds, friend_ready) {
+    let mut request_send_funds = match (opt_request_send_funds, friend_ready) {
         (Some(request_send_funds), true) => request_send_funds,
         _ => {
             reply_with_cancel(m_state, send_commands, remote_public_key, &request_id);
@@ -228,8 +224,11 @@ fn handle_request_send_funds<B>(
         }
     };
 
+    // Remove the next node from remaining route.
+    request_send_funds.route.public_keys.remove(0);
+
     // Queue message to the next node.
-    forward_request(m_state, send_commands, request_send_funds);
+    forward_request(m_state, send_commands, request_send_funds, &next_public_key);
 }
 
 fn handle_response_send_funds<B>(
