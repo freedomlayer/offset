@@ -1,9 +1,8 @@
 use num_bigint::BigUint;
-// use num_traits::identities::Zero;
 use num_traits::cast::ToPrimitive;
 use num_traits::ops::checked::CheckedSub;
 
-use app::route::MultiRoute;
+use proto::index_server::messages::MultiRoute;
 
 pub type MultiRouteChoice = Vec<(usize, u128)>;
 
@@ -37,7 +36,10 @@ fn fill_amount(amount: u128, sorted_routes: &[(Option<usize>, u128)]) -> Option<
 /// Returns a vector representing how many credits to push through every chosen route (if successful).
 /// For example: (5usize, 100u128) means: push 100 credits through the route that was given in
 /// index 5.
-fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<MultiRouteChoice> {
+pub fn safe_multi_route_amounts(
+    multi_route: &MultiRoute,
+    amount: u128,
+) -> Option<MultiRouteChoice> {
     let routes = &multi_route.routes;
     let sorted_routes = {
         let mut sorted_routes: Vec<_> = routes
@@ -83,27 +85,13 @@ fn safe_multi_route_amounts(multi_route: &MultiRoute, amount: u128) -> Option<Mu
     Some(chosen_routes)
 }
 
-/// Choose a route for pushing `amount` credits
-pub fn choose_multi_route(
-    multi_routes: &[MultiRoute],
-    amount: u128,
-) -> Option<(usize, MultiRouteChoice)> {
-    // We naively select the first multi-route we find suitable:
-    // TODO: Possibly improve this later:
-    for (i, multi_route) in multi_routes.iter().enumerate() {
-        if let Some(multi_route_choice) = safe_multi_route_amounts(multi_route, amount) {
-            return Some((i, multi_route_choice));
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use app::route::{FriendsRoute, RouteCapacityRate};
-    use app::{PublicKey, Rate, PUBLIC_KEY_LEN};
+    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::funder::messages::{FriendsRoute, Rate};
+    use proto::index_server::messages::RouteCapacityRate;
 
     /// A helper function to create a test public key
     fn pk(i: u8) -> PublicKey {
