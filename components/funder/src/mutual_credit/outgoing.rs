@@ -191,8 +191,11 @@ impl OutgoingMc {
         let response_signature_buffer =
             create_response_signature_buffer(&response_send_funds, &pending_transaction);
         // The response was signed by the destination node:
-        // Note the key order is reversed from our perspective
-        let dest_public_key = &self.mutual_credit.state().idents.local_public_key;
+        let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+            &self.mutual_credit.state().idents.local_public_key
+        } else {
+            pending_transaction.route.public_keys.last().unwrap()
+        };
 
         // Verify response funds signature:
         if !verify_signature(
