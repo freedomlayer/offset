@@ -33,6 +33,10 @@ derive_more = "0.14.0"
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
 
+tide = "0.2.0"
+http = "0.1.17"
+
+
 [dev_dependencies]
 
 tempfile = "3.0.5"

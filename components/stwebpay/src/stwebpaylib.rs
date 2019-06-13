@@ -7,6 +7,8 @@ use structopt::StructOpt;
 
 use app::{connect, identity_from_file, load_node_from_file};
 
+use crate::web_app::serve_app;
+
 #[derive(Debug)]
 pub enum StWebPayError {
     CreateThreadPoolError,
@@ -60,16 +62,17 @@ pub fn stwebpay(
         .map_err(|_| StWebPayError::SpawnIdentityServiceError)?;
 
     let c_thread_pool = thread_pool.clone();
-    thread_pool.run(async move {
-        // Connect to node:
-        let _node_connection = await!(connect(
+    let _node_connection = thread_pool
+        .run(connect(
             node_address.public_key,
             node_address.address,
             app_identity_client,
-            c_thread_pool.clone()
+            c_thread_pool.clone(),
         ))
         .map_err(|_| StWebPayError::ConnectionError)?;
 
-        unimplemented!();
-    })
+    // Start HTTP server:
+    // TODO: Handle errors here:
+    serve_app().unwrap();
+    Ok(())
 }
