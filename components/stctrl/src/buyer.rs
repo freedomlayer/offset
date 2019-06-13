@@ -17,8 +17,6 @@ use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
 
 use app::route::{safe_multi_route_amounts, MultiRouteChoice, MultiRoute};
 
->>>>>>> Initial addition of stwebpay component. Refactored multi_route_util.rs into offst-app.
-
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]
 pub struct PayInvoiceCmd {

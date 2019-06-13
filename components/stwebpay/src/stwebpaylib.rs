@@ -5,7 +5,6 @@ use futures::executor::ThreadPool;
 
 use structopt::StructOpt;
 
-
 use app::{connect, identity_from_file, load_node_from_file};
 
 #[derive(Debug)]
@@ -31,7 +30,10 @@ pub struct StWebPayCmd {
     pub node_ticket: PathBuf,
 }
 
-pub fn stwebpay(st_web_cmd: StWebPayCmd, _writer: &mut impl io::Write) -> Result<(), StWebPayError> {
+pub fn stwebpay(
+    st_web_cmd: StWebPayCmd,
+    _writer: &mut impl io::Write,
+) -> Result<(), StWebPayError> {
     let mut thread_pool = ThreadPool::new().map_err(|_| StWebPayError::CreateThreadPoolError)?;
 
     let StWebPayCmd {
@@ -69,6 +71,5 @@ pub fn stwebpay(st_web_cmd: StWebPayCmd, _writer: &mut impl io::Write) -> Result
         .map_err(|_| StWebPayError::ConnectionError)?;
 
         unimplemented!();
-
     })
 }
