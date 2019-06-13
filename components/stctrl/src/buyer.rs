@@ -9,12 +9,15 @@ use futures::future::select_all;
 use structopt::StructOpt;
 
 use app::gen::{gen_payment_id, gen_uid};
+
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
 
 use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
 
-use crate::multi_route_util::choose_multi_route;
+use app::route::{safe_multi_route_amounts, MultiRouteChoice, MultiRoute};
+
+>>>>>>> Initial addition of stwebpay component. Refactored multi_route_util.rs into offst-app.
 
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]
@@ -79,6 +82,21 @@ pub enum BuyerError {
     RemovePaymentError,
     IoError(std::io::Error),
     StringSerdeError(StringSerdeError),
+}
+
+/// Choose a route for pushing `amount` credits
+pub fn choose_multi_route(
+    multi_routes: &[MultiRoute],
+    amount: u128,
+) -> Option<(usize, MultiRouteChoice)> {
+    // We naively select the first multi-route we find suitable:
+    // TODO: Possibly improve this later:
+    for (i, multi_route) in multi_routes.iter().enumerate() {
+        if let Some(multi_route_choice) = safe_multi_route_amounts(multi_route, amount) {
+            return Some((i, multi_route_choice));
+        }
+    }
+    None
 }
 
 /// Pay an invoice

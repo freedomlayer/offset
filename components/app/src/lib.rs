@@ -18,6 +18,7 @@ mod app_conn;
 mod connect;
 pub mod gen;
 mod identity;
+mod multi_route_util;
 
 pub use proto::file;
 pub use proto::ser_string;
@@ -58,6 +59,7 @@ pub mod payment {
 }
 
 pub mod route {
+    pub use super::multi_route_util::{safe_multi_route_amounts, MultiRouteChoice};
     pub use proto::funder::messages::FriendsRoute;
     pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
 

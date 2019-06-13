@@ -10,23 +10,11 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
-#![allow(unused)]
-
-#[macro_use]
-extern crate prettytable;
 
 // #[macro_use]
 // extern crate log;
 
-#[macro_use]
+// #[macro_use]
 extern crate serde_derive;
 
-pub mod buyer;
-pub mod config;
-pub mod file;
-pub mod info;
-pub mod seller;
-pub mod utils;
-
-pub mod stctrllib;
-pub mod stverifylib;
+pub mod stwebpaylib;
