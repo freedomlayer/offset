@@ -262,7 +262,6 @@ fn process_response_send_funds(
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
-    // Note the key order is reversed from our perspective
     let dest_public_key = &mutual_credit.state().idents.remote_public_key;
 
     let response_signature_buffer =
