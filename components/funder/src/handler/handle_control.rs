@@ -14,11 +14,11 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
-    CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, RemoveFriend, RequestResult, RequestSendFundsOp,
-    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult, is_route_valid
+    is_route_valid, AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend,
+    CollectSendFundsOp, CreatePayment, CreateTransaction, FriendStatus, FunderControl,
+    FunderOutgoingControl, MultiCommit, PaymentStatus, RemoveFriend, RequestResult,
+    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
+    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
 use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 

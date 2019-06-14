@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, WriteBytesExt};
+use std::cmp::Eq;
 use std::collections::HashSet;
 use std::hash::Hash;
-use std::cmp::Eq;
 
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
