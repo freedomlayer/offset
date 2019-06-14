@@ -4,7 +4,7 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp, TransactionStage,
+    RequestsStatus, ResponseSendFundsOp, TransactionStage, is_route_part_valid
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
@@ -178,7 +178,7 @@ fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    if !request_send_funds.route.is_valid_part() {
+    if !is_route_part_valid(&request_send_funds.route) {
         return Err(ProcessOperationError::InvalidRoute);
     }
 

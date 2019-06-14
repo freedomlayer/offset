@@ -4,7 +4,7 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
-    ResponseSendFundsOp, TransactionStage,
+    ResponseSendFundsOp, TransactionStage, is_route_part_valid,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
@@ -108,7 +108,7 @@ impl OutgoingMc {
         &mut self,
         request_send_funds: RequestSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
-        if !request_send_funds.route.is_valid_part() {
+        if !is_route_part_valid(&request_send_funds.route) {
             return Err(QueueOperationError::InvalidRoute);
         }
 

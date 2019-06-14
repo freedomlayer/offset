@@ -18,7 +18,7 @@ use proto::funder::messages::{
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, RemoveFriend, RequestResult, RequestSendFundsOp,
     ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult, is_route_valid
 };
 use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
 
@@ -551,7 +551,7 @@ where
 
     // We want to have at least two public keys on the route (source and destination).
     // We also want that the public keys on the route are unique.
-    if !route.is_valid() {
+    if !is_route_valid(&route) {
         return Err(HandleControlError::InvalidRoute);
     }
     let friend_public_key = route.public_keys[1].clone();

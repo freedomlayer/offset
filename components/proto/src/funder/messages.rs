@@ -1,5 +1,7 @@
 use byteorder::{BigEndian, WriteBytesExt};
 use std::collections::HashSet;
+use std::hash::Hash;
+use std::cmp::Eq;
 
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
@@ -308,59 +310,6 @@ impl FriendsRoute {
         self.public_keys.is_empty()
     }
 
-    /// Check if no element repeats twice in the array
-    fn is_unique(array: &[PublicKey]) -> bool {
-        let mut seen = HashSet::new();
-        for item in array {
-            if !seen.insert(item.clone()) {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Check if the route is valid.
-    /// A valid route must have at least 2 unique nodes, and is in one of the following forms:
-    /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
-    /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
-    pub fn is_valid(&self) -> bool {
-        if self.public_keys.len() < 2 {
-            return false;
-        }
-        if self.public_keys.len() > MAX_ROUTE_LEN {
-            return false;
-        }
-
-        let last_key = &self.public_keys[self.public_keys.len() - 1];
-        if last_key == &self.public_keys[0] {
-            // We have a first == last cycle.
-            if self.public_keys.len() > 2 {
-                // We have a cycle that is long enough (no A -- A).
-                // We just check if it's a single cycle.
-                Self::is_unique(&self.public_keys[1..])
-            } else {
-                // A -- A
-                false
-            }
-        } else {
-            // No first == last cycle.
-            // But we have to check if there is any other cycle.
-            Self::is_unique(&self.public_keys)
-        }
-    }
-
-    /// Checks if the remaining part of the route is valid.
-    /// Compared to regular version, this one does not check for minimal unique
-    /// nodes amount. It returns `true` if the part is empty.
-    /// It does not accept routes parts with a cycle, though.
-    pub fn is_valid_part(&self) -> bool {
-        if self.public_keys.len() > MAX_ROUTE_LEN - 1 {
-            return false;
-        }
-
-        Self::is_unique(&self.public_keys)
-    }
-
     /// Produce a cryptographic hash over the contents of the route.
     pub fn hash(&self) -> HashResult {
         hash::sha_512_256(&self.canonical_serialize())
@@ -370,6 +319,68 @@ impl FriendsRoute {
     pub fn index_to_pk(&self, index: usize) -> Option<&PublicKey> {
         self.public_keys.get(index)
     }
+}
+
+use std::ops::Deref;
+/// This `Deref` lets us use `is_route_valid` over `FriendsRoute`
+impl Deref for FriendsRoute {
+    type Target = [PublicKey];
+    fn deref(&self) -> &Self::Target {
+        self.public_keys.as_ref()
+    }
+}
+
+/// Check if no element repeats twice in the slice
+fn no_duplicates<T: Hash + Eq>(array: &[T]) -> bool {
+    let mut seen = HashSet::new();
+    for item in array {
+        if !seen.insert(item) {
+            return false;
+        }
+    }
+    true
+}
+
+/// Check if the route (e.g. `FriendsRoute`) is valid.
+/// A valid route must have at least 2 unique nodes, and is in one of the following forms:
+/// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
+/// A -- B -- C -- D -- E -- F        (A route with no repetitions)
+pub fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
+    if route.len() < 2 {
+        return false;
+    }
+    if route.len() > MAX_ROUTE_LEN {
+        return false;
+    }
+
+    let last_key = &route[route.len() - 1];
+    if last_key == &route[0] {
+        // We have a first == last cycle.
+        if route.len() > 2 {
+            // We have a cycle that is long enough (no A -- A).
+            // We just check if it's a single cycle.
+            no_duplicates(&route[1..])
+        } else {
+            // A -- A
+            false
+        }
+    } else {
+        // No first == last cycle.
+        // But we have to check if there is any other cycle.
+        no_duplicates(&route)
+    }
+}
+
+/// Checks if the remaining part of the route (e.g. `FriendsRoute`) is valid.
+/// Compared to regular version, this one does not check for minimal unique
+/// nodes amount. It returns `true` if the part is empty.
+/// It does not accept routes parts with a cycle, though.
+pub fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
+    if route.len() > MAX_ROUTE_LEN - 1 {
+        return false;
+    }
+
+    no_duplicates(route)
 }
 
 impl CanonicalSerialize for Receipt {
@@ -675,37 +686,23 @@ pub enum FunderOutgoingControl<B: Clone> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
     #[test]
-    fn test_friends_route_is_valid() {
-        // Helper macro modeled after vec![].
-        macro_rules! route {
-            ( $($num:expr),* ) => {
-                FriendsRoute {
-                    public_keys: vec![
-                        $(PublicKey::from(
-                            &[$num; PUBLIC_KEY_LEN]
-                        )),*
-                    ],
-                }
-            }
-        }
-
-        assert_eq!(route![1].is_valid(), false); // too short
-        assert_eq!(route![1].is_valid_part(), true); // long enough
-        assert_eq!(route![].is_valid(), false); // too short
-        assert_eq!(route![].is_valid_part(), true); // partial routes may be empty
+    fn test_friends_is_route_valid() {
+        assert_eq!(is_route_valid(&[1]), false); // too short
+        assert_eq!(is_route_part_valid(&[1]), true); // long enough
+        assert_eq!(is_route_valid(&Vec::<u8>::new()), false); // empty route is invalid
+        assert_eq!(is_route_part_valid(&Vec::<u8>::new()), true); // partial routes may be empty
 
         // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
-        assert_eq!(route![1, 2, 3, 4].is_valid(), true); // usual route
-        assert_eq!(route![1, 2, 3, 4, 1].is_valid(), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
-        assert_eq!(route![1, 1].is_valid(), false); // cyclic route that is too short (only 2 nodes long)
-        assert_eq!(route![1, 2, 3, 2, 4].is_valid(), false); // Should have no repetitions that are not the first and last nodes.
+        assert_eq!(is_route_valid(&[1, 2, 3, 4]), true); // usual route
+        assert_eq!(is_route_valid(&[1, 2, 3, 4, 1]), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
+        assert_eq!(is_route_valid(&[1, 1]), false); // cyclic route that is too short (only 2 nodes long)
+        assert_eq!(is_route_valid(&[1, 2, 3, 2, 4]), false); // Should have no repetitions that are not the first and last nodes.
 
-        assert_eq!(route![1, 2, 3, 4].is_valid_part(), true); // usual route
-        assert_eq!(route![1, 2, 3, 4, 1].is_valid_part(), false); // should have no cycles in a partial route
-        assert_eq!(route![1, 1].is_valid_part(), false); // should have no repetitions ins a partial route
-        assert_eq!(route![1, 2, 3, 2, 4].is_valid_part(), false); // should have no repetitions in a partial route
+        assert_eq!(is_route_part_valid(&[1, 2, 3, 4]), true); // usual route
+        assert_eq!(is_route_part_valid(&[1, 2, 3, 4, 1]), false); // should have no cycles in a partial route
+        assert_eq!(is_route_part_valid(&[1, 1]), false); // should have no repetitions ins a partial route
+        assert_eq!(is_route_part_valid(&[1, 2, 3, 2, 4]), false); // should have no repetitions in a partial route
     }
 }
