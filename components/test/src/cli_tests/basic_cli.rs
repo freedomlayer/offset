@@ -727,7 +727,6 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     let mut output = Vec::new();
     stverify(stverify_cmd, &mut output).unwrap();
     let output_str = str::from_utf8(&output).unwrap();
-    println!("{}", output_str);
     assert!(output_str.contains("is valid!"));
     assert!(output_str.contains("balance: 70"));
 }
