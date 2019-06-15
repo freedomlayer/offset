@@ -1,3 +1,4 @@
+/*
 use im::hashmap::HashMap as ImHashMap;
 
 use num_bigint::BigUint;
@@ -524,3 +525,4 @@ mod tests {
         assert!(res.is_some());
     }
 }
+*/

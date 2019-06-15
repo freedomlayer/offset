@@ -133,17 +133,17 @@ struct ResponseSendFundsOp {
         signature @3: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || sha512/256(route) || randNonce) ||
-        #   srcHashedLock || 
-        #   destHashedLock || 
+        #   sha512/256(requestId || randNonce) ||
+        #   srcHashedLock ||
+        #   destHashedLock ||
         #   destPayment ||
         #   totalDestPayment ||
         #   invoiceId
         # )
         #
         # Note that the signature contains an inner blob (requestId || ...).
-        # This is done to make the size of the receipt shorter.
-        # See also the Receipt structure.
+        # This was done to make the size of the receipt shorter, as previously
+        # this contained a full route.
 }
 
 struct CancelSendFundsOp {
@@ -168,4 +168,3 @@ struct FriendOperation {
                 collectSendFunds @6: CollectSendFundsOp;
         }
 }
-

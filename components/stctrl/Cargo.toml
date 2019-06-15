@@ -14,6 +14,10 @@ path = "src/lib.rs"
 name = "stctrl"
 path = "src/bin/stctrl.rs"
 
+[[bin]]
+name = "stverify"
+path = "src/bin/stverify.rs"
+
 [dependencies]
 
 app = { path = "../app", version = "0.1.0", package = "offst-app" }

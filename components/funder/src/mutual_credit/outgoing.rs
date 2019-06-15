@@ -108,22 +108,13 @@ impl OutgoingMc {
         &mut self,
         request_send_funds: RequestSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
-        if !request_send_funds.route.is_valid() {
+        if !request_send_funds.route.is_part_valid() {
             return Err(QueueOperationError::InvalidRoute);
         }
 
         if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
             return Err(QueueOperationError::DestPaymentExceedsTotal);
         }
-
-        // Find ourselves on the route. If we are not there, abort.
-        let _local_index = request_send_funds
-            .route
-            .find_pk_pair(
-                &self.mutual_credit.state().idents.local_public_key,
-                &self.mutual_credit.state().idents.remote_public_key,
-            )
-            .ok_or(QueueOperationError::PkPairNotInRoute)?;
 
         // Make sure that remote side is open to requests:
         if !self.mutual_credit.state().requests_status.remote.is_open() {
@@ -200,7 +191,11 @@ impl OutgoingMc {
         let response_signature_buffer =
             create_response_signature_buffer(&response_send_funds, &pending_transaction);
         // The response was signed by the destination node:
-        let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
+        let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+            &self.mutual_credit.state().idents.local_public_key
+        } else {
+            pending_transaction.route.public_keys.last().unwrap()
+        };
 
         // Verify response funds signature:
         if !verify_signature(
