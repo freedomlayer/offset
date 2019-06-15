@@ -29,7 +29,6 @@ pub fn create_response_signature_buffer<S>(
 
     let mut inner_blob = Vec::new();
     inner_blob.extend_from_slice(&pending_transaction.request_id);
-    inner_blob.extend_from_slice(&pending_transaction.route.hash());
     inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
@@ -53,14 +52,12 @@ pub fn prepare_receipt(
 ) -> Receipt {
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_transaction.request_id);
-    hash_buff.extend_from_slice(&pending_transaction.route.hash());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
+    // = sha512/256(requestId || randNonce)
 
     Receipt {
         response_hash,
-        // = sha512/256(requestId || sha512/256(route) || randNonce)
         invoice_id: pending_transaction.invoice_id.clone(),
         src_plain_lock: collect_send_funds.src_plain_lock.clone(),
         dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
@@ -93,10 +90,9 @@ pub fn prepare_commit(
 ) -> Commit {
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_transaction.request_id);
-    hash_buff.extend_from_slice(&pending_transaction.route.hash());
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
     let response_hash = hash::sha_512_256(&hash_buff);
-    // = sha512/256(requestId || sha512/256(route) || randNonce)
+    // = sha512/256(requestId || randNonce)
 
     Commit {
         response_hash,

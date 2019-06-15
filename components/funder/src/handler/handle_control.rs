@@ -621,11 +621,17 @@ where
     ));
     m_state.mutate(funder_mutation);
 
+    let mut route_tail = create_transaction.route;
+    // Remove ourselves from the remaining route:
+    route_tail.public_keys.remove(0);
+    // Remove next node from the route:
+    route_tail.public_keys.remove(0);
+
     // Push the request:
     let request_send_funds = RequestSendFundsOp {
         request_id: create_transaction.request_id,
         src_hashed_lock: src_plain_lock.hash(),
-        route: create_transaction.route,
+        route: route_tail,
         dest_payment: create_transaction.dest_payment,
         total_dest_payment: new_transactions.total_dest_payment,
         invoice_id: new_transactions.invoice_id.clone(),

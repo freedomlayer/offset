@@ -142,7 +142,7 @@ struct MultiCommit {
 # A receipt for payment to the Funder
 struct Receipt {
         responseHash @0: Hash;
-        # = sha512/256(requestId || sha512/256(route) || randNonce)
+        # = sha512/256(requestId || randNonce)
         invoiceId @1: InvoiceId;
         srcPlainLock @2: PlainLock;
         destPlainLock @3: PlainLock;
@@ -159,4 +159,3 @@ struct Receipt {
         #   invoiceId
         # )
 }
-
