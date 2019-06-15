@@ -377,7 +377,9 @@ pub fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
 /// nodes amount. It returns `true` if the part is empty.
 /// It does not accept routes parts with a cycle, though.
 pub fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
-    if route.len() > MAX_ROUTE_LEN - 1 {
+    // Route part should not be full route.
+    // TODO: ensure it never is.
+    if route.len() >= MAX_ROUTE_LEN {
         return false;
     }
 
