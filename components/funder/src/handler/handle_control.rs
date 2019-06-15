@@ -14,7 +14,7 @@ use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    is_route_valid, AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend,
+    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend,
     CollectSendFundsOp, CreatePayment, CreateTransaction, FriendStatus, FunderControl,
     FunderOutgoingControl, MultiCommit, PaymentStatus, RemoveFriend, RequestResult,
     RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
@@ -551,7 +551,7 @@ where
 
     // We want to have at least two public keys on the route (source and destination).
     // We also want that the public keys on the route are unique.
-    if !is_route_valid(&route) {
+    if !route.is_valid() {
         return Err(HandleControlError::InvalidRoute);
     }
     let friend_public_key = route.public_keys[1].clone();

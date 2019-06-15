@@ -3,7 +3,7 @@ use crypto::identity::verify_signature;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    is_route_part_valid, CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction,
     RequestSendFundsOp, RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
@@ -178,7 +178,7 @@ fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    if !is_route_part_valid(&request_send_funds.route) {
+    if !request_send_funds.route.is_part_valid() {
         return Err(ProcessOperationError::InvalidRoute);
     }
 

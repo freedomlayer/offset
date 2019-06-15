@@ -3,7 +3,7 @@ use crypto::identity::verify_signature;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    is_route_part_valid, CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
@@ -108,7 +108,7 @@ impl OutgoingMc {
         &mut self,
         request_send_funds: RequestSendFundsOp,
     ) -> Result<Vec<McMutation>, QueueOperationError> {
-        if !is_route_part_valid(&request_send_funds.route) {
+        if !request_send_funds.route.is_part_valid() {
             return Err(QueueOperationError::InvalidRoute);
         }
 

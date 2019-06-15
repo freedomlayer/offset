@@ -319,6 +319,22 @@ impl FriendsRoute {
     pub fn index_to_pk(&self, index: usize) -> Option<&PublicKey> {
         self.public_keys.get(index)
     }
+
+    /// Check if the route (e.g. `FriendsRoute`) is valid.
+    /// A valid route must have at least 2 unique nodes, and is in one of the following forms:
+    /// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
+    /// A -- B -- C -- D -- E -- F        (A route with no repetitions)
+    pub fn is_valid(&self) -> bool {
+        is_route_valid(&self)
+    }
+
+    /// Checks if the remaining part of the route (e.g. `FriendsRoute`) is valid.
+    /// Compared to regular version, this one does not check for minimal unique
+    /// nodes amount. It returns `true` if the part is empty.
+    /// It does not accept routes parts with a cycle, though.
+    pub fn is_part_valid(&self) -> bool {
+        is_route_part_valid(&self)
+    }
 }
 
 use std::ops::Deref;
@@ -341,11 +357,7 @@ fn no_duplicates<T: Hash + Eq>(array: &[T]) -> bool {
     true
 }
 
-/// Check if the route (e.g. `FriendsRoute`) is valid.
-/// A valid route must have at least 2 unique nodes, and is in one of the following forms:
-/// A -- B -- C -- D -- E -- F -- A   (Single cycle, first == last)
-/// A -- B -- C -- D -- E -- F        (A route with no repetitions)
-pub fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
+fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
     if route.len() < 2 {
         return false;
     }
@@ -372,11 +384,7 @@ pub fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
     }
 }
 
-/// Checks if the remaining part of the route (e.g. `FriendsRoute`) is valid.
-/// Compared to regular version, this one does not check for minimal unique
-/// nodes amount. It returns `true` if the part is empty.
-/// It does not accept routes parts with a cycle, though.
-pub fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
+fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
     // Route part should not be full route.
     // TODO: ensure it never is.
     if route.len() >= MAX_ROUTE_LEN {
