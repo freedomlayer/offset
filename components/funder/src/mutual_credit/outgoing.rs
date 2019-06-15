@@ -3,8 +3,8 @@ use crypto::identity::verify_signature;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp, TransactionStage,
+    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
+    ResponseSendFundsOp, TransactionStage,
 };
 use proto::funder::signature_buff::create_response_signature_buffer;
 
