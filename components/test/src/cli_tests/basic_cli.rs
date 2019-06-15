@@ -582,9 +582,9 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         // We should try again if no suitable route was found:
         match stctrl(st_ctrl_cmd.clone(), &mut Vec::new()) {
             Ok(_) => break,
-            Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
-            Err(other_err) => {
-                error!("other_err: {:?}", other_err);
+            Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute))
+            | Err(StCtrlError::BuyerError(BuyerError::AppRoutesError)) => {}
+            Err(_) => {
                 unreachable!();
             }
         }
