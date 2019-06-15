@@ -1,8 +1,8 @@
 use common::canonical_serialize::CanonicalSerialize;
 use std::fmt::Debug;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
+use crypto::rand::CryptoRandom;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
@@ -122,22 +122,16 @@ fn forward_request<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     request_send_funds: RequestSendFundsOp,
+    next_pk: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let index = request_send_funds
-        .route
-        .pk_to_index(&m_state.state().local_public_key)
-        .unwrap();
-    let next_index = index.checked_add(1).unwrap();
-    let next_pk = request_send_funds.route.index_to_pk(next_index).unwrap();
-
     // Queue message to the relevant friend. Later this message will be queued to a specific
     // available token channel:
     let friend_mutation = FriendMutation::PushBackPendingRequest(request_send_funds.clone());
     let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
-    send_commands.set_try_send(&next_pk);
+    send_commands.set_try_send(next_pk);
 }
 
 fn handle_request_send_funds<B>(
@@ -149,15 +143,7 @@ fn handle_request_send_funds<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    // Find ourselves on the route. If we are not there, abort.
-    let remote_index = request_send_funds
-        .route
-        .find_pk_pair(&remote_public_key, &m_state.state().local_public_key)
-        .unwrap();
-
-    let local_index = remote_index.checked_add(1).unwrap();
-    let next_index = local_index.checked_add(1).unwrap();
-    if next_index >= request_send_funds.route.len() {
+    if request_send_funds.route.is_empty() {
         // We are the destination of this request.
 
         // First make sure that we have a matching open invoice for this transaction:
@@ -198,8 +184,8 @@ fn handle_request_send_funds<B>(
 
     // We are not the destination of this request.
     // The node on the route has to be one of our friends:
-    let next_public_key = request_send_funds.route.index_to_pk(next_index).unwrap();
-    let friend_exists = m_state.state().friends.contains_key(next_public_key);
+    let next_public_key = request_send_funds.route.index_to_pk(0).unwrap().clone();
+    let friend_exists = m_state.state().friends.contains_key(&next_public_key);
 
     // This friend must be considered online for us to forward the message.
     // If we forward the request to an offline friend, the request could be stuck for a long
@@ -230,7 +216,7 @@ fn handle_request_send_funds<B>(
         None
     };
 
-    let request_send_funds = match (opt_request_send_funds, friend_ready) {
+    let mut request_send_funds = match (opt_request_send_funds, friend_ready) {
         (Some(request_send_funds), true) => request_send_funds,
         _ => {
             reply_with_cancel(m_state, send_commands, remote_public_key, &request_id);
@@ -238,8 +224,11 @@ fn handle_request_send_funds<B>(
         }
     };
 
+    // Remove the next node from remaining route.
+    request_send_funds.route.public_keys.remove(0);
+
     // Queue message to the next node.
-    forward_request(m_state, send_commands, request_send_funds);
+    forward_request(m_state, send_commands, request_send_funds, &next_public_key);
 }
 
 fn handle_response_send_funds<B>(
@@ -504,7 +493,7 @@ fn handle_move_token_error<B, R>(
 {
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
     let opt_last_incoming_move_token = token_channel.get_last_incoming_move_token_hashed().cloned();
@@ -686,7 +675,7 @@ where
     }?;
 
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(channel_inconsistent) => {
             let local_reset_terms = channel_inconsistent.local_reset_terms.clone();
             try_reset_channel(
@@ -750,24 +739,15 @@ where
         None => Err(HandleFriendError::FriendDoesNotExist),
     }?;
 
-    // Cancel all pending requests to this friend:
-    cancel_pending_requests(
-        m_state,
-        send_commands,
-        outgoing_control,
-        rng,
-        remote_public_key,
-    );
-    cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
-
     // Save remote incoming inconsistency details:
     let new_remote_reset_terms = remote_reset_terms;
 
     // Obtain information about our reset terms:
     let friend = m_state.state().friends.get(remote_public_key).unwrap();
-    let (should_send_outgoing, new_local_reset_terms, opt_last_incoming_move_token) =
+    let (channel_was_consistent, new_local_reset_terms, opt_last_incoming_move_token) =
         match &friend.channel_status {
-            ChannelStatus::Consistent(token_channel) => {
+            ChannelStatus::Consistent(channel_consistent) => {
+                let token_channel = &channel_consistent.token_channel;
                 if !token_channel.is_outgoing() {
                     return Err(HandleFriendError::InconsistencyWhenTokenOwned);
                 }
@@ -784,6 +764,18 @@ where
             ),
         };
 
+    if channel_was_consistent {
+        // Cancel all pending requests to this friend:
+        cancel_pending_requests(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            remote_public_key,
+        );
+        cancel_pending_user_requests(m_state, outgoing_control, rng, remote_public_key);
+    }
+
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
         opt_last_incoming_move_token,
@@ -796,7 +788,7 @@ where
     m_state.mutate(funder_mutation);
 
     // Send an outgoing inconsistency message if required:
-    if should_send_outgoing {
+    if channel_was_consistent {
         send_commands.set_try_send(remote_public_key);
     }
     Ok(())

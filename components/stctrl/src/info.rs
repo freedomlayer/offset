@@ -8,7 +8,7 @@ use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppReport, FriendAddress, NodeConnection, RelayAddress};
+use app::{store_friend_to_file, AppConn, AppReport, FriendAddress, RelayAddress};
 
 use crate::file::token::store_token_to_file;
 use crate::utils::friend_public_key_by_name;
@@ -202,7 +202,8 @@ fn is_consistent(friend_report: &FriendReport) -> bool {
 fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
     match &friend_report.channel_status {
-        ChannelStatusReport::Consistent(tc_report) => {
+        ChannelStatusReport::Consistent(channel_consistent_report) => {
+            let tc_report = &channel_consistent_report.tc_report;
             res += "C: ";
             let local_requests_str = requests_status_str(&tc_report.requests_status.local);
             let remote_requests_str = requests_status_str(&tc_report.requests_status.remote);
@@ -326,7 +327,9 @@ pub async fn info_friend_last_token(
 /// In case of an inconsistency we take the local reset terms to represent the balance.
 fn friend_balance(friend_report: &FriendReport) -> i128 {
     match &friend_report.channel_status {
-        ChannelStatusReport::Consistent(tc_report) => tc_report.balance.balance,
+        ChannelStatusReport::Consistent(channel_consistent_report) => {
+            channel_consistent_report.tc_report.balance.balance
+        }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             channel_inconsistent_report.local_reset_terms_balance
         }
@@ -381,10 +384,10 @@ pub async fn info_export_ticket(
 
 pub async fn info(
     info_cmd: InfoCmd,
-    mut node_connection: NodeConnection,
+    mut app_conn: AppConn,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let app_report = node_connection.report().clone();
+    let app_report = app_conn.report().clone();
 
     match info_cmd {
         // InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,

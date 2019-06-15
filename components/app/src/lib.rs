@@ -10,11 +10,11 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
-#![allow(unused)]
 
 #[macro_use]
 extern crate log;
 
+mod app_conn;
 mod connect;
 pub mod gen;
 mod identity;
@@ -31,9 +31,9 @@ pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
 pub use proto::report::signature_buff::verify_move_token_hashed_report;
 
-pub use node::connect::{AppBuyer, AppConfig, AppReport, AppRoutes, AppSeller, NodeConnection};
+pub use self::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
 
-pub use self::connect::{connect, ConnectError};
+pub use self::connect::{connect, node_connect, ConnectError};
 pub use self::identity::{identity_from_file, IdentityFromFileError};
 
 // TODO: Possibly reduce what we export from report in the future?
@@ -66,7 +66,7 @@ pub mod route {
 
 }
 
-pub use crypto::crypto_rand::{RandValue, RAND_VALUE_LEN};
 pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
 pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
 pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
+pub use crypto::rand::{RandValue, RAND_VALUE_LEN};

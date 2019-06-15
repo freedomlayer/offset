@@ -7,8 +7,8 @@ use futures::channel::mpsc;
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::select_streams::{select_streams, BoxStream};
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 

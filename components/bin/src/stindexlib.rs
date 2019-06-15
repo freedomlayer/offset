@@ -12,7 +12,7 @@ use structopt::StructOpt;
 use common::conn::Listener;
 use common::int_convert::usize_to_u64;
 
-use crypto::crypto_rand::system_random;
+use crypto::rand::system_random;
 
 use identity::{create_identity, IdentityClient};
 

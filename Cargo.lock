@@ -696,10 +696,12 @@ dependencies = [
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "offst-identity 0.1.0",
+ "offst-keepalive 0.1.0",
  "offst-net 0.1.0",
- "offst-node 0.1.0",
  "offst-proto 0.1.0",
+ "offst-secure-channel 0.1.0",
  "offst-timer 0.1.0",
+ "offst-version 0.1.0",
  "simple_logger 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1002,6 +1004,7 @@ dependencies = [
  "futures-preview 0.3.0-alpha.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-test-preview 0.3.0-alpha.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-app 0.1.0",
  "offst-bin 0.1.0",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",

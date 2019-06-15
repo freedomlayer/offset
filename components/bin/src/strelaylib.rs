@@ -9,7 +9,7 @@ use structopt::StructOpt;
 
 use common::conn::Listener;
 
-use crypto::crypto_rand::system_random;
+use crypto::rand::system_random;
 use identity::{create_identity, IdentityClient};
 
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};

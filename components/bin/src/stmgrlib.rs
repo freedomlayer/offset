@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use structopt::StructOpt;
 
-use crypto::crypto_rand::system_random;
 use crypto::identity::{generate_pkcs8_key_pair, Identity};
+use crypto::rand::system_random;
 
 use proto::app_server::messages::{AppPermissions, RelayAddress};
 use proto::index_server::messages::IndexServerAddress;

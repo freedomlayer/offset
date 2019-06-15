@@ -4,7 +4,7 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
 
-use crypto::crypto_rand::{CryptoRandom, OffstSystemRandom};
+use crypto::rand::{CryptoRandom, OffstSystemRandom};
 
 use common::conn::ConnPair;
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
@@ -17,21 +17,21 @@ use super::report::AppReport;
 use super::routes::AppRoutes;
 use super::seller::AppSeller;
 
-pub type NodeConnectionTuple = (
+pub type AppConnTuple = (
     AppPermissions,
     NodeReport,
     ConnPair<AppToAppServer, AppServerToApp>,
 );
 
 #[derive(Debug)]
-pub enum NodeConnectionError {
+pub enum AppConnError {
     SpawnError,
 }
 
 // TODO: Do we need a way to close this connection?
 // Is it closed on Drop?
 #[derive(Clone)]
-pub struct NodeConnection<R = OffstSystemRandom> {
+pub struct AppConn<R = OffstSystemRandom> {
     report: AppReport,
     opt_config: Option<AppConfig<R>>,
     opt_routes: Option<AppRoutes<R>>,
@@ -40,15 +40,11 @@ pub struct NodeConnection<R = OffstSystemRandom> {
     rng: R,
 }
 
-impl<R> NodeConnection<R>
+impl<R> AppConn<R>
 where
     R: CryptoRandom + Clone,
 {
-    pub fn new<S>(
-        conn_tuple: NodeConnectionTuple,
-        rng: R,
-        spawner: &mut S,
-    ) -> Result<Self, NodeConnectionError>
+    pub fn new<S>(conn_tuple: AppConnTuple, rng: R, spawner: &mut S) -> Result<Self, AppConnError>
     where
         S: Spawn,
     {
@@ -66,7 +62,7 @@ where
         .map(|_| ());
         spawner
             .spawn(state_service_fut)
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         let (mut incoming_routes_sender, incoming_routes) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -76,7 +72,7 @@ where
             .map(|_| ());
         spawner
             .spawn(routes_fut)
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         let (mut incoming_transaction_results_sender, incoming_transaction_results) =
             mpsc::channel(0);
@@ -88,7 +84,7 @@ where
                 .map(|_| ());
         spawner
             .spawn(transaction_results_fut)
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         let (mut incoming_response_close_payments_sender, incoming_response_close_payments) =
             mpsc::channel(0);
@@ -100,7 +96,7 @@ where
                 .map(|_| ());
         spawner
             .spawn(response_close_payments_fut)
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         let (mut incoming_done_app_requests_sender, incoming_done_app_requests) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);
@@ -111,7 +107,7 @@ where
                 .map(|_| ());
         spawner
             .spawn(done_app_requests_fut)
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         spawner
             .spawn(async move {
@@ -147,7 +143,7 @@ where
                     }
                 }
             })
-            .map_err(|_| NodeConnectionError::SpawnError)?;
+            .map_err(|_| AppConnError::SpawnError)?;
 
         let opt_config = if app_permissions.config {
             Some(AppConfig::new(
@@ -191,7 +187,7 @@ where
             None
         };
 
-        Ok(NodeConnection {
+        Ok(AppConn {
             report: AppReport::new(report_client.clone()),
             opt_config,
             opt_routes,

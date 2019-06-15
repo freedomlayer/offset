@@ -47,8 +47,6 @@ pub struct ProcessOperationOutput {
 #[derive(Debug)]
 pub enum ProcessOperationError {
     RemoteMaxDebtTooLarge(u128),
-    /// Trying to set the invoiceId, while already expecting another invoice id.
-    PkPairNotInRoute,
     /// The Route contains some public key twice.
     InvalidRoute,
     RequestsAlreadyDisabled,
@@ -180,22 +178,13 @@ fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    if !request_send_funds.route.is_valid() {
+    if !request_send_funds.route.is_part_valid() {
         return Err(ProcessOperationError::InvalidRoute);
     }
 
     if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
         return Err(ProcessOperationError::DestPaymentExceedsTotal);
     }
-
-    // Find ourselves (And remote side) on the route. If we are not there, abort.
-    let _remote_index = request_send_funds
-        .route
-        .find_pk_pair(
-            &mutual_credit.state().idents.remote_public_key,
-            &mutual_credit.state().idents.local_public_key,
-        )
-        .ok_or(ProcessOperationError::PkPairNotInRoute)?;
 
     // Make sure that we are open to requests:
     if !mutual_credit.state().requests_status.local.is_open() {
@@ -273,7 +262,11 @@ fn process_response_send_funds(
         .ok_or(ProcessOperationError::RequestDoesNotExist)?
         .clone();
 
-    let dest_public_key = pending_transaction.route.public_keys.last().unwrap();
+    let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+        &mutual_credit.state().idents.remote_public_key
+    } else {
+        pending_transaction.route.public_keys.last().unwrap()
+    };
 
     let response_signature_buffer =
         create_response_signature_buffer(&response_send_funds, &pending_transaction);

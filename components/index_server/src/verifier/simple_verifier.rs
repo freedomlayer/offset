@@ -1,5 +1,5 @@
-use crypto::crypto_rand::{CryptoRandom, RandValue};
 use crypto::hash::HashResult;
+use crypto::rand::{CryptoRandom, RandValue};
 
 use super::hash_clock::HashClock;
 use super::ratchet::RatchetPool;

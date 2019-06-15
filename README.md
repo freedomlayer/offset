@@ -15,6 +15,16 @@ Warning: Offst is still a work in progress, and is not yet ready for use in prod
 - [Documentation](https://offst.readthedocs.io/en/latest/?badge=latest)
 - [Blog](https://www.freedomlayer.org/offst/)
 
+## License
+
+- The core crates of Offst are licensed under the AGPL-3.0 license.
+- The crates used as interface for building Offst apps are licensed under the MIT
+    or Apache 2.0, at your option.
+
+Each crate license info can be found in the corresponding crate directory and in
+the crate's `Cargo.toml`.
+
+
 ## Download
 
 [Releases page](https://github.com/freedomlayer/offst/releases)

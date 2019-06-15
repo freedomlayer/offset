@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::identity::PublicKey;
+use crypto::rand::CryptoRandom;
 use crypto::uid::Uid;
 
 use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};
@@ -125,7 +125,7 @@ pub fn cancel_local_pending_transactions<B, R>(
 
     let token_channel = match &friend.channel_status {
         ChannelStatus::Inconsistent(_) => unreachable!(),
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
     };
 
     // Mark all pending requests to this friend as errors.
@@ -183,7 +183,11 @@ pub fn cancel_pending_requests<B, R>(
     R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let mut pending_requests = friend.pending_requests.clone();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+    };
+    let mut pending_requests = channel_consistent.pending_requests.clone();
 
     while let Some(pending_request) = pending_requests.pop_front() {
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
@@ -231,7 +235,11 @@ pub fn cancel_pending_user_requests<B, R>(
     R: CryptoRandom,
 {
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
-    let mut pending_user_requests = friend.pending_user_requests.clone();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+    };
+    let mut pending_user_requests = channel_consistent.pending_user_requests.clone();
 
     while let Some(pending_user_request) = pending_user_requests.pop_front() {
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;

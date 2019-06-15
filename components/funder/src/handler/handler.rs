@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;

@@ -2,7 +2,7 @@ use identity::IdentityClient;
 use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
-use crypto::crypto_rand::CryptoRandom;
+use crypto::rand::CryptoRandom;
 
 use proto::funder::messages::FunderOutgoingControl;
 

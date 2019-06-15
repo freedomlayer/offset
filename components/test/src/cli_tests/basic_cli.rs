@@ -10,8 +10,7 @@ use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
     EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendRateCmd,
 };
-// use stctrl::funds::{FundsCmd, PayInvoiceCmd, SendFundsCmd};
-// use stctrl::info::VerifyTokenCmd;
+
 use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
 use stctrl::info::{BalanceCmd, ExportTicketCmd, FriendLastTokenCmd, FriendsCmd, InfoCmd};
 use stctrl::seller::{CancelInvoiceCmd, CommitInvoiceCmd, CreateInvoiceCmd, SellerCmd};
@@ -584,7 +583,10 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
         match stctrl(st_ctrl_cmd.clone(), &mut Vec::new()) {
             Ok(_) => break,
             Err(StCtrlError::BuyerError(BuyerError::NoSuitableRoute)) => {}
-            _ => unreachable!(),
+            Err(other_err) => {
+                error!("other_err: {:?}", other_err);
+                unreachable!();
+            }
         }
         thread::sleep(time::Duration::from_millis(100));
     }

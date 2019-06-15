@@ -123,7 +123,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let pred = |report: &FunderReport<_>| {
         let friend = report.friends.get(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
         tc_report.balance.balance == 3
@@ -133,7 +133,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let pred = |report: &FunderReport<_>| {
         let friend = report.friends.get(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
         tc_report.balance.balance == -3
@@ -281,7 +281,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             Some(friend) => friend,
         };
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
         tc_report.balance.balance == -6 + 15
@@ -296,7 +296,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             Some(friend) => friend,
         };
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
 
@@ -310,7 +310,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             Some(friend) => friend,
         };
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
         tc_report.balance.balance == 6 - 15
@@ -438,7 +438,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
             Some(friend) => friend,
         };
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
         tc_report.balance.balance == 8
@@ -522,7 +522,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     let pred = |report: &FunderReport<_>| {
         let friend = report.friends.get(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,
         };
         tc_report.balance.balance == 8
@@ -533,7 +533,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     let pred = |report: &FunderReport<_>| {
         let friend = report.friends.get(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
-            ChannelStatusReport::Consistent(tc_report) => tc_report,
+            ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,
         };
         tc_report.balance.balance == -8

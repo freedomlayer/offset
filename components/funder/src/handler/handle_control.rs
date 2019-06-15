@@ -2,11 +2,11 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::crypto_rand::CryptoRandom;
 use crypto::hash_lock::PlainLock;
 use crypto::identity::PublicKey;
 use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;
+use crypto::rand::CryptoRandom;
 use crypto::uid::Uid;
 
 use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
@@ -565,25 +565,26 @@ where
         return Err(HandleControlError::FriendNotReady);
     }
 
-    // If payment is already in progress, we do nothing:
-    // Check if there is already a pending user payment with the same payment_id:
-    for user_request in &friend.pending_user_requests {
-        if create_transaction.request_id == user_request.request_id {
-            return Err(HandleControlError::RequestAlreadyInProgress);
-        }
-    }
-
-    let token_channel = match &friend.channel_status {
+    let channel_consistent = match &friend.channel_status {
         ChannelStatus::Inconsistent(_) => {
             // It is impossible that the Channel is Inconsistent, because we know that this friend is
             // in ready state:
             unreachable!();
         }
-        ChannelStatus::Consistent(token_channel) => token_channel,
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
 
+    // If payment is already in progress, we do nothing:
+    // Check if there is already a pending user payment with the same payment_id:
+    for user_request in &channel_consistent.pending_user_requests {
+        if create_transaction.request_id == user_request.request_id {
+            return Err(HandleControlError::RequestAlreadyInProgress);
+        }
+    }
+
     // Check if there is an ongoing request with the same request_id with this specific friend:
-    if token_channel
+    if channel_consistent
+        .token_channel
         .get_mutual_credit()
         .state()
         .pending_transactions
@@ -594,7 +595,7 @@ where
     }
 
     // Check if we have room to push this message:
-    if friend.pending_user_requests.len() >= max_pending_user_requests {
+    if channel_consistent.pending_user_requests.len() >= max_pending_user_requests {
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
@@ -620,11 +621,17 @@ where
     ));
     m_state.mutate(funder_mutation);
 
+    let mut route_tail = create_transaction.route;
+    // Remove ourselves from the remaining route:
+    route_tail.public_keys.remove(0);
+    // Remove next node from the route:
+    route_tail.public_keys.remove(0);
+
     // Push the request:
     let request_send_funds = RequestSendFundsOp {
         request_id: create_transaction.request_id,
         src_hashed_lock: src_plain_lock.hash(),
-        route: create_transaction.route,
+        route: route_tail,
         dest_payment: create_transaction.dest_payment,
         total_dest_payment: new_transactions.total_dest_payment,
         invoice_id: new_transactions.invoice_id.clone(),
