@@ -353,7 +353,8 @@ pub fn is_route_valid<T: Hash + Eq>(route: &[T]) -> bool {
         return false;
     }
 
-    let last_key = &route[route.len() - 1];
+    // route.len() >= 2
+    let last_key = route.last().unwrap();
     if last_key == &route[0] {
         // We have a first == last cycle.
         if route.len() > 2 {
