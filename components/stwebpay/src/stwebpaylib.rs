@@ -20,6 +20,7 @@ pub enum StWebPayError {
     ConnectionError,
     NoBuyerPermissions,
     NoRoutesPermissions,
+    GetReportError,
 }
 
 /// stwebpay: offST WEB PAYment system
@@ -78,18 +79,29 @@ pub fn stwebpay(
         ))
         .map_err(|_| StWebPayError::ConnectionError)?;
 
-    let buyer = app_conn
+    let app_buyer = app_conn
         .buyer()
         .ok_or(StWebPayError::NoBuyerPermissions)?
         .clone();
 
-    let routes = app_conn
+    let app_routes = app_conn
         .routes()
         .ok_or(StWebPayError::NoRoutesPermissions)?
         .clone();
 
+    let mut app_report = app_conn.report().clone();
+    let (node_report, incoming_mutations) = thread_pool
+        .run(app_report.incoming_reports())
+        .map_err(|_| StWebPayError::GetReportError)?;
+    // We currently don't need live updates about report mutations:
+    drop(incoming_mutations);
+
+    let local_public_key = node_report.funder_report.local_public_key.clone();
+
     // Start HTTP server:
     // TODO: Handle errors here:
-    thread_pool.run(serve_app(buyer, routes, laddr)).unwrap();
+    thread_pool
+        .run(serve_app(local_public_key, app_buyer, app_routes, laddr))
+        .unwrap();
     Ok(())
 }
