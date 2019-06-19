@@ -13,16 +13,21 @@ use app::ser_string::string_to_public_key;
 use app::{AppBuyer, AppRoutes, MultiCommit, PublicKey};
 
 struct AppState {
-    buyer: AppBuyer,
-    routes: AppRoutes,
+    local_public_key: PublicKey,
+    app_buyer: AppBuyer,
+    app_routes: AppRoutes,
     listen_addr: SocketAddr,
 }
 
 impl AppState {
-    fn new(buyer: AppBuyer, routes: AppRoutes, listen_addr: SocketAddr) -> Self {
+    fn new(local_public_key: PublicKey, 
+           app_buyer: AppBuyer, 
+           app_routes: AppRoutes, 
+           listen_addr: SocketAddr) -> Self {
         AppState {
-            buyer,
-            routes,
+            local_public_key,
+            app_buyer,
+            app_routes,
             listen_addr,
         }
     }
@@ -127,7 +132,14 @@ async fn get_multi_route(
 async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
     let payment_request: PaymentRequest = cx.body_form().await?;
 
+
+    /*
     // TODO: Present the expected payment fees to the user:
+    let (multi_route, multi_route_choice) = get_multi_route(cx.state().app_routes.clone(),
+                    payment_request.dest_payment,
+                    cx.state().local_public_key.clone(),
+                    dest_public_key).await;
+                    */
 
     // TODO: How to do this concatenation safely?
     let process_url = format!("{}/process", cx.state().listen_addr);
@@ -286,11 +298,12 @@ async fn process(mut cx: Context<AppState>) -> EndpointResult<String> {
 */
 
 pub async fn serve_app(
+    local_public_key: PublicKey,
     buyer: AppBuyer,
     routes: AppRoutes,
     listen_addr: SocketAddr,
 ) -> Result<(), std::io::Error> {
-    let app_state = AppState::new(buyer, routes, listen_addr);
+    let app_state = AppState::new(local_public_key, buyer, routes, listen_addr);
 
     let mut app = tide::App::with_state(app_state);
     app.at("/payment").post(payment);
