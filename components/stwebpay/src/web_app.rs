@@ -20,10 +20,12 @@ struct AppState {
 }
 
 impl AppState {
-    fn new(local_public_key: PublicKey, 
-           app_buyer: AppBuyer, 
-           app_routes: AppRoutes, 
-           listen_addr: SocketAddr) -> Self {
+    fn new(
+        local_public_key: PublicKey,
+        app_buyer: AppBuyer,
+        app_routes: AppRoutes,
+        listen_addr: SocketAddr,
+    ) -> Self {
         AppState {
             local_public_key,
             app_buyer,
@@ -131,7 +133,6 @@ async fn get_multi_route(
 /// - Result is sent to "/process".
 async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
     let payment_request: PaymentRequest = cx.body_form().await?;
-
 
     /*
     // TODO: Present the expected payment fees to the user:
