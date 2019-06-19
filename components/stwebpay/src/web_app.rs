@@ -1,16 +1,16 @@
 use std::net::SocketAddr;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use http::{Request, Response, StatusCode};
 
-use tide::{Context, EndpointResult, error::ResultExt, forms::{ContextExt}}; /*, response, App};*/
+use tide::{error::ResultExt, forms::ContextExt, Context, EndpointResult}; /*, response, App};*/
 
-use app::{AppBuyer, AppRoutes, PublicKey, MultiCommit};
-use app::route::{MultiRoute, MultiRouteChoice, safe_multi_route_amounts};
 use app::gen::gen_payment_id;
 use app::invoice::InvoiceId;
+use app::route::{safe_multi_route_amounts, MultiRoute, MultiRouteChoice};
 use app::ser_string::string_to_public_key;
+use app::{AppBuyer, AppRoutes, MultiCommit, PublicKey};
 
 struct AppState {
     buyer: AppBuyer,
@@ -81,7 +81,10 @@ pub fn choose_multi_route(
 
 /// Calculate total fees for paying through a multi route
 /// With the given choices for payments through routes
-fn multi_route_fees(multi_route: &MultiRoute, multi_route_choice: &MultiRouteChoice) -> Option<u128> {
+fn multi_route_fees(
+    multi_route: &MultiRoute,
+    multi_route_choice: &MultiRouteChoice,
+) -> Option<u128> {
     let mut total_fees = 0u128;
     for (route_index, dest_payment) in multi_route_choice.iter() {
         let fee = multi_route.routes[*route_index]
@@ -93,40 +96,43 @@ fn multi_route_fees(multi_route: &MultiRoute, multi_route_choice: &MultiRouteCho
     Some(total_fees)
 }
 
-async fn get_multi_route(mut app_routes: AppRoutes, dest_payment: u128, 
-                         local_public_key: PublicKey, dest_public_key: PublicKey) -> Result<(MultiRoute, MultiRouteChoice), WebPaymentError> {
+async fn get_multi_route(
+    mut app_routes: AppRoutes,
+    dest_payment: u128,
+    local_public_key: PublicKey,
+    dest_public_key: PublicKey,
+) -> Result<(MultiRoute, MultiRouteChoice), WebPaymentError> {
+    let multi_routes = app_routes
+        .request_routes(
+            dest_payment,
+            local_public_key, // source
+            dest_public_key.clone(),
+            None,
+        ) // No exclusion of edges
+        .await
+        .map_err(|_| WebPaymentError::AppRoutesError)?;
 
-    let multi_routes = app_routes.request_routes(
-        dest_payment,
-        local_public_key, // source
-        dest_public_key.clone(),
-        None
-    ) // No exclusion of edges
-    .await
-    .map_err(|_| WebPaymentError::AppRoutesError)?;
-
-    let (multi_route_index, multi_route_choice) = choose_multi_route(&multi_routes, dest_payment)
-        .ok_or(WebPaymentError::NoSuitableRoute)?;
+    let (multi_route_index, multi_route_choice) =
+        choose_multi_route(&multi_routes, dest_payment).ok_or(WebPaymentError::NoSuitableRoute)?;
     let multi_route = &multi_routes[multi_route_index];
 
     Ok((multi_route.clone(), multi_route_choice))
 }
 
-
 /// - Show user information about the payment
 /// - Give user possible options:
 ///      - Ok
 ///      - Cancel
-/// - Result is sent to "/process". 
+/// - Result is sent to "/process".
 async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
     let payment_request: PaymentRequest = cx.body_form().await?;
 
     // TODO: Present the expected payment fees to the user:
 
-
     // TODO: How to do this concatenation safely?
     let process_url = format!("{}/process", cx.state().listen_addr);
-    let response = format!(r###"
+    let response = format!(
+        r###"
         <!DOCTYPE html>
         <html>
         <body>
@@ -152,13 +158,14 @@ async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
 
         </body>
         </html> 
-    "###, 
-        process_url=process_url,
-        invoice_id=payment_request.invoice_id,
-        dest_public_key=payment_request.dest_public_key,
-        dest_payment=payment_request.dest_payment,
-        success_url=payment_request.success_url,
-        failure_url=payment_request.failure_url);
+    "###,
+        process_url = process_url,
+        invoice_id = payment_request.invoice_id,
+        dest_public_key = payment_request.dest_public_key,
+        dest_payment = payment_request.dest_payment,
+        success_url = payment_request.success_url,
+        failure_url = payment_request.failure_url
+    );
 
     Ok(response)
 }
@@ -169,13 +176,13 @@ enum PayInvoiceError {
     NoSuitableRoute,
 }
 
-async fn pay_invoice(app_buyer: AppBuyer, 
-                     app_routes: AppRoutes, 
-                     invoice_id: InvoiceId,
-                     dest_public_key: PublicKey,
-                     dest_payment: u128) -> Result<(), PayInvoiceError> {
-
-
+async fn pay_invoice(
+    app_buyer: AppBuyer,
+    app_routes: AppRoutes,
+    invoice_id: InvoiceId,
+    dest_public_key: PublicKey,
+    dest_payment: u128,
+) -> Result<(), PayInvoiceError> {
     // TODO: Get routes
 
     /*
@@ -244,7 +251,6 @@ async fn pay_invoice(app_buyer: AppBuyer,
         .map_err(|_| BuyerError::StoreCommitError)?;
     */
     unimplemented!();
-
 }
 
 /*
@@ -279,7 +285,11 @@ async fn process(mut cx: Context<AppState>) -> EndpointResult<String> {
 }
 */
 
-pub async fn serve_app(buyer: AppBuyer, routes: AppRoutes, listen_addr: SocketAddr) -> Result<(), std::io::Error> {
+pub async fn serve_app(
+    buyer: AppBuyer,
+    routes: AppRoutes,
+    listen_addr: SocketAddr,
+) -> Result<(), std::io::Error> {
     let app_state = AppState::new(buyer, routes, listen_addr);
 
     let mut app = tide::App::with_state(app_state);
@@ -287,4 +297,3 @@ pub async fn serve_app(buyer: AppBuyer, routes: AppRoutes, listen_addr: SocketAd
     // app.at("/process").post(process);
     app.serve(listen_addr).await
 }
-
