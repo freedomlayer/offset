@@ -23,8 +23,7 @@ log = "0.4"
 env_logger = "0.6.0"
 futures-preview = "0.3.0-alpha.16"
 
-serde = "1"
-serde_derive = "1"
+serde = { version = "1.0.91", features = ["derive"] } 
 
 structopt = "0.2.15"
 
@@ -33,10 +32,14 @@ derive_more = "0.14.0"
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
 
-tide = "0.2.0"
+# tide = "0.2.0"
+# Workaround due to: https://github.com/rustasync/tide/issues/278
+tide = { git = "https://github.com/realcr/tide" }
+
 http = "0.1.17"
 
 
 [dev_dependencies]
 
 tempfile = "3.0.5"
+

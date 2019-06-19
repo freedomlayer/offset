@@ -26,3 +26,8 @@ members = [
   "components/test",
   "components/mutual_from",
 ]
+
+# Temporary fix according to: https://github.com/rustasync/tide/issues/237
+[patch.crates-io]
+http-service = { git = "https://github.com/rustasync/http-service", branch = "master" }
+http-service-hyper = { git = "https://github.com/rustasync/http-service", branch = "master" }

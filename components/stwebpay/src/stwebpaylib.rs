@@ -1,4 +1,5 @@
 use std::io;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use futures::executor::ThreadPool;
@@ -17,6 +18,8 @@ pub enum StWebPayError {
     InvalidNodeTicketFile,
     SpawnIdentityServiceError,
     ConnectionError,
+    NoBuyerPermissions,
+    NoRoutesPermissions,
 }
 
 /// stwebpay: offST WEB PAYment system
@@ -30,6 +33,9 @@ pub struct StWebPayCmd {
     /// Node ticket file path
     #[structopt(parse(from_os_str), short = "T", long = "ticket")]
     pub node_ticket: PathBuf,
+    /// Listening address (For HTTP server)
+    #[structopt(short = "l", long = "laddr")]
+    pub laddr: SocketAddr,
 }
 
 pub fn stwebpay(
@@ -41,6 +47,7 @@ pub fn stwebpay(
     let StWebPayCmd {
         idfile,
         node_ticket,
+        laddr,
     } = st_web_cmd;
 
     // Get application's identity:
@@ -62,7 +69,7 @@ pub fn stwebpay(
         .map_err(|_| StWebPayError::SpawnIdentityServiceError)?;
 
     let c_thread_pool = thread_pool.clone();
-    let _node_connection = thread_pool
+    let mut app_conn = thread_pool
         .run(connect(
             node_address.public_key,
             node_address.address,
@@ -71,8 +78,18 @@ pub fn stwebpay(
         ))
         .map_err(|_| StWebPayError::ConnectionError)?;
 
+    let buyer = app_conn
+        .buyer()
+        .ok_or(StWebPayError::NoBuyerPermissions)?
+        .clone();
+
+    let routes = app_conn
+        .routes()
+        .ok_or(StWebPayError::NoRoutesPermissions)?
+        .clone();
+
     // Start HTTP server:
     // TODO: Handle errors here:
-    serve_app().unwrap();
+    thread_pool.run(serve_app(buyer, routes, laddr)).unwrap();
     Ok(())
 }
