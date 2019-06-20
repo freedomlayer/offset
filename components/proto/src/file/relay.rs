@@ -3,7 +3,9 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
+use crypto::identity::PublicKey;
+
+use crate::file::ser_string::{from_base64, to_base64, SerStringError};
 use toml;
 
 use crate::app_server::messages::RelayAddress;
@@ -23,7 +25,8 @@ pub enum RelayFileError {
 /// A helper structure for serialize and deserializing RelayAddress.
 #[derive(Serialize, Deserialize)]
 pub struct RelayFile {
-    pub public_key: String,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub public_key: PublicKey,
     pub address: String,
 }
 
@@ -38,11 +41,8 @@ pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError>
     let data = fs::read_to_string(&path)?;
     let relay_file: RelayFile = toml::from_str(&data)?;
 
-    // Decode public key:
-    let public_key = string_to_public_key(&relay_file.public_key)?;
-
     Ok(RelayAddress {
-        public_key,
+        public_key: relay_file.public_key,
         address: relay_file.address.try_into()?,
     })
 }
@@ -58,7 +58,7 @@ pub fn store_relay_to_file(
     } = relay_address;
 
     let relay_file = RelayFile {
-        public_key: public_key_to_string(&public_key),
+        public_key: public_key.clone(),
         address: address.as_str().to_string(),
     };
 
@@ -77,6 +77,7 @@ mod tests {
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
+    /*
     #[test]
     fn test_relay_file_basic() {
         let relay_file: RelayFile = toml::from_str(
@@ -90,6 +91,7 @@ mod tests {
         assert_eq!(relay_file.public_key, "public_key_string");
         assert_eq!(relay_file.address, "address_string");
     }
+    */
 
     #[test]
     fn test_store_load_relay() {
