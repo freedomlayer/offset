@@ -53,7 +53,7 @@ pub fn store_payment_to_file(payment: &Payment, path: &Path) -> Result<(), Payme
     let Payment { ref payment_id } = payment;
 
     let payment_file = PaymentFile {
-        payment_id: payment_id.clone(),
+        payment_id: *payment_id,
     };
 
     let data = toml::to_string(&payment_file)?;
