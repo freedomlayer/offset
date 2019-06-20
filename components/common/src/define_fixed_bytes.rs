@@ -54,6 +54,20 @@ macro_rules! define_fixed_bytes {
                 }
             }
         }
+        impl<'a> ::std::convert::TryFrom<Vec<u8>> for $name {
+            type Error = ();
+
+            #[inline]
+            fn try_from(src: Vec<u8>) -> Result<$name, ()> {
+                if src.len() < $len {
+                    Err(())
+                } else {
+                    let mut inner = [0x00u8; $len];
+                    inner.copy_from_slice(&src[..$len]);
+                    Ok($name(inner))
+                }
+            }
+        }
         impl<'a> ::std::convert::TryFrom<&'a ::bytes::Bytes> for $name {
             type Error = ();
 
