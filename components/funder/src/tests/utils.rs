@@ -8,9 +8,7 @@ use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
-use crypto::identity::{
-    generate_private_key, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
-};
+use crypto::identity::{generate_private_key, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN};
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
 
