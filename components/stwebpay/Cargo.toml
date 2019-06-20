@@ -32,9 +32,9 @@ derive_more = "0.14.0"
 num-bigint = "0.2.2"
 num-traits = "0.2.6"
 
-# tide = "0.2.0"
+tide = "0.2.0"
 # Workaround due to: https://github.com/rustasync/tide/issues/278
-tide = { git = "https://github.com/realcr/tide" }
+# tide = { git = "https://github.com/realcr/tide" }
 
 http = "0.1.17"
 
