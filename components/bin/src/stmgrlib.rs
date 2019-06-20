@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use structopt::StructOpt;
 
-use crypto::identity::{generate_pkcs8_key_pair, Identity};
+use crypto::identity::{generate_private_key, Identity};
 use crypto::rand::system_random;
 
 use proto::app_server::messages::{AppPermissions, RelayAddress};
@@ -161,13 +161,14 @@ pub enum GenIdentityError {
 fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
     let rng = system_random();
-    let pkcs8 = generate_pkcs8_key_pair(&rng);
+    let private_key = generate_private_key(&rng);
 
     if output.exists() {
         return Err(GenIdentityError::OutputAlreadyExists);
     }
 
-    store_raw_identity_to_file(&pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
+    store_raw_identity_to_file(&private_key, &output)
+        .map_err(|_| GenIdentityError::StoreToFileError)
 }
 
 #[derive(Debug)]

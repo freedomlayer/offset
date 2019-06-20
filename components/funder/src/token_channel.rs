@@ -476,7 +476,7 @@ mod tests {
     use super::*;
 
     use crypto::identity::Identity;
-    use crypto::identity::{generate_pkcs8_key_pair, SoftwareEd25519Identity};
+    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
 
     use proto::funder::signature_buff::move_token_signature_buff;
@@ -657,12 +657,12 @@ mod tests {
     #[test]
     fn test_simulate_receive_move_token_basic() {
         let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng1);
-        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let pkcs8 = generate_private_key(&rng1);
+        let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
 
         let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng2);
-        let identity2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let pkcs8 = generate_private_key(&rng2);
+        let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
 
         let (identity1, identity2) = sort_sides(identity1, identity2);
 

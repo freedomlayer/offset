@@ -1,6 +1,6 @@
 use crypto::hash_lock::{PlainLock, PLAIN_LOCK_LEN};
 use crypto::identity::{
-    generate_pkcs8_key_pair, Identity, Signature, SoftwareEd25519Identity, SIGNATURE_LEN,
+    generate_private_key, Identity, Signature, SoftwareEd25519Identity, SIGNATURE_LEN,
 };
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::test_utils::DummyRandom;
@@ -114,8 +114,8 @@ fn test_request_response_collect_send_funds() {
     // -----[RequestSendFunds]--------
     // -----------------------------
     let rng = DummyRandom::new(&[1u8]);
-    let pkcs8 = generate_pkcs8_key_pair(&rng);
-    let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let private_key = generate_private_key(&rng);
+    let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_c = identity.get_public_key();
 
     let request_id = Uid::from(&[3; UID_LEN]);
@@ -205,8 +205,8 @@ fn test_request_response_collect_send_funds() {
 #[test]
 fn test_request_cancel_send_funds() {
     let rng = DummyRandom::new(&[1u8]);
-    let pkcs8 = generate_pkcs8_key_pair(&rng);
-    let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let private_key = generate_private_key(&rng);
+    let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_b = identity.get_public_key();
 
     let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
@@ -296,8 +296,8 @@ fn test_request_response_cancel_send_funds() {
     // -----[RequestSendFunds]--------
     // -----------------------------
     let rng = DummyRandom::new(&[1u8]);
-    let pkcs8 = generate_pkcs8_key_pair(&rng);
-    let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+    let private_key = generate_private_key(&rng);
+    let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_c = identity.get_public_key();
 
     let request_id = Uid::from(&[3; UID_LEN]);

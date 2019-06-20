@@ -104,7 +104,7 @@ mod tests {
     use futures::{SinkExt, StreamExt};
 
     use crypto::hash::{HashResult, HASH_RESULT_LEN};
-    use crypto::identity::{generate_pkcs8_key_pair, Identity, SoftwareEd25519Identity};
+    use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;
@@ -118,8 +118,8 @@ mod tests {
     {
         // Create identity_client:
         let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let pkcs8 = generate_private_key(&rng);
+        let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let local_public_key = identity.get_public_key();
         let (requests_sender, identity_server) = create_identity(identity);
         spawner.spawn(identity_server.map(|_| ())).unwrap();

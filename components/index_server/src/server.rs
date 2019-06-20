@@ -665,7 +665,7 @@ mod tests {
     use futures::task::Spawn;
 
     use crypto::identity::{
-        generate_pkcs8_key_pair, PublicKey, Signature, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
+        generate_private_key, PublicKey, Signature, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
         SIGNATURE_LEN,
     };
     use crypto::rand::{RandValue, RAND_VALUE_LEN};
@@ -689,8 +689,8 @@ mod tests {
         S: Spawn,
     {
         let rng = DummyRandom::new(seed);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let pkcs8 = generate_private_key(&rng);
+        let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let (requests_sender, identity_server) = create_identity(identity);
         let identity_client = IdentityClient::new(requests_sender);
         spawner

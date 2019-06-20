@@ -6,7 +6,7 @@ use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, TryFutureExt};
 
-use crypto::identity::{generate_pkcs8_key_pair, Identity, PublicKey, SoftwareEd25519Identity};
+use crypto::identity::{generate_private_key, Identity, PublicKey, SoftwareEd25519Identity};
 
 use crypto::rand::CryptoRandom;
 use crypto::test_utils::DummyRandom;
@@ -81,8 +81,8 @@ fn gen_identity<R>(rng: &R) -> impl Identity
 where
     R: CryptoRandom,
 {
-    let pkcs8 = generate_pkcs8_key_pair(rng);
-    SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap()
+    let pkcs8 = generate_private_key(rng);
+    SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap()
 }
 
 fn create_identity_client<I, S>(identity: I, mut spawner: S) -> IdentityClient

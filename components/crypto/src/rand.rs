@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use ring::error::Unspecified;
 use ring::rand::{SecureRandom, SystemRandom};
+use ring::test::rand::FixedByteRandom;
 
 pub const RAND_VALUE_LEN: usize = 16;
 
@@ -38,6 +39,7 @@ impl<R: SecureRandom> SecureRandom for RngContainer<R> {
 }
 
 impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
+impl CryptoRandom for FixedByteRandom {}
 
 impl<R> Deref for RngContainer<R> {
     type Target = R;

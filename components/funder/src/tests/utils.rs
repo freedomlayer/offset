@@ -9,7 +9,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
 use crypto::identity::{
-    generate_pkcs8_key_pair, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
+    generate_private_key, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
 };
 use crypto::test_utils::DummyRandom;
 use crypto::uid::{Uid, UID_LEN};
@@ -407,8 +407,8 @@ where
 
     for i in 0..num_nodes {
         let rng = DummyRandom::new(&[i as u8]);
-        let pkcs8 = generate_pkcs8_key_pair(&rng);
-        let identity1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let private_key = generate_private_key(&rng);
+        let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender, identity_server) = create_identity(identity1);
         let identity_client = IdentityClient::new(requests_sender);
         spawner

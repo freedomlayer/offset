@@ -33,8 +33,8 @@ impl Signature {
 }
 
 /// Generate a pkcs8 key pair
-pub fn generate_pkcs8_key_pair<R: CryptoRandom>(rng: &R) -> [u8; 85] {
-    ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap()
+pub fn generate_private_key<R: CryptoRandom>(rng: &R) -> PrivateKey {
+    PrivateKey::from(ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap())
 }
 
 /// A generic interface for signing and verifying messages.
@@ -53,8 +53,11 @@ pub struct SoftwareEd25519Identity {
 }
 
 impl SoftwareEd25519Identity {
-    pub fn from_pkcs8(pkcs8_bytes: &[u8]) -> Result<Self, CryptoError> {
-        let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(pkcs8_bytes))?;
+    pub fn from_private_key(private_key: &PrivateKey) -> Result<Self, CryptoError> {
+        // TODO: Possibly use as_ref() for private_key later.
+        // Currently we have no blanket implementation that includes PrivateKey, because it is too
+        // large (85 bytes!)
+        let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(&private_key))?;
 
         Ok(SoftwareEd25519Identity { key_pair })
     }
@@ -87,8 +90,10 @@ impl Identity for SoftwareEd25519Identity {
     }
 }
 
+// TODO: Fix define_fixed_bytes to handle those cases too:
+
 // ==================== Convenience for Signature ====================
-// Cuz SIGNATURE_LEN > 32, these trait can't be derived automatically.
+// Because SIGNATURE_LEN > 32, these trait can't be derived automatically.
 // ===================================================================
 
 impl AsRef<[u8]> for Signature {
@@ -172,6 +177,91 @@ impl ::std::fmt::Debug for Signature {
     }
 }
 
+// ==================== Convenience for PrivateKey ====================
+// Because PRIVATE_KEY_LEN > 32, these trait can't be derived automatically.
+// ===================================================================
+
+impl AsRef<[u8]> for PrivateKey {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ::std::ops::Deref for PrivateKey {
+    type Target = [u8];
+    #[inline]
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ::std::ops::DerefMut for PrivateKey {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+impl<'a> ::std::convert::From<&'a [u8; PRIVATE_KEY_LEN]> for PrivateKey {
+    #[inline]
+    fn from(src: &'a [u8; PRIVATE_KEY_LEN]) -> PrivateKey {
+        let mut inner = [0x00u8; PRIVATE_KEY_LEN];
+        inner.copy_from_slice(&src[..PRIVATE_KEY_LEN]);
+        PrivateKey(inner)
+    }
+}
+
+impl<'a> ::std::convert::TryFrom<&'a [u8]> for PrivateKey {
+    type Error = ();
+
+    #[inline]
+    fn try_from(src: &'a [u8]) -> Result<PrivateKey, ()> {
+        if src.len() < PRIVATE_KEY_LEN {
+            Err(())
+        } else {
+            let mut inner = [0x00u8; PRIVATE_KEY_LEN];
+            inner.copy_from_slice(&src[..PRIVATE_KEY_LEN]);
+            Ok(PrivateKey(inner))
+        }
+    }
+}
+
+impl<'a> ::std::convert::TryFrom<&'a ::bytes::Bytes> for PrivateKey {
+    type Error = ();
+
+    #[inline]
+    fn try_from(src: &'a ::bytes::Bytes) -> Result<PrivateKey, ()> {
+        if src.len() < PRIVATE_KEY_LEN {
+            Err(())
+        } else {
+            let mut inner = [0x00u8; PRIVATE_KEY_LEN];
+            inner.copy_from_slice(&src[..PRIVATE_KEY_LEN]);
+            Ok(PrivateKey(inner))
+        }
+    }
+}
+
+impl PartialEq for PrivateKey {
+    #[inline]
+    fn eq(&self, other: &PrivateKey) -> bool {
+        for i in 0..PRIVATE_KEY_LEN {
+            if self.0[i] != other.0[i] {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl Eq for PrivateKey {}
+
+impl ::std::fmt::Debug for PrivateKey {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        ::std::fmt::Debug::fmt(&self.0[..], f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -180,8 +270,8 @@ mod tests {
     #[test]
     fn test_get_public_key_sanity() {
         let secure_rand = FixedByteRandom { byte: 0x1 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let private_key = generate_private_key(&secure_rand);
+        let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let public_key1 = id.get_public_key();
         let public_key2 = id.get_public_key();
@@ -192,8 +282,8 @@ mod tests {
     #[test]
     fn test_sign_verify_self() {
         let secure_rand = FixedByteRandom { byte: 0x1 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let id = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        let private_key = generate_private_key(&secure_rand);
+        let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";
 
@@ -206,12 +296,14 @@ mod tests {
     #[test]
     fn test_sign_verify_other() {
         let secure_rand = FixedByteRandom { byte: 0x2 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let id1 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let private_key = generate_private_key(&secure_rand);
+        let id1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let secure_rand = FixedByteRandom { byte: 0x3 };
-        let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let id2 = SoftwareEd25519Identity::from_pkcs8(&pkcs8).unwrap();
+        // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
+        let private_key = generate_private_key(&secure_rand);
+        let id2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";
         let signature1 = id1.sign(message);
