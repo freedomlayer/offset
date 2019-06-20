@@ -29,15 +29,15 @@ where
 }
 
 /// Deserializes a lowercase hex string to a `Vec<u8>`.
-pub fn from_base64<'t, 'de, D, T>(deserializer: D) -> Result<T, D::Error>
+pub fn from_base64<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
-    T: TryFrom<Vec<u8>>,
+    T: for<'t> TryFrom<&'t [u8]>,
     D: Deserializer<'de>,
 {
     let string = String::deserialize(deserializer)?;
     let vec = base64::decode_config(&string, URL_SAFE_NO_PAD)
         .map_err(|err| Error::custom(err.to_string()))?;
-    T::try_from(vec).map_err(|_| Error::custom("Length mismatch"))
+    T::try_from(&vec).map_err(|_| Error::custom("Length mismatch"))
 }
 
 /// Define conversion to/from String:
