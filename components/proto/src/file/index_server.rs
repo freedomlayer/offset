@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -28,7 +27,7 @@ pub enum IndexServerFileError {
 struct IndexServerFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     public_key: PublicKey,
-    address: String,
+    address: NetAddress,
 }
 
 impl From<SerStringError> for IndexServerFileError {
@@ -46,7 +45,7 @@ pub fn load_index_server_from_file(
 
     Ok(IndexServerAddress {
         public_key: index_server_file.public_key,
-        address: index_server_file.address.try_into()?,
+        address: index_server_file.address,
     })
 }
 
@@ -62,7 +61,7 @@ pub fn store_index_server_to_file(
 
     let index_server_file = IndexServerFile {
         public_key: public_key.clone(),
-        address: address.as_str().to_string(),
+        address: address.clone(),
     };
 
     let data = toml::to_string(&index_server_file)?;
@@ -109,6 +108,9 @@ pub fn load_trusted_servers(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
+
     use tempfile::tempdir;
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
