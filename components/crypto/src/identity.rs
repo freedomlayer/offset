@@ -9,8 +9,13 @@ use common::big_array::BigArray;
 
 pub const PUBLIC_KEY_LEN: usize = 32;
 pub const SIGNATURE_LEN: usize = 64;
+pub const PRIVATE_KEY_LEN: usize = 85;
 
 define_fixed_bytes!(PublicKey, PUBLIC_KEY_LEN);
+
+/// PKCS8 key pair
+#[derive(Clone, Serialize, Deserialize, From)]
+pub struct PrivateKey(#[serde(with = "BigArray")] [u8; PRIVATE_KEY_LEN]);
 
 #[derive(Clone, Serialize, Deserialize, From)]
 pub struct Signature(#[serde(with = "BigArray")] [u8; SIGNATURE_LEN]);
