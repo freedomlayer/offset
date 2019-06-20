@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use http::{Request, Response, StatusCode};
 
-use tide::{error::ResultExt, forms::ContextExt, Context, EndpointResult}; /*, response, App};*/
+use tide::{error::ResultExt, forms::ExtractForms, Context, EndpointResult}; /*, response, App};*/
 
 use app::gen::gen_payment_id;
 use app::invoice::InvoiceId;
@@ -90,7 +90,7 @@ pub fn choose_multi_route(
 /// With the given choices for payments through routes
 fn multi_route_fees(
     multi_route: &MultiRoute,
-    multi_route_choice: &MultiRouteChoice,
+    multi_route_choice: &[(usize, u128)],
 ) -> Option<u128> {
     let mut total_fees = 0u128;
     for (route_index, dest_payment) in multi_route_choice.iter() {
@@ -143,7 +143,7 @@ async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
                     */
 
     // TODO: How to do this concatenation safely?
-    let process_url = format!("{}/process", cx.state().listen_addr);
+    let process_url = format!("{}/process", cx.app_data().listen_addr);
     let response = format!(
         r###"
         <!DOCTYPE html>
@@ -306,8 +306,8 @@ pub async fn serve_app(
 ) -> Result<(), std::io::Error> {
     let app_state = AppState::new(local_public_key, buyer, routes, listen_addr);
 
-    let mut app = tide::App::with_state(app_state);
+    let mut app = tide::App::new(app_state);
     app.at("/payment").post(payment);
     // app.at("/process").post(process);
-    app.serve(listen_addr).await
+    app.serve(listen_addr)
 }
