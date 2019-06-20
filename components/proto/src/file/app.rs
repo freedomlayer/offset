@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use crate::file::ser_string::{public_key_to_string, string_to_public_key, SerStringError};
+use crate::file::ser_string::{from_base64, to_base64, SerStringError};
 use toml;
 
 use crate::app_server::messages::AppPermissions;
@@ -20,7 +20,8 @@ pub enum AppFileError {
 /// A helper structure for serialize and deserializing IndexServerAddress.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TrustedAppFile {
-    public_key: String,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    public_key: PublicKey,
     permissions: AppPermissions,
 }
 
@@ -41,10 +42,8 @@ pub fn load_trusted_app_from_file(path: &Path) -> Result<TrustedApp, AppFileErro
     let data = fs::read_to_string(&path)?;
     let trusted_app_file: TrustedAppFile = toml::from_str(&data)?;
 
-    let public_key = string_to_public_key(&trusted_app_file.public_key)?;
-
     Ok(TrustedApp {
-        public_key,
+        public_key: trusted_app_file.public_key,
         permissions: trusted_app_file.permissions,
     })
 }
@@ -60,7 +59,7 @@ pub fn store_trusted_app_to_file(
     } = trusted_app;
 
     let trusted_app_file = TrustedAppFile {
-        public_key: public_key_to_string(&public_key),
+        public_key: public_key.clone(),
         permissions: permissions.clone(),
     };
 
