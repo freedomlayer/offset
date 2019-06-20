@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
@@ -8,7 +7,7 @@ use crypto::identity::PublicKey;
 use crate::file::ser_string::{from_base64, to_base64, SerStringError};
 use toml;
 
-use crate::net::messages::NetAddressError;
+use crate::net::messages::{NetAddress, NetAddressError};
 use crate::node::types::NodeAddress;
 
 #[derive(Debug, From)]
@@ -27,7 +26,7 @@ pub enum NodeFileError {
 struct NodeFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     public_key: PublicKey,
-    address: String,
+    address: NetAddress,
 }
 
 impl From<SerStringError> for NodeFileError {
@@ -43,7 +42,7 @@ pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
 
     Ok(NodeAddress {
         public_key: node_file.public_key,
-        address: node_file.address.try_into()?,
+        address: node_file.address,
     })
 }
 
@@ -56,7 +55,7 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(),
 
     let node_file = NodeFile {
         public_key: public_key.clone(),
-        address: address.as_str().to_string(),
+        address: address.clone(),
     };
 
     let data = toml::to_string(&node_file)?;
@@ -70,6 +69,9 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
+
     use tempfile::tempdir;
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
