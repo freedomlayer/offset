@@ -37,6 +37,8 @@ tide = "0.2.0"
 # tide = { git = "https://github.com/realcr/tide" }
 
 http = "0.1.17"
+http-service = "0.2.0"
+
 
 
 [dev_dependencies]

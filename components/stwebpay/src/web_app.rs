@@ -3,6 +3,9 @@ use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 
 use http::{Request, Response, StatusCode};
+use http_service::Body;
+
+
 
 use tide::{error::ResultExt, forms::ExtractForms, Context, EndpointResult}; /*, response, App};*/
 
@@ -132,15 +135,30 @@ async fn get_multi_route(
 ///      - Cancel
 /// - Result is sent to "/process".
 async fn payment(mut cx: Context<AppState>) -> EndpointResult<String> {
+
+    // Verify all arguments:
+    let bad_request_response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Body::empty())
+            .unwrap();
+
+    // TODO: On failure, we don't know to which failure page we should redirect.
+    // Maybe we should present the user with a reasonable response here?
     let payment_request: PaymentRequest = cx.body_form().await?;
 
-    /*
+
+    // Get destination public key:
+    let dest_public_key = string_to_public_key(&payment_request.dest_public_key)
+        .map_err(|_| bad_request_response)?;
+
     // TODO: Present the expected payment fees to the user:
-    let (multi_route, multi_route_choice) = get_multi_route(cx.state().app_routes.clone(),
+    assert!(false);
+
+    let multi_route_res = get_multi_route(cx.app_data().app_routes.clone(),
                     payment_request.dest_payment,
-                    cx.state().local_public_key.clone(),
+                    cx.app_data().local_public_key.clone(),
                     dest_public_key).await;
-                    */
+    // let (multi_route, multi_route_choice) 
 
     // TODO: How to do this concatenation safely?
     let process_url = format!("{}/process", cx.app_data().listen_addr);
