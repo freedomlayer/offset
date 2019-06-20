@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
@@ -9,7 +8,7 @@ use crate::file::ser_string::{from_base64, to_base64, SerStringError};
 use toml;
 
 use crate::app_server::messages::RelayAddress;
-use crate::net::messages::NetAddressError;
+use crate::net::messages::{NetAddress, NetAddressError};
 
 #[derive(Debug, From)]
 pub enum RelayFileError {
@@ -27,7 +26,7 @@ pub enum RelayFileError {
 pub struct RelayFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
-    pub address: String,
+    pub address: NetAddress,
 }
 
 impl From<SerStringError> for RelayFileError {
@@ -43,7 +42,7 @@ pub fn load_relay_from_file(path: &Path) -> Result<RelayAddress, RelayFileError>
 
     Ok(RelayAddress {
         public_key: relay_file.public_key,
-        address: relay_file.address.try_into()?,
+        address: relay_file.address,
     })
 }
 
@@ -59,7 +58,7 @@ pub fn store_relay_to_file(
 
     let relay_file = RelayFile {
         public_key: public_key.clone(),
-        address: address.as_str().to_string(),
+        address: address.clone(),
     };
 
     let data = toml::to_string(&relay_file)?;
@@ -73,6 +72,9 @@ pub fn store_relay_to_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
+
     use tempfile::tempdir;
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};

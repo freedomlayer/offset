@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::Path;
@@ -56,7 +55,7 @@ pub fn load_friend_from_file(path: &Path) -> Result<FriendAddress, FriendFileErr
     for relay_file in friend_file.relays {
         relays.push(RelayAddress {
             public_key: relay_file.public_key,
-            address: relay_file.address.try_into()?,
+            address: relay_file.address,
         });
     }
 
@@ -86,7 +85,7 @@ pub fn store_friend_to_file(
 
         relay_files.push(RelayFile {
             public_key: public_key.clone(),
-            address: address.as_str().to_string(),
+            address: address.clone(),
         });
     }
 
@@ -106,6 +105,9 @@ pub fn store_friend_to_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryInto;
+
     use tempfile::tempdir;
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
