@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use derive_more::*;
 
 use app::invoice::InvoiceId;
-use app::ser_string::{from_base64, to_base64, SerStringError};
+use app::ser_string::{from_base64, from_string, to_base64, to_string, SerStringError};
 use app::{Commit, HashResult, HashedLock, MultiCommit, PlainLock, Signature};
 
 use toml;
@@ -44,7 +44,8 @@ impl From<ParseCommitFileError> for MultiCommitFileError {
 pub struct CommitFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub response_hash: HashResult,
-    pub dest_payment: String,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub src_plain_lock: PlainLock,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -57,7 +58,7 @@ impl std::convert::From<&Commit> for CommitFile {
     fn from(commit: &Commit) -> Self {
         CommitFile {
             response_hash: commit.response_hash.clone(),
-            dest_payment: commit.dest_payment.to_string(),
+            dest_payment: commit.dest_payment,
             src_plain_lock: commit.src_plain_lock.clone(),
             dest_hashed_lock: commit.dest_hashed_lock.clone(),
             signature: commit.signature.clone(),
@@ -71,10 +72,7 @@ impl std::convert::TryFrom<&CommitFile> for Commit {
     fn try_from(commit: &CommitFile) -> Result<Self, Self::Error> {
         Ok(Commit {
             response_hash: commit.response_hash.clone(),
-            dest_payment: commit
-                .dest_payment
-                .parse()
-                .map_err(|_| ParseCommitFileError)?,
+            dest_payment: commit.dest_payment,
             src_plain_lock: commit.src_plain_lock.clone(),
             dest_hashed_lock: commit.dest_hashed_lock.clone(),
             signature: commit.signature.clone(),
@@ -87,7 +85,8 @@ impl std::convert::TryFrom<&CommitFile> for Commit {
 pub struct MultiCommitFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
-    pub total_dest_payment: String,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
     pub commits: Vec<CommitFile>,
 }
 
@@ -96,11 +95,6 @@ pub fn load_multi_commit_from_file(path: &Path) -> Result<MultiCommit, MultiComm
     let data = fs::read_to_string(&path)?;
     let multi_commit_file: MultiCommitFile = toml::from_str(&data)?;
 
-    let total_dest_payment = multi_commit_file
-        .total_dest_payment
-        .parse()
-        .map_err(|_| MultiCommitFileError::ParseTotalDestPaymentError)?;
-
     let mut commits: Vec<Commit> = Vec::new();
     for commit_file in &multi_commit_file.commits {
         commits.push(Commit::try_from(commit_file)?);
@@ -108,7 +102,7 @@ pub fn load_multi_commit_from_file(path: &Path) -> Result<MultiCommit, MultiComm
 
     Ok(MultiCommit {
         invoice_id: multi_commit_file.invoice_id,
-        total_dest_payment,
+        total_dest_payment: multi_commit_file.total_dest_payment,
         commits,
     })
 }
@@ -126,7 +120,7 @@ pub fn store_multi_commit_to_file(
 
     let multi_commit_file = MultiCommitFile {
         invoice_id: invoice_id.clone(),
-        total_dest_payment: total_dest_payment.to_string(),
+        total_dest_payment: *total_dest_payment,
         commits: commits.iter().map(|commit| commit.into()).collect(),
     };
 
