@@ -5,7 +5,7 @@ use std::path::Path;
 use derive_more::*;
 
 use app::invoice::InvoiceId;
-use app::ser_string::{from_base64, to_base64, SerStringError};
+use app::ser_string::{from_base64, from_string, to_base64, to_string, SerStringError};
 use app::Receipt;
 use app::{HashResult, PlainLock, Signature};
 
@@ -33,10 +33,10 @@ pub struct ReceiptFile {
     pub src_plain_lock: PlainLock,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_plain_lock: PlainLock,
-    // TODO: How to have this field as a number?
-    pub dest_payment: String,
-    // TODO: How to have this field as a number?
-    pub total_dest_payment: String,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub signature: Signature,
 }
@@ -52,23 +52,13 @@ pub fn load_receipt_from_file(path: &Path) -> Result<Receipt, ReceiptFileError> 
     let data = fs::read_to_string(&path)?;
     let receipt_file: ReceiptFile = toml::from_str(&data)?;
 
-    let dest_payment = receipt_file
-        .dest_payment
-        .parse()
-        .map_err(|_| ReceiptFileError::ParseDestPaymentError)?;
-
-    let total_dest_payment = receipt_file
-        .total_dest_payment
-        .parse()
-        .map_err(|_| ReceiptFileError::ParseTotalDestPaymentError)?;
-
     Ok(Receipt {
         response_hash: receipt_file.response_hash,
         invoice_id: receipt_file.invoice_id,
         src_plain_lock: receipt_file.src_plain_lock,
         dest_plain_lock: receipt_file.dest_plain_lock,
-        dest_payment,
-        total_dest_payment,
+        dest_payment: receipt_file.dest_payment,
+        total_dest_payment: receipt_file.total_dest_payment,
         signature: receipt_file.signature,
     })
 }
@@ -90,8 +80,8 @@ pub fn store_receipt_to_file(receipt: &Receipt, path: &Path) -> Result<(), Recei
         invoice_id: invoice_id.clone(),
         src_plain_lock: src_plain_lock.clone(),
         dest_plain_lock: dest_plain_lock.clone(),
-        dest_payment: dest_payment.to_string(),
-        total_dest_payment: total_dest_payment.to_string(),
+        dest_payment: *dest_payment,
+        total_dest_payment: *total_dest_payment,
         signature: signature.clone(),
     };
 
