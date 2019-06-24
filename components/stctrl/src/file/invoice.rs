@@ -4,7 +4,7 @@ use std::path::Path;
 
 use derive_more::*;
 
-use app::ser_string::{from_base64, to_base64, SerStringError};
+use app::ser_string::{from_base64, from_string, to_base64, to_string, SerStringError};
 use app::PublicKey;
 
 use app::invoice::InvoiceId;
@@ -35,7 +35,8 @@ pub struct InvoiceFile {
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_public_key: PublicKey,
-    pub dest_payment: String,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
 }
 
 impl From<SerStringError> for InvoiceFileError {
@@ -49,15 +50,10 @@ pub fn load_invoice_from_file(path: &Path) -> Result<Invoice, InvoiceFileError> 
     let data = fs::read_to_string(&path)?;
     let invoice_file: InvoiceFile = toml::from_str(&data)?;
 
-    let dest_payment = invoice_file
-        .dest_payment
-        .parse()
-        .map_err(|_| InvoiceFileError::ParseDestPaymentError)?;
-
     Ok(Invoice {
         invoice_id: invoice_file.invoice_id,
         dest_public_key: invoice_file.dest_public_key,
-        dest_payment,
+        dest_payment: invoice_file.dest_payment,
     })
 }
 
@@ -72,7 +68,7 @@ pub fn store_invoice_to_file(invoice: &Invoice, path: &Path) -> Result<(), Invoi
     let invoice_file = InvoiceFile {
         invoice_id: invoice_id.clone(),
         dest_public_key: dest_public_key.clone(),
-        dest_payment: dest_payment.to_string(),
+        dest_payment: *dest_payment,
     };
 
     let data = toml::to_string(&invoice_file)?;
