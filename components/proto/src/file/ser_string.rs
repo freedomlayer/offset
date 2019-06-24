@@ -4,15 +4,7 @@ use std::string::ToString;
 
 use base64::{self, URL_SAFE_NO_PAD};
 
-use crypto::hash::{HashResult, HASH_RESULT_LEN};
-use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
-use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
-use crypto::rand::{RandValue, RAND_VALUE_LEN};
-
-// TODO: Possibly remove this module into offst-crypto
-// Will require the extra base64 dependency in offst-crypto.
+use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
 #[derive(Debug)]
 pub struct SerStringError;
@@ -92,80 +84,3 @@ str_convert_funcs!(
     PublicKey,
     PUBLIC_KEY_LEN
 );
-
-str_convert_funcs!(
-    signature_to_string,
-    string_to_signature,
-    Signature,
-    SIGNATURE_LEN
-);
-
-str_convert_funcs!(
-    hash_result_to_string,
-    string_to_hash_result,
-    HashResult,
-    HASH_RESULT_LEN
-);
-
-str_convert_funcs!(
-    invoice_id_to_string,
-    string_to_invoice_id,
-    InvoiceId,
-    INVOICE_ID_LEN
-);
-
-str_convert_funcs!(
-    payment_id_to_string,
-    string_to_payment_id,
-    PaymentId,
-    PAYMENT_ID_LEN
-);
-
-str_convert_funcs!(
-    rand_value_to_string,
-    string_to_rand_value,
-    RandValue,
-    RAND_VALUE_LEN
-);
-
-str_convert_funcs!(
-    plain_lock_to_string,
-    string_to_plain_lock,
-    PlainLock,
-    PLAIN_LOCK_LEN
-);
-
-str_convert_funcs!(
-    hashed_lock_to_string,
-    string_to_hashed_lock,
-    HashedLock,
-    HASHED_LOCK_LEN
-);
-
-// TODO: How to make the macro work nicely with the private key conversion code?
-
-// TODO: Find a better way to represent private key.
-// We currently use [u8; 85] directly because of ring limitations.
-
-/// Convert a private key into a string
-pub fn private_key_to_string(private_key: &[u8; 85]) -> String {
-    // We have to do this because [u8; 85] doesn't implement AsRef, due to compiler limitations
-    let private_key_slice = &private_key[0..85];
-    base64::encode_config(&private_key_slice, URL_SAFE_NO_PAD)
-}
-
-// TODO: Fix all 85 hacks here
-
-/// Convert a string into a private key
-pub fn string_to_private_key(private_key_str: &str) -> Result<[u8; 85], SerStringError> {
-    // Decode public key:
-    let private_key_vec =
-        base64::decode_config(private_key_str, URL_SAFE_NO_PAD).map_err(|_| SerStringError)?;
-    // TODO: A more idiomatic way to do this?
-    if private_key_vec.len() != 85 {
-        return Err(SerStringError);
-    }
-    let mut private_key_array = [0u8; 85];
-    private_key_array.copy_from_slice(&private_key_vec[0..85]);
-    Ok(private_key_array)
-}
