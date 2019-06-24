@@ -108,6 +108,7 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
     Ok(node_report)
 }
 
+/*
 /// Show local public key
 pub async fn info_public_key(
     mut app_report: AppReport,
@@ -119,6 +120,7 @@ pub async fn info_public_key(
     writeln!(writer, "{}", &public_key_string).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
+*/
 
 pub async fn info_relays(
     mut app_report: AppReport,
