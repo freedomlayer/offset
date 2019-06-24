@@ -5,7 +5,7 @@ use std::path::Path;
 use derive_more::*;
 
 use app::report::MoveTokenHashedReport;
-use app::ser_string::{from_base64, to_base64, SerStringError};
+use app::ser_string::{from_base64, from_string, to_base64, to_string, SerStringError};
 
 use app::{HashResult, PublicKey, RandValue, Signature};
 
@@ -34,11 +34,15 @@ pub struct TokenFile {
     pub local_public_key: PublicKey,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub remote_public_key: PublicKey,
-    pub inconsistency_counter: String, // u64,
-    pub move_token_counter: String,    // u128,
-    pub balance: String,               // i128,
-    pub local_pending_debt: String,    // u128,
-    pub remote_pending_debt: String,   // u128,
+    pub inconsistency_counter: u64,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub move_token_counter: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub balance: i128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub local_pending_debt: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub remote_pending_debt: u128,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub rand_nonce: RandValue,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -60,26 +64,11 @@ pub fn load_token_from_file(path: &Path) -> Result<MoveTokenHashedReport, TokenF
         prefix_hash: token_file.prefix_hash,
         local_public_key: token_file.local_public_key,
         remote_public_key: token_file.remote_public_key,
-        inconsistency_counter: token_file
-            .inconsistency_counter
-            .parse()
-            .map_err(|_| TokenFileError::ParseInconsistencyCounterError)?,
-        move_token_counter: token_file
-            .move_token_counter
-            .parse()
-            .map_err(|_| TokenFileError::ParseMoveTokenCounterError)?,
-        balance: token_file
-            .balance
-            .parse()
-            .map_err(|_| TokenFileError::ParseBalanceError)?,
-        local_pending_debt: token_file
-            .local_pending_debt
-            .parse()
-            .map_err(|_| TokenFileError::ParseLocalPendingDebtError)?,
-        remote_pending_debt: token_file
-            .remote_pending_debt
-            .parse()
-            .map_err(|_| TokenFileError::ParseRemotePendingDebtError)?,
+        inconsistency_counter: token_file.inconsistency_counter,
+        move_token_counter: token_file.move_token_counter,
+        balance: token_file.balance,
+        local_pending_debt: token_file.local_pending_debt,
+        remote_pending_debt: token_file.remote_pending_debt,
         rand_nonce: token_file.rand_nonce,
         new_token: token_file.new_token,
     })
@@ -107,11 +96,11 @@ pub fn store_token_to_file(
         prefix_hash: prefix_hash.clone(),
         local_public_key: local_public_key.clone(),
         remote_public_key: remote_public_key.clone(),
-        inconsistency_counter: inconsistency_counter.to_string(),
-        move_token_counter: move_token_counter.to_string(),
-        balance: balance.to_string(),
-        local_pending_debt: local_pending_debt.to_string(),
-        remote_pending_debt: remote_pending_debt.to_string(),
+        inconsistency_counter: *inconsistency_counter,
+        move_token_counter: *move_token_counter,
+        balance: *balance,
+        local_pending_debt: *local_pending_debt,
+        remote_pending_debt: *remote_pending_debt,
         rand_nonce: rand_nonce.clone(),
         new_token: new_token.clone(),
     };
