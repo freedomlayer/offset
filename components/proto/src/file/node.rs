@@ -30,6 +30,7 @@ struct NodeFile {
     address: NetAddress,
 }
 
+// TODO: Turn this construct to be a macro (procedural?)
 impl From<NodeFile> for NodeAddress {
     fn from(node_file: NodeFile) -> Self {
         NodeAddress {
