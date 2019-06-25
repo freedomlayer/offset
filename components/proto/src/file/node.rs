@@ -1,25 +1,26 @@
-use std::fs::{self, File};
-use std::io::{self, Write};
+// use std::fs::{self, File};
+// use std::io::{self, Write};
 use std::path::Path;
 
 use crypto::identity::PublicKey;
 
-use crate::file::ser_string::{from_base64, to_base64, SerStringError};
-use toml;
+use crate::file::ser_string::{from_base64, load_from_file, store_to_file, to_base64, FileError};
+// use toml;
 
-use crate::net::messages::{NetAddress, NetAddressError};
+use crate::net::messages::NetAddress;
 use crate::node::types::NodeAddress;
 
+/*
 #[derive(Debug, From)]
 pub enum NodeFileError {
     IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
-    SerStringError,
     ParseSocketAddrError,
     InvalidPublicKey,
     NetAddressError(NetAddressError),
 }
+*/
 
 /// A helper structure for serialize and deserializing NodeAddress.
 #[derive(Serialize, Deserialize)]
@@ -29,14 +30,28 @@ struct NodeFile {
     address: NetAddress,
 }
 
-impl From<SerStringError> for NodeFileError {
-    fn from(_e: SerStringError) -> Self {
-        NodeFileError::SerStringError
+impl From<NodeFile> for NodeAddress {
+    fn from(node_file: NodeFile) -> Self {
+        NodeAddress {
+            public_key: node_file.public_key,
+            address: node_file.address,
+        }
+    }
+}
+
+impl From<NodeAddress> for NodeFile {
+    fn from(node_address: NodeAddress) -> Self {
+        NodeFile {
+            public_key: node_address.public_key,
+            address: node_address.address,
+        }
     }
 }
 
 /// Load NodeAddress from a file
-pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
+pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, FileError> {
+    load_from_file::<NodeFile, _>(path)
+    /*
     let data = fs::read_to_string(&path)?;
     let node_file: NodeFile = toml::from_str(&data)?;
 
@@ -44,10 +59,14 @@ pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, NodeFileError> {
         public_key: node_file.public_key,
         address: node_file.address,
     })
+    */
 }
 
 /// Store NodeAddress to file
-pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(), NodeFileError> {
+pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(), FileError> {
+    store_to_file::<NodeFile, _>(node_address.clone(), path)
+
+    /*
     let NodeAddress {
         ref public_key,
         ref address,
@@ -64,6 +83,7 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(),
     file.write_all(&data.as_bytes())?;
 
     Ok(())
+    */
 }
 
 #[cfg(test)]
