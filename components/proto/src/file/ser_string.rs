@@ -2,6 +2,14 @@ use std::convert::TryFrom;
 use std::str::FromStr;
 use std::string::ToString;
 
+use std::path::Path;
+
+use std::fs::{self, File};
+use std::io::{self, Write};
+
+use serde::de::DeserializeOwned;
+use serde::ser::Serialize;
+
 use base64::{self, URL_SAFE_NO_PAD};
 
 use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
@@ -84,3 +92,34 @@ str_convert_funcs!(
     PublicKey,
     PUBLIC_KEY_LEN
 );
+
+#[derive(Debug, From)]
+pub enum FileError {
+    IoError(io::Error),
+    TomlDeError(toml::de::Error),
+    TomlSeError(toml::ser::Error),
+}
+
+// TODO: Possibly write as macros, to avoid declaring the extra T intermediate argument.
+
+pub fn load_from_file<T, V>(path: &Path) -> Result<V, FileError>
+where
+    V: From<T>,
+    T: DeserializeOwned,
+{
+    let data = fs::read_to_string(&path)?;
+    let t: T = toml::from_str(&data)?;
+    Ok(V::from(t))
+}
+
+pub fn store_to_file<T, V>(v: V, path: &Path) -> Result<(), FileError>
+where
+    T: From<V>,
+    T: Serialize,
+{
+    let t = T::from(v);
+    let data = toml::to_string(&t)?;
+    let mut file = File::create(path)?;
+    file.write_all(&data.as_bytes())?;
+    Ok(())
+}
