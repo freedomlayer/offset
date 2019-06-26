@@ -15,7 +15,7 @@ use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
 
 use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
 
-use app::route::{safe_multi_route_amounts, MultiRouteChoice, MultiRoute};
+use app::route::{safe_multi_route_amounts, MultiRoute, MultiRouteChoice};
 
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]
