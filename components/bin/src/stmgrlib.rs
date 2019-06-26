@@ -36,27 +36,27 @@ pub enum InitNodeDbError {
 pub struct InitNodeDbCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Database output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct GenIdentCmd {
     /// Identity file output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct AppTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Application ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Permission to request routes
     #[structopt(long = "proutes")]
     pub proutes: bool,
@@ -75,10 +75,10 @@ pub struct AppTicketCmd {
 pub struct RelayTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Relay ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the relay
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -88,10 +88,10 @@ pub struct RelayTicketCmd {
 pub struct IndexTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Index server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the index server
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -101,10 +101,10 @@ pub struct IndexTicketCmd {
 pub struct NodeTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Node server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the node server
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -135,24 +135,29 @@ pub enum StMgrCmd {
     NodeTicket(NodeTicketCmd),
 }
 
-fn init_node_db(InitNodeDbCmd { idfile, output }: InitNodeDbCmd) -> Result<(), InitNodeDbError> {
+fn init_node_db(
+    InitNodeDbCmd {
+        idfile_path,
+        output_path,
+    }: InitNodeDbCmd,
+) -> Result<(), InitNodeDbError> {
     // Make sure that output does not exist.
     // This program should never override any file!
     // (Otherwise users might erase their database by
     // accident).
-    if output.exists() {
+    if output_path.exists() {
         return Err(InitNodeDbError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
     let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| InitNodeDbError::LoadIdentityError)?;
     let local_public_key = identity.get_public_key();
 
     // Create a new database file:
     let initial_state = NodeState::<NetAddress>::new(local_public_key);
-    let _ = FileDb::create(output, initial_state).map_err(|_| InitNodeDbError::FileDbError)?;
+    let _ = FileDb::create(output_path, initial_state).map_err(|_| InitNodeDbError::FileDbError)?;
 
     Ok(())
 }
@@ -165,17 +170,19 @@ pub enum GenIdentityError {
 }
 
 /// Randomly generate an identity file (private-public key pair)
-fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityError> {
+fn gen_identity(GenIdentCmd { output_path }: GenIdentCmd) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
     let rng = system_random();
     let private_key = generate_private_key(&rng);
 
-    if output.exists() {
+    let identity_file = IdentityFile { private_key };
+
+    if output_path.exists() {
         return Err(GenIdentityError::OutputAlreadyExists);
     }
 
-    let mut file = File::create(output)?;
-    file.write_all(&serialize_to_string(&private_key)?.as_bytes())?;
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&identity_file)?.as_bytes())?;
 
     Ok(())
 }
@@ -197,8 +204,8 @@ pub enum AppTicketError {
 /// connect to a running node.
 fn app_ticket(
     AppTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         proutes,
         pbuyer,
         pseller,
@@ -207,14 +214,14 @@ fn app_ticket(
 ) -> Result<(), AppTicketError> {
     // Obtain app's public key:
     // - Parse identity file:
-    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
     let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| AppTicketError::LoadIdentityError)?;
 
     let public_key = identity.get_public_key();
 
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(AppTicketError::OutputAlreadyExists);
     }
 
@@ -232,7 +239,7 @@ fn app_ticket(
         permissions,
     };
 
-    let mut file = File::create(output)?;
+    let mut file = File::create(output_path)?;
     file.write_all(&serialize_to_string(&trusted_app_file)?.as_bytes())?;
     Ok(())
 }
@@ -250,18 +257,18 @@ pub enum RelayTicketError {
 /// The ticket can be fed into a running offst node
 fn relay_ticket(
     RelayTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: RelayTicketCmd,
 ) -> Result<(), RelayTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(RelayTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
     let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| RelayTicketError::LoadIdentityError)?;
 
@@ -272,7 +279,7 @@ fn relay_ticket(
         address: address.try_into()?,
     };
 
-    let mut file = File::create(output)?;
+    let mut file = File::create(output_path)?;
     file.write_all(&serialize_to_string(&relay_file)?.as_bytes())?;
     Ok(())
 }
@@ -291,18 +298,18 @@ pub enum IndexTicketError {
 /// The ticket can be fed into a running offst node
 fn index_ticket(
     IndexTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: IndexTicketCmd,
 ) -> Result<(), IndexTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(IndexTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
     let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| IndexTicketError::LoadIdentityError)?;
     let public_key = identity.get_public_key();
@@ -312,7 +319,7 @@ fn index_ticket(
         address: address.try_into()?,
     };
 
-    let mut file = File::create(output)?;
+    let mut file = File::create(output_path)?;
     file.write_all(&serialize_to_string(&index_server_file)?.as_bytes())?;
     Ok(())
 }
@@ -330,18 +337,18 @@ pub enum NodeTicketError {
 /// The ticket can be fed into a node application
 fn node_ticket(
     NodeTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: NodeTicketCmd,
 ) -> Result<(), NodeTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(NodeTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
     let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| NodeTicketError::LoadIdentityError)?;
     let public_key = identity.get_public_key();
@@ -351,7 +358,7 @@ fn node_ticket(
         address: address.try_into()?,
     };
 
-    let mut file = File::create(output)?;
+    let mut file = File::create(output_path)?;
     file.write_all(&serialize_to_string(&node_address_file)?.as_bytes())?;
     Ok(())
 }
