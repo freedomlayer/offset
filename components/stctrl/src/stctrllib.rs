@@ -14,8 +14,8 @@ use crate::info::{info, InfoCmd, InfoError};
 use crate::seller::{seller, SellerCmd, SellerError};
 
 use app::file::NodeAddressFile;
+use app::ser_string::{deserialize_from_string, StringSerdeError};
 use app::{connect, identity_from_file};
-use app::ser_string::{StringSerdeError, deserialize_from_string};
 
 #[derive(Debug, From)]
 pub enum StCtrlError {
@@ -86,7 +86,8 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         return Err(StCtrlError::NodeTicketFileDoesNotExist);
     }
 
-    let node_address_file: NodeAddressFile = deserialize_from_string(&fs::read_to_string(&node_ticket)?)?;
+    let node_address_file: NodeAddressFile =
+        deserialize_from_string(&fs::read_to_string(&node_ticket)?)?;
 
     // Spawn identity service:
     let app_identity_client = identity_from_file(&idfile, thread_pool.clone())

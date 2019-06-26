@@ -8,9 +8,9 @@ use futures::future::select_all;
 
 use structopt::StructOpt;
 
-use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
-use app::ser_string::{serialize_to_string, deserialize_from_string, StringSerdeError};
 use app::gen::{gen_payment_id, gen_uid};
+use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
+use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
 
 use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
 
@@ -122,8 +122,9 @@ async fn buyer_pay_invoice(
     )) // No exclusion of edges
     .map_err(|_| BuyerError::AppRoutesError)?;
 
-    let (route_index, multi_route_choice) = choose_multi_route(&multi_routes, invoice_file.dest_payment)
-        .ok_or(BuyerError::NoSuitableRoute)?;
+    let (route_index, multi_route_choice) =
+        choose_multi_route(&multi_routes, invoice_file.dest_payment)
+            .ok_or(BuyerError::NoSuitableRoute)?;
     let multi_route = &multi_routes[route_index];
 
     // Calculate total fees:

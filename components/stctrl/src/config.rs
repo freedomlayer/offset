@@ -8,8 +8,8 @@ use derive_more::From;
 use app::report::{ChannelStatusReport, NodeReport};
 use app::{AppConfig, AppConn, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress};
 
-use app::ser_string::{deserialize_from_string, StringSerdeError};
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
+use app::ser_string::{deserialize_from_string, StringSerdeError};
 
 use crate::utils::friend_public_key_by_name;
 
@@ -239,7 +239,8 @@ async fn config_add_relay(
         return Err(ConfigError::RelayFileNotFound);
     }
 
-    let relay_file: RelayAddressFile = deserialize_from_string(&fs::read_to_string(&add_relay_cmd.relay_path)?)?;
+    let relay_file: RelayAddressFile =
+        deserialize_from_string(&fs::read_to_string(&add_relay_cmd.relay_path)?)?;
 
     let named_relay_address = NamedRelayAddress {
         public_key: relay_file.public_key,
@@ -289,7 +290,8 @@ async fn config_add_index(
         return Err(ConfigError::IndexFileNotFound);
     }
 
-    let index_server_file: IndexServerFile = deserialize_from_string(&fs::read_to_string(&index_path)?)?;
+    let index_server_file: IndexServerFile =
+        deserialize_from_string(&fs::read_to_string(&index_path)?)?;
 
     let named_index_server_address = NamedIndexServerAddress {
         public_key: index_server_file.public_key,
@@ -345,7 +347,11 @@ async fn config_add_friend(
 
     await!(app_config.add_friend(
         friend_file.public_key,
-        friend_file.relays.into_iter().map(RelayAddress::from).collect(),
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
         friend_name.to_owned(),
         balance
     ))
@@ -379,8 +385,15 @@ async fn config_set_friend_relays(
         return Err(ConfigError::FriendPublicKeyMismatch);
     }
 
-    await!(app_config.set_friend_relays(friend_public_key, friend_file.relays.into_iter().map(RelayAddress::from).collect()))
-        .map_err(|_| ConfigError::AppConfigError)?;
+    await!(app_config.set_friend_relays(
+        friend_public_key,
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect()
+    ))
+    .map_err(|_| ConfigError::AppConfigError)?;
 
     Ok(())
 }

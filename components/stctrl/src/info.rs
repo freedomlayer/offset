@@ -1,5 +1,5 @@
-use std::io::{self, Write};
 use std::fs::File;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use prettytable::Table;
@@ -13,8 +13,8 @@ use app::report::{
 use app::ser_string::public_key_to_string;
 use app::{AppConn, AppReport, RelayAddress};
 
-use app::file::{FriendFile, FriendAddressFile, RelayAddressFile};
-use app::ser_string::{StringSerdeError, serialize_to_string};
+use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
+use app::ser_string::{serialize_to_string, StringSerdeError};
 
 use crate::file::TokenFile;
 
@@ -328,7 +328,9 @@ pub async fn info_friend_last_token(
         // If the remote side have never sent any message, we might not have a
         // "last incoming move token":
         None => return Err(InfoError::MissingLastIncomingMoveToken),
-    }.clone().into();
+    }
+    .clone()
+    .into();
 
     let mut file = File::create(token_path)?;
     file.write_all(&serialize_to_string(&token_file)?.as_bytes())?;

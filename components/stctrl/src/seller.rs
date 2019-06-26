@@ -1,12 +1,12 @@
-use std::io::Write;
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 
 use derive_more::From;
 
 use app::gen::gen_invoice_id;
-use app::{AppConn, AppSeller, PublicKey, MultiCommit};
-use app::ser_string::{StringSerdeError, deserialize_from_string, serialize_to_string};
+use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
+use app::{AppConn, AppSeller, MultiCommit, PublicKey};
 
 use crate::file::InvoiceFile;
 use crate::file::MultiCommitFile;
@@ -114,7 +114,6 @@ async fn seller_cancel_invoice(
 ) -> Result<(), SellerError> {
     let CancelInvoiceCmd { invoice_path } = cancel_invoice_cmd;
 
-
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
     await!(app_seller.cancel_invoice(invoice_file.invoice_id))
@@ -135,10 +134,11 @@ async fn seller_commit_invoice(
     // Note: We don't really need the invoice for the internal API.
     // We require it here to enforce the user to understand that the commit file corresponds to a
     // certain invoice file.
-    
+
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    let multi_commit_file: MultiCommitFile = deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
+    let multi_commit_file: MultiCommitFile =
+        deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
     let multi_commit = MultiCommit::from(multi_commit_file);
 
     if multi_commit.invoice_id != invoice_file.invoice_id {
