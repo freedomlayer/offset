@@ -1,16 +1,23 @@
-use std::io;
+use std::fs::File;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use prettytable::Table;
 use structopt::StructOpt;
 
+use derive_more::From;
+
 use app::report::{
     ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{store_friend_to_file, AppConn, AppReport, FriendAddress, RelayAddress};
+use app::{AppConn, AppReport, RelayAddress};
 
-use crate::file::token::store_token_to_file;
+use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
+use app::ser_string::{serialize_to_string, StringSerdeError};
+
+use crate::file::TokenFile;
+
 use crate::utils::friend_public_key_by_name;
 
 /*
@@ -39,7 +46,7 @@ pub struct FriendLastTokenCmd {
     pub friend_name: String,
     /// Path for output token file
     #[structopt(short = "t", long = "token")]
-    pub token_file: PathBuf,
+    pub token_path: PathBuf,
 }
 
 /// Display balance summary
@@ -51,7 +58,7 @@ pub struct BalanceCmd {}
 pub struct ExportTicketCmd {
     /// Path to output ticket file
     #[structopt(short = "t", long = "ticket")]
-    pub ticket_file: PathBuf,
+    pub ticket_path: PathBuf,
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -79,7 +86,7 @@ pub enum InfoCmd {
     ExportTicket(ExportTicketCmd),
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum InfoError {
     GetReportError,
     BalanceOverflow,
@@ -96,6 +103,8 @@ pub enum InfoError {
     InvalidReceipt,
     DestPaymentMismatch,
     InvoiceIdMismatch,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Get a most recently known node report:
@@ -108,6 +117,7 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
     Ok(node_report)
 }
 
+/*
 /// Show local public key
 pub async fn info_public_key(
     mut app_report: AppReport,
@@ -119,6 +129,7 @@ pub async fn info_public_key(
     writeln!(writer, "{}", &public_key_string).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
+*/
 
 pub async fn info_relays(
     mut app_report: AppReport,
@@ -291,10 +302,10 @@ pub async fn info_friend_last_token(
 ) -> Result<(), InfoError> {
     let FriendLastTokenCmd {
         friend_name,
-        token_file,
+        token_path,
     } = friend_last_token_cmd;
 
-    if token_file.exists() {
+    if token_path.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -312,15 +323,18 @@ pub async fn info_friend_last_token(
         .friends
         .get(&friend_public_key)
         .unwrap();
-    let last_incoming_move_token = match &friend_report.opt_last_incoming_move_token {
+    let token_file: TokenFile = match &friend_report.opt_last_incoming_move_token {
         Some(last_incoming_move_token) => last_incoming_move_token,
         // If the remote side have never sent any message, we might not have a
         // "last incoming move token":
         None => return Err(InfoError::MissingLastIncomingMoveToken),
-    };
+    }
+    .clone()
+    .into();
 
-    store_token_to_file(last_incoming_move_token, &token_file)
-        .map_err(|_| InfoError::StoreLastIncomingMoveTokenError)
+    let mut file = File::create(token_path)?;
+    file.write_all(&serialize_to_string(&token_file)?.as_bytes())?;
+    Ok(())
 }
 
 /// Get an approximate value for mutual balance with a friend.
@@ -357,9 +371,9 @@ pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
     mut app_report: AppReport,
 ) -> Result<(), InfoError> {
-    let ExportTicketCmd { ticket_file } = export_ticket_cmd;
+    let ExportTicketCmd { ticket_path } = export_ticket_cmd;
 
-    if ticket_file.exists() {
+    if ticket_path.exists() {
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
@@ -371,13 +385,13 @@ pub async fn info_export_ticket(
         .map(Into::into)
         .collect();
 
-    let node_address = FriendAddress {
+    let friend_address_file = FriendAddressFile {
         public_key: report.funder_report.local_public_key.clone(),
-        relays,
+        relays: relays.into_iter().map(RelayAddressFile::from).collect(),
     };
 
-    store_friend_to_file(&node_address, &ticket_file)
-        .map_err(|_| InfoError::StoreNodeToFileError)?;
+    let mut file = File::create(ticket_path)?;
+    file.write_all(&serialize_to_string(&friend_address_file)?.as_bytes())?;
 
     Ok(())
 }

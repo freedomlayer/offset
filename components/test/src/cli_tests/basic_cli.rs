@@ -176,7 +176,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     for j in 0..2 {
         // Node0: Add relay0:
         let add_relay_cmd = AddRelayCmd {
-            relay_file: stctrl_setup
+            relay_path: stctrl_setup
                 .temp_dir_path
                 .join(format!("relay{}", j))
                 .join(format!("relay{}.ticket", j)),
@@ -205,7 +205,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     for j in 0..2 {
         // Node0: Add index0:
         let add_index_cmd = AddIndexCmd {
-            index_file: stctrl_setup
+            index_path: stctrl_setup
                 .temp_dir_path
                 .join(format!("index{}", j))
                 .join(format!("index{}_client.ticket", j)),
@@ -234,7 +234,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     for j in 0..2 {
         // Node0: Add node1 as a friend:
         let export_ticket_cmd = ExportTicketCmd {
-            ticket_file: stctrl_setup
+            ticket_path: stctrl_setup
                 .temp_dir_path
                 .join(format!("app{}", j))
                 .join(format!("node{}.friend", j)),
@@ -264,7 +264,7 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
         let balance = if j == 0 { 20 } else { -20 };
         // Node0: Add node1 as a friend
         let add_friend_cmd = AddFriendCmd {
-            friend_file: stctrl_setup
+            friend_path: stctrl_setup
                 .temp_dir_path
                 .join(format!("app{}", 1 - j))
                 .join(format!("node{}.friend", 1 - j)),
@@ -476,7 +476,7 @@ fn create_cancel_invoice(stctrl_setup: &StCtrlSetup) {
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
         amount: 50,
-        invoice_file: stctrl_setup
+        invoice_path: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("temp_invoice.invoice"),
@@ -497,7 +497,7 @@ fn create_cancel_invoice(stctrl_setup: &StCtrlSetup) {
     // Node0: cancel the invoice:
     // ---------------------------
     let cancel_invoice_cmd = CancelInvoiceCmd {
-        invoice_file: stctrl_setup
+        invoice_path: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("temp_invoice.invoice"),
@@ -532,7 +532,7 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // ---------------------------
     let create_invoice_cmd = CreateInvoiceCmd {
         amount: 50,
-        invoice_file: stctrl_setup
+        invoice_path: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("test1.invoice"),
@@ -554,15 +554,15 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // -----------------------
     loop {
         let pay_invoice_cmd = PayInvoiceCmd {
-            invoice_file: stctrl_setup
+            invoice_path: stctrl_setup
                 .temp_dir_path
                 .join("node0")
                 .join("test1.invoice"),
-            payment_file: stctrl_setup
+            payment_path: stctrl_setup
                 .temp_dir_path
                 .join("node1")
                 .join("test1.payment"),
-            commit_file: stctrl_setup
+            commit_path: stctrl_setup
                 .temp_dir_path
                 .join("node1")
                 .join("test1.commit"),
@@ -593,11 +593,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
 
     // Node0: Commit the invoice:
     let commit_invoice_cmd = CommitInvoiceCmd {
-        invoice_file: stctrl_setup
+        invoice_path: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("test1.invoice"),
-        commit_file: stctrl_setup
+        commit_path: stctrl_setup
             .temp_dir_path
             .join("node1")
             .join("test1.commit"),
@@ -619,11 +619,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // Node1: Wait for a receipt:
     // -----------------------
     let payment_status_cmd = PaymentStatusCmd {
-        payment_file: stctrl_setup
+        payment_path: stctrl_setup
             .temp_dir_path
             .join("node1")
             .join("test1.payment"),
-        receipt_file: stctrl_setup
+        receipt_path: stctrl_setup
             .temp_dir_path
             .join("node1")
             .join("test1.receipt"),
@@ -661,11 +661,11 @@ fn pay_invoice(stctrl_setup: &StCtrlSetup) {
     // Verify the receipt:
     // ------------------
     let verify_receipt_cmd = VerifyReceiptCmd {
-        invoice: stctrl_setup
+        invoice_path: stctrl_setup
             .temp_dir_path
             .join("node0")
             .join("test1.invoice"),
-        receipt: stctrl_setup
+        receipt_path: stctrl_setup
             .temp_dir_path
             .join("node1")
             .join("test1.receipt"),
@@ -702,7 +702,7 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     // node1: Get node0's last token:
     let friend_last_token_cmd = FriendLastTokenCmd {
         friend_name: "node0".to_owned(),
-        token_file: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
+        token_path: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
     let info_cmd = InfoCmd::FriendLastToken(friend_last_token_cmd);
     let subcommand = StCtrlSubcommand::Info(info_cmd);
@@ -720,7 +720,7 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     // Verify the token:
     // ------------------
     let verify_token_cmd = VerifyTokenCmd {
-        token: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
+        token_path: stctrl_setup.temp_dir_path.join("node1").join("node0.token"),
     };
 
     let stverify_cmd = StVerifyCmd::VerifyToken(verify_token_cmd);

@@ -1,7 +1,10 @@
+use std::fs;
 use std::io;
 use std::path::PathBuf;
 
 use futures::executor::ThreadPool;
+
+use derive_more::From;
 
 use structopt::StructOpt;
 
@@ -10,9 +13,11 @@ use crate::config::{config, ConfigCmd, ConfigError};
 use crate::info::{info, InfoCmd, InfoError};
 use crate::seller::{seller, SellerCmd, SellerError};
 
-use app::{connect, identity_from_file, load_node_from_file};
+use app::file::NodeAddressFile;
+use app::ser_string::{deserialize_from_string, StringSerdeError};
+use app::{connect, identity_from_file};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum StCtrlError {
     CreateThreadPoolError,
     // MissingIdFileArgument,
@@ -26,30 +31,8 @@ pub enum StCtrlError {
     ConfigError(ConfigError),
     BuyerError(BuyerError),
     SellerError(SellerError),
-}
-
-impl From<InfoError> for StCtrlError {
-    fn from(e: InfoError) -> Self {
-        StCtrlError::InfoError(e)
-    }
-}
-
-impl From<ConfigError> for StCtrlError {
-    fn from(e: ConfigError) -> Self {
-        StCtrlError::ConfigError(e)
-    }
-}
-
-impl From<BuyerError> for StCtrlError {
-    fn from(e: BuyerError) -> Self {
-        StCtrlError::BuyerError(e)
-    }
-}
-
-impl From<SellerError> for StCtrlError {
-    fn from(e: SellerError) -> Self {
-        StCtrlError::SellerError(e)
-    }
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 #[derive(Clone, Debug, StructOpt)]
@@ -103,9 +86,8 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         return Err(StCtrlError::NodeTicketFileDoesNotExist);
     }
 
-    // Get node information from file:
-    let node_address =
-        load_node_from_file(&node_ticket).map_err(|_| StCtrlError::InvalidNodeTicketFile)?;
+    let node_address_file: NodeAddressFile =
+        deserialize_from_string(&fs::read_to_string(&node_ticket)?)?;
 
     // Spawn identity service:
     let app_identity_client = identity_from_file(&idfile, thread_pool.clone())
@@ -115,8 +97,8 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
     thread_pool.run(async move {
         // Connect to node:
         let node_connection = await!(connect(
-            node_address.public_key,
-            node_address.address,
+            node_address_file.public_key,
+            node_address_file.address,
             app_identity_client,
             c_thread_pool.clone()
         ))

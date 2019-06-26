@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -12,9 +13,12 @@ use structopt::StructOpt;
 use common::conn::Listener;
 use common::int_convert::usize_to_u64;
 
+use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::system_random;
 
 use identity::{create_identity, IdentityClient};
+
+use derive_more::From;
 
 use index_server::{net_index_server, NetIndexServerError};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
@@ -22,8 +26,10 @@ use timer::create_timer;
 
 use net::{NetConnector, TcpListener};
 
-use proto::file::identity::load_identity_from_file;
-use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
+// use proto::file::identity::load_identity_from_file;
+// use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
+use proto::file::{IdentityFile, IndexServerFile};
+use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
 // TODO: Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
@@ -53,14 +59,31 @@ pub struct StIndexCmd {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum IndexServerBinError {
     CreateThreadPoolError,
     CreateTimerError,
     NetIndexServerError(NetIndexServerError),
     LoadIdentityError,
     CreateIdentityError,
-    LoadTrustedServersError(IndexServerDirectoryError),
+    // LoadTrustedServersError(IndexServerDirectoryError),
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
+}
+
+/// Load a directory of index server address files, and return a map representing
+/// the information from all files
+pub fn load_trusted_servers(dir_path: &Path) -> Result<Vec<IndexServerFile>, IndexServerBinError> {
+    let mut res_trusted = Vec::new();
+    for entry in fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        res_trusted.push(deserialize_from_string(&fs::read_to_string(&path)?)?);
+    }
+    Ok(res_trusted)
 }
 
 pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
@@ -71,18 +94,13 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         trusted,
     } = st_index_cmd;
 
-    let identity = load_identity_from_file(Path::new(&idfile))
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| IndexServerBinError::LoadIdentityError)?;
 
-    let trusted_servers = load_trusted_servers(Path::new(&trusted))
-        .map_err(IndexServerBinError::LoadTrustedServersError)?
+    let trusted_servers = load_trusted_servers(Path::new(&trusted))?
         .into_iter()
-        .map(|index_server_address| {
-            (
-                index_server_address.public_key,
-                index_server_address.address,
-            )
-        })
+        .map(|index_server_file| (index_server_file.public_key, index_server_file.address))
         .collect::<HashMap<_, _>>();
 
     // Create a ThreadPool:

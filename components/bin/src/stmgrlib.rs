@@ -1,57 +1,62 @@
 use std::convert::TryInto;
-use std::path::{Path, PathBuf};
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::PathBuf;
+
+use derive_more::From;
 
 use structopt::StructOpt;
 
-use crypto::identity::{generate_pkcs8_key_pair, Identity};
+use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
 use crypto::rand::system_random;
 
-use proto::app_server::messages::{AppPermissions, RelayAddress};
-use proto::index_server::messages::IndexServerAddress;
+use proto::app_server::messages::AppPermissions;
+// use proto::index_server::messages::IndexServerAddress;
 use proto::net::messages::{NetAddress, NetAddressError};
-use proto::node::types::NodeAddress;
+// use proto::node::types::NodeAddress;
 
 use database::file_db::FileDb;
 use node::NodeState;
 
-use proto::file::app::{store_trusted_app_to_file, TrustedApp};
-use proto::file::identity::{load_identity_from_file, store_raw_identity_to_file};
-use proto::file::index_server::store_index_server_to_file;
-use proto::file::node::store_node_to_file;
-use proto::file::relay::store_relay_to_file;
+use proto::file::{
+    IdentityFile, IndexServerFile, NodeAddressFile, RelayAddressFile, TrustedAppFile,
+};
+use proto::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum InitNodeDbError {
     OutputAlreadyExists,
     LoadIdentityError,
     FileDbError,
+    StringSerdeError(StringSerdeError),
+    IoError(std::io::Error),
 }
 
 #[derive(Debug, StructOpt)]
 pub struct InitNodeDbCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Database output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct GenIdentCmd {
     /// Identity file output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct AppTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Application ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Permission to request routes
     #[structopt(long = "proutes")]
     pub proutes: bool,
@@ -70,10 +75,10 @@ pub struct AppTicketCmd {
 pub struct RelayTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Relay ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the relay
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -83,10 +88,10 @@ pub struct RelayTicketCmd {
 pub struct IndexTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Index server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the index server
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -96,10 +101,10 @@ pub struct IndexTicketCmd {
 pub struct NodeTicketCmd {
     /// StCtrl app identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
-    pub idfile: PathBuf,
+    pub idfile_path: PathBuf,
     /// Node server ticket output file path
     #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output: PathBuf,
+    pub output_path: PathBuf,
     /// Public address of the node server
     #[structopt(short = "a", long = "address")]
     pub address: String,
@@ -130,51 +135,64 @@ pub enum StMgrCmd {
     NodeTicket(NodeTicketCmd),
 }
 
-fn init_node_db(InitNodeDbCmd { idfile, output }: InitNodeDbCmd) -> Result<(), InitNodeDbError> {
+fn init_node_db(
+    InitNodeDbCmd {
+        idfile_path,
+        output_path,
+    }: InitNodeDbCmd,
+) -> Result<(), InitNodeDbError> {
     // Make sure that output does not exist.
     // This program should never override any file!
     // (Otherwise users might erase their database by
     // accident).
-    if output.exists() {
+    if output_path.exists() {
         return Err(InitNodeDbError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity =
-        load_identity_from_file(&idfile).map_err(|_| InitNodeDbError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| InitNodeDbError::LoadIdentityError)?;
     let local_public_key = identity.get_public_key();
 
     // Create a new database file:
     let initial_state = NodeState::<NetAddress>::new(local_public_key);
-    let _ = FileDb::create(output, initial_state).map_err(|_| InitNodeDbError::FileDbError)?;
+    let _ = FileDb::create(output_path, initial_state).map_err(|_| InitNodeDbError::FileDbError)?;
 
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum GenIdentityError {
     OutputAlreadyExists,
-    StoreToFileError,
+    StringSerdeError(StringSerdeError),
+    IoError(std::io::Error),
 }
 
 /// Randomly generate an identity file (private-public key pair)
-fn gen_identity(GenIdentCmd { output }: GenIdentCmd) -> Result<(), GenIdentityError> {
+fn gen_identity(GenIdentCmd { output_path }: GenIdentCmd) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
     let rng = system_random();
-    let pkcs8 = generate_pkcs8_key_pair(&rng);
+    let private_key = generate_private_key(&rng);
 
-    if output.exists() {
+    let identity_file = IdentityFile { private_key };
+
+    if output_path.exists() {
         return Err(GenIdentityError::OutputAlreadyExists);
     }
 
-    store_raw_identity_to_file(&pkcs8, &output).map_err(|_| GenIdentityError::StoreToFileError)
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&identity_file)?.as_bytes())?;
+
+    Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum AppTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    StoreAppFileError,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Create an app ticket.
@@ -186,8 +204,8 @@ pub enum AppTicketError {
 /// connect to a running node.
 fn app_ticket(
     AppTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         proutes,
         pbuyer,
         pseller,
@@ -195,12 +213,15 @@ fn app_ticket(
     }: AppTicketCmd,
 ) -> Result<(), AppTicketError> {
     // Obtain app's public key:
-    let identity = load_identity_from_file(Path::new(&idfile))
+    // - Parse identity file:
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
         .map_err(|_| AppTicketError::LoadIdentityError)?;
+
     let public_key = identity.get_public_key();
 
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(AppTicketError::OutputAlreadyExists);
     }
 
@@ -213,139 +234,137 @@ fn app_ticket(
     };
 
     // Store app ticket to file:
-    let trusted_app = TrustedApp {
+    let trusted_app_file = TrustedAppFile {
         public_key,
         permissions,
     };
-    store_trusted_app_to_file(&trusted_app, &output).map_err(|_| AppTicketError::StoreAppFileError)
+
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&trusted_app_file)?.as_bytes())?;
+    Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum RelayTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    StoreRelayFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for RelayTicketError {
-    fn from(e: NetAddressError) -> Self {
-        RelayTicketError::NetAddressError(e)
-    }
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Create a public relay ticket
 /// The ticket can be fed into a running offst node
 fn relay_ticket(
     RelayTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: RelayTicketCmd,
 ) -> Result<(), RelayTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(RelayTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity =
-        load_identity_from_file(&idfile).map_err(|_| RelayTicketError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| RelayTicketError::LoadIdentityError)?;
+
     let public_key = identity.get_public_key();
 
-    let relay_address = RelayAddress {
+    let relay_file = RelayAddressFile {
         public_key,
         address: address.try_into()?,
     };
 
-    store_relay_to_file(&relay_address, &output).map_err(|_| RelayTicketError::StoreRelayFileError)
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&relay_file)?.as_bytes())?;
+    Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum IndexTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
     StoreIndexFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for IndexTicketError {
-    fn from(e: NetAddressError) -> Self {
-        IndexTicketError::NetAddressError(e)
-    }
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Create a public index ticket
 /// The ticket can be fed into a running offst node
 fn index_ticket(
     IndexTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: IndexTicketCmd,
 ) -> Result<(), IndexTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(IndexTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity =
-        load_identity_from_file(&idfile).map_err(|_| IndexTicketError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| IndexTicketError::LoadIdentityError)?;
     let public_key = identity.get_public_key();
 
-    let index_address = IndexServerAddress {
+    let index_server_file = IndexServerFile {
         public_key,
         address: address.try_into()?,
     };
 
-    store_index_server_to_file(&index_address, &output)
-        .map_err(|_| IndexTicketError::StoreIndexFileError)
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&index_server_file)?.as_bytes())?;
+    Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum NodeTicketError {
     OutputAlreadyExists,
     LoadIdentityError,
-    StoreNodeFileError,
     NetAddressError(NetAddressError),
-}
-
-impl From<NetAddressError> for NodeTicketError {
-    fn from(e: NetAddressError) -> Self {
-        NodeTicketError::NetAddressError(e)
-    }
+    StringSerdeError(StringSerdeError),
+    IoError(std::io::Error),
 }
 
 /// Create a node ticket
 /// The ticket can be fed into a node application
 fn node_ticket(
     NodeTicketCmd {
-        idfile,
-        output,
+        idfile_path,
+        output_path,
         address,
     }: NodeTicketCmd,
 ) -> Result<(), NodeTicketError> {
     // Make sure that output does not exist.
-    if output.exists() {
+    if output_path.exists() {
         return Err(NodeTicketError::OutputAlreadyExists);
     }
 
     // Parse identity file:
-    let identity =
-        load_identity_from_file(&idfile).map_err(|_| NodeTicketError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile_path)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| NodeTicketError::LoadIdentityError)?;
     let public_key = identity.get_public_key();
 
-    let node_address = NodeAddress {
+    let node_address_file = NodeAddressFile {
         public_key,
         address: address.try_into()?,
     };
 
-    store_node_to_file(&node_address, &output).map_err(|_| NodeTicketError::StoreNodeFileError)
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&node_address_file)?.as_bytes())?;
+    Ok(())
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum StmError {
     InitNodeDbError(InitNodeDbError),
     GenIdentityError(GenIdentityError),
@@ -353,42 +372,6 @@ pub enum StmError {
     RelayTicketError(RelayTicketError),
     IndexTicketError(IndexTicketError),
     NodeTicketError(NodeTicketError),
-}
-
-impl From<InitNodeDbError> for StmError {
-    fn from(e: InitNodeDbError) -> Self {
-        StmError::InitNodeDbError(e)
-    }
-}
-
-impl From<GenIdentityError> for StmError {
-    fn from(e: GenIdentityError) -> Self {
-        StmError::GenIdentityError(e)
-    }
-}
-
-impl From<AppTicketError> for StmError {
-    fn from(e: AppTicketError) -> Self {
-        StmError::AppTicketError(e)
-    }
-}
-
-impl From<RelayTicketError> for StmError {
-    fn from(e: RelayTicketError) -> Self {
-        StmError::RelayTicketError(e)
-    }
-}
-
-impl From<IndexTicketError> for StmError {
-    fn from(e: IndexTicketError) -> Self {
-        StmError::IndexTicketError(e)
-    }
-}
-
-impl From<NodeTicketError> for StmError {
-    fn from(e: NodeTicketError) -> Self {
-        StmError::NodeTicketError(e)
-    }
 }
 
 pub fn stmgr(st_mgr_cmd: StMgrCmd) -> Result<(), StmError> {

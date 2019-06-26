@@ -1,16 +1,20 @@
-use std::io;
+use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
+
+use derive_more::From;
 
 use structopt::StructOpt;
 
-use crate::file::invoice::load_invoice_from_file;
-use crate::file::receipt::load_receipt_from_file;
-use crate::file::token::load_token_from_file;
+use crate::file::{InvoiceFile, ReceiptFile, TokenFile};
 
+use app::report::MoveTokenHashedReport;
 use app::ser_string::public_key_to_string;
-use app::{verify_move_token_hashed_report, verify_receipt};
+use app::{verify_move_token_hashed_report, verify_receipt, Receipt};
 
-#[derive(Debug)]
+use app::ser_string::{deserialize_from_string, StringSerdeError};
+
+#[derive(Debug, From)]
 pub enum StVerifyError {
     LoadTokenError,
     WriteError,
@@ -20,6 +24,8 @@ pub enum StVerifyError {
     InvoiceIdMismatch,
     DestPaymentMismatch,
     InvalidReceipt,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Verify a token received from a friend.
@@ -28,7 +34,7 @@ pub enum StVerifyError {
 pub struct VerifyTokenCmd {
     /// Path of token file
     #[structopt(parse(from_os_str), short = "t", long = "token")]
-    pub token: PathBuf,
+    pub token_path: PathBuf,
 }
 
 /// Verify receipt file
@@ -36,10 +42,10 @@ pub struct VerifyTokenCmd {
 pub struct VerifyReceiptCmd {
     /// Path of invoice file (Locally generated)
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice: PathBuf,
+    pub invoice_path: PathBuf,
     /// Path of receipt file (Received from buyer)
     #[structopt(parse(from_os_str), short = "r", long = "receipt")]
-    pub receipt: PathBuf,
+    pub receipt_path: PathBuf,
 }
 
 /// stctrl: offST ConTRoL
@@ -62,8 +68,10 @@ fn stverify_verify_token(
     verify_token_cmd: VerifyTokenCmd,
     writer: &mut impl io::Write,
 ) -> Result<(), StVerifyError> {
-    let move_token_hashed_report =
-        load_token_from_file(&verify_token_cmd.token).map_err(|_| StVerifyError::LoadTokenError)?;
+    let token_file: TokenFile =
+        deserialize_from_string(&fs::read_to_string(&verify_token_cmd.token_path)?)?;
+
+    let move_token_hashed_report = MoveTokenHashedReport::from(token_file);
 
     if verify_move_token_hashed_report(
         &move_token_hashed_report,
@@ -121,23 +129,24 @@ fn stverify_verify_receipt(
     verify_receipt_cmd: VerifyReceiptCmd,
     writer: &mut impl io::Write,
 ) -> Result<(), StVerifyError> {
-    let invoice = load_invoice_from_file(&verify_receipt_cmd.invoice)
-        .map_err(|_| StVerifyError::LoadInvoiceError)?;
+    let invoice_file: InvoiceFile =
+        deserialize_from_string(&fs::read_to_string(&verify_receipt_cmd.invoice_path)?)?;
 
-    let receipt = load_receipt_from_file(&verify_receipt_cmd.receipt)
-        .map_err(|_| StVerifyError::LoadReceiptError)?;
+    let receipt_file: ReceiptFile =
+        deserialize_from_string(&fs::read_to_string(&verify_receipt_cmd.receipt_path)?)?;
+    let receipt = Receipt::from(receipt_file);
 
     // Make sure that the invoice and receipt files match:
     // Verify invoice_id match:
-    if invoice.invoice_id != receipt.invoice_id {
+    if invoice_file.invoice_id != receipt.invoice_id {
         return Err(StVerifyError::InvoiceIdMismatch);
     }
     // Verify dest_payment match:
-    if invoice.dest_payment != receipt.total_dest_payment {
+    if invoice_file.dest_payment != receipt.total_dest_payment {
         return Err(StVerifyError::DestPaymentMismatch);
     }
 
-    if verify_receipt(&receipt, &invoice.dest_public_key) {
+    if verify_receipt(&receipt, &invoice_file.dest_public_key) {
         writeln!(writer, "Receipt is valid!").map_err(|_| StVerifyError::WriteError)?;
         Ok(())
     } else {

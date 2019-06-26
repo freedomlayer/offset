@@ -1,12 +1,15 @@
+use std::fs;
 use std::path::PathBuf;
 
 use structopt::StructOpt;
 
+use derive_more::From;
+
 use app::report::{ChannelStatusReport, NodeReport};
-use app::{
-    load_friend_from_file, load_index_server_from_file, load_relay_from_file, AppConfig, AppConn,
-    NamedIndexServerAddress, NamedRelayAddress, Rate,
-};
+use app::{AppConfig, AppConn, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress};
+
+use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
+use app::ser_string::{deserialize_from_string, StringSerdeError};
 
 use crate::utils::friend_public_key_by_name;
 
@@ -15,7 +18,7 @@ use crate::utils::friend_public_key_by_name;
 pub struct AddRelayCmd {
     /// Path of relay file
     #[structopt(parse(from_os_str), long = "relay", short = "r")]
-    pub relay_file: PathBuf,
+    pub relay_path: PathBuf,
     /// Assigned relay name (You can pick any name)
     #[structopt(long = "name", short = "n")]
     pub relay_name: String,
@@ -34,7 +37,7 @@ pub struct RemoveRelayCmd {
 pub struct AddIndexCmd {
     /// Path of index file
     #[structopt(parse(from_os_str), long = "index", short = "i")]
-    pub index_file: PathBuf,
+    pub index_path: PathBuf,
     /// Assigned index name (You can pick any name)
     #[structopt(long = "name", short = "n")]
     pub index_name: String,
@@ -53,7 +56,7 @@ pub struct RemoveIndexCmd {
 pub struct AddFriendCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), long = "friend", short = "f")]
-    pub friend_file: PathBuf,
+    pub friend_path: PathBuf,
     /// Assigned friend name (You can pick any name)
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
@@ -67,7 +70,7 @@ pub struct AddFriendCmd {
 pub struct SetFriendRelaysCmd {
     /// Path of friend file
     #[structopt(parse(from_os_str), long = "friend", short = "f")]
-    pub friend_file: PathBuf,
+    pub friend_path: PathBuf,
     /// Friend name (Must be an existing friend)
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
@@ -195,7 +198,7 @@ pub enum ConfigCmd {
     ResetFriend(ResetFriendCmd),
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum ConfigError {
     /// No permissions to configure node
     NoPermissions,
@@ -217,6 +220,8 @@ pub enum ConfigError {
     ParseMaxDebtError,
     ChannelNotInconsistent,
     UnknownRemoteResetTerms,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 async fn config_add_relay(
@@ -230,19 +235,21 @@ async fn config_add_relay(
         }
     }
 
-    if !add_relay_cmd.relay_file.exists() {
+    if !add_relay_cmd.relay_path.exists() {
         return Err(ConfigError::RelayFileNotFound);
     }
 
-    let relay_address = load_relay_from_file(&add_relay_cmd.relay_file)
-        .map_err(|_| ConfigError::LoadRelayFromFileError)?;
+    let relay_file: RelayAddressFile =
+        deserialize_from_string(&fs::read_to_string(&add_relay_cmd.relay_path)?)?;
 
     let named_relay_address = NamedRelayAddress {
-        public_key: relay_address.public_key,
-        address: relay_address.address,
+        public_key: relay_file.public_key,
+        address: relay_file.address,
         name: add_relay_cmd.relay_name.to_owned(),
     };
 
+    // TODO: Possibly do not take a struct here?
+    // Take 3 arguments instead.
     await!(app_config.add_relay(named_relay_address)).map_err(|_| ConfigError::AppConfigError)
 }
 
@@ -269,7 +276,7 @@ async fn config_add_index(
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
     let AddIndexCmd {
-        index_file,
+        index_path,
         index_name,
     } = add_index_cmd;
 
@@ -279,19 +286,20 @@ async fn config_add_index(
         }
     }
 
-    if !index_file.exists() {
+    if !index_path.exists() {
         return Err(ConfigError::IndexFileNotFound);
     }
 
-    let index_server_address = load_index_server_from_file(&index_file)
-        .map_err(|_| ConfigError::LoadIndexFromFileError)?;
+    let index_server_file: IndexServerFile =
+        deserialize_from_string(&fs::read_to_string(&index_path)?)?;
 
     let named_index_server_address = NamedIndexServerAddress {
-        public_key: index_server_address.public_key,
-        address: index_server_address.address,
+        public_key: index_server_file.public_key,
+        address: index_server_file.address,
         name: index_name.to_owned(),
     };
 
+    // TODO: Possibly take three arguments instead of a struct?
     await!(app_config.add_index_server(named_index_server_address))
         .map_err(|_| ConfigError::AppConfigError)
 }
@@ -320,7 +328,7 @@ async fn config_add_friend(
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
     let AddFriendCmd {
-        friend_file,
+        friend_path,
         friend_name,
         balance,
     } = add_friend_cmd;
@@ -331,16 +339,19 @@ async fn config_add_friend(
         }
     }
 
-    if !friend_file.exists() {
+    if !friend_path.exists() {
         return Err(ConfigError::FriendFileNotFound);
     }
 
-    let friend_address =
-        load_friend_from_file(&friend_file).map_err(|_| ConfigError::LoadFriendFromFileError)?;
+    let friend_file: FriendFile = deserialize_from_string(&fs::read_to_string(&friend_path)?)?;
 
     await!(app_config.add_friend(
-        friend_address.public_key,
-        friend_address.relays,
+        friend_file.public_key,
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
         friend_name.to_owned(),
         balance
     ))
@@ -354,7 +365,7 @@ async fn config_set_friend_relays(
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
     let SetFriendRelaysCmd {
-        friend_file,
+        friend_path,
         friend_name,
     } = set_friend_relays_cmd;
 
@@ -362,21 +373,27 @@ async fn config_set_friend_relays(
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    if !friend_file.exists() {
+    if !friend_path.exists() {
         return Err(ConfigError::FriendFileNotFound);
     }
 
-    let friend_address =
-        load_friend_from_file(&friend_file).map_err(|_| ConfigError::LoadFriendFromFileError)?;
+    let friend_file: FriendFile = deserialize_from_string(&fs::read_to_string(&friend_path)?)?;
 
     // Just in case, make sure that the the friend we know with this name
     // has the same public key as inside the provided file.
-    if friend_address.public_key != friend_public_key {
+    if friend_file.public_key != friend_public_key {
         return Err(ConfigError::FriendPublicKeyMismatch);
     }
 
-    await!(app_config.set_friend_relays(friend_public_key, friend_address.relays))
-        .map_err(|_| ConfigError::AppConfigError)?;
+    await!(app_config.set_friend_relays(
+        friend_public_key,
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect()
+    ))
+    .map_err(|_| ConfigError::AppConfigError)?;
 
     Ok(())
 }

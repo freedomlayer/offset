@@ -1,3 +1,4 @@
+/*
 use crate::net::messages::NetAddress;
 use crypto::identity::PublicKey;
 
@@ -7,3 +8,4 @@ pub struct NodeAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
 }
+*/

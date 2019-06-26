@@ -1,6 +1,9 @@
+use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
+
+use derive_more::From;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
@@ -9,6 +12,7 @@ use structopt::StructOpt;
 
 use common::conn::Listener;
 
+use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::system_random;
 use identity::{create_identity, IdentityClient};
 
@@ -20,7 +24,8 @@ use net::TcpListener;
 use relay::{net_relay_server, NetRelayServerError};
 use timer::create_timer;
 
-use proto::file::identity::load_identity_from_file;
+use proto::file::IdentityFile;
+use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
 // TODO: Maybe take as a command line argument in the future?
 /// Maximum amount of concurrent encrypted channel set-ups.
@@ -28,13 +33,15 @@ use proto::file::identity::load_identity_from_file;
 pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum RelayServerBinError {
     CreateThreadPoolError,
     LoadIdentityError,
     CreateIdentityError,
     CreateTimerError,
     NetRelayServerError(NetRelayServerError),
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// strelay: Offst Relay Server
@@ -54,8 +61,9 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
     let StRelayCmd { idfile, laddr } = st_relay_cmd;
 
     // Parse identity file:
-    let identity =
-        load_identity_from_file(&idfile).map_err(|_| RelayServerBinError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
     let mut thread_pool =

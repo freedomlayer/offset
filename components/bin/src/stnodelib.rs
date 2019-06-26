@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
+use std::fs;
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
+
+use derive_more::From;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
@@ -12,6 +15,7 @@ use structopt::StructOpt;
 use common::conn::Listener;
 use common::int_convert::usize_to_u64;
 
+use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::system_random;
 
 use identity::{create_identity, IdentityClient};
@@ -27,9 +31,9 @@ use proto::consts::{
     TICK_MS,
 };
 use proto::net::messages::NetAddress;
+use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
-use proto::file::app::load_trusted_apps;
-use proto::file::identity::load_identity_from_file;
+use proto::file::{IdentityFile, TrustedAppFile};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -50,7 +54,7 @@ const CONN_TIMEOUT_TICKS: usize = 0x8;
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum NodeBinError {
     LoadIdentityError,
     CreateThreadPoolError,
@@ -58,6 +62,9 @@ pub enum NodeBinError {
     LoadDbError,
     SpawnError,
     NetNodeError(NetNodeError),
+    // SerializeError(SerializeError),
+    StringSerdeError(StringSerdeError),
+    IoError(std::io::Error),
 }
 
 /// stnode: Offst Node
@@ -82,6 +89,20 @@ pub struct StNodeCmd {
     pub trusted: PathBuf,
 }
 
+/// Load all trusted applications files from a given directory.
+pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedAppFile>, NodeBinError> {
+    let mut res_trusted = Vec::new();
+    for entry in fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        res_trusted.push(deserialize_from_string(&fs::read_to_string(&path)?)?);
+    }
+    Ok(res_trusted)
+}
+
 pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     let StNodeCmd {
         idfile,
@@ -91,7 +112,9 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     } = st_node_cmd;
 
     // Parse identity file:
-    let identity = load_identity_from_file(&idfile).map_err(|_| NodeBinError::LoadIdentityError)?;
+    let identity_file: IdentityFile = deserialize_from_string(&fs::read_to_string(&idfile)?)?;
+    let identity = SoftwareEd25519Identity::from_private_key(&identity_file.private_key)
+        .map_err(|_| NodeBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
     let mut thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
@@ -164,7 +187,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
             load_trusted_apps(&trusted)
                 .ok()?
                 .into_iter()
-                .map(|trusted_app| (trusted_app.public_key, trusted_app.permissions))
+                .map(|trusted_app_file| (trusted_app_file.public_key, trusted_app_file.permissions))
                 .collect::<HashMap<_, _>>(),
         )
     };

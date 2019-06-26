@@ -1,5 +1,7 @@
 use std::collections::HashSet;
 
+// TODO: Possibly move to another place? Maybe proto?
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccessControlOp<T> {
     Add(T),
