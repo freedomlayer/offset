@@ -19,11 +19,8 @@ mod connect;
 pub mod gen;
 mod identity;
 
-pub use proto::file::friend::{load_friend_from_file, store_friend_to_file, FriendAddress};
-pub use proto::file::index_server::load_index_server_from_file;
-pub use proto::file::node::load_node_from_file;
-pub use proto::file::relay::load_relay_from_file;
-pub use proto::file::ser_string;
+pub use proto::file;
+pub use proto::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::funder::messages::{Commit, MultiCommit, PaymentStatus, Rate, Receipt};
