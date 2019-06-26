@@ -16,15 +16,15 @@ pub struct TrustedAppFile {
     pub permissions: AppPermissions,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FriendAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
-    pub relays: Vec<RelayAddress>,
+    pub relays: Vec<RelayAddressFile>,
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RelayAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,

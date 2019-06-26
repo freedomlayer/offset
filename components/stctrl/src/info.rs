@@ -13,7 +13,7 @@ use app::report::{
 use app::ser_string::public_key_to_string;
 use app::{AppConn, AppReport, RelayAddress};
 
-use app::file::{FriendFile, FriendAddressFile};
+use app::file::{FriendFile, FriendAddressFile, RelayAddressFile};
 use app::ser_string::{StringSerdeError, serialize_to_string};
 
 use crate::file::TokenFile;
@@ -385,7 +385,7 @@ pub async fn info_export_ticket(
 
     let friend_address_file = FriendAddressFile {
         public_key: report.funder_report.local_public_key.clone(),
-        relays,
+        relays: relays.into_iter().map(RelayAddressFile::from).collect(),
     };
 
     let mut file = File::create(ticket_path)?;
