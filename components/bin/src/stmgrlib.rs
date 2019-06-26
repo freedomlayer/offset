@@ -18,7 +18,9 @@ use proto::net::messages::{NetAddress, NetAddressError};
 use database::file_db::FileDb;
 use node::NodeState;
 
-use proto::file::{IdentityFile, IndexServerFile, NodeAddressFile, RelayFile, TrustedAppFile};
+use proto::file::{
+    IdentityFile, IndexServerFile, NodeAddressFile, RelayAddressFile, TrustedAppFile,
+};
 use proto::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 
 #[derive(Debug, From)]
@@ -265,7 +267,7 @@ fn relay_ticket(
 
     let public_key = identity.get_public_key();
 
-    let relay_file = RelayFile {
+    let relay_file = RelayAddressFile {
         public_key,
         address: address.try_into()?,
     };
