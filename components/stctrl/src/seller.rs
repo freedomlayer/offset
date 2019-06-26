@@ -1,11 +1,15 @@
-use std::fs;
+use std::io::Write;
+use std::fs::{self, File};
 use std::path::PathBuf;
 
-use app::gen::gen_invoice_id;
-use app::{AppConn, AppSeller, PublicKey};
+use derive_more::From;
 
-use crate::file::invoice::{load_invoice_from_file, store_invoice_to_file, Invoice};
-use crate::file::multi_commit::load_multi_commit_from_file;
+use app::gen::gen_invoice_id;
+use app::{AppConn, AppSeller, PublicKey, MultiCommit};
+use app::ser_string::{StringSerdeError, deserialize_from_string, serialize_to_string};
+
+use crate::file::InvoiceFile;
+use crate::file::MultiCommitFile;
 
 use structopt::StructOpt;
 
@@ -17,7 +21,7 @@ pub struct CreateInvoiceCmd {
     pub amount: u128,
     /// Path of output invoice file
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice_file: PathBuf,
+    pub invoice_path: PathBuf,
 }
 
 /// Cancel invoice
@@ -25,7 +29,7 @@ pub struct CreateInvoiceCmd {
 pub struct CancelInvoiceCmd {
     /// Path to invoice file
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice_file: PathBuf,
+    pub invoice_path: PathBuf,
 }
 
 /// Commit invoice (using a Commit message from buyer)
@@ -33,10 +37,10 @@ pub struct CancelInvoiceCmd {
 pub struct CommitInvoiceCmd {
     /// Path to invoice file
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice_file: PathBuf,
+    pub invoice_path: PathBuf,
     /// Path to commit file
     #[structopt(parse(from_os_str), short = "c", long = "commit")]
-    pub commit_file: PathBuf,
+    pub commit_path: PathBuf,
 }
 
 /// Funds sending related commands
@@ -53,7 +57,7 @@ pub enum SellerCmd {
     CommitInvoice(CommitInvoiceCmd),
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum SellerError {
     GetReportError,
     NoSellerPermissions,
@@ -67,6 +71,8 @@ pub enum SellerError {
     CommitInvoiceError,
     InvoiceCommitMismatch,
     RemoveInvoiceError,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 async fn seller_create_invoice(
@@ -76,11 +82,11 @@ async fn seller_create_invoice(
 ) -> Result<(), SellerError> {
     let CreateInvoiceCmd {
         amount,
-        invoice_file,
+        invoice_path,
     } = create_invoice_cmd;
 
     // Make sure we don't override an existing invoice file:
-    if invoice_file.exists() {
+    if invoice_path.exists() {
         return Err(SellerError::InvoiceFileAlreadyExists);
     }
 
@@ -88,7 +94,7 @@ async fn seller_create_invoice(
 
     let dest_public_key = local_public_key;
 
-    let invoice = Invoice {
+    let invoice_file = InvoiceFile {
         invoice_id: invoice_id.clone(),
         dest_public_key,
         dest_payment: amount,
@@ -97,22 +103,24 @@ async fn seller_create_invoice(
     await!(app_seller.add_invoice(invoice_id.clone(), amount))
         .map_err(|_| SellerError::AddInvoiceError)?;
 
-    store_invoice_to_file(&invoice, &invoice_file).map_err(|_| SellerError::StoreInvoiceError)
+    let mut file = File::create(invoice_path)?;
+    file.write_all(&serialize_to_string(&invoice_file)?.as_bytes())?;
+    Ok(())
 }
 
 async fn seller_cancel_invoice(
     cancel_invoice_cmd: CancelInvoiceCmd,
     mut app_seller: AppSeller,
 ) -> Result<(), SellerError> {
-    let CancelInvoiceCmd { invoice_file } = cancel_invoice_cmd;
+    let CancelInvoiceCmd { invoice_path } = cancel_invoice_cmd;
 
-    let invoice =
-        load_invoice_from_file(&invoice_file).map_err(|_| SellerError::LoadInvoiceError)?;
 
-    await!(app_seller.cancel_invoice(invoice.invoice_id))
+    let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
+
+    await!(app_seller.cancel_invoice(invoice_file.invoice_id))
         .map_err(|_| SellerError::CancelInvoiceError)?;
 
-    fs::remove_file(&invoice_file).map_err(|_| SellerError::RemoveInvoiceError)
+    fs::remove_file(&invoice_path).map_err(|_| SellerError::RemoveInvoiceError)
 }
 
 async fn seller_commit_invoice(
@@ -120,20 +128,20 @@ async fn seller_commit_invoice(
     mut app_seller: AppSeller,
 ) -> Result<(), SellerError> {
     let CommitInvoiceCmd {
-        invoice_file,
-        commit_file,
+        invoice_path,
+        commit_path,
     } = commit_invoice_cmd;
 
     // Note: We don't really need the invoice for the internal API.
     // We require it here to enforce the user to understand that the commit file corresponds to a
     // certain invoice file.
-    let invoice =
-        load_invoice_from_file(&invoice_file).map_err(|_| SellerError::LoadInvoiceError)?;
+    
+    let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    let multi_commit =
-        load_multi_commit_from_file(&commit_file).map_err(|_| SellerError::LoadCommitError)?;
+    let multi_commit_file: MultiCommitFile = deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
+    let multi_commit = MultiCommit::from(multi_commit_file);
 
-    if multi_commit.invoice_id != invoice.invoice_id {
+    if multi_commit.invoice_id != invoice_file.invoice_id {
         return Err(SellerError::InvoiceCommitMismatch);
     }
 

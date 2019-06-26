@@ -1,19 +1,19 @@
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::PathBuf;
+
+use derive_more::From;
 
 use futures::future::select_all;
 
-use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
-
 use structopt::StructOpt;
 
+use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PublicKey};
+use app::ser_string::{serialize_to_string, deserialize_from_string, StringSerdeError};
 use app::gen::{gen_payment_id, gen_uid};
 
-use crate::file::invoice::load_invoice_from_file;
-use crate::file::multi_commit::store_multi_commit_to_file;
-use crate::file::payment::{load_payment_from_file, store_payment_to_file, Payment};
-use crate::file::receipt::store_receipt_to_file;
+use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
+
 use crate::multi_route_util::choose_multi_route;
 
 /// Pay an invoice
@@ -21,13 +21,13 @@ use crate::multi_route_util::choose_multi_route;
 pub struct PayInvoiceCmd {
     /// Path to invoice file to pay
     #[structopt(parse(from_os_str), short = "i", long = "invoice")]
-    pub invoice_file: PathBuf,
+    pub invoice_path: PathBuf,
     /// Output payment file (Used to track the payment)
     #[structopt(parse(from_os_str), short = "p", long = "payment")]
-    pub payment_file: PathBuf,
+    pub payment_path: PathBuf,
     /// Output commit file
     #[structopt(parse(from_os_str), short = "c", long = "commit")]
-    pub commit_file: PathBuf,
+    pub commit_path: PathBuf,
 }
 
 /// Check payment status (And obtain receipt if successful)
@@ -35,10 +35,10 @@ pub struct PayInvoiceCmd {
 pub struct PaymentStatusCmd {
     /// Payment file
     #[structopt(parse(from_os_str), short = "p", long = "payment")]
-    pub payment_file: PathBuf,
+    pub payment_path: PathBuf,
     /// Output receipt file (in case a receipt is ready)
     #[structopt(parse(from_os_str), short = "r", long = "receipt")]
-    pub receipt_file: PathBuf,
+    pub receipt_path: PathBuf,
 }
 
 /// Funds sending related commands
@@ -51,7 +51,7 @@ pub enum BuyerCmd {
     PaymentStatus(PaymentStatusCmd),
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum BuyerError {
     GetReportError,
     NoBuyerPermissions,
@@ -77,6 +77,8 @@ pub enum BuyerError {
     StorePaymentError,
     LoadPaymentError,
     RemovePaymentError,
+    IoError(std::io::Error),
+    StringSerdeError(StringSerdeError),
 }
 
 /// Pay an invoice
@@ -88,25 +90,24 @@ async fn buyer_pay_invoice(
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PayInvoiceCmd {
-        invoice_file,
-        payment_file,
-        commit_file,
+        invoice_path,
+        payment_path,
+        commit_path,
     } = pay_invoice_cmd;
 
     // Make sure that we will be able to write the Payment file
     // before we do the actual payment:
-    if payment_file.exists() {
+    if payment_path.exists() {
         return Err(BuyerError::PaymentFileAlreadyExists);
     }
 
     // Make sure that we will be able to write the MultiCommit
     // before we do the actual payment:
-    if commit_file.exists() {
+    if commit_path.exists() {
         return Err(BuyerError::CommitFileAlreadyExists);
     }
 
-    let invoice =
-        load_invoice_from_file(&invoice_file).map_err(|_| BuyerError::LoadInvoiceError)?;
+    let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
     // TODO: We might get routes with the exact capacity,
     // but this will not be enough for sending our amount because
@@ -114,14 +115,14 @@ async fn buyer_pay_invoice(
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
     let multi_routes = await!(app_routes.request_routes(
-        invoice.dest_payment,
+        invoice_file.dest_payment,
         local_public_key, // source
-        invoice.dest_public_key.clone(),
+        invoice_file.dest_public_key.clone(),
         None
     )) // No exclusion of edges
     .map_err(|_| BuyerError::AppRoutesError)?;
 
-    let (route_index, multi_route_choice) = choose_multi_route(&multi_routes, invoice.dest_payment)
+    let (route_index, multi_route_choice) = choose_multi_route(&multi_routes, invoice_file.dest_payment)
         .ok_or(BuyerError::NoSuitableRoute)?;
     let multi_route = &multi_routes[route_index];
 
@@ -139,16 +140,17 @@ async fn buyer_pay_invoice(
 
     // Create a new payment
     let payment_id = gen_payment_id();
-    let payment = Payment { payment_id };
+    let payment_file = PaymentFile { payment_id };
 
     // Keep payment id for later reference:
-    store_payment_to_file(&payment, &payment_file).map_err(|_| BuyerError::StorePaymentError)?;
+    let mut file = File::create(payment_path)?;
+    file.write_all(&serialize_to_string(&payment_file)?.as_bytes())?;
 
     await!(app_buyer.create_payment(
         payment_id,
-        invoice.invoice_id.clone(),
-        invoice.dest_payment,
-        invoice.dest_public_key.clone()
+        invoice_file.invoice_id.clone(),
+        invoice_file.dest_payment,
+        invoice_file.dest_public_key.clone()
     ))
     .map_err(|_| BuyerError::CreatePaymentFailed)?;
 
@@ -190,16 +192,18 @@ async fn buyer_pay_invoice(
     let _ = await!(app_buyer.request_close_payment(payment_id));
 
     let multi_commit = MultiCommit {
-        invoice_id: invoice.invoice_id.clone(),
-        total_dest_payment: invoice.dest_payment,
+        invoice_id: invoice_file.invoice_id.clone(),
+        total_dest_payment: invoice_file.dest_payment,
         commits,
     };
 
     writeln!(writer, "Payment successful!").map_err(|_| BuyerError::WriteError)?;
 
+    let multi_commit_file = MultiCommitFile::from(multi_commit);
+
     // Store MultiCommit to file:
-    store_multi_commit_to_file(&multi_commit, &commit_file)
-        .map_err(|_| BuyerError::StoreCommitError)?;
+    let mut file = File::create(commit_path)?;
+    file.write_all(&serialize_to_string(&multi_commit_file)?.as_bytes())?;
 
     Ok(())
 }
@@ -211,20 +215,18 @@ async fn buyer_payment_status(
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PaymentStatusCmd {
-        payment_file,
-        receipt_file,
+        payment_path,
+        receipt_path,
     } = payment_status_cmd;
 
     // Make sure that we will be able to write the receipt
     // before we do the actual payment:
-    if receipt_file.exists() {
+    if receipt_path.exists() {
         return Err(BuyerError::ReceiptFileAlreadyExists);
     }
 
-    let payment =
-        load_payment_from_file(&payment_file).map_err(|_| BuyerError::LoadPaymentError)?;
-
-    let payment_id = payment.payment_id;
+    let payment_file: PaymentFile = deserialize_from_string(&fs::read_to_string(&payment_path)?)?;
+    let payment_id = payment_file.payment_id;
 
     let payment_status = await!(app_buyer.request_close_payment(payment_id))
         .map_err(|_| BuyerError::RequestClosePaymentError)?;
@@ -233,7 +235,7 @@ async fn buyer_payment_status(
         PaymentStatus::PaymentNotFound => {
             writeln!(writer, "Payment could not be found").map_err(|_| BuyerError::WriteError)?;
             // Remove payment file:
-            fs::remove_file(&payment_file).map_err(|_| BuyerError::RemovePaymentError)?;
+            fs::remove_file(&payment_path).map_err(|_| BuyerError::RemovePaymentError)?;
             None
         }
         PaymentStatus::InProgress => {
@@ -243,9 +245,10 @@ async fn buyer_payment_status(
         PaymentStatus::Success((receipt, ack_uid)) => {
             writeln!(writer, "Payment succeeded. Saving receipt to file.")
                 .map_err(|_| BuyerError::WriteError)?;
+
             // Store receipt to file:
-            store_receipt_to_file(&receipt, &receipt_file)
-                .map_err(|_| BuyerError::StoreReceiptError)?;
+            let mut file = File::create(receipt_path)?;
+            file.write_all(&serialize_to_string(&ReceiptFile::from(receipt))?.as_bytes())?;
 
             // Note that we must save the receipt to file before we let the node discard it.
             Some(ack_uid)
@@ -262,7 +265,7 @@ async fn buyer_payment_status(
             .map_err(|_| BuyerError::AckClosePaymentError)?;
 
         // Remove payment file:
-        fs::remove_file(&payment_file).map_err(|_| BuyerError::RemovePaymentError)?;
+        fs::remove_file(&payment_path).map_err(|_| BuyerError::RemovePaymentError)?;
     }
 
     Ok(())

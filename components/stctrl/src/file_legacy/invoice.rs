@@ -11,23 +11,6 @@ use app::invoice::InvoiceId;
 
 use toml;
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Invoice {
-    pub invoice_id: InvoiceId,
-    pub dest_public_key: PublicKey,
-    pub dest_payment: u128,
-}
-
-#[derive(Debug, From)]
-pub enum InvoiceFileError {
-    IoError(io::Error),
-    TomlDeError(toml::de::Error),
-    TomlSeError(toml::ser::Error),
-    SerStringError,
-    ParseDestPaymentError,
-    InvalidPublicKey,
-}
-
 /// A helper structure for serialize and deserializing Invoice.
 #[derive(Serialize, Deserialize)]
 pub struct InvoiceFile {

@@ -16,37 +16,38 @@ pub struct TrustedAppFile {
     pub permissions: AppPermissions,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct FriendAddressFile {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
-#[derive(Serialize, Deserialize)]
-pub struct RelayFile {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RelayAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
     pub address: NetAddress,
 }
 
 /// A helper structure for serialize and deserializing FriendAddress.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct FriendFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
-    pub relays: Vec<RelayFile>,
+    pub relays: Vec<RelayAddressFile>,
 }
 
 /// A helper structure for serialize and deserializing IdentityAddress.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IdentityFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub private_key: PrivateKey,
 }
 
 /// A helper structure for serialize and deserializing IndexServer.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IndexServerFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
@@ -54,11 +55,30 @@ pub struct IndexServerFile {
 }
 
 /// A helper structure for serialize and deserializing NodeAddress.
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NodeAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
     pub address: NetAddress,
+}
+
+// TODO: Possibly create a macro that these conversions:
+impl std::convert::From<RelayAddressFile> for RelayAddress {
+    fn from(input: RelayAddressFile) -> Self {
+        RelayAddress {
+            public_key: input.public_key,
+            address: input.address,
+        }
+    }
+}
+
+impl std::convert::From<RelayAddress> for RelayAddressFile {
+    fn from(input: RelayAddress) -> Self {
+        RelayAddressFile {
+            public_key: input.public_key,
+            address: input.address,
+        }
+    }
 }
 
 /*
