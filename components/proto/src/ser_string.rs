@@ -2,10 +2,10 @@ use std::convert::TryFrom;
 use std::str::FromStr;
 use std::string::ToString;
 
-use std::path::Path;
+// use std::path::Path;
 
-use std::fs::{self, File};
-use std::io::{self, Write};
+// use std::fs::{self, File};
+// use std::io::{self, Write};
 
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
@@ -94,32 +94,22 @@ str_convert_funcs!(
 );
 
 #[derive(Debug, From)]
-pub enum FileError {
-    IoError(io::Error),
+pub enum StringSerdeError {
+    // IoError(io::Error),
     TomlDeError(toml::de::Error),
     TomlSeError(toml::ser::Error),
 }
 
-// TODO: Possibly write as macros, to avoid declaring the extra T intermediate argument.
-
-pub fn load_from_file<T, V>(path: &Path) -> Result<V, FileError>
+pub fn deserialize_from_string<T>(input: &str) -> Result<T, StringSerdeError>
 where
-    V: From<T>,
     T: DeserializeOwned,
 {
-    let data = fs::read_to_string(&path)?;
-    let t: T = toml::from_str(&data)?;
-    Ok(V::from(t))
+    Ok(toml::from_str(&input)?)
 }
 
-pub fn store_to_file<T, V>(v: V, path: &Path) -> Result<(), FileError>
+pub fn serialize_to_string<T>(t: &T) -> Result<String, StringSerdeError>
 where
-    T: From<V>,
     T: Serialize,
 {
-    let t = T::from(v);
-    let data = toml::to_string(&t)?;
-    let mut file = File::create(path)?;
-    file.write_all(&data.as_bytes())?;
-    Ok(())
+    Ok(toml::to_string(t)?)
 }

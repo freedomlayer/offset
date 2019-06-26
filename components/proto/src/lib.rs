@@ -39,6 +39,7 @@ pub mod app_server;
 #[allow(unused)]
 pub mod capnp_common;
 pub mod consts;
+// pub mod file;
 pub mod file;
 pub mod funder;
 pub mod index_client;
@@ -49,6 +50,7 @@ pub mod node;
 pub mod relay;
 pub mod report;
 pub mod secure_channel;
+pub mod ser_string;
 pub mod serialize;
 
 include_schema!(report_capnp, "report_capnp");

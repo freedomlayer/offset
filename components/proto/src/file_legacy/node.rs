@@ -1,10 +1,10 @@
 // use std::fs::{self, File};
 // use std::io::{self, Write};
-use std::path::Path;
+// use std::path::Path;
 
 use crypto::identity::PublicKey;
 
-use crate::file::ser_string::{from_base64, load_from_file, store_to_file, to_base64, FileError};
+use crate::file::ser_string::{from_base64, to_base64};
 // use toml;
 
 use crate::net::messages::NetAddress;
@@ -49,10 +49,10 @@ impl From<NodeAddress> for NodeFile {
     }
 }
 
+/*
 /// Load NodeAddress from a file
 pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, FileError> {
-    load_from_file::<NodeFile, _>(path)
-    /*
+    Ok(load_from_file::<NodeFile>(path)?.into())
     let data = fs::read_to_string(&path)?;
     let node_file: NodeFile = toml::from_str(&data)?;
 
@@ -60,14 +60,12 @@ pub fn load_node_from_file(path: &Path) -> Result<NodeAddress, FileError> {
         public_key: node_file.public_key,
         address: node_file.address,
     })
-    */
 }
 
 /// Store NodeAddress to file
 pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(), FileError> {
-    store_to_file::<NodeFile, _>(node_address.clone(), path)
+    store_to_file::<NodeFile>(node_address.clone().into(), path)
 
-    /*
     let NodeAddress {
         ref public_key,
         ref address,
@@ -84,7 +82,6 @@ pub fn store_node_to_file(node_address: &NodeAddress, path: &Path) -> Result<(),
     file.write_all(&data.as_bytes())?;
 
     Ok(())
-    */
 }
 
 #[cfg(test)]
@@ -97,21 +94,6 @@ mod tests {
 
     use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 
-    /*
-    #[test]
-    fn test_node_file_basic() {
-        let node_file: NodeFile = toml::from_str(
-            r#"
-            public_key = 'public_key_string'
-            address = 'address_string'
-        "#,
-        )
-        .unwrap();
-
-        assert_eq!(node_file.public_key, "public_key_string");
-        assert_eq!(node_file.address, "address_string");
-    }
-    */
 
     #[test]
     fn test_store_load_node() {
@@ -130,3 +112,4 @@ mod tests {
         assert_eq!(node_address, node_address2);
     }
 }
+*/
