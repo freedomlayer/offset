@@ -113,7 +113,7 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
         "app0", "app1", "index0", "index1", "node0", "node1", "relay0", "relay1",
     ] {
         let gen_ident_cmd = GenIdentCmd {
-            output: temp_dir_path.join(entity).join(format!("{}.ident", entity)),
+            output_path: temp_dir_path.join(entity).join(format!("{}.ident", entity)),
         };
         stmgr(StMgrCmd::GenIdent(gen_ident_cmd)).unwrap();
     }
@@ -122,8 +122,8 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     for node in &["node0", "node1"] {
         // Create initial database:
         let init_node_db_cmd = InitNodeDbCmd {
-            idfile: temp_dir_path.join(node).join(format!("{}.ident", node)),
-            output: temp_dir_path.join(node).join(format!("{}.db", node)),
+            idfile_path: temp_dir_path.join(node).join(format!("{}.ident", node)),
+            output_path: temp_dir_path.join(node).join(format!("{}.db", node)),
         };
         stmgr(StMgrCmd::InitNodeDb(init_node_db_cmd)).unwrap();
     }
@@ -132,31 +132,31 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     // --------------------
     // Create node0 ticket:
     let node_ticket_cmd = NodeTicketCmd {
-        idfile: temp_dir_path.join("node0").join("node0.ident"),
-        output: temp_dir_path.join("node0").join("node0.ticket"),
+        idfile_path: temp_dir_path.join("node0").join("node0.ident"),
+        output_path: temp_dir_path.join("node0").join("node0.ticket"),
         address: node0_addr.clone(),
     };
     stmgr(StMgrCmd::NodeTicket(node_ticket_cmd)).unwrap();
 
     // Create node1 ticket:
     let node_ticket_cmd = NodeTicketCmd {
-        idfile: temp_dir_path.join("node1").join("node1.ident"),
-        output: temp_dir_path.join("node1").join("node1.ticket"),
+        idfile_path: temp_dir_path.join("node1").join("node1.ident"),
+        output_path: temp_dir_path.join("node1").join("node1.ticket"),
         address: node1_addr.clone(),
     };
     stmgr(StMgrCmd::NodeTicket(node_ticket_cmd)).unwrap();
 
     // Create relay tickets:
     let relay_ticket_cmd = RelayTicketCmd {
-        idfile: temp_dir_path.join("relay0").join("relay0.ident"),
-        output: temp_dir_path.join("relay0").join("relay0.ticket"),
+        idfile_path: temp_dir_path.join("relay0").join("relay0.ident"),
+        output_path: temp_dir_path.join("relay0").join("relay0.ticket"),
         address: relay0_addr.clone(),
     };
     stmgr(StMgrCmd::RelayTicket(relay_ticket_cmd)).unwrap();
 
     let relay_ticket_cmd = RelayTicketCmd {
-        idfile: temp_dir_path.join("relay1").join("relay1.ident"),
-        output: temp_dir_path.join("relay1").join("relay1.ticket"),
+        idfile_path: temp_dir_path.join("relay1").join("relay1.ident"),
+        output_path: temp_dir_path.join("relay1").join("relay1.ticket"),
         address: relay1_addr.clone(),
     };
     stmgr(StMgrCmd::RelayTicket(relay_ticket_cmd)).unwrap();
@@ -164,15 +164,15 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     // Create index tickets:
     // --------------------
     let index_ticket_cmd = IndexTicketCmd {
-        idfile: temp_dir_path.join("index0").join("index0.ident"),
-        output: temp_dir_path.join("index0").join("index0_client.ticket"),
+        idfile_path: temp_dir_path.join("index0").join("index0.ident"),
+        output_path: temp_dir_path.join("index0").join("index0_client.ticket"),
         address: index0_client_addr.clone(),
     };
     stmgr(StMgrCmd::IndexTicket(index_ticket_cmd)).unwrap();
 
     let index_ticket_cmd = IndexTicketCmd {
-        idfile: temp_dir_path.join("index0").join("index0.ident"),
-        output: temp_dir_path
+        idfile_path: temp_dir_path.join("index0").join("index0.ident"),
+        output_path: temp_dir_path
             .join("index1")
             .join("trusted")
             .join("index0_server.ticket"),
@@ -181,15 +181,15 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     stmgr(StMgrCmd::IndexTicket(index_ticket_cmd)).unwrap();
 
     let index_ticket_cmd = IndexTicketCmd {
-        idfile: temp_dir_path.join("index1").join("index1.ident"),
-        output: temp_dir_path.join("index1").join("index1_client.ticket"),
+        idfile_path: temp_dir_path.join("index1").join("index1.ident"),
+        output_path: temp_dir_path.join("index1").join("index1_client.ticket"),
         address: index1_client_addr.clone(),
     };
     stmgr(StMgrCmd::IndexTicket(index_ticket_cmd)).unwrap();
 
     let index_ticket_cmd = IndexTicketCmd {
-        idfile: temp_dir_path.join("index1").join("index1.ident"),
-        output: temp_dir_path
+        idfile_path: temp_dir_path.join("index1").join("index1.ident"),
+        output_path: temp_dir_path
             .join("index0")
             .join("trusted")
             .join("index1_server.ticket"),
@@ -201,8 +201,8 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     // -------------------------------------------------------------------------------
 
     let app_ticket_cmd = AppTicketCmd {
-        idfile: temp_dir_path.join("app0").join("app0.ident"),
-        output: temp_dir_path
+        idfile_path: temp_dir_path.join("app0").join("app0.ident"),
+        output_path: temp_dir_path
             .join("node0")
             .join("trusted")
             .join("app0.ticket"),
@@ -214,8 +214,8 @@ pub fn create_stctrl_setup(temp_dir_path: &Path) -> StCtrlSetup {
     stmgr(StMgrCmd::AppTicket(app_ticket_cmd)).unwrap();
 
     let app_ticket_cmd = AppTicketCmd {
-        idfile: temp_dir_path.join("app1").join("app1.ident"),
-        output: temp_dir_path
+        idfile_path: temp_dir_path.join("app1").join("app1.ident"),
+        output_path: temp_dir_path
             .join("node1")
             .join("trusted")
             .join("app1.ticket"),
