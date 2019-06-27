@@ -17,8 +17,6 @@ use proc_macro2::Span;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Index};
-// use syn::spanned::Spanned;
-// use syn::Fields;
 
 /// Automatically derive bidirectional From traits (Between current struct and other specified
 /// struct).
