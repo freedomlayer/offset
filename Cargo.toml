@@ -24,4 +24,5 @@ members = [
   "components/stwebpay",
   "components/app",
   "components/test",
+  "components/mutual_from_derive",
 ]
