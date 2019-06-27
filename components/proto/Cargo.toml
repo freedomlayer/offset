@@ -9,7 +9,7 @@ build = "build.rs"
 
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
-mutual_from_derive = { path = "../mutual_from_derive", version = "0.1.0", package = "offst-mutual-from-derive" }
+mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
 
 capnp = "0.9.4"
 byteorder = "1.1"

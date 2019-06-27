@@ -1,6 +1,6 @@
 use crypto::identity::{PrivateKey, PublicKey};
 
-use mutual_from_derive::mutual_from;
+use mutual_from::mutual_from;
 
 use crate::ser_string::{from_base64, to_base64};
 

@@ -9,7 +9,7 @@ use app::{
 use app::payment::PaymentId;
 use app::report::MoveTokenHashedReport;
 
-use mutual_from_derive::mutual_from;
+use mutual_from::mutual_from;
 
 #[derive(Serialize, Deserialize)]
 pub struct InvoiceFile {
