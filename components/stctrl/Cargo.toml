@@ -21,6 +21,7 @@ path = "src/bin/stverify.rs"
 [dependencies]
 
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
+mutual_from_derive = { path = "../mutual_from_derive", version = "0.1.0", package = "offst-mutual-from-derive" }
 
 log = "0.4"
 # simple_logger = "1.0.1"
