@@ -13,10 +13,10 @@
 
 extern crate proc_macro;
 
-// use proc_macro2::TokenStream;
+use proc_macro2::Span;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Index};
 // use syn::spanned::Spanned;
 // use syn::Fields;
 
@@ -31,13 +31,13 @@ pub fn mutual_from(
     // for information about arguments.
 
     // This is the name of the other struct:
-    let remote_name = args.to_string();
+    // let remote_name = args.to_string();
+    let remote_name = Ident::new(&args.to_string(), Span::call_site());
 
-    // let item: syn::Item = syn::parse(input).expect("failed to parse input into `syn::Item`");
     let input = parse_macro_input!(input as DeriveInput);
 
     // Name of local struct:
-    let local_name = input.ident.to_string();
+    let local_name = &input.ident;
 
     let conversion = match input.data {
         Data::Struct(ref data) => match data.fields {
@@ -77,10 +77,11 @@ pub fn mutual_from(
                 // struct Pair(i32, f32);
 
                 let recurse1 = fields.unnamed.iter().enumerate().map(|(i, f)| {
+                    let index = Index::from(i);
                     // TODO: Should we use Index::from(i) here?
                     // What happens if we don't?
                     quote_spanned! { f.span() =>
-                        input.#i
+                        input.#index
                     }
                 });
                 // TODO: Is there a more elegant way to do this except cloning?
