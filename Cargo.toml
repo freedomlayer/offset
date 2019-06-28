@@ -24,4 +24,5 @@ members = [
   "components/app",
   "components/test",
   "components/mutual_from",
+  "components/capnp_conv",
 ]

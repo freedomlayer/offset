@@ -747,6 +747,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "offst-capnp-conv"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quote 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.15.38 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "offst-channeler"
 version = "0.1.0"
 dependencies = [
