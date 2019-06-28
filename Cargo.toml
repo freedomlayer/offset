@@ -23,4 +23,5 @@ members = [
   "components/stctrl",
   "components/app",
   "components/test",
+  "components/mutual_from",
 ]

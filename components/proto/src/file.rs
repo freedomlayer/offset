@@ -1,12 +1,11 @@
 use crypto::identity::{PrivateKey, PublicKey};
 
+use mutual_from::mutual_from;
+
 use crate::ser_string::{from_base64, to_base64};
 
-use crate::app_server::messages::AppPermissions;
-use crate::app_server::messages::RelayAddress;
+use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
-// use crate::node::types::NodeAddress;
-// use crate::file::relay::RelayFile;
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,6 +23,7 @@ pub struct FriendAddressFile {
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
+#[mutual_from(RelayAddress)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RelayAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -60,25 +60,6 @@ pub struct NodeAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
     pub address: NetAddress,
-}
-
-// TODO: Possibly create a macro that these conversions:
-impl std::convert::From<RelayAddressFile> for RelayAddress {
-    fn from(input: RelayAddressFile) -> Self {
-        RelayAddress {
-            public_key: input.public_key,
-            address: input.address,
-        }
-    }
-}
-
-impl std::convert::From<RelayAddress> for RelayAddressFile {
-    fn from(input: RelayAddress) -> Self {
-        RelayAddressFile {
-            public_key: input.public_key,
-            address: input.address,
-        }
-    }
 }
 
 /*

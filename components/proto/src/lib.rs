@@ -24,6 +24,8 @@ extern crate base64;
 extern crate im;
 extern crate toml;
 
+extern crate mutual_from;
+
 #[cfg(test)]
 extern crate tempfile;
 
