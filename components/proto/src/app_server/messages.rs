@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
+
 use crypto::identity::PublicKey;
 use crypto::invoice_id::InvoiceId;
 use crypto::payment_id::PaymentId;

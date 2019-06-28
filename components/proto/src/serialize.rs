@@ -1,6 +1,10 @@
-use crate::net::messages::NetAddressError;
-use capnp;
 use std::io;
+
+use capnp;
+
+use crate::net::messages::NetAddressError;
+
+use derive_more::From;
 
 #[derive(Debug, From)]
 pub enum SerializeError {

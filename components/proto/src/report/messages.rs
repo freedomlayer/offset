@@ -1,6 +1,8 @@
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
+use serde::{Deserialize, Serialize};
+
 use common::mutable_state::MutableState;
 
 use crypto::hash::HashResult;

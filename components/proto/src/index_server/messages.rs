@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crypto::hash::HashResult;
 use crypto::identity::{PublicKey, Signature};
 use crypto::rand::RandValue;

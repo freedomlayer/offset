@@ -1,8 +1,10 @@
-use byteorder::{BigEndian, WriteBytesExt};
 use std::cmp::Eq;
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use serde::{Deserialize, Serialize};
+
+use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
@@ -18,6 +20,7 @@ use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::MAX_ROUTE_LEN;
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
+
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
