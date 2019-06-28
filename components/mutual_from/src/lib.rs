@@ -13,7 +13,6 @@
 
 extern crate proc_macro;
 
-use proc_macro2::Span;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Index};
@@ -28,9 +27,8 @@ pub fn mutual_from(
     // See: https://github.com/dtolnay/syn/issues/86
     // for information about arguments.
 
-    // This is the name of the other struct:
-    // let remote_name = args.to_string();
-    let remote_name = Ident::new(&args.to_string(), Span::call_site());
+    // Name of the other struct:
+    let remote_name = parse_macro_input!(args as Ident);
 
     let input = parse_macro_input!(input as DeriveInput);
 
