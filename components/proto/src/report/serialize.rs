@@ -17,8 +17,8 @@ use crate::report::messages::{
     FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
     MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
 };
+use crate::report_capnp;
 use crate::serialize::SerializeError;
-use report_capnp;
 
 use crate::app_server::messages::NamedRelayAddress;
 use crate::app_server::messages::{NodeReport, NodeReportMutation};

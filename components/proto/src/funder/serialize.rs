@@ -10,7 +10,7 @@ use capnp::serialize_packed;
 use common::int_convert::usize_to_u32;
 use std::io;
 
-use funder_capnp;
+use crate::funder_capnp;
 
 use super::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken,

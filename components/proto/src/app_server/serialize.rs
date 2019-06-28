@@ -12,16 +12,16 @@ use capnp;
 use capnp::serialize_packed;
 use common::int_convert::usize_to_u32;
 
+use crate::app_server_capnp;
 use crate::serialize::SerializeError;
-use app_server_capnp;
 
 use crate::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 
+use crate::index_server::serialize::{
+    deser_multi_route, deser_request_routes, ser_multi_route, ser_request_routes,
+};
 use crate::report::serialize::{
     deser_node_report, deser_node_report_mutation, ser_node_report, ser_node_report_mutation,
-};
-use index_server::serialize::{
-    deser_multi_route, deser_request_routes, ser_multi_route, ser_request_routes,
 };
 
 use crate::funder::messages::{

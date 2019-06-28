@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
 build = "build.rs"
+edition = "2018"
 
 [dependencies]
 
