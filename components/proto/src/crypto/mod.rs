@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use common::big_array::BigArray;
 use common::define_fixed_bytes;
 
+mod serialize;
+
 pub const HASH_RESULT_LEN: usize = 32;
 define_fixed_bytes!(HashResult, HASH_RESULT_LEN);
 
