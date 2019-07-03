@@ -1,10 +1,8 @@
 #[macro_export]
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
-        #[derive(
-            Default, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord, Serialize, Deserialize,
-        )]
-        pub struct $name([u8; $len]);
+        #[derive(Clone, Serialize, Deserialize)]
+        pub struct $name(#[serde(with = "BigArray")] [u8; $len]);
 
         impl $name {
             #[allow(unused)]
@@ -77,6 +75,51 @@ macro_rules! define_fixed_bytes {
                     inner.copy_from_slice(&src[..$len]);
                     Ok($name(inner))
                 }
+            }
+        }
+
+        impl PartialEq for $name {
+            #[inline]
+            fn eq(&self, other: &$name) -> bool {
+                // TODO: Should we implement constant time comparison here?
+                for i in 0..$len {
+                    if self.0[i] != other.0[i] {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+
+        impl Eq for $name {}
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> ::std::fmt::Result {
+                std::fmt::Debug::fmt(&self.0[..], f)
+            }
+        }
+
+        impl std::cmp::PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.0[..].cmp(&other.0[..]))
+            }
+        }
+
+        impl std::cmp::Ord for $name {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.0[..].cmp(&other.0[..])
+            }
+        }
+
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                self.as_ref().hash(state);
+            }
+        }
+
+        impl std::default::Default for $name {
+            fn default() -> Self {
+                Self::from(&[0u8; $len])
             }
         }
     };
