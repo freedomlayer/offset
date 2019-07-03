@@ -12,6 +12,17 @@ macro_rules! define_fixed_bytes {
             pub fn as_array_ref(&self) -> &[u8; $len] {
                 &self.0
             }
+
+            /// Formatting for `Debug` and `Display`.
+            fn format(&self) -> String {
+                let upper_hex = self
+                    .as_ref()
+                    .iter()
+                    .map(|byte| format!("{:02X}", byte))
+                    .collect::<Vec<_>>();
+
+                upper_hex.join("")
+            }
         }
         impl AsRef<[u8]> for $name {
             #[inline]

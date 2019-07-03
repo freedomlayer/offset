@@ -8,13 +8,9 @@ use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
-use crypto::hash::{self, HashResult};
-use crypto::hash_lock::{HashedLock, PlainLock};
-use crypto::identity::{PublicKey, Signature};
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use crate::crypto::{
+    HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature, Uid,
+};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::MAX_ROUTE_LEN;
@@ -313,10 +309,12 @@ impl FriendsRoute {
         self.public_keys.is_empty()
     }
 
+    /*
     /// Produce a cryptographic hash over the contents of the route.
     pub fn hash(&self) -> HashResult {
         hash::sha_512_256(&self.canonical_serialize())
     }
+    */
 
     /// Get the public key of a node according to its index.
     pub fn index_to_pk(&self, index: usize) -> Option<&PublicKey> {

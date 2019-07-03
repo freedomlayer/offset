@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crypto::hash::HashResult;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::funder::messages::{FriendsRoute, Rate};
 use crate::net::messages::NetAddress;

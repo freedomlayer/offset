@@ -9,7 +9,7 @@ use serde::ser::Serialize;
 
 use base64::{self, URL_SAFE_NO_PAD};
 
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crate::crypto::{PublicKey, PUBLIC_KEY_LEN};
 
 #[derive(Debug)]
 pub struct SerStringError;

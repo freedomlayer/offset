@@ -17,14 +17,10 @@ use crate::index_server::messages::NamedIndexServerAddress;
 use crate::net::messages::NetAddress;
 use crate::serialize::SerializeError;
 
-use crypto::dh::{DhPublicKey, Salt};
-use crypto::hash::HashResult;
-use crypto::hash_lock::{HashedLock, PlainLock};
-use crypto::identity::{PublicKey, Signature};
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use crate::crypto::{
+    DhPublicKey, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue,
+    Salt, Signature, Uid,
+};
 
 /// Read the underlying bytes from given `CustomUInt128` reader.
 fn read_buffer128(from: &buffer128::Reader) -> Vec<u8> {

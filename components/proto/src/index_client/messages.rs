@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
+use crate::crypto::{PublicKey, Uid};
 
 use crate::funder::messages::Rate;
 pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};

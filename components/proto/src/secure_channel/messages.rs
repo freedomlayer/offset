@@ -1,6 +1,4 @@
-use crypto::dh::{DhPublicKey, Salt};
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
+use crate::crypto::{DhPublicKey, PublicKey, RandValue, Salt, Signature};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct EncryptedData(pub Vec<u8>);

@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
+# crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
 

@@ -976,10 +976,9 @@ pub fn deserialize_app_to_app_server(data: &[u8]) -> Result<AppToAppServer, Seri
 mod tests {
     use super::*;
     use crate::app_server::messages::{NodeReportMutation, RelayAddress};
+    use crate::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
     use crate::index_client::messages::IndexClientReportMutation;
     use crate::report::messages::FunderReportMutation;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-    use crypto::uid::{Uid, UID_LEN};
     use std::convert::TryInto;
 
     #[test]

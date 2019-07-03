@@ -3,10 +3,7 @@ use serde::{Deserialize, Serialize};
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::uid::Uid;
+use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,

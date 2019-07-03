@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 
-use crypto::hash::HashResult;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};

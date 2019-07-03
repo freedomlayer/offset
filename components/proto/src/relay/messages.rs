@@ -1,4 +1,4 @@
-use crypto::identity::PublicKey;
+use crate::crypto::PublicKey;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InitConnection {

@@ -12,9 +12,9 @@
 #[macro_use]
 pub mod macros;
 pub mod app_server;
-#[allow(unused)]
-pub mod capnp_common;
+// pub mod capnp_common;
 pub mod consts;
+pub mod crypto;
 pub mod file;
 pub mod funder;
 pub mod index_client;
