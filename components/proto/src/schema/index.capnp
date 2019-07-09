@@ -2,8 +2,8 @@
 
 using import "common.capnp".Signature;
 using import "common.capnp".PublicKey;
-using import "common.capnp".Hash;
-using import "common.capnp".RandNonce;
+using import "common.capnp".HashResult;
+using import "common.capnp".RandValue;
 using import "common.capnp".Uid;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".Rate;
@@ -73,7 +73,7 @@ struct MutationsUpdate {
         # Public key of the node sending the mutations.
         indexMutations @1: List(IndexMutation);
         # List of mutations to relationships with direct friends.
-        timeHash @2: Hash;
+        timeHash @2: HashResult;
         # A time hash (Given by the server previously).
         # This is used as time, proving that this message was signed recently.
         sessionId @3: Uid;
@@ -82,7 +82,7 @@ struct MutationsUpdate {
         # Incrementing counter, making sure that mutations are received in the correct order.
         # For a new session, the counter should begin from 0 and increment by 1 for every MutationsUpdate message.
         # When a new connection is established, a new sesionId should be randomly generated.
-        randNonce @5: RandNonce;
+        randNonce @5: RandValue;
         # Rand nonce, used as a security measure for the next signature.
         signature @6: Signature;
         # signature(sha_512_256("MUTATIONS_UPDATE") ||
@@ -94,7 +94,7 @@ struct MutationsUpdate {
 }
 
 struct TimeProofLink {
-        hashes @0: List(Hash);
+        hashes @0: List(HashResult);
         # List of hashes that produce a certain hash
         # sha_512_256("TIME_HASH" || hashes)
 }
@@ -113,7 +113,7 @@ struct ForwardMutationsUpdate {
 
 struct IndexServerToClient {
         union {
-                timeHash @0: Hash;
+                timeHash @0: HashResult;
                 responseRoutes @1: ResponseRoutes;
         }
 }
@@ -129,7 +129,7 @@ struct IndexClientToServer {
 
 struct IndexServerToServer {
         union {
-                timeHash @0: Hash;
+                timeHash @0: HashResult;
                 forwardMutationsUpdate @1: ForwardMutationsUpdate;
         }
 }

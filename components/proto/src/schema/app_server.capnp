@@ -6,9 +6,7 @@ using import "common.capnp".InvoiceId;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".PublicKey;
-using import "common.capnp".Hash;
 using import "common.capnp".Signature;
-using import "common.capnp".RandNonce;
 using import "common.capnp".PaymentId;
 using import "common.capnp".Rate;
 

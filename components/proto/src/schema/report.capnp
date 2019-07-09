@@ -1,11 +1,11 @@
 @0x8bc829b5200f3c7f;
 
 using import "common.capnp".PublicKey;
-using import "common.capnp".Hash;
+using import "common.capnp".HashResult;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
-using import "common.capnp".RandNonce;
+using import "common.capnp".RandValue;
 using import "common.capnp".Rate;
 
 using import "common.capnp".RelayAddress;
@@ -17,7 +17,7 @@ using import "common.capnp".NetAddress;
 #########################
 
 struct MoveTokenHashedReport {
-        prefixHash @0: Hash;
+        prefixHash @0: HashResult;
         localPublicKey @1: PublicKey;
         remotePublicKey @2: PublicKey;
         inconsistencyCounter @3: UInt64;
@@ -25,7 +25,7 @@ struct MoveTokenHashedReport {
         balance @5: CustomInt128;
         localPendingDebt @6: CustomUInt128;
         remotePendingDebt @7: CustomUInt128;
-        randNonce @8: RandNonce;
+        randNonce @8: RandValue;
         newToken @9: Signature;
 }
 
