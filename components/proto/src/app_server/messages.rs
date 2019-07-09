@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
+
 use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
@@ -18,21 +20,41 @@ use crate::net::messages::NetAddress;
 use crate::report::messages::{FunderReport, FunderReportMutation};
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
+
+#[capnp_conv(crate::common_capnp::named_relay_address)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NamedRelayAddress {
+    pub public_key: PublicKey,
+    pub address: NetAddress,
+    pub name: String,
+}
+
+/* Generic:
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
 }
+*/
 
+#[capnp_conv(crate::common_capnp::relay_address)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RelayAddress {
+    pub public_key: PublicKey,
+    pub address: NetAddress,
+}
+
+/* Generic:
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
 }
+*/
 
-impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
-    fn from(from: NamedRelayAddress<B>) -> Self {
+impl From<NamedRelayAddress> for RelayAddress {
+    fn from(from: NamedRelayAddress) -> Self {
         RelayAddress {
             public_key: from.public_key,
             address: from.address,
@@ -40,10 +62,7 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
     }
 }
 
-impl<B> CanonicalSerialize for RelayAddress<B>
-where
-    B: CanonicalSerialize,
-{
+impl CanonicalSerialize for RelayAddress {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
@@ -57,7 +76,7 @@ pub struct NodeReport<B = NetAddress>
 where
     B: Clone,
 {
-    pub funder_report: FunderReport<B>,
+    pub funder_report: FunderReport,
     pub index_client_report: IndexClientReport<B>,
 }
 

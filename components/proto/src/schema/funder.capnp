@@ -16,7 +16,7 @@ using import "common.capnp".PlainLock;
 # ----------------------
 
 struct MoveToken {
-        operations @0: List(FriendOperation);
+        operations @0: List(FriendTcOp);
         # Ordered batched operations for this move token.
         # First operation should be applied first.
         optLocalRelays: union {
@@ -156,7 +156,7 @@ struct CollectSendFundsOp {
 }
 
 
-struct FriendOperation {
+struct FriendTcOp {
         union {
                 enableRequests @0: Void;
                 disableRequests @1: Void;

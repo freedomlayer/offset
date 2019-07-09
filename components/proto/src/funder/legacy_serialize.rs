@@ -16,7 +16,6 @@ use super::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendMessage, FriendTcOp, FriendsRoute, MoveToken,
     MoveTokenRequest, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
-
 use crate::serialize::SerializeError;
 
 pub fn ser_friends_route(

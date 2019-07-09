@@ -8,6 +8,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
+
 use crate::crypto::{
     HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature, Uid,
 };
@@ -16,6 +18,8 @@ use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::MAX_ROUTE_LEN;
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
+
+use crate::wrapper::Wrapper;
 
 use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
@@ -60,51 +64,67 @@ pub const INVOICE_ID_LEN: usize = 32;
 define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
 */
 
+#[capnp_conv(crate::funder_capnp::friends_route)]
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
+#[capnp_conv(crate::funder_capnp::request_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
     pub request_id: Uid,
     pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
-    pub dest_payment: u128,
-    pub total_dest_payment: u128,
+    pub dest_payment: Wrapper<u128>,
+    pub total_dest_payment: Wrapper<u128>,
     pub invoice_id: InvoiceId,
-    pub left_fees: u128,
+    pub left_fees: Wrapper<u128>,
 }
 
+#[capnp_conv(crate::funder_capnp::response_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct ResponseSendFundsOp {
+    pub request_id: Uid,
+    pub dest_hashed_lock: HashedLock,
+    pub rand_nonce: RandValue,
+    pub signature: Signature,
+}
+
+/* Generic:
 pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub dest_hashed_lock: HashedLock,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
+*/
 
+#[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CancelSendFundsOp {
     pub request_id: Uid,
 }
 
+#[capnp_conv(crate::common_capnp::commit)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub response_hash: HashResult,
-    pub dest_payment: u128,
+    pub dest_payment: Wrapper<u128>,
     pub src_plain_lock: PlainLock,
     pub dest_hashed_lock: HashedLock,
     pub signature: Signature,
 }
 
+#[capnp_conv(crate::common_capnp::multi_commit)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MultiCommit {
     pub invoice_id: InvoiceId,
-    pub total_dest_payment: u128,
+    pub total_dest_payment: Wrapper<u128>,
     pub commits: Vec<Commit>,
 }
 
+#[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CollectSendFundsOp {
     pub request_id: Uid,
@@ -112,16 +132,43 @@ pub struct CollectSendFundsOp {
     pub dest_plain_lock: PlainLock,
 }
 
+#[capnp_conv(crate::funder_capnp::friend_tc_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
-    SetRemoteMaxDebt(u128),
+    SetRemoteMaxDebt(Wrapper<u128>),
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
     CollectSendFunds(CollectSendFundsOp),
 }
+
+#[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+enum OptLocalRelays {
+    Empty,
+    Relays(Vec<RelayAddress>),
+}
+
+#[capnp_conv(crate::funder_capnp::move_token)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct MoveToken {
+    pub operations: Vec<FriendTcOp>,
+    pub opt_local_relays: OptLocalRelays,
+    pub old_token: Signature,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: Wrapper<u128>,
+    pub balance: Wrapper<i128>,
+    pub local_pending_debt: Wrapper<u128>,
+    pub remote_pending_debt: Wrapper<u128>,
+    pub rand_nonce: RandValue,
+    pub new_token: Signature,
+}
+
+/* Generic:
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
@@ -138,6 +185,7 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub rand_nonce: RandValue,
     pub new_token: S,
 }
+*/
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
@@ -147,11 +195,31 @@ pub struct ResetTerms {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Debug)]
+pub struct MoveTokenRequest {
+    pub friend_move_token: MoveToken,
+    // Do we want the remote side to return the token:
+    pub token_wanted: bool,
+}
+
+/*
+    Generic:
+#[derive(PartialEq, Eq, Clone, Serialize, Debug)]
 pub struct MoveTokenRequest<B = NetAddress> {
     pub friend_move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
+*/
+
+#[allow(clippy::large_enum_variant)]
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum FriendMessage {
+    MoveTokenRequest(MoveTokenRequest),
+    InconsistencyError(ResetTerms),
+}
+
+/*
+Generic:
 
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -159,6 +227,7 @@ pub enum FriendMessage<B = NetAddress> {
     MoveTokenRequest(MoveTokenRequest<B>),
     InconsistencyError(ResetTerms),
 }
+*/
 
 /// A `Receipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
@@ -213,7 +282,7 @@ impl CanonicalSerialize for RequestSendFundsOp {
         res_bytes.extend_from_slice(&self.src_hashed_lock);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes
-            .write_u128::<BigEndian>(self.dest_payment)
+            .write_u128::<BigEndian>(*self.dest_payment)
             .unwrap();
         res_bytes.extend_from_slice(&self.invoice_id);
         // We do not sign over`left_fees`, because this field changes as the request message is
@@ -264,7 +333,9 @@ impl CanonicalSerialize for FriendTcOp {
             }
             FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
                 res_bytes.push(2u8);
-                res_bytes.write_u128::<BigEndian>(*remote_max_debt).unwrap();
+                res_bytes
+                    .write_u128::<BigEndian>(**remote_max_debt)
+                    .unwrap();
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 res_bytes.push(3u8);
