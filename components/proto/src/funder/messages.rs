@@ -84,21 +84,12 @@ pub struct RequestSendFundsOp {
 
 #[capnp_conv(crate::funder_capnp::response_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFundsOp {
-    pub request_id: Uid,
-    pub dest_hashed_lock: HashedLock,
-    pub rand_nonce: RandValue,
-    pub signature: Signature,
-}
-
-/* Generic:
 pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub dest_hashed_lock: HashedLock,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
-*/
 
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -146,16 +137,16 @@ pub enum FriendTcOp {
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-enum OptLocalRelays {
+enum OptLocalRelays<B = NetAddress> {
     Empty,
-    Relays(Vec<RelayAddress>),
+    Relays(Vec<RelayAddress<B>>),
 }
 
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken {
+pub struct MoveToken<B = NetAddress, S = Signature> {
     pub operations: Vec<FriendTcOp>,
-    pub opt_local_relays: OptLocalRelays,
+    pub opt_local_relays: OptLocalRelays<B>,
     pub old_token: Signature,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
@@ -165,28 +156,10 @@ pub struct MoveToken {
     pub local_pending_debt: Wrapper<u128>,
     pub remote_pending_debt: Wrapper<u128>,
     pub rand_nonce: RandValue,
-    pub new_token: Signature,
-}
-
-/* Generic:
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<B = NetAddress, S = Signature> {
-    pub operations: Vec<FriendTcOp>,
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    pub old_token: Signature,
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
-    pub rand_nonce: RandValue,
     pub new_token: S,
 }
-*/
 
+#[capnp_conv(crate::funder_capnp::reset_terms)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
     pub reset_token: Signature,
@@ -194,43 +167,25 @@ pub struct ResetTerms {
     pub balance_for_reset: i128,
 }
 
-#[derive(PartialEq, Eq, Clone, Serialize, Debug)]
-pub struct MoveTokenRequest {
-    pub friend_move_token: MoveToken,
-    // Do we want the remote side to return the token:
-    pub token_wanted: bool,
-}
-
-/*
-    Generic:
+#[capnp_conv(crate::funder_capnp::move_token_request)]
 #[derive(PartialEq, Eq, Clone, Serialize, Debug)]
 pub struct MoveTokenRequest<B = NetAddress> {
     pub friend_move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
-*/
 
-#[allow(clippy::large_enum_variant)]
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage {
-    MoveTokenRequest(MoveTokenRequest),
-    InconsistencyError(ResetTerms),
-}
-
-/*
-Generic:
-
+#[capnp_conv(crate::funder_capnp::friend_message)]
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FriendMessage<B = NetAddress> {
     MoveTokenRequest(MoveTokenRequest<B>),
     InconsistencyError(ResetTerms),
 }
-*/
 
 /// A `Receipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
+#[capnp_conv(crate::common_capnp::receipt)]
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Receipt {
     pub response_hash: HashResult,

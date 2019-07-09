@@ -23,37 +23,20 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 
 #[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct NamedRelayAddress {
-    pub public_key: PublicKey,
-    pub address: NetAddress,
-    pub name: String,
-}
-
-/* Generic:
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
 }
-*/
 
 #[capnp_conv(crate::common_capnp::relay_address)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RelayAddress {
-    pub public_key: PublicKey,
-    pub address: NetAddress,
-}
-
-/* Generic:
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
 }
-*/
 
-impl From<NamedRelayAddress> for RelayAddress {
+impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
     fn from(from: NamedRelayAddress) -> Self {
         RelayAddress {
             public_key: from.public_key,
@@ -62,7 +45,10 @@ impl From<NamedRelayAddress> for RelayAddress {
     }
 }
 
-impl CanonicalSerialize for RelayAddress {
+impl<B> CanonicalSerialize for RelayAddress<B>
+where
+    B: CanonicalSerialize,
+{
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);

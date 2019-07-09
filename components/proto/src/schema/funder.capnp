@@ -66,7 +66,7 @@ struct MoveTokenRequest {
         tokenWanted @1: Bool;
 }
 
-struct InconsistencyError {
+struct ResetTerms {
         resetToken @0: Signature;
         inconsistencyCounter @1: UInt64;
         balanceForReset @2: CustomInt128;
@@ -77,7 +77,7 @@ struct InconsistencyError {
 struct FriendMessage {
         union {
                 moveTokenRequest @0: MoveTokenRequest;
-                inconsistencyError @1: InconsistencyError;
+                inconsistencyError @1: ResetTerms;
         }
 }
 
