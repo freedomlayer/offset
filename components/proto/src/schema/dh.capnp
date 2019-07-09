@@ -28,10 +28,14 @@ struct Rekey {
     keySalt @1: Salt;
 }
 
+struct ChannelContent {
+        union {
+                rekey @0: Rekey;
+                user @1: Data;
+        }
+}
+
 struct ChannelMessage {
     randPadding @0: Data;
-    content :union {
-        rekey     @1: Rekey;
-        user      @2: Data;
-    }
+    content @1: ChannelContent;    
 }
