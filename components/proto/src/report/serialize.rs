@@ -1,6 +1,8 @@
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
+use derive_more::From;
+
 use crate::capnp_common::{
     read_custom_int128, read_custom_u_int128, read_hash, read_named_index_server_address,
     read_named_relay_address, read_public_key, read_rand_nonce, read_rate, read_relay_address,
@@ -17,8 +19,8 @@ use crate::report::messages::{
     FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
     MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
 };
+use crate::report_capnp;
 use crate::serialize::SerializeError;
-use report_capnp;
 
 use crate::app_server::messages::NamedRelayAddress;
 use crate::app_server::messages::{NodeReport, NodeReportMutation};

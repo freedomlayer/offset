@@ -6,8 +6,8 @@ use crate::capnp_common::{
     read_uid, write_custom_u_int128, write_hash, write_public_key, write_rand_nonce, write_rate,
     write_signature, write_uid,
 };
+use crate::index_capnp;
 use common::int_convert::usize_to_u32;
-use index_capnp;
 
 use super::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,

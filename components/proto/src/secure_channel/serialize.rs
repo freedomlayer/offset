@@ -1,12 +1,12 @@
-use capnp;
-use capnp::serialize_packed;
-use dh_capnp;
 use std::io;
+
+use capnp::{self, serialize_packed};
 
 use crate::capnp_common::{
     read_dh_public_key, read_public_key, read_rand_nonce, read_salt, read_signature,
     write_dh_public_key, write_public_key, write_rand_nonce, write_salt, write_signature,
 };
+use crate::dh_capnp;
 
 use crate::serialize::SerializeError;
 

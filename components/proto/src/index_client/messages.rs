@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crypto::identity::PublicKey;
 use crypto::uid::Uid;
 

@@ -1,7 +1,9 @@
-use capnp;
-use capnp::serialize_packed;
-use keepalive_capnp;
 use std::io;
+
+use capnp;
+
+use crate::keepalive_capnp;
+use capnp::serialize_packed;
 
 use super::messages::KaMessage;
 use crate::serialize::SerializeError;

@@ -4,7 +4,7 @@ use std::io;
 
 use common::int_convert::usize_to_u32;
 
-use common_capnp::{
+use crate::common_capnp::{
     buffer128, buffer256, buffer512, commit, custom_int128, custom_u_int128, dh_public_key, hash,
     hashed_lock, invoice_id, multi_commit, named_index_server_address, named_relay_address,
     net_address, payment_id, plain_lock, public_key, rand_nonce, rate, receipt, relay_address,

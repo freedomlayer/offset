@@ -1,9 +1,10 @@
-use crate::capnp_common::{read_public_key, write_public_key};
-use capnp;
-use capnp::serialize_packed;
 use std::io;
 
-use relay_capnp;
+use capnp::{self, serialize_packed};
+
+use crate::capnp_common::{read_public_key, write_public_key};
+
+use crate::relay_capnp;
 
 use super::messages::{IncomingConnection, InitConnection, RejectConnection};
 
