@@ -14,6 +14,7 @@ pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
     sha_512_256(pk1).cmp(&sha_512_256(pk2))
 }
 
+// TODO: Could implement RandGen instead:
 /// Generate a pkcs8 key pair
 pub fn generate_private_key<R: CryptoRandom>(rng: &R) -> PrivateKey {
     PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap())

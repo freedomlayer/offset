@@ -3,9 +3,9 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::identity::PublicKey;
-use crypto::rand::{CryptoRandom, RandValue};
+use crypto::rand::{CryptoRandom};
 
+use proto::crypto::{PublicKey, RandValue};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,

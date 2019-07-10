@@ -4,8 +4,7 @@ use common::canonical_serialize::CanonicalSerialize;
 
 use proto::funder::messages::PendingTransaction;
 
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Uid};
 
 use crate::state::FunderState;
 

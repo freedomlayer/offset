@@ -2,10 +2,9 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::hash_lock::PlainLock;
-use crypto::identity::PublicKey;
-use crypto::rand::{CryptoRandom, RandValue};
+use crypto::rand::CryptoRandom;
 
+use proto::crypto::{PlainLock, PublicKey, RandValue};
 use proto::funder::messages::PendingTransaction;
 
 use identity::IdentityClient;

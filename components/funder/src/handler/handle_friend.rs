@@ -1,9 +1,9 @@
 use common::canonical_serialize::CanonicalSerialize;
 use std::fmt::Debug;
 
-use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
 use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
+
+use proto::crypto::{PublicKey, Signature, Uid, SIGNATURE_LEN};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{

@@ -3,8 +3,8 @@ use std::fmt::Debug;
 use common::canonical_serialize::CanonicalSerialize;
 
 use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
 
+use proto::crypto::Uid;
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::FunderOutgoingControl;
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};

@@ -1,5 +1,6 @@
-use crypto::identity::PublicKey;
 use im::hashset::HashSet as ImHashSet;
+
+use proto::crypto::PublicKey;
 
 #[derive(Clone, Default)]
 pub struct Liveness {

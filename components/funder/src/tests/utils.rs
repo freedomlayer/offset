@@ -8,9 +8,10 @@ use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
-use crypto::identity::{generate_private_key, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN};
+use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
+
+use proto::crypto::{Uid, UID_LEN, PublicKey, PUBLIC_KEY_LEN};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,

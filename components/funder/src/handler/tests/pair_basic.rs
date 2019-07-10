@@ -9,11 +9,10 @@ use futures::{future, FutureExt};
 use identity::{create_identity, IdentityClient};
 
 use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519Identity};
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
+
+use proto::crypto::{InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN, Uid, UID_LEN};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,

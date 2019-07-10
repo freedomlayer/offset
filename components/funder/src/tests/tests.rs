@@ -1,10 +1,6 @@
 use common::test_executor::TestExecutor;
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
-use crypto::uid::{Uid, UID_LEN};
-
+use proto::crypto::{PublicKey, Uid, UID_LEN, InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
     FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,

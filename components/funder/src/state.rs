@@ -2,11 +2,8 @@ use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
 use common::canonical_serialize::CanonicalSerialize;
-use crypto::hash_lock::{HashedLock, PlainLock};
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::uid::Uid;
+
+use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
 use proto::app_server::messages::NamedRelayAddress;
 use proto::funder::messages::{AddFriend, Receipt, ResponseSendFundsOp};

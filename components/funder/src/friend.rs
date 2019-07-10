@@ -1,11 +1,10 @@
 use im::vector::Vector as ImVec;
 use std::fmt::Debug;
 
-use crypto::identity::PublicKey;
-
 use common::canonical_serialize::CanonicalSerialize;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
+use proto::crypto::PublicKey;
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendStatus, Rate, RequestSendFundsOp, RequestsStatus,
     ResetTerms, ResponseSendFundsOp,

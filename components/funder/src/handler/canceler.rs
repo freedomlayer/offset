@@ -2,10 +2,9 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::identity::PublicKey;
 use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
 
+use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};
 
 use crate::handler::sender::SendCommands;

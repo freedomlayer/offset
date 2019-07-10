@@ -2,12 +2,9 @@ use std::fmt::Debug;
 
 use common::canonical_serialize::CanonicalSerialize;
 
-use crypto::hash_lock::PlainLock;
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
 use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
+
+use proto::crypto::{InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
 use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::state::{FunderMutation, NewTransactions, Payment};

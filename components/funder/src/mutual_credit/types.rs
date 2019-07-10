@@ -1,9 +1,8 @@
 use im::hashmap::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
 
+use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{PendingTransaction, RequestsStatus, TransactionStage};
 
 /// The maximum possible funder debt.

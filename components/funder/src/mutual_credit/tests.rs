@@ -2,13 +2,11 @@ use crypto::hash_lock::{PlainLock, PLAIN_LOCK_LEN};
 use crypto::identity::{
     generate_private_key, Identity, Signature, SoftwareEd25519Identity, SIGNATURE_LEN,
 };
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
 
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::rand::{RandValue, RAND_VALUE_LEN};
-
+use proto::crypto::{
+    InvoiceId, PublicKey, RandValue, Uid, INVOICE_ID_LEN, PUBLIC_KEY_LEN, RAND_VALUE_LEN, UID_LEN,
+};
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp,
