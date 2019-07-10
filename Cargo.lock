@@ -858,6 +858,7 @@ dependencies = [
  "offst-database 0.1.0",
  "offst-identity 0.1.0",
  "offst-proto 0.1.0",
+ "offst-signature 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.94 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.92 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -1,4 +1,4 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 use std::fmt::Debug;
 
 use crypto::rand::CryptoRandom;

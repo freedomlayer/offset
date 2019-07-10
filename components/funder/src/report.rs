@@ -1,7 +1,7 @@
 use im::hashmap::HashMap as ImHashMap;
 
-use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
+use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,

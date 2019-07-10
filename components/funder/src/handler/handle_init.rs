@@ -1,4 +1,4 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 use std::fmt::Debug;
 
 use proto::app_server::messages::RelayAddress;
@@ -55,7 +55,7 @@ pub fn handle_init<B>(
 mod tests {
     use super::*;
 
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
     use proto::funder::messages::AddFriend;
 
     use crate::friend::FriendMutation;

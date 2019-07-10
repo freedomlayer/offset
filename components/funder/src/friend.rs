@@ -1,7 +1,7 @@
 use im::vector::Vector as ImVec;
 use std::fmt::Debug;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;

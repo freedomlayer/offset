@@ -1,4 +1,4 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashResult, HashedLock, PublicKey, Signature, RandValue, Uid};
 
@@ -9,7 +9,7 @@ use proto::funder::messages::{
     RequestSendFundsOp, ResponseSendFundsOp, TransactionStage,
 };
 
-use proto::funder::signature_buff::{
+use signature::signature_buff::{
     create_response_signature_buffer, move_token_signature_buff, prefix_hash,
 };
 

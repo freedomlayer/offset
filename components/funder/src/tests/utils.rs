@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
 use futures::channel::mpsc;

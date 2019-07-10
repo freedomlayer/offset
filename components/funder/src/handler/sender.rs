@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom};
 

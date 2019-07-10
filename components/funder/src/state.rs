@@ -1,7 +1,7 @@
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 

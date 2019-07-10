@@ -6,7 +6,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
-use proto::funder::signature_buff::create_response_signature_buffer;
+use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 

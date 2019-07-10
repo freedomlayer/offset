@@ -39,7 +39,7 @@ impl Liveness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::PUBLIC_KEY_LEN;
+    use proto::crypto::PUBLIC_KEY_LEN;
 
     #[test]
     fn test_liveness_basic() {
