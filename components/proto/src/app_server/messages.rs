@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use common::canonical_serialize::CanonicalSerialize;
-use common::mutable_state::MutableState;
+// use common::mutable_state::MutableState;
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
@@ -152,6 +152,9 @@ impl<B> AppToAppServer<B> {
     }
 }
 
+/*
+ * TODO: Restore later
+ *
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
@@ -187,6 +190,7 @@ where
         self.mutate(mutation)
     }
 }
+*/
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
