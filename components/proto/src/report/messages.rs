@@ -219,6 +219,18 @@ pub struct FunderReport<B = NetAddress> {
     pub num_open_transactions: u64,
 }
 
+impl<B> FunderReport<B> {
+    // TODO:
+    /// Inefficient hack to avoid using two versions of FunderReport.
+    /// Should be resolved later by having another type that contains a map.
+    pub fn get_friend_report(&self, friend_public_key: &PublicKey) -> Option<&FriendReport<B>> {
+        self.friends
+            .iter()
+            .find(|&pk_friend_report| &pk_friend_report.friend_public_key == friend_public_key)
+            .map(|pk_friend_report| &pk_friend_report.friend_report)
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::report_capnp::friend_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
