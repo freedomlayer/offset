@@ -2,11 +2,6 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{DhPublicKey, PublicKey, RandValue, Salt, Signature};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct EncryptedData(pub Vec<u8>);
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PlainData(pub Vec<u8>);
-
 /// First Diffie-Hellman message:
 #[capnp_conv(crate::dh_capnp::exchange_rand_nonce)]
 #[derive(Debug, PartialEq, Eq)]

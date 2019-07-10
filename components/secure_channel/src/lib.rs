@@ -21,5 +21,6 @@ extern crate log;
 
 mod secure_channel;
 mod state;
+mod types;
 
 pub use self::secure_channel::SecureChannel;

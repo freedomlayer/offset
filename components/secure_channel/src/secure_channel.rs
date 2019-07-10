@@ -4,29 +4,37 @@ use std::marker::Unpin;
 
 use futures::channel::mpsc;
 
+use derive_more::From;
+
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::select_streams::{select_streams, BoxStream};
 
-use crypto::identity::PublicKey;
 use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
+use proto::secure_channel::messages::{ExchangeDh, ExchangeRandNonce};
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize, ProtoSerializeError};
+use proto::crypto::PublicKey;
+
 use crate::state::{ScState, ScStateError, ScStateInitial};
-use proto::secure_channel::messages::{EncryptedData, PlainData};
+use crate::types::{PlainData, EncryptedData};
+
+
+/*
 use proto::secure_channel::serialize::{
     deserialize_exchange_dh, deserialize_exchange_rand_nonce, serialize_exchange_dh,
     serialize_exchange_rand_nonce,
 };
+*/
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 enum SecureChannelError {
     IdentityFailure,
     WriterError,
     ReaderClosed,
-    DeserializeRandNonceError,
+    ProtoSerializeError(ProtoSerializeError),
     HandleExchangeRandNonceError(ScStateError),
-    DeserializeExchangeScStateError,
     HandleExchangeScStateError(ScStateError),
     UnexpectedRemotePublicKey,
     RequestTimerStreamError,
@@ -50,13 +58,12 @@ where
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
     let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &rng);
-    let ser_exchange_rand_nonce = serialize_exchange_rand_nonce(&exchange_rand_nonce);
+    let ser_exchange_rand_nonce = exchange_rand_nonce.proto_serialize();
     await!(writer.send(ser_exchange_rand_nonce)).map_err(|_| SecureChannelError::WriterError)?;
 
     let reader_message = await!(reader.next()).ok_or(SecureChannelError::ReaderClosed)?;
 
-    let exchange_rand_nonce = deserialize_exchange_rand_nonce(&reader_message)
-        .map_err(|_| SecureChannelError::DeserializeRandNonceError)?;
+    let exchange_rand_nonce = ExchangeRandNonce::proto_deserialize(&reader_message)?;
     let (dh_state_half, exchange_dh) = await!(dh_state_initial.handle_exchange_rand_nonce(
         exchange_rand_nonce,
         identity_client.clone(),
@@ -70,12 +77,11 @@ where
         }
     }
 
-    let ser_exchange_dh = serialize_exchange_dh(&exchange_dh);
+    let ser_exchange_dh = exchange_dh.proto_serialize();
     await!(writer.send(ser_exchange_dh)).map_err(|_| SecureChannelError::WriterError)?;
 
     let reader_message = await!(reader.next()).ok_or(SecureChannelError::ReaderClosed)?;
-    let exchange_dh = deserialize_exchange_dh(&reader_message)
-        .map_err(|_| SecureChannelError::DeserializeExchangeScStateError)?;
+    let exchange_dh = ExchangeDh::proto_deserialize(&reader_message)?;
     let dh_state = dh_state_half
         .handle_exchange_dh(exchange_dh)
         .map_err(SecureChannelError::HandleExchangeScStateError)?;
