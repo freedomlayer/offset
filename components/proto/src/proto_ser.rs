@@ -9,7 +9,7 @@ pub enum ProtoSerializeError {
 
 pub trait ProtoSerialize {
     /// Serialize a Rust struct into bytes using Capnp
-    fn proto_serialize(&self) -> Result<Vec<u8>, ProtoSerializeError>;
+    fn proto_serialize(&self) -> Vec<u8>;
 }
 
 pub trait ProtoDeserialize: Sized {
@@ -21,8 +21,8 @@ impl<T> ProtoSerialize for T
 where
     T: ToCapnpBytes,
 {
-    fn proto_serialize(&self) -> Result<Vec<u8>, ProtoSerializeError> {
-        Ok(self.to_capnp_bytes()?)
+    fn proto_serialize(&self) -> Vec<u8> {
+        self.to_capnp_bytes()
     }
 }
 
