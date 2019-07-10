@@ -87,3 +87,17 @@ impl<'a> ReadCapnp<'a> for Wrapper<i128> {
         Ok(Wrapper::new(BigEndian::read_i128(&vec[..])))
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_convert_wrapper() {
+        let _wrapper: Wrapper<i128> = 1i128.into();
+        // let _signed: i128 = Wrapper(1i128).into(); // Does not work!
+        let _signed: i128 = *Wrapper(1i128);
+    }
+
+}
