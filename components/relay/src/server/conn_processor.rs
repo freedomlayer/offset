@@ -16,12 +16,6 @@ use proto::crypto::PublicKey;
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
 use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
 
-/*
-use proto::relay::serialize::{
-    deserialize_init_connection, deserialize_reject_connection, serialize_incoming_connection,
-};
-*/
-
 async fn dispatch_conn<FT>(
     sender: mpsc::Sender<Vec<u8>>,
     receiver: mpsc::Receiver<Vec<u8>>,
