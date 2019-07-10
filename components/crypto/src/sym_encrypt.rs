@@ -3,7 +3,7 @@ use std::iter;
 use ring;
 use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey, CHACHA20_POLY1305};
 
-use super::{increase_nonce, CryptoError};
+use crate::error::CryptoError;
 
 use common::big_array::BigArray;
 
@@ -17,6 +17,18 @@ define_fixed_bytes!(SymmetricKey, SYMMETRIC_KEY_LEN);
 
 #[derive(Clone)]
 pub struct EncryptNonce(pub [u8; ENC_NONCE_LEN]);
+
+/// Increase the bytes represented number by 1.
+/// Reference: `libsodium/sodium/utils.c#L241`
+#[inline]
+pub fn increase_nonce(nonce: &mut [u8]) {
+    let mut c: u16 = 1;
+    for i in nonce {
+        c += u16::from(*i);
+        *i = c as u8;
+        c >>= 8;
+    }
+}
 
 pub struct EncryptNonceCounter {
     inner: EncryptNonce,

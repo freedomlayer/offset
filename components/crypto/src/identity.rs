@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 
 use proto::crypto::{PrivateKey, PublicKey, Signature};
 
-use super::CryptoError;
+use crate::error::CryptoError;
 use crate::hash::sha_512_256;
 use crate::rand::CryptoRandom;
 

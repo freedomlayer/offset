@@ -2,9 +2,10 @@ use std::cell::RefCell;
 use std::clone::Clone;
 use std::sync::Mutex;
 
-use crate::rand::CryptoRandom;
 use rand::{self, RngCore, StdRng};
 use ring::{error::Unspecified, rand::SecureRandom};
+
+use crate::rand::CryptoRandom;
 
 pub struct DummyRandom {
     inner: Mutex<RefCell<StdRng>>,

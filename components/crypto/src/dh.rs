@@ -6,8 +6,8 @@ use ring::rand::SecureRandom;
 
 use proto::crypto::{DhPublicKey, Salt};
 
-use super::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
-use super::CryptoError;
+use crate::error::CryptoError;
+use crate::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
 
 pub const SHARED_SECRET_LEN: usize = 32;
 

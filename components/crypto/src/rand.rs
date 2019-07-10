@@ -8,10 +8,6 @@ use ring::test::rand::FixedByteRandom;
 
 use proto::crypto::{InvoiceId, RandValue, Salt};
 
-// pub const RAND_VALUE_LEN: usize = 16;
-
-// define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
-
 pub trait CryptoRandom: SecureRandom + Sync + Send {}
 
 pub struct RngContainer<R> {
