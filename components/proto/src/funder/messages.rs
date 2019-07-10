@@ -462,6 +462,7 @@ impl RequestsStatus {
 /// Rates for forwarding a transaction
 /// For a transaction of `x` credits, the amount of fees will be:
 /// `(x * mul) / 2^32 + add`
+#[capnp_conv(crate::common_capnp::rate)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rate {
     /// Commission
