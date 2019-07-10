@@ -57,15 +57,14 @@ where
     }
 }
 
+#[capnp_conv(crate::report_capnp::node_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<B = NetAddress>
-where
-    B: Clone,
-{
+pub struct NodeReport<B = NetAddress> {
     pub funder_report: FunderReport<B>,
     pub index_client_report: IndexClientReport<B>,
 }
 
+#[capnp_conv(crate::report_capnp::node_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B = NetAddress>
 where
@@ -75,16 +74,25 @@ where
     IndexClient(IndexClientReportMutation<B>),
 }
 
+#[capnp_conv(crate::app_server_capnp::report_mutations::opt_app_request_id)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptAppRequestId {
+    AppRequestId(Uid),
+    Empty,
+}
+
+#[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B = NetAddress>
 where
     B: Clone,
 {
-    pub opt_app_request_id: Option<Uid>,
+    pub opt_app_request_id: OptAppRequestId,
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::app_server_capnp::app_server_to_app)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B = NetAddress>
 where
@@ -105,6 +113,7 @@ pub enum NamedRelaysMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
 }
 
+#[capnp_conv(crate::app_server_capnp::app_request)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
@@ -137,6 +146,7 @@ pub enum AppRequest<B = NetAddress> {
     AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
 }
+#[capnp_conv(crate::app_server_capnp::app_to_app_server)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct AppToAppServer<B = NetAddress> {
     pub app_request_id: Uid,
@@ -192,6 +202,7 @@ where
 }
 */
 
+#[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Can request routes

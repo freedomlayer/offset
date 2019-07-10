@@ -28,6 +28,7 @@ using import "index.capnp".MultiRoute;
 # Interface between AppServer and an Application
 ################################################
 
+
 struct UserRequestSendFunds {
         requestId @0: Uid;
         route @1: FriendsRoute;

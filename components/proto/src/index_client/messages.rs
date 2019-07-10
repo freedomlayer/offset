@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::{PublicKey, Uid};
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
+use crate::crypto::{PublicKey, Uid};
 use crate::funder::messages::Rate;
 pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};
 use crate::index_server::messages::{MultiRoute, NamedIndexServerAddress};
+use crate::net::messages::NetAddress;
 
 #[derive(Debug, Clone)]
 pub struct FriendInfo {
@@ -24,13 +26,21 @@ pub struct IndexClientState {
 // IndexClient <--> AppServer communication
 // ---------------------------------------------------
 
+#[capnp_conv(crate::report_capnp::index_client_report::opt_connected_server)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptConnectedServer {
+    PublicKey(PublicKey),
+    Empty,
+}
+
+#[capnp_conv(crate::report_capnp::index_client_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// ISA stands for Index Server Address
-pub struct IndexClientReport<ISA> {
+pub struct IndexClientReport<ISA = NetAddress> {
     /// A list of trusted index servers.
     pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
     /// The server we are currently connected to (None if not connected).
-    pub opt_connected_server: Option<PublicKey>,
+    pub opt_connected_server: OptConnectedServer,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,19 +50,29 @@ pub struct AddIndexServer<ISA> {
     pub name: String,
 }
 
+#[capnp_conv(crate::report_capnp::index_client_report_mutation::set_connected_server)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IndexClientReportMutation<ISA> {
-    AddIndexServer(NamedIndexServerAddress<ISA>),
-    RemoveIndexServer(PublicKey),
-    SetConnectedServer(Option<PublicKey>),
+pub enum SetConnectedServer {
+    PublicKey(PublicKey),
+    Empty,
 }
 
+#[capnp_conv(crate::report_capnp::index_client_report_mutation)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexClientReportMutation<ISA = NetAddress> {
+    AddIndexServer(NamedIndexServerAddress<ISA>),
+    RemoveIndexServer(PublicKey),
+    SetConnectedServer(SetConnectedServer),
+}
+
+#[capnp_conv(crate::app_server_capnp::response_routes_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseRoutesResult {
     Success(Vec<MultiRoute>),
     Failure,
 }
 
+#[capnp_conv(crate::app_server_capnp::client_response_routes)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientResponseRoutes {
     pub request_id: Uid,
@@ -84,6 +104,10 @@ pub enum AppServerToIndexClient<ISA> {
     ApplyMutations(Vec<IndexMutation>),
 }
 
+/*
+ * TODO: Restore this later
+ *
+ *
 impl<ISA> IndexClientReport<ISA>
 where
     ISA: Eq + Clone,
@@ -110,3 +134,4 @@ where
         }
     }
 }
+*/

@@ -220,7 +220,7 @@ pub struct FunderReport<B = NetAddress> {
 }
 
 #[allow(clippy::large_enum_variant)]
-// #[capnp_conv(crate::report_capnp::friend_report_mutation)]
+#[capnp_conv(crate::report_capnp::friend_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
@@ -234,28 +234,37 @@ pub enum FriendReportMutation<B = NetAddress> {
     SetNumPendingBackwardsOps(u64),
     SetNumPendingUserRequests(u64),
     SetStatus(FriendStatusReport),
-    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
+    SetOptLastIncomingMoveToken(OptLastIncomingMoveToken),
     SetLiveness(FriendLivenessReport),
 }
 
+#[capnp_conv(crate::report_capnp::add_friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
-    pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
+    pub balance: Wrapper<i128>, // Initial balance
+    pub opt_last_incoming_move_token: OptLastIncomingMoveToken,
     pub channel_status: ChannelStatusReport,
 }
 
+#[capnp_conv(crate::report_capnp::pk_friend_report_mutation)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PkFriendReportMutation<B = NetAddress> {
+    friend_public_key: PublicKey,
+    friend_report_mutation: FriendReportMutation<B>,
+}
+
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::report_capnp::funder_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<B = NetAddress> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
-    FriendReportMutation((PublicKey, FriendReportMutation<B>)),
+    PkFriendReportMutation(PkFriendReportMutation<B>),
     SetNumOpenInvoices(u64),
     SetNumPayments(u64),
     SetNumOpenTransactions(u64),

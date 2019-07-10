@@ -508,12 +508,13 @@ impl Rate {
     }
 }
 
+#[capnp_conv(crate::app_server_capnp::add_friend)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
-    pub balance: i128, // Initial balance
+    pub balance: Wrapper<i128>, // Initial balance
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -533,30 +534,35 @@ pub struct SetFriendStatus {
     pub status: FriendStatus,
 }
 
+#[capnp_conv(crate::app_server_capnp::set_friend_remote_max_debt)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRemoteMaxDebt {
     pub friend_public_key: PublicKey,
-    pub remote_max_debt: u128,
+    pub remote_max_debt: Wrapper<u128>,
 }
 
+#[capnp_conv(crate::app_server_capnp::set_friend_name)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendName {
     pub friend_public_key: PublicKey,
     pub name: String,
 }
 
+#[capnp_conv(crate::app_server_capnp::set_friend_relays)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRelays<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
 }
 
+#[capnp_conv(crate::app_server_capnp::reset_friend_channel)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetFriendChannel {
     pub friend_public_key: PublicKey,
     pub reset_token: Signature,
 }
 
+#[capnp_conv(crate::app_server_capnp::set_friend_rate)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRate {
     pub friend_public_key: PublicKey,
@@ -567,18 +573,22 @@ pub struct SetFriendRate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FriendsRouteCapacity {
     route: FriendsRoute,
-    capacity: u128,
+    capacity: Wrapper<u128>,
 }
 
+/*
 /// A request to send funds that originates from the user
+#[capnp_conv(crate::app_server_capnp::user_request_send_funds)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserRequestSendFunds {
     pub payment_id: PaymentId,
     pub route: FriendsRoute,
     pub invoice_id: InvoiceId,
-    pub dest_payment: u128,
+    pub dest_payment: Wrapper<u128>,
 }
+*/
 
+#[capnp_conv(crate::app_server_capnp::receipt_ack)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReceiptAck {
     pub request_id: Uid,
@@ -586,17 +596,19 @@ pub struct ReceiptAck {
 }
 
 /// Start a payment, possibly by paying through multiple routes.
+#[capnp_conv(crate::app_server_capnp::create_payment)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreatePayment {
     /// payment_id is a randomly generated value (by the user), allowing the user to refer to a
     /// certain payment.
     pub payment_id: PaymentId,
     pub invoice_id: InvoiceId,
-    pub total_dest_payment: u128,
+    pub total_dest_payment: Wrapper<u128>,
     pub dest_public_key: PublicKey,
 }
 
 /// Start a payment, possibly by paying through multiple routes.
+#[capnp_conv(crate::app_server_capnp::create_transaction)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateTransaction {
     /// A payment id of an existing payment.
@@ -605,20 +617,22 @@ pub struct CreateTransaction {
     /// allows the user to refer to this request later.
     pub request_id: Uid,
     pub route: FriendsRoute,
-    pub dest_payment: u128,
-    pub fees: u128,
+    pub dest_payment: Wrapper<u128>,
+    pub fees: Wrapper<u128>,
 }
 
 /// Start an invoice (A request for payment).
+#[capnp_conv(crate::app_server_capnp::add_invoice)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     pub invoice_id: InvoiceId,
     /// Total amount of credits to be paid.
-    pub total_dest_payment: u128,
+    pub total_dest_payment: Wrapper<u128>,
 }
 
 /// Start an invoice (A request for payment).
+#[capnp_conv(crate::app_server_capnp::ack_close_payment)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AckClosePayment {
     pub payment_id: PaymentId,
@@ -664,28 +678,29 @@ impl<B> FunderIncomingControl<B> {
     }
 }
 
-impl UserRequestSendFunds {
-    /*
-    pub fn into_request(self) -> RequestSendFunds {
-        RequestSendFunds {
-            request_id: self.request_id,
-            route: self.route,
-            invoice_id: self.invoice_id,
-            dest_payment: self.dest_payment,
-        }
+// impl UserRequestSendFunds {
+/*
+pub fn into_request(self) -> RequestSendFunds {
+    RequestSendFunds {
+        request_id: self.request_id,
+        route: self.route,
+        invoice_id: self.invoice_id,
+        dest_payment: self.dest_payment,
     }
-
-    pub fn create_pending_transaction(&self) -> PendingTransaction {
-        PendingTransaction {
-            request_id: self.request_id,
-            route: self.route.clone(),
-            dest_payment: self.dest_payment,
-            invoice_id: self.invoice_id.clone(),
-        }
-    }
-    */
 }
 
+pub fn create_pending_transaction(&self) -> PendingTransaction {
+    PendingTransaction {
+        request_id: self.request_id,
+        route: self.route.clone(),
+        dest_payment: self.dest_payment,
+        invoice_id: self.invoice_id.clone(),
+    }
+}
+*/
+// }
+
+#[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestResult {
     Success(Commit),
@@ -693,21 +708,31 @@ pub enum RequestResult {
     Failure,
 }
 
+#[capnp_conv(crate::app_server_capnp::transaction_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionResult {
     pub request_id: Uid,
     pub result: RequestResult,
 }
 
+#[capnp_conv(crate::app_server_capnp::payment_status_success)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaymentStatusSuccess {
+    pub receipt: Receipt,
+    pub ack_uid: Uid,
+}
+
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::app_server_capnp::payment_status)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaymentStatus {
     PaymentNotFound,
-    InProgress,              // Can not be acked
-    Success((Receipt, Uid)), // (Receipt, ack_id)
-    Canceled(Uid),           // ack_id
+    InProgress,                    // Can not be acked
+    Success(PaymentStatusSuccess), // (Receipt, ack_id)
+    Canceled(Uid),                 // ack_id
 }
 
+#[capnp_conv(crate::app_server_capnp::response_close_payment)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResponseClosePayment {
     pub payment_id: PaymentId,
