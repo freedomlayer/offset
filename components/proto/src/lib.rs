@@ -25,7 +25,6 @@ pub mod relay;
 pub mod report;
 pub mod secure_channel;
 pub mod ser_string;
-pub mod serialize;
 pub mod wrapper;
 
 include_schema!(report_capnp, "report_capnp");

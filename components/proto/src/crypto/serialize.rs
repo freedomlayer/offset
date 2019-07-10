@@ -1,15 +1,3 @@
-// use crate::common_capnp;
-/*
-use capnp_conv::{CapnpConvError, ReadCapnp, WriteCapnp};
-
-use super::{
-    DhPublicKey, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PrivateKey, PublicKey,
-    RandValue, Salt, Signature, Uid,
-};
-*/
-
-// TODO: Make this more elegant, possibly with a proc macro?
-
 /// Define read and write functions for basic types
 macro_rules! type_capnp_serde {
     ($native_type:ty, $capnp_type:ty, ($($field:ident),*)) => {
