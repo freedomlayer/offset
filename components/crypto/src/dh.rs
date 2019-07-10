@@ -4,16 +4,14 @@ use ring::hkdf::extract_and_expand;
 use ring::hmac::SigningKey;
 use ring::rand::SecureRandom;
 
+use proto::crypto::{DhPublicKey, Salt};
+
 use super::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
 use super::CryptoError;
 
-pub const SALT_LEN: usize = 32;
-pub const DH_PUBLIC_KEY_LEN: usize = 32;
 pub const SHARED_SECRET_LEN: usize = 32;
 
-define_fixed_bytes!(Salt, SALT_LEN);
-define_fixed_bytes!(DhPublicKey, DH_PUBLIC_KEY_LEN);
-
+/*
 impl Salt {
     pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Salt, CryptoError> {
         let mut salt = Salt::default();
@@ -25,6 +23,7 @@ impl Salt {
         }
     }
 }
+*/
 
 pub struct DhPrivateKey(EphemeralPrivateKey);
 
@@ -40,7 +39,7 @@ impl DhPrivateKey {
     /// Compute public key from our private key.
     /// The public key will be sent to remote side.
     pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
-        let mut public_key = DhPublicKey([0_u8; DH_PUBLIC_KEY_LEN]);
+        let mut public_key = DhPublicKey::default();
 
         if self.0.compute_public_key(&mut public_key).is_ok() {
             Ok(public_key)
@@ -89,11 +88,13 @@ mod tests {
     use super::super::test_utils::DummyRandom;
     use super::*;
 
+    use crate::rand::RandGen;
+
     #[test]
     fn test_new_salt() {
         let rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
-        let salt1 = Salt::new(&rng).unwrap();
-        let salt2 = Salt::new(&rng).unwrap();
+        let salt1 = Salt::rand_gen(&rng);
+        let salt2 = Salt::rand_gen(&rng);
 
         assert_ne!(salt1, salt2);
     }
@@ -107,8 +108,8 @@ mod tests {
         let public_key_a = dh_private_a.compute_public_key().unwrap();
         let public_key_b = dh_private_b.compute_public_key().unwrap();
 
-        let salt_a = Salt::new(&rng).unwrap();
-        let salt_b = Salt::new(&rng).unwrap();
+        let salt_a = Salt::rand_gen(&rng);
+        let salt_b = Salt::rand_gen(&rng);
 
         // Each side derives the symmetric key from the remote's public key
         // and the salt:
