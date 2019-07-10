@@ -14,4 +14,4 @@ proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 
 log = "0.4"
 futures-preview = "0.3.0-alpha.16"
-
+derive_more = "0.15.0"

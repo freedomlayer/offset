@@ -1,20 +1,24 @@
+use std::marker::Unpin;
+
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
-use std::marker::Unpin;
+
+use derive_more::From;
+
 use timer::{TimerClient, TimerTick};
 
 use common::conn::{BoxFuture, ConnPair, FutTransform};
 use common::select_streams::{select_streams, BoxStream};
 
 use proto::keepalive::messages::KaMessage;
-use proto::keepalive::serialize::{deserialize_ka_message, serialize_ka_message};
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize, ProtoSerializeError};
 
-#[derive(Debug)]
+#[derive(From, Debug)]
 pub enum KeepAliveError {
     // TimerClosed,
     RemoteTimeout,
-    DeserializeError,
+    ProtoSerializeError(ProtoSerializeError),
 }
 
 #[derive(Debug, Clone)]
@@ -95,8 +99,7 @@ where
         }
         match event {
             KeepAliveEvent::MessageFromRemote(ser_ka_message) => {
-                let ka_message = deserialize_ka_message(&ser_ka_message)
-                    .map_err(|_| KeepAliveError::DeserializeError)?;
+                let ka_message = KaMessage::proto_deserialize(&ser_ka_message)?;
                 ticks_to_close = keepalive_ticks;
                 if let KaMessage::Message(message) = ka_message {
                     if await!(to_user.send(message)).is_err() {
@@ -107,7 +110,7 @@ where
             }
             KeepAliveEvent::MessageFromUser(message) => {
                 let ka_message = KaMessage::Message(message);
-                let ser_ka_message = serialize_ka_message(&ka_message);
+                let ser_ka_message = ka_message.proto_serialize();
                 if await!(to_remote.send(ser_ka_message)).is_err() {
                     warn!("keepalive_loop(): Can not send to remote side");
                     break;
@@ -122,7 +125,7 @@ where
                 }
                 if ticks_to_send_keepalive == 0 {
                     let ka_message = KaMessage::KeepAlive;
-                    let ser_ka_message = serialize_ka_message(&ka_message);
+                    let ser_ka_message = ka_message.proto_serialize();
                     if await!(to_remote.send(ser_ka_message)).is_err() {
                         warn!("Keepalive_loop(): Can not send to remote side");
                         break;
@@ -294,16 +297,16 @@ mod tests {
         let vec = await!(remote_receiver.next()).unwrap();
         assert_eq!(
             vec,
-            serialize_ka_message(&KaMessage::Message(vec![1, 2, 3]))
+            KaMessage::Message(vec![1, 2, 3]).proto_serialize()
         );
 
         // User can not see Keepalive messages sent from remote:
-        let vec = serialize_ka_message(&KaMessage::KeepAlive);
+        let vec = KaMessage::KeepAlive.proto_serialize();
         await!(remote_sender.send(vec)).unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Send from remote to user:
-        let vec = serialize_ka_message(&KaMessage::Message(vec![3, 2, 1]));
+        let vec = KaMessage::Message(vec![3, 2, 1]).proto_serialize();
         await!(remote_sender.send(vec)).unwrap();
         await!(event_receiver.next()).unwrap();
         let vec = await!(user_receiver.next()).unwrap();
@@ -317,10 +320,10 @@ mod tests {
 
         // We expect to see a keepalive being sent:
         let vec = await!(remote_receiver.next()).unwrap();
-        assert_eq!(vec, serialize_ka_message(&KaMessage::KeepAlive));
+        assert_eq!(vec, KaMessage::KeepAlive.proto_serialize());
 
         // Remote sends a keepalive:
-        let vec = serialize_ka_message(&KaMessage::KeepAlive);
+        let vec = KaMessage::KeepAlive.proto_serialize();
         await!(remote_sender.send(vec)).unwrap();
         await!(event_receiver.next()).unwrap();
 
