@@ -5,6 +5,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, OptLocalRelays, Receipt,
     RequestSendFundsOp, ResponseSendFundsOp,
 };
+use proto::index_server::messages::{IndexMutation, UpdateFriend};
 use proto::net::messages::NetAddress;
 
 use common::int_convert::usize_to_u64;
@@ -226,6 +227,37 @@ where
             OptLocalRelays::Relays(relays) => {
                 res_bytes.push(1u8);
                 res_bytes.append(&mut relays.canonical_serialize());
+            }
+        };
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for UpdateFriend {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes
+            .write_u128::<BigEndian>(*self.send_capacity)
+            .unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(*self.recv_capacity)
+            .unwrap();
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for IndexMutation {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        match self {
+            IndexMutation::UpdateFriend(update_friend) => {
+                res_bytes.push(0);
+                res_bytes.extend(update_friend.canonical_serialize());
+            }
+            IndexMutation::RemoveFriend(public_key) => {
+                res_bytes.push(1);
+                res_bytes.extend_from_slice(public_key);
             }
         };
         res_bytes

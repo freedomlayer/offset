@@ -17,13 +17,14 @@ use proto::funder::messages::{
     ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
     SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
-use proto::funder::signature_buff::{prepare_commit, verify_multi_commit};
+use proto::funder::signature_buff::verify_multi_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
     reply_with_cancel,
 };
+use crate::handler::prepare::prepare_commit;
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 use crate::handler::utils::{find_local_pending_transaction, find_request_origin, is_friend_ready};

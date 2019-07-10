@@ -11,7 +11,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
-use proto::funder::signature_buff::{prepare_commit, prepare_receipt, verify_move_token};
+use proto::funder::signature_buff::verify_move_token;
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,
@@ -32,6 +32,7 @@ use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
     remove_transaction, reply_with_cancel,
 };
+use crate::handler::prepare::{prepare_commit, prepare_receipt};
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 use crate::handler::utils::{find_request_origin, is_friend_ready};

@@ -13,6 +13,6 @@
     clippy::new_without_default
 )]
 
-mod canonical;
-#[allow(unused)]
-mod verify;
+pub mod canonical;
+pub mod signature_buff;
+pub mod verify;
