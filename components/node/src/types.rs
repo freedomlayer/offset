@@ -1,4 +1,4 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
 use crypto::identity::PublicKey;
