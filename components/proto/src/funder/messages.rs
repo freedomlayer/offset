@@ -4,7 +4,6 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use byteorder::{BigEndian, WriteBytesExt};
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
@@ -20,9 +19,6 @@ use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
 use crate::wrapper::Wrapper;
-
-use common::canonical_serialize::CanonicalSerialize;
-use common::int_convert::usize_to_u64;
 
 #[derive(Debug, Clone)]
 pub struct ChannelerUpdateFriend<RA> {
@@ -230,102 +226,6 @@ pub struct PendingTransaction {
 // ==================================================================
 // ==================================================================
 
-impl CanonicalSerialize for RequestSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.src_hashed_lock);
-        res_bytes.extend_from_slice(&self.route.canonical_serialize());
-        res_bytes
-            .write_u128::<BigEndian>(*self.dest_payment)
-            .unwrap();
-        res_bytes.extend_from_slice(&self.invoice_id);
-        // We do not sign over`left_fees`, because this field changes as the request message is
-        // forwarded.
-        // res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for ResponseSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.dest_hashed_lock);
-        res_bytes.extend_from_slice(&self.rand_nonce);
-        res_bytes.extend_from_slice(&self.signature);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for CancelSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for CollectSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.src_plain_lock);
-        res_bytes.extend_from_slice(&self.dest_plain_lock);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for FriendTcOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match self {
-            FriendTcOp::EnableRequests => {
-                res_bytes.push(0u8);
-            }
-            FriendTcOp::DisableRequests => {
-                res_bytes.push(1u8);
-            }
-            FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
-                res_bytes.push(2u8);
-                res_bytes
-                    .write_u128::<BigEndian>(**remote_max_debt)
-                    .unwrap();
-            }
-            FriendTcOp::RequestSendFunds(request_send_funds) => {
-                res_bytes.push(3u8);
-                res_bytes.append(&mut request_send_funds.canonical_serialize())
-            }
-            FriendTcOp::ResponseSendFunds(response_send_funds) => {
-                res_bytes.push(4u8);
-                res_bytes.append(&mut response_send_funds.canonical_serialize())
-            }
-            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-                res_bytes.push(5u8);
-                res_bytes.append(&mut cancel_send_funds.canonical_serialize())
-            }
-            FriendTcOp::CollectSendFunds(commit_send_funds) => {
-                res_bytes.push(6u8);
-                res_bytes.append(&mut commit_send_funds.canonical_serialize())
-            }
-        }
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for FriendsRoute {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes
-            .write_u64::<BigEndian>(usize_to_u64(self.public_keys.len()).unwrap())
-            .unwrap();
-        for public_key in &self.public_keys {
-            res_bytes.extend_from_slice(public_key);
-        }
-        res_bytes
-    }
-}
-
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
@@ -419,19 +319,6 @@ fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
     }
 
     no_duplicates(route)
-}
-
-impl CanonicalSerialize for Receipt {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.response_hash);
-        res_bytes.extend_from_slice(&self.invoice_id);
-        res_bytes
-            .write_u128::<BigEndian>(*self.dest_payment)
-            .unwrap();
-        res_bytes.extend_from_slice(&self.signature);
-        res_bytes
-    }
 }
 
 // AppServer <-> Funder communication:

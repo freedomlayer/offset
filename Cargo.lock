@@ -1028,6 +1028,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "offst-signature"
+version = "0.1.0"
+dependencies = [
+ "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "offst-common 0.1.0",
+ "offst-crypto 0.1.0",
+ "offst-proto 0.1.0",
+]
+
+[[package]]
 name = "offst-stctrl"
 version = "0.1.0"
 dependencies = [

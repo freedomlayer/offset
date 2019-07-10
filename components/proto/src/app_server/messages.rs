@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::canonical_serialize::CanonicalSerialize;
 // use common::mutable_state::MutableState;
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
@@ -42,18 +41,6 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
             public_key: from.public_key,
             address: from.address,
         }
-    }
-}
-
-impl<B> CanonicalSerialize for RelayAddress<B>
-where
-    B: CanonicalSerialize,
-{
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.public_key);
-        res_bytes.extend_from_slice(&self.address.canonical_serialize());
-        res_bytes
     }
 }
 

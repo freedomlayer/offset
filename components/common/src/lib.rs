@@ -25,7 +25,7 @@ pub mod define_fixed_bytes;
 pub mod access_control;
 pub mod async_test_utils;
 pub mod caller_info;
-pub mod canonical_serialize;
+// pub mod canonical_serialize;
 pub mod conn;
 pub mod dummy_connector;
 pub mod dummy_listener;

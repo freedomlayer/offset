@@ -1,17 +1,29 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash::{self, sha_512_256};
+use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
-use crate::crypto::{HashResult, InvoiceId, PlainLock, PublicKey};
+use proto::crypto::{HashResult, InvoiceId, PlainLock, PublicKey};
 
-use common::canonical_serialize::CanonicalSerialize;
 use common::int_convert::usize_to_u64;
 
-use super::messages::{
+use proto::funder::messages::{
     CollectSendFundsOp, Commit, MoveToken, MultiCommit, PendingTransaction, Receipt,
     ResponseSendFundsOp,
 };
+
+use crate::canonical::CanonicalSerialize;
+
+pub trait SignatureBuff {
+    /// Obtain a buffer to sign over
+    fn signature_buff(&self) -> Vec<u8>;
+}
+
+pub trait VerifySignature {
+    /// Verify a structure
+    fn verify_signature(&self) -> bool;
+}
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
@@ -61,8 +73,8 @@ pub fn prepare_receipt(
         invoice_id: pending_transaction.invoice_id.clone(),
         src_plain_lock: collect_send_funds.src_plain_lock.clone(),
         dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
-        dest_payment: pending_transaction.dest_payment,
-        total_dest_payment: pending_transaction.total_dest_payment,
+        dest_payment: pending_transaction.dest_payment.into(),
+        total_dest_payment: pending_transaction.total_dest_payment.into(),
         signature: response_send_funds.signature.clone(),
     }
 }
@@ -73,10 +85,10 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 
     data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
     data.extend(receipt.response_hash.as_ref());
-    data.extend_from_slice(&receipt.src_plain_lock.hash());
-    data.extend_from_slice(&receipt.dest_plain_lock.hash());
-    data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
-    data.write_u128::<BigEndian>(receipt.total_dest_payment)
+    data.extend_from_slice(&receipt.src_plain_lock.hash_lock());
+    data.extend_from_slice(&receipt.dest_plain_lock.hash_lock());
+    data.write_u128::<BigEndian>(*receipt.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(*receipt.total_dest_payment)
         .unwrap();
     data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
@@ -96,7 +108,7 @@ pub fn prepare_commit(
 
     Commit {
         response_hash,
-        dest_payment: pending_transaction.dest_payment,
+        dest_payment: pending_transaction.dest_payment.into(),
         src_plain_lock,
         dest_hashed_lock: response_send_funds.dest_hashed_lock.clone(),
         signature: response_send_funds.signature.clone(),
@@ -114,9 +126,9 @@ fn verify_commit(
 
     data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
     data.extend(commit.response_hash.as_ref());
-    data.extend_from_slice(&commit.src_plain_lock.hash());
+    data.extend_from_slice(&commit.src_plain_lock.hash_lock());
     data.extend_from_slice(&commit.dest_hashed_lock);
-    data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(*commit.dest_payment).unwrap();
     data.write_u128::<BigEndian>(total_dest_payment).unwrap();
     data.extend(invoice_id.as_ref());
     verify_signature(&data, local_public_key, &commit.signature)
@@ -132,7 +144,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
         is_sig_valid &= verify_commit(
             commit,
             &multi_commit.invoice_id,
-            multi_commit.total_dest_payment,
+            *multi_commit.total_dest_payment,
             local_public_key,
         );
     }
@@ -143,7 +155,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
     // Check if the credits add up:
     let mut sum_credits = 0u128;
     for commit in &multi_commit.commits {
-        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(commit.dest_payment) {
+        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(*commit.dest_payment) {
             sum_credits
         } else {
             return false;
@@ -151,7 +163,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
     }
 
     // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
-    sum_credits == multi_commit.total_dest_payment
+    sum_credits == *multi_commit.total_dest_payment
 }
 
 // Prefix used for chain hashing of token channel funds.
@@ -212,16 +224,16 @@ where
         .write_u64::<BigEndian>(move_token.inconsistency_counter)
         .unwrap();
     sig_buffer
-        .write_u128::<BigEndian>(move_token.move_token_counter)
+        .write_u128::<BigEndian>(*move_token.move_token_counter)
         .unwrap();
     sig_buffer
-        .write_i128::<BigEndian>(move_token.balance)
+        .write_i128::<BigEndian>(*move_token.balance)
         .unwrap();
     sig_buffer
-        .write_u128::<BigEndian>(move_token.local_pending_debt)
+        .write_u128::<BigEndian>(*move_token.local_pending_debt)
         .unwrap();
     sig_buffer
-        .write_u128::<BigEndian>(move_token.remote_pending_debt)
+        .write_u128::<BigEndian>(*move_token.remote_pending_debt)
         .unwrap();
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
 

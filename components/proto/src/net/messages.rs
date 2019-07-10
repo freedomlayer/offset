@@ -8,7 +8,6 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 // use byteorder::{WriteBytesExt, BigEndian};
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
-use common::canonical_serialize::CanonicalSerialize;
 
 #[capnp_conv(crate::common_capnp::net_address)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
@@ -20,12 +19,6 @@ pub struct NetAddress {
 impl NetAddress {
     pub fn as_str(&self) -> &str {
         &self.address
-    }
-}
-
-impl CanonicalSerialize for NetAddress {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        self.address.canonical_serialize()
     }
 }
 
