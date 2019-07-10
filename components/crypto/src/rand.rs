@@ -54,10 +54,6 @@ pub fn system_random() -> OffstSystemRandom {
     RngContainer::new(SystemRandom::new())
 }
 
-pub trait RandGen: Sized {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self;
-}
-
 /// `RandValuesStore` is a storage and generation structure of random values.
 /// Those random values are used for cryptographic time.
 /// A new random value is generated every `rand_value_ticks` time ticks.
@@ -119,6 +115,10 @@ impl RandValuesStore {
             Some(rand_value) => rand_value.clone(),
         }
     }
+}
+
+pub trait RandGen: Sized {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self;
 }
 
 impl RandGen for Salt {
