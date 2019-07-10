@@ -11,7 +11,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
-use proto::funder::signature_buff::verify_move_token;
+use signature::verify::verify_move_token;
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,

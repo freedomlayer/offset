@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::rand::CryptoRandom;
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
@@ -17,7 +17,7 @@ use proto::funder::messages::{
     ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
     SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
-use proto::funder::signature_buff::verify_multi_commit;
+use signature::verify::verify_multi_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
@@ -69,7 +69,7 @@ where
         .get(&set_friend_remote_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
+    if friend.wanted_remote_max_debt == *set_friend_remote_max_debt.remote_max_debt {
         // Wanted remote max debt is already set to this value. Nothing to do here.
         return Ok(());
     }
@@ -78,7 +78,7 @@ where
     // only when we manage to send a move token message containing the SetRemoteMaxDebt
     // operation.
     let friend_mutation =
-        FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
+        FriendMutation::SetWantedRemoteMaxDebt(*set_friend_remote_max_debt.remote_max_debt);
     let m_mutation = FunderMutation::FriendMutation((
         set_friend_remote_max_debt.friend_public_key.clone(),
         friend_mutation,
@@ -498,7 +498,7 @@ where
     let payment = Payment::NewTransactions(NewTransactions {
         num_transactions: 0,
         invoice_id: create_payment.invoice_id.clone(),
-        total_dest_payment: create_payment.total_dest_payment,
+        total_dest_payment: *create_payment.total_dest_payment,
         dest_public_key: create_payment.dest_public_key.clone(),
     });
 
@@ -598,7 +598,7 @@ where
     }
 
     // Randomly generate a new PlainLock:
-    let src_plain_lock = PlainLock::new(rng);
+    let src_plain_lock = PlainLock::rand_gen(rng);
 
     // Keep PlainLock:
     let funder_mutation = FunderMutation::AddTransaction((

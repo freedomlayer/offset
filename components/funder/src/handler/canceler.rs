@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::rand::CryptoRandom;
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};
@@ -74,7 +74,7 @@ where
             if new_num_transactions > 0 {
                 Some(Payment::InProgress(new_num_transactions))
             } else {
-                let ack_uid = Uid::new(rng);
+                let ack_uid = Uid::rand_gen(rng);
                 Some(Payment::Canceled(ack_uid))
             }
         }

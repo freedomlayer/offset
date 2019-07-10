@@ -1,3 +1,5 @@
+use crypto::hash;
+use proto::crypto::PlainLock;
 use proto::funder::messages::{
     CollectSendFundsOp, Commit, PendingTransaction, Receipt, ResponseSendFundsOp,
 };

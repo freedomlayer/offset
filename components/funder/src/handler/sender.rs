@@ -3,13 +3,13 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::rand::{CryptoRandom};
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PublicKey, RandValue};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TransactionResult,
+    RequestResult, RequestsStatus, TransactionResult, OptLocalRelays,
 };
 
 use identity::IdentityClient;
@@ -233,7 +233,7 @@ pub async fn apply_local_reset<'a, B, R>(
     // TODO: How to do this without unwrap?:
     let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms.clone().unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = RandValue::rand_gen(rng);
     let move_token_counter = 0;
 
     let local_pending_debt = 0;
@@ -340,7 +340,10 @@ async fn send_friend_iter1<'a, B, R>(
                     &mut outgoing_messages,
                 );
             } else if friend_send_commands.resend_outgoing {
-                let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
+                let is_token_wanted = match tc_outgoing.move_token_out.opt_local_relays {
+                    OptLocalRelays::Empty => false,
+                    OptLocalRelays::Relays(_) => true,
+                };
                 transmit_outgoing(
                     m_state,
                     &friend_public_key,
@@ -784,7 +787,7 @@ async fn send_move_token<'a, B, R>(
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = RandValue::rand_gen(rng);
     let channel_consistent = match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -817,9 +820,9 @@ async fn send_move_token<'a, B, R>(
         TcDirection::Incoming(_) => unreachable!(),
     };
 
-    let friend_move_token = tc_outgoing.create_outgoing_move_token();
+    let move_token = tc_outgoing.create_outgoing_move_token();
     let move_token_request = MoveTokenRequest {
-        friend_move_token,
+        move_token,
         token_wanted,
     };
 

@@ -85,7 +85,7 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 0i128,
+        balance: 0i128.into(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; UID_LEN]),
@@ -125,7 +125,7 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: 0i128,
+        balance: 0i128.into(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; UID_LEN]),
@@ -242,7 +242,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -278,7 +278,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk2);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -315,7 +315,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -345,7 +345,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 receives control message to set remote max debt.
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
         friend_public_key: pk2.clone(),
-        remote_max_debt: 100,
+        remote_max_debt: 100.into(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[15; UID_LEN]),
@@ -419,7 +419,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 16,
+        total_dest_payment: 16.into(),
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -444,7 +444,7 @@ async fn task_handler_pair_basic<'a>(
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 16,
+        total_dest_payment: 16.into(),
         dest_public_key: pk1.clone(),
     };
 
@@ -473,8 +473,8 @@ async fn task_handler_pair_basic<'a>(
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
-        dest_payment: 16,
-        fees: 4,
+        dest_payment: 16.into(),
+        fees: 4.into(),
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -634,8 +634,8 @@ async fn task_handler_pair_basic<'a>(
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
-        dest_payment: 16,
-        fees: 4,
+        dest_payment: 16.into(),
+        fees: 4.into(),
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -683,7 +683,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 20);
@@ -750,7 +750,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 20);
@@ -781,7 +781,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 20);
                 assert_eq!(friend_move_token.remote_pending_debt, 0);
@@ -812,7 +812,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 20);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 0);
@@ -891,7 +891,7 @@ async fn task_handler_pair_basic<'a>(
         PaymentId::from(&[3u8; PAYMENT_ID_LEN])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt, payment_status_success.ack_uid),
         _ => unreachable!(),
     };
 

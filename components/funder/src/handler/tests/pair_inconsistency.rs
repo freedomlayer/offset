@@ -16,7 +16,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{Uid, UID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
-    ResetFriendChannel, SetFriendStatus,
+    ResetFriendChannel, SetFriendStatus, OptLocalRelays,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -82,7 +82,7 @@ async fn task_handler_pair_inconsistency<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 20i128,
+        balance: 20i128.into(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; UID_LEN]),
@@ -124,7 +124,7 @@ async fn task_handler_pair_inconsistency<'a>(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: -10i128,
+        balance: -10i128.into(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; UID_LEN]),
@@ -181,10 +181,10 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
-                assert_eq!(friend_move_token.move_token_counter, 0);
+                let friend_move_token = &move_token_request.move_token;
+                assert_eq!(friend_move_token.move_token_counter, 0.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
-                assert_eq!(friend_move_token.balance, 20i128);
+                assert_eq!(friend_move_token.balance, 20i128.into());
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
@@ -233,10 +233,10 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
-                assert_eq!(friend_move_token.move_token_counter, 1);
+                let friend_move_token = &move_token_request.move_token;
+                assert_eq!(friend_move_token.move_token_counter, 1.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
-                assert_eq!(friend_move_token.balance, -10i128);
+                assert_eq!(friend_move_token.balance, (-10i128).into());
                 assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
@@ -266,7 +266,7 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, 20i128);
+                assert_eq!(reset_terms.balance_for_reset, 20i128.into());
                 assert_eq!(pk, &pk2);
             } else {
                 unreachable!();
@@ -295,7 +295,7 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, -10i128);
+                assert_eq!(reset_terms.balance_for_reset, -10i128.into());
                 assert_eq!(pk, &pk1);
                 (friend_message.clone(), reset_terms.reset_token.clone())
             } else {
@@ -351,7 +351,7 @@ async fn task_handler_pair_inconsistency<'a>(
                     .state()
                     .balance
                     .balance,
-                10i128
+                10i128.into()
             );
         }
         _ => unreachable!(),
@@ -366,11 +366,11 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.old_token, reset_token2);
-                assert_eq!(friend_move_token.move_token_counter, 0);
+                assert_eq!(friend_move_token.move_token_counter, 0.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
-                assert_eq!(friend_move_token.balance, 10i128);
+                assert_eq!(friend_move_token.balance, 10i128.into());
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
@@ -401,11 +401,11 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node2 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
-                assert_eq!(friend_move_token.move_token_counter, 1);
+                assert_eq!(friend_move_token.move_token_counter, 1.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
-                assert_eq!(friend_move_token.balance, -10i128);
+                assert_eq!(friend_move_token.balance, (-10i128).into());
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
@@ -436,11 +436,11 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk2);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
-                assert_eq!(friend_move_token.move_token_counter, 2);
+                assert_eq!(friend_move_token.move_token_counter, 2.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
-                assert_eq!(friend_move_token.balance, 10i128);
+                assert_eq!(friend_move_token.balance, 10i128.into());
                 assert_eq!(
                     friend_move_token.opt_local_relays,
                     Some(vec![dummy_relay_address(1)])
@@ -472,12 +472,12 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
-                assert_eq!(friend_move_token.move_token_counter, 3);
+                assert_eq!(friend_move_token.move_token_counter, 3.into());
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
-                assert_eq!(friend_move_token.balance, -10i128);
-                assert_eq!(friend_move_token.opt_local_relays, None);
+                assert_eq!(friend_move_token.balance, (-10i128).into());
+                assert_eq!(friend_move_token.opt_local_relays, OptLocalRelays::Empty);
             } else {
                 unreachable!();
             }

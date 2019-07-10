@@ -317,7 +317,7 @@ where
             friend_public_key: friend_public_key.clone(),
             relays,
             name: name.into(),
-            balance,
+            balance: balance.into(),
         };
         await!(self.send(FunderControl::AddFriend(add_friend)));
     }
@@ -341,7 +341,7 @@ where
     ) {
         let set_remote_max_debt = SetFriendRemoteMaxDebt {
             friend_public_key: friend_public_key.clone(),
-            remote_max_debt: remote_max_debt,
+            remote_max_debt: remote_max_debt.into(),
         };
         await!(self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)));
     }
@@ -368,7 +368,8 @@ where
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
         let pred = |report: &FunderReport<_>| {
-            let friend = match report.friends.get(&friend_public_key) {
+            // TODO: get_friend_report() is inefficient
+            let friend = match report.get_friend_report(&friend_public_key) {
                 None => return false,
                 Some(friend) => friend,
             };

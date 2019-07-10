@@ -44,7 +44,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     // Let node 1 open an invoice:
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 4,
+        total_dest_payment: 4.into(),
     };
     await!(node_controls[1].send(FunderControl::AddInvoice(add_invoice)));
 
@@ -52,7 +52,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 4,
+        total_dest_payment: 4.into(),
         dest_public_key: node_controls[1].public_key.clone(),
     };
     await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
@@ -64,8 +64,8 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         route: FriendsRoute {
             public_keys: vec![public_keys[0].clone(), public_keys[1].clone()],
         },
-        dest_payment: 4,
-        fees: 1,
+        dest_payment: 4.into(),
+        fees: 1.into(),
     };
 
     await!(node_controls[0].send(FunderControl::CreateTransaction(create_transaction)));
@@ -79,7 +79,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     // 0: Create multi commit:
     let multi_commit = MultiCommit {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 4,
+        total_dest_payment: 4.into(),
         commits: vec![commit],
     };
 
@@ -100,7 +100,8 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => 
+            (payment_status_success.receipt, payment_status_success.ack_uid),
         _ => unreachable!(),
     };
 
@@ -112,27 +113,27 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
     assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
-    assert_eq!(receipt.dest_payment, 4);
-    assert_eq!(receipt.total_dest_payment, 4);
+    assert_eq!(receipt.dest_payment, 4.into());
+    assert_eq!(receipt.total_dest_payment, 4.into());
 
     // Verify expected balances:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let friend = report.get_friend_report(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == 3
+        tc_report.balance.balance == 3.into()
     };
     await!(node_controls[0].recv_until(pred));
 
     let pred = |report: &FunderReport<_>| {
-        let friend = report.friends.get(&public_keys[0]).unwrap();
+        let friend = report.get_friend_report(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == -3
+        tc_report.balance.balance == (-3).into()
     };
     await!(node_controls[1].recv_until(pred));
 }
@@ -196,7 +197,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // Let node 2 open an invoice:
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 15,
+        total_dest_payment: 15.into(),
     };
     await!(node_controls[2].send(FunderControl::AddInvoice(add_invoice)));
 
@@ -204,7 +205,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 15,
+        total_dest_payment: 15.into(),
         dest_public_key: node_controls[2].public_key.clone(),
     };
     await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
@@ -220,8 +221,8 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
                 public_keys[2].clone(),
             ],
         },
-        dest_payment: 15,
-        fees: 5,
+        dest_payment: 15.into(),
+        fees: 5.into(),
     };
     await!(node_controls[0].send(FunderControl::CreateTransaction(create_transaction)));
     let transaction_result = await!(node_controls[0].recv_until_transaction_result()).unwrap();
@@ -234,7 +235,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // 0: Create multi commit:
     let multi_commit = MultiCommit {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 15,
+        total_dest_payment: 15.into(),
         commits: vec![commit],
     };
 
@@ -255,7 +256,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt, payment_status_success.ack_uid),
         _ => unreachable!(),
     };
 
@@ -267,12 +268,12 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
     assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
-    assert_eq!(receipt.dest_payment, 15);
-    assert_eq!(receipt.total_dest_payment, 15);
+    assert_eq!(receipt.dest_payment, 15.into());
+    assert_eq!(receipt.total_dest_payment, 15.into());
 
     // Make sure that node2 got the credits:
     let pred = |report: &FunderReport<_>| {
-        let friend = match report.friends.get(&public_keys[1]) {
+        let friend = match report.get_friend_report(&public_keys[1]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -280,14 +281,14 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == -6 + 15
+        tc_report.balance.balance == (-6 + 15).into()
     };
     await!(node_controls[2].recv_until(pred));
 
     // Make sure that node1 got his fees:
     let pred = |report: &FunderReport<_>| {
         // Balance with node 0:
-        let friend = match report.friends.get(&public_keys[0]) {
+        let friend = match report.get_friend_report(&public_keys[0]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -296,12 +297,12 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             _ => return false,
         };
 
-        if tc_report.balance.balance != -8 + 20 {
+        if tc_report.balance.balance != (-8 + 20).into() {
             return false;
         }
 
         // Balance with node 2:
-        let friend = match report.friends.get(&public_keys[2]) {
+        let friend = match report.get_friend_report(&public_keys[2]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -309,7 +310,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == 6 - 15
+        tc_report.balance.balance == (6 - 15).into()
     };
     await!(node_controls[1].recv_until(pred));
 }
@@ -376,7 +377,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 15,
+        total_dest_payment: 15.into(),
         dest_public_key: node_controls[3].public_key.clone(),
     };
     await!(node_controls[0].send(FunderControl::CreatePayment(create_payment)));
@@ -393,8 +394,8 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
                 public_keys[3].clone(),
             ],
         },
-        dest_payment: 15,
-        fees: 5,
+        dest_payment: 15.into(),
+        fees: 5.into(),
     };
     await!(node_controls[0].send(FunderControl::CreateTransaction(create_transaction)));
     let transaction_result = await!(node_controls[0].recv_until_transaction_result()).unwrap();
@@ -429,7 +430,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // Make sure that node0's balance is left unchanged:
     let pred = |report: &FunderReport<_>| {
-        let friend = match report.friends.get(&public_keys[1]) {
+        let friend = match report.get_friend_report(&public_keys[1]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -437,7 +438,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == 8
+        tc_report.balance.balance == 8.into()
     };
     await!(node_controls[0].recv_until(pred));
 }
@@ -470,21 +471,21 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Expect inconsistency, together with reset terms:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let friend = report.get_friend_report(&public_keys[1]).unwrap();
         let channel_inconsistent_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(_) => return false,
             ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
                 channel_inconsistent_report
             }
         };
-        if channel_inconsistent_report.local_reset_terms_balance != 20 {
+        if channel_inconsistent_report.local_reset_terms_balance != 20.into() {
             return false;
         }
         let reset_terms_report = match &channel_inconsistent_report.opt_remote_reset_terms {
             None => return false,
             Some(reset_terms_report) => reset_terms_report,
         };
-        reset_terms_report.balance_for_reset == -8
+        reset_terms_report.balance_for_reset == (-8).into()
     };
     await!(node_controls[0].recv_until(pred));
 
@@ -494,8 +495,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     // Obtain reset terms:
     let friend = node_controls[0]
         .report
-        .friends
-        .get(&public_keys[1])
+        .get_friend_report(&public_keys[1])
         .unwrap();
     let channel_inconsistent_report = match &friend.channel_status {
         ChannelStatusReport::Consistent(_) => unreachable!(),
@@ -516,23 +516,24 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.friends.get(&public_keys[1]).unwrap();
+        let friend = report.get_friend_report(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,
         };
-        tc_report.balance.balance == 8
+        tc_report.balance.balance == 8.into()
     };
     await!(node_controls[0].recv_until(pred));
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.friends.get(&public_keys[0]).unwrap();
+        // TODO: get_friend_report is inefficient
+        let friend = report.get_friend_report(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,
         };
-        tc_report.balance.balance == -8
+        tc_report.balance.balance == (-8).into()
     };
     await!(node_controls[1].recv_until(pred));
 

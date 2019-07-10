@@ -2,7 +2,8 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::rand::CryptoRandom;
+use crypto::hash_lock::HashLock;
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PlainLock, PublicKey, RandValue};
 use proto::funder::messages::PendingTransaction;
@@ -79,13 +80,13 @@ where
             } = semi_response;
 
             // Randomly generate a dest plain lock:
-            let dest_plain_lock = PlainLock::new(rng);
+            let dest_plain_lock = PlainLock::rand_gen(rng);
 
             // Mutation to push the new response:
-            let rand_nonce = RandValue::new(rng);
+            let rand_nonce = RandValue::rand_gen(rng);
             let response_send_funds = await!(create_response_send_funds(
                 &pending_transaction,
-                dest_plain_lock.hash(),
+                dest_plain_lock.hash_lock(),
                 rand_nonce,
                 identity_client,
             ));
