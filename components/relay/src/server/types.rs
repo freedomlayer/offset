@@ -1,4 +1,4 @@
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
 
 pub struct IncomingListen<M, K> {
     pub receiver: M,

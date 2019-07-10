@@ -5,17 +5,22 @@ use futures::{future, Sink, SinkExt, Stream, StreamExt};
 
 use common::conn::{ConnPairVec, FutTransform};
 
-use crypto::identity::PublicKey;
 use timer::utils::future_timeout;
 use timer::TimerClient;
 
 use super::types::{
     IncomingAccept, IncomingConn, IncomingConnInner, IncomingConnect, IncomingListen,
 };
+
+use proto::crypto::PublicKey;
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+
+/*
 use proto::relay::serialize::{
     deserialize_init_connection, deserialize_reject_connection, serialize_incoming_connection,
 };
+*/
 
 async fn dispatch_conn<FT>(
     sender: mpsc::Sender<Vec<u8>>,
@@ -39,13 +44,13 @@ where
     let (sender, receiver) = await!(keepalive_transform.transform((sender, receiver)));
 
     let sender = sender.sink_map_err(|_| ());
-    let inner = match deserialize_init_connection(&first_msg).ok()? {
+    let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
         InitConnection::Listen => IncomingConnInner::Listen(IncomingListen {
             receiver: receiver
-                .map(|data| deserialize_reject_connection(&data))
+                .map(|data| RejectConnection::proto_deserialize(&data))
                 .take_while(|res| future::ready(res.is_ok()))
                 .map(Result::unwrap),
-            sender: sender.with(|msg| future::ready(Ok(serialize_incoming_connection(&msg)))),
+            sender: sender.with(|msg: IncomingConnection| future::ready(Ok(msg.proto_serialize()))),
         }),
         InitConnection::Accept(accept_public_key) => IncomingConnInner::Accept(IncomingAccept {
             receiver,
@@ -162,10 +167,9 @@ mod tests {
 
     use common::async_test_utils::receive;
     use common::conn::FuncFutTransform;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
 
-    use proto::relay::serialize::serialize_init_connection;
 
     async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:
@@ -174,7 +178,7 @@ mod tests {
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
-        let ser_first_msg = serialize_init_connection(&first_msg);
+        let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
@@ -195,7 +199,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let accept_public_key = PublicKey::from(&[0x22; PUBLIC_KEY_LEN]);
         let first_msg = InitConnection::Accept(accept_public_key.clone());
-        let ser_first_msg = serialize_init_connection(&first_msg);
+        let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
@@ -218,7 +222,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let connect_public_key = PublicKey::from(&[0x33; PUBLIC_KEY_LEN]);
         let first_msg = InitConnection::Connect(connect_public_key.clone());
-        let ser_first_msg = serialize_init_connection(&first_msg);
+        let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
@@ -298,7 +302,7 @@ mod tests {
         let processed_conns = Box::pin(processed_conns);
 
         let first_msg = InitConnection::Listen;
-        let ser_first_msg = serialize_init_connection(&first_msg);
+        let ser_first_msg = first_msg.proto_serialize();
         thread_pool
             .spawn(async move {
                 await!(remote_sender.send(ser_first_msg).map(|res| {

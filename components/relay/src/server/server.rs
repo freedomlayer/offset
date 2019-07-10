@@ -7,10 +7,10 @@ use std::marker::Unpin;
 
 use common::futures_compat::send_to_sink;
 use common::select_streams::{select_streams, BoxStream};
-use crypto::identity::PublicKey;
 use timer::TimerClient;
 
 use proto::relay::messages::{IncomingConnection, RejectConnection};
+use proto::crypto::PublicKey;
 
 use super::types::{IncomingAccept, IncomingConn, IncomingConnInner};
 
@@ -339,7 +339,7 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
 
     use super::super::types::{IncomingAccept, IncomingConnect, IncomingListen};
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
 
     async fn task_relay_server_connect(

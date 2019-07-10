@@ -5,7 +5,7 @@ use futures::task::Context;
 use futures::{Poll, Sink, Stream, StreamExt};
 use std::marker::Unpin;
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
 
 /// A struct that reports when it is dropped.
 struct Tracked<T> {
