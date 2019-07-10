@@ -13,7 +13,7 @@ use common::select_streams::{select_streams, BoxStream};
 use timer::TimerClient;
 
 use crate::types::RawConn;
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
 
 #[derive(Debug)]
 pub struct ConnectPoolClientError;
@@ -512,7 +512,7 @@ mod tests {
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
-    use crypto::identity::PUBLIC_KEY_LEN;
+    use proto::crypto::PUBLIC_KEY_LEN;
 
     use timer::{dummy_timer_multi_sender, TimerTick};
 

@@ -14,9 +14,11 @@ use common::transform_pool::transform_pool_loop;
 
 use timer::TimerClient;
 
+use proto::crypto::PublicKey;
+
 use crate::listen_pool_state::{ListenPoolState, Relay};
 use crate::types::{AccessControlOpPk, AccessControlPk, RawConn};
-use crypto::identity::PublicKey;
+
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LpConfig<RA> {
@@ -426,7 +428,7 @@ mod tests {
     use futures::channel::mpsc;
     use futures::executor::ThreadPool;
 
-    use crypto::identity::PUBLIC_KEY_LEN;
+    use proto::crypto::PUBLIC_KEY_LEN;
 
     use common::dummy_listener::DummyListener;
     use timer::{dummy_timer_multi_sender, TimerTick};
