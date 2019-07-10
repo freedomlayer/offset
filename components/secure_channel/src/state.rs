@@ -19,7 +19,6 @@ use proto::secure_channel::messages::{
 };
 
 use crate::types::{PlainData, EncryptedData};
-// use proto::secure_channel::serialize::{deserialize_channel_message, serialize_channel_message};
 
 const MAX_RAND_PADDING: u16 = 0x100;
 

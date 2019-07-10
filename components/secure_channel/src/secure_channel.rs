@@ -21,13 +21,6 @@ use crate::state::{ScState, ScStateError, ScStateInitial};
 use crate::types::{PlainData, EncryptedData};
 
 
-/*
-use proto::secure_channel::serialize::{
-    deserialize_exchange_dh, deserialize_exchange_rand_nonce, serialize_exchange_dh,
-    serialize_exchange_rand_nonce,
-};
-*/
-
 #[derive(Debug, From)]
 enum SecureChannelError {
     IdentityFailure,
