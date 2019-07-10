@@ -1,29 +1,46 @@
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
+use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
+use crate::wrapper::Wrapper;
+
+#[capnp_conv(crate::index_capnp::edge)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Edge {
+    pub from_public_key: PublicKey,
+    pub to_public_key: PublicKey,
+}
+
+#[capnp_conv(crate::index_capnp::request_routes::opt_exclude)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum OptExclude {
+    Empty,
+    Edge(Edge),
+}
 
 /// IndexClient -> IndexServer
+#[capnp_conv(crate::index_capnp::request_routes)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
     /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
-    pub capacity: u128,
+    pub capacity: Wrapper<u128>,
     pub source: PublicKey,
     pub destination: PublicKey,
     /// This directed edge must not show up any any route inside the multi-route.
     /// Useful for finding non trivial directed loops.
-    pub opt_exclude: Option<(PublicKey, PublicKey)>,
+    pub opt_exclude: OptExclude,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
-    pub capacity: u128,
+    pub capacity: Wrapper<u128>,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,
 }

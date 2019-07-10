@@ -137,7 +137,7 @@ pub enum FriendTcOp {
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-enum OptLocalRelays<B = NetAddress> {
+pub enum OptLocalRelays<B = NetAddress> {
     Empty,
     Relays(Vec<RelayAddress<B>>),
 }
@@ -164,13 +164,13 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
-    pub balance_for_reset: i128,
+    pub balance_for_reset: Wrapper<i128>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
 #[derive(PartialEq, Eq, Clone, Serialize, Debug)]
 pub struct MoveTokenRequest<B = NetAddress> {
-    pub friend_move_token: MoveToken<B>,
+    pub move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
 }
@@ -193,8 +193,8 @@ pub struct Receipt {
     pub invoice_id: InvoiceId,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
-    pub dest_payment: u128,
-    pub total_dest_payment: u128,
+    pub dest_payment: Wrapper<u128>,
+    pub total_dest_payment: Wrapper<u128>,
     pub signature: Signature,
     /*
     # Signature{key=destinationKey}(
@@ -427,7 +427,7 @@ impl CanonicalSerialize for Receipt {
         res_bytes.extend_from_slice(&self.response_hash);
         res_bytes.extend_from_slice(&self.invoice_id);
         res_bytes
-            .write_u128::<BigEndian>(self.dest_payment)
+            .write_u128::<BigEndian>(*self.dest_payment)
             .unwrap();
         res_bytes.extend_from_slice(&self.signature);
         res_bytes

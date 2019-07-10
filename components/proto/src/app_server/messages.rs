@@ -37,7 +37,7 @@ pub struct RelayAddress<B = NetAddress> {
 }
 
 impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
-    fn from(from: NamedRelayAddress) -> Self {
+    fn from(from: NamedRelayAddress<B>) -> Self {
         RelayAddress {
             public_key: from.public_key,
             address: from.address,
@@ -62,7 +62,7 @@ pub struct NodeReport<B = NetAddress>
 where
     B: Clone,
 {
-    pub funder_report: FunderReport,
+    pub funder_report: FunderReport<B>,
     pub index_client_report: IndexClientReport<B>,
 }
 
@@ -164,11 +164,13 @@ where
         mutation: &NodeReportMutation<B>,
     ) -> Result<(), NodeReportMutateError> {
         match mutation {
-            NodeReportMutation::Funder(mutation) => self
+            NodeReportMutation::<B>::Funder(mutation) => self
                 .funder_report
                 .mutate(mutation)
                 .map_err(|_| NodeReportMutateError)?,
-            NodeReportMutation::IndexClient(mutation) => self.index_client_report.mutate(mutation),
+            NodeReportMutation::<B>::IndexClient(mutation) => {
+                self.index_client_report.mutate(mutation)
+            }
         };
         Ok(())
     }
