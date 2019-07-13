@@ -190,7 +190,8 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
-    pub balance_for_reset: Wrapper<i128>,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance_for_reset: i128,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
