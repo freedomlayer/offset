@@ -96,7 +96,7 @@ impl CanonicalSerialize for RequestSendFundsOp {
         res_bytes.extend_from_slice(&self.src_hashed_lock);
         res_bytes.extend_from_slice(&self.route.canonical_serialize());
         res_bytes
-            .write_u128::<BigEndian>(*self.dest_payment)
+            .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
         res_bytes.extend_from_slice(&self.invoice_id);
         // We do not sign over`left_fees`, because this field changes as the request message is
@@ -147,9 +147,7 @@ impl CanonicalSerialize for FriendTcOp {
             }
             FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
                 res_bytes.push(2u8);
-                res_bytes
-                    .write_u128::<BigEndian>(**remote_max_debt)
-                    .unwrap();
+                res_bytes.write_u128::<BigEndian>(*remote_max_debt).unwrap();
             }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 res_bytes.push(3u8);
@@ -191,7 +189,7 @@ impl CanonicalSerialize for Receipt {
         res_bytes.extend_from_slice(&self.response_hash);
         res_bytes.extend_from_slice(&self.invoice_id);
         res_bytes
-            .write_u128::<BigEndian>(*self.dest_payment)
+            .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
         res_bytes.extend_from_slice(&self.signature);
         res_bytes
@@ -238,10 +236,10 @@ impl CanonicalSerialize for UpdateFriend {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
         res_bytes
-            .write_u128::<BigEndian>(*self.send_capacity)
+            .write_u128::<BigEndian>(self.send_capacity)
             .unwrap();
         res_bytes
-            .write_u128::<BigEndian>(*self.recv_capacity)
+            .write_u128::<BigEndian>(self.recv_capacity)
             .unwrap();
         res_bytes
     }

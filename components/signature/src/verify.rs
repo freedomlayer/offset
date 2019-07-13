@@ -24,8 +24,8 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.extend(receipt.response_hash.as_ref());
     data.extend_from_slice(&receipt.src_plain_lock.hash_lock());
     data.extend_from_slice(&receipt.dest_plain_lock.hash_lock());
-    data.write_u128::<BigEndian>(*receipt.dest_payment).unwrap();
-    data.write_u128::<BigEndian>(*receipt.total_dest_payment)
+    data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(receipt.total_dest_payment)
         .unwrap();
     data.extend(receipt.invoice_id.as_ref());
     verify_signature(&data, public_key, &receipt.signature)
@@ -44,7 +44,7 @@ fn verify_commit(
     data.extend(commit.response_hash.as_ref());
     data.extend_from_slice(&commit.src_plain_lock.hash_lock());
     data.extend_from_slice(&commit.dest_hashed_lock);
-    data.write_u128::<BigEndian>(*commit.dest_payment).unwrap();
+    data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
     data.write_u128::<BigEndian>(total_dest_payment).unwrap();
     data.extend(invoice_id.as_ref());
     verify_signature(&data, local_public_key, &commit.signature)
@@ -60,7 +60,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
         is_sig_valid &= verify_commit(
             commit,
             &multi_commit.invoice_id,
-            *multi_commit.total_dest_payment,
+            multi_commit.total_dest_payment,
             local_public_key,
         );
     }
@@ -71,7 +71,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
     // Check if the credits add up:
     let mut sum_credits = 0u128;
     for commit in &multi_commit.commits {
-        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(*commit.dest_payment) {
+        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(commit.dest_payment) {
             sum_credits
         } else {
             return false;
@@ -79,7 +79,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
     }
 
     // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
-    sum_credits == *multi_commit.total_dest_payment
+    sum_credits == multi_commit.total_dest_payment
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
