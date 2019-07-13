@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-// use common::mutable_state::MutableState;
+use common::mutable_state::MutableState;
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
@@ -168,9 +168,8 @@ impl<B> AppToAppServer<B> {
     }
 }
 
-/*
- * TODO: Restore later
- *
+// TODO: Move this code to a separate module:
+
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
@@ -206,7 +205,6 @@ where
         self.mutate(mutation)
     }
 }
-*/
 
 #[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

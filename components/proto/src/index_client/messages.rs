@@ -77,12 +77,32 @@ pub enum SetConnectedServer {
     Empty,
 }
 
+// TODO: Replace with a macro:
+impl From<Option<PublicKey>> for SetConnectedServer {
+    fn from(opt: Option<PublicKey>) -> Self {
+        match opt {
+            Some(public_key) => SetConnectedServer::PublicKey(public_key),
+            None => SetConnectedServer::Empty,
+        }
+    }
+}
+
+impl From<SetConnectedServer> for Option<PublicKey> {
+    fn from(opt: SetConnectedServer) -> Self {
+        match opt {
+            SetConnectedServer::PublicKey(public_key) => Some(public_key),
+            SetConnectedServer::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::report_capnp::index_client_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA = NetAddress> {
     AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
-    SetConnectedServer(SetConnectedServer),
+    #[capnp_conv(with = SetConnectedServer)]
+    SetConnectedServer(Option<PublicKey>),
 }
 
 #[capnp_conv(crate::app_server_capnp::response_routes_result)]
@@ -124,10 +144,7 @@ pub enum AppServerToIndexClient<ISA> {
     ApplyMutations(Vec<IndexMutation>),
 }
 
-/*
- * TODO: Restore this later
- *
- *
+// TODO: Move this code somewhere else?
 impl<ISA> IndexClientReport<ISA>
 where
     ISA: Eq + Clone,
@@ -154,4 +171,3 @@ where
         }
     }
 }
-*/
