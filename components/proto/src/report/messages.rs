@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-// use common::mutable_state::MutableState;
+use common::mutable_state::MutableState;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
@@ -411,10 +411,6 @@ impl From<&RequestsStatus> for RequestsStatusReport {
     }
 }
 
-/*
- *
-// TODO: Restore later
-
 #[derive(Debug)]
 pub enum FunderReportMutateError {
     FriendDoesNotExist,
@@ -529,7 +525,7 @@ where
                         .clone(),
                     liveness: FriendLivenessReport::Offline,
                     channel_status: add_friend_report.channel_status.clone(),
-                    wanted_remote_max_debt: 0.into(),
+                    wanted_remote_max_debt: 0,
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &RequestsStatus::Closed,
                     ),
@@ -552,7 +548,7 @@ where
                     Ok(())
                 }
             }
-            FunderReportMutation::FriendReportMutation((
+            FunderReportMutation::PkFriendReportMutation((
                 friend_public_key,
                 friend_report_mutation,
             )) => {
@@ -578,4 +574,3 @@ where
         }
     }
 }
-*/
