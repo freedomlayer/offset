@@ -100,7 +100,7 @@ pub enum ReceiveMoveTokenOutput<B> {
 fn token_from_public_key(public_key: &PublicKey) -> Signature {
     let mut buff = [0; SIGNATURE_LEN];
     buff[0..PUBLIC_KEY_LEN].copy_from_slice(public_key);
-    Signature::from(buff)
+    Signature::from(&buff)
 }
 
 /// Generate a random nonce from public key.

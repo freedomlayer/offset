@@ -1,6 +1,7 @@
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
+use crypto::hash_lock::HashLock;
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -173,7 +174,7 @@ where
                 };
                 open_invoice
                     .incoming_transactions
-                    .insert(dest_plain_lock.hash().clone(), incoming_transaction);
+                    .insert(dest_plain_lock.hash_lock().clone(), incoming_transaction);
             }
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);

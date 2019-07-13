@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
+use crypto::hash_lock::HashLock;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -69,7 +70,7 @@ where
         .get(&set_friend_remote_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if friend.wanted_remote_max_debt == *set_friend_remote_max_debt.remote_max_debt {
+    if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
         // Wanted remote max debt is already set to this value. Nothing to do here.
         return Ok(());
     }
@@ -78,7 +79,7 @@ where
     // only when we manage to send a move token message containing the SetRemoteMaxDebt
     // operation.
     let friend_mutation =
-        FriendMutation::SetWantedRemoteMaxDebt(*set_friend_remote_max_debt.remote_max_debt);
+        FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
     let m_mutation = FunderMutation::FriendMutation((
         set_friend_remote_max_debt.friend_public_key.clone(),
         friend_mutation,
@@ -498,7 +499,7 @@ where
     let payment = Payment::NewTransactions(NewTransactions {
         num_transactions: 0,
         invoice_id: create_payment.invoice_id.clone(),
-        total_dest_payment: *create_payment.total_dest_payment,
+        total_dest_payment: create_payment.total_dest_payment,
         dest_public_key: create_payment.dest_public_key.clone(),
     });
 
@@ -628,7 +629,7 @@ where
     // Push the request:
     let request_send_funds = RequestSendFundsOp {
         request_id: create_transaction.request_id,
-        src_hashed_lock: src_plain_lock.hash(),
+        src_hashed_lock: src_plain_lock.hash_lock(),
         route: route_tail,
         dest_payment: create_transaction.dest_payment,
         total_dest_payment: new_transactions.total_dest_payment,
@@ -745,7 +746,7 @@ where
                     PaymentStatus::InProgress,
                 )
             } else {
-                let ack_uid = Uid::new(rng);
+                let ack_uid = Uid::rand_gen(rng);
                 (
                     Some(Payment::Canceled(ack_uid)),
                     PaymentStatus::Canceled(ack_uid),
@@ -754,7 +755,7 @@ where
         }
         Payment::InProgress(num_transactions) => {
             (if *num_transactions == 0 {
-                let ack_uid = Uid::new(rng);
+                let ack_uid = Uid::rand_gen(rng);
                 (
                     Some(Payment::Canceled(ack_uid)),
                     PaymentStatus::Canceled(ack_uid),

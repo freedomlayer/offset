@@ -1,7 +1,7 @@
 use signature::canonical::CanonicalSerialize;
 use std::fmt::Debug;
 
-use crypto::rand::CryptoRandom;
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PublicKey, Signature, Uid, SIGNATURE_LEN};
 
@@ -50,7 +50,7 @@ where
 {
     let mut buff = [0; SIGNATURE_LEN];
     rng.fill(&mut buff).unwrap();
-    Signature::from(buff)
+    Signature::from(&buff)
 }
 
 pub fn gen_reset_terms<B, R>(token_channel: &TokenChannel<B>, rng: &R) -> ResetTerms
@@ -82,7 +82,7 @@ pub fn try_reset_channel<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let move_token = &move_token_request.friend_move_token;
+    let move_token = &move_token_request.move_token;
 
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token
@@ -353,7 +353,7 @@ fn handle_collect_send_funds<B, R>(
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,
                     );
-                    let ack_uid = Uid::new(rng);
+                    let ack_uid = Uid::rand_gen(rng);
                     Some(Payment::Success((
                         new_transactions.num_transactions.checked_sub(1).unwrap(),
                         receipt,
@@ -367,7 +367,7 @@ fn handle_collect_send_funds<B, R>(
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,
                     );
-                    let ack_uid = Uid::new(rng);
+                    let ack_uid = Uid::rand_gen(rng);
                     Some(Payment::Success((
                         num_transactions.checked_sub(1).unwrap(),
                         receipt,
@@ -692,7 +692,7 @@ where
 
     // We will only consider move token messages if we are in a consistent state:
     let receive_move_token_res =
-        token_channel.simulate_receive_move_token(friend_move_token_request.friend_move_token);
+        token_channel.simulate_receive_move_token(friend_move_token_request.move_token);
     let token_wanted = friend_move_token_request.token_wanted;
 
     match receive_move_token_res {

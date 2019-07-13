@@ -15,7 +15,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{Uid, UID_LEN};
 
 use proto::funder::messages::{
-    AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl, SetFriendStatus, OptLocalRelays,
+    AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl, SetFriendStatus,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -80,7 +80,7 @@ async fn task_handler_change_address(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 0i128.into(),
+        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; UID_LEN]),
@@ -120,7 +120,7 @@ async fn task_handler_change_address(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: 0i128.into(),
+        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; UID_LEN]),
@@ -177,10 +177,10 @@ async fn task_handler_change_address(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert_eq!(friend_move_token.move_token_counter, 0.into());
+                assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
-                assert_eq!(friend_move_token.balance, 0.into());
-                assert_eq!(friend_move_token.opt_local_relays, OptLocalRelays::Empty);
+                assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
             }
@@ -223,7 +223,7 @@ async fn task_handler_change_address(
                 let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
 
-                assert_eq!(friend_move_token.move_token_counter, 1.into());
+                assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(

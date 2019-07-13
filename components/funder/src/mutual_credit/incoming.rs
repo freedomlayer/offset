@@ -1,3 +1,4 @@
+use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -379,11 +380,11 @@ fn process_collect_send_funds(
     };
 
     // Verify src_plain_lock and dest_plain_lock:
-    if collect_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+    if collect_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
         return Err(ProcessOperationError::InvalidSrcPlainLock);
     }
 
-    if collect_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+    if collect_send_funds.dest_plain_lock.hash_lock() != *dest_hashed_lock {
         return Err(ProcessOperationError::InvalidDestPlainLock);
     }
 

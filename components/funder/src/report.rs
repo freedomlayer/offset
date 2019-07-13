@@ -356,7 +356,7 @@ where
             friend_mutation_to_report_mutations(&friend_mutation, &friend)
                 .into_iter()
                 .map(|friend_report_mutation| {
-                    FunderReportMutation::FriendReportMutation((
+                    FunderReportMutation::PkFriendReportMutation((
                         public_key.clone(),
                         friend_report_mutation,
                     ))
@@ -451,7 +451,7 @@ where
                 }
                 let friend_report_mutation =
                     FriendReportMutation::SetLiveness(FriendLivenessReport::Online);
-                vec![FunderReportMutation::FriendReportMutation((
+                vec![FunderReportMutation::PkFriendReportMutation((
                     public_key.clone(),
                     friend_report_mutation,
                 ))]
@@ -463,7 +463,7 @@ where
                 }
                 let friend_report_mutation =
                     FriendReportMutation::SetLiveness(FriendLivenessReport::Offline);
-                vec![FunderReportMutation::FriendReportMutation((
+                vec![FunderReportMutation::PkFriendReportMutation((
                     public_key.clone(),
                     friend_report_mutation,
                 ))]

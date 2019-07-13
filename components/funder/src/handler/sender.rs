@@ -9,7 +9,7 @@ use proto::crypto::{PublicKey, RandValue};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TransactionResult, OptLocalRelays,
+    RequestResult, RequestsStatus, TransactionResult,
 };
 
 use identity::IdentityClient;
@@ -210,7 +210,7 @@ fn transmit_outgoing<B>(
     };
 
     let move_token_request = MoveTokenRequest {
-        friend_move_token: move_token,
+        move_token,
         token_wanted,
     };
 
@@ -340,10 +340,7 @@ async fn send_friend_iter1<'a, B, R>(
                     &mut outgoing_messages,
                 );
             } else if friend_send_commands.resend_outgoing {
-                let is_token_wanted = match tc_outgoing.move_token_out.opt_local_relays {
-                    OptLocalRelays::Empty => false,
-                    OptLocalRelays::Relays(_) => true,
-                };
+                let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
                 transmit_outgoing(
                     m_state,
                     &friend_public_key,

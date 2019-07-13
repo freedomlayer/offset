@@ -85,7 +85,7 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 0i128.into(),
+        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; UID_LEN]),
@@ -125,7 +125,7 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: 0i128.into(),
+        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; UID_LEN]),
@@ -182,7 +182,7 @@ async fn task_handler_pair_basic<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -345,7 +345,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 receives control message to set remote max debt.
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
         friend_public_key: pk2.clone(),
-        remote_max_debt: 100.into(),
+        remote_max_debt: 100,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[15; UID_LEN]),
@@ -419,7 +419,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 16.into(),
+        total_dest_payment: 16,
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -444,7 +444,7 @@ async fn task_handler_pair_basic<'a>(
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
         invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
-        total_dest_payment: 16.into(),
+        total_dest_payment: 16,
         dest_public_key: pk1.clone(),
     };
 
@@ -473,8 +473,8 @@ async fn task_handler_pair_basic<'a>(
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
-        dest_payment: 16.into(),
-        fees: 4.into(),
+        dest_payment: 16,
+        fees: 4,
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -634,8 +634,8 @@ async fn task_handler_pair_basic<'a>(
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
-        dest_payment: 16.into(),
-        fees: 4.into(),
+        dest_payment: 16,
+        fees: 4,
     };
 
     let incoming_control_message = FunderIncomingControl::new(
