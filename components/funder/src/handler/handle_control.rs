@@ -14,9 +14,9 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, RemoveFriend, RequestResult, RequestSendFundsOp,
-    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RequestResult,
+    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
+    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
 use signature::verify::verify_multi_commit;
 
@@ -603,8 +603,8 @@ where
 
     // Keep PlainLock:
     let funder_mutation = FunderMutation::AddTransaction((
-        create_transaction.request_id,
-        create_transaction.payment_id,
+        create_transaction.request_id.clone(),
+        create_transaction.payment_id.clone(),
         src_plain_lock.clone(),
     ));
     m_state.mutate(funder_mutation);
@@ -682,7 +682,7 @@ where
             );
 
             let transaction_result = TransactionResult {
-                request_id: response_send_funds.request_id,
+                request_id: response_send_funds.request_id.clone(),
                 result: RequestResult::Success(commit),
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
@@ -748,7 +748,7 @@ where
             } else {
                 let ack_uid = Uid::rand_gen(rng);
                 (
-                    Some(Payment::Canceled(ack_uid)),
+                    Some(Payment::Canceled(ack_uid.clone())),
                     PaymentStatus::Canceled(ack_uid),
                 )
             }
@@ -757,7 +757,7 @@ where
             (if *num_transactions == 0 {
                 let ack_uid = Uid::rand_gen(rng);
                 (
-                    Some(Payment::Canceled(ack_uid)),
+                    Some(Payment::Canceled(ack_uid.clone())),
                     PaymentStatus::Canceled(ack_uid),
                 )
             } else {
@@ -771,13 +771,16 @@ where
             Some(Payment::Success((
                 *num_transactions,
                 receipt.clone(),
-                *ack_uid,
+                ack_uid.clone(),
             ))),
-            PaymentStatus::Success((receipt.clone(), *ack_uid)),
+            PaymentStatus::Success(PaymentStatusSuccess {
+                receipt: receipt.clone(),
+                ack_uid: ack_uid.clone(),
+            }),
         ),
         Payment::Canceled(ack_uid) => (
-            Some(Payment::Canceled(*ack_uid)),
-            PaymentStatus::Canceled(*ack_uid),
+            Some(Payment::Canceled(ack_uid.clone())),
+            PaymentStatus::Canceled(ack_uid.clone()),
         ),
         Payment::AfterSuccessAck(num_transactions) => (
             Some(Payment::AfterSuccessAck(*num_transactions)),
@@ -787,7 +790,7 @@ where
 
     // Send back a ResponseClosePayment:
     let response_close_payment = ResponseClosePayment {
-        payment_id,
+        payment_id: payment_id.clone(),
         status: payment_status,
     };
     outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
@@ -963,7 +966,7 @@ where
         };
 
         let collect_send_funds = CollectSendFundsOp {
-            request_id: incoming_transaction.request_id,
+            request_id: incoming_transaction.request_id.clone(),
             src_plain_lock: commit.src_plain_lock.clone(),
             dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
         };

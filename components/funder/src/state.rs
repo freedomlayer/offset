@@ -169,7 +169,7 @@ where
             FunderMutation::AddIncomingTransaction((invoice_id, request_id, dest_plain_lock)) => {
                 let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
                 let incoming_transaction = IncomingTransaction {
-                    request_id: *request_id,
+                    request_id: request_id.clone(),
                     dest_plain_lock: dest_plain_lock.clone(),
                 };
                 open_invoice
@@ -181,7 +181,7 @@ where
             }
             FunderMutation::AddTransaction((request_id, payment_id, src_plain_lock)) => {
                 let open_transaction = OpenTransaction {
-                    payment_id: *payment_id,
+                    payment_id: payment_id.clone(),
                     src_plain_lock: src_plain_lock.clone(),
                     opt_response: None,
                 };

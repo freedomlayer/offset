@@ -488,7 +488,7 @@ where
             remove_transaction(m_state, rng, &request_send_funds.request_id);
 
             let transaction_result = TransactionResult {
-                request_id: request_send_funds.request_id,
+                request_id: request_send_funds.request_id.clone(),
                 result: RequestResult::Failure,
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));

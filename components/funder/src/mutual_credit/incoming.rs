@@ -291,7 +291,7 @@ fn process_response_send_funds(
 
     // Set the stage to Response, and remember dest_hashed_lock:
     let mc_mutation = McMutation::SetLocalPendingTransactionStage((
-        response_send_funds.request_id,
+        response_send_funds.request_id.clone(),
         TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
     ));
     mutual_credit.mutate(&mc_mutation);
@@ -326,7 +326,8 @@ fn process_cancel_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id);
+    let mc_mutation =
+        McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id.clone());
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 
@@ -399,7 +400,8 @@ fn process_collect_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(collect_send_funds.request_id);
+    let mc_mutation =
+        McMutation::RemoveLocalPendingTransaction(collect_send_funds.request_id.clone());
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 

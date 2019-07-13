@@ -203,7 +203,7 @@ fn handle_request_send_funds<B>(
     let rate = &m_state.state().friends.get(remote_public_key).unwrap().rate;
     let opt_local_fee = rate.calc_fee(request_send_funds.dest_payment);
 
-    let request_id = request_send_funds.request_id;
+    let request_id = request_send_funds.request_id.clone();
 
     // Make sure that calc_fee() worked, and that we can take this amount of credits:
     let opt_request_send_funds = if let Some(local_fee) = opt_local_fee {
@@ -377,7 +377,7 @@ fn handle_collect_send_funds<B, R>(
                 Payment::Success((num_transactions, receipt, ack_uid)) => Some(Payment::Success((
                     num_transactions.checked_sub(1).unwrap(),
                     receipt.clone(),
-                    *ack_uid,
+                    ack_uid.clone(),
                 ))),
                 Payment::Canceled(_) => unreachable!(),
                 Payment::AfterSuccessAck(num_transactions) => {
@@ -392,15 +392,16 @@ fn handle_collect_send_funds<B, R>(
 
             let funder_mutation = if let Some(new_payment) = opt_new_payment {
                 // Update payment:
-                FunderMutation::UpdatePayment((open_transaction.payment_id, new_payment))
+                FunderMutation::UpdatePayment((open_transaction.payment_id.clone(), new_payment))
             } else {
-                FunderMutation::RemovePayment(open_transaction.payment_id)
+                FunderMutation::RemovePayment(open_transaction.payment_id.clone())
                 // Remove payment:
             };
             m_state.mutate(funder_mutation);
 
             // Remove transaction:
-            let funder_mutation = FunderMutation::RemoveTransaction(collect_send_funds.request_id);
+            let funder_mutation =
+                FunderMutation::RemoveTransaction(collect_send_funds.request_id.clone());
             m_state.mutate(funder_mutation);
         }
         Some(friend_public_key) => {

@@ -34,9 +34,9 @@ pub struct MoveTokenHashedReport {
     pub new_token: Signature,
 }
 
-#[capnp_conv(crate::report_capnp::relays_transition)]
+#[capnp_conv(crate::report_capnp::relays_transition_report)]
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct RelaysTransition<B = NetAddress> {
+pub struct RelaysTransitionReport<B = NetAddress> {
     pub last_sent: Vec<NamedRelayAddress<B>>,
     pub before_last_sent: Vec<NamedRelayAddress<B>>,
 }
@@ -45,7 +45,7 @@ pub struct RelaysTransition<B = NetAddress> {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum SentLocalRelaysReport<B = NetAddress> {
     NeverSent,
-    Transition(RelaysTransition<B>),
+    Transition(RelaysTransitionReport<B>),
     LastSent(Vec<NamedRelayAddress<B>>),
 }
 

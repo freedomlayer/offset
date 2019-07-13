@@ -7,7 +7,8 @@ use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
     DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport,
     FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
-    MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
+    MoveTokenHashedReport, RelaysTransitionReport, RequestsStatusReport, ResetTermsReport,
+    SentLocalRelaysReport, TcReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -26,8 +27,15 @@ where
     fn into(self) -> SentLocalRelaysReport<B> {
         match self {
             SentLocalRelays::NeverSent => SentLocalRelaysReport::NeverSent,
-            SentLocalRelays::Transition(t) => SentLocalRelaysReport::Transition(t.clone()),
-            SentLocalRelays::LastSent(address) => SentLocalRelaysReport::LastSent(address.clone()),
+            SentLocalRelays::Transition((last_sent, before_last_sent)) => {
+                SentLocalRelaysReport::Transition(RelaysTransitionReport {
+                    last_sent: last_sent.into_iter().cloned().collect(),
+                    before_last_sent: before_last_sent.into_iter().cloned().collect(),
+                })
+            }
+            SentLocalRelays::LastSent(address) => {
+                SentLocalRelaysReport::LastSent(address.clone().into_iter().collect())
+            }
         }
     }
 }
@@ -183,8 +191,8 @@ where
 
     FunderReport {
         local_public_key: funder_state.local_public_key.clone(),
-        relays: funder_state.relays.clone(),
-        friends,
+        relays: funder_state.relays.clone().into_iter().collect(),
+        friends: friends.clone().into_iter().collect(),
         num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
         num_payments: usize_to_u64(funder_state.payments.len()).unwrap(),
         num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),

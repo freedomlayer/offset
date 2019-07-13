@@ -120,7 +120,7 @@ struct OptLastIncomingMoveToken {
         }
 }
 
-struct RelaysTransition {
+struct RelaysTransitionReport {
         lastSent @0: List(NamedRelayAddress);
         beforeLastSent @1: List(NamedRelayAddress);
 }
@@ -128,7 +128,7 @@ struct RelaysTransition {
 struct SentLocalRelaysReport {
         union {
                 neverSent @0: Void;
-                transition @1: RelaysTransition;
+                transition @1: RelaysTransitionReport;
                 lastSent @2: List(NamedRelayAddress);
         }
 }

@@ -220,7 +220,7 @@ impl MutualCredit {
 
     fn insert_remote_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
         self.state.pending_transactions.remote.insert(
-            pending_friend_request.request_id,
+            pending_friend_request.request_id.clone(),
             pending_friend_request.clone(),
         );
     }
@@ -231,7 +231,7 @@ impl MutualCredit {
 
     fn insert_local_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
         self.state.pending_transactions.local.insert(
-            pending_friend_request.request_id,
+            pending_friend_request.request_id.clone(),
             pending_friend_request.clone(),
         );
     }

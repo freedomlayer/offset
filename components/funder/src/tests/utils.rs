@@ -369,7 +369,7 @@ where
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
         let pred = |report: &FunderReport<_>| {
             // TODO: get_friend_report() is inefficient
-            let friend = match report.get_friend_report(&friend_public_key) {
+            let friend = match report.friends.get(&friend_public_key) {
                 None => return false,
                 Some(friend) => friend,
             };

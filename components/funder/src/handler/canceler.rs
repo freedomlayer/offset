@@ -24,7 +24,7 @@ pub fn reply_with_cancel<B>(
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    let cancel_send_funds = create_cancel_send_funds(*request_id);
+    let cancel_send_funds = create_cancel_send_funds(request_id.clone());
     let friend_mutation =
         FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Cancel(cancel_send_funds));
     let funder_mutation =
@@ -56,7 +56,7 @@ where
         .clone();
 
     // Remove transaction:
-    let funder_mutation = FunderMutation::RemoveTransaction(*request_id);
+    let funder_mutation = FunderMutation::RemoveTransaction(request_id.clone());
     m_state.mutate(funder_mutation);
 
     // Update payment:
@@ -159,7 +159,7 @@ pub fn cancel_local_pending_transactions<B, R>(
                 // We are the origin of this request.
                 // We send a cancel message through the control:
                 let transaction_result = TransactionResult {
-                    request_id: pending_local_transaction.request_id,
+                    request_id: pending_local_transaction.request_id.clone(),
                     result: RequestResult::Failure,
                 };
                 outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
@@ -212,7 +212,7 @@ pub fn cancel_pending_requests<B, R>(
             None => {
                 // We are the origin of this request:
                 let transaction_result = TransactionResult {
-                    request_id: pending_request.request_id,
+                    request_id: pending_request.request_id.clone(),
                     result: RequestResult::Failure,
                 };
                 outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
@@ -248,7 +248,7 @@ pub fn cancel_pending_user_requests<B, R>(
 
         // We are the origin of this request:
         let transaction_result = TransactionResult {
-            request_id: pending_user_request.request_id,
+            request_id: pending_user_request.request_id.clone(),
             result: RequestResult::Failure,
         };
         outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
