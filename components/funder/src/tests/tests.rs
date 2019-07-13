@@ -118,7 +118,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // Verify expected balances:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.get_friend_report(&public_keys[1]).unwrap();
+        let friend = report.friends.get(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
@@ -128,7 +128,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     await!(node_controls[0].recv_until(pred));
 
     let pred = |report: &FunderReport<_>| {
-        let friend = report.get_friend_report(&public_keys[0]).unwrap();
+        let friend = report.friends.get(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
@@ -273,7 +273,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     // Make sure that node2 got the credits:
     let pred = |report: &FunderReport<_>| {
-        let friend = match report.get_friend_report(&public_keys[1]) {
+        let friend = match report.friends.get(&public_keys[1]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -288,7 +288,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // Make sure that node1 got his fees:
     let pred = |report: &FunderReport<_>| {
         // Balance with node 0:
-        let friend = match report.get_friend_report(&public_keys[0]) {
+        let friend = match report.friends.get(&public_keys[0]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -302,7 +302,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         }
 
         // Balance with node 2:
-        let friend = match report.get_friend_report(&public_keys[2]) {
+        let friend = match report.friends.get(&public_keys[2]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -430,7 +430,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // Make sure that node0's balance is left unchanged:
     let pred = |report: &FunderReport<_>| {
-        let friend = match report.get_friend_report(&public_keys[1]) {
+        let friend = match report.friends.get(&public_keys[1]) {
             None => return false,
             Some(friend) => friend,
         };
@@ -471,7 +471,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Expect inconsistency, together with reset terms:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.get_friend_report(&public_keys[1]).unwrap();
+        let friend = report.friends.get(&public_keys[1]).unwrap();
         let channel_inconsistent_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(_) => return false,
             ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
@@ -495,7 +495,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     // Obtain reset terms:
     let friend = node_controls[0]
         .report
-        .get_friend_report(&public_keys[1])
+        .friends.get(&public_keys[1])
         .unwrap();
     let channel_inconsistent_report = match &friend.channel_status {
         ChannelStatusReport::Consistent(_) => unreachable!(),
@@ -516,7 +516,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
-        let friend = report.get_friend_report(&public_keys[1]).unwrap();
+        let friend = report.friends.get(&public_keys[1]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,
@@ -527,8 +527,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
-        // TODO: get_friend_report is inefficient
-        let friend = report.get_friend_report(&public_keys[0]).unwrap();
+        let friend = report.friends.get(&public_keys[0]).unwrap();
         let tc_report = match &friend.channel_status {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             ChannelStatusReport::Inconsistent(_) => return false,

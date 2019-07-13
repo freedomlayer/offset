@@ -1,5 +1,6 @@
 // use im::hashmap::HashMap as ImHashMap;
 // use im::vector::Vector as ImVec;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -261,6 +262,43 @@ pub struct PkFriendReport<B = NetAddress> {
     pub friend_report: FriendReport<B>,
 }
 
+#[capnp_conv(crate::report_capnp::pk_friend_report_list)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PkFriendReportList {
+    list: Vec<PkFriendReport<NetAddress>>,
+}
+
+impl From<PkFriendReportList> for HashMap<PublicKey, FriendReport<NetAddress>> {
+    fn from(friends_vec: PkFriendReportList) -> Self {
+        friends_vec
+            .list
+            .into_iter()
+            .map(|pk_friend_report| {
+                (
+                    pk_friend_report.friend_public_key,
+                    pk_friend_report.friend_report,
+                )
+            })
+            .collect()
+    }
+}
+
+impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
+    fn from(hash_map: HashMap<PublicKey, FriendReport<NetAddress>>) -> Self {
+        PkFriendReportList {
+            list: hash_map
+                .into_iter()
+                .map(|(friend_public_key, friend_report)| {
+                    (PkFriendReport {
+                        friend_public_key,
+                        friend_report,
+                    })
+                })
+                .collect(),
+        }
+    }
+}
+
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offst node.
 #[capnp_conv(crate::report_capnp::funder_report)]
@@ -269,22 +307,11 @@ pub struct PkFriendReport<B = NetAddress> {
 pub struct FunderReport<B = NetAddress> {
     pub local_public_key: PublicKey,
     pub relays: Vec<NamedRelayAddress<B>>,
-    pub friends: Vec<PkFriendReport<B>>,
+    #[capnp_conv(with = PkFriendReportList)]
+    pub friends: HashMap<PublicKey, FriendReport<B>>,
     pub num_open_invoices: u64,
     pub num_payments: u64,
     pub num_open_transactions: u64,
-}
-
-impl<B> FunderReport<B> {
-    // TODO:
-    /// Inefficient hack to avoid using two versions of FunderReport.
-    /// Should be resolved later by having another type that contains a map.
-    pub fn get_friend_report(&self, friend_public_key: &PublicKey) -> Option<&FriendReport<B>> {
-        self.friends
-            .iter()
-            .find(|&pk_friend_report| &pk_friend_report.friend_public_key == friend_public_key)
-            .map(|pk_friend_report| &pk_friend_report.friend_report)
-    }
 }
 
 #[allow(clippy::large_enum_variant)]
