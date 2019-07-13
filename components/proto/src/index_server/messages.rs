@@ -21,6 +21,25 @@ pub enum OptExclude {
     Edge(Edge),
 }
 
+// TODO: Replace with a macro:
+impl From<Option<Edge>> for OptExclude {
+    fn from(opt: Option<Edge>) -> Self {
+        match opt {
+            Some(edge) => OptExclude::Edge(edge),
+            None => OptExclude::Empty,
+        }
+    }
+}
+
+impl From<OptExclude> for Option<Edge> {
+    fn from(opt: OptExclude) -> Self {
+        match opt {
+            OptExclude::Edge(edge) => Some(edge),
+            OptExclude::Empty => None,
+        }
+    }
+}
+
 /// IndexClient -> IndexServer
 #[capnp_conv(crate::index_capnp::request_routes)]
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -34,7 +53,8 @@ pub struct RequestRoutes {
     pub destination: PublicKey,
     /// This directed edge must not show up any any route inside the multi-route.
     /// Useful for finding non trivial directed loops.
-    pub opt_exclude: OptExclude,
+    #[capnp_conv(with = OptExclude)]
+    pub opt_exclude: Option<Edge>,
 }
 
 #[capnp_conv(crate::index_capnp::route_capacity_rate)]

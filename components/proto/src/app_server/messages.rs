@@ -68,13 +68,32 @@ pub enum OptAppRequestId {
     Empty,
 }
 
+impl From<Option<Uid>> for OptAppRequestId {
+    fn from(opt: Option<Uid>) -> Self {
+        match opt {
+            Some(uid) => OptAppRequestId::AppRequestId(uid),
+            None => OptAppRequestId::Empty,
+        }
+    }
+}
+
+impl From<OptAppRequestId> for Option<Uid> {
+    fn from(opt: OptAppRequestId) -> Self {
+        match opt {
+            OptAppRequestId::AppRequestId(uid) => Some(uid),
+            OptAppRequestId::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B = NetAddress>
 where
     B: Clone,
 {
-    pub opt_app_request_id: OptAppRequestId,
+    #[capnp_conv(with = OptAppRequestId)]
+    pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 

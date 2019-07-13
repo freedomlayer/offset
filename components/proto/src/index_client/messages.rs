@@ -33,6 +33,25 @@ pub enum OptConnectedServer {
     Empty,
 }
 
+// TODO: Replace with a macro:
+impl From<Option<PublicKey>> for OptConnectedServer {
+    fn from(opt: Option<PublicKey>) -> Self {
+        match opt {
+            Some(public_key) => OptConnectedServer::PublicKey(public_key),
+            None => OptConnectedServer::Empty,
+        }
+    }
+}
+
+impl From<OptConnectedServer> for Option<PublicKey> {
+    fn from(opt: OptConnectedServer) -> Self {
+        match opt {
+            OptConnectedServer::PublicKey(public_key) => Some(public_key),
+            OptConnectedServer::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::report_capnp::index_client_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// ISA stands for Index Server Address
@@ -40,7 +59,8 @@ pub struct IndexClientReport<ISA = NetAddress> {
     /// A list of trusted index servers.
     pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
     /// The server we are currently connected to (None if not connected).
-    pub opt_connected_server: OptConnectedServer,
+    #[capnp_conv(with = OptConnectedServer)]
+    pub opt_connected_server: Option<PublicKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

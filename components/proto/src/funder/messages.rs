@@ -144,11 +144,31 @@ pub enum OptLocalRelays<B = NetAddress> {
     Relays(Vec<RelayAddress<B>>),
 }
 
+// TODO: Create a macro that does this:
+impl<B> From<Option<Vec<RelayAddress<B>>>> for OptLocalRelays<B> {
+    fn from(opt: Option<Vec<RelayAddress<B>>>) -> Self {
+        match opt {
+            Some(relays) => OptLocalRelays::Relays(relays),
+            None => OptLocalRelays::Empty,
+        }
+    }
+}
+
+impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> {
+    fn from(opt: OptLocalRelays<NetAddress>) -> Self {
+        match opt {
+            OptLocalRelays::Relays(relays) => Some(relays),
+            OptLocalRelays::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
     pub operations: Vec<FriendTcOp>,
-    pub opt_local_relays: OptLocalRelays<B>,
+    #[capnp_conv(with = OptLocalRelays<NetAddress>)]
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub old_token: Signature,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,

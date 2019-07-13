@@ -159,12 +159,32 @@ pub enum OptRemoteResetTerms {
     Empty,
 }
 
+// TODO: Replace with a macro:
+impl From<Option<ResetTermsReport>> for OptRemoteResetTerms {
+    fn from(opt: Option<ResetTermsReport>) -> Self {
+        match opt {
+            Some(reset_terms_report) => OptRemoteResetTerms::RemoteResetTerms(reset_terms_report),
+            None => OptRemoteResetTerms::Empty,
+        }
+    }
+}
+
+impl From<OptRemoteResetTerms> for Option<ResetTermsReport> {
+    fn from(opt: OptRemoteResetTerms) -> Self {
+        match opt {
+            OptRemoteResetTerms::RemoteResetTerms(reset_terms_report) => Some(reset_terms_report),
+            OptRemoteResetTerms::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
     #[capnp_conv(with = Wrapper<i128>)]
     pub local_reset_terms_balance: i128,
-    pub opt_remote_reset_terms: OptRemoteResetTerms,
+    #[capnp_conv(with = OptRemoteResetTerms)]
+    pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
 #[capnp_conv(crate::report_capnp::channel_consistent_report)]
@@ -190,6 +210,29 @@ pub enum OptLastIncomingMoveToken {
     Empty,
 }
 
+// TODO: Replace with a macro:
+impl From<Option<MoveTokenHashedReport>> for OptLastIncomingMoveToken {
+    fn from(opt: Option<MoveTokenHashedReport>) -> Self {
+        match opt {
+            Some(move_token_hashed_report) => {
+                OptLastIncomingMoveToken::MoveTokenHashed(move_token_hashed_report)
+            }
+            None => OptLastIncomingMoveToken::Empty,
+        }
+    }
+}
+
+impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
+    fn from(opt: OptLastIncomingMoveToken) -> Self {
+        match opt {
+            OptLastIncomingMoveToken::MoveTokenHashed(move_token_hashed_report) => {
+                Some(move_token_hashed_report)
+            }
+            OptLastIncomingMoveToken::Empty => None,
+        }
+    }
+}
+
 #[capnp_conv(crate::report_capnp::friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
@@ -199,7 +242,8 @@ pub struct FriendReport<B = NetAddress> {
     pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
-    pub opt_last_incoming_move_token: OptLastIncomingMoveToken,
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     // TODO: The state of liveness = true with status = disabled should never happen.
     // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
@@ -271,7 +315,8 @@ pub struct AddFriendReport<B = NetAddress> {
     pub relays: Vec<RelayAddress<B>>,
     #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128, // Initial balance
-    pub opt_last_incoming_move_token: OptLastIncomingMoveToken,
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
 }
 
