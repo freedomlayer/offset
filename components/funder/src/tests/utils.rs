@@ -236,7 +236,7 @@ where
         loop {
             match await!(self.recv()).unwrap() {
                 NodeRecv::ReportMutations(funder_report_mutations) => {
-                    if funder_report_mutations.opt_app_request_id == Some(app_request_id) {
+                    if funder_report_mutations.opt_app_request_id == Some(app_request_id.clone()) {
                         break;
                     }
                 }

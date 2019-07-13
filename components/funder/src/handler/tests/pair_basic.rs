@@ -891,7 +891,7 @@ async fn task_handler_pair_basic<'a>(
         PaymentId::from(&[3u8; PAYMENT_ID_LEN])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
-        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt, payment_status_success.ack_uid),
+        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt.clone(), payment_status_success.ack_uid.clone()),
         _ => unreachable!(),
     };
 
