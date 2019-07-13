@@ -303,7 +303,8 @@ pub enum FriendReportMutation<B = NetAddress> {
     SetNumPendingBackwardsOps(u64),
     SetNumPendingUserRequests(u64),
     SetStatus(FriendStatusReport),
-    SetOptLastIncomingMoveToken(OptLastIncomingMoveToken),
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
+    SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
 }
 
@@ -327,6 +328,23 @@ pub struct PkFriendReportMutation<B = NetAddress> {
     friend_report_mutation: FriendReportMutation<B>,
 }
 
+impl From<PkFriendReportMutation> for (PublicKey, FriendReportMutation) {
+    fn from(input: PkFriendReportMutation) -> Self {
+        (input.friend_public_key, input.friend_report_mutation)
+    }
+}
+
+impl From<(PublicKey, FriendReportMutation)> for PkFriendReportMutation {
+    fn from(
+        (friend_public_key, friend_report_mutation): (PublicKey, FriendReportMutation),
+    ) -> Self {
+        Self {
+            friend_public_key,
+            friend_report_mutation,
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::report_capnp::funder_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -335,7 +353,8 @@ pub enum FunderReportMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
-    PkFriendReportMutation(PkFriendReportMutation<B>),
+    #[capnp_conv(with = PkFriendReportMutation<NetAddress>)]
+    PkFriendReportMutation((PublicKey, FriendReportMutation<B>)),
     SetNumOpenInvoices(u64),
     SetNumPayments(u64),
     SetNumOpenTransactions(u64),
