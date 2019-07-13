@@ -101,7 +101,7 @@ pub enum NamedRelaysMutation<B = NetAddress> {
 }
 
 #[capnp_conv(crate::app_server_capnp::app_request)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
@@ -134,7 +134,7 @@ pub enum AppRequest<B = NetAddress> {
     RemoveIndexServer(PublicKey),
 }
 #[capnp_conv(crate::app_server_capnp::app_to_app_server)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AppToAppServer<B = NetAddress> {
     pub app_request_id: Uid,
     pub app_request: AppRequest<B>,

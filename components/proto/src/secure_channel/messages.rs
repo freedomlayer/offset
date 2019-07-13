@@ -31,14 +31,14 @@ impl ExchangeDh {
 }
 
 #[capnp_conv(crate::dh_capnp::rekey)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Rekey {
     pub dh_public_key: DhPublicKey,
     pub key_salt: Salt,
 }
 
 #[capnp_conv(crate::dh_capnp::channel_content)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ChannelContent {
     Rekey(Rekey),
     User(Vec<u8>),
