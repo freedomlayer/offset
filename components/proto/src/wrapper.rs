@@ -34,6 +34,18 @@ impl<T> std::ops::Deref for Wrapper<T> {
     }
 }
 
+impl Into<u128> for Wrapper<u128> {
+    fn into(self) -> u128 {
+        self.0
+    }
+}
+
+impl Into<i128> for Wrapper<i128> {
+    fn into(self) -> i128 {
+        self.0
+    }
+}
+
 impl<'a> WriteCapnp<'a> for Wrapper<u128> {
     type WriterType = crate::common_capnp::custom_u_int128::Builder<'a>;
 

@@ -21,10 +21,14 @@ pub struct MoveTokenHashedReport {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
-    pub move_token_counter: Wrapper<u128>,
-    pub balance: Wrapper<i128>,
-    pub local_pending_debt: Wrapper<u128>,
-    pub remote_pending_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub move_token_counter: u128,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub local_pending_debt: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
@@ -72,15 +76,20 @@ pub struct McRequestsStatusReport {
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    pub balance: Wrapper<i128>,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128,
     /// Maximum possible local debt
-    pub local_max_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub local_max_debt: u128,
     /// Maximum possible remote debt
-    pub remote_max_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub remote_max_debt: u128,
     /// Frozen credits by our side
-    pub local_pending_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    pub remote_pending_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub remote_pending_debt: u128,
 }
 
 #[capnp_conv(crate::report_capnp::direction_report)]
@@ -139,7 +148,8 @@ pub struct TcReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
-    pub balance_for_reset: Wrapper<i128>,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance_for_reset: i128,
 }
 
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report::opt_remote_reset_terms)]
@@ -152,7 +162,8 @@ pub enum OptRemoteResetTerms {
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
-    pub local_reset_terms_balance: Wrapper<i128>,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub local_reset_terms_balance: i128,
     pub opt_remote_reset_terms: OptRemoteResetTerms,
 }
 
@@ -193,7 +204,8 @@ pub struct FriendReport<B = NetAddress> {
     // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
-    pub wanted_remote_max_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
     pub status: FriendStatusReport,
 }
@@ -240,7 +252,8 @@ pub enum FriendReportMutation<B = NetAddress> {
     SetRate(Rate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
-    SetWantedRemoteMaxDebt(Wrapper<u128>),
+    #[capnp_conv(with = Wrapper<u128>)]
+    SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingBackwardsOps(u64),
@@ -256,7 +269,8 @@ pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
-    pub balance: Wrapper<i128>, // Initial balance
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128, // Initial balance
     pub opt_last_incoming_move_token: OptLastIncomingMoveToken,
     pub channel_status: ChannelStatusReport,
 }

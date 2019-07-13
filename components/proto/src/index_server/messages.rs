@@ -28,7 +28,8 @@ pub struct RequestRoutes {
     pub request_id: Uid,
     /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
-    pub capacity: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub capacity: u128,
     pub source: PublicKey,
     pub destination: PublicKey,
     /// This directed edge must not show up any any route inside the multi-route.
@@ -41,7 +42,8 @@ pub struct RequestRoutes {
 pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
-    pub capacity: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub capacity: u128,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,
 }
@@ -70,9 +72,11 @@ pub struct UpdateFriend {
     /// Friend's public key
     pub public_key: PublicKey,
     /// To denote remote requests closed, assign 0 to sendCapacity
-    pub send_capacity: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
-    pub recv_capacity: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub recv_capacity: u128,
     /// The rate we charge for forwarding messages to another friend from this friend.
     /// For example, in the following diagram we are X and A is the friend we are updating:
     /// A -- X -- B

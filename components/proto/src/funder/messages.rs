@@ -72,10 +72,13 @@ pub struct RequestSendFundsOp {
     pub request_id: Uid,
     pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
-    pub dest_payment: Wrapper<u128>,
-    pub total_dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub total_dest_payment: u128,
     pub invoice_id: InvoiceId,
-    pub left_fees: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub left_fees: u128,
 }
 
 #[capnp_conv(crate::funder_capnp::response_send_funds_op)]
@@ -97,7 +100,8 @@ pub struct CancelSendFundsOp {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub response_hash: HashResult,
-    pub dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
     pub src_plain_lock: PlainLock,
     pub dest_hashed_lock: HashedLock,
     pub signature: Signature,
@@ -107,7 +111,8 @@ pub struct Commit {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MultiCommit {
     pub invoice_id: InvoiceId,
-    pub total_dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub total_dest_payment: u128,
     pub commits: Vec<Commit>,
 }
 
@@ -124,7 +129,8 @@ pub struct CollectSendFundsOp {
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
-    SetRemoteMaxDebt(Wrapper<u128>),
+    #[capnp_conv(with = Wrapper<u128>)]
+    SetRemoteMaxDebt(u128),
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
@@ -147,10 +153,14 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
-    pub move_token_counter: Wrapper<u128>,
-    pub balance: Wrapper<i128>,
-    pub local_pending_debt: Wrapper<u128>,
-    pub remote_pending_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub move_token_counter: u128,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub local_pending_debt: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
     pub new_token: S,
 }
@@ -189,8 +199,10 @@ pub struct Receipt {
     pub invoice_id: InvoiceId,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
-    pub dest_payment: Wrapper<u128>,
-    pub total_dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub total_dest_payment: u128,
     pub signature: Signature,
     /*
     # Signature{key=destinationKey}(
@@ -401,7 +413,8 @@ pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
-    pub balance: Wrapper<i128>, // Initial balance
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128, // Initial balance
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -425,7 +438,8 @@ pub struct SetFriendStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRemoteMaxDebt {
     pub friend_public_key: PublicKey,
-    pub remote_max_debt: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub remote_max_debt: u128,
 }
 
 #[capnp_conv(crate::app_server_capnp::set_friend_name)]
@@ -460,7 +474,7 @@ pub struct SetFriendRate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FriendsRouteCapacity {
     route: FriendsRoute,
-    capacity: Wrapper<u128>,
+    capacity: u128,
 }
 
 /*
@@ -490,7 +504,8 @@ pub struct CreatePayment {
     /// certain payment.
     pub payment_id: PaymentId,
     pub invoice_id: InvoiceId,
-    pub total_dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub total_dest_payment: u128,
     pub dest_public_key: PublicKey,
 }
 
@@ -504,8 +519,10 @@ pub struct CreateTransaction {
     /// allows the user to refer to this request later.
     pub request_id: Uid,
     pub route: FriendsRoute,
-    pub dest_payment: Wrapper<u128>,
-    pub fees: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub fees: u128,
 }
 
 /// Start an invoice (A request for payment).
@@ -515,7 +532,8 @@ pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     pub invoice_id: InvoiceId,
     /// Total amount of credits to be paid.
-    pub total_dest_payment: Wrapper<u128>,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub total_dest_payment: u128,
 }
 
 /// Start an invoice (A request for payment).
