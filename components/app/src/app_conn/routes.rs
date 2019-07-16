@@ -3,13 +3,13 @@ use futures::{SinkExt, StreamExt};
 
 use common::multi_consumer::MultiConsumerClient;
 
-use crypto::identity::PublicKey;
-use crypto::rand::{CryptoRandom, OffstSystemRandom};
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Uid};
+
+use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
-use proto::index_server::messages::{MultiRoute, RequestRoutes};
+use proto::index_server::messages::{Edge, MultiRoute, RequestRoutes};
 
 #[derive(Debug)]
 pub struct AppRoutesError;
@@ -71,9 +71,13 @@ where
         destination: PublicKey,
         opt_exclude: Option<(PublicKey, PublicKey)>,
     ) -> Result<Vec<MultiRoute>, AppRoutesError> {
-        let request_routes_id = Uid::new(&self.rng);
+        let request_routes_id = Uid::rand_gen(&self.rng);
+        let opt_exclude = opt_exclude.map(|(from_public_key, to_public_key)| Edge {
+            from_public_key,
+            to_public_key,
+        });
         let request_routes = RequestRoutes {
-            request_id: request_routes_id,
+            request_id: request_routes_id.clone(),
             capacity,
             source,
             destination,
@@ -81,7 +85,7 @@ where
         };
 
         let app_request = AppRequest::RequestRoutes(request_routes);
-        let to_app_server = AppToAppServer::new(Uid::new(&self.rng), app_request);
+        let to_app_server = AppToAppServer::new(Uid::rand_gen(&self.rng), app_request);
 
         // Start listening for incoming response routes messages:
         let mut incoming_routes =

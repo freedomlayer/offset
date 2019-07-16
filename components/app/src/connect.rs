@@ -8,15 +8,19 @@ use futures::{SinkExt, StreamExt};
 use common::conn::{ConnPairVec, FutTransform};
 use common::int_convert::usize_to_u64;
 
-use proto::app_server::messages::AppServerToApp;
+use proto::app_server::messages::{AppServerToApp, AppPermissions, AppToAppServer};
+/*
 use proto::app_server::serialize::{
     deserialize_app_permissions, deserialize_app_server_to_app, serialize_app_to_app_server,
 };
+*/
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use proto::net::messages::NetAddress;
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
+
 use crypto::rand::{system_random, CryptoRandom};
 
 use identity::IdentityClient;
@@ -83,12 +87,12 @@ where
     // Get AppPermissions:
     let app_permissions_data =
         await!(receiver.next()).ok_or(SetupConnectionError::RecvAppPermissionsError)?;
-    let app_permissions = deserialize_app_permissions(&app_permissions_data)
+    let app_permissions = AppPermissions::proto_deserialize(&app_permissions_data)
         .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
     // Wait for the first NodeReport.
     let data = await!(receiver.next()).ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
-    let message = deserialize_app_server_to_app(&data)
+    let message = AppServerToApp::proto_deserialize(&data)
         .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
 
     let node_report = if let AppServerToApp::Report(node_report) = message {
@@ -98,13 +102,13 @@ where
     };
 
     // serialization:
-    let (user_sender, mut from_user_sender) = mpsc::channel(0);
+    let (user_sender, mut from_user_sender) = mpsc::channel::<AppToAppServer>(0);
     let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
     // Deserialize data received from node:
     let _ = spawner.spawn(async move {
         while let Some(data) = await!(receiver.next()) {
-            let message = match deserialize_app_server_to_app(&data) {
+            let message = match AppServerToApp::proto_deserialize(&data) {
                 Ok(message) => message,
                 Err(_) => return,
             };
@@ -117,7 +121,8 @@ where
     // Serialize data sent to node:
     let _ = spawner.spawn(async move {
         while let Some(message) = await!(from_user_sender.next()) {
-            let data = serialize_app_to_app_server(&message);
+            // let data = serialize_app_to_app_server(&message);
+            let data = message.proto_serialize();
             if await!(sender.send(data)).is_err() {
                 return;
             }

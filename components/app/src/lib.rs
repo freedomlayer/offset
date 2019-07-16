@@ -24,9 +24,9 @@ pub use proto::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::funder::messages::{Commit, MultiCommit, PaymentStatus, Rate, Receipt};
-pub use proto::funder::signature_buff::verify_receipt;
 pub use proto::index_server::messages::NamedIndexServerAddress;
-pub use proto::report::signature_buff::verify_move_token_hashed_report;
+
+pub use signature::verify::{verify_move_token_hashed_report, verify_receipt};
 
 pub use self::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
 
@@ -49,6 +49,9 @@ pub mod report {
     };
 }
 
+pub use proto::crypto;
+
+/*
 pub mod invoice {
     pub use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
 }
@@ -67,3 +70,4 @@ pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
 pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
 pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
 pub use crypto::rand::{RandValue, RAND_VALUE_LEN};
+*/

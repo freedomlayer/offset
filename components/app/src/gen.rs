@@ -1,16 +1,13 @@
-use crypto::rand::system_random;
-use crypto::uid::Uid;
-pub use crypto::uid::UID_LEN;
+use crypto::rand::{system_random, RandGen};
 
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
+use proto::crypto::{InvoiceId, PaymentId, Uid};
 
 /// Generate a random uid
 pub fn gen_uid() -> Uid {
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-    Uid::new(&rng)
+    Uid::rand_gen(&rng)
 }
 
 /// Generate a random InvoiceId:
@@ -18,7 +15,7 @@ pub fn gen_invoice_id() -> InvoiceId {
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-    InvoiceId::new(&rng)
+    InvoiceId::rand_gen(&rng)
 }
 
 /// Generate a random PaymentId:
@@ -26,5 +23,5 @@ pub fn gen_payment_id() -> PaymentId {
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-    PaymentId::new(&rng)
+    PaymentId::rand_gen(&rng)
 }
