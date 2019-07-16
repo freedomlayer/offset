@@ -5,7 +5,8 @@ use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 use derive_more::*;
 
 use common::conn::{ConnPairVec, FutTransform};
-use crypto::identity::PublicKey;
+
+use proto::crypto::PublicKey;
 use crypto::rand::CryptoRandom;
 
 use database::DatabaseClient;
@@ -25,9 +26,12 @@ use index_client::{spawn_index_client, IndexClientError};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerToFunder, FunderIncomingControl, FunderOutgoingControl, FunderToChanneler,
+    ChannelerToFunder, FunderIncomingControl, FunderOutgoingControl, FunderToChanneler, FriendMessage,
 };
-use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+
+// use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
+
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 use proto::net::messages::NetAddress;
 use proto::report::convert::funder_report_to_index_client_state;
@@ -152,7 +156,7 @@ where
                     IncomingLivenessMessage::Offline(public_key),
                 )),
                 ChannelerToFunder::Message((public_key, data)) => {
-                    if let Ok(friend_message) = deserialize_friend_message(&data[..]) {
+                    if let Ok(friend_message) = FriendMessage::proto_deserialize(&data[..]) {
                         Some(FunderIncomingComm::Friend((public_key, friend_message)))
                     } else {
                         // We discard the message if we can't deserialize it:
@@ -190,7 +194,8 @@ where
                     }
                 },
                 FunderOutgoingComm::FriendMessage((public_key, friend_message)) => {
-                    let data = serialize_friend_message(&friend_message);
+                    // let data = serialize_friend_message(&friend_message);
+                    let data = friend_message.proto_serialize();
                     FunderToChanneler::Message((public_key, data))
                 }
             };

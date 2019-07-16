@@ -1,13 +1,14 @@
-use signature::canonical::CanonicalSerialize;
 use common::mutable_state::MutableState;
 
-use crypto::identity::PublicKey;
 use funder::report::create_initial_report;
 use funder::{FunderMutation, FunderState};
 use index_client::{IndexClientConfig, IndexClientConfigMutation};
 
 use proto::app_server::messages::NodeReport;
+use proto::crypto::PublicKey;
 use proto::index_client::messages::IndexClientReport;
+
+use signature::canonical::CanonicalSerialize;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeMutation<B: Clone> {
