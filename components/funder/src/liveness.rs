@@ -39,14 +39,13 @@ impl Liveness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::crypto::PUBLIC_KEY_LEN;
 
     #[test]
     fn test_liveness_basic() {
         let mut liveness = Liveness::new();
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
 
         assert!(!liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));

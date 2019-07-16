@@ -526,7 +526,7 @@ mod tests {
 
     use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;
-    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::PublicKey;
 
     /// Test the case of a friend the channeler initiates connection to.
     async fn task_channeler_loop_connect_friend<S>(mut spawner: S)
@@ -542,7 +542,7 @@ mod tests {
         // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
         // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
         let mut pks = (0..3)
-            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .map(|i| PublicKey::from(&[i; PublicKey::len()]))
             .collect::<Vec<PublicKey>>();
         pks.sort_by(compare_public_key);
 
@@ -732,7 +732,7 @@ mod tests {
         // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
         // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
         let mut pks = (0..3)
-            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .map(|i| PublicKey::from(&[i; PublicKey::len()]))
             .collect::<Vec<PublicKey>>();
         pks.sort_by(compare_public_key);
 
@@ -856,7 +856,7 @@ mod tests {
         // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
         // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
         let mut pks = (0..3)
-            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .map(|i| PublicKey::from(&[i; PublicKey::len()]))
             .collect::<Vec<PublicKey>>();
         pks.sort_by(compare_public_key);
 
@@ -957,7 +957,7 @@ mod tests {
         // pks[1] >= pks[0], so pks[0] be an active send friend (We initiate connection)
         // pks[1] < pks[2], hence pks[2] will be a listen friend. (We wait for him to connect)
         let mut pks = (0..3)
-            .map(|i| PublicKey::from(&[i; PUBLIC_KEY_LEN]))
+            .map(|i| PublicKey::from(&[i; PublicKey::len()]))
             .collect::<Vec<PublicKey>>();
         pks.sort_by(compare_public_key);
 

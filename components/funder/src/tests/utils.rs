@@ -11,7 +11,7 @@ use futures::{future, FutureExt, SinkExt, StreamExt};
 use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
+use proto::crypto::{PublicKey, Uid};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
@@ -52,7 +52,7 @@ const CHANNEL_SIZE: usize = 64;
 /// A helper function to quickly create a dummy NamedRelayAddress.
 pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
     NamedRelayAddress {
-        public_key: PublicKey::from(&[index; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[index; PublicKey::len()]),
         address: index as u32,
         name: format!("relay-{}", index),
     }
@@ -216,7 +216,7 @@ where
 {
     pub async fn send(&mut self, funder_control: FunderControl<B>) {
         // Convert self.next_app_request_id to a Uid:
-        let mut app_request_id_inner = [0u8; UID_LEN];
+        let mut app_request_id_inner = [0u8; Uid::len()];
         let mut next_app_request_id = self.next_app_request_id;
         for j in 0..8 {
             app_request_id_inner[j] = (next_app_request_id & 0xff) as u8;

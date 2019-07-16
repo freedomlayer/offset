@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, TryFutureExt};
 
-use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+use proto::crypto::PublicKey;
 
 use proto::app_server::messages::{NamedRelayAddress, NodeReport};
 use proto::funder::messages::{FunderIncomingControl, FunderOutgoingControl};
@@ -19,7 +19,7 @@ use crate::server::{app_server_loop, IncomingAppConnection};
 /// A helper function to quickly create a dummy NamedRelayAddress.
 pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
     NamedRelayAddress {
-        public_key: PublicKey::from(&[index; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[index; PublicKey::len()]),
         address: index as u32,
         name: format!("relay-{}", index),
     }
@@ -58,7 +58,7 @@ where
 
     // Create a dummy initial_node_report:
     let funder_report = FunderReport {
-        local_public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        local_public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
         relays: vec![dummy_named_relay_address(0), dummy_named_relay_address(1)]
             .into_iter()
             .collect(),
@@ -69,20 +69,20 @@ where
     };
 
     let server100 = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
         address: 100u32,
         name: "server100".to_owned(),
     };
 
     let server101 = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0xbb; PublicKey::len()]),
         address: 101u32,
         name: "server101".to_owned(),
     };
 
     let index_client_report = IndexClientReport {
         index_servers: vec![server100, server101],
-        opt_connected_server: Some(PublicKey::from(&[0xaa; PUBLIC_KEY_LEN])),
+        opt_connected_server: Some(PublicKey::from(&[0xaa; PublicKey::len()])),
     };
 
     let initial_node_report = NodeReport {

@@ -15,7 +15,7 @@ use timer::create_timer_incoming;
 use crypto::rand::CryptoRandom;
 
 use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN,
+    InvoiceId, PaymentId, PublicKey, Uid,
 };
 
 use app::{AppBuyer, AppRoutes, AppSeller};
@@ -43,9 +43,9 @@ async fn make_test_payment<'a, R>(
 where
     R: CryptoRandom,
 {
-    let payment_id = PaymentId::from(&[4u8; PAYMENT_ID_LEN]);
-    let invoice_id = InvoiceId::from(&[3u8; INVOICE_ID_LEN]);
-    let request_id = Uid::from(&[5u8; UID_LEN]);
+    let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
+    let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
+    let request_id = Uid::from(&[5u8; Uid::len()]);
 
     await!(app_seller.add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
 
@@ -396,9 +396,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // This should not work, because 6 + 5 = 11 > 8.
     let total_dest_payment = 6;
     let fees = 0;
-    let payment_id = PaymentId::from(&[8u8; PAYMENT_ID_LEN]);
-    let invoice_id = InvoiceId::from(&[9u8; INVOICE_ID_LEN]);
-    let request_id = Uid::from(&[10u8; UID_LEN]);
+    let payment_id = PaymentId::from(&[8u8; PaymentId::len()]);
+    let invoice_id = InvoiceId::from(&[9u8; InvoiceId::len()]);
+    let request_id = Uid::from(&[10u8; Uid::len()]);
 
     await!(seller0.add_invoice(invoice_id.clone(), total_dest_payment)).unwrap();
 

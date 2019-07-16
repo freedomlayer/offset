@@ -672,7 +672,7 @@ mod tests {
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
     use proto::crypto::{
-        PublicKey, RandValue, Signature, PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN, UID_LEN,
+        PublicKey, RandValue, Signature,
     };
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
@@ -708,7 +708,7 @@ mod tests {
     where
         S: Spawn + Clone + Send + 'static,
     {
-        let server_pk = PublicKey::from(&[0; PUBLIC_KEY_LEN]);
+        let server_pk = PublicKey::from(&[0; PublicKey::len()]);
 
         let local_public_key = server_pk.clone();
         let trusted_servers: HashMap<PublicKey, u8> = HashMap::new();
@@ -759,12 +759,12 @@ mod tests {
         .unwrap();
 
         // Client requests routes:
-        let request_id = Uid::from(&[0; UID_LEN]);
+        let request_id = Uid::from(&[0; Uid::len()]);
         let request_routes = RequestRoutes {
             request_id: request_id.clone(),
             capacity: 100,
-            source: PublicKey::from(&[8; PUBLIC_KEY_LEN]),
-            destination: PublicKey::from(&[9; PUBLIC_KEY_LEN]),
+            source: PublicKey::from(&[8; PublicKey::len()]),
+            destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
         await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
@@ -772,8 +772,8 @@ mod tests {
         // Handle the graph request:
         match await!(graph_requests_receiver.next()).unwrap() {
             GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
-                assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
-                assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
+                assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
+                assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
                 assert_eq!(capacity, 100);
                 assert_eq!(opt_exclude, None);
                 response_sender.send(Vec::new()).unwrap();
@@ -799,17 +799,17 @@ mod tests {
 
         // Send mutations update to the server:
         let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(
-            &[11; PUBLIC_KEY_LEN],
+            &[11; PublicKey::len()],
         ))];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
             index_mutations,
             time_hash,
-            session_id: Uid::from(&[0; UID_LEN]),
+            session_id: Uid::from(&[0; Uid::len()]),
             counter: 0,
-            rand_nonce: RandValue::from(&[0; RAND_VALUE_LEN]),
-            signature: Signature::from(&[0; SIGNATURE_LEN]),
+            rand_nonce: RandValue::from(&[0; RandValue::len()]),
+            signature: Signature::from(&[0; Signature::len()]),
         };
 
         // Calculate signature:
@@ -832,7 +832,7 @@ mod tests {
         match await!(graph_requests_receiver.next()).unwrap() {
             GraphRequest::RemoveEdge(src, dest, response_sender) => {
                 assert_eq!(src, client_public_key);
-                assert_eq!(dest, PublicKey::from(&[11; PUBLIC_KEY_LEN]));
+                assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
                 response_sender.send(None).unwrap();
             }
             _ => unreachable!(),
@@ -863,10 +863,10 @@ mod tests {
     where
         S: Spawn + Clone + Send + 'static,
     {
-        let server_public_key = PublicKey::from(&[index; PUBLIC_KEY_LEN]);
+        let server_public_key = PublicKey::from(&[index; PublicKey::len()]);
         let trusted_servers = trusted_servers
             .iter()
-            .map(|&i| (PublicKey::from(&[i; PUBLIC_KEY_LEN]), i))
+            .map(|&i| (PublicKey::from(&[i; PublicKey::len()]), i))
             .collect::<HashMap<_, _>>();
 
         let local_public_key = server_public_key.clone();
@@ -1024,12 +1024,12 @@ mod tests {
         // Client requests routes: We do this to make sure the new client is registered at the
         // server before we send more time ticks. This will ensure that the server gets
         // ClientConnected event before the TimeTick event:
-        let request_id = Uid::from(&[0; UID_LEN]);
+        let request_id = Uid::from(&[0; Uid::len()]);
         let request_routes = RequestRoutes {
             request_id: request_id.clone(),
             capacity: 100,
-            source: PublicKey::from(&[8; PUBLIC_KEY_LEN]),
-            destination: PublicKey::from(&[9; PUBLIC_KEY_LEN]),
+            source: PublicKey::from(&[8; PublicKey::len()]),
+            destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
         await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
@@ -1037,8 +1037,8 @@ mod tests {
         // Handle the graph request:
         match await!(test_servers[0].graph_requests_receiver.next()).unwrap() {
             GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
-                assert_eq!(src, PublicKey::from(&[8; PUBLIC_KEY_LEN]));
-                assert_eq!(dest, PublicKey::from(&[9; PUBLIC_KEY_LEN]));
+                assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
+                assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
                 assert_eq!(capacity, 100);
                 assert_eq!(opt_exclude, None);
                 response_sender.send(Vec::new()).unwrap();
@@ -1069,17 +1069,17 @@ mod tests {
 
         // Send mutations update to the server:
         let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(
-            &[11; PUBLIC_KEY_LEN],
+            &[11; PublicKey::len()],
         ))];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
             index_mutations,
             time_hash: time_hash0.clone(),
-            session_id: Uid::from(&[0; UID_LEN]),
+            session_id: Uid::from(&[0; Uid::len()]),
             counter: 0,
-            rand_nonce: RandValue::from(&[0; RAND_VALUE_LEN]),
-            signature: Signature::from(&[0; SIGNATURE_LEN]),
+            rand_nonce: RandValue::from(&[0; RandValue::len()]),
+            signature: Signature::from(&[0; Signature::len()]),
         };
 
         // Calculate signature:
@@ -1103,7 +1103,7 @@ mod tests {
                 match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
                     GraphRequest::RemoveEdge(src, dest, response_sender) => {
                         assert_eq!(src, client_public_key);
-                        assert_eq!(dest, PublicKey::from(&[11; PUBLIC_KEY_LEN]));
+                        assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
                         response_sender.send(None).unwrap();
                     }
                     _ => unreachable!(),

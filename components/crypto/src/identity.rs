@@ -58,11 +58,11 @@ impl Identity for SoftwareEd25519Identity {
     fn sign(&self, message: &[u8]) -> Signature {
         let mut signature = Signature::default();
 
-        // let mut sig_array = [0; SIGNATURE_LEN];
+        // let mut sig_array = [0; Signature::len()];
         let sig_array = &mut signature;
         let sig = self.key_pair.sign(message);
         let sig_ref = sig.as_ref();
-        // assert_eq!(sig_ref.len(), SIGNATURE_LEN);
+        // assert_eq!(sig_ref.len(), Signature::len());
         sig_array.clone_from_slice(sig_ref);
         signature
     }
@@ -71,9 +71,9 @@ impl Identity for SoftwareEd25519Identity {
         let mut public_key = PublicKey::default();
         let public_key_array = &mut public_key;
 
-        // let mut public_key_array = [0; PUBLIC_KEY_LEN];
+        // let mut public_key_array = [0; PublicKey::len()];
         let public_key_ref = self.key_pair.public_key_bytes();
-        // assert_eq!(public_key_ref.len(), PUBLIC_KEY_LEN);
+        // assert_eq!(public_key_ref.len(), PublicKey::len());
         public_key_array.clone_from_slice(public_key_ref);
         public_key
         // PublicKey(public_key_array)

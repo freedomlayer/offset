@@ -6,7 +6,7 @@ use futures::{SinkExt, StreamExt};
 use proto::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, NodeReportMutation,
 };
-use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
+use proto::crypto::{PublicKey, Uid};
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientReportMutation, IndexClientReportMutations,
     IndexClientRequest, IndexClientToAppServer,
@@ -50,12 +50,12 @@ where
 
     // Send a command through the app:
     let named_index_server_address = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
     let to_app_server = AppToAppServer {
-        app_request_id: Uid::from(&[11; UID_LEN]),
+        app_request_id: Uid::from(&[11; Uid::len()]),
         app_request: AppRequest::AddIndexServer(named_index_server_address.clone()),
     };
     await!(app_sender.send(to_app_server)).unwrap();
@@ -71,7 +71,7 @@ where
     };
 
     let named_index_server_address = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
         address: 300u32,
         name: "IndexServer300".to_string(),
     };
@@ -79,7 +79,7 @@ where
         IndexClientReportMutation::AddIndexServer(named_index_server_address);
     let mutations = vec![index_client_report_mutation.clone()];
     let index_client_report_mutations = IndexClientReportMutations {
-        opt_app_request_id: Some(Uid::from(&[11; UID_LEN])),
+        opt_app_request_id: Some(Uid::from(&[11; Uid::len()])),
         mutations,
     };
     await!(

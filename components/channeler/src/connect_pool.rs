@@ -512,7 +512,6 @@ mod tests {
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
-    use proto::crypto::PUBLIC_KEY_LEN;
 
     use timer::{dummy_timer_multi_sender, TimerTick};
 
@@ -541,7 +540,7 @@ mod tests {
             spawner,
         );
 
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
         let (mut config_client, mut connect_client) =
             await!(pool_connector.transform(pk_b.clone()));
         let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
@@ -673,7 +672,7 @@ mod tests {
         let (request_sender, incoming_requests) = mpsc::channel(0);
         let (config_sender, incoming_config) = mpsc::channel(0);
 
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         // We call connect_pool_loop directly instead of using the wrapper here.
         // This is done because we need the event_sender if we want precise tests for

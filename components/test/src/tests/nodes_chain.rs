@@ -11,7 +11,7 @@ use proto::funder::messages::{MultiCommit, PaymentStatus, PaymentStatusSuccess, 
 
 use timer::create_timer_incoming;
 
-use proto::crypto::{InvoiceId, PaymentId, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN};
+use proto::crypto::{InvoiceId, PaymentId, Uid};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -398,9 +398,9 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Perform a payment through the chain: 0 -> 1 -> 2 -> 4
     // ======================================================
 
-    let payment_id = PaymentId::from(&[0u8; PAYMENT_ID_LEN]);
-    let invoice_id = InvoiceId::from(&[1u8; INVOICE_ID_LEN]);
-    let request_id = Uid::from(&[2u8; UID_LEN]);
+    let payment_id = PaymentId::from(&[0u8; PaymentId::len()]);
+    let invoice_id = InvoiceId::from(&[1u8; InvoiceId::len()]);
+    let request_id = Uid::from(&[2u8; Uid::len()]);
     let total_dest_payment = 10u128;
     let fees = 2u128; // Fees for Node1 and Node2
 
@@ -492,9 +492,9 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Perform a payment through the chain: 5 -> 2 -> 1 -> 3
     // ======================================================
 
-    let payment_id = PaymentId::from(&[3u8; PAYMENT_ID_LEN]);
-    let invoice_id = InvoiceId::from(&[4u8; INVOICE_ID_LEN]);
-    let request_id = Uid::from(&[5u8; UID_LEN]);
+    let payment_id = PaymentId::from(&[3u8; PaymentId::len()]);
+    let invoice_id = InvoiceId::from(&[4u8; InvoiceId::len()]);
+    let request_id = Uid::from(&[5u8; Uid::len()]);
     let total_dest_payment = 10u128;
     let fees = 5u128 + 2u128; // Fees for Node2 (5 = 10/2) and Node1 (2).
 

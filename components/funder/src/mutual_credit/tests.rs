@@ -228,8 +228,8 @@ fn test_request_cancel_send_funds() {
             PublicKey::from(&[0xcc; PublicKey::len()]),
         ],
     };
-    let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
-    let src_plain_lock = PlainLock::from(&[1; PLAIN_LOCK_LEN]);
+    let invoice_id = InvoiceId::from(&[0; InvoiceId::len()]);
+    let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
@@ -272,8 +272,8 @@ fn test_request_cancel_send_funds() {
 
 #[test]
 fn test_request_response_cancel_send_funds() {
-    let local_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-    let remote_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+    let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
+    let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
     let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
 
@@ -294,16 +294,16 @@ fn test_request_response_cancel_send_funds() {
     let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_c = identity.get_public_key();
 
-    let request_id = Uid::from(&[3; UID_LEN]);
+    let request_id = Uid::from(&[3; Uid::len()]);
     let route = FriendsRoute {
         public_keys: vec![
-            PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
-            PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]),
+            PublicKey::from(&[0xaa; PublicKey::len()]),
+            PublicKey::from(&[0xbb; PublicKey::len()]),
             public_key_c.clone(),
         ],
     };
-    let invoice_id = InvoiceId::from(&[0; INVOICE_ID_LEN]);
-    let src_plain_lock = PlainLock::from(&[1; PLAIN_LOCK_LEN]);
+    let invoice_id = InvoiceId::from(&[0; InvoiceId::len()]);
+    let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
@@ -330,14 +330,14 @@ fn test_request_response_cancel_send_funds() {
 
     // -----[ResponseSendFunds]--------
     // --------------------------------
-    let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
-    let dest_plain_lock = PlainLock::from(&[2; PLAIN_LOCK_LEN]);
+    let rand_nonce = RandValue::from(&[5; RandValue::len()]);
+    let dest_plain_lock = PlainLock::from(&[2; PlainLock::len()]);
 
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
         dest_hashed_lock: dest_plain_lock.hash_lock(),
         rand_nonce: rand_nonce.clone(),
-        signature: Signature::from(&[0; SIGNATURE_LEN]),
+        signature: Signature::from(&[0; Signature::len()]),
     };
 
     let sign_buffer = create_response_signature_buffer(&response_send_funds, &pending_transaction);
