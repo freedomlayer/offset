@@ -9,8 +9,7 @@ use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
 // use common::mutable_state::MutableState;
-use crypto::payment_id::PaymentId;
-use crypto::uid::Uid;
+use proto::crypto::{PaymentId, Uid};
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RequestsStatus,
@@ -418,7 +417,7 @@ where
             RequestClosePayment(payment_id) => {
                 if self
                     .close_payment_requests
-                    .insert(payment_id, app_id)
+                    .insert(payment_id.clone(), app_id)
                     .is_some()
                 {
                     warn!("RequestClosePayment: payment_id clash.");
@@ -438,7 +437,7 @@ where
             CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
                 self.transactions
-                    .insert(create_transaction.request_id, app_id);
+                    .insert(create_transaction.request_id.clone(), app_id);
                 to_funder!(CreateTransaction(create_transaction))
             }
             RemoveFriend(friend_public_key) => {
@@ -481,7 +480,7 @@ where
                 // Keep track of which application issued this request:
                 if self
                     .route_requests
-                    .insert(request_routes.request_id, app_id)
+                    .insert(request_routes.request_id.clone(), app_id)
                     .is_some()
                 {
                     warn!("RequestRoutes: request_id clash.");

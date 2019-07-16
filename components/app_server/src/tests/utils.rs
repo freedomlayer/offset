@@ -1,10 +1,10 @@
+use std::collections::HashMap;
+
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, TryFutureExt};
 
-use im::hashmap::HashMap as ImHashMap;
-
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
 
 use proto::app_server::messages::{NamedRelayAddress, NodeReport};
 use proto::funder::messages::{FunderIncomingControl, FunderOutgoingControl};
@@ -62,7 +62,7 @@ where
         relays: vec![dummy_named_relay_address(0), dummy_named_relay_address(1)]
             .into_iter()
             .collect(),
-        friends: ImHashMap::new(),
+        friends: HashMap::new(),
         num_open_invoices: 0,
         num_payments: 0,
         num_open_transactions: 0,

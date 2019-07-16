@@ -3,8 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
-use crypto::uid::{Uid, UID_LEN};
+use proto::crypto::{PublicKey, PUBLIC_KEY_LEN, Uid, UID_LEN};
 use proto::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, NodeReportMutation,
 };
