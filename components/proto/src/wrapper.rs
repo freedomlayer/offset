@@ -5,14 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{CapnpConvError, ReadCapnp, WriteCapnp};
 
-/*
-#[derive(derive_more::From, derive_more::New, Debug)]
-struct CustomU128(u128);
-
-#[derive(derive_more::From, derive_more::New, Debug)]
-struct CustomI128(i128);
-*/
-
 #[derive(
     derive_more::Constructor,
     derive_more::From,
