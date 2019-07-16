@@ -22,11 +22,11 @@ impl HashLock for PlainLock {
 mod tests {
     use super::*;
 
-    use proto::crypto::{PlainLock, PLAIN_LOCK_LEN};
+    use proto::crypto::PlainLock;
 
     #[test]
     fn test_hash_lock_basic() {
-        let plain_lock = PlainLock::from(&[1u8; PLAIN_LOCK_LEN]);
+        let plain_lock = PlainLock::from(&[1u8; PlainLock::len()]);
         let hashed_lock1 = plain_lock.hash_lock();
         let hashed_lock2 = plain_lock.hash_lock();
         assert_eq!(hashed_lock1, hashed_lock2);

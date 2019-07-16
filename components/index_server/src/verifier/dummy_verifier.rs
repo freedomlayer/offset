@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use super::verifier::Verifier;
-use proto::crypto::{HashResult, HASH_RESULT_LEN};
+use proto::crypto::HashResult;
 
 pub struct DummyVerifier<N, B, U> {
     phantom_n: PhantomData<N>,
@@ -20,9 +20,9 @@ impl<N, B, U> DummyVerifier<N, B, U> {
             // verify() method requires to return a borrowed slice, therefore
             // we need to keep a real vector:
             hash_vec: vec![
-                HashResult::from(&[0; HASH_RESULT_LEN]),
-                HashResult::from(&[1; HASH_RESULT_LEN]),
-                HashResult::from(&[2; HASH_RESULT_LEN]),
+                HashResult::from(&[0; HashResult::len()]),
+                HashResult::from(&[1; HashResult::len()]),
+                HashResult::from(&[2; HashResult::len()]),
             ],
         }
     }
@@ -47,7 +47,7 @@ impl<N, B, U> Verifier for DummyVerifier<N, B, U> {
 
     fn tick(&mut self) -> (HashResult, Vec<N>) {
         // Nothing happens. Always the same tick.
-        (HashResult::from(&[0; HASH_RESULT_LEN]), Vec::new())
+        (HashResult::from(&[0; HashResult::len()]), Vec::new())
     }
 
     fn neighbor_tick(&mut self, _neighbor: B, _tick_hash: HashResult) -> Option<HashResult> {

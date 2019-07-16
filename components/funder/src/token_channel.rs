@@ -6,9 +6,7 @@ use signature::canonical::CanonicalSerialize;
 use crypto::hash::sha_512_256;
 use crypto::identity::compare_public_key;
 
-use proto::crypto::{
-    PublicKey, RandValue, Signature, PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN,
-};
+use proto::crypto::{PublicKey, RandValue, Signature};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{FriendTcOp, MoveToken};
@@ -98,8 +96,8 @@ pub enum ReceiveMoveTokenOutput<B> {
 /// Note that the output here is not a real signature. This function is used for the first
 /// deterministic initialization of a token channel.
 fn token_from_public_key(public_key: &PublicKey) -> Signature {
-    let mut buff = [0; SIGNATURE_LEN];
-    buff[0..PUBLIC_KEY_LEN].copy_from_slice(public_key);
+    let mut buff = [0; Signature::len()];
+    buff[0..PublicKey::len()].copy_from_slice(public_key);
     Signature::from(&buff)
 }
 
@@ -108,7 +106,7 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
 /// deterministic initialization of a token channel.
 fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
     let public_key_hash = sha_512_256(public_key);
-    RandValue::try_from(&public_key_hash.as_ref()[..RAND_VALUE_LEN]).unwrap()
+    RandValue::try_from(&public_key_hash.as_ref()[..RandValue::len()]).unwrap()
 }
 
 /// Create an initial move token in the relationship between two public keys.
@@ -513,8 +511,8 @@ mod tests {
 
     #[test]
     fn test_initial_direction() {
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
         let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
         let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a, 0i128);
 
@@ -590,7 +588,7 @@ mod tests {
         let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
         let operations = vec![friend_tc_op];
 
-        let rand_nonce = RandValue::from(&[5; RAND_VALUE_LEN]);
+        let rand_nonce = RandValue::from(&[5; RandValue::len()]);
         let opt_local_relays = None;
         let unsigned_move_token =
             tc2_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);

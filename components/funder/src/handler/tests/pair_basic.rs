@@ -12,7 +12,7 @@ use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN};
+use proto::crypto::{InvoiceId, PaymentId, Uid};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
@@ -88,7 +88,7 @@ async fn task_handler_pair_basic<'a>(
         balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[11; UID_LEN]),
+        Uid::from(&[11; Uid::len()]),
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -107,7 +107,7 @@ async fn task_handler_pair_basic<'a>(
         status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[12; UID_LEN]),
+        Uid::from(&[12; Uid::len()]),
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -128,7 +128,7 @@ async fn task_handler_pair_basic<'a>(
         balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[13; UID_LEN]),
+        Uid::from(&[13; Uid::len()]),
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -147,7 +147,7 @@ async fn task_handler_pair_basic<'a>(
         status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[14; UID_LEN]),
+        Uid::from(&[14; Uid::len()]),
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -348,7 +348,7 @@ async fn task_handler_pair_basic<'a>(
         remote_max_debt: 100,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[15; UID_LEN]),
+        Uid::from(&[15; Uid::len()]),
         FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -418,12 +418,12 @@ async fn task_handler_pair_basic<'a>(
 
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 16,
     };
 
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[16; UID_LEN]),
+        Uid::from(&[16; Uid::len()]),
         FunderControl::AddInvoice(add_invoice),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -442,14 +442,14 @@ async fn task_handler_pair_basic<'a>(
 
     // Node2 opens payment (to Node1) according to the invoice from Node1:
     let create_payment = CreatePayment {
-        payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 16,
         dest_public_key: pk1.clone(),
     };
 
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[17; UID_LEN]),
+        Uid::from(&[17; Uid::len()]),
         FunderControl::CreatePayment(create_payment),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -468,8 +468,8 @@ async fn task_handler_pair_basic<'a>(
 
     // Node2 creates a transaction to send funds to Node1:
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[0; UID_LEN]),
+        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        request_id: Uid::from(&[0; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
@@ -478,7 +478,7 @@ async fn task_handler_pair_basic<'a>(
     };
 
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[18; UID_LEN]),
+        Uid::from(&[18; Uid::len()]),
         FunderControl::CreateTransaction(create_transaction),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -501,7 +501,7 @@ async fn task_handler_pair_basic<'a>(
     };
 
     // We expect failure, because remote side is not ready:
-    assert_eq!(transaction_result.request_id, Uid::from(&[0; UID_LEN]));
+    assert_eq!(transaction_result.request_id, Uid::from(&[0; Uid::len()]));
     match transaction_result.result {
         RequestResult::Failure => {}
         _ => unreachable!(),
@@ -531,7 +531,7 @@ async fn task_handler_pair_basic<'a>(
         status: RequestsStatus::Open,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[19; UID_LEN]),
+        Uid::from(&[19; Uid::len()]),
         FunderControl::SetRequestsStatus(set_requests_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -629,8 +629,8 @@ async fn task_handler_pair_basic<'a>(
 
     // Node2 again creates a transaction to send funds to Node1:
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[1; UID_LEN]),
+        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        request_id: Uid::from(&[1; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
         },
@@ -639,7 +639,7 @@ async fn task_handler_pair_basic<'a>(
     };
 
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[20; UID_LEN]),
+        Uid::from(&[20; Uid::len()]),
         FunderControl::CreateTransaction(create_transaction),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -715,7 +715,7 @@ async fn task_handler_pair_basic<'a>(
     };
 
     // We expect success:
-    assert_eq!(transaction_result.request_id, Uid::from(&[1; UID_LEN]));
+    assert_eq!(transaction_result.request_id, Uid::from(&[1; Uid::len()]));
     let commit = match &transaction_result.result {
         RequestResult::Success(commit) => commit.clone(),
         _ => unreachable!(),
@@ -723,14 +723,14 @@ async fn task_handler_pair_basic<'a>(
 
     // Node2: Compose a MultiCommit message:
     let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 16u128,
         commits: vec![commit],
     };
 
     // Node1: Apply MultiCommit message received from Node2 (Received out of band):
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[21; UID_LEN]),
+        Uid::from(&[21; Uid::len()]),
         FunderControl::CommitInvoice(multi_commit),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -863,8 +863,8 @@ async fn task_handler_pair_basic<'a>(
     // After a while...
     // Node2: Close the payment (To check the payment results)
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[21; UID_LEN]),
-        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PAYMENT_ID_LEN])),
+        Uid::from(&[21; Uid::len()]),
+        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PaymentId::len()])),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(
@@ -888,7 +888,7 @@ async fn task_handler_pair_basic<'a>(
 
     assert_eq!(
         response_close_payment.payment_id,
-        PaymentId::from(&[3u8; PAYMENT_ID_LEN])
+        PaymentId::from(&[3u8; PaymentId::len()])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
         PaymentStatus::Success(payment_status_success) => (
@@ -898,17 +898,17 @@ async fn task_handler_pair_basic<'a>(
         _ => unreachable!(),
     };
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
+    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; InvoiceId::len()]));
     assert_eq!(receipt.dest_payment, 16);
     assert_eq!(receipt.total_dest_payment, 16);
 
     let ack_close_payment = AckClosePayment {
-        payment_id: PaymentId::from(&[3u8; PAYMENT_ID_LEN]),
+        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
         ack_uid: ack_uid.clone(),
     };
     // Node2: Send ack for closing the payment:
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[22; UID_LEN]),
+        Uid::from(&[22; Uid::len()]),
         FunderControl::AckClosePayment(ack_close_payment),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -923,8 +923,8 @@ async fn task_handler_pair_basic<'a>(
 
     // Node2: Request for closing payment again:
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[23; UID_LEN]),
-        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PAYMENT_ID_LEN])),
+        Uid::from(&[23; Uid::len()]),
+        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PaymentId::len()])),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = await!(Box::pin(apply_funder_incoming(

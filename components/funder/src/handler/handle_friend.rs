@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::crypto::{PublicKey, Signature, Uid, SIGNATURE_LEN};
+use proto::crypto::{PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -48,7 +48,7 @@ fn gen_channel_reset_token<R>(rng: &R) -> Signature
 where
     R: CryptoRandom,
 {
-    let mut buff = [0; SIGNATURE_LEN];
+    let mut buff = [0; Signature::len()];
     rng.fill(&mut buff).unwrap();
     Signature::from(&buff)
 }

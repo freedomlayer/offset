@@ -106,7 +106,7 @@ mod tests {
 
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use proto::crypto::{HashResult, HASH_RESULT_LEN};
+    use proto::crypto::HashResult;
 
     use identity::create_identity;
 
@@ -147,7 +147,7 @@ mod tests {
             conn_request.reply(Some((client_sender, client_receiver)));
 
             // Send a first time hash (Required for connection):
-            let time_hash = HashResult::from(&[0xaa; HASH_RESULT_LEN]);
+            let time_hash = HashResult::from(&[0xaa; HashResult::len()]);
             await!(c_server_sender.send(IndexServerToClient::TimeHash(time_hash))).unwrap();
         };
         let session_handle_fut = index_client_session.transform(0x1337u32);

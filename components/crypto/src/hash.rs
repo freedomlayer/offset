@@ -1,10 +1,10 @@
 use ring::digest::{digest, SHA512_256};
 
-use proto::crypto::{HashResult, HASH_RESULT_LEN};
+use proto::crypto::HashResult;
 
 /// Calculate SHA512/256 over the given data.
 pub fn sha_512_256(data: &[u8]) -> HashResult {
-    let mut inner = [0x00; HASH_RESULT_LEN];
+    let mut inner = [0x00; HashResult::len()];
 
     let digest_res = digest(&SHA512_256, data);
     inner.copy_from_slice(digest_res.as_ref());
