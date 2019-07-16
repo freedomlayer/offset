@@ -425,7 +425,10 @@ where
     // IndexClient returns the result back to AppServer:
     match await!(icc.app_server_receiver.next()).unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
-            assert_eq!(client_response_routes.request_id, Uid::from(&[3; Uid::len()]));
+            assert_eq!(
+                client_response_routes.request_id,
+                Uid::from(&[3; Uid::len()])
+            );
             let routes = match client_response_routes.result {
                 ResponseRoutesResult::Success(routes) => routes,
                 _ => unreachable!(),
@@ -520,7 +523,10 @@ where
     // IndexClient returns failure in ResponseRoutes:
     match await!(icc.app_server_receiver.next()).unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
-            assert_eq!(client_response_routes.request_id, Uid::from(&[3; Uid::len()]));
+            assert_eq!(
+                client_response_routes.request_id,
+                Uid::from(&[3; Uid::len()])
+            );
             match client_response_routes.result {
                 ResponseRoutesResult::Failure => {}
                 _ => unreachable!(),

@@ -3,9 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid,
-};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{

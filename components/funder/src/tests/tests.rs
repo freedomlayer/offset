@@ -1,8 +1,6 @@
 use common::test_executor::TestExecutor;
 
-use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid,
-};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
     FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
@@ -116,7 +114,10 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     };
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; InvoiceId::len()]));
+    assert_eq!(
+        receipt.invoice_id,
+        InvoiceId::from(&[1u8; InvoiceId::len()])
+    );
     assert_eq!(receipt.dest_payment, 4);
     assert_eq!(receipt.total_dest_payment, 4);
 
@@ -274,7 +275,10 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     };
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; InvoiceId::len()]));
+    assert_eq!(
+        receipt.invoice_id,
+        InvoiceId::from(&[1u8; InvoiceId::len()])
+    );
     assert_eq!(receipt.dest_payment, 15);
     assert_eq!(receipt.total_dest_payment, 15);
 

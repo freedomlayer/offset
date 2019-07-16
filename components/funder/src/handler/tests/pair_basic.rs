@@ -898,7 +898,10 @@ async fn task_handler_pair_basic<'a>(
         _ => unreachable!(),
     };
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; InvoiceId::len()]));
+    assert_eq!(
+        receipt.invoice_id,
+        InvoiceId::from(&[1u8; InvoiceId::len()])
+    );
     assert_eq!(receipt.dest_payment, 16);
     assert_eq!(receipt.total_dest_payment, 16);
 

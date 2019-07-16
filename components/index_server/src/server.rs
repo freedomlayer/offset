@@ -671,9 +671,7 @@ mod tests {
 
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use proto::crypto::{
-        PublicKey, RandValue, Signature,
-    };
+    use proto::crypto::{PublicKey, RandValue, Signature};
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};

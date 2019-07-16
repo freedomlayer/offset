@@ -55,7 +55,10 @@ where
 
     // SetRelays command should be forwarded to the Funder:
     let to_funder_message = await!(funder_receiver.next()).unwrap();
-    assert_eq!(to_funder_message.app_request_id, Uid::from(&[22; Uid::len()]));
+    assert_eq!(
+        to_funder_message.app_request_id,
+        Uid::from(&[22; Uid::len()])
+    );
     match to_funder_message.funder_control {
         FunderControl::AddRelay(address) => assert_eq!(address, dummy_named_relay_address(0)),
         _ => unreachable!(),

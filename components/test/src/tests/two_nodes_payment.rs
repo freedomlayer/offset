@@ -14,9 +14,7 @@ use timer::create_timer_incoming;
 
 use crypto::rand::CryptoRandom;
 
-use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid,
-};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use app::{AppBuyer, AppRoutes, AppSeller};
 
