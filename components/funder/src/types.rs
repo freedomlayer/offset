@@ -1,6 +1,6 @@
 use signature::canonical::CanonicalSerialize;
 
-use proto::crypto::{HashResult, HashedLock, PublicKey, Signature, RandValue, Uid};
+use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{

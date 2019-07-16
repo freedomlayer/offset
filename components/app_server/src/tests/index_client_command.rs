@@ -3,10 +3,10 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{PublicKey, PUBLIC_KEY_LEN, Uid, UID_LEN};
 use proto::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, NodeReportMutation,
 };
+use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientReportMutation, IndexClientReportMutations,
     IndexClientRequest, IndexClientToAppServer,

@@ -7,10 +7,9 @@ use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamEx
 use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener};
 use common::int_convert::usize_to_u64;
 
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
 use proto::crypto::PublicKey;
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
-
 
 use common::access_control::{AccessControl, AccessControlOp};
 use common::select_streams::{select_streams, BoxStream};
@@ -138,8 +137,7 @@ where
     let (mut sender, receiver) = conn_pair;
 
     // Send first message:
-    let ser_init_connection =
-        InitConnection::Accept(public_key.clone()).proto_serialize();
+    let ser_init_connection = InitConnection::Accept(public_key.clone()).proto_serialize();
     let send_res = await!(sender.send(ser_init_connection));
     if send_res.is_err() {
         await!(pending_reject_sender.send(public_key))
@@ -199,11 +197,12 @@ where
     let (sender, receiver) = await!(keepalive_transform.transform(conn_pair));
 
     // Add serialization for sender:
-    let mut sender = sender
-        .sink_map_err(|_| ())
-        .with(|vec: RejectConnection| -> future::Ready<Result<_, ()>> {
-            future::ready(Ok(vec.proto_serialize()))
-        });
+    let mut sender =
+        sender
+            .sink_map_err(|_| ())
+            .with(|vec: RejectConnection| -> future::Ready<Result<_, ()>> {
+                future::ready(Ok(vec.proto_serialize()))
+            });
 
     // Add deserialization for receiver:
     let receiver = receiver
@@ -361,11 +360,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::crypto::PUBLIC_KEY_LEN;
     use futures::channel::oneshot;
     use futures::executor::ThreadPool;
+    use proto::crypto::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
-
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;

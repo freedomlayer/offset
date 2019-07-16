@@ -8,16 +8,16 @@ use futures::{SinkExt, StreamExt};
 use common::conn::{ConnPairVec, FutTransform};
 use common::int_convert::usize_to_u64;
 
-use proto::app_server::messages::{AppServerToApp, AppPermissions, AppToAppServer};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
 /*
 use proto::app_server::serialize::{
     deserialize_app_permissions, deserialize_app_server_to_app, serialize_app_to_app_server,
 };
 */
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use proto::net::messages::NetAddress;
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 use proto::crypto::PublicKey;
 

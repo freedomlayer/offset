@@ -104,9 +104,9 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
 
-    use proto::crypto::{HashResult, HASH_RESULT_LEN};
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
+    use proto::crypto::{HashResult, HASH_RESULT_LEN};
 
     use identity::create_identity;
 

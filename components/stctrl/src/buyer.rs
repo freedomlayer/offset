@@ -8,10 +8,10 @@ use futures::future::select_all;
 
 use structopt::StructOpt;
 
+use app::crypto::PublicKey;
 use app::gen::{gen_payment_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PaymentStatusSuccess};
-use app::crypto::PublicKey;
 
 use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
 
@@ -142,7 +142,9 @@ async fn buyer_pay_invoice(
 
     // Create a new payment
     let payment_id = gen_payment_id();
-    let payment_file = PaymentFile { payment_id: payment_id.clone() };
+    let payment_file = PaymentFile {
+        payment_id: payment_id.clone(),
+    };
 
     // Keep payment id for later reference:
     let mut file = File::create(payment_path)?;
@@ -245,7 +247,7 @@ async fn buyer_payment_status(
             writeln!(writer, "Payment is in progress").map_err(|_| BuyerError::WriteError)?;
             None
         }
-        PaymentStatus::Success(PaymentStatusSuccess {receipt, ack_uid}) => {
+        PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             writeln!(writer, "Payment succeeded. Saving receipt to file.")
                 .map_err(|_| BuyerError::WriteError)?;
 

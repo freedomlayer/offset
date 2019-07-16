@@ -4,21 +4,20 @@ use byteorder::{BigEndian, ByteOrder};
 
 use derive_more::From;
 
-
-use crypto::dh::{DhPrivateKey};
+use crypto::dh::DhPrivateKey;
 use crypto::identity::verify_signature;
 use crypto::rand::{CryptoRandom, RandGen};
 use crypto::sym_encrypt::{Decryptor, Encryptor};
 
-use proto::crypto::{Salt, PublicKey, Signature, RandValue};
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize, ProtoSerializeError};
+use proto::crypto::{PublicKey, RandValue, Salt, Signature};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
 
 use identity::IdentityClient;
 use proto::secure_channel::messages::{
     ChannelContent, ChannelMessage, ExchangeDh, ExchangeRandNonce, Rekey,
 };
 
-use crate::types::{PlainData, EncryptedData};
+use crate::types::{EncryptedData, PlainData};
 
 const MAX_RAND_PADDING: u16 = 0x100;
 
@@ -129,7 +128,8 @@ impl ScStateHalf {
         }
         // Verify signature:
         let sbuffer = exchange_dh.signature_buffer();
-        if !verify_signature(&sbuffer, &self.remote_public_key, &exchange_dh.signature) { return Err(ScStateError::InvalidSignature);
+        if !verify_signature(&sbuffer, &self.remote_public_key, &exchange_dh.signature) {
+            return Err(ScStateError::InvalidSignature);
         }
         Ok(())
     }

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use signature::canonical::CanonicalSerialize;
 use common::mutable_state::MutableState;
+use signature::canonical::CanonicalSerialize;
 
 use futures::channel::mpsc;
 use futures::stream::select;
@@ -11,7 +11,7 @@ use futures::{future, FutureExt, SinkExt, StreamExt};
 use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{Uid, UID_LEN, PublicKey, PUBLIC_KEY_LEN};
+use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,

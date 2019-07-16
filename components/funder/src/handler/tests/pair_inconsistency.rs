@@ -12,7 +12,6 @@ use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
 
-
 use proto::crypto::{Uid, UID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,

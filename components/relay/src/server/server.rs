@@ -9,8 +9,8 @@ use common::futures_compat::send_to_sink;
 use common::select_streams::{select_streams, BoxStream};
 use timer::TimerClient;
 
-use proto::relay::messages::{IncomingConnection, RejectConnection};
 use proto::crypto::PublicKey;
+use proto::relay::messages::{IncomingConnection, RejectConnection};
 
 use super::types::{IncomingAccept, IncomingConn, IncomingConnInner};
 

@@ -1,8 +1,8 @@
 use identity::IdentityClient;
 use std::fmt::Debug;
 
-use signature::canonical::CanonicalSerialize;
 use crypto::rand::CryptoRandom;
+use signature::canonical::CanonicalSerialize;
 
 use proto::funder::messages::FunderOutgoingControl;
 

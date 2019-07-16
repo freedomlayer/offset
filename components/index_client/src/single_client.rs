@@ -7,7 +7,7 @@ use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
 
-use proto::crypto::{HashResult, PublicKey, Signature, Uid, RandValue};
+use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use signature::signature_buff::create_mutations_update_signature_buff;
 
@@ -248,9 +248,7 @@ mod tests {
 
     use signature::verify::verify_mutations_update;
 
-    use crypto::identity::{
-        generate_private_key, Identity, SoftwareEd25519Identity,
-    };
+    use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;

@@ -12,7 +12,7 @@ use common::conn::{BoxFuture, ConnPair, FutTransform};
 use common::select_streams::{select_streams, BoxStream};
 
 use proto::keepalive::messages::KaMessage;
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize, ProtoSerializeError};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
 
 #[derive(From, Debug)]
 pub enum KeepAliveError {
@@ -295,10 +295,7 @@ mod tests {
         await!(user_sender.send(vec![1, 2, 3])).unwrap();
         await!(event_receiver.next()).unwrap();
         let vec = await!(remote_receiver.next()).unwrap();
-        assert_eq!(
-            vec,
-            KaMessage::Message(vec![1, 2, 3]).proto_serialize()
-        );
+        assert_eq!(vec, KaMessage::Message(vec![1, 2, 3]).proto_serialize());
 
         // User can not see Keepalive messages sent from remote:
         let vec = KaMessage::KeepAlive.proto_serialize();

@@ -14,8 +14,9 @@ use timer::create_timer_incoming;
 
 use crypto::rand::CryptoRandom;
 
-use proto::crypto::{PublicKey, InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN, Uid, UID_LEN};
-
+use proto::crypto::{
+    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN,
+};
 
 use app::{AppBuyer, AppRoutes, AppSeller};
 
@@ -102,7 +103,7 @@ where
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
-        PaymentStatus::Success(PaymentStatusSuccess{ receipt, ack_uid}) => {
+        PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
             await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();

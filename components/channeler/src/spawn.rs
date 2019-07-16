@@ -7,15 +7,14 @@ use futures::task::Spawn;
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use timer::TimerClient;
 
-use proto::funder::messages::{ChannelerToFunder, FunderToChanneler};
 use proto::crypto::PublicKey;
+use proto::funder::messages::{ChannelerToFunder, FunderToChanneler};
 
 use relay::{ClientConnector, ClientListener};
 
 use crate::channeler::{channeler_loop, ChannelerError};
 use crate::connect_pool::PoolConnector;
 use crate::listen_pool::PoolListener;
-
 
 /// A connection style encrypt transform.
 /// Does not return the public key of the remote side, because we already know it.

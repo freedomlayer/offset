@@ -13,13 +13,12 @@ use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use proto::secure_channel::messages::{ExchangeDh, ExchangeRandNonce};
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize, ProtoSerializeError};
 use proto::crypto::PublicKey;
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
+use proto::secure_channel::messages::{ExchangeDh, ExchangeRandNonce};
 
 use crate::state::{ScState, ScStateError, ScStateInitial};
-use crate::types::{PlainData, EncryptedData};
-
+use crate::types::{EncryptedData, PlainData};
 
 #[derive(Debug, From)]
 enum SecureChannelError {

@@ -10,12 +10,12 @@ use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransf
 use common::transform_pool::transform_pool_loop;
 
 use proto::consts::{INDEX_NODE_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::crypto::PublicKey;
 use proto::index_server::messages::{
     IndexClientToServer, IndexServerToClient, IndexServerToServer,
 };
-use proto::crypto::PublicKey;
 
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 /*
 use proto::index_server::serialize::{
@@ -26,7 +26,7 @@ use proto::index_server::serialize::{
 
 use timer::TimerClient;
 
-use crypto::identity::{compare_public_key};
+use crypto::identity::compare_public_key;
 use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;

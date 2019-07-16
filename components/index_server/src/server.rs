@@ -414,7 +414,8 @@ async fn client_handler(
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
-                let opt_exclude_edge = request_routes.opt_exclude
+                let opt_exclude_edge = request_routes
+                    .opt_exclude
                     .map(|edge| (edge.from_public_key.clone(), edge.to_public_key.clone()));
 
                 let graph_multi_routes = await!(graph_client.get_multi_routes(
@@ -668,12 +669,11 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
-    use proto::crypto::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN, RandValue,
-        RAND_VALUE_LEN, UID_LEN};
-    use crypto::identity::{
-        generate_private_key, SoftwareEd25519Identity,
-    };
+    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
+    use proto::crypto::{
+        PublicKey, RandValue, Signature, PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN, UID_LEN,
+    };
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};
@@ -813,9 +813,9 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature =
-            await!(identity_client.request_signature(create_mutations_update_signature_buff(&mutations_update)))
-                .unwrap();
+        mutations_update.signature = await!(identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
+        .unwrap();
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 
@@ -1083,9 +1083,9 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature =
-            await!(identity_client.request_signature(create_mutations_update_signature_buff(&mutations_update)))
-                .unwrap();
+        mutations_update.signature = await!(identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
+        .unwrap();
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 

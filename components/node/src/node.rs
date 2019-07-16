@@ -6,8 +6,8 @@ use derive_more::*;
 
 use common::conn::{ConnPairVec, FutTransform};
 
-use proto::crypto::PublicKey;
 use crypto::rand::CryptoRandom;
+use proto::crypto::PublicKey;
 
 use database::DatabaseClient;
 use identity::IdentityClient;
@@ -26,9 +26,10 @@ use index_client::{spawn_index_client, IndexClientError};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerToFunder, FunderIncomingControl, FunderOutgoingControl, FunderToChanneler, FriendMessage,
+    ChannelerToFunder, FriendMessage, FunderIncomingControl, FunderOutgoingControl,
+    FunderToChanneler,
 };
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 // use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
 

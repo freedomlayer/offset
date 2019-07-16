@@ -19,7 +19,6 @@ use proto::crypto::PublicKey;
 use crate::listen_pool_state::{ListenPoolState, Relay};
 use crate::types::{AccessControlOpPk, AccessControlPk, RawConn};
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum LpConfig<RA> {
     SetLocalAddresses(Vec<RA>),

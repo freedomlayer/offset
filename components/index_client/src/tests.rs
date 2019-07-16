@@ -5,8 +5,7 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use common::dummy_connector::{ConnRequest, DummyConnector};
 
-use proto::crypto::{PublicKey, PUBLIC_KEY_LEN, Uid, UID_LEN};
-
+use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
 
 use proto::funder::messages::Rate;
 use proto::index_client::messages::{

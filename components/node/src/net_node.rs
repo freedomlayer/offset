@@ -8,11 +8,11 @@ use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use proto::crypto::PublicKey;
 use crypto::rand::CryptoRandom;
+use proto::crypto::PublicKey;
 
-use proto::app_server::messages::{AppPermissions, AppToAppServer, AppServerToApp};
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::net::messages::NetAddress;

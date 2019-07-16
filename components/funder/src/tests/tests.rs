@@ -1,6 +1,8 @@
 use common::test_executor::TestExecutor;
 
-use proto::crypto::{PublicKey, Uid, UID_LEN, InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN};
+use proto::crypto::{
+    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN,
+};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
     FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
@@ -100,8 +102,10 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success(payment_status_success) => 
-            (payment_status_success.receipt, payment_status_success.ack_uid),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt,
+            payment_status_success.ack_uid,
+        ),
         _ => unreachable!(),
     };
 
@@ -256,7 +260,10 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt, payment_status_success.ack_uid),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt,
+            payment_status_success.ack_uid,
+        ),
         _ => unreachable!(),
     };
 
@@ -495,7 +502,8 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     // Obtain reset terms:
     let friend = node_controls[0]
         .report
-        .friends.get(&public_keys[1])
+        .friends
+        .get(&public_keys[1])
         .unwrap();
     let channel_inconsistent_report = match &friend.channel_status {
         ChannelStatusReport::Consistent(_) => unreachable!(),

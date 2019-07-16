@@ -10,7 +10,7 @@ use identity::IdentityClient;
 use timer::TimerClient;
 
 use proto::crypto::PublicKey;
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 use crypto::rand::CryptoRandom;
 
@@ -18,8 +18,7 @@ use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientState, IndexClientToAppServer,
 };
 
-use proto::index_server::messages::{IndexServerAddress, IndexServerToClient, 
-    IndexClientToServer};
+use proto::index_server::messages::{IndexClientToServer, IndexServerAddress, IndexServerToClient};
 /*
 use proto::index_server::serialize::{
     deserialize_index_server_to_client, serialize_index_client_to_server,

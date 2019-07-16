@@ -12,7 +12,7 @@ use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN, Uid, UID_LEN};
+use proto::crypto::{InvoiceId, PaymentId, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
@@ -891,7 +891,10 @@ async fn task_handler_pair_basic<'a>(
         PaymentId::from(&[3u8; PAYMENT_ID_LEN])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
-        PaymentStatus::Success(payment_status_success) => (payment_status_success.receipt.clone(), payment_status_success.ack_uid.clone()),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt.clone(),
+            payment_status_success.ack_uid.clone(),
+        ),
         _ => unreachable!(),
     };
 

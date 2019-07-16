@@ -9,7 +9,7 @@ use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamEx
 
 use common::conn::{FutTransform, Listener};
 use common::select_streams::{select_streams, BoxStream};
-use crypto::identity::{compare_public_key};
+use crypto::identity::compare_public_key;
 
 use proto::crypto::PublicKey;
 use proto::funder::messages::{ChannelerToFunder, ChannelerUpdateFriend, FunderToChanneler};

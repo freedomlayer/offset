@@ -13,8 +13,8 @@ use super::types::{
 };
 
 use proto::crypto::PublicKey;
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
-use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
 
 async fn dispatch_conn<FT>(
     sender: mpsc::Sender<Vec<u8>>,
@@ -163,7 +163,6 @@ mod tests {
     use common::conn::FuncFutTransform;
     use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
     use timer::create_timer_incoming;
-
 
     async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:

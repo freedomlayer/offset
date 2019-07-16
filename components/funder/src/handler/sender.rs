@@ -5,8 +5,8 @@ use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::crypto::{PublicKey, RandValue};
 use proto::app_server::messages::RelayAddress;
+use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
     RequestResult, RequestsStatus, TransactionResult,
