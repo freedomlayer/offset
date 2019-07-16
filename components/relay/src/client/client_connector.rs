@@ -86,7 +86,6 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{future, StreamExt};
 
-    use proto::crypto::PUBLIC_KEY_LEN;
     use proto::proto_ser::ProtoDeserialize;
 
     use common::conn::FuncFutTransform;
@@ -107,7 +106,7 @@ mod tests {
         let mut client_connector = ClientConnector::new(connector, keepalive_transform);
 
         let address: u32 = 15;
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner
             .spawn_with_handle(async move {

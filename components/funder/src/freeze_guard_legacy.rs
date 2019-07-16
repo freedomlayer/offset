@@ -277,7 +277,7 @@ impl FreezeGuard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use crypto::identity::{PublicKey, PublicKey::len()};
 
     /// Get the amount of credits to be frozen on a route of a certain length
     /// with certain amount to pay.
@@ -293,10 +293,10 @@ mod tests {
          * a -- b -- (c) -- d
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
+        let pk_d = PublicKey::from(&[0xdd; PublicKey::len()]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute
@@ -329,10 +329,10 @@ mod tests {
          * a -- b -- (c) -- d
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
+        let pk_d = PublicKey::from(&[0xdd; PublicKey::len()]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute
@@ -382,11 +382,11 @@ mod tests {
          *      e
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
-        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
+        let pk_d = PublicKey::from(&[0xdd; PublicKey::len()]);
+        let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute
@@ -442,11 +442,11 @@ mod tests {
          *      e
         */
 
-        let pk_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
-        let pk_d = PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]);
-        let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
+        let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
+        let pk_d = PublicKey::from(&[0xdd; PublicKey::len()]);
+        let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
 
         let mut freeze_guard = FreezeGuard::new(&pk_c);
         freeze_guard.add_frozen_credit(&FriendsRoute

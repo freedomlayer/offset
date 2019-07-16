@@ -9,7 +9,7 @@ use serde::ser::Serialize;
 
 use base64::{self, URL_SAFE_NO_PAD};
 
-use crate::crypto::{PublicKey, PUBLIC_KEY_LEN};
+use crate::crypto::PublicKey;
 
 #[derive(Debug)]
 pub struct SerStringError;
@@ -61,7 +61,7 @@ where
 
 /// Define conversion to/from String:
 macro_rules! str_convert_funcs {
-    ($to_string_func:ident, $from_string_func:ident, $conv_type:ident, $conv_len:ident) => {
+    ($to_string_func:ident, $from_string_func:ident, $conv_type:ident, $conv_len:expr) => {
         /// Convert a our type into a string
         pub fn $to_string_func(conv: &$conv_type) -> String {
             base64::encode_config(&conv, URL_SAFE_NO_PAD)
@@ -87,7 +87,7 @@ str_convert_funcs!(
     public_key_to_string,
     string_to_public_key,
     PublicKey,
-    PUBLIC_KEY_LEN
+    PublicKey::len()
 );
 
 #[derive(Debug, From)]

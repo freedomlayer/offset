@@ -362,7 +362,6 @@ mod tests {
     use super::*;
     use futures::channel::oneshot;
     use futures::executor::ThreadPool;
-    use proto::crypto::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
 
     use common::conn::FuncFutTransform;
@@ -427,7 +426,7 @@ mod tests {
     }
 
     async fn task_accept_connection_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
         let (pending_reject_sender, _pending_reject_receiver) = mpsc::channel(0);
@@ -533,7 +532,7 @@ mod tests {
         req.reply(Some(conn_pair));
 
         // Open access for a certain public key:
-        let public_key_a = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
+        let public_key_a = PublicKey::from(&[0xaa; PublicKey::len()]);
         await!(acl_sender.send(AccessControlOp::Add(public_key_a.clone()))).unwrap();
         await!(event_receiver.next()).unwrap();
 
@@ -547,7 +546,7 @@ mod tests {
 
         // Relay will now send a message about incoming connection from a public key that is not
         // allowed:
-        let public_key_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let public_key_b = PublicKey::from(&[0xbb; PublicKey::len()]);
         let relay_listen_out = IncomingConnection {
             public_key: public_key_b.clone(),
         };

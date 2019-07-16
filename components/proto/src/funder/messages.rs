@@ -54,10 +54,10 @@ pub enum ChannelerToFunder {
 // -------------------------------------------
 
 /*
-pub const INVOICE_ID_LEN: usize = 32;
+pub const InvoiceId::len(): usize = 32;
 
 // The universal unique identifier of an invoice.
-define_fixed_bytes!(InvoiceId, INVOICE_ID_LEN);
+define_fixed_bytes!(InvoiceId, InvoiceId::len());
 */
 
 #[capnp_conv(crate::funder_capnp::friends_route)]

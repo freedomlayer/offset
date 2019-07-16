@@ -55,7 +55,7 @@ pub fn handle_init<B>(
 mod tests {
     use super::*;
 
-    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::PublicKey;
     use proto::funder::messages::AddFriend;
 
     use crate::friend::FriendMutation;
@@ -67,8 +67,8 @@ mod tests {
     #[test]
     fn test_handle_init_basic() {
         // let local_pk = await!(identity_client.request_public_key()).unwrap();
-        let local_pk = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let local_pk = PublicKey::from(&[0xbb; PublicKey::len()]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let relays = vec![dummy_named_relay_address(0)];
         let mut state = FunderState::<u32>::new(local_pk, relays);

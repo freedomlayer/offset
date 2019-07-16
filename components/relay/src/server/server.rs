@@ -339,7 +339,7 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
 
     use super::super::types::{IncomingAccept, IncomingConnect, IncomingListen};
-    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::PublicKey;
     use timer::create_timer_incoming;
 
     async fn task_relay_server_connect(
@@ -382,8 +382,8 @@ mod tests {
         let (mut b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
         let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
-        let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let a_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let b_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let incoming_listen_a = IncomingListen {
             receiver: c_ac,
@@ -499,8 +499,8 @@ mod tests {
         let (b_bc, c_bc) = mpsc::channel::<Vec<u8>>(0);
         let (c_cb, mut b_cb) = mpsc::channel::<Vec<u8>>(0);
 
-        let a_public_key = PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]);
-        let b_public_key = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let a_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
+        let b_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let incoming_listen_a = IncomingListen {
             receiver: c_ac,

@@ -3,9 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, PUBLIC_KEY_LEN, UID_LEN,
-};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
@@ -55,17 +53,17 @@ where
     let _to_app_message = await!(app_receiver0.next()).unwrap();
     let _to_app_message = await!(app_receiver1.next()).unwrap();
 
-    let pk_e = PublicKey::from(&[0xee; PUBLIC_KEY_LEN]);
-    let pk_f = PublicKey::from(&[0xff; PUBLIC_KEY_LEN]);
+    let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
+    let pk_f = PublicKey::from(&[0xff; PublicKey::len()]);
 
     let create_payment = CreatePayment {
-        payment_id: PaymentId::from(&[1; PAYMENT_ID_LEN]),
-        invoice_id: InvoiceId::from(&[2; INVOICE_ID_LEN]),
+        payment_id: PaymentId::from(&[1; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[2; InvoiceId::len()]),
         total_dest_payment: 20,
         dest_public_key: pk_f.clone(),
     };
     let to_app_server = AppToAppServer::new(
-        Uid::from(&[22; UID_LEN]),
+        Uid::from(&[22; Uid::len()]),
         AppRequest::CreatePayment(create_payment.clone()),
     );
     await!(app_sender0.send(to_app_server)).unwrap();
@@ -74,7 +72,7 @@ where
     let funder_incoming_control = await!(funder_receiver.next()).unwrap();
     assert_eq!(
         funder_incoming_control.app_request_id,
-        Uid::from(&[22; UID_LEN])
+        Uid::from(&[22; Uid::len()])
     );
     match funder_incoming_control.funder_control {
         FunderControl::CreatePayment(received_create_payment) => {
@@ -84,8 +82,8 @@ where
     };
 
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[1; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[3; UID_LEN]),
+        payment_id: PaymentId::from(&[1; PaymentId::len()]),
+        request_id: Uid::from(&[3; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![pk_e.clone(), pk_f.clone()],
         },
@@ -93,7 +91,7 @@ where
         fees: 4,
     };
     let to_app_server = AppToAppServer::new(
-        Uid::from(&[23; UID_LEN]),
+        Uid::from(&[23; Uid::len()]),
         AppRequest::CreateTransaction(create_transaction.clone()),
     );
     await!(app_sender0.send(to_app_server)).unwrap();
@@ -102,7 +100,7 @@ where
     let funder_incoming_control = await!(funder_receiver.next()).unwrap();
     assert_eq!(
         funder_incoming_control.app_request_id,
-        Uid::from(&[23; UID_LEN])
+        Uid::from(&[23; Uid::len()])
     );
     match funder_incoming_control.funder_control {
         FunderControl::CreateTransaction(received_create_transaction) => {
@@ -113,7 +111,7 @@ where
 
     // Funder returns a TransactionResult that is not related to any open request.
     let transaction_result = TransactionResult {
-        request_id: Uid::from(&[2; UID_LEN]),
+        request_id: Uid::from(&[2; Uid::len()]),
         result: RequestResult::Failure,
     };
     await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
@@ -125,7 +123,7 @@ where
 
     // Funder returns a response that corresponds to the open request:
     let transaction_result = TransactionResult {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
     await!(funder_sender.send(FunderOutgoingControl::TransactionResult(
@@ -147,7 +145,7 @@ where
     // however, this time it will be discarded, because no open request
     // has a matching id:
     let transaction_result = TransactionResult {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
     await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))

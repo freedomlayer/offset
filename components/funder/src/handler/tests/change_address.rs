@@ -12,7 +12,7 @@ use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{Uid, UID_LEN};
+use proto::crypto::Uid;
 
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl, SetFriendStatus,
@@ -83,7 +83,7 @@ async fn task_handler_change_address(
         balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[11; UID_LEN]),
+        Uid::from(&[11; Uid::len()]),
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -102,7 +102,7 @@ async fn task_handler_change_address(
         status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[12; UID_LEN]),
+        Uid::from(&[12; Uid::len()]),
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -123,7 +123,7 @@ async fn task_handler_change_address(
         balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[13; UID_LEN]),
+        Uid::from(&[13; Uid::len()]),
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -142,7 +142,7 @@ async fn task_handler_change_address(
         status: FriendStatus::Enabled,
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[14; UID_LEN]),
+        Uid::from(&[14; Uid::len()]),
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
@@ -322,7 +322,7 @@ async fn task_handler_change_address(
 
     // Node1 decides to change his address:
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[15; UID_LEN]),
+        Uid::from(&[15; Uid::len()]),
         FunderControl::AddRelay(dummy_named_relay_address(11)),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);

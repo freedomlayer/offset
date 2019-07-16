@@ -3,7 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+use proto::crypto::PublicKey;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, NodeReportMutation};
 use proto::index_client::messages::{
@@ -63,7 +63,7 @@ where
 
     // Send a dummy report message from IndexClient:
     let named_relay_server_address = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0xaa; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
         address: 300u32,
         name: "IndexServer300".to_string(),
     };

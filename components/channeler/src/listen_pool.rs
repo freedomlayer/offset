@@ -427,8 +427,6 @@ mod tests {
     use futures::channel::mpsc;
     use futures::executor::ThreadPool;
 
-    use proto::crypto::PUBLIC_KEY_LEN;
-
     use common::dummy_listener::DummyListener;
     use timer::{dummy_timer_multi_sender, TimerTick};
 
@@ -476,7 +474,7 @@ mod tests {
         let (ref relay_address0, _) = listen_req0.arg;
         observed_addresses.push(relay_address0.clone());
 
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         // Send a few connections:
         for _ in 0..5usize {
@@ -627,7 +625,7 @@ mod tests {
         let (ref relay_address0, _) = listen_req0.arg;
         assert_eq!(*relay_address0, 0x0u32);
 
-        let pk_b = PublicKey::from(&[0xbb; PUBLIC_KEY_LEN]);
+        let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         await!(config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32])))).unwrap();
         await!(event_receiver.next()).unwrap();
@@ -654,7 +652,7 @@ mod tests {
         let (ref relay_address2, _) = listen_req2.arg;
         assert_eq!(*relay_address2, 0x2u32);
 
-        let pk_c = PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]);
+        let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
 
         await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32]))))
             .unwrap();

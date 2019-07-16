@@ -239,8 +239,6 @@ where
 mod tests {
     use super::*;
 
-    use proto::crypto::{HASH_RESULT_LEN, PUBLIC_KEY_LEN, UID_LEN};
-
     use futures::executor::ThreadPool;
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
@@ -255,7 +253,7 @@ mod tests {
 
     async fn task_first_server_time_hash() {
         let (mut to_server, mut from_server) = mpsc::channel(0);
-        let time_hash = HashResult::from(&[1; HASH_RESULT_LEN]);
+        let time_hash = HashResult::from(&[1; HashResult::len()]);
 
         let fut_send = to_server.send(IndexServerToClient::TimeHash(time_hash.clone()));
         let fut_time_hash = first_server_time_hash(&mut from_server);
@@ -306,7 +304,7 @@ mod tests {
 
         let server_conn = (client_sender, client_receiver);
         let rng = DummyRandom::new(&[2u8]);
-        let first_server_time_hash = HashResult::from(&[1; HASH_RESULT_LEN]);
+        let first_server_time_hash = HashResult::from(&[1; HashResult::len()]);
 
         let loop_fut = single_client_loop(
             server_conn,
@@ -323,16 +321,16 @@ mod tests {
 
         // Send some time hashes from server:
         for i in 2..8 {
-            let time_hash = HashResult::from(&[i; HASH_RESULT_LEN]);
+            let time_hash = HashResult::from(&[i; HashResult::len()]);
             await!(server_sender.send(IndexServerToClient::TimeHash(time_hash))).unwrap();
         }
 
         // Request routes:
         let request_routes = RequestRoutes {
-            request_id: Uid::from(&[3; UID_LEN]),
+            request_id: Uid::from(&[3; Uid::len()]),
             capacity: 20,
-            source: PublicKey::from(&[0xcc; PUBLIC_KEY_LEN]),
-            destination: PublicKey::from(&[0xdd; PUBLIC_KEY_LEN]),
+            source: PublicKey::from(&[0xcc; PublicKey::len()]),
+            destination: PublicKey::from(&[0xdd; PublicKey::len()]),
             opt_exclude: None,
         };
 
@@ -353,7 +351,7 @@ mod tests {
 
         // Server sends response routes:
         let response_routes = ResponseRoutes {
-            request_id: Uid::from(&[3; UID_LEN]),
+            request_id: Uid::from(&[3; Uid::len()]),
             multi_routes: vec![], // No suitable routes were found
         };
 
@@ -379,7 +377,7 @@ mod tests {
                     assert_eq!(mutations_update.counter, iter);
                     assert_eq!(
                         mutations_update.time_hash,
-                        HashResult::from(&[7; HASH_RESULT_LEN])
+                        HashResult::from(&[7; HashResult::len()])
                     );
 
                     assert!(verify_mutations_update(&mutations_update));

@@ -150,7 +150,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proto::crypto::RAND_VALUE_LEN;
 
     #[test]
     fn test_hash_clock_basic() {
@@ -164,7 +163,7 @@ mod tests {
         // Some iterations of communication between the participants:
         for iter in 0..8 {
             for j in 0..hash_clocks.len() {
-                let rand_value = RandValue::from(&[iter as u8; RAND_VALUE_LEN]);
+                let rand_value = RandValue::from(&[iter as u8; RandValue::len()]);
                 let tick_hash = hash_clocks[j].tick(rand_value);
                 for k in 0..hash_clocks.len() {
                     if k == j {
@@ -197,7 +196,7 @@ mod tests {
 
         // Everything is forgotten after `last_ticks_max_len` ticks:
         for iter in 0..last_ticks_max_len {
-            let rand_value = RandValue::from(&[iter as u8; RAND_VALUE_LEN]);
+            let rand_value = RandValue::from(&[iter as u8; RandValue::len()]);
             hash_clocks[0].tick(rand_value);
         }
 

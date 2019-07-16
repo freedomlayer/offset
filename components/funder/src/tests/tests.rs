@@ -1,8 +1,6 @@
 use common::test_executor::TestExecutor;
 
-use proto::crypto::{
-    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN,
-};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
     FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
@@ -45,15 +43,15 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // Let node 1 open an invoice:
     let add_invoice = AddInvoice {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 4,
     };
     await!(node_controls[1].send(FunderControl::AddInvoice(add_invoice)));
 
     // Create payment 0 --> 1
     let create_payment = CreatePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 4,
         dest_public_key: node_controls[1].public_key.clone(),
     };
@@ -61,8 +59,8 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // Create transaction 0 --> 1:
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[5u8; UID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        request_id: Uid::from(&[5u8; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![public_keys[0].clone(), public_keys[1].clone()],
         },
@@ -80,7 +78,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // 0: Create multi commit:
     let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 4,
         commits: vec![commit],
     };
@@ -96,7 +94,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     // 0: Expect a receipt:
     await!(
         node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-            &[2u8; PAYMENT_ID_LEN]
+            &[2u8; PaymentId::len()]
         )))
     );
     let response_close_payment =
@@ -111,12 +109,15 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // 0: Acknowledge response close:
     let ack_close_payment = AckClosePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
+    assert_eq!(
+        receipt.invoice_id,
+        InvoiceId::from(&[1u8; InvoiceId::len()])
+    );
     assert_eq!(receipt.dest_payment, 4);
     assert_eq!(receipt.total_dest_payment, 4);
 
@@ -200,15 +201,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     // Let node 2 open an invoice:
     let add_invoice = AddInvoice {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 15,
     };
     await!(node_controls[2].send(FunderControl::AddInvoice(add_invoice)));
 
     // Create payment 0 --> 2
     let create_payment = CreatePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 15,
         dest_public_key: node_controls[2].public_key.clone(),
     };
@@ -216,8 +217,8 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     // Create transaction 0 --> 2:
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[5u8; UID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        request_id: Uid::from(&[5u8; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![
                 public_keys[0].clone(),
@@ -238,7 +239,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     // 0: Create multi commit:
     let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 15,
         commits: vec![commit],
     };
@@ -254,7 +255,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // 0: Expect a receipt:
     await!(
         node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-            &[2u8; PAYMENT_ID_LEN]
+            &[2u8; PaymentId::len()]
         )))
     );
     let response_close_payment =
@@ -269,12 +270,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     // 0: Acknowledge response close:
     let ack_close_payment = AckClosePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));
 
-    assert_eq!(receipt.invoice_id, InvoiceId::from(&[1u8; INVOICE_ID_LEN]));
+    assert_eq!(
+        receipt.invoice_id,
+        InvoiceId::from(&[1u8; InvoiceId::len()])
+    );
     assert_eq!(receipt.dest_payment, 15);
     assert_eq!(receipt.total_dest_payment, 15);
 
@@ -382,8 +386,8 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // Create payment 0 --> 3 (Where 3 does not exist)
     let create_payment = CreatePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        invoice_id: InvoiceId::from(&[1u8; INVOICE_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 15,
         dest_public_key: node_controls[3].public_key.clone(),
     };
@@ -391,8 +395,8 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // Create transaction 0 --> 3 (3 does not exist):
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
-        request_id: Uid::from(&[5u8; UID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        request_id: Uid::from(&[5u8; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![
                 public_keys[0].clone(),
@@ -417,7 +421,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     let ack_uid = loop {
         await!(
             node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PAYMENT_ID_LEN]
+                &[2u8; PaymentId::len()]
             )))
         );
         let response_close_payment =
@@ -430,7 +434,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // 0: Acknowledge response close:
     let ack_close_payment = AckClosePayment {
-        payment_id: PaymentId::from(&[2u8; PAYMENT_ID_LEN]),
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
     await!(node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)));

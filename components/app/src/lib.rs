@@ -60,16 +60,16 @@ pub mod route {
 
 /*
 pub mod invoice {
-    pub use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
+    pub use crypto::invoice_id::{InvoiceId, InvoiceId::len()};
 }
 
 pub mod payment {
-    pub use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
+    pub use crypto::payment_id::{PaymentId, PaymentId::len()};
 }
 
 
 pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
-pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};
-pub use crypto::identity::{PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
-pub use crypto::rand::{RandValue, RAND_VALUE_LEN};
+pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PlainLock::len()};
+pub use crypto::identity::{PublicKey, Signature, PublicKey::len(), Signature::len()};
+pub use crypto::rand::{RandValue, RandValue::len()};
 */

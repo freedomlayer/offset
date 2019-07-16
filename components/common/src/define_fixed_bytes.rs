@@ -23,6 +23,10 @@ macro_rules! define_fixed_bytes {
 
                 upper_hex.join("")
             }
+
+            pub const fn len() -> usize {
+                $len
+            }
         }
         impl AsRef<[u8]> for $name {
             #[inline]

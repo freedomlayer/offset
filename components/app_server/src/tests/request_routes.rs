@@ -3,7 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
+use proto::crypto::{PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::index_client::messages::{
@@ -55,15 +55,15 @@ where
 
     // Send a request routes message through app0:
     let request_routes = RequestRoutes {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         capacity: 250,
-        source: PublicKey::from(&[0xee; PUBLIC_KEY_LEN]),
-        destination: PublicKey::from(&[0xff; PUBLIC_KEY_LEN]),
+        source: PublicKey::from(&[0xee; PublicKey::len()]),
+        destination: PublicKey::from(&[0xff; PublicKey::len()]),
         opt_exclude: None,
     };
 
     let to_app_server = AppToAppServer::new(
-        Uid::from(&[22; UID_LEN]),
+        Uid::from(&[22; Uid::len()]),
         AppRequest::RequestRoutes(request_routes.clone()),
     );
     await!(app_sender0.send(to_app_server)).unwrap();
@@ -75,7 +75,7 @@ where
             app_request_id,
             IndexClientRequest::RequestRoutes(received_request_routes),
         )) => {
-            assert_eq!(app_request_id, Uid::from(&[22; UID_LEN]));
+            assert_eq!(app_request_id, Uid::from(&[22; Uid::len()]));
             assert_eq!(received_request_routes, request_routes);
         }
         _ => unreachable!(),
@@ -84,7 +84,7 @@ where
     // IndexClient returns a response that is not related to any open request.
     // This response will be discarded.
     let client_response_routes = ClientResponseRoutes {
-        request_id: Uid::from(&[2; UID_LEN]),
+        request_id: Uid::from(&[2; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
     await!(
@@ -100,7 +100,7 @@ where
 
     // IndexClient returns a response corresponding to an open request:
     let client_response_routes = ClientResponseRoutes {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
     await!(
@@ -113,7 +113,7 @@ where
     let to_app_message = await!(app_receiver0.next()).unwrap();
     match to_app_message {
         AppServerToApp::ResponseRoutes(response_routes) => {
-            assert_eq!(response_routes.request_id, Uid::from(&[3; UID_LEN]));
+            assert_eq!(response_routes.request_id, Uid::from(&[3; Uid::len()]));
             assert_eq!(response_routes.result, ResponseRoutesResult::Failure);
         }
         _ => unreachable!(),
@@ -125,7 +125,7 @@ where
     // This time the response should be discarded,
     // because it does not correspond to any open request.
     let client_response_routes = ClientResponseRoutes {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
     await!(

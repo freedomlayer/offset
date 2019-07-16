@@ -161,7 +161,7 @@ mod tests {
 
     use common::async_test_utils::receive;
     use common::conn::FuncFutTransform;
-    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::PublicKey;
     use timer::create_timer_incoming;
 
     async fn task_dispatch_conn_basic(spawner: impl Spawn + Clone) {
@@ -172,7 +172,7 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let first_msg = InitConnection::Listen;
         let ser_first_msg = first_msg.proto_serialize();
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
             sender,
@@ -190,10 +190,10 @@ mod tests {
         };
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
-        let accept_public_key = PublicKey::from(&[0x22; PUBLIC_KEY_LEN]);
+        let accept_public_key = PublicKey::from(&[0x22; PublicKey::len()]);
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = first_msg.proto_serialize();
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
             sender,
@@ -213,10 +213,10 @@ mod tests {
         };
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
-        let connect_public_key = PublicKey::from(&[0x33; PUBLIC_KEY_LEN]);
+        let connect_public_key = PublicKey::from(&[0x33; PublicKey::len()]);
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = first_msg.proto_serialize();
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = await!(dispatch_conn(
             sender,
@@ -249,7 +249,7 @@ mod tests {
 
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let res = await!(dispatch_conn(
             sender,
@@ -275,7 +275,7 @@ mod tests {
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
-        let public_key = PublicKey::from(&[0x77; PUBLIC_KEY_LEN]);
+        let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let (local_sender, _remote_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 

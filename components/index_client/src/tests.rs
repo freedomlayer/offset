@@ -5,7 +5,7 @@ use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use common::dummy_connector::{ConnRequest, DummyConnector};
 
-use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
+use proto::crypto::{PublicKey, Uid};
 
 use proto::funder::messages::Rate;
 use proto::index_client::messages::{
@@ -46,7 +46,7 @@ where
     let (to_app_server, app_server_receiver) = mpsc::channel(0);
 
     let index_server37 = NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337u32,
         name: "0x1337".to_owned(),
     };
@@ -152,7 +152,7 @@ where
         match await!(self.seq_friends_receiver.next()).unwrap() {
             SeqFriendsRequest::NextUpdate(response_sender) => {
                 let update_friend = UpdateFriend {
-                    public_key: PublicKey::from(PublicKey::from(&[0xaa; PUBLIC_KEY_LEN])),
+                    public_key: PublicKey::from(PublicKey::from(&[0xaa; PublicKey::len()])),
                     send_capacity: 100,
                     recv_capacity: 50,
                     rate: Rate { mul: 0, add: 1 },
@@ -174,7 +174,7 @@ where
     /// Add an index server to the IndexClient (From AppServer)
     async fn add_index_server(&mut self, named_index_server_address: NamedIndexServerAddress<ISA>) {
         let app_server_to_index_client = AppServerToIndexClient::AppRequest((
-            Uid::from(&[52; UID_LEN]),
+            Uid::from(&[52; Uid::len()]),
             IndexClientRequest::AddIndexServer(named_index_server_address.clone()),
         ));
         await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
@@ -192,7 +192,7 @@ where
             IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
                 assert_eq!(
                     ic_report_mutations.opt_app_request_id,
-                    Some(Uid::from(&[52; UID_LEN]))
+                    Some(Uid::from(&[52; Uid::len()]))
                 );
                 assert_eq!(ic_report_mutations.mutations.len(), 1);
                 match ic_report_mutations.mutations.pop().unwrap() {
@@ -209,7 +209,7 @@ where
     /// Remove an index server to the IndexClient (From AppServer)
     async fn remove_index_server(&mut self, public_key: PublicKey) {
         let app_server_to_index_client = AppServerToIndexClient::AppRequest((
-            Uid::from(&[53; UID_LEN]),
+            Uid::from(&[53; Uid::len()]),
             IndexClientRequest::RemoveIndexServer(public_key.clone()),
         ));
         await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
@@ -227,7 +227,7 @@ where
             IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
                 assert_eq!(
                     ic_report_mutations.opt_app_request_id,
-                    Some(Uid::from(&[53; UID_LEN]))
+                    Some(Uid::from(&[53; Uid::len()]))
                 );
                 assert_eq!(ic_report_mutations.mutations.len(), 1);
                 match ic_report_mutations.mutations.pop().unwrap() {
@@ -249,24 +249,24 @@ where
     let mut icc = basic_index_client(spawner.clone());
 
     let index_server = IndexServerAddress {
-        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
     let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(index_server));
 
     await!(icc.add_index_server(NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0x38; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x38; PublicKey::len()]),
         address: 0x1338,
         name: "0x1338".to_owned()
     }));
     await!(icc.add_index_server(NamedIndexServerAddress {
-        public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x39; PublicKey::len()]),
         address: 0x1339,
         name: "0x1339".to_owned()
     }));
-    await!(icc.remove_index_server(PublicKey::from(&[0x38; PUBLIC_KEY_LEN])));
+    await!(icc.remove_index_server(PublicKey::from(&[0x38; PublicKey::len()])));
     // Remove index server in use (0x1337):
-    await!(icc.remove_index_server(PublicKey::from(&[0x37; PUBLIC_KEY_LEN])));
+    await!(icc.remove_index_server(PublicKey::from(&[0x37; PublicKey::len()])));
 
     // We expect that control_receiver will be closed eventually:
     while let Some(_control_message) = await!(control_receiver.next()) {}
@@ -285,7 +285,7 @@ where
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
     let index_server = IndexServerAddress {
-        public_key: PublicKey::from(&[0x39; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x39; PublicKey::len()]),
         address: 0x1339,
     };
     assert_eq!(session_conn_request.address, index_server);
@@ -296,7 +296,7 @@ where
     session_conn_request.reply(Some((control_sender, close_receiver)));
 
     // A new connection should be made to 0x1339:
-    await!(icc.expect_set_connected_server(Some(PublicKey::from(&[0x39; PUBLIC_KEY_LEN]))));
+    await!(icc.expect_set_connected_server(Some(PublicKey::from(&[0x39; PublicKey::len()]))));
 }
 
 #[test]
@@ -313,13 +313,13 @@ where
 {
     let mut icc = basic_index_client(spawner.clone());
     let index_server = IndexServerAddress {
-        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
     let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
 
     let update_friend = UpdateFriend {
-        public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
+        public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
         send_capacity: 200,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
@@ -343,7 +343,7 @@ where
     // Wait for a request for next update from seq_friends.
     // This is the one extra sequential friend update sent with our update:
     let next_update_friend = UpdateFriend {
-        public_key: PublicKey::from(PublicKey::from(&[0xcc; PUBLIC_KEY_LEN])),
+        public_key: PublicKey::from(PublicKey::from(&[0xcc; PublicKey::len()])),
         send_capacity: 20,
         recv_capacity: 30,
         rate: Rate { mul: 0, add: 1 },
@@ -380,22 +380,22 @@ where
 {
     let mut icc = basic_index_client(spawner.clone());
     let index_server = IndexServerAddress {
-        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
     let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
 
     let request_routes = RequestRoutes {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         capacity: 250,
-        source: PublicKey::from(PublicKey::from(&[0xee; PUBLIC_KEY_LEN])),
-        destination: PublicKey::from(PublicKey::from(&[0xff; PUBLIC_KEY_LEN])),
+        source: PublicKey::from(PublicKey::from(&[0xee; PublicKey::len()])),
+        destination: PublicKey::from(PublicKey::from(&[0xff; PublicKey::len()])),
         opt_exclude: None,
     };
 
     // Request routes from IndexClient (From AppServer):
     let app_server_to_index_client = AppServerToIndexClient::AppRequest((
-        Uid::from(&[50; UID_LEN]),
+        Uid::from(&[50; Uid::len()]),
         IndexClientRequest::RequestRoutes(request_routes.clone()),
     ));
     await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
@@ -415,7 +415,7 @@ where
         IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
             assert_eq!(
                 ic_report_mutations.opt_app_request_id,
-                Some(Uid::from(&[50; UID_LEN]))
+                Some(Uid::from(&[50; Uid::len()]))
             );
             assert!(ic_report_mutations.mutations.is_empty());
         }
@@ -425,7 +425,10 @@ where
     // IndexClient returns the result back to AppServer:
     match await!(icc.app_server_receiver.next()).unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
-            assert_eq!(client_response_routes.request_id, Uid::from(&[3; UID_LEN]));
+            assert_eq!(
+                client_response_routes.request_id,
+                Uid::from(&[3; Uid::len()])
+            );
             let routes = match client_response_routes.result {
                 ResponseRoutesResult::Success(routes) => routes,
                 _ => unreachable!(),
@@ -453,7 +456,7 @@ where
     // Wait for a connection request:
     let session_conn_request = await!(icc.session_receiver.next()).unwrap();
     let index_server = IndexServerAddress {
-        public_key: PublicKey::from(&[0x37; PUBLIC_KEY_LEN]),
+        public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
     assert_eq!(session_conn_request.address, index_server);
@@ -465,7 +468,7 @@ where
     // will drop ApplyMutations messages:
 
     let update_friend = UpdateFriend {
-        public_key: PublicKey::from(PublicKey::from(&[0xbb; PUBLIC_KEY_LEN])),
+        public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
         send_capacity: 200,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
@@ -491,16 +494,16 @@ where
     // will return a failure for RequestRoutes messages:
 
     let request_routes = RequestRoutes {
-        request_id: Uid::from(&[3; UID_LEN]),
+        request_id: Uid::from(&[3; Uid::len()]),
         capacity: 250,
-        source: PublicKey::from(PublicKey::from(&[0xee; PUBLIC_KEY_LEN])),
-        destination: PublicKey::from(PublicKey::from(&[0xff; PUBLIC_KEY_LEN])),
+        source: PublicKey::from(PublicKey::from(&[0xee; PublicKey::len()])),
+        destination: PublicKey::from(PublicKey::from(&[0xff; PublicKey::len()])),
         opt_exclude: None,
     };
 
     // Request routes from IndexClient (From AppServer):
     let app_server_to_index_client = AppServerToIndexClient::AppRequest((
-        Uid::from(&[51; UID_LEN]),
+        Uid::from(&[51; Uid::len()]),
         IndexClientRequest::RequestRoutes(request_routes.clone()),
     ));
     await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
@@ -510,7 +513,7 @@ where
         IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
             assert_eq!(
                 ic_report_mutations.opt_app_request_id,
-                Some(Uid::from(&[51; UID_LEN]))
+                Some(Uid::from(&[51; Uid::len()]))
             );
             assert!(ic_report_mutations.mutations.is_empty());
         }
@@ -520,7 +523,10 @@ where
     // IndexClient returns failure in ResponseRoutes:
     match await!(icc.app_server_receiver.next()).unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
-            assert_eq!(client_response_routes.request_id, Uid::from(&[3; UID_LEN]));
+            assert_eq!(
+                client_response_routes.request_id,
+                Uid::from(&[3; Uid::len()])
+            );
             match client_response_routes.result {
                 ResponseRoutesResult::Failure => {}
                 _ => unreachable!(),

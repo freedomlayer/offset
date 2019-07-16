@@ -3,7 +3,7 @@ use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use proto::crypto::{Uid, UID_LEN};
+use proto::crypto::Uid;
 
 use proto::app_server::messages::{
     AppPermissions, AppRequest, AppServerToApp, AppToAppServer, NodeReportMutation,
@@ -48,14 +48,17 @@ where
 
     // Send a command through the app:
     let funder_command = AppToAppServer::new(
-        Uid::from(&[22; UID_LEN]),
+        Uid::from(&[22; Uid::len()]),
         AppRequest::AddRelay(dummy_named_relay_address(0)),
     );
     await!(app_sender.send(funder_command)).unwrap();
 
     // SetRelays command should be forwarded to the Funder:
     let to_funder_message = await!(funder_receiver.next()).unwrap();
-    assert_eq!(to_funder_message.app_request_id, Uid::from(&[22; UID_LEN]));
+    assert_eq!(
+        to_funder_message.app_request_id,
+        Uid::from(&[22; Uid::len()])
+    );
     match to_funder_message.funder_control {
         FunderControl::AddRelay(address) => assert_eq!(address, dummy_named_relay_address(0)),
         _ => unreachable!(),
@@ -64,7 +67,7 @@ where
     let funder_report_mutation = FunderReportMutation::AddRelay(dummy_named_relay_address(0));
     let mutations = vec![funder_report_mutation.clone()];
     let funder_report_mutations = FunderReportMutations {
-        opt_app_request_id: Some(Uid::from(&[22; UID_LEN])),
+        opt_app_request_id: Some(Uid::from(&[22; Uid::len()])),
         mutations,
     };
     await!(funder_sender.send(FunderOutgoingControl::ReportMutations(
@@ -77,7 +80,7 @@ where
         AppServerToApp::ReportMutations(report_mutations) => {
             assert_eq!(
                 report_mutations.opt_app_request_id,
-                Some(Uid::from(&[22; UID_LEN]))
+                Some(Uid::from(&[22; Uid::len()]))
             );
             assert_eq!(report_mutations.mutations.len(), 1);
             let report_mutation = &report_mutations.mutations[0];
