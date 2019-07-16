@@ -23,7 +23,9 @@ pub use proto::file;
 pub use proto::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
-pub use proto::funder::messages::{Commit, MultiCommit, PaymentStatus, Rate, Receipt};
+pub use proto::funder::messages::{
+    Commit, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
+};
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
 pub use signature::verify::{verify_move_token_hashed_report, verify_receipt};
@@ -50,6 +52,11 @@ pub mod report {
 }
 
 pub use proto::crypto;
+pub mod route {
+    pub use proto::funder::messages::FriendsRoute;
+    pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
+
+}
 
 /*
 pub mod invoice {
@@ -60,11 +67,6 @@ pub mod payment {
     pub use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 }
 
-pub mod route {
-    pub use proto::funder::messages::FriendsRoute;
-    pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
-
-}
 
 pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
 pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PLAIN_LOCK_LEN};

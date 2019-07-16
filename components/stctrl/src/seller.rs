@@ -6,7 +6,8 @@ use derive_more::From;
 
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, MultiCommit, PublicKey};
+use app::{AppConn, AppSeller, MultiCommit};
+use app::crypto::PublicKey;
 
 use crate::file::InvoiceFile;
 use crate::file::MultiCommitFile;

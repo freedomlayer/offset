@@ -1,5 +1,5 @@
+use app::crypto::PublicKey;
 use app::report::NodeReport;
-use app::PublicKey;
 
 /// Find a friend's public key given his name
 pub fn friend_public_key_by_name<'a>(
