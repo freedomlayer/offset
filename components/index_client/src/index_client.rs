@@ -10,8 +10,7 @@ use common::conn::FutTransform;
 use common::mutable_state::MutableState;
 use common::select_streams::{select_streams, BoxStream};
 
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Uid};
 
 use database::DatabaseClient;
 
@@ -451,7 +450,7 @@ where
             None => return await!(self.return_response_routes_failure(request_routes.request_id)),
         };
 
-        let c_request_id = request_routes.request_id;
+        let c_request_id = request_routes.request_id.clone();
         let (response_sender, response_receiver) = oneshot::channel();
         let single_client_control =
             SingleClientControl::RequestRoutes((request_routes, response_sender));

@@ -2,7 +2,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::FutureExt;
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
+
 use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;
@@ -103,7 +104,7 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
 
-    use crypto::hash::{HashResult, HASH_RESULT_LEN};
+    use proto::crypto::{HashResult, HASH_RESULT_LEN};
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
 

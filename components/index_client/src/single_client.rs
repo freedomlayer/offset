@@ -6,10 +6,12 @@ use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
 use common::conn::ConnPair;
 use common::select_streams::{select_streams, BoxStream};
-use crypto::hash::HashResult;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::{CryptoRandom, RandValue};
-use crypto::uid::Uid;
+
+use proto::crypto::{HashResult, PublicKey, Signature, Uid, RandValue};
+
+use signature::signature_buff::create_mutations_update_signature_buff;
+
+use crypto::rand::{CryptoRandom, RandGen};
 
 use identity::IdentityClient;
 
@@ -124,7 +126,7 @@ where
             SingleClientControl::RequestRoutes((request_routes, response_sender)) => {
                 // Add a new open request:
                 self.open_requests
-                    .insert(request_routes.request_id, response_sender);
+                    .insert(request_routes.request_id.clone(), response_sender);
 
                 // Send request to server:
                 let to_server_message = IndexClientToServer::RequestRoutes(request_routes);
@@ -136,16 +138,16 @@ where
                     node_public_key: self.local_public_key.clone(),
                     index_mutations,
                     time_hash: self.server_time_hash.clone(),
-                    session_id: self.session_id,
+                    session_id: self.session_id.clone(),
                     counter: self.counter,
-                    rand_nonce: RandValue::new(&self.rng),
-                    signature: Signature::zero(),
+                    rand_nonce: RandValue::rand_gen(&self.rng),
+                    signature: Signature::default(),
                 };
 
                 // Calculate signature:
                 mutations_update.signature = await!(self
                     .identity_client
-                    .request_signature(mutations_update.signature_buff()))
+                    .request_signature(create_mutations_update_signature_buff(&mutations_update)))
                 .map_err(|_| SingleClientError::RequestSignatureFailed)?;
 
                 // Advance counter:
@@ -196,7 +198,7 @@ where
 {
     let (to_server, from_server) = server_conn;
 
-    let session_id = Uid::new(&rng);
+    let session_id = Uid::rand_gen(&rng);
     let mut single_client = SingleClient::new(
         local_public_key,
         identity_client,
@@ -236,17 +238,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::hash::HASH_RESULT_LEN;
+
+    use proto::crypto::{HASH_RESULT_LEN, PUBLIC_KEY_LEN, UID_LEN};
+
     use futures::executor::ThreadPool;
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
 
+    use signature::verify::verify_mutations_update;
+
     use crypto::identity::{
-        generate_private_key, Identity, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
+        generate_private_key, Identity, SoftwareEd25519Identity,
     };
     use crypto::test_utils::DummyRandom;
-    use crypto::uid::UID_LEN;
 
     use identity::create_identity;
 
@@ -379,7 +384,7 @@ mod tests {
                         HashResult::from(&[7; HASH_RESULT_LEN])
                     );
 
-                    assert!(mutations_update.verify_signature());
+                    assert!(verify_mutations_update(&mutations_update));
                 }
                 _ => unreachable!(),
             };

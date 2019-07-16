@@ -2,7 +2,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
 use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriend};
 
 use crate::seq_map::SeqMap;

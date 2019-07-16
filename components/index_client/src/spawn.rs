@@ -9,17 +9,22 @@ use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
+use proto::proto_ser::{ProtoSerialize, ProtoDeserialize};
+
 use crypto::rand::CryptoRandom;
 
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientState, IndexClientToAppServer,
 };
 
-use proto::index_server::messages::IndexServerAddress;
+use proto::index_server::messages::{IndexServerAddress, IndexServerToClient, 
+    IndexClientToServer};
+/*
 use proto::index_server::serialize::{
     deserialize_index_server_to_client, serialize_index_client_to_server,
 };
+*/
 
 use crate::client_session::IndexClientSession;
 use crate::index_client::{
@@ -60,13 +65,13 @@ where
             let (mut data_sender, mut data_receiver) =
                 await!(self.net_connector.transform(index_server))?;
 
-            let (user_sender, mut local_receiver) = mpsc::channel(0);
-            let (mut local_sender, user_receiver) = mpsc::channel(0);
+            let (user_sender, mut local_receiver) = mpsc::channel::<IndexClientToServer>(0);
+            let (mut local_sender, user_receiver) = mpsc::channel::<IndexServerToClient>(0);
 
             // Deserialize incoming data:
             let deser_fut = async move {
                 while let Some(data) = await!(data_receiver.next()) {
-                    let message = match deserialize_index_server_to_client(&data) {
+                    let message = match IndexServerToClient::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
                             error!("deserialize index_server_to_client error");
@@ -86,7 +91,7 @@ where
             // Serialize outgoing data:
             let ser_fut = async move {
                 while let Some(message) = await!(local_receiver.next()) {
-                    let data = serialize_index_client_to_server(&message);
+                    let data = message.proto_serialize();
                     if let Err(e) = await!(data_sender.send(data)) {
                         error!("error sending to data_sender: {:?}", e);
                         return;
