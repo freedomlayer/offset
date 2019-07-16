@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn test_convert_wrapper() {
         let _wrapper: Wrapper<i128> = 1i128.into();
-        // let _signed: i128 = Wrapper(1i128).into(); // Does not work!
+        let _signed: i128 = Wrapper(1i128).into();
         let _signed: i128 = *Wrapper(1i128);
     }
 
