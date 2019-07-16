@@ -8,15 +8,14 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus};
+use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus, PaymentStatusSuccess};
 
 use timer::create_timer_incoming;
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::rand::CryptoRandom;
-use crypto::uid::{Uid, UID_LEN};
+
+use proto::crypto::{PublicKey, InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN, Uid, UID_LEN};
+
 
 use app::{AppBuyer, AppRoutes, AppSeller};
 
@@ -103,7 +102,7 @@ where
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
-        PaymentStatus::Success((receipt, ack_uid)) => {
+        PaymentStatus::Success(PaymentStatusSuccess{ receipt, ack_uid}) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
             await!(app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone())).unwrap();

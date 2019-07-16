@@ -7,13 +7,11 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{MultiCommit, PaymentStatus, Rate};
+use proto::funder::messages::{MultiCommit, PaymentStatus, Rate, PaymentStatusSuccess};
 
 use timer::create_timer_incoming;
 
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
-use crypto::uid::{Uid, UID_LEN};
+use proto::crypto::{InvoiceId, INVOICE_ID_LEN, PaymentId, PAYMENT_ID_LEN, Uid, UID_LEN};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -479,7 +477,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
-        PaymentStatus::Success((receipt, ack_uid)) => {
+        PaymentStatus::Success(PaymentStatusSuccess {receipt, ack_uid}) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
             await!(apps[0]
@@ -573,7 +571,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
-        PaymentStatus::Success((receipt, ack_uid)) => {
+        PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
             await!(apps[5]
