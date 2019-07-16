@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use super::verifier::Verifier;
-use crypto::hash::{HashResult, HASH_RESULT_LEN};
+use proto::crypto::{HashResult, HASH_RESULT_LEN};
 
 pub struct DummyVerifier<N, B, U> {
     phantom_n: PhantomData<N>,

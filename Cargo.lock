@@ -909,6 +909,7 @@ dependencies = [
  "offst-keepalive 0.1.0",
  "offst-proto 0.1.0",
  "offst-secure-channel 0.1.0",
+ "offst-signature 0.1.0",
  "offst-timer 0.1.0",
  "offst-version 0.1.0",
 ]

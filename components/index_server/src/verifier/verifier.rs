@@ -1,4 +1,4 @@
-use crypto::hash::HashResult;
+use proto::crypto::HashResult;
 
 pub trait Verifier {
     type Node;
