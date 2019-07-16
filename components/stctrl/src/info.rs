@@ -261,7 +261,7 @@ pub async fn info_friends(
     // Add titlek:
     table.set_titles(row!["st", "name", "balance"]);
 
-    for (_friend_public_key, friend_report) in &report.funder_report.friends {
+    for friend_report in report.funder_report.friends.values() {
         // Is the friend enabled?
         let status_str = if friend_report.status == FriendStatusReport::Enabled {
             "E"
@@ -357,7 +357,7 @@ pub async fn info_balance(
     let report = await!(get_report(&mut app_report))?;
 
     let mut total_balance: i128 = 0;
-    for (_friend_public_key, friend_report) in &report.funder_report.friends {
+    for friend_report in report.funder_report.friends.values() {
         total_balance = total_balance
             .checked_add(friend_balance(&friend_report))
             .ok_or(InfoError::BalanceOverflow)?;

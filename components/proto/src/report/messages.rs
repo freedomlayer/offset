@@ -204,6 +204,7 @@ pub enum ChannelStatusReport {
     Consistent(ChannelConsistentReport),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::report_capnp::opt_last_incoming_move_token)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptLastIncomingMoveToken {

@@ -20,8 +20,8 @@ pub fn prepare_receipt(
         invoice_id: pending_transaction.invoice_id.clone(),
         src_plain_lock: collect_send_funds.src_plain_lock.clone(),
         dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
-        dest_payment: pending_transaction.dest_payment.into(),
-        total_dest_payment: pending_transaction.total_dest_payment.into(),
+        dest_payment: pending_transaction.dest_payment,
+        total_dest_payment: pending_transaction.total_dest_payment,
         signature: response_send_funds.signature.clone(),
     }
 }
@@ -40,7 +40,7 @@ pub fn prepare_commit(
 
     Commit {
         response_hash,
-        dest_payment: pending_transaction.dest_payment.into(),
+        dest_payment: pending_transaction.dest_payment,
         src_plain_lock,
         dest_hashed_lock: response_send_funds.dest_hashed_lock.clone(),
         signature: response_send_funds.signature.clone(),
