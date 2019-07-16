@@ -12,7 +12,6 @@
 #[macro_use]
 pub mod macros;
 pub mod app_server;
-// pub mod capnp_common;
 pub mod consts;
 pub mod crypto;
 pub mod file;
