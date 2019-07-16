@@ -5,8 +5,9 @@ use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 use derive_more::*;
 
 use common::conn::{ConnPairVec, FutTransform};
-use crypto::identity::PublicKey;
+
 use crypto::rand::CryptoRandom;
+use proto::crypto::PublicKey;
 
 use database::DatabaseClient;
 use identity::IdentityClient;
@@ -25,9 +26,13 @@ use index_client::{spawn_index_client, IndexClientError};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    ChannelerToFunder, FunderIncomingControl, FunderOutgoingControl, FunderToChanneler,
+    ChannelerToFunder, FriendMessage, FunderIncomingControl, FunderOutgoingControl,
+    FunderToChanneler,
 };
-use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
+
+// use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
+
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 use proto::net::messages::NetAddress;
 use proto::report::convert::funder_report_to_index_client_state;
@@ -152,7 +157,7 @@ where
                     IncomingLivenessMessage::Offline(public_key),
                 )),
                 ChannelerToFunder::Message((public_key, data)) => {
-                    if let Ok(friend_message) = deserialize_friend_message(&data[..]) {
+                    if let Ok(friend_message) = FriendMessage::proto_deserialize(&data[..]) {
                         Some(FunderIncomingComm::Friend((public_key, friend_message)))
                     } else {
                         // We discard the message if we can't deserialize it:
@@ -190,7 +195,8 @@ where
                     }
                 },
                 FunderOutgoingComm::FriendMessage((public_key, friend_message)) => {
-                    let data = serialize_friend_message(&friend_message);
+                    // let data = serialize_friend_message(&friend_message);
+                    let data = friend_message.proto_serialize();
                     FunderToChanneler::Message((public_key, data))
                 }
             };

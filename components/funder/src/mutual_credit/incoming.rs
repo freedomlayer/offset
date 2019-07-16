@@ -1,3 +1,4 @@
+use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -6,7 +7,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp, TransactionStage,
 };
-use proto::funder::signature_buff::create_response_signature_buffer;
+use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
@@ -290,7 +291,7 @@ fn process_response_send_funds(
 
     // Set the stage to Response, and remember dest_hashed_lock:
     let mc_mutation = McMutation::SetLocalPendingTransactionStage((
-        response_send_funds.request_id,
+        response_send_funds.request_id.clone(),
         TransactionStage::Response(response_send_funds.dest_hashed_lock.clone()),
     ));
     mutual_credit.mutate(&mc_mutation);
@@ -325,7 +326,8 @@ fn process_cancel_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id);
+    let mc_mutation =
+        McMutation::RemoveLocalPendingTransaction(cancel_send_funds.request_id.clone());
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 
@@ -379,11 +381,11 @@ fn process_collect_send_funds(
     };
 
     // Verify src_plain_lock and dest_plain_lock:
-    if collect_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+    if collect_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
         return Err(ProcessOperationError::InvalidSrcPlainLock);
     }
 
-    if collect_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+    if collect_send_funds.dest_plain_lock.hash_lock() != *dest_hashed_lock {
         return Err(ProcessOperationError::InvalidDestPlainLock);
     }
 
@@ -398,7 +400,8 @@ fn process_collect_send_funds(
     let mut mc_mutations = Vec::new();
 
     // Remove entry from local_pending hashmap:
-    let mc_mutation = McMutation::RemoveLocalPendingTransaction(collect_send_funds.request_id);
+    let mc_mutation =
+        McMutation::RemoveLocalPendingTransaction(collect_send_funds.request_id.clone());
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
 

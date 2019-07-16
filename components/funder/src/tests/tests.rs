@@ -1,10 +1,8 @@
 use common::test_executor::TestExecutor;
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
-use crypto::uid::{Uid, UID_LEN};
-
+use proto::crypto::{
+    InvoiceId, PaymentId, PublicKey, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN,
+};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
     FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
@@ -104,7 +102,10 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt,
+            payment_status_success.ack_uid,
+        ),
         _ => unreachable!(),
     };
 
@@ -259,7 +260,10 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let response_close_payment =
         await!(node_controls[0].recv_until_response_close_payment()).unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt,
+            payment_status_success.ack_uid,
+        ),
         _ => unreachable!(),
     };
 
@@ -284,7 +288,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == -6 + 15
+        tc_report.balance.balance == (-6 + 15)
     };
     await!(node_controls[2].recv_until(pred));
 
@@ -300,7 +304,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             _ => return false,
         };
 
-        if tc_report.balance.balance != -8 + 20 {
+        if tc_report.balance.balance != (-8 + 20) {
             return false;
         }
 
@@ -313,7 +317,7 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
             ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
             _ => return false,
         };
-        tc_report.balance.balance == 6 - 15
+        tc_report.balance.balance == (6 - 15)
     };
     await!(node_controls[1].recv_until(pred));
 }

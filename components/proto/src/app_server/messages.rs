@@ -1,12 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use common::canonical_serialize::CanonicalSerialize;
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
+
 use common::mutable_state::MutableState;
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::uid::Uid;
+use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,
@@ -21,6 +19,8 @@ use crate::net::messages::NetAddress;
 use crate::report::messages::{FunderReport, FunderReportMutation};
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
+
+#[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
@@ -28,6 +28,7 @@ pub struct NamedRelayAddress<B = NetAddress> {
     pub name: String,
 }
 
+#[capnp_conv(crate::common_capnp::relay_address)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
@@ -43,27 +44,14 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
     }
 }
 
-impl<B> CanonicalSerialize for RelayAddress<B>
-where
-    B: CanonicalSerialize,
-{
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.public_key);
-        res_bytes.extend_from_slice(&self.address.canonical_serialize());
-        res_bytes
-    }
-}
-
+#[capnp_conv(crate::report_capnp::node_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NodeReport<B = NetAddress>
-where
-    B: Clone,
-{
+pub struct NodeReport<B = NetAddress> {
     pub funder_report: FunderReport<B>,
     pub index_client_report: IndexClientReport<B>,
 }
 
+#[capnp_conv(crate::report_capnp::node_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B = NetAddress>
 where
@@ -73,16 +61,44 @@ where
     IndexClient(IndexClientReportMutation<B>),
 }
 
+#[capnp_conv(crate::app_server_capnp::report_mutations::opt_app_request_id)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptAppRequestId {
+    AppRequestId(Uid),
+    Empty,
+}
+
+impl From<Option<Uid>> for OptAppRequestId {
+    fn from(opt: Option<Uid>) -> Self {
+        match opt {
+            Some(uid) => OptAppRequestId::AppRequestId(uid),
+            None => OptAppRequestId::Empty,
+        }
+    }
+}
+
+impl From<OptAppRequestId> for Option<Uid> {
+    fn from(opt: OptAppRequestId) -> Self {
+        match opt {
+            OptAppRequestId::AppRequestId(uid) => Some(uid),
+            OptAppRequestId::Empty => None,
+        }
+    }
+}
+
+#[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B = NetAddress>
 where
     B: Clone,
 {
+    #[capnp_conv(with = OptAppRequestId)]
     pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::app_server_capnp::app_server_to_app)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp<B = NetAddress>
 where
@@ -103,7 +119,8 @@ pub enum NamedRelaysMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[capnp_conv(crate::app_server_capnp::app_request)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress<B>),
@@ -135,7 +152,8 @@ pub enum AppRequest<B = NetAddress> {
     AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
 }
-#[derive(Debug, PartialEq, Eq)]
+#[capnp_conv(crate::app_server_capnp::app_to_app_server)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AppToAppServer<B = NetAddress> {
     pub app_request_id: Uid,
     pub app_request: AppRequest<B>,
@@ -150,6 +168,8 @@ impl<B> AppToAppServer<B> {
     }
 }
 
+// TODO: Move this code to a separate module:
+
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
@@ -162,11 +182,13 @@ where
         mutation: &NodeReportMutation<B>,
     ) -> Result<(), NodeReportMutateError> {
         match mutation {
-            NodeReportMutation::Funder(mutation) => self
+            NodeReportMutation::<B>::Funder(mutation) => self
                 .funder_report
                 .mutate(mutation)
                 .map_err(|_| NodeReportMutateError)?,
-            NodeReportMutation::IndexClient(mutation) => self.index_client_report.mutate(mutation),
+            NodeReportMutation::<B>::IndexClient(mutation) => {
+                self.index_client_report.mutate(mutation)
+            }
         };
         Ok(())
     }
@@ -184,6 +206,7 @@ where
     }
 }
 
+#[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Can request routes

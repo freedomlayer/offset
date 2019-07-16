@@ -2,9 +2,9 @@ use futures::channel::{mpsc, oneshot};
 use futures::{Future, TryFutureExt};
 
 use common::futures_compat::send_to_sink;
-use crypto::identity::{PublicKey, Signature};
+use proto::crypto::{PublicKey, Signature};
 
-use super::messages::{ResponsePublicKey, ResponseSignature, ToIdentity};
+use crate::messages::{ResponsePublicKey, ResponseSignature, ToIdentity};
 
 #[derive(Debug)]
 pub enum IdentityClientError {

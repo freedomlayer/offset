@@ -1,11 +1,11 @@
 @0x8bc829b5200f3c7f;
 
 using import "common.capnp".PublicKey;
-using import "common.capnp".Hash;
+using import "common.capnp".HashResult;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
-using import "common.capnp".RandNonce;
+using import "common.capnp".RandValue;
 using import "common.capnp".Rate;
 
 using import "common.capnp".RelayAddress;
@@ -17,7 +17,7 @@ using import "common.capnp".NetAddress;
 #########################
 
 struct MoveTokenHashedReport {
-        prefixHash @0: Hash;
+        prefixHash @0: HashResult;
         localPublicKey @1: PublicKey;
         remotePublicKey @2: PublicKey;
         inconsistencyCounter @3: UInt64;
@@ -25,7 +25,7 @@ struct MoveTokenHashedReport {
         balance @5: CustomInt128;
         localPendingDebt @6: CustomUInt128;
         remotePendingDebt @7: CustomUInt128;
-        randNonce @8: RandNonce;
+        randNonce @8: RandValue;
         newToken @9: Signature;
 }
 
@@ -120,7 +120,7 @@ struct OptLastIncomingMoveToken {
         }
 }
 
-struct RelaysTransition {
+struct RelaysTransitionReport {
         lastSent @0: List(NamedRelayAddress);
         beforeLastSent @1: List(NamedRelayAddress);
 }
@@ -128,7 +128,7 @@ struct RelaysTransition {
 struct SentLocalRelaysReport {
         union {
                 neverSent @0: Void;
-                transition @1: RelaysTransition;
+                transition @1: RelaysTransitionReport;
                 lastSent @2: List(NamedRelayAddress);
         }
 }
@@ -151,11 +151,15 @@ struct PkFriendReport {
         friendReport @1: FriendReport;
 }
 
+struct PkFriendReportList {
+        list @0: List(PkFriendReport);
+}
+
 # A full Funder report.
 struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(NamedRelayAddress);
-        friends @2: List(PkFriendReport);
+        friends @2: PkFriendReportList;
         numOpenInvoices @3: UInt64;
         numPayments @4: UInt64;
         numOpenTransactions @5: UInt64;

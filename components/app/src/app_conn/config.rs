@@ -3,9 +3,9 @@ use futures::{SinkExt, StreamExt};
 
 use common::multi_consumer::MultiConsumerClient;
 
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::{CryptoRandom, OffstSystemRandom};
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Signature, Uid};
+
+use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
@@ -41,8 +41,8 @@ where
 
     async fn send_request(&mut self, app_request: AppRequest) -> Result<(), AppConfigError> {
         // Randomly generate a new app_request_id:
-        let app_request_id = Uid::new(&self.rng);
-        let to_app_server = AppToAppServer::new(app_request_id, app_request);
+        let app_request_id = Uid::rand_gen(&self.rng);
+        let to_app_server = AppToAppServer::new(app_request_id.clone(), app_request);
 
         // Start listening to done requests:
         let mut incoming_done_requests =

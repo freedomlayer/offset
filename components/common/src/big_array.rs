@@ -72,6 +72,8 @@ macro_rules! big_array {
 }
 
 big_array! {
+    16,
+    32,
     64,
     85,
 }

@@ -1,11 +1,10 @@
 use std::fmt::Debug;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use proto::funder::messages::PendingTransaction;
 
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Uid};
 
 use crate::state::FunderState;
 

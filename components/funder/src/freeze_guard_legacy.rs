@@ -7,7 +7,7 @@ use crypto::identity::PublicKey;
 use crypto::hash::{HashResult, sha_512_256};
 
 use common::int_convert::usize_to_u32;
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use proto::funder::messages::{Ratio, FriendsRoute, FreezeLink};
 

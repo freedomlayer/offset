@@ -1,22 +1,29 @@
-use byteorder::{BigEndian, ByteOrder};
 use std::mem;
 
-use crypto::dh::{DhPrivateKey, Salt};
-use crypto::identity::{verify_signature, PublicKey, Signature};
-use crypto::rand::{CryptoRandom, RandValue};
+use byteorder::{BigEndian, ByteOrder};
+
+use derive_more::From;
+
+use crypto::dh::DhPrivateKey;
+use crypto::identity::verify_signature;
+use crypto::rand::{CryptoRandom, RandGen};
 use crypto::sym_encrypt::{Decryptor, Encryptor};
+
+use proto::crypto::{PublicKey, RandValue, Salt, Signature};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
+
 use identity::IdentityClient;
 use proto::secure_channel::messages::{
-    ChannelContent, ChannelMessage, EncryptedData, ExchangeDh, ExchangeRandNonce, PlainData, Rekey,
+    ChannelContent, ChannelMessage, ExchangeDh, ExchangeRandNonce, Rekey,
 };
-use proto::secure_channel::serialize::{deserialize_channel_message, serialize_channel_message};
+
+use crate::types::{EncryptedData, PlainData};
 
 const MAX_RAND_PADDING: u16 = 0x100;
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum ScStateError {
     PrivateKeyGenFailure,
-    SaltGenFailure,
     DhPublicKeyComputeFailure,
     IncorrectRandNonce,
     InvalidSignature,
@@ -24,7 +31,8 @@ pub enum ScStateError {
     CreateEncryptorFailure,
     CreateDecryptorFailure,
     DecryptionFailure,
-    DeserializeError,
+    ProtoSerializeError(ProtoSerializeError),
+    // DeserializeError,
     RekeyInProgress,
 }
 
@@ -64,7 +72,7 @@ impl ScStateInitial {
         local_public_key: &PublicKey,
         rng: &R,
     ) -> (ScStateInitial, ExchangeRandNonce) {
-        let local_rand_nonce = RandValue::new(rng);
+        let local_rand_nonce = RandValue::rand_gen(rng);
 
         let sc_state_initial = ScStateInitial {
             local_public_key: local_public_key.clone(),
@@ -88,7 +96,7 @@ impl ScStateInitial {
         let dh_public_key = dh_private_key
             .compute_public_key()
             .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;;
-        let local_salt = Salt::new(&rng).map_err(|_| ScStateError::SaltGenFailure)?;
+        let local_salt = Salt::rand_gen(&rng);
 
         let sc_state_half = ScStateHalf {
             remote_public_key: exchange_rand_nonce.public_key,
@@ -102,7 +110,7 @@ impl ScStateInitial {
             dh_public_key,
             rand_nonce: exchange_rand_nonce.rand_nonce,
             key_salt: local_salt,
-            signature: Signature::zero(),
+            signature: Signature::default(),
         };
         exchange_dh.signature =
             await!(identity_client.request_signature(exchange_dh.signature_buffer())).unwrap();
@@ -166,7 +174,7 @@ impl ScState {
             rand_padding: self.gen_rand_padding(rng),
             content: channel_content,
         };
-        let ser_channel_message = serialize_channel_message(&channel_message);
+        let ser_channel_message = channel_message.proto_serialize();
         let enc_channel_message = self.sender.encrypt(&ser_channel_message).unwrap();
         EncryptedData(enc_channel_message)
     }
@@ -195,8 +203,7 @@ impl ScState {
         enc_data: &EncryptedData,
     ) -> Result<ChannelContent, ScStateError> {
         let data = self.try_decrypt(enc_data)?.0;
-        let channel_message =
-            deserialize_channel_message(&data).map_err(|_| ScStateError::DeserializeError)?;
+        let channel_message = ChannelMessage::proto_deserialize(&data)?;
 
         Ok(channel_message.content)
     }
@@ -207,7 +214,7 @@ impl ScState {
         plain_data: &PlainData,
         rng: &R,
     ) -> EncryptedData {
-        let content = ChannelContent::User(plain_data.clone());
+        let content = ChannelContent::User(plain_data.0.clone());
         self.encrypt_outgoing(content, rng)
     }
 
@@ -237,7 +244,7 @@ impl ScState {
             return Err(ScStateError::RekeyInProgress);
         }
         let dh_private_key = DhPrivateKey::new(rng).unwrap();
-        let local_salt = Salt::new(rng).unwrap();
+        let local_salt = Salt::rand_gen(rng);
         let dh_public_key = dh_private_key.compute_public_key().unwrap();
         let pending_rekey = PendingRekey {
             local_dh_private_key: dh_private_key,
@@ -260,7 +267,7 @@ impl ScState {
         match self.opt_pending_rekey.take() {
             None => {
                 let dh_private_key = DhPrivateKey::new(rng).unwrap();
-                let local_salt = Salt::new(rng).unwrap();
+                let local_salt = Salt::rand_gen(rng);
                 let dh_public_key = dh_private_key.compute_public_key().unwrap();
 
                 let (send_key, recv_key) = dh_private_key
@@ -322,7 +329,7 @@ impl ScState {
             ChannelContent::User(content) => Ok(HandleIncomingOutput {
                 rekey_occurred: false,
                 opt_send_message: None,
-                opt_incoming_message: Some(content),
+                opt_incoming_message: Some(PlainData(content)),
             }),
         }
     }

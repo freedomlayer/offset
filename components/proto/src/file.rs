@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crypto::identity::{PrivateKey, PublicKey};
+use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 

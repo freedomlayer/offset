@@ -11,8 +11,8 @@ use identity::{create_identity, IdentityClient};
 use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519Identity};
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
 
+use proto::crypto::{Uid, UID_LEN};
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
     ResetFriendChannel, SetFriendStatus,
@@ -180,7 +180,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 20i128);
@@ -232,7 +232,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, -10i128);
@@ -365,7 +365,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.old_token, reset_token2);
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
@@ -400,7 +400,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 // Token is wanted because Node2 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
@@ -435,7 +435,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk2);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);
@@ -471,7 +471,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.operations.is_empty());
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 1);

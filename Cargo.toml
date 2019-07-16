@@ -26,4 +26,5 @@ members = [
   "components/mutual_from",
   "components/capnp_conv",
   "components/capnp_conv/capnp_conv_derive",
+  "components/signature",
 ]

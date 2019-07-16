@@ -2,11 +2,9 @@ use common::multi_consumer::MultiConsumerClient;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::rand::{CryptoRandom, OffstSystemRandom};
-use crypto::uid::Uid;
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
+
+use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{
@@ -71,9 +69,11 @@ where
             dest_public_key,
         };
 
-        let app_request_id = Uid::new(&self.rng);
-        let to_app_server =
-            AppToAppServer::new(app_request_id, AppRequest::CreatePayment(create_payment));
+        let app_request_id = Uid::rand_gen(&self.rng);
+        let to_app_server = AppToAppServer::new(
+            app_request_id.clone(),
+            AppRequest::CreatePayment(create_payment),
+        );
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
@@ -102,12 +102,12 @@ where
     ) -> Result<Commit, BuyerError> {
         let create_transaction = CreateTransaction {
             payment_id,
-            request_id,
+            request_id: request_id.clone(),
             route,
             dest_payment,
             fees,
         };
-        let app_request_id = Uid::new(&self.rng);
+        let app_request_id = Uid::rand_gen(&self.rng);
         let to_app_server = AppToAppServer::new(
             app_request_id,
             AppRequest::CreateTransaction(create_transaction),
@@ -137,9 +137,11 @@ where
         &mut self,
         payment_id: PaymentId,
     ) -> Result<PaymentStatus, BuyerError> {
-        let app_request_id = Uid::new(&self.rng);
-        let to_app_server =
-            AppToAppServer::new(app_request_id, AppRequest::RequestClosePayment(payment_id));
+        let app_request_id = Uid::rand_gen(&self.rng);
+        let to_app_server = AppToAppServer::new(
+            app_request_id,
+            AppRequest::RequestClosePayment(payment_id.clone()),
+        );
 
         let mut incoming_response_close_payment =
             await!(self.response_close_payments_mc.request_stream())
@@ -164,14 +166,14 @@ where
         payment_id: PaymentId,
         ack_uid: Uid,
     ) -> Result<(), BuyerError> {
-        let app_request_id = Uid::new(&self.rng);
+        let app_request_id = Uid::rand_gen(&self.rng);
         let ack_close_payment = AckClosePayment {
             payment_id,
             ack_uid,
         };
 
         let to_app_server = AppToAppServer::new(
-            app_request_id,
+            app_request_id.clone(),
             AppRequest::AckClosePayment(ack_close_payment),
         );
 

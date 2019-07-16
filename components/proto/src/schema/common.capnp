@@ -38,7 +38,7 @@ struct Signature {
         inner @0: Buffer512;
 }
 
-struct RandNonce {
+struct RandValue {
         inner @0: Buffer128;
 }
 
@@ -53,7 +53,7 @@ struct CustomInt128 {
 }
 
 
-struct Hash {
+struct HashResult {
         inner @0: Buffer256;
 }
 
@@ -119,7 +119,7 @@ struct NamedIndexServerAddress {
 
 # A single commit, commiting to a transaction along a certain route.
 struct Commit {
-        responseHash @0: Hash;
+        responseHash @0: HashResult;
         destPayment @1: CustomUInt128;
         srcPlainLock @2: PlainLock;
         destHashedLock @3: HashedLock;
@@ -141,7 +141,7 @@ struct MultiCommit {
 
 # A receipt for payment to the Funder
 struct Receipt {
-        responseHash @0: Hash;
+        responseHash @0: HashResult;
         # = sha512/256(requestId || randNonce)
         invoiceId @1: InvoiceId;
         srcPlainLock @2: PlainLock;

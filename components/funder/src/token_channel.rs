@@ -1,15 +1,18 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use crypto::hash::sha_512_256;
-use crypto::identity::{compare_public_key, PublicKey, Signature, PUBLIC_KEY_LEN, SIGNATURE_LEN};
-use crypto::rand::{RandValue, RAND_VALUE_LEN};
+use crypto::identity::compare_public_key;
+
+use proto::crypto::{
+    PublicKey, RandValue, Signature, PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN,
+};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{FriendTcOp, MoveToken};
-use proto::funder::signature_buff::verify_move_token;
+use signature::verify::verify_move_token;
 
 use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessOperationOutput, ProcessTransListError,
@@ -97,7 +100,7 @@ pub enum ReceiveMoveTokenOutput<B> {
 fn token_from_public_key(public_key: &PublicKey) -> Signature {
     let mut buff = [0; SIGNATURE_LEN];
     buff[0..PUBLIC_KEY_LEN].copy_from_slice(public_key);
-    Signature::from(buff)
+    Signature::from(&buff)
 }
 
 /// Generate a random nonce from public key.
@@ -479,7 +482,7 @@ mod tests {
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
 
-    use proto::funder::signature_buff::move_token_signature_buff;
+    use signature::signature_buff::move_token_signature_buff;
 
     /// A helper function to sign an UnsignedMoveToken using an identity:
     fn dummy_sign_move_token<B, I>(

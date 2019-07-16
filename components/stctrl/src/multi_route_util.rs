@@ -102,8 +102,9 @@ pub fn choose_multi_route(
 mod tests {
     use super::*;
 
+    use app::crypto::{PublicKey, PUBLIC_KEY_LEN};
     use app::route::{FriendsRoute, RouteCapacityRate};
-    use app::{PublicKey, Rate, PUBLIC_KEY_LEN};
+    use app::Rate;
 
     /// A helper function to create a test public key
     fn pk(i: u8) -> PublicKey {

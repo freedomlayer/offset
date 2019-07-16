@@ -1,5 +1,6 @@
-use crypto::identity::{PublicKey, Signature};
 use futures::channel::oneshot;
+
+use proto::crypto::{PublicKey, Signature};
 
 /// The response from security module client to security module.
 pub enum ToIdentity {

@@ -1,19 +1,16 @@
-use crypto::hash_lock::{PlainLock, PLAIN_LOCK_LEN};
-use crypto::identity::{
-    generate_private_key, Identity, Signature, SoftwareEd25519Identity, SIGNATURE_LEN,
-};
-use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+use crypto::hash_lock::HashLock;
+use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
 
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::rand::{RandValue, RAND_VALUE_LEN};
-
+use proto::crypto::{
+    InvoiceId, PlainLock, PublicKey, RandValue, Signature, Uid, INVOICE_ID_LEN, PLAIN_LOCK_LEN,
+    PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN, UID_LEN,
+};
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp,
 };
-use proto::funder::signature_buff::create_response_signature_buffer;
+use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
@@ -131,7 +128,7 @@ fn test_request_response_collect_send_funds() {
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
-        src_hashed_lock: src_plain_lock.hash(),
+        src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
         total_dest_payment: 10,
@@ -159,7 +156,7 @@ fn test_request_response_collect_send_funds() {
 
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
-        dest_hashed_lock: dest_plain_lock.hash(),
+        dest_hashed_lock: dest_plain_lock.hash_lock(),
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; SIGNATURE_LEN]),
     };
@@ -239,7 +236,7 @@ fn test_request_cancel_send_funds() {
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
-        src_hashed_lock: src_plain_lock.hash(),
+        src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
         total_dest_payment: 10,
@@ -313,7 +310,7 @@ fn test_request_response_cancel_send_funds() {
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
-        src_hashed_lock: src_plain_lock.hash(),
+        src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
         total_dest_payment: 10,
@@ -341,7 +338,7 @@ fn test_request_response_cancel_send_funds() {
 
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
-        dest_hashed_lock: dest_plain_lock.hash(),
+        dest_hashed_lock: dest_plain_lock.hash_lock(),
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; SIGNATURE_LEN]),
     };

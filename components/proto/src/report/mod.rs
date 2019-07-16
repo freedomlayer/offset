@@ -1,5 +1,3 @@
+// TODO: Possibly move convert module to another crate?
 pub mod convert;
 pub mod messages;
-#[allow(unused)]
-pub mod serialize;
-pub mod signature_buff;

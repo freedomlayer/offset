@@ -1,3 +1,4 @@
+use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -6,7 +7,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, RequestSendFundsOp, RequestsStatus,
     ResponseSendFundsOp, TransactionStage,
 };
-use proto::funder::signature_buff::create_response_signature_buffer;
+use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
@@ -287,11 +288,11 @@ impl OutgoingMc {
         };
 
         // Verify src_plain_lock and dest_plain_lock:
-        if collect_send_funds.src_plain_lock.hash() != pending_transaction.src_hashed_lock {
+        if collect_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
             return Err(QueueOperationError::InvalidSrcPlainLock);
         }
 
-        if collect_send_funds.dest_plain_lock.hash() != *dest_hashed_lock {
+        if collect_send_funds.dest_plain_lock.hash_lock() != *dest_hashed_lock {
             return Err(QueueOperationError::InvalidDestPlainLock);
         }
 

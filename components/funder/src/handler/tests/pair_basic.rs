@@ -9,11 +9,10 @@ use futures::{future, FutureExt};
 use identity::{create_identity, IdentityClient};
 
 use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519Identity};
-use crypto::invoice_id::{InvoiceId, INVOICE_ID_LEN};
-use crypto::payment_id::{PaymentId, PAYMENT_ID_LEN};
 use crypto::rand::RngContainer;
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
+
+use proto::crypto::{InvoiceId, PaymentId, Uid, INVOICE_ID_LEN, PAYMENT_ID_LEN, UID_LEN};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
@@ -183,7 +182,7 @@ async fn task_handler_pair_basic<'a>(
                 // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 0);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -243,7 +242,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 1);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -279,7 +278,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk2);
                 assert_eq!(move_token_request.token_wanted, true);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 2);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -316,7 +315,7 @@ async fn task_handler_pair_basic<'a>(
                 assert_eq!(pk, &pk1);
                 assert_eq!(move_token_request.token_wanted, false);
 
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.move_token_counter, 3);
                 assert_eq!(friend_move_token.inconsistency_counter, 0);
                 assert_eq!(friend_move_token.balance, 0);
@@ -684,7 +683,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 20);
@@ -751,7 +750,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 20);
@@ -782,7 +781,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 0);
                 assert_eq!(friend_move_token.local_pending_debt, 20);
                 assert_eq!(friend_move_token.remote_pending_debt, 0);
@@ -813,7 +812,7 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                let friend_move_token = &move_token_request.friend_move_token;
+                let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.balance, 20);
                 assert_eq!(friend_move_token.local_pending_debt, 0);
                 assert_eq!(friend_move_token.remote_pending_debt, 0);
@@ -892,7 +891,10 @@ async fn task_handler_pair_basic<'a>(
         PaymentId::from(&[3u8; PAYMENT_ID_LEN])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
-        PaymentStatus::Success((receipt, ack_uid)) => (receipt, ack_uid),
+        PaymentStatus::Success(payment_status_success) => (
+            payment_status_success.receipt.clone(),
+            payment_status_success.ack_uid.clone(),
+        ),
         _ => unreachable!(),
     };
 

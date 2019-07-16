@@ -2,7 +2,7 @@ use futures::task::Spawn;
 
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
-use crypto::identity::PublicKey;
+use proto::crypto::PublicKey;
 
 use proto::app_server::messages::RelayAddress;
 use proto::index_server::messages::IndexServerAddress;

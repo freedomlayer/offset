@@ -10,17 +10,23 @@ use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransf
 use common::transform_pool::transform_pool_loop;
 
 use proto::consts::{INDEX_NODE_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::crypto::PublicKey;
 use proto::index_server::messages::{
     IndexClientToServer, IndexServerToClient, IndexServerToServer,
 };
+
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
+
+/*
 use proto::index_server::serialize::{
     deserialize_index_client_to_server, deserialize_index_server_to_server,
     serialize_index_server_to_client, serialize_index_server_to_server,
 };
+*/
 
 use timer::TimerClient;
 
-use crypto::identity::{compare_public_key, PublicKey};
+use crypto::identity::compare_public_key;
 use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;
@@ -164,13 +170,13 @@ where
             let (public_key, (mut sender, mut receiver)) =
                 await!(c_self.version_enc_keepalive(None, conn_pair))?;
 
-            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToClient>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
-                    let message = match deserialize_index_client_to_server(&data) {
+                    let message = match IndexClientToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
                             error!("Error deserializing index_client_to_server");
@@ -186,7 +192,8 @@ where
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
-                    let data = serialize_index_server_to_client(&message);
+                    // let data = serialize_index_server_to_client(&message);
+                    let data = message.proto_serialize();
                     if await!(sender.send(data)).is_err() {
                         return;
                     }
@@ -212,13 +219,13 @@ where
             let (public_key, (mut sender, mut receiver)) =
                 await!(c_self.version_enc_keepalive(None, conn_pair))?;
 
-            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
-                    let message = match deserialize_index_server_to_server(&data) {
+                    let message = match IndexServerToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
                             error!("Error deserializing index_server_to_server");
@@ -234,7 +241,8 @@ where
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
-                    let data = serialize_index_server_to_server(&message);
+                    // let data = serialize_index_server_to_server(&message);
+                    let data = message.proto_serialize();
                     if await!(sender.send(data)).is_err() {
                         return;
                     }
@@ -255,13 +263,13 @@ where
             let (_public_key, (mut sender, mut receiver)) =
                 await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
 
-            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
-                    let message = match deserialize_index_server_to_server(&data) {
+                    let message = match IndexServerToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
                             error!("Error deserializing index_server_to_server");
@@ -277,7 +285,8 @@ where
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
-                    let data = serialize_index_server_to_server(&message);
+                    // let data = serialize_index_server_to_server(&message);
+                    let data = message.proto_serialize();
                     if await!(sender.send(data)).is_err() {
                         return;
                     }

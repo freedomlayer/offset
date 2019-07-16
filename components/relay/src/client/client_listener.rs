@@ -6,14 +6,14 @@ use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamEx
 
 use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener};
 use common::int_convert::usize_to_u64;
-use crypto::identity::PublicKey;
+
+use proto::crypto::PublicKey;
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
-use proto::relay::serialize::{
-    deserialize_incoming_connection, serialize_init_connection, serialize_reject_connection,
-};
 
 use common::access_control::{AccessControl, AccessControlOp};
 use common::select_streams::{select_streams, BoxStream};
+
 use timer::{TimerClient, TimerTick};
 
 type AccessControlPk = AccessControl<PublicKey>;
@@ -137,8 +137,7 @@ where
     let (mut sender, receiver) = conn_pair;
 
     // Send first message:
-    let ser_init_connection =
-        serialize_init_connection(&InitConnection::Accept(public_key.clone()));
+    let ser_init_connection = InitConnection::Accept(public_key.clone()).proto_serialize();
     let send_res = await!(sender.send(ser_init_connection));
     if send_res.is_err() {
         await!(pending_reject_sender.send(public_key))
@@ -189,7 +188,7 @@ where
     let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
 
     let (mut sender, receiver) = conn_pair;
-    let ser_init_connection = serialize_init_connection(&InitConnection::Listen);
+    let ser_init_connection = InitConnection::Listen.proto_serialize();
 
     await!(sender.send(ser_init_connection))
         .map_err(|_| ClientListenerError::SendInitConnectionError)?;
@@ -198,16 +197,17 @@ where
     let (sender, receiver) = await!(keepalive_transform.transform(conn_pair));
 
     // Add serialization for sender:
-    let mut sender = sender
-        .sink_map_err(|_| ())
-        .with(|vec| -> future::Ready<Result<_, ()>> {
-            future::ready(Ok(serialize_reject_connection(&vec)))
-        });
+    let mut sender =
+        sender
+            .sink_map_err(|_| ())
+            .with(|vec: RejectConnection| -> future::Ready<Result<_, ()>> {
+                future::ready(Ok(vec.proto_serialize()))
+            });
 
     // Add deserialization for receiver:
     let receiver = receiver
         .map(|ser_incoming_connection| {
-            match deserialize_incoming_connection(&ser_incoming_connection) {
+            match IncomingConnection::proto_deserialize(&ser_incoming_connection) {
                 Ok(incoming_connection) => Some(incoming_connection),
                 Err(e) => {
                     error!("Error deserializing incoming connection {:?}", e);
@@ -360,13 +360,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::PUBLIC_KEY_LEN;
     use futures::channel::oneshot;
     use futures::executor::ThreadPool;
-    use proto::relay::serialize::deserialize_init_connection;
+    use proto::crypto::PUBLIC_KEY_LEN;
     use timer::create_timer_incoming;
-
-    use proto::relay::serialize::{deserialize_reject_connection, serialize_incoming_connection};
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
@@ -466,7 +463,7 @@ mod tests {
         req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
-        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Accept(accept_public_key) = init_connection {
             assert_eq!(accept_public_key, public_key);
         } else {
@@ -542,7 +539,7 @@ mod tests {
 
         // First message to the relay should be InitConnection::Listen:
         let vec_init_connection = await!(relay_receiver.next()).unwrap();
-        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Listen = init_connection {
         } else {
             unreachable!();
@@ -554,13 +551,13 @@ mod tests {
         let relay_listen_out = IncomingConnection {
             public_key: public_key_b.clone(),
         };
-        let vec_incoming_connection = serialize_incoming_connection(&relay_listen_out);
+        let vec_incoming_connection = relay_listen_out.proto_serialize();
         await!(relay_sender.send(vec_incoming_connection)).unwrap();
         await!(event_receiver.next()).unwrap();
 
         // Listener will reject the connection:
         let vec_relay_listen_in = await!(relay_receiver.next()).unwrap();
-        let reject_connection = deserialize_reject_connection(&vec_relay_listen_in).unwrap();
+        let reject_connection = RejectConnection::proto_deserialize(&vec_relay_listen_in).unwrap();
         assert_eq!(reject_connection.public_key, public_key_b);
 
         // Relay will now send a message about incoming connection from a public key that is
@@ -568,7 +565,7 @@ mod tests {
         let incoming_connection = IncomingConnection {
             public_key: public_key_a.clone(),
         };
-        let vec_incoming_connection = serialize_incoming_connection(&incoming_connection);
+        let vec_incoming_connection = incoming_connection.proto_serialize();
         await!(relay_sender.send(vec_incoming_connection)).unwrap();
         await!(event_receiver.next()).unwrap();
 
@@ -582,7 +579,7 @@ mod tests {
         req.reply(Some(conn_pair));
 
         let vec_init_connection = await!(remote_receiver.next()).unwrap();
-        let init_connection = deserialize_init_connection(&vec_init_connection).unwrap();
+        let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Accept(accepted_public_key) = init_connection {
             assert_eq!(accepted_public_key, public_key_a);
         } else {

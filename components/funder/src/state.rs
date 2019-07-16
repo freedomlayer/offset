@@ -1,12 +1,10 @@
 use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 
-use common::canonical_serialize::CanonicalSerialize;
-use crypto::hash_lock::{HashedLock, PlainLock};
-use crypto::identity::PublicKey;
-use crypto::invoice_id::InvoiceId;
-use crypto::payment_id::PaymentId;
-use crypto::uid::Uid;
+use crypto::hash_lock::HashLock;
+use signature::canonical::CanonicalSerialize;
+
+use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
 use proto::app_server::messages::NamedRelayAddress;
 use proto::funder::messages::{AddFriend, Receipt, ResponseSendFundsOp};
@@ -171,19 +169,19 @@ where
             FunderMutation::AddIncomingTransaction((invoice_id, request_id, dest_plain_lock)) => {
                 let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
                 let incoming_transaction = IncomingTransaction {
-                    request_id: *request_id,
+                    request_id: request_id.clone(),
                     dest_plain_lock: dest_plain_lock.clone(),
                 };
                 open_invoice
                     .incoming_transactions
-                    .insert(dest_plain_lock.hash().clone(), incoming_transaction);
+                    .insert(dest_plain_lock.hash_lock().clone(), incoming_transaction);
             }
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);
             }
             FunderMutation::AddTransaction((request_id, payment_id, src_plain_lock)) => {
                 let open_transaction = OpenTransaction {
-                    payment_id: *payment_id,
+                    payment_id: payment_id.clone(),
                     src_plain_lock: src_plain_lock.clone(),
                     opt_response: None,
                 };

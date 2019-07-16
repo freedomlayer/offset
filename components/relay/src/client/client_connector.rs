@@ -1,10 +1,10 @@
-use crypto::identity::PublicKey;
 use futures::{FutureExt, SinkExt};
 
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
+use proto::crypto::PublicKey;
+use proto::proto_ser::ProtoSerialize;
 use proto::relay::messages::InitConnection;
-use proto::relay::serialize::serialize_init_connection;
 
 #[derive(Debug)]
 pub enum ClientConnectorError {
@@ -43,7 +43,7 @@ where
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
-        let ser_init_connection = serialize_init_connection(&init_connection);
+        let ser_init_connection = init_connection.proto_serialize();
         await!(sender.send(ser_init_connection))
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
 
@@ -86,8 +86,8 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{future, StreamExt};
 
-    use crypto::identity::PUBLIC_KEY_LEN;
-    use proto::relay::serialize::deserialize_init_connection;
+    use proto::crypto::PUBLIC_KEY_LEN;
+    use proto::proto_ser::ProtoDeserialize;
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
@@ -122,7 +122,7 @@ mod tests {
         let mut conn_pair = await!(fut_conn_pair);
 
         let vec = await!(relay_receiver.next()).unwrap();
-        let init_connection = deserialize_init_connection(&vec).unwrap();
+        let init_connection = InitConnection::proto_deserialize(&vec).unwrap();
         match init_connection {
             InitConnection::Connect(conn_public_key) => assert_eq!(conn_public_key, public_key),
             _ => unreachable!(),

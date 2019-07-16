@@ -12,6 +12,7 @@ crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+signature = { path = "../signature", version = "0.1.0" , package = "offst-signature" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 funder = { path = "../funder", version = "0.1.0" , package = "offst-funder" }
 index_client = { path = "../index_client", version = "0.1.0" , package = "offst-index-client" }

@@ -1,10 +1,6 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
-use crypto::hash::HashResult;
-use crypto::hash_lock::HashedLock;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -13,7 +9,7 @@ use proto::funder::messages::{
     RequestSendFundsOp, ResponseSendFundsOp, TransactionStage,
 };
 
-use proto::funder::signature_buff::{
+use signature::signature_buff::{
     create_response_signature_buffer, move_token_signature_buff, prefix_hash,
 };
 
@@ -55,7 +51,7 @@ pub async fn create_response_send_funds<'a>(
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
     let u_response_send_funds = ResponseSendFundsOp {
-        request_id: pending_transaction.request_id,
+        request_id: pending_transaction.request_id.clone(),
         dest_hashed_lock,
         rand_nonce,
         signature: (),
@@ -79,7 +75,7 @@ pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
 
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
     PendingTransaction {
-        request_id: request_send_funds.request_id,
+        request_id: request_send_funds.request_id.clone(),
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
         total_dest_payment: request_send_funds.total_dest_payment,

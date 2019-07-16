@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
 
 use proto::app_server::messages::RelayAddress;
+use proto::crypto::Uid;
 use proto::funder::messages::FunderOutgoingControl;
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 

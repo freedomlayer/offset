@@ -6,9 +6,7 @@ use ring::error::Unspecified;
 use ring::rand::{SecureRandom, SystemRandom};
 use ring::test::rand::FixedByteRandom;
 
-pub const RAND_VALUE_LEN: usize = 16;
-
-define_fixed_bytes!(RandValue, RAND_VALUE_LEN);
+use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
 
 pub trait CryptoRandom: SecureRandom + Sync + Send {}
 
@@ -56,14 +54,6 @@ pub fn system_random() -> OffstSystemRandom {
     RngContainer::new(SystemRandom::new())
 }
 
-impl RandValue {
-    pub fn new<R: CryptoRandom>(crypt_rng: &R) -> Self {
-        let mut rand_value = RandValue([0; RAND_VALUE_LEN]);
-        crypt_rng.fill(&mut rand_value.0).unwrap();
-        rand_value
-    }
-}
-
 /// `RandValuesStore` is a storage and generation structure of random values.
 /// Those random values are used for cryptographic time.
 /// A new random value is generated every `rand_value_ticks` time ticks.
@@ -82,7 +72,7 @@ impl RandValuesStore {
         num_rand_values: usize,
     ) -> Self {
         let rand_values = (0..num_rand_values)
-            .map(|_| RandValue::new(crypt_rng))
+            .map(|_| RandValue::rand_gen(crypt_rng))
             .collect::<VecDeque<RandValue>>();
 
         if num_rand_values == 0 {
@@ -113,7 +103,7 @@ impl RandValuesStore {
             // Remove the oldest rand value:
             self.rand_values.pop_front();
             // Insert a new rand value:
-            self.rand_values.push_back(RandValue::new(crypt_rng));
+            self.rand_values.push_back(RandValue::rand_gen(crypt_rng));
         }
     }
 
@@ -127,6 +117,59 @@ impl RandValuesStore {
     }
 }
 
+pub trait RandGen: Sized {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self;
+}
+
+// TODO: Possibly use a macro here:
+impl RandGen for Salt {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for InvoiceId {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for RandValue {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for PlainLock {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for Uid {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for PaymentId {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::test_utils::DummyRandom;
@@ -137,7 +180,7 @@ mod tests {
         let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
 
         // Generate some unrelated rand value:
-        let rand_value0 = RandValue::new(&rng);
+        let rand_value0 = RandValue::rand_gen(&rng);
 
         let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();

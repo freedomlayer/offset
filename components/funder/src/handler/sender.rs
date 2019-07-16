@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 
-use crypto::identity::PublicKey;
-use crypto::rand::{CryptoRandom, RandValue};
+use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::app_server::messages::RelayAddress;
+use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
     RequestResult, RequestsStatus, TransactionResult,
@@ -210,7 +210,7 @@ fn transmit_outgoing<B>(
     };
 
     let move_token_request = MoveTokenRequest {
-        friend_move_token: move_token,
+        move_token,
         token_wanted,
     };
 
@@ -233,7 +233,7 @@ pub async fn apply_local_reset<'a, B, R>(
     // TODO: How to do this without unwrap?:
     let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms.clone().unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = RandValue::rand_gen(rng);
     let move_token_counter = 0;
 
     let local_pending_debt = 0;
@@ -488,7 +488,7 @@ where
             remove_transaction(m_state, rng, &request_send_funds.request_id);
 
             let transaction_result = TransactionResult {
-                request_id: request_send_funds.request_id,
+                request_id: request_send_funds.request_id.clone(),
                 result: RequestResult::Failure,
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
@@ -784,7 +784,7 @@ async fn send_move_token<'a, B, R>(
 
     let friend = m_state.state().friends.get(&friend_public_key).unwrap();
 
-    let rand_nonce = RandValue::new(rng);
+    let rand_nonce = RandValue::rand_gen(rng);
     let channel_consistent = match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
         ChannelStatus::Inconsistent(_) => unreachable!(),
@@ -817,9 +817,9 @@ async fn send_move_token<'a, B, R>(
         TcDirection::Incoming(_) => unreachable!(),
     };
 
-    let friend_move_token = tc_outgoing.create_outgoing_move_token();
+    let move_token = tc_outgoing.create_outgoing_move_token();
     let move_token_request = MoveTokenRequest {
-        friend_move_token,
+        move_token,
         token_wanted,
     };
 

@@ -1,5 +1,6 @@
-use crypto::hash::HashResult;
-use crypto::rand::{CryptoRandom, RandValue};
+use crypto::rand::{CryptoRandom, RandGen};
+
+use proto::crypto::{HashResult, RandValue};
 
 use super::hash_clock::HashClock;
 use super::ratchet::RatchetPool;
@@ -68,7 +69,7 @@ where
     }
 
     fn tick(&mut self) -> (HashResult, Vec<N>) {
-        let rand_value = RandValue::new(&self.rng);
+        let rand_value = RandValue::rand_gen(&self.rng);
         (self.hash_clock.tick(rand_value), self.ratchet_pool.tick())
     }
 

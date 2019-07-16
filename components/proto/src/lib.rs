@@ -12,20 +12,20 @@
 #[macro_use]
 pub mod macros;
 pub mod app_server;
-#[allow(unused)]
-pub mod capnp_common;
 pub mod consts;
+pub mod crypto;
 pub mod file;
 pub mod funder;
 pub mod index_client;
 pub mod index_server;
 pub mod keepalive;
 pub mod net;
+pub mod proto_ser;
 pub mod relay;
 pub mod report;
 pub mod secure_channel;
 pub mod ser_string;
-pub mod serialize;
+pub mod wrapper;
 
 include_schema!(report_capnp, "report_capnp");
 include_schema!(app_server_capnp, "app_server_capnp");

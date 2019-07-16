@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
-use common::canonical_serialize::CanonicalSerialize;
 use common::mutable_state::MutableState;
+use signature::canonical::CanonicalSerialize;
 
 use futures::channel::mpsc;
 use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
-use crypto::identity::{generate_private_key, PublicKey, SoftwareEd25519Identity, PUBLIC_KEY_LEN};
+use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
-use crypto::uid::{Uid, UID_LEN};
+
+use proto::crypto::{PublicKey, Uid, PUBLIC_KEY_LEN, UID_LEN};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
@@ -235,7 +236,7 @@ where
         loop {
             match await!(self.recv()).unwrap() {
                 NodeRecv::ReportMutations(funder_report_mutations) => {
-                    if funder_report_mutations.opt_app_request_id == Some(app_request_id) {
+                    if funder_report_mutations.opt_app_request_id == Some(app_request_id.clone()) {
                         break;
                     }
                 }
@@ -316,7 +317,7 @@ where
             friend_public_key: friend_public_key.clone(),
             relays,
             name: name.into(),
-            balance,
+            balance: balance.into(),
         };
         await!(self.send(FunderControl::AddFriend(add_friend)));
     }
@@ -340,7 +341,7 @@ where
     ) {
         let set_remote_max_debt = SetFriendRemoteMaxDebt {
             friend_public_key: friend_public_key.clone(),
-            remote_max_debt: remote_max_debt,
+            remote_max_debt: remote_max_debt.into(),
         };
         await!(self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)));
     }
@@ -367,6 +368,7 @@ where
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
         let pred = |report: &FunderReport<_>| {
+            // TODO: get_friend_report() is inefficient
             let friend = match report.friends.get(&friend_public_key) {
                 None => return false,
                 Some(friend) => friend,

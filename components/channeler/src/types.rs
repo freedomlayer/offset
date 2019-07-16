@@ -1,6 +1,7 @@
 use common::access_control::{AccessControl, AccessControlOp};
 use common::conn::ConnPair;
-use crypto::identity::PublicKey;
+
+use proto::crypto::PublicKey;
 
 pub type RawConn = ConnPair<Vec<u8>, Vec<u8>>;
 

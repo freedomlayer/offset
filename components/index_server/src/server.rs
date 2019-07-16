@@ -9,8 +9,7 @@ use futures::{future, select, stream, FutureExt, SinkExt, Stream, StreamExt, Try
 use common::conn::{ConnPair, FutTransform};
 use common::select_streams::{select_streams, BoxStream};
 
-use crypto::identity::PublicKey;
-use crypto::uid::Uid;
+use proto::crypto::{PublicKey, Uid};
 
 use proto::index_server::messages::{
     ForwardMutationsUpdate, IndexClientToServer, IndexMutation, IndexServerToClient,
@@ -19,6 +18,8 @@ use proto::index_server::messages::{
 };
 
 use proto::funder::messages::{FriendsRoute, Rate};
+
+use signature::verify::verify_mutations_update;
 
 use crate::graph::capacity_graph::{CapacityEdge, LinearRate};
 use crate::graph::graph_service::{GraphClient, GraphClientError};
@@ -262,7 +263,7 @@ where
         mut forward_mutations_update: ForwardMutationsUpdate,
     ) -> Result<(), ServerLoopError> {
         // Check the signature:
-        if !forward_mutations_update.mutations_update.verify_signature() {
+        if !verify_mutations_update(&forward_mutations_update.mutations_update) {
             warn!(
                 "{}: handle_forward_mutations_update: Failed verifying signature from server {:?}",
                 self.local_public_key[0], opt_server_public_key
@@ -413,11 +414,15 @@ async fn client_handler(
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
+                let opt_exclude_edge = request_routes
+                    .opt_exclude
+                    .map(|edge| (edge.from_public_key.clone(), edge.to_public_key.clone()));
+
                 let graph_multi_routes = await!(graph_client.get_multi_routes(
                     request_routes.source.clone(),
                     request_routes.destination.clone(),
                     request_routes.capacity,
-                    request_routes.opt_exclude.clone()
+                    opt_exclude_edge,
                 ))?;
                 let multi_routes = graph_multi_routes
                     .into_iter()
@@ -664,17 +669,17 @@ mod tests {
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
-    use crypto::identity::{
-        generate_private_key, PublicKey, Signature, SoftwareEd25519Identity, PUBLIC_KEY_LEN,
-        SIGNATURE_LEN,
-    };
-    use crypto::rand::{RandValue, RAND_VALUE_LEN};
+    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use crypto::uid::UID_LEN;
+    use proto::crypto::{
+        PublicKey, RandValue, Signature, PUBLIC_KEY_LEN, RAND_VALUE_LEN, SIGNATURE_LEN, UID_LEN,
+    };
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};
     use proto::index_server::messages::RequestRoutes;
+
+    use signature::signature_buff::create_mutations_update_signature_buff;
 
     use crate::graph::graph_service::GraphRequest;
     use crate::verifier::simple_verifier::SimpleVerifier;
@@ -808,9 +813,9 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature =
-            await!(identity_client.request_signature(mutations_update.signature_buff().clone()))
-                .unwrap();
+        mutations_update.signature = await!(identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
+        .unwrap();
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 
@@ -1078,9 +1083,9 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature =
-            await!(identity_client.request_signature(mutations_update.signature_buff().clone()))
-                .unwrap();
+        mutations_update.signature = await!(identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
+        .unwrap();
 
         await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
 

@@ -1,55 +1,69 @@
-use im::hashmap::HashMap as ImHashMap;
-use im::vector::Vector as ImVec;
+// use im::hashmap::HashMap as ImHashMap;
+// use im::vector::Vector as ImVec;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 
-use crypto::hash::HashResult;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
+
+use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};
 use crate::net::messages::NetAddress;
+use crate::wrapper::Wrapper;
 
+#[capnp_conv(crate::report_capnp::move_token_hashed_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
     pub prefix_hash: HashResult,
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub move_token_counter: u128,
+    #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub local_pending_debt: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub remote_pending_debt: u128,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
 
+#[capnp_conv(crate::report_capnp::relays_transition_report)]
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalRelaysReport<B = NetAddress>
-where
-    B: Clone,
-{
-    NeverSent,
-    Transition((ImVec<NamedRelayAddress<B>>, ImVec<NamedRelayAddress<B>>)), // (last sent, before last sent)
-    LastSent(ImVec<NamedRelayAddress<B>>),
+pub struct RelaysTransitionReport<B = NetAddress> {
+    pub last_sent: Vec<NamedRelayAddress<B>>,
+    pub before_last_sent: Vec<NamedRelayAddress<B>>,
 }
 
+#[capnp_conv(crate::report_capnp::sent_local_relays_report)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum SentLocalRelaysReport<B = NetAddress> {
+    NeverSent,
+    Transition(RelaysTransitionReport<B>),
+    LastSent(Vec<NamedRelayAddress<B>>),
+}
+
+#[capnp_conv(crate::report_capnp::friend_status_report)]
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
+#[capnp_conv(crate::report_capnp::requests_status_report)]
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
+#[capnp_conv(crate::report_capnp::mc_requests_status_report)]
 #[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
 pub struct McRequestsStatusReport {
     // Local is open/closed for incoming requests:
@@ -58,21 +72,28 @@ pub struct McRequestsStatusReport {
     pub remote: RequestsStatusReport,
 }
 
+#[capnp_conv(crate::report_capnp::mc_balance_report)]
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
+    #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128,
     /// Maximum possible local debt
+    #[capnp_conv(with = Wrapper<u128>)]
     pub local_max_debt: u128,
     /// Maximum possible remote debt
+    #[capnp_conv(with = Wrapper<u128>)]
     pub remote_max_debt: u128,
     /// Frozen credits by our side
+    #[capnp_conv(with = Wrapper<u128>)]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
+    #[capnp_conv(with = Wrapper<u128>)]
     pub remote_pending_debt: u128,
 }
 
+#[capnp_conv(crate::report_capnp::direction_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DirectionReport {
     Incoming,
@@ -97,6 +118,7 @@ impl DirectionReport {
     }
 }
 
+#[capnp_conv(crate::report_capnp::friend_liveness_report)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
     Online,
@@ -113,6 +135,7 @@ impl FriendLivenessReport {
     }
 }
 
+#[capnp_conv(crate::report_capnp::tc_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TcReport {
     pub direction: DirectionReport,
@@ -122,18 +145,50 @@ pub struct TcReport {
     pub num_remote_pending_requests: u64,
 }
 
+#[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
+    #[capnp_conv(with = Wrapper<i128>)]
     pub balance_for_reset: i128,
 }
 
+#[capnp_conv(crate::report_capnp::channel_inconsistent_report::opt_remote_reset_terms)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OptRemoteResetTerms {
+    RemoteResetTerms(ResetTermsReport),
+    Empty,
+}
+
+// TODO: Replace with a macro:
+impl From<Option<ResetTermsReport>> for OptRemoteResetTerms {
+    fn from(opt: Option<ResetTermsReport>) -> Self {
+        match opt {
+            Some(reset_terms_report) => OptRemoteResetTerms::RemoteResetTerms(reset_terms_report),
+            None => OptRemoteResetTerms::Empty,
+        }
+    }
+}
+
+impl From<OptRemoteResetTerms> for Option<ResetTermsReport> {
+    fn from(opt: OptRemoteResetTerms) -> Self {
+        match opt {
+            OptRemoteResetTerms::RemoteResetTerms(reset_terms_report) => Some(reset_terms_report),
+            OptRemoteResetTerms::Empty => None,
+        }
+    }
+}
+
+#[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
+    #[capnp_conv(with = Wrapper<i128>)]
     pub local_reset_terms_balance: i128,
+    #[capnp_conv(with = OptRemoteResetTerms)]
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
+#[capnp_conv(crate::report_capnp::channel_consistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelConsistentReport {
     pub tc_report: TcReport,
@@ -142,91 +197,192 @@ pub struct ChannelConsistentReport {
     pub num_pending_user_requests: u64,
 }
 
+#[capnp_conv(crate::report_capnp::channel_status_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
     Consistent(ChannelConsistentReport),
 }
 
+#[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::report_capnp::opt_last_incoming_move_token)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FriendReport<B = NetAddress>
-where
-    B: Clone,
-{
+pub enum OptLastIncomingMoveToken {
+    MoveTokenHashed(MoveTokenHashedReport),
+    Empty,
+}
+
+// TODO: Replace with a macro:
+impl From<Option<MoveTokenHashedReport>> for OptLastIncomingMoveToken {
+    fn from(opt: Option<MoveTokenHashedReport>) -> Self {
+        match opt {
+            Some(move_token_hashed_report) => {
+                OptLastIncomingMoveToken::MoveTokenHashed(move_token_hashed_report)
+            }
+            None => OptLastIncomingMoveToken::Empty,
+        }
+    }
+}
+
+impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
+    fn from(opt: OptLastIncomingMoveToken) -> Self {
+        match opt {
+            OptLastIncomingMoveToken::MoveTokenHashed(move_token_hashed_report) => {
+                Some(move_token_hashed_report)
+            }
+            OptLastIncomingMoveToken::Empty => None,
+        }
+    }
+}
+
+#[capnp_conv(crate::report_capnp::friend_report)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FriendReport<B = NetAddress> {
     pub name: String,
     pub rate: Rate,
     pub remote_relays: Vec<RelayAddress<B>>,
     pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     // TODO: The state of liveness = true with status = disabled should never happen.
     // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub wanted_remote_max_debt: u128,
     pub wanted_local_requests_status: RequestsStatusReport,
     pub status: FriendStatusReport,
 }
 
+#[capnp_conv(crate::report_capnp::pk_friend_report)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PkFriendReport<B = NetAddress> {
+    pub friend_public_key: PublicKey,
+    pub friend_report: FriendReport<B>,
+}
+
+#[capnp_conv(crate::report_capnp::pk_friend_report_list)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PkFriendReportList {
+    list: Vec<PkFriendReport<NetAddress>>,
+}
+
+impl From<PkFriendReportList> for HashMap<PublicKey, FriendReport<NetAddress>> {
+    fn from(friends_vec: PkFriendReportList) -> Self {
+        friends_vec
+            .list
+            .into_iter()
+            .map(|pk_friend_report| {
+                (
+                    pk_friend_report.friend_public_key,
+                    pk_friend_report.friend_report,
+                )
+            })
+            .collect()
+    }
+}
+
+impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
+    fn from(hash_map: HashMap<PublicKey, FriendReport<NetAddress>>) -> Self {
+        PkFriendReportList {
+            list: hash_map
+                .into_iter()
+                .map(|(friend_public_key, friend_report)| {
+                    (PkFriendReport {
+                        friend_public_key,
+                        friend_report,
+                    })
+                })
+                .collect(),
+        }
+    }
+}
+
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offst node.
+#[capnp_conv(crate::report_capnp::funder_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
-pub struct FunderReport<B = NetAddress>
-where
-    B: Clone,
-{
+pub struct FunderReport<B = NetAddress> {
     pub local_public_key: PublicKey,
-    pub relays: ImVec<NamedRelayAddress<B>>,
-    pub friends: ImHashMap<PublicKey, FriendReport<B>>,
+    pub relays: Vec<NamedRelayAddress<B>>,
+    #[capnp_conv(with = PkFriendReportList)]
+    pub friends: HashMap<PublicKey, FriendReport<B>>,
     pub num_open_invoices: u64,
     pub num_payments: u64,
     pub num_open_transactions: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::report_capnp::friend_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FriendReportMutation<B = NetAddress>
-where
-    B: Clone,
-{
+pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
     SetRate(Rate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
+    #[capnp_conv(with = Wrapper<u128>)]
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetNumPendingRequests(u64),
     SetNumPendingBackwardsOps(u64),
     SetNumPendingUserRequests(u64),
     SetStatus(FriendStatusReport),
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
 }
 
+#[capnp_conv(crate::report_capnp::add_friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
+    #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128, // Initial balance
+    #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
 }
 
+#[capnp_conv(crate::report_capnp::pk_friend_report_mutation)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PkFriendReportMutation<B = NetAddress> {
+    friend_public_key: PublicKey,
+    friend_report_mutation: FriendReportMutation<B>,
+}
+
+impl From<PkFriendReportMutation> for (PublicKey, FriendReportMutation) {
+    fn from(input: PkFriendReportMutation) -> Self {
+        (input.friend_public_key, input.friend_report_mutation)
+    }
+}
+
+impl From<(PublicKey, FriendReportMutation)> for PkFriendReportMutation {
+    fn from(
+        (friend_public_key, friend_report_mutation): (PublicKey, FriendReportMutation),
+    ) -> Self {
+        Self {
+            friend_public_key,
+            friend_report_mutation,
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
+#[capnp_conv(crate::report_capnp::funder_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FunderReportMutation<B = NetAddress>
-where
-    B: Clone,
-{
+pub enum FunderReportMutation<B = NetAddress> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
-    FriendReportMutation((PublicKey, FriendReportMutation<B>)),
+    #[capnp_conv(with = PkFriendReportMutation<NetAddress>)]
+    PkFriendReportMutation((PublicKey, FriendReportMutation<B>)),
     SetNumOpenInvoices(u64),
     SetNumPayments(u64),
     SetNumOpenTransactions(u64),
@@ -350,7 +506,7 @@ where
                     cur_named_relay_address.public_key != named_relay_address.public_key
                 });
                 // Insert:
-                self.relays.push_back(named_relay_address.clone());
+                self.relays.push(named_relay_address.clone());
                 Ok(())
             }
             FunderReportMutation::RemoveRelay(public_key) => {
@@ -393,7 +549,7 @@ where
                     Ok(())
                 }
             }
-            FunderReportMutation::FriendReportMutation((
+            FunderReportMutation::PkFriendReportMutation((
                 friend_public_key,
                 friend_report_mutation,
             )) => {

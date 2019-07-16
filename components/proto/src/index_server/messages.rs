@@ -1,31 +1,68 @@
 use serde::{Deserialize, Serialize};
 
-use crypto::hash::HashResult;
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
-use crypto::uid::Uid;
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
+use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
+use crate::wrapper::Wrapper;
+
+#[capnp_conv(crate::index_capnp::edge)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Edge {
+    pub from_public_key: PublicKey,
+    pub to_public_key: PublicKey,
+}
+
+#[capnp_conv(crate::index_capnp::request_routes::opt_exclude)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum OptExclude {
+    Empty,
+    Edge(Edge),
+}
+
+// TODO: Replace with a macro:
+impl From<Option<Edge>> for OptExclude {
+    fn from(opt: Option<Edge>) -> Self {
+        match opt {
+            Some(edge) => OptExclude::Edge(edge),
+            None => OptExclude::Empty,
+        }
+    }
+}
+
+impl From<OptExclude> for Option<Edge> {
+    fn from(opt: OptExclude) -> Self {
+        match opt {
+            OptExclude::Edge(edge) => Some(edge),
+            OptExclude::Empty => None,
+        }
+    }
+}
 
 /// IndexClient -> IndexServer
+#[capnp_conv(crate::index_capnp::request_routes)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
     /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
+    #[capnp_conv(with = Wrapper<u128>)]
     pub capacity: u128,
     pub source: PublicKey,
     pub destination: PublicKey,
     /// This directed edge must not show up any any route inside the multi-route.
     /// Useful for finding non trivial directed loops.
-    pub opt_exclude: Option<(PublicKey, PublicKey)>,
+    #[capnp_conv(with = OptExclude)]
+    pub opt_exclude: Option<Edge>,
 }
 
+#[capnp_conv(crate::index_capnp::route_capacity_rate)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
+    #[capnp_conv(with = Wrapper<u128>)]
     pub capacity: u128,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,
@@ -33,12 +70,14 @@ pub struct RouteCapacityRate {
 
 /// Multiple routes that together allow to pass a certain amount of credits to a destination.
 /// All routes must have the same beginning and the same end.
+#[capnp_conv(crate::index_capnp::multi_route)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct MultiRoute {
     pub routes: Vec<RouteCapacityRate>,
 }
 
 /// IndexServer -> IndexClient
+#[capnp_conv(crate::index_capnp::response_routes)]
 #[derive(Debug, Clone)]
 pub struct ResponseRoutes {
     pub request_id: Uid,
@@ -47,13 +86,16 @@ pub struct ResponseRoutes {
     pub multi_routes: Vec<MultiRoute>,
 }
 
+#[capnp_conv(crate::index_capnp::update_friend)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateFriend {
     /// Friend's public key
     pub public_key: PublicKey,
     /// To denote remote requests closed, assign 0 to sendCapacity
+    #[capnp_conv(with = Wrapper<u128>)]
     pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
+    #[capnp_conv(with = Wrapper<u128>)]
     pub recv_capacity: u128,
     /// The rate we charge for forwarding messages to another friend from this friend.
     /// For example, in the following diagram we are X and A is the friend we are updating:
@@ -66,12 +108,14 @@ pub struct UpdateFriend {
 }
 
 /// IndexClient -> IndexServer
+#[capnp_conv(crate::index_capnp::index_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexMutation {
     UpdateFriend(UpdateFriend),
     RemoveFriend(PublicKey),
 }
 
+#[capnp_conv(crate::index_capnp::mutations_update)]
 #[derive(Debug, Clone)]
 pub struct MutationsUpdate {
     /// Public key of the node sending the mutations.
@@ -98,6 +142,7 @@ pub struct MutationsUpdate {
     pub signature: Signature,
 }
 
+#[capnp_conv(crate::index_capnp::time_proof_link)]
 #[derive(Debug, Clone)]
 pub struct TimeProofLink {
     /// List of hashes that produce a certain hash
@@ -105,6 +150,7 @@ pub struct TimeProofLink {
     pub hashes: Vec<HashResult>,
 }
 
+#[capnp_conv(crate::index_capnp::forward_mutations_update)]
 #[derive(Debug, Clone)]
 pub struct ForwardMutationsUpdate {
     pub mutations_update: MutationsUpdate,
@@ -116,18 +162,21 @@ pub struct ForwardMutationsUpdate {
     pub time_proof_chain: Vec<TimeProofLink>,
 }
 
+#[capnp_conv(crate::index_capnp::index_server_to_client)]
 #[derive(Debug)]
 pub enum IndexServerToClient {
     TimeHash(HashResult),
     ResponseRoutes(ResponseRoutes),
 }
 
+#[capnp_conv(crate::index_capnp::index_client_to_server)]
 #[derive(Debug)]
 pub enum IndexClientToServer {
     MutationsUpdate(MutationsUpdate),
     RequestRoutes(RequestRoutes),
 }
 
+#[capnp_conv(crate::index_capnp::index_server_to_server)]
 #[derive(Debug)]
 pub enum IndexServerToServer {
     TimeHash(HashResult),
@@ -137,6 +186,7 @@ pub enum IndexServerToServer {
 // ----------------------------------------------
 // ----------------------------------------------
 
+#[capnp_conv(crate::common_capnp::named_index_server_address)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamedIndexServerAddress<ISA = NetAddress> {
     pub public_key: PublicKey,

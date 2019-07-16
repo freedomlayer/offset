@@ -1,9 +1,9 @@
-use common::canonical_serialize::CanonicalSerialize;
+use signature::canonical::CanonicalSerialize;
 use std::fmt::Debug;
 
-use crypto::identity::{PublicKey, Signature, SIGNATURE_LEN};
-use crypto::rand::CryptoRandom;
-use crypto::uid::Uid;
+use crypto::rand::{CryptoRandom, RandGen};
+
+use proto::crypto::{PublicKey, Signature, Uid, SIGNATURE_LEN};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -11,7 +11,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
-use proto::funder::signature_buff::{prepare_commit, prepare_receipt, verify_move_token};
+use signature::verify::verify_move_token;
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingCollectSendFundsOp, IncomingMessage,
@@ -32,6 +32,7 @@ use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
     remove_transaction, reply_with_cancel,
 };
+use crate::handler::prepare::{prepare_commit, prepare_receipt};
 use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 use crate::handler::utils::{find_request_origin, is_friend_ready};
@@ -49,7 +50,7 @@ where
 {
     let mut buff = [0; SIGNATURE_LEN];
     rng.fill(&mut buff).unwrap();
-    Signature::from(buff)
+    Signature::from(&buff)
 }
 
 pub fn gen_reset_terms<B, R>(token_channel: &TokenChannel<B>, rng: &R) -> ResetTerms
@@ -81,7 +82,7 @@ pub fn try_reset_channel<B>(
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let move_token = &move_token_request.friend_move_token;
+    let move_token = &move_token_request.move_token;
 
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token
@@ -202,7 +203,7 @@ fn handle_request_send_funds<B>(
     let rate = &m_state.state().friends.get(remote_public_key).unwrap().rate;
     let opt_local_fee = rate.calc_fee(request_send_funds.dest_payment);
 
-    let request_id = request_send_funds.request_id;
+    let request_id = request_send_funds.request_id.clone();
 
     // Make sure that calc_fee() worked, and that we can take this amount of credits:
     let opt_request_send_funds = if let Some(local_fee) = opt_local_fee {
@@ -352,7 +353,7 @@ fn handle_collect_send_funds<B, R>(
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,
                     );
-                    let ack_uid = Uid::new(rng);
+                    let ack_uid = Uid::rand_gen(rng);
                     Some(Payment::Success((
                         new_transactions.num_transactions.checked_sub(1).unwrap(),
                         receipt,
@@ -366,7 +367,7 @@ fn handle_collect_send_funds<B, R>(
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,
                     );
-                    let ack_uid = Uid::new(rng);
+                    let ack_uid = Uid::rand_gen(rng);
                     Some(Payment::Success((
                         num_transactions.checked_sub(1).unwrap(),
                         receipt,
@@ -376,7 +377,7 @@ fn handle_collect_send_funds<B, R>(
                 Payment::Success((num_transactions, receipt, ack_uid)) => Some(Payment::Success((
                     num_transactions.checked_sub(1).unwrap(),
                     receipt.clone(),
-                    *ack_uid,
+                    ack_uid.clone(),
                 ))),
                 Payment::Canceled(_) => unreachable!(),
                 Payment::AfterSuccessAck(num_transactions) => {
@@ -391,15 +392,16 @@ fn handle_collect_send_funds<B, R>(
 
             let funder_mutation = if let Some(new_payment) = opt_new_payment {
                 // Update payment:
-                FunderMutation::UpdatePayment((open_transaction.payment_id, new_payment))
+                FunderMutation::UpdatePayment((open_transaction.payment_id.clone(), new_payment))
             } else {
-                FunderMutation::RemovePayment(open_transaction.payment_id)
+                FunderMutation::RemovePayment(open_transaction.payment_id.clone())
                 // Remove payment:
             };
             m_state.mutate(funder_mutation);
 
             // Remove transaction:
-            let funder_mutation = FunderMutation::RemoveTransaction(collect_send_funds.request_id);
+            let funder_mutation =
+                FunderMutation::RemoveTransaction(collect_send_funds.request_id.clone());
             m_state.mutate(funder_mutation);
         }
         Some(friend_public_key) => {
@@ -691,7 +693,7 @@ where
 
     // We will only consider move token messages if we are in a consistent state:
     let receive_move_token_res =
-        token_channel.simulate_receive_move_token(friend_move_token_request.friend_move_token);
+        token_channel.simulate_receive_move_token(friend_move_token_request.move_token);
     let token_wanted = friend_move_token_request.token_wanted;
 
     match receive_move_token_res {

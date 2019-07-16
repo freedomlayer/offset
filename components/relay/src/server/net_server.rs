@@ -10,8 +10,8 @@ use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
 use proto::consts::{CONN_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::crypto::PublicKey;
 
-use crypto::identity::PublicKey;
 use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;

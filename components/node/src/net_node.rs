@@ -8,13 +8,12 @@ use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use crypto::identity::PublicKey;
 use crypto::rand::CryptoRandom;
+use proto::crypto::PublicKey;
 
-use proto::app_server::messages::AppPermissions;
-use proto::app_server::serialize::{
-    deserialize_app_to_app_server, serialize_app_permissions, serialize_app_server_to_app,
-};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
+use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
+
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::net::messages::NetAddress;
 
@@ -113,16 +112,17 @@ where
             let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
 
             // Tell app about its permissions: (TODO: Is this required?)
-            await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
+            // await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
+            await!(sender.send(app_permissions.proto_serialize())).ok()?;
 
             // serialization:
-            let (user_sender, mut from_user_sender) = mpsc::channel(0);
+            let (user_sender, mut from_user_sender) = mpsc::channel::<AppServerToApp>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = self.spawner.spawn(async move {
                 while let Some(data) = await!(receiver.next()) {
-                    let message = match deserialize_app_to_app_server(&data) {
+                    let message = match AppToAppServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => return,
                     };
@@ -135,7 +135,8 @@ where
             // Serialize sent data:
             let _ = self.spawner.spawn(async move {
                 while let Some(message) = await!(from_user_sender.next()) {
-                    let data = serialize_app_server_to_app(&message);
+                    // let data = serialize_app_server_to_app(&message);
+                    let data = message.proto_serialize();
                     if await!(sender.send(data)).is_err() {
                         return;
                     }

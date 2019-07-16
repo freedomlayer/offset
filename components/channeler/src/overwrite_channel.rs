@@ -1,7 +1,8 @@
 use core::pin::Pin;
+use std::marker::Unpin;
+
 use futures::task::{Context, Poll};
 use futures::{Future, Sink, Stream, StreamExt};
-use std::marker::Unpin;
 
 struct OverwriteChannel<T, M, K> {
     opt_item: Option<T>,

@@ -1,13 +1,10 @@
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
-use app::invoice::InvoiceId;
-use app::{
-    Commit, HashResult, HashedLock, MultiCommit, PlainLock, PublicKey, RandValue, Receipt,
-    Signature,
+use app::crypto::{
+    HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
 };
-
-use app::payment::PaymentId;
 use app::report::MoveTokenHashedReport;
+use app::{Commit, MultiCommit, Receipt};
 
 use mutual_from::mutual_from;
 

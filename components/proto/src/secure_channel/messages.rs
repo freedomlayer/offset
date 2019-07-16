@@ -1,13 +1,9 @@
-use crypto::dh::{DhPublicKey, Salt};
-use crypto::identity::{PublicKey, Signature};
-use crypto::rand::RandValue;
+use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct EncryptedData(pub Vec<u8>);
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct PlainData(pub Vec<u8>);
+use crate::crypto::{DhPublicKey, PublicKey, RandValue, Salt, Signature};
 
 /// First Diffie-Hellman message:
+#[capnp_conv(crate::dh_capnp::exchange_rand_nonce)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeRandNonce {
     pub rand_nonce: RandValue,
@@ -15,6 +11,7 @@ pub struct ExchangeRandNonce {
 }
 
 /// Second Diffie-Hellman message:
+#[capnp_conv(crate::dh_capnp::exchange_dh)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeDh {
     pub dh_public_key: DhPublicKey,
@@ -33,18 +30,21 @@ impl ExchangeDh {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[capnp_conv(crate::dh_capnp::rekey)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Rekey {
     pub dh_public_key: DhPublicKey,
     pub key_salt: Salt,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[capnp_conv(crate::dh_capnp::channel_content)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ChannelContent {
     Rekey(Rekey),
-    User(PlainData),
+    User(Vec<u8>),
 }
 
+#[capnp_conv(crate::dh_capnp::channel_message)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ChannelMessage {
     pub rand_padding: Vec<u8>,

@@ -9,7 +9,9 @@ use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamEx
 
 use common::conn::{FutTransform, Listener};
 use common::select_streams::{select_streams, BoxStream};
-use crypto::identity::{compare_public_key, PublicKey};
+use crypto::identity::compare_public_key;
+
+use proto::crypto::PublicKey;
 use proto::funder::messages::{ChannelerToFunder, ChannelerUpdateFriend, FunderToChanneler};
 
 use crate::connect_pool::{ConnectPoolControl, CpConfigClient, CpConnectClient};
@@ -524,7 +526,7 @@ mod tests {
 
     use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;
-    use crypto::identity::{PublicKey, PUBLIC_KEY_LEN};
+    use proto::crypto::{PublicKey, PUBLIC_KEY_LEN};
 
     /// Test the case of a friend the channeler initiates connection to.
     async fn task_channeler_loop_connect_friend<S>(mut spawner: S)

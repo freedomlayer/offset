@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use common::mutable_state::MutableState;
 use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 
-use crypto::identity::PublicKey;
+use crate::crypto::PublicKey;
 
 use crate::index_client::messages::{FriendInfo, IndexClientState};
 use crate::index_server::messages::{IndexMutation, UpdateFriend};
@@ -148,7 +148,7 @@ where
         FunderReportMutation::RemoveFriend(public_key) => {
             Some(IndexMutation::RemoveFriend(public_key.clone()))
         }
-        FunderReportMutation::FriendReportMutation((public_key, _friend_report_mutation)) => {
+        FunderReportMutation::PkFriendReportMutation((public_key, _friend_report_mutation)) => {
             create_update_friend(&public_key)
         }
     }

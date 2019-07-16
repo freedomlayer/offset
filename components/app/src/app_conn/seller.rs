@@ -2,9 +2,9 @@ use common::multi_consumer::MultiConsumerClient;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 
-use crypto::invoice_id::InvoiceId;
-use crypto::rand::{CryptoRandom, OffstSystemRandom};
-use crypto::uid::Uid;
+use proto::crypto::{InvoiceId, Uid};
+
+use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{AddInvoice, MultiCommit};
@@ -51,13 +51,13 @@ where
         invoice_id: InvoiceId,
         total_dest_payment: u128,
     ) -> Result<(), SellerError> {
-        let app_request_id = Uid::new(&self.rng);
+        let app_request_id = Uid::rand_gen(&self.rng);
         let add_invoice = AddInvoice {
             invoice_id,
             total_dest_payment,
         };
         let to_app_server =
-            AppToAppServer::new(app_request_id, AppRequest::AddInvoice(add_invoice));
+            AppToAppServer::new(app_request_id.clone(), AppRequest::AddInvoice(add_invoice));
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
@@ -77,9 +77,11 @@ where
     }
 
     pub async fn cancel_invoice(&mut self, invoice_id: InvoiceId) -> Result<(), SellerError> {
-        let app_request_id = Uid::new(&self.rng);
-        let to_app_server =
-            AppToAppServer::new(app_request_id, AppRequest::CancelInvoice(invoice_id));
+        let app_request_id = Uid::rand_gen(&self.rng);
+        let to_app_server = AppToAppServer::new(
+            app_request_id.clone(),
+            AppRequest::CancelInvoice(invoice_id),
+        );
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
@@ -99,9 +101,11 @@ where
     }
 
     pub async fn commit_invoice(&mut self, multi_commit: MultiCommit) -> Result<(), SellerError> {
-        let app_request_id = Uid::new(&self.rng);
-        let to_app_server =
-            AppToAppServer::new(app_request_id, AppRequest::CommitInvoice(multi_commit));
+        let app_request_id = Uid::rand_gen(&self.rng);
+        let to_app_server = AppToAppServer::new(
+            app_request_id.clone(),
+            AppRequest::CommitInvoice(multi_commit),
+        );
 
         // Start listening to done requests:
         let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())

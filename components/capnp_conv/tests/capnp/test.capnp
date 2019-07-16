@@ -9,6 +9,7 @@ struct TestUnion {
         variantOne @0: UInt64;
         variantTwo @1: TestStructInner;
         variantThree @2: Void;
+        variantFour @3: Text;
     }
 }
 
@@ -16,7 +17,12 @@ struct ListUnion {
     union {
         empty @0: Void;
         withList @1: List(TestStructInner);
-        testUnion @2: TestUnion;
+        withData @2: Data;
+        testUnion @3: TestUnion;
+        inlineInnerUnion: union {
+                ab @4: UInt32;
+                cd @5: UInt64;
+        }
     }
 }
 
@@ -49,4 +55,55 @@ struct TestStruct {
 struct FloatStruct {
     myFloat32 @0: Float32;
     myFloat64 @1: Float64;
+}
+
+struct GenericStruct {
+    a @0: UInt32;
+    b @1: UInt64;
+    c @2: UInt8;
+    d @3: Data;
+    e @4: List(TestStructInner);
+    f @5: TestStructInner;
+}
+
+struct GenericEnum {
+    union {
+        varA @0: UInt32;
+        varB @1: TestStructInner;
+        varC @2: UInt64;
+        varD @3: Data;
+    }
+}
+
+struct InnerGeneric {
+    a @0: UInt32;
+}
+
+struct ListGeneric {
+    list @0: List(InnerGeneric);
+}
+
+# A custom made 128 bit data structure.
+struct Buffer128 {
+        x0 @0: UInt64;
+        x1 @1: UInt64;
+}
+
+# Unsigned 128 bit integer
+struct CustomUInt128 {
+        inner @0: Buffer128;
+}
+
+
+struct TestWithStruct {
+        a @0: CustomUInt128;
+        b @1: UInt64;
+}
+
+struct TestWithEnum {
+    union {
+        varA @0: CustomUInt128;
+        varB @1: UInt64;
+        varC @2: Void;
+    }
 }
