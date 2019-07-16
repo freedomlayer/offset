@@ -1,3 +1,5 @@
+// TODO: Could we have the length of the array as a const function?
+
 #[macro_export]
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
