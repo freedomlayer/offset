@@ -40,8 +40,7 @@ node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 
 toml = "0.4.10"
-serde_derive = "1.0.87"
-serde = "1.0.87"
+serde = {version = "1.0.87", features = ["derive"]}
 base64 = "0.10.1"
 
 log = "0.4"
