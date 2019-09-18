@@ -48,7 +48,7 @@ where
     let mut incoming_events = select(incoming, close_receiver);
     let mut num_concurrent: usize = 0;
     let mut incoming_closed = false;
-    while let Some(event) = await!(incoming_events.next()) {
+    while let Some(event) = incoming_events.next().await {
         match event {
             TransformPoolEvent::Incoming(input_value) => {
                 if num_concurrent >= max_concurrent {
@@ -61,10 +61,10 @@ where
                 let mut c_transform = transform.clone();
                 let mut c_close_sender = close_sender.clone();
                 let fut = async move {
-                    if let Some(output_value) = await!(c_transform.transform(input_value)) {
-                        let _ = await!(c_outgoing.send(output_value));
+                    if let Some(output_value) = c_transform.transform(input_value).await {
+                        let _ = c_outgoing.send(output_value).await;
                     }
-                    let _ = await!(c_close_sender.send(()));
+                    let _ = c_close_sender.send(()).await;
                 };
                 spawner
                     .spawn(fut)

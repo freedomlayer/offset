@@ -1,4 +1,4 @@
-#![feature(async_await, await_macro, arbitrary_self_types)]
+#![feature(arbitrary_self_types)]
 #![feature(generators)]
 #![feature(nll)]
 #![crate_type = "lib"]

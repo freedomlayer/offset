@@ -36,10 +36,13 @@ impl<ST, MU> StateClient<ST, MU> {
         let (response_sender, response_receiver) = oneshot::channel();
         let state_request = StateRequest { response_sender };
 
-        await!(self.request_sender.send(state_request))
+        self.request_sender.send(state_request)
+            .await
             .map_err(|_| StateClientError::SendRequestError)?;
 
-        Ok(await!(response_receiver).map_err(|_| StateClientError::ReceiveResponseError)?)
+        Ok(response_receiver
+            .await
+            .map_err(|_| StateClientError::ReceiveResponseError)?)
     }
 }
 
@@ -75,7 +78,7 @@ where
     let mut senders: Vec<mpsc::Sender<MU>> = Vec::new();
     let mut incoming_requests_closed: bool = false;
 
-    while let Some(event) = await!(incoming.next()) {
+    while let Some(event) = incoming.next().await {
         match event {
             Event::IncomingRequest(request) => {
                 let (sender, receiver) = mpsc::channel(0);
@@ -97,7 +100,7 @@ where
                 // Update all clients about state change:
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
-                    if await!(sender.send(mutation.clone())).is_ok() {
+                    if sender.send(mutation.clone()).await.is_ok() {
                         // We only retain the sender if no error have occurred:
                         new_senders.push(sender)
                     }

@@ -32,11 +32,14 @@ impl<T> MultiConsumerClient<T> {
         let multi_consumer_request = MultiConsumerRequest { response_sender };
 
         // Send request:
-        await!(self.request_sender.send(multi_consumer_request))
+        self.request_sender.send(multi_consumer_request)
+            .await
             .map_err(|_| MultiConsumerClientError::SendError)?;
 
         // Wait for response:
-        await!(response_receiver).map_err(|_| MultiConsumerClientError::ReceiveError)
+        response_receiver
+            .await
+            .map_err(|_| MultiConsumerClientError::ReceiveError)
     }
 }
 
@@ -73,12 +76,12 @@ where
     let mut incoming_requests_closed = false;
     let mut senders: Vec<mpsc::Sender<T>> = Vec::new();
 
-    while let Some(event) = await!(incoming.next()) {
+    while let Some(event) = incoming.next().await {
         match event {
             Event::IncomingItem(t) => {
                 let mut new_senders = Vec::new();
                 for mut sender in senders {
-                    if await!(sender.send(t.clone())).is_ok() {
+                    if sender.send(t.clone()).await.is_ok() {
                         new_senders.push(sender);
                     }
                 }
