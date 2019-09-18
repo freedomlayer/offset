@@ -141,10 +141,10 @@ async fn send_full_state(
     mut seq_friends_client: SeqFriendsClient,
     mut control_sender: ControlSender,
 ) -> Result<(), IndexClientError> {
-    await!(seq_friends_client.reset_countdown()).map_err(|_| IndexClientError::SeqFriendsError)?;
+    seq_friends_client.reset_countdown().await.map_err(|_| IndexClientError::SeqFriendsError)?;
 
     loop {
-        let next_update_res = await!(seq_friends_client.next_update())
+        let next_update_res = seq_friends_client.next_update().await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
         let (cyclic_countdown, update_friend) = match next_update_res {
@@ -155,7 +155,7 @@ async fn send_full_state(
         // TODO: Maybe send mutations in batches in the future:
         // However, we need to be careful to not send too many mutations in one batch.
         let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
-        if await!(control_sender.send(SingleClientControl::SendMutations(mutations))).is_err() {
+        if control_sender.send(SingleClientControl::SendMutations(mutations)).await.is_err() {
             break;
         }
         // Note that here we can not reset the ticks_to_send_keepalive counter because we are
@@ -254,7 +254,7 @@ where
 
         // TODO: Can we remove the Box::pin() from here? How?
         let connect_fut = Box::pin(async move {
-            let res = await!(c_index_client_session.transform(index_server))?;
+            let res = c_index_client_session.transform(index_server).await?;
             let (control_sender, close_receiver) = res;
 
             let c_control_sender = control_sender.clone();
@@ -276,8 +276,8 @@ where
             c_spawner.spawn(send_full_state_cancellable_fut).ok()?;
 
             let _ =
-                await!(c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)));
-            let _ = await!(close_receiver);
+                c_event_sender.send(IndexClientEvent::IndexServerConnected(control_sender)).await;
+            let _ = close_receiver.await;
             Some(())
         });
 
@@ -293,10 +293,10 @@ where
             // Cancel send_full_state() task:
             let _ = sfs_cancel_sender.send(());
             // Wait until send_full_state() task is done:
-            let _ = await!(sfs_done_receiver);
+            let _ = sfs_done_receiver.await;
 
             // Notify main task about closed connection:
-            let _ = await!(c_event_sender.send(IndexClientEvent::IndexServerClosed));
+            let _ = c_event_sender.send(IndexClientEvent::IndexServerClosed).await;
         };
 
         self.spawner
@@ -312,11 +312,11 @@ where
             request_id,
             result: ResponseRoutesResult::Failure,
         };
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ResponseRoutes(
                 client_response_routes
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
@@ -326,11 +326,11 @@ where
         named_index_server_address: NamedIndexServerAddress<ISA>,
     ) -> Result<(), IndexClientError> {
         // Update database:
-        await!(self
+        self
             .db_client
             .mutate(vec![IndexClientConfigMutation::AddIndexServer(
                 named_index_server_address.clone()
-            )]))
+            )]).await
         .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Add new server_address to memory:
@@ -349,11 +349,11 @@ where
             opt_app_request_id: Some(app_request_id),
             mutations: vec![index_client_report_mutation],
         };
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ReportMutations(
                 index_client_report_mutations
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         if let ConnStatus::Empty(_) = self.conn_status {
@@ -371,11 +371,11 @@ where
         public_key: PublicKey,
     ) -> Result<(), IndexClientError> {
         // Update database:
-        await!(self
+        self
             .db_client
             .mutate(vec![IndexClientConfigMutation::RemoveIndexServer(
                 public_key.clone()
-            )]))
+            )]).await
         .map_err(|_| IndexClientError::DatabaseError)?;
 
         // Remove address:
@@ -389,11 +389,11 @@ where
             opt_app_request_id: Some(app_request_id),
             mutations: vec![index_client_report_mutation],
         };
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ReportMutations(
                 index_client_report_mutations
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         // Disconnect a current server connection if it uses the removed address:
@@ -426,28 +426,28 @@ where
             opt_app_request_id: Some(app_request_id),
             mutations: Vec::new(),
         };
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ReportMutations(
                 index_client_report_mutations
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         if self.num_open_requests >= self.max_open_requests {
-            return await!(self.return_response_routes_failure(request_routes.request_id));
+            return self.return_response_routes_failure(request_routes.request_id).await;
         }
 
         // Check server connection status:
         let mut server_connected = match &mut self.conn_status {
             ConnStatus::Empty(_) | ConnStatus::Connecting(_) => {
-                return await!(self.return_response_routes_failure(request_routes.request_id))
+                return self.return_response_routes_failure(request_routes.request_id).await
             }
             ConnStatus::Connected(server_connected) => server_connected,
         };
 
         let mut control_sender = match server_connected.opt_control_sender.take() {
             Some(control_sender) => control_sender,
-            None => return await!(self.return_response_routes_failure(request_routes.request_id)),
+            None => return self.return_response_routes_failure(request_routes.request_id).await,
         };
 
         let c_request_id = request_routes.request_id.clone();
@@ -455,22 +455,22 @@ where
         let single_client_control =
             SingleClientControl::RequestRoutes((request_routes, response_sender));
 
-        match await!(control_sender.send(single_client_control)) {
+        match control_sender.send(single_client_control).await {
             Ok(()) => server_connected.opt_control_sender = Some(control_sender),
-            Err(_) => return await!(self.return_response_routes_failure(c_request_id)),
+            Err(_) => return self.return_response_routes_failure(c_request_id).await,
         };
 
         let mut c_event_sender = self.event_sender.clone();
         let request_fut = async move {
-            let response_routes_result = match await!(response_receiver) {
+            let response_routes_result = match response_receiver.await {
                 Ok(routes) => ResponseRoutesResult::Success(routes),
                 Err(_) => ResponseRoutesResult::Failure,
             };
             // TODO: Should report error here if failure occurs?
-            let _ = await!(c_event_sender.send(IndexClientEvent::ResponseRoutes((
+            let _ = c_event_sender.send(IndexClientEvent::ResponseRoutes((
                 c_request_id,
                 response_routes_result
-            ))));
+            ))).await;
         };
 
         self.num_open_requests = self.num_open_requests.saturating_add(1);
@@ -485,7 +485,7 @@ where
     ) -> Result<(), IndexClientError> {
         // Update state:
         for mutation in &mutations {
-            await!(self.seq_friends_client.mutate(mutation.clone()))
+            self.seq_friends_client.mutate(mutation.clone()).await
                 .map_err(|_| IndexClientError::SeqFriendsError)?;
         }
 
@@ -504,14 +504,14 @@ where
         // Maybe in the future we will find a better way to do this.
         // This is important in cases where an update was not received by one of the servers.
         // Eventually this server will get an update from here:
-        let next_update_res = await!(self.seq_friends_client.next_update())
+        let next_update_res = self.seq_friends_client.next_update().await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
         if let Some((_cycle_countdown, update_friend)) = next_update_res {
             mutations.push(IndexMutation::UpdateFriend(update_friend));
         }
 
-        if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+        if let Ok(()) = control_sender.send(SingleClientControl::SendMutations(mutations)).await {
             server_connected.opt_control_sender = Some(control_sender);
         }
         // Reset ticks_to_send_keepalive:
@@ -527,20 +527,23 @@ where
         match app_server_to_index_client {
             AppServerToIndexClient::AppRequest((app_request_id, index_client_request)) => {
                 match index_client_request {
-                    IndexClientRequest::AddIndexServer(add_index_server) => await!(self
-                        .handle_from_app_server_add_index_server(app_request_id, add_index_server)),
+                    IndexClientRequest::AddIndexServer(add_index_server) => self
+                        .handle_from_app_server_add_index_server(app_request_id, add_index_server).await,
                     IndexClientRequest::RemoveIndexServer(public_key) => {
-                        await!(self
-                            .handle_from_app_server_remove_index_server(app_request_id, public_key))
+                        self
+                            .handle_from_app_server_remove_index_server(app_request_id, public_key)
+                            .await
                     }
                     IndexClientRequest::RequestRoutes(request_routes) => {
-                        await!(self
-                            .handle_from_app_server_request_routes(app_request_id, request_routes))
+                        self
+                            .handle_from_app_server_request_routes(app_request_id, request_routes)
+                            .await
                     }
                 }
             }
             AppServerToIndexClient::ApplyMutations(mutations) => {
-                await!(self.handle_from_app_server_apply_mutations(mutations))
+                self.handle_from_app_server_apply_mutations(mutations)
+                    .await
             }
         }
     }
@@ -578,11 +581,11 @@ where
             opt_app_request_id: None,
             mutations: vec![index_client_report_mutation],
         };
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ReportMutations(
                 index_client_report_mutations
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)?;
 
         Ok(())
@@ -596,11 +599,11 @@ where
                 opt_app_request_id: None,
                 mutations: vec![index_client_report_mutation],
             };
-            await!(self
+            self
                 .to_app_server
                 .send(IndexClientToAppServer::ReportMutations(
                     index_client_report_mutations
-                )))
+                )).await
             .map_err(|_| IndexClientError::SendToAppServerFailed)?;
         }
         self.conn_status = ConnStatus::Empty(self.backoff_ticks);
@@ -619,11 +622,11 @@ where
             result: response_routes_result,
         };
 
-        await!(self
+        self
             .to_app_server
             .send(IndexClientToAppServer::ResponseRoutes(
                 client_response_routes
-            )))
+            )).await
         .map_err(|_| IndexClientError::SendToAppServerFailed)
     }
 
@@ -666,14 +669,14 @@ where
         // Note that we might send empty mutations Vec in case we have no open friends:
         // TODO: Check the case of sending friends with (0,0) as capacity.
         let mut mutations = Vec::new();
-        let next_update_res = await!(self.seq_friends_client.next_update())
+        let next_update_res = self.seq_friends_client.next_update().await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
         if let Some((_cycle_countdown, update_friend)) = next_update_res {
             mutations.push(IndexMutation::UpdateFriend(update_friend));
         }
 
-        if let Ok(()) = await!(control_sender.send(SingleClientControl::SendMutations(mutations))) {
+        if let Ok(()) = control_sender.send(SingleClientControl::SendMutations(mutations)).await {
             server_connected.opt_control_sender = Some(control_sender);
         }
 
@@ -734,22 +737,22 @@ where
 
     let mut events = select_streams![event_receiver, from_app_server, timer_stream];
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         match event {
             IndexClientEvent::FromAppServer(app_server_to_index_client) => {
-                await!(index_client.handle_from_app_server(app_server_to_index_client))?
+                index_client.handle_from_app_server(app_server_to_index_client).await?
             }
             IndexClientEvent::AppServerClosed => return Err(IndexClientError::AppServerClosed),
             IndexClientEvent::IndexServerConnected(control_sender) => {
-                await!(index_client.handle_index_server_connected(control_sender))?
+                index_client.handle_index_server_connected(control_sender).await?
             }
             IndexClientEvent::IndexServerClosed => {
-                await!(index_client.handle_index_server_closed())?
+                index_client.handle_index_server_closed().await?
             }
             IndexClientEvent::ResponseRoutes((request_id, response_routes_result)) => {
-                await!(index_client.handle_response_routes(request_id, response_routes_result))?
+                index_client.handle_response_routes(request_id, response_routes_result).await?
             }
-            IndexClientEvent::TimerTick => await!(index_client.handle_timer_tick())?,
+            IndexClientEvent::TimerTick => index_client.handle_timer_tick().await?,
         };
     }
     Ok(())

@@ -62,14 +62,14 @@ where
         Box::pin(async move {
             // This line performs connection and then handshake:
             let (mut data_sender, mut data_receiver) =
-                await!(self.net_connector.transform(index_server))?;
+                self.net_connector.transform(index_server).await?;
 
             let (user_sender, mut local_receiver) = mpsc::channel::<IndexClientToServer>(0);
             let (mut local_sender, user_receiver) = mpsc::channel::<IndexServerToClient>(0);
 
             // Deserialize incoming data:
             let deser_fut = async move {
-                while let Some(data) = await!(data_receiver.next()) {
+                while let Some(data) = data_receiver.next().await {
                     let message = match IndexServerToClient::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
@@ -77,7 +77,7 @@ where
                             return;
                         }
                     };
-                    if let Err(e) = await!(local_sender.send(message)) {
+                    if let Err(e) = local_sender.send(message).await {
                         error!("error sending to local_sender: {:?}", e);
                         return;
                     }
@@ -89,9 +89,9 @@ where
 
             // Serialize outgoing data:
             let ser_fut = async move {
-                while let Some(message) = await!(local_receiver.next()) {
+                while let Some(message) = local_receiver.next().await {
                     let data = message.proto_serialize();
-                    if let Err(e) = await!(data_sender.send(data)) {
+                    if let Err(e) = data_sender.send(data).await {
                         error!("error sending to data_sender: {:?}", e);
                         return;
                     }
@@ -129,7 +129,7 @@ pub async fn spawn_index_client<ISA, C, R, S>(
     mut spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, SpawnIndexClientError>
 where
-    ISA: Debug + Eq + Clone + Send + 'static,
+    ISA: Debug + Eq + Clone + Send + Sync + 'static,
     C: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<ConnPairVec>>
         + Clone
         + Send
@@ -138,7 +138,8 @@ where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let timer_stream = await!(timer_client.request_timer_stream())
+    let timer_stream = timer_client.request_timer_stream()
+        .await
         .map_err(|_| SpawnIndexClientError::RequestTimerStreamError)?;
 
     let seq_friends = SeqMap::new(index_client_state.friends);

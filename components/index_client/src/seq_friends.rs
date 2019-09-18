@@ -46,7 +46,7 @@ async fn seq_friends_loop(
     mut seq_friends: SeqFriends,
     mut requests_receiver: mpsc::Receiver<SeqFriendsRequest>,
 ) {
-    while let Some(request) = await!(requests_receiver.next()) {
+    while let Some(request) = requests_receiver.next().await {
         match request {
             SeqFriendsRequest::Mutate(index_mutation, response_sender) => {
                 apply_index_mutation(&mut seq_friends, &index_mutation);
@@ -91,17 +91,18 @@ impl SeqFriendsClient {
     ) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::Mutate(index_mutation, sender);
-        await!(self.requests_sender.send(request))
+        self.requests_sender.send(request).await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
     pub async fn reset_countdown(&mut self) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::ResetCountdown(sender);
-        await!(self.requests_sender.send(request))
+        self.requests_sender.send(request)
+            .await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
     pub async fn next_update(
@@ -109,9 +110,10 @@ impl SeqFriendsClient {
     ) -> Result<Option<(usize, UpdateFriend)>, SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::NextUpdate(sender);
-        await!(self.requests_sender.send(request))
+        self.requests_sender.send(request)
+            .await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(await!(receiver).map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 }
 
