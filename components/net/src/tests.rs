@@ -44,14 +44,14 @@ where
 
     for _ in 0..5 {
         let (mut client_sender, mut client_receiver) =
-            await!(tcp_connector.transform(socket_addr.clone())).unwrap();
-        let (mut server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
+            tcp_connector.transform(socket_addr.clone()).await.unwrap();
+        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
 
-        await!(client_sender.send(vec![1, 2, 3])).unwrap();
-        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1, 2, 3]);
+        client_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
-        await!(server_sender.send(vec![3, 2, 1])).unwrap();
-        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3, 2, 1]);
+        server_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert_eq!(client_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
 
     /*
@@ -61,9 +61,9 @@ where
     // TODO: Do we want the tcp_listener to be closed immediately when incoming_connections is
     // dropped? Is this possible?
     for _ in 0 .. 5 {
-        await!(tcp_connector.transform(socket_addr.clone()));
+        tcp_connector.transform(socket_addr.clone()).await;
     }
-    assert!(await!(tcp_connector.transform(socket_addr.clone())).is_none());
+    assert!(tcp_connector.transform(socket_addr.clone()).await.is_none());
     */
 }
 
@@ -90,14 +90,14 @@ where
 
     for _ in 0..5 {
         let (mut client_sender, mut client_receiver) =
-            await!(net_connector.transform(net_address.clone())).unwrap();
-        let (mut server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
+            net_connector.transform(net_address.clone()).await.unwrap();
+        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
 
-        await!(client_sender.send(vec![1, 2, 3])).unwrap();
-        assert_eq!(await!(server_receiver.next()).unwrap(), vec![1, 2, 3]);
+        client_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
-        await!(server_sender.send(vec![3, 2, 1])).unwrap();
-        assert_eq!(await!(client_receiver.next()).unwrap(), vec![3, 2, 1]);
+        server_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert_eq!(client_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
 }
 
@@ -123,15 +123,15 @@ where
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
     let (client_sender, _client_receiver) =
-        await!(net_connector.transform(net_address.clone())).unwrap();
-    let (_server_sender, mut server_receiver) = await!(incoming_connections.next()).unwrap();
+        net_connector.transform(net_address.clone()).await.unwrap();
+    let (_server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
 
     // Drop the client's sender:
     drop(client_sender);
 
     // Wait until the server understands the connection is closed.
     // This should happen quickly.
-    while let Some(_) = await!(server_receiver.next()) {}
+    while let Some(_) = server_receiver.next().await {}
 }
 
 #[test]

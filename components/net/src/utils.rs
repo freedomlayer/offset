@@ -65,8 +65,8 @@ where
 
     // Forward user_receiver:
     let opt_user_receiver = spawner.spawn_with_handle(async move {
-        while let Some(Ok(data)) = await!(user_receiver_03.next()) {
-            if await!(to_user_receiver.send(data)).is_err() {
+        while let Some(Ok(data)) = user_receiver_03.next().await {
+            if to_user_receiver.send(data).await.is_err() {
                 warn!("conn_pair_01_to_03(): to_user_receiver.send() error");
                 return;
             }
@@ -75,8 +75,8 @@ where
 
     // Forward user_sender:
     let _ = spawner.spawn(async move {
-        while let Some(data) = await!(from_user_sender.next()) {
-            if await!(user_sender_03.send(Ok(data))).is_err() {
+        while let Some(data) = from_user_sender.next().await {
+            if user_sender_03.send(Ok(data)).await.is_err() {
                 warn!("Forward user_sender error");
                 break;
             }
@@ -131,11 +131,11 @@ mod tests {
         let (sender_01, receiver_01) = mpsc01::channel::<u32>(0);
         let (mut sender_03, mut receiver_03) =
             conn_pair_01_to_03((sender_01, receiver_01), &mut spawner);
-        await!(sender_03.send(0x1337u32)).unwrap();
-        assert_eq!(await!(receiver_03.next()), Some(0x1337u32));
+        sender_03.send(0x1337u32).await.unwrap();
+        assert_eq!(receiver_03.next().await, Some(0x1337u32));
 
         drop(sender_03);
-        assert!(await!(receiver_03.next()).is_none());
+        assert!(receiver_03.next().await.is_none());
     }
 
     #[test]
@@ -159,7 +159,7 @@ mod tests {
         // will only be detected after attempting to send a few messages.
         let mut sender_closed = false;
         for _ in 0..20 {
-            if let Err(_) = await!(sender_03.send(0u32)) {
+            if let Err(_) = sender_03.send(0u32).await {
                 sender_closed = true;
             }
         }

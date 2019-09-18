@@ -32,11 +32,11 @@ where
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         debug!("Connecting to {:?}", net_address);
         Box::pin(async move {
-            let socket_addr_vec = await!(self.resolver.transform(net_address));
+            let socket_addr_vec = self.resolver.transform(net_address).await;
             // A trivial implementation: We try to connect to the first address on the list.
             // TODO: Maybe choose a random address in the future?
             let socket_addr = socket_addr_vec.get(0)?;
-            await!(self.tcp_connector.transform(*socket_addr))
+            self.tcp_connector.transform(*socket_addr).await
         })
     }
 }
