@@ -358,7 +358,7 @@ mod tests {
     ) -> Result<(ScState, ScState), ()> {
         let rng1 = DummyRandom::new(&[1u8]);
         let rng2 = DummyRandom::new(&[2u8]);
-        let local_public_key1 = identity_client2.request_public_key().await.unwrap();
+        let local_public_key1 = identity_client1.request_public_key().await.unwrap();
         let local_public_key2 = identity_client2.request_public_key().await.unwrap();
         let (sc_state_initial1, exchange_rand_nonce1) =
             ScStateInitial::new(&local_public_key1, &rng1);
