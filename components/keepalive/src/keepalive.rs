@@ -45,11 +45,11 @@ where
     FU: Stream<Item=Vec<u8>> + Unpin,
     TS: Stream<Item=TimerTick> + Unpin,
 {
-    await!(inner_keepalive_loop(to_remote, from_remote,
+    inner_keepalive_loop(to_remote, from_remote,
                         to_user, from_user,
                         timer_stream,
                         keepalive_ticks,
-                        None))
+                        None).await
 }
 */
 
@@ -93,16 +93,16 @@ where
     // knows we are alive).
     let mut ticks_to_send_keepalive = keepalive_ticks / 2;
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         if let Some(ref mut event_sender) = opt_event_sender {
-            let _ = await!(event_sender.send(event.clone()));
+            let _ = event_sender.send(event.clone()).await;
         }
         match event {
             KeepAliveEvent::MessageFromRemote(ser_ka_message) => {
                 let ka_message = KaMessage::proto_deserialize(&ser_ka_message)?;
                 ticks_to_close = keepalive_ticks;
                 if let KaMessage::Message(message) = ka_message {
-                    if await!(to_user.send(message)).is_err() {
+                    if to_user.send(message).await.is_err() {
                         warn!("keepalive_loop(): Can not send to local side");
                         break;
                     }
@@ -111,7 +111,7 @@ where
             KeepAliveEvent::MessageFromUser(message) => {
                 let ka_message = KaMessage::Message(message);
                 let ser_ka_message = ka_message.proto_serialize();
-                if await!(to_remote.send(ser_ka_message)).is_err() {
+                if to_remote.send(ser_ka_message).await.is_err() {
                     warn!("keepalive_loop(): Can not send to remote side");
                     break;
                 }
@@ -126,7 +126,7 @@ where
                 if ticks_to_send_keepalive == 0 {
                     let ka_message = KaMessage::KeepAlive;
                     let ser_ka_message = ka_message.proto_serialize();
-                    if await!(to_remote.send(ser_ka_message)).is_err() {
+                    if to_remote.send(ser_ka_message).await.is_err() {
                         warn!("Keepalive_loop(): Can not send to remote side");
                         break;
                     }
@@ -177,7 +177,7 @@ where
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
         Box::pin(async move {
-            if let Ok(timer_stream) = await!(self.timer_client.request_timer_stream()) {
+            if let Ok(timer_stream) = self.timer_client.request_timer_stream().await {
                 let keepalive_fut = inner_keepalive_loop(
                     to_remote,
                     from_remote,
@@ -275,7 +275,7 @@ mod tests {
         let (to_user, mut user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let keepalive_ticks = 16;
         let fut_keepalive_loop = inner_keepalive_loop(
             to_remote,
@@ -292,47 +292,47 @@ mod tests {
         spawner.spawn(fut_keepalive_loop).unwrap();
 
         // Send from user to remote:
-        await!(user_sender.send(vec![1, 2, 3])).unwrap();
-        await!(event_receiver.next()).unwrap();
-        let vec = await!(remote_receiver.next()).unwrap();
+        user_sender.send(vec![1, 2, 3]).await.unwrap();
+        event_receiver.next().await.unwrap();
+        let vec = remote_receiver.next().await.unwrap();
         assert_eq!(vec, KaMessage::Message(vec![1, 2, 3]).proto_serialize());
 
         // User can not see Keepalive messages sent from remote:
         let vec = KaMessage::KeepAlive.proto_serialize();
-        await!(remote_sender.send(vec)).unwrap();
-        await!(event_receiver.next()).unwrap();
+        remote_sender.send(vec).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Send from remote to user:
         let vec = KaMessage::Message(vec![3, 2, 1]).proto_serialize();
-        await!(remote_sender.send(vec)).unwrap();
-        await!(event_receiver.next()).unwrap();
-        let vec = await!(user_receiver.next()).unwrap();
+        remote_sender.send(vec).await.unwrap();
+        event_receiver.next().await.unwrap();
+        let vec = user_receiver.next().await.unwrap();
         assert_eq!(vec, vec![3, 2, 1]);
 
         // Move time forward
         for _ in 0..8usize {
-            await!(tick_sender.send(())).unwrap();
-            await!(event_receiver.next()).unwrap();
+            tick_sender.send(()).await.unwrap();
+            event_receiver.next().await.unwrap();
         }
 
         // We expect to see a keepalive being sent:
-        let vec = await!(remote_receiver.next()).unwrap();
+        let vec = remote_receiver.next().await.unwrap();
         assert_eq!(vec, KaMessage::KeepAlive.proto_serialize());
 
         // Remote sends a keepalive:
         let vec = KaMessage::KeepAlive.proto_serialize();
-        await!(remote_sender.send(vec)).unwrap();
-        await!(event_receiver.next()).unwrap();
+        remote_sender.send(vec).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Move time forward
         for _ in 0..16usize {
-            await!(tick_sender.send(())).unwrap();
-            await!(event_receiver.next()).unwrap();
+            tick_sender.send(()).await.unwrap();
+            event_receiver.next().await.unwrap();
         }
 
         // Channel should be closed,
         // because remote haven't sent a keepalive for a long time:
-        let res = await!(user_receiver.next());
+        let res = user_receiver.next().await;
         assert!(res.is_none());
     }
 
@@ -358,7 +358,7 @@ mod tests {
         let (a_sender, b_receiver) = mpsc::channel(0);
         let (b_sender, a_receiver) = mpsc::channel(0);
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let (mut a_sender, mut a_receiver) = keepalive_channel(
             a_sender,
             a_receiver,
@@ -367,7 +367,7 @@ mod tests {
             spawner.clone(),
         );
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let (mut b_sender, mut b_receiver) = keepalive_channel(
             b_sender,
             b_receiver,
@@ -376,22 +376,22 @@ mod tests {
             spawner.clone(),
         );
 
-        await!(a_sender.send(vec![1, 2, 3])).unwrap();
-        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1, 2, 3]);
+        a_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert_eq!(b_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
-        await!(b_sender.send(vec![3, 2, 1])).unwrap();
-        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3, 2, 1]);
+        b_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert_eq!(a_receiver.next().await.unwrap(), vec![3, 2, 1]);
 
         // Move some time forward
         for _ in 0..(keepalive_ticks / 2) + 1 {
-            await!(tick_sender.send(())).unwrap();
+            tick_sender.send(()).await.unwrap();
         }
 
-        await!(a_sender.send(vec![1, 2, 3])).unwrap();
-        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1, 2, 3]);
+        a_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert_eq!(b_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
-        await!(b_sender.send(vec![3, 2, 1])).unwrap();
-        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3, 2, 1]);
+        b_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert_eq!(a_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
 
     #[test]
