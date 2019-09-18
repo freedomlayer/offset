@@ -44,11 +44,12 @@ where
             response_sender,
         };
         // Send the request:
-        await!(self.request_sender.send(database_request))
+        self.request_sender.send(database_request)
+            .await
             .map_err(|_| DatabaseClientError::SendError)?;
 
         // Wait for ack from the service:
-        await!(request_done).map_err(|_| DatabaseClientError::ResponseCanceled)?;
+        request_done.await.map_err(|_| DatabaseClientError::ResponseCanceled)?;
 
         Ok(())
     }
@@ -70,7 +71,7 @@ where
     // TODO: Maybe there will be a better way to do this in the future (Possibly a future version
     // of Tokio that has this feature)
 
-    while let Some(database_request) = await!(incoming_requests.next()) {
+    while let Some(database_request) = incoming_requests.next().await {
         let DatabaseRequest {
             mutations,
             response_sender,
@@ -85,7 +86,7 @@ where
             .spawn_with_handle(mutate_fut)
             .map_err(|_| DatabaseError::SpawnError)?;
 
-        atomic_db = await!(handle)?;
+        atomic_db = handle.await?;
 
         // Notify client that the database mutation request was processed:
         let _ = response_sender.send(());
@@ -167,24 +168,24 @@ mod tests {
         let loop_res_fut = spawner.spawn_with_handle(loop_fut).unwrap();
 
         let mut db_client = DatabaseClient::new(request_sender);
-        await!(db_client.mutate(vec![
+        db_client.mutate(vec![
             DummyMutation::Inc,
             DummyMutation::Inc,
             DummyMutation::Dec
-        ]))
+        ]).await
         .unwrap();
 
-        await!(db_client.mutate(vec![
+        db_client.mutate(vec![
             DummyMutation::Inc,
             DummyMutation::Inc,
             DummyMutation::Dec
-        ]))
+        ]).await
         .unwrap();
 
         // Dropping the only client should close the loop:
         drop(db_client);
 
-        let atomic_db = await!(loop_res_fut).unwrap();
+        let atomic_db = loop_res_fut.await.unwrap();
         assert_eq!(atomic_db.dummy_state.x, 1 + 1 - 1 + 1 + 1 - 1);
     }
 
