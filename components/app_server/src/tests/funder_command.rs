@@ -37,10 +37,10 @@ where
         config: true,
     };
 
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     // The app should receive the current node report as the first message:
-    let to_app_message = await!(app_receiver.next()).unwrap();
+    let to_app_message = app_receiver.next().await.unwrap();
     match to_app_message {
         AppServerToApp::Report(report) => assert_eq!(report, initial_node_report),
         _ => unreachable!(),
@@ -51,10 +51,10 @@ where
         Uid::from(&[22; Uid::len()]),
         AppRequest::AddRelay(dummy_named_relay_address(0)),
     );
-    await!(app_sender.send(funder_command)).unwrap();
+    app_sender.send(funder_command).await.unwrap();
 
     // SetRelays command should be forwarded to the Funder:
-    let to_funder_message = await!(funder_receiver.next()).unwrap();
+    let to_funder_message = funder_receiver.next().await.unwrap();
     assert_eq!(
         to_funder_message.app_request_id,
         Uid::from(&[22; Uid::len()])
@@ -70,12 +70,12 @@ where
         opt_app_request_id: Some(Uid::from(&[22; Uid::len()])),
         mutations,
     };
-    await!(funder_sender.send(FunderOutgoingControl::ReportMutations(
+    funder_sender.send(FunderOutgoingControl::ReportMutations(
         funder_report_mutations
-    )))
+    )).await
     .unwrap();
 
-    let to_app_message = await!(app_receiver.next()).unwrap();
+    let to_app_message = app_receiver.next().await.unwrap();
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
             assert_eq!(

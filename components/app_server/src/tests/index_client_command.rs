@@ -39,10 +39,10 @@ where
         config: true,
     };
 
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     // The app should receive the current node report as the first message:
-    let to_app_message = await!(app_receiver.next()).unwrap();
+    let to_app_message = app_receiver.next().await.unwrap();
     match to_app_message {
         AppServerToApp::Report(report) => assert_eq!(report, initial_node_report),
         _ => unreachable!(),
@@ -58,10 +58,10 @@ where
         app_request_id: Uid::from(&[11; Uid::len()]),
         app_request: AppRequest::AddIndexServer(named_index_server_address.clone()),
     };
-    await!(app_sender.send(to_app_server)).unwrap();
+    app_sender.send(to_app_server).await.unwrap();
 
     // AddIndexServer command should be forwarded to IndexClient, in the form of AddIndexServer:
-    let to_index_client_message = await!(index_client_receiver.next()).unwrap();
+    let to_index_client_message = index_client_receiver.next().await.unwrap();
     match to_index_client_message {
         AppServerToIndexClient::AppRequest((
             _app_request_id,
@@ -82,14 +82,13 @@ where
         opt_app_request_id: Some(Uid::from(&[11; Uid::len()])),
         mutations,
     };
-    await!(
-        index_client_sender.send(IndexClientToAppServer::ReportMutations(
-            index_client_report_mutations
-        ))
-    )
-    .unwrap();
+    index_client_sender.send(IndexClientToAppServer::ReportMutations(
+        index_client_report_mutations
+    ))
+        .await
+        .unwrap();
 
-    let to_app_message = await!(app_receiver.next()).unwrap();
+    let to_app_message = app_receiver.next().await.unwrap();
     match to_app_message {
         AppServerToApp::ReportMutations(report_mutations) => {
             assert_eq!(report_mutations.mutations.len(), 1);

@@ -36,7 +36,7 @@ where
         seller: true,
         config: true,
     };
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
@@ -47,11 +47,11 @@ where
         seller: true,
         config: true,
     };
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     // The apps should receive the current node report as the first message:
-    let _to_app_message = await!(app_receiver0.next()).unwrap();
-    let _to_app_message = await!(app_receiver1.next()).unwrap();
+    let _to_app_message = app_receiver0.next().await.unwrap();
+    let _to_app_message = app_receiver1.next().await.unwrap();
 
     // Send a request routes message through app0:
     let request_routes = RequestRoutes {
@@ -66,10 +66,10 @@ where
         Uid::from(&[22; Uid::len()]),
         AppRequest::RequestRoutes(request_routes.clone()),
     );
-    await!(app_sender0.send(to_app_server)).unwrap();
+    app_sender0.send(to_app_server).await.unwrap();
 
     // RequestRoutes command should be forwarded to IndexClient:
-    let to_index_client_message = await!(index_client_receiver.next()).unwrap();
+    let to_index_client_message = index_client_receiver.next().await.unwrap();
     match to_index_client_message {
         AppServerToIndexClient::AppRequest((
             app_request_id,
@@ -87,11 +87,10 @@ where
         request_id: Uid::from(&[2; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
-    await!(
-        index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
-            client_response_routes
-        ))
-    )
+    index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
+        client_response_routes
+    ))
+    .await
     .unwrap();
 
     // We shouldn't get an message at any of the apps:
@@ -103,14 +102,13 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
-    await!(
-        index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
-            client_response_routes
-        ))
-    )
+    index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
+        client_response_routes
+    ))
+    .await
     .unwrap();
 
-    let to_app_message = await!(app_receiver0.next()).unwrap();
+    let to_app_message = app_receiver1.next().await.unwrap();
     match to_app_message {
         AppServerToApp::ResponseRoutes(response_routes) => {
             assert_eq!(response_routes.request_id, Uid::from(&[3; Uid::len()]));
@@ -128,11 +126,10 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: ResponseRoutesResult::Failure,
     };
-    await!(
-        index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
-            client_response_routes
-        ))
-    )
+    index_client_sender.send(IndexClientToAppServer::ResponseRoutes(
+        client_response_routes
+    ))
+    .await
     .unwrap();
 
     // We shouldn't get an message at any of the apps:

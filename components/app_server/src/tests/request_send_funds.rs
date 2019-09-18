@@ -36,7 +36,7 @@ where
         seller: true,
         config: true,
     };
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
@@ -47,11 +47,11 @@ where
         seller: true,
         config: true,
     };
-    await!(connections_sender.send((app_permissions, app_server_conn_pair))).unwrap();
+    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
 
     // The apps should receive the current node report as the first message:
-    let _to_app_message = await!(app_receiver0.next()).unwrap();
-    let _to_app_message = await!(app_receiver1.next()).unwrap();
+    let _to_app_message = app_receiver0.next().await.unwrap();
+    let _to_app_message = app_receiver1.next().await.unwrap();
 
     let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
     let pk_f = PublicKey::from(&[0xff; PublicKey::len()]);
@@ -66,10 +66,10 @@ where
         Uid::from(&[22; Uid::len()]),
         AppRequest::CreatePayment(create_payment.clone()),
     );
-    await!(app_sender0.send(to_app_server)).unwrap();
+    app_sender0.send(to_app_server).await.unwrap();
 
     // CreatePayment command should be forwarded to the Funder:
-    let funder_incoming_control = await!(funder_receiver.next()).unwrap();
+    let funder_incoming_control = funder_receiver.next().await.unwrap();
     assert_eq!(
         funder_incoming_control.app_request_id,
         Uid::from(&[22; Uid::len()])
@@ -94,10 +94,10 @@ where
         Uid::from(&[23; Uid::len()]),
         AppRequest::CreateTransaction(create_transaction.clone()),
     );
-    await!(app_sender0.send(to_app_server)).unwrap();
+    app_sender0.send(to_app_server).await.unwrap();
 
     // CreateTransaction command should be forwarded to the Funder:
-    let funder_incoming_control = await!(funder_receiver.next()).unwrap();
+    let funder_incoming_control = funder_receiver.next().await.unwrap();
     assert_eq!(
         funder_incoming_control.app_request_id,
         Uid::from(&[23; Uid::len()])
@@ -114,7 +114,8 @@ where
         request_id: Uid::from(&[2; Uid::len()]),
         result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+    funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result))
+        .await
         .unwrap();
 
     // We shouldn't get an message at any of the apps:
@@ -126,12 +127,12 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(
+    funder_sender.send(FunderOutgoingControl::TransactionResult(
         transaction_result.clone()
-    )))
+    )).await
     .unwrap();
 
-    let to_app_message = await!(app_receiver0.next()).unwrap();
+    let to_app_message = app_receiver0.next().await.unwrap();
     match to_app_message {
         AppServerToApp::TransactionResult(received_transaction_result) => {
             assert_eq!(received_transaction_result, transaction_result);
@@ -148,7 +149,7 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
-    await!(funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)))
+    funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)).await
         .unwrap();
 
     // We shouldn't get an message at any of the apps:
