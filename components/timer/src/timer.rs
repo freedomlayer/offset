@@ -169,7 +169,7 @@ pub fn dummy_timer_multi_sender(
     mut spawner: impl Spawn,
 ) -> (mpsc::Receiver<mpsc::Sender<TimerTick>>, TimerClient) {
     let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
-    let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
+    let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(1);
     spawner
         .spawn(async move {
             while let Some(timer_request) = request_receiver.next().await {
