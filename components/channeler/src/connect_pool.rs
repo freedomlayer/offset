@@ -38,7 +38,7 @@ impl<RA> CpConfigClient<RA> {
     }
 
     pub async fn config(&mut self, config: Vec<RA>) -> Result<(), ConnectPoolClientError> {
-        await!(self.request_sender.send(config)).map_err(|_| ConnectPoolClientError)?;
+        self.request_sender.send(config).await.map_err(|_| ConnectPoolClientError)?;
         Ok(())
     }
 }
@@ -51,9 +51,9 @@ impl CpConnectClient {
     pub async fn connect(&mut self) -> Result<RawConn, ConnectPoolClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let connect_request = CpConnectRequest { response_sender };
-        await!(self.request_sender.send(connect_request)).map_err(|_| ConnectPoolClientError)?;
+        self.request_sender.send(connect_request).await.map_err(|_| ConnectPoolClientError)?;
 
-        await!(response_receiver).map_err(|_| ConnectPoolClientError)
+        response_receiver.await.map_err(|_| ConnectPoolClientError)
     }
 }
 
@@ -105,8 +105,8 @@ where
 {
     // TODO: How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
-        let raw_conn = await!(client_connector.transform((address, friend_public_key.clone())))?;
-        await!(encrypt_transform.transform((friend_public_key.clone(), raw_conn)))
+        let raw_conn = client_connector.transform((address, friend_public_key.clone())).await?;
+        encrypt_transform.transform((friend_public_key.clone(), raw_conn)).await
     });
 
     // We either finish connecting, or got canceled in the middle:
@@ -159,14 +159,14 @@ where
 
         let mut c_conn_done_sender = self.conn_done_sender.clone();
         let conn_fut = async move {
-            let opt_conn = await!(conn_attempt(
+            let opt_conn = conn_attempt(
                 c_friend_public_key.clone(),
                 address,
                 c_client_connector.clone(),
                 c_encrypt_transform.clone(),
                 cancel_receiver
-            ));
-            let _ = await!(c_conn_done_sender.send(opt_conn));
+            ).await;
+            let _ = c_conn_done_sender.send(opt_conn).await;
         };
 
         self.spawner
@@ -358,7 +358,7 @@ where
         incoming_ticks
     ];
 
-    while let Some(event) = await!(incoming_events.next()) {
+    while let Some(event) = incoming_events.next().await {
         match event {
             CpEvent::ConnectRequest(connect_request) => {
                 connect_pool.handle_connect_request(connect_request)?
@@ -382,7 +382,7 @@ where
             }
         }
         if let Some(ref mut event_sender) = opt_event_sender {
-            let _ = await!(event_sender.send(()));
+            let _ = event_sender.send(()).await;
         }
     }
     info!("connect_pool_loop() exit");
@@ -490,7 +490,7 @@ where
     fn transform(&mut self, friend_public_key: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
             // TODO: Should we keep the unwrap()-s here?
-            let timer_stream = await!(self.timer_client.request_timer_stream()).unwrap();
+            let timer_stream = self.timer_client.request_timer_stream().await.unwrap();
             create_connect_pool(
                 timer_stream,
                 self.encrypt_transform.clone(),
@@ -542,11 +542,11 @@ mod tests {
 
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
         let (mut config_client, mut connect_client) =
-            await!(pool_connector.transform(pk_b.clone()));
-        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
+            pool_connector.transform(pk_b.clone()).await;
+        let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let addresses = vec![0x0u32, 0x1u32, 0x2u32];
-        await!(config_client.config(addresses.clone())).unwrap();
+        config_client.config(addresses.clone()).await.unwrap();
 
         // Addresses that we have seen an attempt to connect to:
         let mut observed_addresses = Vec::new();
@@ -554,7 +554,7 @@ mod tests {
         // Connect and handle the connection request at the same time
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async {
-            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let conn_request = conn_request_receiver.next().await.unwrap();
             let (local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
@@ -566,7 +566,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(join(connect_fut, handle_connect_fut));
+            join(connect_fut, handle_connect_fut).await;
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -575,7 +575,7 @@ mod tests {
         // Request a new connection:
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async {
-            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let conn_request = conn_request_receiver.next().await.unwrap();
             let (local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
@@ -587,7 +587,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(join(connect_fut, handle_connect_fut));
+            join(connect_fut, handle_connect_fut).await;
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -596,7 +596,7 @@ mod tests {
         // Request a new connection:
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async {
-            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let conn_request = conn_request_receiver.next().await.unwrap();
             let (local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
@@ -608,7 +608,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(join(connect_fut, handle_connect_fut));
+            join(connect_fut, handle_connect_fut).await;
         let mut conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:
@@ -621,7 +621,7 @@ mod tests {
         // Request a new connection:
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async move {
-            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let conn_request = conn_request_receiver.next().await.unwrap();
             let (local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, local_receiver) = mpsc::channel(0);
 
@@ -635,7 +635,7 @@ mod tests {
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (_local_conn, (new_conn_request_receiver, _remote_conn)) =
-            await!(join(connect_fut, handle_connect_fut));
+            join(connect_fut, handle_connect_fut).await;
         let _conn_request_receiver = new_conn_request_receiver;
     }
 
@@ -663,8 +663,8 @@ mod tests {
             Box::pin(future::ready(Some(conn_pair)))
         });
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let mut tick_sender = tick_sender_receiver.next().await.unwrap();
 
         // Used for debugging the loop:
         let (event_sender, mut event_receiver) = mpsc::channel(0);
@@ -700,8 +700,8 @@ mod tests {
         let mut config_client = CpConfigClient::new(config_sender);
 
         let addresses = vec![0x0u32, 0x1u32, 0x2u32];
-        await!(config_client.config(addresses.clone())).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_client.config(addresses.clone()).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Addresses that we have seen an attempt to connect to:
         let mut observed_addresses = Vec::new();
@@ -709,9 +709,9 @@ mod tests {
         // Connect and handle the connection request at the same time
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async {
-            await!(event_receiver.next()).unwrap(); // Connection request event
+            event_receiver.next().await.unwrap(); // Connection request event
             for _ in 0..addresses.len() {
-                let conn_request = await!(conn_request_receiver.next()).unwrap();
+                let conn_request = conn_request_receiver.next().await.unwrap();
 
                 let (address, pk) = &conn_request.address;
                 observed_addresses.push(address.clone());
@@ -719,17 +719,17 @@ mod tests {
 
                 // Connection attempt failed:
                 conn_request.reply(None);
-                await!(event_receiver.next()).unwrap(); // connection attempt done event
+                event_receiver.next().await.unwrap(); // connection attempt done event
 
                 // Wait backoff_ticks:
                 for _ in 0..backoff_ticks {
-                    await!(tick_sender.send(TimerTick)).unwrap();
-                    await!(event_receiver.next()).unwrap(); // timer tick event
+                    tick_sender.send(TimerTick).await.unwrap();
+                    event_receiver.next().await.unwrap(); // timer tick event
                 }
             }
 
             // Finally, we let the connection request succeed:
-            let conn_request = await!(conn_request_receiver.next()).unwrap();
+            let conn_request = conn_request_receiver.next().await.unwrap();
 
             let (local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, local_receiver) = mpsc::channel(0);
@@ -741,11 +741,11 @@ mod tests {
             assert_eq!(address, &observed_addresses[0]);
 
             conn_request.reply(Some((local_sender, local_receiver)));
-            await!(event_receiver.next()).unwrap(); // connection attempt done event
+            event_receiver.next().await.unwrap(); // connection attempt done event
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (_remote_conn, new_conn_request_receiver)) =
-            await!(join(connect_fut, handle_connect_fut));
+            join(connect_fut, handle_connect_fut).await;
         let _conn_request_receiver = new_conn_request_receiver;
 
         // Drop the connection:

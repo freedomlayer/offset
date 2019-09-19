@@ -254,7 +254,7 @@ pub async fn apply_local_reset<'a, B, R>(
         rand_nonce,
     );
 
-    let reset_move_token = await!(sign_move_token(u_reset_move_token, identity_client));
+    let reset_move_token = sign_move_token(u_reset_move_token, identity_client).await;
 
     let token_channel = TokenChannel::new_from_local_reset(
         &m_state.state().local_public_key,
@@ -300,13 +300,13 @@ async fn send_friend_iter1<'a, B, R>(
     if friend_send_commands.local_reset {
         if let ChannelStatus::Inconsistent(channel_inconsistent) = &friend.channel_status {
             let c_channel_inconsistent = channel_inconsistent.clone();
-            await!(apply_local_reset(
+            apply_local_reset(
                 m_state,
                 friend_public_key,
                 &c_channel_inconsistent,
                 identity_client,
                 rng
-            ));
+            ).await;
         }
     }
 
@@ -798,7 +798,7 @@ async fn send_move_token<'a, B, R>(
     let u_move_token =
         tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
 
-    let move_token = await!(sign_move_token(u_move_token, identity_client));
+    let move_token = sign_move_token(u_move_token, identity_client).await;
 
     let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing(move_token));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
@@ -903,7 +903,7 @@ where
         if !ephemeral.liveness.is_online(friend_public_key) {
             continue;
         }
-        await!(send_friend_iter1(
+        send_friend_iter1(
             m_state,
             friend_public_key,
             friend_send_commands,
@@ -915,7 +915,7 @@ where
             &mut outgoing_messages,
             &mut outgoing_control,
             &mut outgoing_channeler_config
-        ));
+        ).await;
     }
 
     // Create PendingMoveToken-s for all the friends that were queued
@@ -937,14 +937,14 @@ where
     // Send all pending move tokens:
     for (friend_public_key, pending_move_token) in pending_move_tokens.into_iter() {
         assert!(ephemeral.liveness.is_online(&friend_public_key));
-        await!(send_move_token(
+        send_move_token(
             m_state,
             friend_public_key,
             pending_move_token,
             identity_client,
             rng,
             &mut outgoing_messages
-        ));
+        ).await;
     }
 
     (

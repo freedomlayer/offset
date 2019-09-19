@@ -43,9 +43,9 @@ where
         let (public_key, conn_pair) = input;
 
         Box::pin(async move {
-            let (_public_key, conn_pair) = await!(self
+            let (_public_key, conn_pair) = self
                 .encrypt_transform
-                .transform((Some(public_key), conn_pair)))?;
+                .transform((Some(public_key), conn_pair)).await?;
             Some(conn_pair)
         })
     }
@@ -78,9 +78,9 @@ where
         let (public_key, conn_pair) = input;
 
         Box::pin(async move {
-            await!(self
+            self
                 .encrypt_transform
-                .transform((Some(public_key), conn_pair)))
+                .transform((Some(public_key), conn_pair)).await
         })
     }
 }
@@ -150,13 +150,13 @@ where
         spawner.clone(),
     );
 
-    // TODO: Maybe use await! instead of spawn_with_handle() here?
-    await!(channeler_loop(
+    // TODO: Maybe use .await here?
+    channeler_loop(
         local_public_key,
         from_funder,
         to_funder,
         pool_connector,
         pool_listener,
         spawner.clone()
-    ))
+    ).await
 }

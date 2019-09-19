@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn test_handle_init_basic() {
-        // let local_pk = await!(identity_client.request_public_key()).unwrap();
+        // let local_pk = identity_client.request_public_key().await.unwrap();
         let local_pk = PublicKey::from(&[0xbb; PublicKey::len()]);
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 

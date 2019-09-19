@@ -115,12 +115,12 @@ async fn buyer_pay_invoice(
     // we also need to pay nodes on the way.
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
-    let multi_routes = await!(app_routes.request_routes(
+    let multi_routes = app_routes.request_routes(
         invoice_file.dest_payment,
         local_public_key, // source
         invoice_file.dest_public_key.clone(),
         None
-    )) // No exclusion of edges
+    ).await // No exclusion of edges
     .map_err(|_| BuyerError::AppRoutesError)?;
 
     let (route_index, multi_route_choice) =
@@ -150,12 +150,12 @@ async fn buyer_pay_invoice(
     let mut file = File::create(payment_path)?;
     file.write_all(&serialize_to_string(&payment_file)?.as_bytes())?;
 
-    await!(app_buyer.create_payment(
+    app_buyer.create_payment(
         payment_id.clone(),
         invoice_file.invoice_id.clone(),
         invoice_file.dest_payment,
         invoice_file.dest_public_key.clone()
-    ))
+    ).await
     .map_err(|_| BuyerError::CreatePaymentFailed)?;
 
     // Create new transactions (One for every route). On the first failure cancel all
@@ -170,31 +170,31 @@ async fn buyer_pay_invoice(
         fut_list.push(
             // TODO: Possibly a more efficient way than Box::pin?
             Box::pin(async move {
-                await!(c_app_buyer.create_transaction(
+                c_app_buyer.create_transaction(
                     c_payment_id,
                     request_id,
                     route.route.clone(),
                     *dest_payment,
                     route.rate.calc_fee(*dest_payment).unwrap(),
-                ))
+                ).await
             }),
         );
     }
 
     let mut commits = Vec::new();
     for _ in 0..multi_route_choice.len() {
-        let (output, _fut_index, new_fut_list) = await!(select_all(fut_list));
+        let (output, _fut_index, new_fut_list) = select_all(fut_list).await;
         match output {
             Ok(commit) => commits.push(commit),
             Err(_) => {
-                let _ = await!(app_buyer.request_close_payment(payment_id.clone()));
+                let _ = app_buyer.request_close_payment(payment_id.clone()).await;
                 return Err(BuyerError::CreateTransactionFailed);
             }
         }
         fut_list = new_fut_list;
     }
 
-    let _ = await!(app_buyer.request_close_payment(payment_id));
+    let _ = app_buyer.request_close_payment(payment_id).await;
 
     let multi_commit = MultiCommit {
         invoice_id: invoice_file.invoice_id.clone(),
@@ -233,7 +233,7 @@ async fn buyer_payment_status(
     let payment_file: PaymentFile = deserialize_from_string(&fs::read_to_string(&payment_path)?)?;
     let payment_id = payment_file.payment_id;
 
-    let payment_status = await!(app_buyer.request_close_payment(payment_id.clone()))
+    let payment_status = app_buyer.request_close_payment(payment_id.clone()).await
         .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     let opt_ack_uid = match payment_status {
@@ -266,7 +266,7 @@ async fn buyer_payment_status(
     };
 
     if let Some(ack_uid) = opt_ack_uid {
-        await!(app_buyer.ack_close_payment(payment_id, ack_uid))
+        app_buyer.ack_close_payment(payment_id, ack_uid).await
             .map_err(|_| BuyerError::AckClosePaymentError)?;
 
         // Remove payment file:
@@ -284,7 +284,7 @@ pub async fn buyer(
     // Get our local public key:
     let mut app_report = app_conn.report().clone();
     let (node_report, incoming_mutations) =
-        await!(app_report.incoming_reports()).map_err(|_| BuyerError::GetReportError)?;
+        app_report.incoming_reports().await.map_err(|_| BuyerError::GetReportError)?;
     // We currently don't need live updates about report mutations:
     drop(incoming_mutations);
 
@@ -301,15 +301,15 @@ pub async fn buyer(
         .clone();
 
     match buyer_cmd {
-        BuyerCmd::PayInvoice(pay_invoice_cmd) => await!(buyer_pay_invoice(
+        BuyerCmd::PayInvoice(pay_invoice_cmd) => buyer_pay_invoice(
             pay_invoice_cmd,
             local_public_key,
             app_routes,
             app_buyer,
             writer,
-        ))?,
+        ).await?,
         BuyerCmd::PaymentStatus(payment_status_cmd) => {
-            await!(buyer_payment_status(payment_status_cmd, app_buyer, writer,))?
+            buyer_payment_status(payment_status_cmd, app_buyer, writer,).await?
         }
     }
 

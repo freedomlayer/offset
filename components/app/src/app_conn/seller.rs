@@ -60,14 +60,14 @@ where
             AppToAppServer::new(app_request_id.clone(), AppRequest::AddInvoice(add_invoice));
 
         // Start listening to done requests:
-        let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
+        let mut incoming_done_requests = self.done_app_requests_mc.request_stream().await
             .map_err(|_| SellerError::ConnectivityError)?;
 
         // Send AddInvoice:
-        await!(self.sender.send(to_app_server)).map_err(|_| SellerError::ConnectivityError)?;
+        self.sender.send(to_app_server).await.map_err(|_| SellerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
-        while let Some(done_request_id) = await!(incoming_done_requests.next()) {
+        while let Some(done_request_id) = incoming_done_requests.next().await {
             if app_request_id == done_request_id {
                 return Ok(());
             }
@@ -84,14 +84,14 @@ where
         );
 
         // Start listening to done requests:
-        let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
+        let mut incoming_done_requests = self.done_app_requests_mc.request_stream().await
             .map_err(|_| SellerError::ConnectivityError)?;
 
         // Send CancelInvoice:
-        await!(self.sender.send(to_app_server)).map_err(|_| SellerError::ConnectivityError)?;
+        self.sender.send(to_app_server).await.map_err(|_| SellerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
-        while let Some(done_request_id) = await!(incoming_done_requests.next()) {
+        while let Some(done_request_id) = incoming_done_requests.next().await {
             if app_request_id == done_request_id {
                 return Ok(());
             }
@@ -108,14 +108,14 @@ where
         );
 
         // Start listening to done requests:
-        let mut incoming_done_requests = await!(self.done_app_requests_mc.request_stream())
+        let mut incoming_done_requests = self.done_app_requests_mc.request_stream().await
             .map_err(|_| SellerError::ConnectivityError)?;
 
         // Send CommitInvoice:
-        await!(self.sender.send(to_app_server)).map_err(|_| SellerError::ConnectivityError)?;
+        self.sender.send(to_app_server).await.map_err(|_| SellerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
-        while let Some(done_request_id) = await!(incoming_done_requests.next()) {
+        while let Some(done_request_id) = incoming_done_requests.next().await {
             if app_request_id == done_request_id {
                 return Ok(());
             }

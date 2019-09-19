@@ -59,15 +59,15 @@ where
 
         let (public_key, address) = full_address;
         let fut = async move {
-            let (plain_sender, plain_receiver) = await!(self.connector.connect(address))?;
-            let (sender, receiver) = await!(create_secure_channel(
+            let (plain_sender, plain_receiver) = self.connector.connect(address).await?;
+            let (sender, receiver) = create_secure_channel(
                                       plain_sender, plain_receiver,
                                       self.identity_client.clone(),
                                       Some(public_key.clone()),
                                       self.rng.clone(),
                                       self.timer_client.clone(),
                                       self.ticks_to_rekey,
-                                      self.spawner.clone()))
+                                      self.spawner.clone()).await
                                     .ok()?;
             Some((sender, receiver))
         };

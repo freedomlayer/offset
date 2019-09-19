@@ -89,12 +89,12 @@ where
 
         // Start listening for incoming response routes messages:
         let mut incoming_routes =
-            await!(self.routes_mc.request_stream()).map_err(|_| AppRoutesError)?;
+            self.routes_mc.request_stream().await.map_err(|_| AppRoutesError)?;
 
         // Send our request to offst node:
-        await!(self.sender.send(to_app_server)).map_err(|_| AppRoutesError)?;
+        self.sender.send(to_app_server).await.map_err(|_| AppRoutesError)?;
 
-        while let Some(client_response_routes) = await!(incoming_routes.next()) {
+        while let Some(client_response_routes) = incoming_routes.next().await {
             if client_response_routes.request_id != request_routes_id {
                 // This is not our request
                 continue;

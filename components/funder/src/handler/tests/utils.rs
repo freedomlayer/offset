@@ -28,7 +28,7 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + 'a,
     R: CryptoRandom + 'a,
 {
-    let funder_handler_output = await!(funder_handle_message(
+    let funder_handler_output = funder_handle_message(
         identity_client,
         rng,
         state.clone(),
@@ -37,7 +37,7 @@ where
         TEST_MAX_OPERATIONS_IN_BATCH,
         TEST_MAX_PENDING_USER_REQUESTS,
         funder_incoming
-    ))?;
+    ).await?;
 
     let FunderHandlerOutput {
         ephemeral_mutations,

@@ -190,20 +190,20 @@ where
     }
 
     // Sign all unsigned responses and then queue them as mutations
-    await!(m_state.sign_responses(identity_client, rng));
+    m_state.sign_responses(identity_client, rng).await;
 
     // Send all possible messages according to SendCommands
     // TODO: Maybe we should output outgoing_comms instead of friend_messages and
     // outgoing_channeler_config. When we merge the two, we might be out of order!
     let (sender_outgoing_control, friend_messages, outgoing_channeler_config) =
-        await!(create_friend_messages(
+        create_friend_messages(
             &mut m_state,
             m_ephemeral.ephemeral(),
             &send_commands,
             max_operations_in_batch,
             identity_client,
             rng
-        ));
+        ).await;
 
     for channeler_config in outgoing_channeler_config {
         outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));

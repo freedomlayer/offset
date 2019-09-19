@@ -84,12 +84,12 @@ where
 
             // Mutation to push the new response:
             let rand_nonce = RandValue::rand_gen(rng);
-            let response_send_funds = await!(create_response_send_funds(
+            let response_send_funds = create_response_send_funds(
                 &pending_transaction,
                 dest_plain_lock.hash_lock(),
                 rand_nonce,
                 identity_client,
-            ));
+            ).await;
 
             let backwards_op = BackwardsOp::Response(response_send_funds);
             let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(backwards_op);

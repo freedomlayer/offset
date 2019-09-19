@@ -53,138 +53,138 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             },
         );
 
-        await!(create_node(
+        create_node(
             i,
             sim_db.clone(),
             timer_client.clone(),
             sim_net_client.clone(),
             trusted_apps,
             test_executor.clone()
-        ))
+        ).await
         .forget();
 
         apps.push(
-            await!(create_app(
+            create_app(
                 i,
                 sim_net_client.clone(),
                 timer_client.clone(),
                 i,
                 test_executor.clone()
-            ))
+            ).await
             .unwrap(),
         );
     }
 
     // Create relays:
-    await!(create_relay(
+    create_relay(
         0,
         timer_client.clone(),
         sim_net_client.clone(),
         test_executor.clone()
-    ));
+    ).await;
 
-    await!(create_relay(
+    create_relay(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
         test_executor.clone()
-    ));
+    ).await;
 
     // Create three index servers:
     // 0 -- 2 -- 1
     // The only way for information to flow between the two index servers
     // is by having the middle server forward it.
-    await!(create_index_server(
+    create_index_server(
         2,
         timer_client.clone(),
         sim_net_client.clone(),
         vec![0, 1],
         test_executor.clone()
-    ));
+    ).await;
 
-    await!(create_index_server(
+    create_index_server(
         0,
         timer_client.clone(),
         sim_net_client.clone(),
         vec![2],
         test_executor.clone()
-    ));
+    ).await;
 
-    await!(create_index_server(
+    create_index_server(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
         vec![2],
         test_executor.clone()
-    ));
+    ).await;
 
     // Configure relays:
 
-    await!(apps[0].config().unwrap().add_relay(named_relay_address(0))).unwrap();
-    await!(apps[0].config().unwrap().add_relay(named_relay_address(1))).unwrap();
+    apps[0].config().unwrap().add_relay(named_relay_address(0)).await.unwrap();
+    apps[0].config().unwrap().add_relay(named_relay_address(1)).await.unwrap();
 
-    await!(apps[1].config().unwrap().add_relay(named_relay_address(1))).unwrap();
-    await!(apps[2].config().unwrap().add_relay(named_relay_address(0))).unwrap();
+    apps[1].config().unwrap().add_relay(named_relay_address(1)).await.unwrap();
+    apps[2].config().unwrap().add_relay(named_relay_address(0)).await.unwrap();
 
-    await!(apps[3].config().unwrap().add_relay(named_relay_address(1))).unwrap();
-    await!(apps[3].config().unwrap().add_relay(named_relay_address(0))).unwrap();
+    apps[3].config().unwrap().add_relay(named_relay_address(1)).await.unwrap();
+    apps[3].config().unwrap().add_relay(named_relay_address(0)).await.unwrap();
 
-    await!(apps[4].config().unwrap().add_relay(named_relay_address(0))).unwrap();
-    await!(apps[5].config().unwrap().add_relay(named_relay_address(1))).unwrap();
+    apps[4].config().unwrap().add_relay(named_relay_address(0)).await.unwrap();
+    apps[5].config().unwrap().add_relay(named_relay_address(1)).await.unwrap();
 
     // Configure index servers:
-    await!(apps[0]
+    apps[0]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(0)))
+        .add_index_server(named_index_server_address(0)).await
     .unwrap();
-    await!(apps[0]
+    apps[0]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(2)))
-    .unwrap();
-
-    await!(apps[1]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(1)))
-    .unwrap();
-    await!(apps[2]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(2)))
+        .add_index_server(named_index_server_address(2)).await
     .unwrap();
 
-    await!(apps[3]
+    apps[1]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(0)))
+        .add_index_server(named_index_server_address(1)).await
+    .unwrap();
+    apps[2]
+        .config()
+        .unwrap()
+        .add_index_server(named_index_server_address(2)).await
     .unwrap();
 
-    await!(apps[4]
+    apps[3]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(1)))
-    .unwrap();
-    await!(apps[4]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(0)))
+        .add_index_server(named_index_server_address(0)).await
     .unwrap();
 
-    await!(apps[5]
+    apps[4]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(2)))
+        .add_index_server(named_index_server_address(1)).await
     .unwrap();
-    await!(apps[5]
+    apps[4]
         .config()
         .unwrap()
-        .add_index_server(named_index_server_address(1)))
+        .add_index_server(named_index_server_address(0)).await
+    .unwrap();
+
+    apps[5]
+        .config()
+        .unwrap()
+        .add_index_server(named_index_server_address(2)).await
+    .unwrap();
+    apps[5]
+        .config()
+        .unwrap()
+        .add_index_server(named_index_server_address(1)).await
     .unwrap();
 
     // Wait some time:
-    // await!(advance_time(40, &mut tick_sender, &test_executor));
+    // advance_time(40, &mut tick_sender, &test_executor).await;
     /*
                        5
                        |
@@ -194,200 +194,200 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     */
 
     // 0 --> 1
-    await!(apps[0].config().unwrap().add_friend(
+    apps[0].config().unwrap().add_friend(
         node_public_key(1),
         vec![relay_address(1)],
         String::from("node1"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[0].config().unwrap().enable_friend(node_public_key(1))).unwrap();
-    await!(apps[0].config().unwrap().open_friend(node_public_key(1))).unwrap();
-    await!(apps[0]
+    apps[0].config().unwrap().enable_friend(node_public_key(1)).await.unwrap();
+    apps[0].config().unwrap().open_friend(node_public_key(1)).await.unwrap();
+    apps[0]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100))
+        .set_friend_remote_max_debt(node_public_key(1), 100).await
     .unwrap();
 
     // 1 --> 0
-    await!(apps[1].config().unwrap().add_friend(
+    apps[1].config().unwrap().add_friend(
         node_public_key(0),
         vec![relay_address(1)],
         String::from("node0"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[1].config().unwrap().enable_friend(node_public_key(0))).unwrap();
-    await!(apps[1].config().unwrap().open_friend(node_public_key(0))).unwrap();
-    await!(apps[1]
+    apps[1].config().unwrap().enable_friend(node_public_key(0)).await.unwrap();
+    apps[1].config().unwrap().open_friend(node_public_key(0)).await.unwrap();
+    apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(0), 100))
+        .set_friend_remote_max_debt(node_public_key(0), 100).await
     .unwrap();
-    await!(apps[1]
+    apps[1]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(0), Rate { mul: 0, add: 1 }))
+        .set_friend_rate(node_public_key(0), Rate { mul: 0, add: 1 }).await
     .unwrap();
 
     // 1 --> 2
-    await!(apps[1].config().unwrap().add_friend(
+    apps[1].config().unwrap().add_friend(
         node_public_key(2),
         vec![relay_address(0)],
         String::from("node2"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[1].config().unwrap().enable_friend(node_public_key(2))).unwrap();
-    await!(apps[1].config().unwrap().open_friend(node_public_key(2))).unwrap();
-    await!(apps[1]
+    apps[1].config().unwrap().enable_friend(node_public_key(2)).await.unwrap();
+    apps[1].config().unwrap().open_friend(node_public_key(2)).await.unwrap();
+    apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100))
+        .set_friend_remote_max_debt(node_public_key(2), 100).await
     .unwrap();
-    await!(apps[1]
+    apps[1]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 2 }))
+        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 2 }).await
     .unwrap();
 
     // 2 --> 1
-    await!(apps[2].config().unwrap().add_friend(
+    apps[2].config().unwrap().add_friend(
         node_public_key(1),
         vec![relay_address(1)],
         String::from("node1"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[2].config().unwrap().enable_friend(node_public_key(1))).unwrap();
-    await!(apps[2].config().unwrap().open_friend(node_public_key(1))).unwrap();
-    await!(apps[2]
+    apps[2].config().unwrap().enable_friend(node_public_key(1)).await.unwrap();
+    apps[2].config().unwrap().open_friend(node_public_key(1)).await.unwrap();
+    apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100))
+        .set_friend_remote_max_debt(node_public_key(1), 100).await
     .unwrap();
-    await!(apps[2]
+    apps[2]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(1), Rate { mul: 0, add: 1 }))
+        .set_friend_rate(node_public_key(1), Rate { mul: 0, add: 1 }).await
     .unwrap();
 
     // 1 --> 3
-    await!(apps[1].config().unwrap().add_friend(
+    apps[1].config().unwrap().add_friend(
         node_public_key(3),
         vec![relay_address(0)],
         String::from("node3"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[1].config().unwrap().enable_friend(node_public_key(3))).unwrap();
-    await!(apps[1].config().unwrap().open_friend(node_public_key(3))).unwrap();
-    await!(apps[1]
+    apps[1].config().unwrap().enable_friend(node_public_key(3)).await.unwrap();
+    apps[1].config().unwrap().open_friend(node_public_key(3)).await.unwrap();
+    apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(3), 100))
+        .set_friend_remote_max_debt(node_public_key(3), 100).await
     .unwrap();
 
     // 3 --> 1
-    await!(apps[3].config().unwrap().add_friend(
+    apps[3].config().unwrap().add_friend(
         node_public_key(1),
         vec![relay_address(1)],
         String::from("node1"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[3].config().unwrap().enable_friend(node_public_key(1))).unwrap();
-    await!(apps[3].config().unwrap().open_friend(node_public_key(1))).unwrap();
-    await!(apps[3]
+    apps[3].config().unwrap().enable_friend(node_public_key(1)).await.unwrap();
+    apps[3].config().unwrap().open_friend(node_public_key(1)).await.unwrap();
+    apps[3]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100))
+        .set_friend_remote_max_debt(node_public_key(1), 100).await
     .unwrap();
 
     // 2 --> 5
-    await!(apps[2].config().unwrap().add_friend(
+    apps[2].config().unwrap().add_friend(
         node_public_key(5),
         vec![relay_address(1)],
         String::from("node5"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[2].config().unwrap().enable_friend(node_public_key(5))).unwrap();
-    await!(apps[2].config().unwrap().open_friend(node_public_key(5))).unwrap();
-    await!(apps[2]
+    apps[2].config().unwrap().enable_friend(node_public_key(5)).await.unwrap();
+    apps[2].config().unwrap().open_friend(node_public_key(5)).await.unwrap();
+    apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(5), 100))
+        .set_friend_remote_max_debt(node_public_key(5), 100).await
     .unwrap();
-    await!(apps[2].config().unwrap().set_friend_rate(
+    apps[2].config().unwrap().set_friend_rate(
         node_public_key(5),
         Rate {
             mul: 0x80000000,
             add: 0
         }
-    ))
+    ).await
     .unwrap();
 
     // 5 --> 2
-    await!(apps[5].config().unwrap().add_friend(
+    apps[5].config().unwrap().add_friend(
         node_public_key(2),
         vec![relay_address(0)],
         String::from("node2"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[5].config().unwrap().enable_friend(node_public_key(2))).unwrap();
-    await!(apps[5].config().unwrap().open_friend(node_public_key(2))).unwrap();
-    await!(apps[5]
+    apps[5].config().unwrap().enable_friend(node_public_key(2)).await.unwrap();
+    apps[5].config().unwrap().open_friend(node_public_key(2)).await.unwrap();
+    apps[5]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100))
+        .set_friend_remote_max_debt(node_public_key(2), 100).await
     .unwrap();
 
     // 2 --> 4
-    await!(apps[2].config().unwrap().add_friend(
+    apps[2].config().unwrap().add_friend(
         node_public_key(4),
         vec![relay_address(0)],
         String::from("node4"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[2].config().unwrap().enable_friend(node_public_key(4))).unwrap();
-    await!(apps[2].config().unwrap().open_friend(node_public_key(4))).unwrap();
-    await!(apps[2]
+    apps[2].config().unwrap().enable_friend(node_public_key(4)).await.unwrap();
+    apps[2].config().unwrap().open_friend(node_public_key(4)).await.unwrap();
+    apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(4), 100))
+        .set_friend_remote_max_debt(node_public_key(4), 100).await
     .unwrap();
 
     // 4 --> 2
     // We add the extra relay_address(1) on purpose.
     // Node4 will find out and remove it later.
-    await!(apps[4].config().unwrap().add_friend(
+    apps[4].config().unwrap().add_friend(
         node_public_key(2),
         vec![relay_address(0), relay_address(1)],
         String::from("node2"),
         0
-    ))
+    ).await
     .unwrap();
-    await!(apps[4].config().unwrap().enable_friend(node_public_key(2))).unwrap();
-    await!(apps[4].config().unwrap().open_friend(node_public_key(2))).unwrap();
-    await!(apps[4]
+    apps[4].config().unwrap().enable_friend(node_public_key(2)).await.unwrap();
+    apps[4].config().unwrap().open_friend(node_public_key(2)).await.unwrap();
+    apps[4]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100))
+        .set_friend_remote_max_debt(node_public_key(2), 100).await
     .unwrap();
-    await!(apps[4]
+    apps[4]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 1 }))
+        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 1 }).await
     .unwrap();
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Make sure that node1 sees node2 as online:
-    let (node_report, mutations_receiver) = await!(apps[1].report().incoming_reports()).unwrap();
+    let (node_report, mutations_receiver) = apps[1].report().incoming_reports().await.unwrap();
     drop(mutations_receiver);
     let friend_report = match node_report.funder_report.friends.get(&node_public_key(2)) {
         None => unreachable!(),
@@ -405,19 +405,19 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let fees = 2u128; // Fees for Node1 and Node2
 
     // Node4: Create an invoice:
-    await!(apps[4]
+    apps[4]
         .seller()
         .unwrap()
-        .add_invoice(invoice_id.clone(), total_dest_payment))
+        .add_invoice(invoice_id.clone(), total_dest_payment).await
     .unwrap();
 
     // Node0: Request a route to node 4:
-    let multi_routes = await!(apps[0].routes().unwrap().request_routes(
+    let multi_routes = apps[0].routes().unwrap().request_routes(
         20,
         node_public_key(0),
         node_public_key(4),
         None
-    ))
+    ).await
     .unwrap();
 
     assert!(multi_routes.len() > 0);
@@ -428,29 +428,29 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let route = multi_route.routes[0].route.clone();
 
     // Node0: Open a payment to pay the invoice issued by Node4:
-    await!(apps[0].buyer().unwrap().create_payment(
+    apps[0].buyer().unwrap().create_payment(
         payment_id.clone(),
         invoice_id.clone(),
         total_dest_payment,
         node_public_key(4),
-    ))
+    ).await
     .unwrap();
 
     // Node0: Create one transaction for the given route:
-    let commit = await!(apps[0].buyer().unwrap().create_transaction(
+    let commit = apps[0].buyer().unwrap().create_transaction(
         payment_id.clone(),
         request_id.clone(),
         route,
         total_dest_payment,
         fees,
-    ))
+    ).await
     .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = await!(apps[0]
+    let _ = apps[0]
         .buyer()
         .unwrap()
-        .request_close_payment(payment_id.clone()))
+        .request_close_payment(payment_id.clone()).await
     .unwrap();
 
     // Node0: Compose a MultiCommit:
@@ -463,16 +463,16 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Node0 now passes the MultiCommit to Node4 out of band.
 
     // Node4: Apply the MultiCommit
-    await!(apps[4].seller().unwrap().commit_invoice(multi_commit)).unwrap();
+    apps[4].seller().unwrap().commit_invoice(multi_commit).await.unwrap();
 
     // Wait some time:
-    await!(advance_time(5, &mut tick_sender, &test_executor));
+    advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node0: Check the payment's result:
-    let payment_status = await!(apps[0]
+    let payment_status = apps[0]
         .buyer()
         .unwrap()
-        .request_close_payment(payment_id.clone()))
+        .request_close_payment(payment_id.clone()).await
     .unwrap();
 
     // Acknowledge the payment closing result if required:
@@ -480,10 +480,10 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
-            await!(apps[0]
+            apps[0]
                 .buyer()
                 .unwrap()
-                .ack_close_payment(payment_id.clone(), ack_uid.clone()))
+                .ack_close_payment(payment_id.clone(), ack_uid.clone()).await
             .unwrap();
         }
         _ => unreachable!(),
@@ -499,19 +499,19 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let fees = 5u128 + 2u128; // Fees for Node2 (5 = 10/2) and Node1 (2).
 
     // Node3: Create an invoice:
-    await!(apps[3]
+    apps[3]
         .seller()
         .unwrap()
-        .add_invoice(invoice_id.clone(), total_dest_payment))
+        .add_invoice(invoice_id.clone(), total_dest_payment).await
     .unwrap();
 
     // Node5: Request a route to node 3:
-    let multi_routes = await!(apps[5].routes().unwrap().request_routes(
+    let multi_routes = apps[5].routes().unwrap().request_routes(
         10,
         node_public_key(5),
         node_public_key(3),
         None
-    ))
+    ).await
     .unwrap();
 
     assert!(multi_routes.len() > 0);
@@ -522,29 +522,29 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let route = multi_route.routes[0].route.clone();
 
     // Node5: Open a payment to pay the invoice issued by Node4:
-    await!(apps[5].buyer().unwrap().create_payment(
+    apps[5].buyer().unwrap().create_payment(
         payment_id.clone(),
         invoice_id.clone(),
         total_dest_payment,
         node_public_key(3),
-    ))
+    ).await
     .unwrap();
 
     // Node5: Create one transaction for the given route:
-    let commit = await!(apps[5].buyer().unwrap().create_transaction(
+    let commit = apps[5].buyer().unwrap().create_transaction(
         payment_id.clone(),
         request_id.clone(),
         route,
         total_dest_payment,
         fees,
-    ))
+    ).await
     .unwrap();
 
     // Node5: Close payment (No more transactions will be sent through this payment)
-    let _ = await!(apps[5]
+    let _ = apps[5]
         .buyer()
         .unwrap()
-        .request_close_payment(payment_id.clone()))
+        .request_close_payment(payment_id.clone()).await
     .unwrap();
 
     // Node5: Compose a MultiCommit:
@@ -557,16 +557,16 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Node5 now passes the MultiCommit to Node3 out of band.
 
     // Node3: Apply the MultiCommit
-    await!(apps[3].seller().unwrap().commit_invoice(multi_commit)).unwrap();
+    apps[3].seller().unwrap().commit_invoice(multi_commit).await.unwrap();
 
     // Wait some time:
-    await!(advance_time(5, &mut tick_sender, &test_executor));
+    advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node5: Check the payment's result:
-    let payment_status = await!(apps[5]
+    let payment_status = apps[5]
         .buyer()
         .unwrap()
-        .request_close_payment(payment_id.clone()))
+        .request_close_payment(payment_id.clone()).await
     .unwrap();
 
     // Acknowledge the payment closing result if required:
@@ -574,10 +574,10 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
-            await!(apps[5]
+            apps[5]
                 .buyer()
                 .unwrap()
-                .ack_close_payment(payment_id.clone(), ack_uid.clone()))
+                .ack_close_payment(payment_id.clone(), ack_uid.clone()).await
             .unwrap();
         }
         _ => unreachable!(),

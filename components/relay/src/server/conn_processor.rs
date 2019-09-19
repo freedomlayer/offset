@@ -35,7 +35,7 @@ async fn dispatch_conn<FT>(
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let (sender, receiver) = await!(keepalive_transform.transform((sender, receiver)));
+    let (sender, receiver) = keepalive_transform.transform((sender, receiver)).await;
 
     let sender = sender.sink_map_err(|_| ());
     let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
@@ -84,14 +84,14 @@ where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
     let fut_receiver = Box::pin(async move {
-        if let Some(first_msg) = await!(receiver.next()) {
-            let dispatch_res = await!(dispatch_conn(
+        if let Some(first_msg) = receiver.next().await {
+            let dispatch_res = dispatch_conn(
                 sender,
                 receiver,
                 public_key,
                 first_msg,
                 keepalive_transform
-            ));
+            ).await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -101,12 +101,12 @@ where
         }
     });
 
-    let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-    let res = await!(future_timeout(
+    let timer_stream = timer_client.request_timer_stream().await.unwrap();
+    let res = future_timeout(
         fut_receiver,
         timer_stream,
         conn_timeout_ticks
-    ))?;
+    ).await?;
     if res.is_none() {
         warn!("process_conn(): timeout occurred");
     }
@@ -174,13 +174,13 @@ mod tests {
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
-        let incoming_conn = await!(dispatch_conn(
+        let incoming_conn = dispatch_conn(
             sender,
             receiver,
             public_key.clone(),
             ser_first_msg,
             keepalive_transform
-        ))
+        ).await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -195,13 +195,13 @@ mod tests {
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
-        let incoming_conn = await!(dispatch_conn(
+        let incoming_conn = dispatch_conn(
             sender,
             receiver,
             public_key.clone(),
             ser_first_msg,
             keepalive_transform
-        ))
+        ).await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -218,13 +218,13 @@ mod tests {
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
-        let incoming_conn = await!(dispatch_conn(
+        let incoming_conn = dispatch_conn(
             sender,
             receiver,
             public_key.clone(),
             ser_first_msg,
             keepalive_transform
-        ))
+        ).await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -251,13 +251,13 @@ mod tests {
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
-        let res = await!(dispatch_conn(
+        let res = dispatch_conn(
             sender,
             receiver,
             public_key.clone(),
             ser_first_msg,
             keepalive_transform
-        ));
+        ).await;
         assert!(res.is_none());
     }
 
@@ -298,12 +298,12 @@ mod tests {
         let ser_first_msg = first_msg.proto_serialize();
         thread_pool
             .spawn(async move {
-                await!(remote_sender.send(ser_first_msg).map(|res| {
+                remote_sender.send(ser_first_msg).map(|res| {
                     match res {
                         Ok(_remote_sender) => (),
                         Err(_) => unreachable!("Sending first message failed!"),
                     }
-                }))
+                }).await
             })
             .unwrap();
 

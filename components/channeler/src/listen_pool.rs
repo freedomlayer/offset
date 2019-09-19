@@ -44,7 +44,7 @@ impl<RA> LpConfigClient<RA> {
     }
 
     pub async fn config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolClientError> {
-        await!(self.request_sender.send(config))
+        self.request_sender.send(config).await
             .map_err(|_| ListenPoolClientError)?;
         Ok(())
     }
@@ -130,9 +130,9 @@ where
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
         let send_fut = async move {
-            let _ = await!(c_plain_conn_sender.send_all(&mut connections_receiver));
+            let _ = c_plain_conn_sender.send_all(&mut connections_receiver).await;
             // Notify that this listener was closed:
-            let _ = await!(c_relay_closed_sender.send(address));
+            let _ = c_relay_closed_sender.send(address).await;
         };
         self.spawner
             .clone()
@@ -165,8 +165,8 @@ where
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender
-                                .send(AccessControlOp::Add(friend_public_key.clone())));
+                            let _ = access_control_sender
+                                .send(AccessControlOp::Add(friend_public_key.clone())).await;
                         }
                     }
                 }
@@ -175,8 +175,8 @@ where
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender
-                                .send(AccessControlOp::Remove(friend_public_key.clone())));
+                            let _ = access_control_sender
+                                .send(AccessControlOp::Remove(friend_public_key.clone())).await;
                         }
                     }
                 }
@@ -200,8 +200,8 @@ where
                     if let Some(relay) = self.state.relays.get_mut(&address) {
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
-                            let _ = await!(access_control_sender
-                                .send(AccessControlOp::Remove(friend_public_key.clone())));
+                            let _ = access_control_sender
+                                .send(AccessControlOp::Remove(friend_public_key.clone())).await;
                         }
                     }
                 }
@@ -289,9 +289,9 @@ where
 
     let mut incoming_events = select_streams![incoming_relay_closed, incoming_config, timer_stream];
 
-    while let Some(event) = await!(incoming_events.next()) {
+    while let Some(event) = incoming_events.next().await {
         match event {
-            LpEvent::Config(config) => await!(listen_pool.handle_config(config))?,
+            LpEvent::Config(config) => listen_pool.handle_config(config).await?,
             LpEvent::ConfigClosed => break,
             LpEvent::RelayClosed(address) => listen_pool.handle_relay_closed(address)?,
             LpEvent::TimerTick => listen_pool.handle_timer_tick()?,
@@ -300,7 +300,7 @@ where
 
         // Used for debugging:
         if let Some(ref mut event_sender) = opt_event_sender {
-            let _ = await!(event_sender.send(()));
+            let _ = event_sender.send(()).await;
         }
     }
     Ok(())
@@ -389,7 +389,7 @@ where
         }
 
         let loop_fut = async move {
-            let res_timer_stream = await!(c_timer_client.request_timer_stream());
+            let res_timer_stream = c_timer_client.request_timer_stream().await;
             let timer_stream = match res_timer_stream {
                 Ok(timer_stream) => timer_stream,
                 Err(_) => {
@@ -398,7 +398,7 @@ where
                 }
             };
 
-            let res = await!(listen_pool_loop(
+            let res = listen_pool_loop(
                 incoming_config,
                 plain_conn_sender,
                 c_listener,
@@ -406,7 +406,7 @@ where
                 timer_stream,
                 c_spawner,
                 None
-            ));
+            ).await;
 
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);
@@ -439,8 +439,8 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_plain_conns, mut incoming_plain_conns) = mpsc::channel(0);
@@ -466,11 +466,11 @@ mod tests {
         let mut local_addresses = vec![0x0u32, 0x1u32];
         local_addresses.sort();
 
-        await!(config_sender.send(LpConfig::SetLocalAddresses(local_addresses.clone()))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::SetLocalAddresses(local_addresses.clone())).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         let mut observed_addresses = Vec::new();
-        let mut listen_req0 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req0 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address0, _) = listen_req0.arg;
         observed_addresses.push(relay_address0.clone());
 
@@ -480,16 +480,16 @@ mod tests {
         for _ in 0..5usize {
             let (_local_sender, remote_receiver) = mpsc::channel(0);
             let (remote_sender, _local_receiver) = mpsc::channel(0);
-            await!(listen_req0
+            listen_req0
                 .conn_sender
-                .send((pk_b.clone(), (remote_sender, remote_receiver))))
+                .send((pk_b.clone(), (remote_sender, remote_receiver))).await
             .unwrap();
 
-            let (pk, _conn) = await!(incoming_plain_conns.next()).unwrap();
+            let (pk, _conn) = incoming_plain_conns.next().await.unwrap();
             assert_eq!(pk, pk_b);
         }
 
-        let mut listen_req1 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req1 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address1, _) = listen_req1.arg;
         observed_addresses.push(relay_address1.clone());
 
@@ -497,14 +497,14 @@ mod tests {
         assert_eq!(local_addresses, observed_addresses);
 
         // Reduce the set of local addresses to only contain 0x1u32:
-        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x1u32]))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::SetLocalAddresses(vec![0x1u32])).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // The 0x0u32 listener should be closed:
         if *relay_address0 == 0x0u32 {
-            assert!(await!(listen_req0.config_receiver.next()).is_none());
+            assert!(listen_req0.config_receiver.next().await.is_none());
         } else {
-            assert!(await!(listen_req1.config_receiver.next()).is_none());
+            assert!(listen_req1.config_receiver.next().await.is_none());
         }
     }
 
@@ -528,8 +528,8 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let mut tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
@@ -552,26 +552,26 @@ mod tests {
 
         spawner.spawn(fut_loop).unwrap();
 
-        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32]))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32])).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         for _ in 0..5 {
-            let listen_req = await!(listen_req_receiver.next()).unwrap();
+            let listen_req = listen_req_receiver.next().await.unwrap();
             let (ref relay_address, _) = listen_req.arg;
             assert_eq!(*relay_address, 0);
 
             // Simulate closing of the listener:
             drop(listen_req);
-            await!(event_receiver.next()).unwrap();
+            event_receiver.next().await.unwrap();
 
             // Wait until backoff_ticks time passes:
             for _ in 0..backoff_ticks {
-                await!(tick_sender.send(TimerTick)).unwrap();
-                await!(event_receiver.next()).unwrap();
+                tick_sender.send(TimerTick).await.unwrap();
+                event_receiver.next().await.unwrap();
             }
         }
 
-        let listen_req = await!(listen_req_receiver.next()).unwrap();
+        let listen_req = listen_req_receiver.next().await.unwrap();
         let (ref relay_address, _) = listen_req.arg;
         assert_eq!(*relay_address, 0);
     }
@@ -594,8 +594,8 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
-        let _tick_sender = await!(tick_sender_receiver.next()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
@@ -618,68 +618,68 @@ mod tests {
 
         spawner.spawn(fut_loop).unwrap();
 
-        await!(config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32]))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32])).await.unwrap();
+        event_receiver.next().await.unwrap();
 
-        let mut listen_req0 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req0 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address0, _) = listen_req0.arg;
         assert_eq!(*relay_address0, 0x0u32);
 
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
-        await!(config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32])))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32]))).await.unwrap();
+        event_receiver.next().await.unwrap();
 
-        let mut listen_req1 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req1 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address1, _) = listen_req1.arg;
         assert_eq!(*relay_address1, 0x1u32);
 
-        let config0 = await!(listen_req0.config_receiver.next()).unwrap();
+        let config0 = listen_req0.config_receiver.next().await.unwrap();
         match config0 {
             AccessControlOp::Add(pk) => assert_eq!(pk, pk_b),
             _ => unreachable!(),
         };
 
-        await!(config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x2u32])))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x2u32]))).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Connection to relay 1u32 should be closed:
-        assert!(await!(listen_req1.config_receiver.next()).is_none());
+        assert!(listen_req1.config_receiver.next().await.is_none());
         drop(listen_req1);
 
         // Connection to relay 2u32 is opened:
-        let mut listen_req2 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req2 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address2, _) = listen_req2.arg;
         assert_eq!(*relay_address2, 0x2u32);
 
         let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
 
-        await!(config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32]))))
+        config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32]))).await
             .unwrap();
-        await!(event_receiver.next()).unwrap();
+        event_receiver.next().await.unwrap();
 
         // Connection to relay 3u32 is opened:
-        let mut listen_req3 = await!(listen_req_receiver.next()).unwrap();
+        let mut listen_req3 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address3, _) = listen_req3.arg;
         assert_eq!(*relay_address3, 0x3u32);
 
         for listen_req in &mut [&mut listen_req0, &mut listen_req2] {
-            let config = await!(listen_req.config_receiver.next()).unwrap();
+            let config = listen_req.config_receiver.next().await.unwrap();
             match config {
                 AccessControlOp::Add(pk) => assert_eq!(pk, pk_c),
                 _ => unreachable!(),
             };
         }
 
-        await!(config_sender.send(LpConfig::RemoveFriend(pk_c.clone()))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        config_sender.send(LpConfig::RemoveFriend(pk_c.clone())).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Connection to relay 3u32 should be closed:
-        assert!(await!(listen_req3.config_receiver.next()).is_none());
+        assert!(listen_req3.config_receiver.next().await.is_none());
         drop(listen_req3);
 
         for listen_req in &mut [&mut listen_req0, &mut listen_req2] {
-            let config = await!(listen_req.config_receiver.next()).unwrap();
+            let config = listen_req.config_receiver.next().await.unwrap();
             match config {
                 AccessControlOp::Remove(pk) => assert_eq!(pk, pk_c),
                 _ => unreachable!(),

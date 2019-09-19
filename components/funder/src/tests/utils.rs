@@ -93,7 +93,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
             assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message =
                 FunderIncomingComm::Friend((src_public_key.clone(), friend_message));
-            let _ = await!(node.comm_out.send(incoming_comm_message));
+            let _ = node.comm_out.send(incoming_comm_message).await;
         }
         FunderOutgoingComm::ChannelerConfig(channeler_config) => {
             match channeler_config {
@@ -110,13 +110,13 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
                         let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Online(src_public_key.clone()),
                         );
-                        let _ = await!(remote_node_comm_out.send(incoming_comm_message));
+                        let _ = remote_node_comm_out.send(incoming_comm_message).await;
 
                         let incoming_comm_message =
                             FunderIncomingComm::Liveness(IncomingLivenessMessage::Online(
                                 channeler_add_friend.friend_public_key.clone(),
                             ));
-                        let _ = await!(comm_out.send(incoming_comm_message));
+                        let _ = comm_out.send(incoming_comm_message).await;
                     }
                 }
                 ChannelerConfig::RemoveFriend(friend_public_key) => {
@@ -133,7 +133,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
                         let incoming_comm_message = FunderIncomingComm::Liveness(
                             IncomingLivenessMessage::Offline(friend_public_key.clone()),
                         );
-                        let _ = await!(comm_out.send(incoming_comm_message));
+                        let _ = comm_out.send(incoming_comm_message).await;
                     }
                 }
                 ChannelerConfig::SetRelays(_) => {
@@ -160,7 +160,7 @@ where
 
     let mut events = select(incoming_new_node, comm_receiver);
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         match event {
             RouterEvent::NewNode(new_node) => {
                 let NewNode {
@@ -181,15 +181,15 @@ where
                 let mut mapped_comm_in = comm_in
                     .map(move |funder_outgoing_comm| (c_public_key.clone(), funder_outgoing_comm));
                 let fut =
-                    async move { await!(c_comm_sender.send_all(&mut mapped_comm_in)).unwrap() };
+                    async move { c_comm_sender.send_all(&mut mapped_comm_in).await.unwrap() };
                 spawner.spawn(fut.then(|_| future::ready(()))).unwrap();
             }
             RouterEvent::OutgoingComm((src_public_key, outgoing_comm)) => {
-                await!(router_handle_outgoing_comm(
+                router_handle_outgoing_comm(
                     &mut nodes,
                     src_public_key,
                     outgoing_comm
-                ));
+                ).await;
             }
         };
     }
@@ -231,10 +231,10 @@ where
             app_request_id: app_request_id.clone(),
             funder_control,
         };
-        await!(self.send_control.send(funder_incoming_control)).unwrap();
+        self.send_control.send(funder_incoming_control).await.unwrap();
 
         loop {
-            match await!(self.recv()).unwrap() {
+            match self.recv().await.unwrap() {
                 NodeRecv::ReportMutations(funder_report_mutations) => {
                     if funder_report_mutations.opt_app_request_id == Some(app_request_id.clone()) {
                         break;
@@ -246,7 +246,7 @@ where
     }
 
     pub async fn recv(&mut self) -> Option<NodeRecv<B>> {
-        let funder_outgoing_control = await!(self.recv_control.next())?;
+        let funder_outgoing_control = self.recv_control.next().await?;
         match funder_outgoing_control {
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
                 for mutation in &funder_report_mutations.mutations {
@@ -268,7 +268,7 @@ where
         P: Fn(&FunderReport<B>) -> bool,
     {
         while !predicate(&self.report) {
-            match await!(self.recv()).unwrap() {
+            match self.recv().await.unwrap() {
                 NodeRecv::ReportMutations(_) => {}
                 NodeRecv::TransactionResult(_) => unreachable!(),
                 NodeRecv::ResponseClosePayment(_) => unreachable!(),
@@ -278,7 +278,7 @@ where
 
     pub async fn recv_until_transaction_result(&mut self) -> Option<TransactionResult> {
         loop {
-            match await!(self.recv())? {
+            match self.recv().await? {
                 NodeRecv::ReportMutations(_) => {}
                 NodeRecv::TransactionResult(transaction_result) => return Some(transaction_result),
                 NodeRecv::ResponseClosePayment(_) => {}
@@ -288,7 +288,7 @@ where
 
     pub async fn recv_until_response_close_payment(&mut self) -> Option<ResponseClosePayment> {
         loop {
-            match await!(self.recv())? {
+            match self.recv().await? {
                 NodeRecv::ReportMutations(_) => {}
                 NodeRecv::TransactionResult(_) => {}
                 NodeRecv::ResponseClosePayment(response_close_payment) => {
@@ -299,11 +299,11 @@ where
     }
 
     pub async fn add_relay<'a>(&'a mut self, named_relay_address: NamedRelayAddress<B>) {
-        await!(self.send(FunderControl::AddRelay(named_relay_address.clone())));
+        self.send(FunderControl::AddRelay(named_relay_address.clone())).await;
     }
 
     pub async fn remove_relay<'a>(&'a mut self, public_key: PublicKey) {
-        await!(self.send(FunderControl::RemoveRelay(public_key.clone())));
+        self.send(FunderControl::RemoveRelay(public_key.clone())).await;
     }
 
     pub async fn add_friend<'a>(
@@ -319,7 +319,7 @@ where
             name: name.into(),
             balance: balance.into(),
         };
-        await!(self.send(FunderControl::AddFriend(add_friend)));
+        self.send(FunderControl::AddFriend(add_friend)).await;
     }
 
     pub async fn set_friend_status<'a>(
@@ -331,7 +331,7 @@ where
             friend_public_key: friend_public_key.clone(),
             status: status.clone(),
         };
-        await!(self.send(FunderControl::SetFriendStatus(set_friend_status)));
+        self.send(FunderControl::SetFriendStatus(set_friend_status)).await;
     }
 
     pub async fn set_remote_max_debt<'a>(
@@ -343,7 +343,7 @@ where
             friend_public_key: friend_public_key.clone(),
             remote_max_debt: remote_max_debt.into(),
         };
-        await!(self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)));
+        self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)).await;
     }
 
     pub async fn set_requests_status<'a>(
@@ -355,7 +355,7 @@ where
             friend_public_key: friend_public_key.clone(),
             status: requests_status.clone(),
         };
-        await!(self.send(FunderControl::SetRequestsStatus(set_requests_status)));
+        self.send(FunderControl::SetRequestsStatus(set_requests_status)).await;
     }
 
     pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, rate: Rate) {
@@ -363,7 +363,7 @@ where
             friend_public_key: friend_public_key.clone(),
             rate,
         };
-        await!(self.send(FunderControl::SetFriendRate(set_friend_rate)));
+        self.send(FunderControl::SetFriendRate(set_friend_rate)).await;
     }
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
@@ -384,7 +384,7 @@ where
             };
             tc_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
         };
-        await!(self.recv_until(pred));
+        self.recv_until(pred).await;
     }
 }
 
@@ -415,7 +415,7 @@ where
             .spawn(identity_server.then(|_| future::ready(())))
             .unwrap();
 
-        let public_key = await!(identity_client.request_public_key()).unwrap();
+        let public_key = identity_client.request_public_key().await.unwrap();
         let relays = vec![dummy_named_relay_address(i as u8)];
         let funder_state = FunderState::new(public_key.clone(), relays);
         let ephemeral = Ephemeral::new();
@@ -429,7 +429,7 @@ where
 
         let fut_dispose_db_requests = async move {
             // Read all incoming db requests:
-            while let Some(request) = await!(incoming_db_requests.next()) {
+            while let Some(request) = incoming_db_requests.next().await {
                 let _ = request.response_sender.send(());
             }
         };
@@ -461,7 +461,7 @@ where
             .unwrap();
 
         /*
-        let base_report = match await!(recv_control.next()).unwrap() {
+        let base_report = match recv_control.next().await.unwrap() {
             FunderOutgoingControl::Report(report) => report,
             _ => unreachable!(),
         };
@@ -472,10 +472,10 @@ where
             comm_in: recv_comm,
             comm_out: send_comm,
         };
-        await!(send_new_node.send(new_node)).unwrap();
+        send_new_node.send(new_node).await.unwrap();
 
         node_controls.push(NodeControl {
-            public_key: await!(identity_client.request_public_key()).unwrap(),
+            public_key: identity_client.request_public_key().await.unwrap(),
             send_control,
             recv_control,
             report: base_report,

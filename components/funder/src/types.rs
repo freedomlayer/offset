@@ -26,7 +26,7 @@ where
     B: CanonicalSerialize + 'a,
 {
     let signature_buff = move_token_signature_buff(&unsigned_move_token);
-    let new_token = await!(identity_client.request_signature(signature_buff)).unwrap();
+    let new_token = identity_client.request_signature(signature_buff).await.unwrap();
 
     MoveToken {
         operations: unsigned_move_token.operations,
@@ -59,7 +59,7 @@ pub async fn create_response_send_funds<'a>(
 
     let signature_buff =
         create_response_signature_buffer(&u_response_send_funds, pending_transaction);
-    let signature = await!(identity_client.request_signature(signature_buff)).unwrap();
+    let signature = identity_client.request_signature(signature_buff).await.unwrap();
 
     ResponseSendFundsOp {
         request_id: u_response_send_funds.request_id,
@@ -171,7 +171,7 @@ where
     };
 
     let sig_buffer = move_token_signature_buff(&move_token);
-    move_token.new_token = await!(identity_client.request_signature(sig_buffer)).unwrap();
+    move_token.new_token = identity_client.request_signature(sig_buffer).await.unwrap();
     move_token
 }
 */

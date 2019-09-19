@@ -35,8 +35,8 @@ async fn task_handler_change_address(
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330
 
     // Sort the identities. identity_client1 will be the first sender:
-    let pk1 = await!(identity_client1.request_public_key()).unwrap();
-    let pk2 = await!(identity_client2.request_public_key()).unwrap();
+    let pk1 = identity_client1.request_public_key().await.unwrap();
+    let pk2 = identity_client2.request_public_key().await.unwrap();
     let (mut identity_client1, pk1, mut identity_client2, pk2) =
         if compare_public_key(&pk1, &pk2) == Ordering::Less {
             (identity_client1, pk1, identity_client2, pk2)
@@ -55,24 +55,24 @@ async fn task_handler_change_address(
 
     // Initialize 1:
     let funder_incoming = FunderIncoming::Init;
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
 
     // Initialize 2:
     let funder_incoming = FunderIncoming::Init;
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     // Node1: Add friend 2:
@@ -87,13 +87,13 @@ async fn task_handler_change_address(
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(apply_funder_incoming(
+    apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    ))
+    ).await
     .unwrap();
 
     // Node1: Enable friend 2:
@@ -106,13 +106,13 @@ async fn task_handler_change_address(
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
 
     // Node2: Add friend 1:
@@ -127,13 +127,13 @@ async fn task_handler_change_address(
         FunderControl::AddFriend(add_friend),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     // Node2: enable friend 1:
@@ -146,13 +146,13 @@ async fn task_handler_change_address(
         FunderControl::SetFriendStatus(set_friend_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     // Node1: Notify that Node2 is alive
@@ -160,13 +160,13 @@ async fn task_handler_change_address(
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk2.clone());
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -193,25 +193,25 @@ async fn task_handler_change_address(
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
-    await!(Box::pin(apply_funder_incoming(
+    Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     // Node2: Receive friend_message from Node1:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -241,13 +241,13 @@ async fn task_handler_change_address(
     // Node1: Receive friend_message from Node2:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
@@ -277,13 +277,13 @@ async fn task_handler_change_address(
     // Node2: Receive friend_message from Node1:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -310,13 +310,13 @@ async fn task_handler_change_address(
     // Node1: Receive friend_message from Node2:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
     assert!(outgoing_comms.is_empty());
 
@@ -326,13 +326,13 @@ async fn task_handler_change_address(
         FunderControl::AddRelay(dummy_named_relay_address(11)),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let (outgoing_comms, _outgoing_control) = await!(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    ))
+    ).await
     .unwrap();
 
     // Node1 sends an update about his new address:
@@ -384,13 +384,13 @@ async fn task_handler_change_address(
     // Node2: Receive friend_message from Node1:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
         &mut rng,
         &mut identity_client2
-    )))
+    )).await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -417,13 +417,13 @@ async fn task_handler_change_address(
     // Node1: Receive friend_message from Node2:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = await!(Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state1,
         &mut ephemeral1,
         &mut rng,
         &mut identity_client1
-    )))
+    )).await
     .unwrap();
     assert_eq!(outgoing_comms.len(), 1);
     match &outgoing_comms[0] {

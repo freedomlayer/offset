@@ -24,7 +24,7 @@ impl AppReport {
         &mut self,
     ) -> Result<(NodeReport, mpsc::Receiver<Vec<NodeReportMutation>>), AppReportError> {
         let (batch_mutable, incoming_mutations) =
-            await!(self.report_client.request_state()).map_err(|_| AppReportError)?;
+            self.report_client.request_state().await.map_err(|_| AppReportError)?;
 
         Ok((batch_mutable.0, incoming_mutations))
     }

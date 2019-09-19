@@ -124,14 +124,14 @@ where
     let funder_db_client = DatabaseClient::new(request_sender);
 
     let database_adapter_fut = async move {
-        while let Some(request) = await!(request_receiver.next()) {
+        while let Some(request) = request_receiver.next().await {
             let mutations = request
                 .mutations
                 .into_iter()
                 .map(NodeMutation::Funder)
                 .collect::<Vec<_>>();
 
-            if let Err(e) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = database_client.mutate(mutations).await {
                 error!("error in funder database adapter: {:?}", e);
                 return;
             }
@@ -148,7 +148,7 @@ where
     // Channeler to funder adapter:
     let (mut incoming_comm_sender, incoming_comm) = mpsc::channel(0);
     let channeler_to_funder_adapter = async move {
-        while let Some(channeler_message) = await!(from_channeler.next()) {
+        while let Some(channeler_message) = from_channeler.next().await {
             let opt_to_funder_message = match channeler_message {
                 ChannelerToFunder::Online(public_key) => Some(FunderIncomingComm::Liveness(
                     IncomingLivenessMessage::Online(public_key),
@@ -166,7 +166,7 @@ where
                 }
             };
             if let Some(to_funder_message) = opt_to_funder_message {
-                if await!(incoming_comm_sender.send(to_funder_message)).is_err() {
+                if incoming_comm_sender.send(to_funder_message).await.is_err() {
                     return;
                 }
             }
@@ -181,7 +181,7 @@ where
 
     // Funder to Channeler adapter:
     let funder_to_channeler_adapter = async move {
-        while let Some(funder_message) = await!(outgoing_comm.next()) {
+        while let Some(funder_message) = outgoing_comm.next().await {
             let to_channeler_message = match funder_message {
                 FunderOutgoingComm::ChannelerConfig(channeler_config) => match channeler_config {
                     ChannelerConfig::SetRelays(relay_addresses) => {
@@ -200,7 +200,7 @@ where
                     FunderToChanneler::Message((public_key, data))
                 }
             };
-            if await!(to_channeler.send(to_channeler_message)).is_err() {
+            if to_channeler.send(to_channeler_message).await.is_err() {
                 return;
             }
         }
@@ -258,14 +258,14 @@ where
     let index_client_db_client = DatabaseClient::new(request_sender);
 
     let database_adapter_fut = async move {
-        while let Some(request) = await!(request_receiver.next()) {
+        while let Some(request) = request_receiver.next().await {
             let mutations = request
                 .mutations
                 .into_iter()
                 .map(NodeMutation::IndexClient)
                 .collect::<Vec<_>>();
 
-            if let Err(e) = await!(database_client.mutate(mutations)) {
+            if let Err(e) = database_client.mutate(mutations).await {
                 error!("error in index_client database adapter: {:?}", e);
                 return;
             }
@@ -303,7 +303,7 @@ where
         spawner.clone(),
     );
 
-    await!(spawn_index_client(
+    spawn_index_client(
         local_public_key,
         node_state.index_client_config.clone(),
         index_client_state,
@@ -318,7 +318,7 @@ where
         enc_keepalive_connector,
         rng,
         spawner.clone()
-    ))
+    ).await
     .map_err(|_| NodeError::SpawnError)
 }
 
@@ -344,7 +344,7 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
     // Get local public key:
-    let local_public_key = await!(identity_client.request_public_key())
+    let local_public_key = identity_client.request_public_key().await
         .map_err(|_| NodeError::RequestPublicKeyError)?;
 
     let initial_node_report = create_node_report(&node_state);
@@ -406,7 +406,7 @@ where
         .spawn_with_handle(app_server_fut)
         .map_err(|_| NodeError::SpawnError)?;
 
-    let index_client_handle = await!(node_spawn_index_client(
+    let index_client_handle = node_spawn_index_client(
         &node_config,
         local_public_key,
         identity_client,
@@ -418,7 +418,7 @@ where
         version_connector,
         rng,
         spawner
-    ))?;
+    ).await?;
 
     // Wait for death of any component
     select! {
