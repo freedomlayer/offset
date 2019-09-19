@@ -28,7 +28,6 @@
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};
 use futures::channel::{mpsc, oneshot};
-// use futures::future::FutureExt;
 use futures::prelude::*;
 use futures::stream;
 use futures::task::{Spawn, SpawnExt};
