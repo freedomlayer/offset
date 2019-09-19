@@ -108,7 +108,8 @@ where
     .await
     .unwrap();
 
-    let to_app_message = app_receiver1.next().await.unwrap();
+
+    let to_app_message = app_receiver0.next().await.unwrap();
     match to_app_message {
         AppServerToApp::ResponseRoutes(response_routes) => {
             assert_eq!(response_routes.request_id, Uid::from(&[3; Uid::len()]));
