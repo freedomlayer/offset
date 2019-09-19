@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use futures::future::{self, FutureObj};
-use futures::task::{ArcWake, Context, Spawn, SpawnError, Waker};
+use futures::task::{ArcWake, Context, Spawn, SpawnError, Waker, waker};
 use futures::{Future, Poll};
 
 // use crate::caller_info::{get_caller_info, CallerInfo};
@@ -80,7 +80,7 @@ impl TestExecutor {
     /// Prepare a waker for a future with `future_id`
     fn create_waker(&self, future_id: usize) -> Waker {
         let test_waker = TestWaker::new(future_id, self.arc_mutex_inner.clone());
-        ArcWake::into_waker(Arc::new(test_waker))
+        waker(Arc::new(test_waker))
     }
 }
 
@@ -378,7 +378,7 @@ mod tests {
             .spawn(async move {
                 init_receiver.await.unwrap();
 
-                let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
+                let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(1);
                 a_sender.send(0).await.unwrap();
                 assert_eq!(a_receiver.next().await.unwrap(), 0);
 
@@ -462,7 +462,7 @@ mod tests {
 
         test_executor.run_until_no_progress();
         let res_guard = arc_mutex_res.lock().unwrap();
-        assert_eq!(*res_guard, 9);
+        assert_eq!(*res_guard, 8);
     }
 
     #[test]

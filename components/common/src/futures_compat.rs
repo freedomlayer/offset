@@ -29,7 +29,7 @@ pub fn create_interval(duration: Duration) -> mpsc::Receiver<()> {
 /// See: https://users.rust-lang.org/t/discarding-unused-cloned-sender-futures-3-0/21228
 pub async fn send_to_sink<S, T, E>(mut sink: S, item: T) -> Result<S, E>
 where
-    S: Sink<T, SinkError = E> + std::marker::Unpin + 'static,
+    S: Sink<T, Error = E> + std::marker::Unpin + 'static,
 {
     sink.send(item).await?;
     Ok(sink)
