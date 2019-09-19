@@ -507,7 +507,8 @@ mod tests {
         let c_spawner = spawner.clone();
         let fut_listener = async move {
             let mut access_control = AccessControlPk::new();
-            inner_client_listener(
+            // HACK: Saving temp value in res to make the compiler happy.
+            let res = inner_client_listener(
                 connector,
                 &mut access_control,
                 &mut incoming_access_control,
@@ -517,7 +518,8 @@ mod tests {
                 timer_client,
                 c_spawner,
                 Some(event_sender)
-            ).await
+            ).await;
+            res
         }
             .map_err(|e| warn!("inner_client_listener error: {:?}", e))
             .map(|_| ());

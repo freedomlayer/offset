@@ -3,7 +3,7 @@
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-#![type_length_limit = "2097152"]
+#![type_length_limit = "3993773"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
