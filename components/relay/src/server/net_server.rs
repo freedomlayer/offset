@@ -62,12 +62,7 @@ where
     assert!(half_tunnel_ticks < keepalive_ticks);
     assert!(half_tunnel_ticks > 0);
 
-    await!(relay_server_loop(
-        timer_client,
-        processed_conns,
-        half_tunnel_ticks,
-        spawner
-    ))
+    relay_server_loop(timer_client, processed_conns, half_tunnel_ticks, spawner).await
 }
 
 #[derive(Debug, From)]
@@ -133,7 +128,7 @@ where
         // We seem to have to clone version_transform for every connection
         // to make the borrow checker happy.
         let mut c_version_transform = version_transform.clone();
-        async move { await!(c_version_transform.transform(raw_conn)) }
+        async move { c_version_transform.transform(raw_conn).await }
     }));
 
     let (enc_conns_sender, incoming_enc_conns) = mpsc::channel::<(PublicKey, ConnPairVec)>(0);
@@ -152,12 +147,13 @@ where
         .spawn(enc_pool_fut)
         .map_err(|_| NetRelayServerError::SpawnError)?;
 
-    await!(relay_server(
+    relay_server(
         incoming_enc_conns,
         timer_client,
         CONN_TIMEOUT_TICKS,
         KEEPALIVE_TICKS,
-        spawner.clone()
-    ))?;
+        spawner.clone(),
+    )
+    .await?;
     Ok(())
 }

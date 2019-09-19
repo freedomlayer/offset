@@ -76,9 +76,12 @@ impl TimerClient {
     ) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let timer_request = TimerRequest { response_sender };
-        await!(self.sender.send(timer_request)).map_err(|_| TimerClientError::SendFailure)?;
+        self.sender
+            .send(timer_request)
+            .await
+            .map_err(|_| TimerClientError::SendFailure)?;
 
-        match await!(response_receiver) {
+        match response_receiver.await {
             Ok(timer_stream) => Ok(timer_stream),
             Err(_) => Err(TimerClientError::ResponseCanceled),
         }
@@ -112,13 +115,13 @@ where
     let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
     let mut requests_done = false;
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         match event {
             TimerEvent::Incoming => {
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for mut tick_sender in temp_tick_senders {
-                    if let Ok(()) = await!(tick_sender.send(TimerTick)) {
+                    if let Ok(()) = tick_sender.send(TimerTick).await {
                         tick_senders.push(tick_sender);
                     }
                 }
@@ -170,10 +173,10 @@ pub fn dummy_timer_multi_sender(
     let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(0);
     spawner
         .spawn(async move {
-            while let Some(timer_request) = await!(request_receiver.next()) {
+            while let Some(timer_request) = request_receiver.next().await {
                 let (tick_sender, tick_receiver) = mpsc::channel::<TimerTick>(0);
 
-                await!(tick_sender_sender.send(tick_sender)).unwrap();
+                tick_sender_sender.send(tick_sender).await.unwrap();
                 timer_request.response_sender.send(tick_receiver).unwrap();
             }
         })
@@ -312,7 +315,7 @@ mod tests {
     where
         M: Stream<Item = T> + std::marker::Unpin,
     {
-        let (opt_reader_message, ret_reader) = await!(reader.into_future());
+        let (opt_reader_message, ret_reader) = reader.into_future().await;
         match opt_reader_message {
             Some(reader_message) => Ok((reader_message, ret_reader)),
             None => return Err(ReadError::Closed),
@@ -328,15 +331,15 @@ mod tests {
     where
         S: Sink<(), SinkError = ()> + std::marker::Unpin + 'static,
     {
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
         for _ in 0..8usize {
-            await!(tick_sender.send(())).unwrap();
-            let (_, new_timer_stream) = await!(receive(timer_stream)).unwrap();
+            tick_sender.send(()).await.unwrap();
+            let (_, new_timer_stream) = receive(timer_stream).await.unwrap();
             timer_stream = new_timer_stream;
         }
         drop(tick_sender);
-        match await!(receive(timer_stream)) {
+        match receive(timer_stream).await {
             Ok(_) => unreachable!(),
             Err(e) => assert_eq!(e, ReadError::Closed),
         };
@@ -362,20 +365,20 @@ mod tests {
         let (mut tick_sender_receiver, mut timer_client) = dummy_timer_multi_sender(spawner);
 
         let timer_stream_fut = async {
-            let mut timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+            let mut timer_stream = timer_client.request_timer_stream().await.unwrap();
             for _ in 0..16usize {
-                assert_eq!(await!(timer_stream.next()), Some(TimerTick));
+                assert_eq!(timer_stream.next().await, Some(TimerTick));
             }
-            assert_eq!(await!(timer_stream.next()), None);
+            assert_eq!(timer_stream.next().await, None);
         };
         let tick_sender_fut = async {
-            let mut tick_sender = await!(tick_sender_receiver.next()).unwrap();
+            let mut tick_sender = tick_sender_receiver.next().await.unwrap();
 
             for _ in 0..16usize {
-                await!(tick_sender.send(TimerTick)).unwrap();
+                tick_sender.send(TimerTick).await.unwrap();
             }
         };
-        let _ = await!(join(timer_stream_fut, tick_sender_fut));
+        let _ = join(timer_stream_fut, tick_sender_fut).await;
     }
 
     #[test]

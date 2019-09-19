@@ -1,8 +1,8 @@
-#![feature(async_await, await_macro, arbitrary_self_types)]
+#![feature(arbitrary_self_types)]
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-#![type_length_limit = "4624323"]
+#![type_length_limit = "20844883"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(

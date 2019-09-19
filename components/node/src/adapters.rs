@@ -37,10 +37,11 @@ where
 
     fn transform(&mut self, relay_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(relay_address.address))?;
-            let (_public_key, conn_pair) = await!(self
+            let conn_pair = self.net_connector.transform(relay_address.address).await?;
+            let (_public_key, conn_pair) = self
                 .encrypt_transform
-                .transform((Some(relay_address.public_key), conn_pair)))?;
+                .transform((Some(relay_address.public_key), conn_pair))
+                .await?;
             Some(conn_pair)
         })
     }
@@ -85,11 +86,15 @@ where
 
     fn transform(&mut self, index_server_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let conn_pair = await!(self.net_connector.transform(index_server_address.address))?;
-            let (_public_key, conn_pair) = await!(self
+            let conn_pair = self
+                .net_connector
+                .transform(index_server_address.address)
+                .await?;
+            let (_public_key, conn_pair) = self
                 .encrypt_transform
-                .transform((Some(index_server_address.public_key), conn_pair)))?;
-            Some(await!(self.keepalive_transform.transform(conn_pair)))
+                .transform((Some(index_server_address.public_key), conn_pair))
+                .await?;
+            Some(self.keepalive_transform.transform(conn_pair).await)
         })
     }
 }

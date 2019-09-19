@@ -1,9 +1,9 @@
 #![crate_type = "lib"]
-#![feature(async_await, await_macro, arbitrary_self_types)]
+#![feature(arbitrary_self_types)]
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
-#![type_length_limit = "2097152"]
+#![type_length_limit = "3993773"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(

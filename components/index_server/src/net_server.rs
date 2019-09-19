@@ -65,7 +65,7 @@ async fn index_server<A, IS, IC, SC, R, GS, S>(
     spawner: S,
 ) -> Result<(), IndexServerError>
 where
-    A: Debug + Send + Clone + 'static,
+    A: Debug + Send + Sync + Clone + 'static,
     IS: Stream<Item = (PublicKey, ServerConn)> + Unpin + Send,
     IC: Stream<Item = (PublicKey, ClientConn)> + Unpin + Send,
     SC: FutTransform<Input = (PublicKey, A), Output = Option<ServerConn>> + Clone + Send + 'static,
@@ -79,12 +79,14 @@ where
     let graph_client = create_graph_service(capacity_graph, graph_service_spawner, spawner.clone())
         .map_err(|_| IndexServerError::CreateGraphServiceError)?;
 
-    let timer_stream = await!(timer_client.request_timer_stream())
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| IndexServerError::RequestTimerStreamError)?;
 
     let backoff_connector = BackoffConnector::new(server_connector, timer_client, backoff_ticks);
 
-    await!(server_loop(
+    server_loop(
         local_public_key,
         trusted_servers,
         incoming_server_connections,
@@ -95,8 +97,9 @@ where
         verifier,
         timer_stream,
         spawner,
-        None
-    ))
+        None,
+    )
+    .await
     .map_err(IndexServerError::ServerLoopError)
 }
 
@@ -110,14 +113,15 @@ struct ConnTransformer<VT, ET, KT, S> {
 
 impl<VT, ET, KT, S> ConnTransformer<VT, ET, KT, S>
 where
-    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
+    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
     ET: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
-        + Send,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
-    S: Spawn + Clone + Send,
+        + Send
+        + Sync,
+    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
+    S: Spawn + Clone + Send + Sync,
 {
     pub fn new(
         version_transform: VT,
@@ -142,10 +146,11 @@ where
         let mut c_encrypt_transform = self.encrypt_transform.clone();
         let mut c_keepalive_transform = self.keepalive_transform.clone();
         Box::pin(async move {
-            let conn_pair = await!(c_version_transform.transform(conn_pair));
-            let (public_key, conn_pair) =
-                await!(c_encrypt_transform.transform((opt_public_key, conn_pair)))?;
-            let conn_pair = await!(c_keepalive_transform.transform(conn_pair));
+            let conn_pair = c_version_transform.transform(conn_pair).await;
+            let (public_key, conn_pair) = c_encrypt_transform
+                .transform((opt_public_key, conn_pair))
+                .await?;
+            let conn_pair = c_keepalive_transform.transform(conn_pair).await;
             Some((public_key, conn_pair))
         })
     }
@@ -168,14 +173,14 @@ where
         let mut c_self = self.clone();
         Box::pin(async move {
             let (public_key, (mut sender, mut receiver)) =
-                await!(c_self.version_enc_keepalive(None, conn_pair))?;
+                c_self.version_enc_keepalive(None, conn_pair).await?;
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToClient>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
-                while let Some(data) = await!(receiver.next()) {
+                while let Some(data) = receiver.next().await {
                     let message = match IndexClientToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
@@ -183,7 +188,7 @@ where
                             return;
                         }
                     };
-                    if await!(to_user_receiver.send(message)).is_err() {
+                    if to_user_receiver.send(message).await.is_err() {
                         return;
                     }
                 }
@@ -191,10 +196,10 @@ where
 
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
-                while let Some(message) = await!(from_user_sender.next()) {
+                while let Some(message) = from_user_sender.next().await {
                     // let data = serialize_index_server_to_client(&message);
                     let data = message.proto_serialize();
-                    if await!(sender.send(data)).is_err() {
+                    if sender.send(data).await.is_err() {
                         return;
                     }
                 }
@@ -217,14 +222,14 @@ where
         let mut c_self = self.clone();
         Box::pin(async move {
             let (public_key, (mut sender, mut receiver)) =
-                await!(c_self.version_enc_keepalive(None, conn_pair))?;
+                c_self.version_enc_keepalive(None, conn_pair).await?;
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
-                while let Some(data) = await!(receiver.next()) {
+                while let Some(data) = receiver.next().await {
                     let message = match IndexServerToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
@@ -232,7 +237,7 @@ where
                             return;
                         }
                     };
-                    if await!(to_user_receiver.send(message)).is_err() {
+                    if to_user_receiver.send(message).await.is_err() {
                         return;
                     }
                 }
@@ -240,10 +245,10 @@ where
 
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
-                while let Some(message) = await!(from_user_sender.next()) {
+                while let Some(message) = from_user_sender.next().await {
                     // let data = serialize_index_server_to_server(&message);
                     let data = message.proto_serialize();
-                    if await!(sender.send(data)).is_err() {
+                    if sender.send(data).await.is_err() {
                         return;
                     }
                 }
@@ -260,15 +265,16 @@ where
     ) -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> {
         let mut c_self = self.clone();
         Box::pin(async move {
-            let (_public_key, (mut sender, mut receiver)) =
-                await!(c_self.version_enc_keepalive(Some(public_key), conn_pair))?;
+            let (_public_key, (mut sender, mut receiver)) = c_self
+                .version_enc_keepalive(Some(public_key), conn_pair)
+                .await?;
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
             // Deserialize received data
             let _ = c_self.spawner.spawn(async move {
-                while let Some(data) = await!(receiver.next()) {
+                while let Some(data) = receiver.next().await {
                     let message = match IndexServerToServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => {
@@ -276,7 +282,7 @@ where
                             return;
                         }
                     };
-                    if await!(to_user_receiver.send(message)).is_err() {
+                    if to_user_receiver.send(message).await.is_err() {
                         return;
                     }
                 }
@@ -284,10 +290,10 @@ where
 
             // Serialize sent data:
             let _ = c_self.spawner.spawn(async move {
-                while let Some(message) = await!(from_user_sender.next()) {
+                while let Some(message) = from_user_sender.next().await {
                     // let data = serialize_index_server_to_server(&message);
                     let data = message.proto_serialize();
-                    if await!(sender.send(data)).is_err() {
+                    if sender.send(data).await.is_err() {
                         return;
                     }
                 }
@@ -319,7 +325,7 @@ pub async fn net_index_server<A, ICC, ISC, SC, R, GS, S>(
     mut spawner: S,
 ) -> Result<(), NetIndexServerError>
 where
-    A: Clone + Send + Debug + 'static,
+    A: Clone + Send + Sync + Debug + 'static,
     SC: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     ICC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     ISC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
@@ -327,7 +333,9 @@ where
     GS: Spawn + Send + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let local_public_key = await!(identity_client.request_public_key())
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
         .map_err(|_| NetIndexServerError::RequestPublicKeyError)?;
 
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
@@ -354,7 +362,9 @@ where
     let incoming_client_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            await!(c_conn_transformer.incoming_index_client_conn_transform(raw_conn))
+            c_conn_transformer
+                .incoming_index_client_conn_transform(raw_conn)
+                .await
         })
     });
     let (client_conns_sender, incoming_client_conns) = mpsc::channel(0);
@@ -376,7 +386,9 @@ where
     let incoming_server_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            await!(c_conn_transformer.incoming_index_server_conn_transform(raw_conn))
+            c_conn_transformer
+                .incoming_index_server_conn_transform(raw_conn)
+                .await
         })
     });
     let (server_conns_sender, incoming_server_conns) = mpsc::channel(0);
@@ -399,12 +411,14 @@ where
         let mut c_raw_server_net_connector = raw_server_net_connector.clone();
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            let raw_conn = await!(c_raw_server_net_connector.transform(net_address))?;
-            await!(c_conn_transformer.outgoing_index_server_conn_transform(public_key, raw_conn))
+            let raw_conn = c_raw_server_net_connector.transform(net_address).await?;
+            c_conn_transformer
+                .outgoing_index_server_conn_transform(public_key, raw_conn)
+                .await
         })
     });
 
-    await!(index_server(
+    index_server(
         local_public_key,
         trusted_servers,
         incoming_server_conns,
@@ -415,7 +429,8 @@ where
         backoff_ticks,
         rng,
         graph_service_spawner,
-        spawner.clone()
-    ))
+        spawner.clone(),
+    )
+    .await
     .map_err(NetIndexServerError::IndexServerError)
 }

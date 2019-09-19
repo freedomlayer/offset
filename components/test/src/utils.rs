@@ -243,15 +243,16 @@ where
     let node_public_key = get_node_identity(node_index).get_public_key();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
-    await!(node_connect(
+    node_connect(
         sim_network_client,
         node_public_key,
         listen_node_address(node_index),
         timer_client,
         app_identity_client,
         rng,
-        spawner.clone()
-    ))
+        spawner.clone(),
+    )
+    .await
     .ok()
 }
 
@@ -269,7 +270,7 @@ where
     let identity = get_node_identity(index);
     let identity_client = create_identity_client(identity, spawner.clone());
     let listen_address = listen_node_address(index);
-    let incoming_app_raw_conns = await!(sim_network_client.listen(listen_address)).unwrap();
+    let incoming_app_raw_conns = sim_network_client.listen(listen_address).await.unwrap();
 
     // Translate application index to application public key:
     let trusted_apps = trusted_apps
@@ -314,10 +315,14 @@ pub async fn create_index_server<S>(
     let client_listen_address = listen_index_server_client_address(index);
     let server_listen_address = listen_index_server_server_address(index);
 
-    let incoming_client_raw_conns =
-        await!(sim_network_client.listen(client_listen_address)).unwrap();
-    let incoming_server_raw_conns =
-        await!(sim_network_client.listen(server_listen_address)).unwrap();
+    let incoming_client_raw_conns = sim_network_client
+        .listen(client_listen_address)
+        .await
+        .unwrap();
+    let incoming_server_raw_conns = sim_network_client
+        .listen(server_listen_address)
+        .await
+        .unwrap();
 
     // Translate index server index into a map of public_key -> NetAddress
     let trusted_servers = trusted_servers
@@ -364,7 +369,7 @@ pub async fn create_relay<S>(
     let identity_client = create_identity_client(identity, spawner.clone());
 
     let listen_address = listen_relay_address(index);
-    let incoming_raw_conns = await!(sim_network_client.listen(listen_address)).unwrap();
+    let incoming_raw_conns = sim_network_client.listen(listen_address).await.unwrap();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x39, index]);
     let net_relay_server_fut = net_relay_server(
@@ -386,9 +391,9 @@ pub async fn advance_time<'a>(
     tick_sender: &'a mut mpsc::Sender<()>,
     test_executor: &'a TestExecutor,
 ) {
-    await!(test_executor.wait());
+    test_executor.wait().await;
     for _ in 0..ticks {
-        await!(tick_sender.send(())).unwrap();
-        await!(test_executor.wait());
+        tick_sender.send(()).await.unwrap();
+        test_executor.wait().await;
     }
 }

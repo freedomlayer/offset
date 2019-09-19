@@ -1,4 +1,4 @@
-#![feature(async_await, await_macro, arbitrary_self_types)]
+#![feature(arbitrary_self_types)]
 #![feature(nll)]
 #![feature(generators)]
 #![feature(never_type)]
@@ -55,7 +55,6 @@ pub use proto::crypto;
 pub mod route {
     pub use proto::funder::messages::FriendsRoute;
     pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
-
 }
 
 /*

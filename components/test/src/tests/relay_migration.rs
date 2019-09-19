@@ -23,7 +23,7 @@ const TIMER_CHANNEL_LEN: usize = 0;
 /// Checks if a friend is online
 /// panics if the friend does not exist.
 async fn is_friend_online(report: &mut AppReport, index: u8) -> bool {
-    let (node_report, mutations_receiver) = await!(report.incoming_reports()).unwrap();
+    let (node_report, mutations_receiver) = report.incoming_reports().await.unwrap();
     drop(mutations_receiver);
 
     let friend_report = match node_report
@@ -66,22 +66,24 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         },
     );
 
-    let _node0_handle = await!(create_node(
+    let _node0_handle = create_node(
         0,
         sim_db.clone(),
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    let mut app0 = await!(create_app(
+    let mut app0 = create_app(
         0,
         sim_net_client.clone(),
         timer_client.clone(),
         0,
-        test_executor.clone()
-    ))
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create initial database for node 1:
@@ -97,59 +99,66 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
             config: true,
         },
     );
-    let node1_handle = await!(create_node(
+    let node1_handle = create_node(
         1,
         sim_db.clone(),
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    let mut app1 = await!(create_app(
+    let mut app1 = create_app(
         1,
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ))
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create relays:
-    await!(create_relay(
+    create_relay(
         0,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    await!(create_relay(
+    create_relay(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    await!(create_relay(
+    create_relay(
         2,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    await!(create_relay(
+    create_relay(
         3,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
-    await!(create_relay(
+    create_relay(
         4,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
     let mut config0 = app0.config().unwrap().clone();
     let mut config1 = app1.config().unwrap().clone();
@@ -158,62 +167,66 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     let mut report1 = app1.report().clone();
 
     // Configure relays:
-    await!(config0.add_relay(named_relay_address(0))).unwrap();
-    await!(config1.add_relay(named_relay_address(1))).unwrap();
+    config0.add_relay(named_relay_address(0)).await.unwrap();
+    config1.add_relay(named_relay_address(1)).await.unwrap();
 
     // Wait some time:
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    await!(config0.add_friend(
-        node_public_key(1),
-        vec![relay_address(1)],
-        String::from("node1"),
-        100
-    ))
-    .unwrap();
+    config0
+        .add_friend(
+            node_public_key(1),
+            vec![relay_address(1)],
+            String::from("node1"),
+            100,
+        )
+        .await
+        .unwrap();
 
     // Node1: Add node0 as a friend:
-    await!(config1.add_friend(
-        node_public_key(0),
-        vec![relay_address(0)],
-        String::from("node0"),
-        -100
-    ))
-    .unwrap();
+    config1
+        .add_friend(
+            node_public_key(0),
+            vec![relay_address(0)],
+            String::from("node0"),
+            -100,
+        )
+        .await
+        .unwrap();
 
-    await!(config0.enable_friend(node_public_key(1))).unwrap();
-    await!(config1.enable_friend(node_public_key(0))).unwrap();
+    config0.enable_friend(node_public_key(1)).await.unwrap();
+    config1.enable_friend(node_public_key(0)).await.unwrap();
 
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
-    assert!(await!(is_friend_online(&mut report0, 1)));
-    assert!(await!(is_friend_online(&mut report1, 0)));
+    assert!(is_friend_online(&mut report0, 1).await);
+    assert!(is_friend_online(&mut report1, 0).await);
 
     // Change relays for node0:
-    await!(config0.add_relay(named_relay_address(2))).unwrap();
-    await!(config0.remove_relay(relay_public_key(0))).unwrap();
+    config0.add_relay(named_relay_address(2)).await.unwrap();
+    config0.remove_relay(relay_public_key(0)).await.unwrap();
 
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Close node1:
     drop(node1_handle);
 
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0 should see Node1 as offline:
-    assert!(!await!(is_friend_online(&mut report0, 1)));
+    assert!(!is_friend_online(&mut report0, 1).await);
     // App can not communicate with node1:
-    assert!(await!(config1.add_relay(named_relay_address(2))).is_err());
+    assert!(config1.add_relay(named_relay_address(2)).await.is_err());
     drop(app1);
     drop(report1);
     drop(config1);
 
     // Change relays for node0 while node1 is offline:
-    await!(config0.add_relay(named_relay_address(4))).unwrap();
-    await!(config0.remove_relay(relay_public_key(2))).unwrap();
+    config0.add_relay(named_relay_address(4)).await.unwrap();
+    config0.remove_relay(relay_public_key(2)).await.unwrap();
 
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Reopen node1:
     let mut trusted_apps = HashMap::new();
@@ -226,32 +239,34 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
             config: true,
         },
     );
-    let _node1_handle = await!(create_node(
+    let _node1_handle = create_node(
         1,
         sim_db.clone(),
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ));
+        test_executor.clone(),
+    )
+    .await;
 
     // Connect an app to node1:
-    let mut app1 = await!(create_app(
+    let mut app1 = create_app(
         1,
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ))
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     let mut report1 = app1.report().clone();
 
-    await!(advance_time(40, &mut tick_sender, &test_executor));
+    advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node1 should be able to achieve connectivity:
-    assert!(await!(is_friend_online(&mut report0, 1)));
-    assert!(await!(is_friend_online(&mut report1, 0)));
+    assert!(is_friend_online(&mut report0, 1).await);
+    assert!(is_friend_online(&mut report1, 0).await);
 }
 
 #[test]

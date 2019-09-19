@@ -103,5 +103,4 @@ mod tests {
         let _signed: i128 = Wrapper(1i128).into();
         let _signed: i128 = *Wrapper(1i128);
     }
-
 }

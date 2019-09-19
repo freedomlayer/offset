@@ -31,7 +31,7 @@ pub async fn send_to_sink<S, T, E>(mut sink: S, item: T) -> Result<S, E>
 where
     S: Sink<T, SinkError = E> + std::marker::Unpin + 'static,
 {
-    await!(sink.send(item))?;
+    sink.send(item).await?;
     Ok(sink)
 }
 

@@ -15,11 +15,13 @@ pub async fn sleep_ticks(
     ticks: usize,
     mut timer_client: TimerClient,
 ) -> Result<(), SleepTicksError> {
-    let timer_stream = await!(timer_client.request_timer_stream())
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
     let ticks_u64 = usize_to_u64(ticks).unwrap();
     let fut = timer_stream.take(ticks_u64).for_each(|_| future::ready(()));
-    await!(fut);
+    fut.await;
     Ok(())
 }
 
@@ -60,18 +62,18 @@ mod tests {
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
 
         let (sender, receiver) = oneshot::channel::<()>();
-        let timer_stream = await!(timer_client.request_timer_stream()).unwrap();
+        let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let receiver = receiver.map(|res| res.unwrap());
         let timeout_fut = spawner
             .spawn_with_handle(future_timeout(receiver, timer_stream, 8))
             .unwrap();
 
         for _ in 0..7usize {
-            await!(tick_sender.send(())).unwrap();
+            tick_sender.send(()).await.unwrap();
         }
 
         sender.send(()).unwrap();
-        assert_eq!(await!(timeout_fut), Some(()));
+        assert_eq!(timeout_fut.await, Some(()));
     }
 
     #[test]
@@ -91,11 +93,11 @@ mod tests {
             .unwrap();
 
         for _ in 0..9usize {
-            let _ = await!(tick_sender.send(()));
+            let _ = tick_sender.send(()).await;
         }
 
         let _ = sender.send(());
-        assert_eq!(await!(timeout_fut), None);
+        assert_eq!(timeout_fut.await, None);
     }
 
     #[test]
@@ -103,5 +105,4 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_future_timeout_late(thread_pool.clone()));
     }
-
 }

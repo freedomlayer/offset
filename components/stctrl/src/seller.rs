@@ -101,7 +101,9 @@ async fn seller_create_invoice(
         dest_payment: amount,
     };
 
-    await!(app_seller.add_invoice(invoice_id.clone(), amount))
+    app_seller
+        .add_invoice(invoice_id.clone(), amount)
+        .await
         .map_err(|_| SellerError::AddInvoiceError)?;
 
     let mut file = File::create(invoice_path)?;
@@ -117,7 +119,9 @@ async fn seller_cancel_invoice(
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    await!(app_seller.cancel_invoice(invoice_file.invoice_id))
+    app_seller
+        .cancel_invoice(invoice_file.invoice_id)
+        .await
         .map_err(|_| SellerError::CancelInvoiceError)?;
 
     fs::remove_file(&invoice_path).map_err(|_| SellerError::RemoveInvoiceError)
@@ -146,14 +150,22 @@ async fn seller_commit_invoice(
         return Err(SellerError::InvoiceCommitMismatch);
     }
 
-    await!(app_seller.commit_invoice(multi_commit)).map_err(|_| SellerError::CommitInvoiceError)
+    // HACK:
+    #[allow(clippy::let_and_return)]
+    let res = app_seller
+        .commit_invoice(multi_commit)
+        .await
+        .map_err(|_| SellerError::CommitInvoiceError);
+    res
 }
 
 pub async fn seller(seller_cmd: SellerCmd, mut app_conn: AppConn) -> Result<(), SellerError> {
     // Get our local public key:
     let mut app_report = app_conn.report().clone();
-    let (node_report, incoming_mutations) =
-        await!(app_report.incoming_reports()).map_err(|_| SellerError::GetReportError)?;
+    let (node_report, incoming_mutations) = app_report
+        .incoming_reports()
+        .await
+        .map_err(|_| SellerError::GetReportError)?;
     // We currently don't need live updates about report mutations:
     drop(incoming_mutations);
 
@@ -165,17 +177,15 @@ pub async fn seller(seller_cmd: SellerCmd, mut app_conn: AppConn) -> Result<(), 
         .clone();
 
     match seller_cmd {
-        SellerCmd::CreateInvoice(create_invoice_cmd) => await!(seller_create_invoice(
-            create_invoice_cmd,
-            local_public_key,
-            app_seller,
-        ))?,
+        SellerCmd::CreateInvoice(create_invoice_cmd) => {
+            seller_create_invoice(create_invoice_cmd, local_public_key, app_seller).await?
+        }
         SellerCmd::CancelInvoice(cancel_invoice_cmd) => {
-            await!(seller_cancel_invoice(cancel_invoice_cmd, app_seller))?
+            seller_cancel_invoice(cancel_invoice_cmd, app_seller).await?
         }
 
         SellerCmd::CommitInvoice(commit_invoice_cmd) => {
-            await!(seller_commit_invoice(commit_invoice_cmd, app_seller))?
+            seller_commit_invoice(commit_invoice_cmd, app_seller).await?
         }
     }
 

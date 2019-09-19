@@ -88,10 +88,9 @@ where
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
             // Version prefix:
-            let ver_conn = await!(self.version_transform.transform(conn_pair));
+            let ver_conn = self.version_transform.transform(conn_pair).await;
             // Encrypt:
-            let (public_key, enc_conn) =
-                await!(self.encrypt_transform.transform((None, ver_conn)))?;
+            let (public_key, enc_conn) = self.encrypt_transform.transform((None, ver_conn)).await?;
 
             // Obtain permissions for app (Or reject it if not trusted):
             let c_get_trusted_apps = self.get_trusted_apps.clone();
@@ -104,16 +103,16 @@ where
                 .trusted_apps_spawner
                 .spawn_with_handle(future::lazy(move |_| (c_get_trusted_apps)()))
                 .ok()?;
-            let trusted_apps = await!(trusted_apps_fut)?;
+            let trusted_apps = trusted_apps_fut.await?;
 
             let app_permissions = trusted_apps.get(&public_key)?;
 
             // Keepalive wrapper:
-            let (mut sender, mut receiver) = await!(self.keepalive_transform.transform(enc_conn));
+            let (mut sender, mut receiver) = self.keepalive_transform.transform(enc_conn).await;
 
             // Tell app about its permissions: (TODO: Is this required?)
-            // await!(sender.send(serialize_app_permissions(&app_permissions))).ok()?;
-            await!(sender.send(app_permissions.proto_serialize())).ok()?;
+            // sender.send(serialize_app_permissions(&app_permissions)).await.ok()?;
+            sender.send(app_permissions.proto_serialize()).await.ok()?;
 
             // serialization:
             let (user_sender, mut from_user_sender) = mpsc::channel::<AppServerToApp>(0);
@@ -121,12 +120,12 @@ where
 
             // Deserialize received data
             let _ = self.spawner.spawn(async move {
-                while let Some(data) = await!(receiver.next()) {
+                while let Some(data) = receiver.next().await {
                     let message = match AppToAppServer::proto_deserialize(&data) {
                         Ok(message) => message,
                         Err(_) => return,
                     };
-                    if await!(to_user_receiver.send(message)).is_err() {
+                    if to_user_receiver.send(message).await.is_err() {
                         return;
                     }
                 }
@@ -134,10 +133,10 @@ where
 
             // Serialize sent data:
             let _ = self.spawner.spawn(async move {
-                while let Some(message) = await!(from_user_sender.next()) {
+                while let Some(message) = from_user_sender.next().await {
                     // let data = serialize_app_server_to_app(&message);
                     let data = message.proto_serialize();
-                    if await!(sender.send(data)).is_err() {
+                    if sender.send(data).await.is_err() {
                         return;
                     }
                 }
@@ -185,12 +184,14 @@ where
         let mut c_net_connector = net_connector.clone();
         let mut c_version_transform = c_version_transform.clone();
         Box::pin(async move {
-            let conn_pair = await!(c_net_connector.transform(address))?;
-            Some(await!(c_version_transform.transform(conn_pair)))
+            let conn_pair = c_net_connector.transform(address).await?;
+            Some(c_version_transform.transform(conn_pair).await)
         })
     });
 
-    let local_public_key = await!(identity_client.request_public_key())
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
         .map_err(|_| NetNodeError::RequestPublicKeyError)?;
 
     // Get initial node_state:
@@ -253,7 +254,7 @@ where
         .spawn_with_handle(pool_fut)
         .map_err(|_| NetNodeError::SpawnError)?;
 
-    await!(node(
+    node(
         node_config,
         identity_client,
         timer_client,
@@ -262,7 +263,8 @@ where
         version_connector,
         incoming_apps,
         rng,
-        spawner.clone()
-    ))
+        spawner.clone(),
+    )
+    .await
     .map_err(NetNodeError::NodeError)
 }

@@ -35,12 +35,12 @@ where
             // First send our protocol version to the remote side:
             let mut version_data = Vec::new();
             version_data.write_u32::<BigEndian>(local_version).unwrap();
-            if await!(sender.send(version_data)).is_err() {
+            if sender.send(version_data).await.is_err() {
                 warn!("Failed to send version information");
                 return;
             }
             // Next send any other message from the user:
-            let _ = await!(sender.send_all(&mut from_user_sender));
+            let _ = sender.send_all(&mut from_user_sender).await;
         };
         // If spawning fails, the user will find out when he tries to send
         // through user_sender.
@@ -48,7 +48,7 @@ where
 
         let receiver_fut = async move {
             // Expect version to be the first sent data:
-            let version_data = match await!(receiver.next()) {
+            let version_data = match receiver.next().await {
                 Some(version_data) => version_data,
                 _ => {
                     warn!("Failed to receive version information");
@@ -67,7 +67,7 @@ where
                 return;
             }
 
-            let _ = await!(to_user_receiver.send_all(&mut receiver));
+            let _ = to_user_receiver.send_all(&mut receiver).await;
         };
         // If spawning fails, the user will find out when he tries to read
         // from user_receiver.
@@ -110,11 +110,11 @@ mod tests {
         let (mut b_sender, mut b_receiver) = version_prefix_3.spawn_prefix((b_sender, b_receiver));
 
         // We expect the connection to work correctly, as the versions match:
-        await!(a_sender.send(vec![1, 2, 3])).unwrap();
-        assert_eq!(await!(b_receiver.next()).unwrap(), vec![1, 2, 3]);
+        a_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert_eq!(b_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
-        await!(b_sender.send(vec![3, 2, 1])).unwrap();
-        assert_eq!(await!(a_receiver.next()).unwrap(), vec![3, 2, 1]);
+        b_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert_eq!(a_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
 
     #[test]
@@ -138,11 +138,11 @@ mod tests {
         let (mut b_sender, mut b_receiver) = version_prefix_4.spawn_prefix((b_sender, b_receiver));
 
         // We expect the connection to be closed because of version mismatch:
-        await!(a_sender.send(vec![1, 2, 3])).unwrap();
-        assert!(await!(b_receiver.next()).is_none());
+        a_sender.send(vec![1, 2, 3]).await.unwrap();
+        assert!(b_receiver.next().await.is_none());
 
-        await!(b_sender.send(vec![3, 2, 1])).unwrap();
-        assert!(await!(a_receiver.next()).is_none());
+        b_sender.send(vec![3, 2, 1]).await.unwrap();
+        assert!(a_receiver.next().await.is_none());
     }
 
     #[test]

@@ -106,7 +106,7 @@ where
 {
     /// Expect an IndexClient report of SetConnectedServer
     async fn expect_set_connected_server(&mut self, expected_opt_public_key: Option<PublicKey>) {
-        match await!(self.app_server_receiver.next()).unwrap() {
+        match self.app_server_receiver.next().await.unwrap() {
             IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
                 assert_eq!(ic_report_mutations.opt_app_request_id, None);
                 assert_eq!(ic_report_mutations.mutations.len(), 1);
@@ -130,7 +130,7 @@ where
         oneshot::Sender<Result<(), SingleClientError>>,
     ) {
         // Wait for a connection request:
-        let session_conn_request = await!(self.session_receiver.next()).unwrap();
+        let session_conn_request = self.session_receiver.next().await.unwrap();
         assert_eq!(session_conn_request.address, index_server);
 
         // Send a SessionHandle back to the index client:
@@ -139,9 +139,10 @@ where
         session_conn_request.reply(Some((control_sender, close_receiver)));
 
         // We should be notified that a connection to a server was established:
-        await!(self.expect_set_connected_server(Some(index_server.public_key)));
+        self.expect_set_connected_server(Some(index_server.public_key))
+            .await;
 
-        match await!(self.seq_friends_receiver.next()).unwrap() {
+        match self.seq_friends_receiver.next().await.unwrap() {
             SeqFriendsRequest::ResetCountdown(response_sender) => {
                 response_sender.send(()).unwrap();
             }
@@ -149,7 +150,7 @@ where
         };
 
         // Feeding the send_full_state() task with one friend state:
-        match await!(self.seq_friends_receiver.next()).unwrap() {
+        match self.seq_friends_receiver.next().await.unwrap() {
             SeqFriendsRequest::NextUpdate(response_sender) => {
                 let update_friend = UpdateFriend {
                     public_key: PublicKey::from(PublicKey::from(&[0xaa; PublicKey::len()])),
@@ -163,7 +164,7 @@ where
         };
 
         // IndexClient will send to the server the information about the 0xaa friend:
-        match await!(control_receiver.next()).unwrap() {
+        match control_receiver.next().await.unwrap() {
             SingleClientControl::SendMutations(_) => {}
             _ => unreachable!(),
         };
@@ -177,9 +178,12 @@ where
             Uid::from(&[52; Uid::len()]),
             IndexClientRequest::AddIndexServer(named_index_server_address.clone()),
         ));
-        await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
+        self.app_server_sender
+            .send(app_server_to_index_client)
+            .await
+            .unwrap();
 
-        let db_request = await!(self.database_req_receiver.next()).unwrap();
+        let db_request = self.database_req_receiver.next().await.unwrap();
         assert_eq!(
             db_request.mutations,
             vec![IndexClientConfigMutation::AddIndexServer(
@@ -188,7 +192,7 @@ where
         );
         db_request.response_sender.send(()).unwrap();
 
-        match await!(self.app_server_receiver.next()).unwrap() {
+        match self.app_server_receiver.next().await.unwrap() {
             IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
                 assert_eq!(
                     ic_report_mutations.opt_app_request_id,
@@ -212,9 +216,12 @@ where
             Uid::from(&[53; Uid::len()]),
             IndexClientRequest::RemoveIndexServer(public_key.clone()),
         ));
-        await!(self.app_server_sender.send(app_server_to_index_client)).unwrap();
+        self.app_server_sender
+            .send(app_server_to_index_client)
+            .await
+            .unwrap();
 
-        let db_request = await!(self.database_req_receiver.next()).unwrap();
+        let db_request = self.database_req_receiver.next().await.unwrap();
         assert_eq!(
             db_request.mutations,
             vec![IndexClientConfigMutation::RemoveIndexServer(
@@ -223,7 +230,7 @@ where
         );
         db_request.response_sender.send(()).unwrap();
 
-        match await!(self.app_server_receiver.next()).unwrap() {
+        match self.app_server_receiver.next().await.unwrap() {
             IndexClientToAppServer::ReportMutations(mut ic_report_mutations) => {
                 assert_eq!(
                     ic_report_mutations.opt_app_request_id,
@@ -252,38 +259,42 @@ where
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
-    let (mut control_receiver, close_sender) = await!(icc.expect_server_connection(index_server));
+    let (mut control_receiver, close_sender) = icc.expect_server_connection(index_server).await;
 
-    await!(icc.add_index_server(NamedIndexServerAddress {
+    icc.add_index_server(NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x38; PublicKey::len()]),
         address: 0x1338,
-        name: "0x1338".to_owned()
-    }));
-    await!(icc.add_index_server(NamedIndexServerAddress {
+        name: "0x1338".to_owned(),
+    })
+    .await;
+    icc.add_index_server(NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x39; PublicKey::len()]),
         address: 0x1339,
-        name: "0x1339".to_owned()
-    }));
-    await!(icc.remove_index_server(PublicKey::from(&[0x38; PublicKey::len()])));
+        name: "0x1339".to_owned(),
+    })
+    .await;
+    icc.remove_index_server(PublicKey::from(&[0x38; PublicKey::len()]))
+        .await;
     // Remove index server in use (0x1337):
-    await!(icc.remove_index_server(PublicKey::from(&[0x37; PublicKey::len()])));
+    icc.remove_index_server(PublicKey::from(&[0x37; PublicKey::len()]))
+        .await;
 
     // We expect that control_receiver will be closed eventually:
-    while let Some(_control_message) = await!(control_receiver.next()) {}
+    while let Some(_control_message) = control_receiver.next().await {}
 
     // close_sender should notify that the connection was closed:
     let _ = close_sender.send(Ok(()));
 
-    await!(icc.expect_set_connected_server(None));
+    icc.expect_set_connected_server(None).await;
 
     // IndexClient will wait backoff_ticks time before
     // attempting to connect to the next index server:
     for _ in 0..icc.backoff_ticks {
-        await!(icc.tick_sender.send(())).unwrap();
+        icc.tick_sender.send(()).await.unwrap();
     }
 
     // Wait for a connection request:
-    let session_conn_request = await!(icc.session_receiver.next()).unwrap();
+    let session_conn_request = icc.session_receiver.next().await.unwrap();
     let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x39; PublicKey::len()]),
         address: 0x1339,
@@ -296,7 +307,8 @@ where
     session_conn_request.reply(Some((control_sender, close_receiver)));
 
     // A new connection should be made to 0x1339:
-    await!(icc.expect_set_connected_server(Some(PublicKey::from(&[0x39; PublicKey::len()]))));
+    icc.expect_set_connected_server(Some(PublicKey::from(&[0x39; PublicKey::len()])))
+        .await;
 }
 
 #[test]
@@ -316,7 +328,7 @@ where
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
-    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
+    let (mut control_receiver, _close_sender) = icc.expect_server_connection(index_server).await;
 
     let update_friend = UpdateFriend {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
@@ -326,13 +338,13 @@ where
     };
     let index_mutation = IndexMutation::UpdateFriend(update_friend);
     let mutations = vec![index_mutation.clone()];
-    await!(icc
-        .app_server_sender
-        .send(AppServerToIndexClient::ApplyMutations(mutations)))
-    .unwrap();
+    icc.app_server_sender
+        .send(AppServerToIndexClient::ApplyMutations(mutations))
+        .await
+        .unwrap();
 
     // Wait for a request to mutate seq_friends:
-    match await!(icc.seq_friends_receiver.next()).unwrap() {
+    match icc.seq_friends_receiver.next().await.unwrap() {
         SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
             assert_eq!(index_mutation0, index_mutation);
             response_sender.send(()).unwrap();
@@ -349,7 +361,7 @@ where
         rate: Rate { mul: 0, add: 1 },
     };
 
-    match await!(icc.seq_friends_receiver.next()).unwrap() {
+    match icc.seq_friends_receiver.next().await.unwrap() {
         SeqFriendsRequest::NextUpdate(response_sender) => {
             response_sender
                 .send(Some((0, next_update_friend.clone())))
@@ -359,7 +371,7 @@ where
     };
 
     // Wait for SendMutations:
-    match await!(control_receiver.next()).unwrap() {
+    match control_receiver.next().await.unwrap() {
         SingleClientControl::SendMutations(mutations0) => {
             let next_update = IndexMutation::UpdateFriend(next_update_friend);
             assert_eq!(mutations0, vec![index_mutation, next_update]);
@@ -383,7 +395,7 @@ where
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
     };
-    let (mut control_receiver, _close_sender) = await!(icc.expect_server_connection(index_server));
+    let (mut control_receiver, _close_sender) = icc.expect_server_connection(index_server).await;
 
     let request_routes = RequestRoutes {
         request_id: Uid::from(&[3; Uid::len()]),
@@ -398,10 +410,13 @@ where
         Uid::from(&[50; Uid::len()]),
         IndexClientRequest::RequestRoutes(request_routes.clone()),
     ));
-    await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
+    icc.app_server_sender
+        .send(app_server_to_index_client)
+        .await
+        .unwrap();
 
     // IndexClient forwards the routes request to the server:
-    match await!(control_receiver.next()).unwrap() {
+    match control_receiver.next().await.unwrap() {
         SingleClientControl::RequestRoutes((request_routes0, response_sender)) => {
             assert_eq!(request_routes0, request_routes);
             // Server returns: no routes found:
@@ -411,7 +426,7 @@ where
     };
 
     // Expect empty report mutations:
-    match await!(icc.app_server_receiver.next()).unwrap() {
+    match icc.app_server_receiver.next().await.unwrap() {
         IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
             assert_eq!(
                 ic_report_mutations.opt_app_request_id,
@@ -423,7 +438,7 @@ where
     };
 
     // IndexClient returns the result back to AppServer:
-    match await!(icc.app_server_receiver.next()).unwrap() {
+    match icc.app_server_receiver.next().await.unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
             assert_eq!(
                 client_response_routes.request_id,
@@ -454,7 +469,7 @@ where
     let mut icc = basic_index_client(spawner.clone());
 
     // Wait for a connection request:
-    let session_conn_request = await!(icc.session_receiver.next()).unwrap();
+    let session_conn_request = icc.session_receiver.next().await.unwrap();
     let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
         address: 0x1337,
@@ -475,14 +490,14 @@ where
     };
     let index_mutation = IndexMutation::UpdateFriend(update_friend);
     let mutations = vec![index_mutation.clone()];
-    await!(icc
-        .app_server_sender
-        .send(AppServerToIndexClient::ApplyMutations(mutations)))
-    .unwrap();
+    icc.app_server_sender
+        .send(AppServerToIndexClient::ApplyMutations(mutations))
+        .await
+        .unwrap();
 
     // Wait for a request to mutate seq_friends. Note that this happens
     // even in the "Connecting" state:
-    match await!(icc.seq_friends_receiver.next()).unwrap() {
+    match icc.seq_friends_receiver.next().await.unwrap() {
         SeqFriendsRequest::Mutate(index_mutation0, response_sender) => {
             assert_eq!(index_mutation0, index_mutation);
             response_sender.send(()).unwrap();
@@ -506,10 +521,13 @@ where
         Uid::from(&[51; Uid::len()]),
         IndexClientRequest::RequestRoutes(request_routes.clone()),
     ));
-    await!(icc.app_server_sender.send(app_server_to_index_client)).unwrap();
+    icc.app_server_sender
+        .send(app_server_to_index_client)
+        .await
+        .unwrap();
 
     // Expect empty report mutations:
-    match await!(icc.app_server_receiver.next()).unwrap() {
+    match icc.app_server_receiver.next().await.unwrap() {
         IndexClientToAppServer::ReportMutations(ic_report_mutations) => {
             assert_eq!(
                 ic_report_mutations.opt_app_request_id,
@@ -521,7 +539,7 @@ where
     };
 
     // IndexClient returns failure in ResponseRoutes:
-    match await!(icc.app_server_receiver.next()).unwrap() {
+    match icc.app_server_receiver.next().await.unwrap() {
         IndexClientToAppServer::ResponseRoutes(client_response_routes) => {
             assert_eq!(
                 client_response_routes.request_id,
@@ -542,7 +560,7 @@ where
         ..
     } = icc;
     drop(app_server_sender);
-    assert!(await!(app_server_receiver.next()).is_none());
+    assert!(app_server_receiver.next().await.is_none());
 }
 
 #[test]

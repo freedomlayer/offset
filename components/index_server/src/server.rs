@@ -236,15 +236,18 @@ where
                 _close_receiver = close_receiver.fuse() => None,
             };
             if let Some(server_conn) = select_res {
-                let _ = await!(c_event_sender.send(IndexServerEvent::ServerConnection((
-                    public_key,
-                    server_conn
-                ))));
+                let _ = c_event_sender
+                    .send(IndexServerEvent::ServerConnection((
+                        public_key,
+                        server_conn,
+                    )))
+                    .await;
             } else {
                 // Failed to connect, report that the server was closed
                 // TODO: Test this functionality:
-                let _ =
-                    await!(c_event_sender.send(IndexServerEvent::FromServer((public_key, None))));
+                let _ = c_event_sender
+                    .send(IndexServerEvent::FromServer((public_key, None)))
+                    .await;
             }
         };
 
@@ -302,10 +305,10 @@ where
         // Expire old edges for `node_public_key`:
         // Note: This tick happens every time a message is received from this `node_public_key`,
         // and not every constant amount of time.
-        await!(self
-            .graph_client
-            .tick(mutations_update.node_public_key.clone()))
-        .map_err(|_| ServerLoopError::GraphClientError)?;
+        self.graph_client
+            .tick(mutations_update.node_public_key.clone())
+            .await
+            .map_err(|_| ServerLoopError::GraphClientError)?;
 
         // Add a link to the time proof:
         forward_mutations_update
@@ -331,17 +334,21 @@ where
                         rate: update_friend.rate.clone(),
                     };
 
-                    await!(self.graph_client.update_edge(
-                        mutations_update.node_public_key.clone(),
-                        update_friend.public_key.clone(),
-                        capacity_edge,
-                    ))?;
+                    self.graph_client
+                        .update_edge(
+                            mutations_update.node_public_key.clone(),
+                            update_friend.public_key.clone(),
+                            capacity_edge,
+                        )
+                        .await?;
                 }
                 IndexMutation::RemoveFriend(friend_public_key) => {
-                    await!(self.graph_client.remove_edge(
-                        mutations_update.node_public_key.clone(),
-                        friend_public_key.clone()
-                    ))?;
+                    self.graph_client
+                        .remove_edge(
+                            mutations_update.node_public_key.clone(),
+                            friend_public_key.clone(),
+                        )
+                        .await?;
                 }
             }
         }
@@ -369,8 +376,8 @@ where
                 let _ = self.verifier.neighbor_tick(public_key, time_hash);
             }
             IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {
-                await!(self
-                    .handle_forward_mutations_update(Some(public_key), forward_mutations_update))?;
+                self.handle_forward_mutations_update(Some(public_key), forward_mutations_update)
+                    .await?;
             }
         };
         Ok(())
@@ -391,7 +398,7 @@ where
 
         // Update the graph service about removed nodes:
         for node_public_key in removed_nodes {
-            await!(self.graph_client.remove_node(node_public_key))?;
+            self.graph_client.remove_node(node_public_key).await?;
         }
 
         Ok(())
@@ -406,11 +413,13 @@ async fn client_handler(
 ) -> Result<(), ServerLoopError> {
     let (mut sender, mut receiver) = client_conn;
 
-    while let Some(client_msg) = await!(receiver.next()) {
+    while let Some(client_msg) = receiver.next().await {
         match client_msg {
             IndexClientToServer::MutationsUpdate(mutations_update) => {
                 // Forward to main server future to process:
-                await!(event_sender.send(IndexServerEvent::ClientMutationsUpdate(mutations_update)))
+                event_sender
+                    .send(IndexServerEvent::ClientMutationsUpdate(mutations_update))
+                    .await
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
@@ -418,12 +427,14 @@ async fn client_handler(
                     .opt_exclude
                     .map(|edge| (edge.from_public_key.clone(), edge.to_public_key.clone()));
 
-                let graph_multi_routes = await!(graph_client.get_multi_routes(
-                    request_routes.source.clone(),
-                    request_routes.destination.clone(),
-                    request_routes.capacity,
-                    opt_exclude_edge,
-                ))?;
+                let graph_multi_routes = graph_client
+                    .get_multi_routes(
+                        request_routes.source.clone(),
+                        request_routes.destination.clone(),
+                        request_routes.capacity,
+                        opt_exclude_edge,
+                    )
+                    .await?;
                 let multi_routes = graph_multi_routes
                     .into_iter()
                     .map(|graph_multi_route| MultiRoute {
@@ -446,7 +457,10 @@ async fn client_handler(
                     multi_routes,
                 };
                 let message = IndexServerToClient::ResponseRoutes(response_routes);
-                await!(sender.send(message)).map_err(|_| ServerLoopError::ClientSenderError)?;
+                sender
+                    .send(message)
+                    .await
+                    .map_err(|_| ServerLoopError::ClientSenderError)?;
             }
         }
     }
@@ -524,7 +538,7 @@ where
         timer_stream
     ];
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         match event {
             IndexServerEvent::ServerConnection((public_key, server_conn)) => {
                 let mut remote_server = match index_server.remote_servers.remove(&public_key) {
@@ -566,7 +580,7 @@ where
                 index_server
                     .spawner
                     .spawn(async move {
-                        let _ = await!(c_event_sender.send_all(&mut receiver));
+                        let _ = c_event_sender.send_all(&mut receiver).await;
                     })
                     .map_err(|_| ServerLoopError::SpawnError)?;
 
@@ -575,7 +589,9 @@ where
                     .insert(public_key, remote_server);
             }
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {
-                await!(index_server.handle_from_server(public_key, index_server_to_server))?
+                index_server
+                    .handle_from_server(public_key, index_server_to_server)
+                    .await?
             }
             IndexServerEvent::FromServer((public_key, None)) => {
                 // Server connection closed
@@ -614,9 +630,9 @@ where
                 .map_err(|e| error!("client_handler() error: {:?}", e))
                 .then(|_| {
                     async move {
-                        let _ = await!(
-                            c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key))
-                        );
+                        let _ = c_event_sender
+                            .send(IndexServerEvent::ClientClosed(c_public_key))
+                            .await;
                     }
                 });
 
@@ -633,9 +649,10 @@ where
                     mutations_update,
                     time_proof_chain: Vec::new(),
                 };
-                await!(
-                    index_server.handle_forward_mutations_update(None, forward_mutations_update)
-                )?;
+
+                index_server
+                    .handle_forward_mutations_update(None, forward_mutations_update)
+                    .await?;
             }
             IndexServerEvent::ClientClosed(public_key) => {
                 // Client connection closed
@@ -643,7 +660,7 @@ where
                     error!("A non existent client {:?} was closed.", public_key);
                 }
             }
-            IndexServerEvent::TimerTick => await!(index_server.handle_timer_tick())?,
+            IndexServerEvent::TimerTick => index_server.handle_timer_tick().await?,
             IndexServerEvent::ClientListenerClosed => {
                 warn!("server_loop() client listener closed!");
                 break;
@@ -657,7 +674,7 @@ where
         // This is useful to have deterministic test results.
         // Normal code should have no use of this sender, and it should be set to None.
         if let Some(ref mut debug_event_sender) = &mut opt_debug_event_sender {
-            let _ = await!(debug_event_sender.send(()));
+            let _ = debug_event_sender.send(()).await;
         }
     }
     Ok(())
@@ -748,13 +765,14 @@ mod tests {
         spawner.spawn(server_loop_fut).unwrap();
 
         let identity_client = create_identity_client(spawner.clone(), &[1, 1]);
-        let client_public_key = await!(identity_client.request_public_key()).unwrap();
+        let client_public_key = identity_client.request_public_key().await.unwrap();
 
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
-        await!(client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver))))
-        .unwrap();
+        client_connections_sender
+            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .await
+            .unwrap();
 
         // Client requests routes:
         let request_id = Uid::from(&[0; Uid::len()]);
@@ -765,10 +783,13 @@ mod tests {
             destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
-        await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
+        client_sender
+            .send(IndexClientToServer::RequestRoutes(request_routes))
+            .await
+            .unwrap();
 
         // Handle the graph request:
-        match await!(graph_requests_receiver.next()).unwrap() {
+        match graph_requests_receiver.next().await.unwrap() {
             GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
@@ -779,7 +800,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match await!(client_receiver.next()).unwrap() {
+        match client_receiver.next().await.unwrap() {
             IndexServerToClient::ResponseRoutes(response_routes) => {
                 assert_eq!(response_routes.request_id, request_id);
                 assert!(response_routes.multi_routes.is_empty());
@@ -788,9 +809,9 @@ mod tests {
         };
 
         // Server should periodically send time hashes to the client:
-        await!(tick_sender.send(())).unwrap();
+        tick_sender.send(()).await.unwrap();
 
-        let time_hash = match await!(client_receiver.next()).unwrap() {
+        let time_hash = match client_receiver.next().await.unwrap() {
             IndexServerToClient::TimeHash(time_hash) => time_hash,
             _ => unreachable!(),
         };
@@ -811,14 +832,18 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature = await!(identity_client
-            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
-        .unwrap();
+        mutations_update.signature = identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update))
+            .await
+            .unwrap();
 
-        await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
+        client_sender
+            .send(IndexClientToServer::MutationsUpdate(mutations_update))
+            .await
+            .unwrap();
 
         // Handle tick request:
-        match await!(graph_requests_receiver.next()).unwrap() {
+        match graph_requests_receiver.next().await.unwrap() {
             GraphRequest::Tick(node, response_sender) => {
                 assert_eq!(node, client_public_key);
                 response_sender.send(()).unwrap();
@@ -827,7 +852,7 @@ mod tests {
         }
 
         // Handle the graph request:
-        match await!(graph_requests_receiver.next()).unwrap() {
+        match graph_requests_receiver.next().await.unwrap() {
             GraphRequest::RemoveEdge(src, dest, response_sender) => {
                 assert_eq!(src, client_public_key);
                 assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
@@ -924,27 +949,36 @@ mod tests {
     }
 
     async fn handle_connect(test_servers: &mut [TestServer], from_index: usize) {
-        let conn_request =
-            await!(test_servers[from_index].server_conn_request_receiver.next()).unwrap();
+        let conn_request = test_servers[from_index]
+            .server_conn_request_receiver
+            .next()
+            .await
+            .unwrap();
         let (a_sender, b_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (b_sender, a_receiver) = mpsc::channel(CHANNEL_SIZE);
 
         let (_dest_public_key, dest_index) = conn_request.address.clone();
-        await!(test_servers[dest_index as usize]
+        test_servers[dest_index as usize]
             .server_connections_sender
             .send((
                 test_servers[from_index].public_key.clone(),
-                (b_sender, b_receiver)
-            )))
-        .unwrap();
+                (b_sender, b_receiver),
+            ))
+            .await
+            .unwrap();
 
-        await!(test_servers[dest_index as usize]
+        test_servers[dest_index as usize]
             .debug_event_receiver
-            .next())
-        .unwrap();
+            .next()
+            .await
+            .unwrap();
 
         conn_request.reply(Some((a_sender, a_receiver)));
-        await!(test_servers[from_index].debug_event_receiver.next()).unwrap();
+        test_servers[from_index]
+            .debug_event_receiver
+            .next()
+            .await
+            .unwrap();
     }
 
     async fn task_index_server_loop_multi_server<S>(spawner: S)
@@ -967,57 +1001,58 @@ mod tests {
         test_servers.push(create_test_server(4, &[3], spawner.clone()));
 
         // Let all servers connect:
-        await!(handle_connect(&mut test_servers[..], 4)); // 4 connects to {3}
-        await!(handle_connect(&mut test_servers[..], 3)); // 3 connects to {1,2}
-        await!(handle_connect(&mut test_servers[..], 3));
-        await!(handle_connect(&mut test_servers[..], 2)); // 2 connects to {0}
-        await!(handle_connect(&mut test_servers[..], 1)); // 1 connects to {0}
+        handle_connect(&mut test_servers[..], 4).await; // 4 connects to {3}
+        handle_connect(&mut test_servers[..], 3).await; // 3 connects to {1,2}
+        handle_connect(&mut test_servers[..], 3).await;
+        handle_connect(&mut test_servers[..], 2).await; // 2 connects to {0}
+        handle_connect(&mut test_servers[..], 1).await; // 1 connects to {0}
 
         // Let some time pass, to fill server's time hash lists.
         // Without this step it will not be possible to forward messages along long routes.
         for _iter in 0..32usize {
-            await!(test_servers[0].tick_sender.send(())).unwrap();
-            await!(test_servers[0].debug_event_receiver.next()).unwrap();
+            test_servers[0].tick_sender.send(()).await.unwrap();
+            test_servers[0].debug_event_receiver.next().await.unwrap();
             for &j in &[1usize, 2] {
-                await!(test_servers[j].debug_event_receiver.next()).unwrap();
+                test_servers[j].debug_event_receiver.next().await.unwrap();
             }
 
-            await!(test_servers[1].tick_sender.send(())).unwrap();
-            await!(test_servers[1].debug_event_receiver.next()).unwrap();
+            test_servers[1].tick_sender.send(()).await.unwrap();
+            test_servers[1].debug_event_receiver.next().await.unwrap();
             for &j in &[0usize, 3] {
-                await!(test_servers[j].debug_event_receiver.next()).unwrap();
+                test_servers[j].debug_event_receiver.next().await.unwrap();
             }
 
-            await!(test_servers[2].tick_sender.send(())).unwrap();
-            await!(test_servers[2].debug_event_receiver.next()).unwrap();
+            test_servers[2].tick_sender.send(()).await.unwrap();
+            test_servers[2].debug_event_receiver.next().await.unwrap();
             for &j in &[0usize, 3] {
-                await!(test_servers[j].debug_event_receiver.next()).unwrap();
+                test_servers[j].debug_event_receiver.next().await.unwrap();
             }
 
-            await!(test_servers[3].tick_sender.send(())).unwrap();
-            await!(test_servers[3].debug_event_receiver.next()).unwrap();
+            test_servers[3].tick_sender.send(()).await.unwrap();
+            test_servers[3].debug_event_receiver.next().await.unwrap();
             for &j in &[1usize, 2, 4] {
-                await!(test_servers[j].debug_event_receiver.next()).unwrap();
+                test_servers[j].debug_event_receiver.next().await.unwrap();
             }
 
-            await!(test_servers[4].tick_sender.send(())).unwrap();
-            await!(test_servers[4].debug_event_receiver.next()).unwrap();
+            test_servers[4].tick_sender.send(()).await.unwrap();
+            test_servers[4].debug_event_receiver.next().await.unwrap();
             for &j in &[3usize] {
-                await!(test_servers[j].debug_event_receiver.next()).unwrap();
+                test_servers[j].debug_event_receiver.next().await.unwrap();
             }
         }
 
         // Connect a client to server 0:
         let identity_client = create_identity_client(spawner.clone(), &[1, 1]);
-        let client_public_key = await!(identity_client.request_public_key()).unwrap();
+        let client_public_key = identity_client.request_public_key().await.unwrap();
 
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
-        await!(test_servers[0]
+        test_servers[0]
             .client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver))))
-        .unwrap();
-        await!(test_servers[0].debug_event_receiver.next()).unwrap();
+            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .await
+            .unwrap();
+        test_servers[0].debug_event_receiver.next().await.unwrap();
 
         // Client requests routes: We do this to make sure the new client is registered at the
         // server before we send more time ticks. This will ensure that the server gets
@@ -1030,10 +1065,18 @@ mod tests {
             destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
-        await!(client_sender.send(IndexClientToServer::RequestRoutes(request_routes))).unwrap();
+        client_sender
+            .send(IndexClientToServer::RequestRoutes(request_routes))
+            .await
+            .unwrap();
 
         // Handle the graph request:
-        match await!(test_servers[0].graph_requests_receiver.next()).unwrap() {
+        match test_servers[0]
+            .graph_requests_receiver
+            .next()
+            .await
+            .unwrap()
+        {
             GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
@@ -1044,7 +1087,7 @@ mod tests {
             _ => unreachable!(),
         }
 
-        match await!(client_receiver.next()).unwrap() {
+        match client_receiver.next().await.unwrap() {
             IndexServerToClient::ResponseRoutes(response_routes) => {
                 assert_eq!(response_routes.request_id, request_id);
                 assert!(response_routes.multi_routes.is_empty());
@@ -1053,14 +1096,14 @@ mod tests {
         };
 
         // One time iteration for server 0:
-        await!(test_servers[0].tick_sender.send(())).unwrap();
-        await!(test_servers[0].debug_event_receiver.next()).unwrap();
+        test_servers[0].tick_sender.send(()).await.unwrap();
+        test_servers[0].debug_event_receiver.next().await.unwrap();
         for &j in &[1usize, 2] {
-            await!(test_servers[j].debug_event_receiver.next()).unwrap();
+            test_servers[j].debug_event_receiver.next().await.unwrap();
         }
 
         // Get time hash sent to the new client:
-        let time_hash0 = match await!(client_receiver.next()).unwrap() {
+        let time_hash0 = match client_receiver.next().await.unwrap() {
             IndexServerToClient::TimeHash(time_hash) => time_hash,
             _ => unreachable!(),
         };
@@ -1081,16 +1124,25 @@ mod tests {
         };
 
         // Calculate signature:
-        mutations_update.signature = await!(identity_client
-            .request_signature(create_mutations_update_signature_buff(&mutations_update)))
-        .unwrap();
+        mutations_update.signature = identity_client
+            .request_signature(create_mutations_update_signature_buff(&mutations_update))
+            .await
+            .unwrap();
 
-        await!(client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update))).unwrap();
+        client_sender
+            .send(IndexClientToServer::MutationsUpdate(mutations_update))
+            .await
+            .unwrap();
 
         macro_rules! process_graph_request {
             ($index:expr) => {
                 // Handle tick request:
-                match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
+                match test_servers[$index]
+                    .graph_requests_receiver
+                    .next()
+                    .await
+                    .unwrap()
+                {
                     GraphRequest::Tick(node, response_sender) => {
                         assert_eq!(node, client_public_key);
                         response_sender.send(()).unwrap();
@@ -1098,7 +1150,12 @@ mod tests {
                     _ => unreachable!(),
                 }
 
-                match await!(test_servers[$index].graph_requests_receiver.next()).unwrap() {
+                match test_servers[$index]
+                    .graph_requests_receiver
+                    .next()
+                    .await
+                    .unwrap()
+                {
                     GraphRequest::RemoveEdge(src, dest, response_sender) => {
                         assert_eq!(src, client_public_key);
                         assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
@@ -1106,7 +1163,11 @@ mod tests {
                     }
                     _ => unreachable!(),
                 };
-                await!(test_servers[$index].debug_event_receiver.next()).unwrap();
+                test_servers[$index]
+                    .debug_event_receiver
+                    .next()
+                    .await
+                    .unwrap();
             };
         }
 

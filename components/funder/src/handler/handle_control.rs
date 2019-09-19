@@ -532,7 +532,7 @@ where
     let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
         new_transactions.clone()
     } else {
-        return Err(HandleControlError::NewTransactionsNotAllowed)?;
+        return Err(HandleControlError::NewTransactionsNotAllowed);
     };
 
     let route = &create_transaction.route;

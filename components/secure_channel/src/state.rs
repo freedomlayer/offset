@@ -95,7 +95,7 @@ impl ScStateInitial {
             DhPrivateKey::new(&rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
         let dh_public_key = dh_private_key
             .compute_public_key()
-            .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;;
+            .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;
         let local_salt = Salt::rand_gen(&rng);
 
         let sc_state_half = ScStateHalf {
@@ -112,8 +112,10 @@ impl ScStateInitial {
             key_salt: local_salt,
             signature: Signature::default(),
         };
-        exchange_dh.signature =
-            await!(identity_client.request_signature(exchange_dh.signature_buffer())).unwrap();
+        exchange_dh.signature = identity_client
+            .request_signature(exchange_dh.signature_buffer())
+            .await
+            .unwrap();
 
         Ok((sc_state_half, exchange_dh))
     }
@@ -358,25 +360,29 @@ mod tests {
     ) -> Result<(ScState, ScState), ()> {
         let rng1 = DummyRandom::new(&[1u8]);
         let rng2 = DummyRandom::new(&[2u8]);
-        let local_public_key1 = await!(identity_client1.request_public_key()).unwrap();
-        let local_public_key2 = await!(identity_client2.request_public_key()).unwrap();
+        let local_public_key1 = identity_client1.request_public_key().await.unwrap();
+        let local_public_key2 = identity_client2.request_public_key().await.unwrap();
         let (sc_state_initial1, exchange_rand_nonce1) =
             ScStateInitial::new(&local_public_key1, &rng1);
         let (sc_state_initial2, exchange_rand_nonce2) =
             ScStateInitial::new(&local_public_key2, &rng2);
 
-        let (sc_state_half1, exchange_dh1) = await!(sc_state_initial1.handle_exchange_rand_nonce(
-            exchange_rand_nonce2,
-            identity_client1.clone(),
-            rng1.clone()
-        ))
-        .unwrap();
-        let (sc_state_half2, exchange_dh2) = await!(sc_state_initial2.handle_exchange_rand_nonce(
-            exchange_rand_nonce1,
-            identity_client2.clone(),
-            rng2.clone()
-        ))
-        .unwrap();
+        let (sc_state_half1, exchange_dh1) = sc_state_initial1
+            .handle_exchange_rand_nonce(
+                exchange_rand_nonce2,
+                identity_client1.clone(),
+                rng1.clone(),
+            )
+            .await
+            .unwrap();
+        let (sc_state_half2, exchange_dh2) = sc_state_initial2
+            .handle_exchange_rand_nonce(
+                exchange_rand_nonce1,
+                identity_client2.clone(),
+                rng2.clone(),
+            )
+            .await
+            .unwrap();
 
         let sc_state1 = sc_state_half1.handle_exchange_dh(exchange_dh2).unwrap();
         let sc_state2 = sc_state_half2.handle_exchange_dh(exchange_dh1).unwrap();

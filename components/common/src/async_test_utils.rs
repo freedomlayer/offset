@@ -12,7 +12,7 @@ pub async fn receive<T, M: 'static>(mut reader: M) -> Option<(T, M)>
 where
     M: Stream<Item = T> + Unpin,
 {
-    match await!(reader.next()) {
+    match reader.next().await {
         Some(reader_msg) => Some((reader_msg, reader)),
         None => None,
     }

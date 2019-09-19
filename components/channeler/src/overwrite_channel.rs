@@ -121,10 +121,10 @@ mod tests {
         let (mut sender, mut receiver) = overwrite_channel::<u32, _>(spawner);
 
         let mut st = stream::iter(3u32..=7);
-        await!(sender.send_all(&mut st)).unwrap();
+        sender.send_all(&mut st).await.unwrap();
         drop(sender);
         let mut last_item = None;
-        while let Some(item) = await!(receiver.next()) {
+        while let Some(item) = receiver.next().await {
             last_item = Some(item);
         }
         assert_eq!(last_item, Some(7));
@@ -141,14 +141,14 @@ mod tests {
         // let mut overwrite_sender = OverwriteSink::new(sender);
         let (mut sender, mut receiver) = overwrite_channel::<u32, _>(spawner);
 
-        await!(sender.send(3)).unwrap();
-        await!(sender.send(4)).unwrap();
-        await!(sender.send(5)).unwrap();
-        await!(sender.send(6)).unwrap();
-        await!(sender.send(7)).unwrap();
+        sender.send(3).await.unwrap();
+        sender.send(4).await.unwrap();
+        sender.send(5).await.unwrap();
+        sender.send(6).await.unwrap();
+        sender.send(7).await.unwrap();
         drop(sender);
         let mut last_item = None;
-        while let Some(item) = await!(receiver.next()) {
+        while let Some(item) = receiver.next().await {
             last_item = Some(item);
         }
         assert_eq!(last_item, Some(7));

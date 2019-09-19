@@ -125,13 +125,14 @@ where
     } = conn_pair;
 
     let send_fut1 = async move {
-        await!(remote_sender
+        remote_sender
             .send_all(&mut receiver)
             .map_err(|e| error!("send_fut1 error: {:?}", e))
-            .then(|_| future::ready(())))
+            .then(|_| future::ready(()))
+            .await
     };
     let send_fut2 = async move {
-        await!(sender
+        sender
             .send_all(&mut remote_receiver)
             .map_err(|e| error!("send_fut2 error: {:?}", e))
             .then(move |_| {
@@ -140,7 +141,8 @@ where
                     listen_public_key: acceptor_public_key,
                 };
                 send_to_sink(tunnel_closed_sender, tunnel_closed).then(|_| future::ready(()))
-            }))
+            })
+            .await
     };
 
     spawner.spawn(send_fut1).unwrap();
@@ -164,7 +166,9 @@ where
     KC: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
     S: Stream<Item = IncomingConn<ML, KL, MA, KA, MC, KC>> + Unpin + Send,
 {
-    let timer_stream = await!(timer_client.request_timer_stream())
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| RelayServerError::RequestTimerStreamError)?;
     let timer_stream = timer_stream
         .map(|_| RelayServerEvent::TimerTick)
@@ -183,7 +187,7 @@ where
     let mut incoming_conns_closed = false;
     let mut listeners: HashMap<PublicKey, Listener<_, _>> = HashMap::new();
 
-    while let Some(relay_server_event) = await!(relay_server_events.next()) {
+    while let Some(relay_server_event) = relay_server_events.next().await {
         let c_event_sender = event_sender.clone().sink_map_err(|_| ());
         match relay_server_event {
             RelayServerEvent::IncomingConn(incoming_conn) => {
@@ -204,9 +208,10 @@ where
                         spawner
                             .spawn(async move {
                                 let mut sender = sender.sink_map_err(|_| ());
-                                await!(sender
+                                sender
                                     .send_all(&mut mpsc_receiver)
-                                    .then(|_| future::ready(())))
+                                    .then(|_| future::ready(()))
+                                    .await
                             })
                             .unwrap();
                         let listener = Listener::new(mpsc_sender);
@@ -225,9 +230,10 @@ where
                         spawner
                             .spawn(async move {
                                 let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
-                                await!(c_event_sender
+                                c_event_sender
                                     .send_all(&mut receiver)
-                                    .then(|_| future::ready(())))
+                                    .then(|_| future::ready(()))
+                                    .await
                             })
                             .unwrap();
                     }
@@ -394,7 +400,7 @@ mod tests {
             inner: IncomingConnInner::Listen(incoming_listen_a),
         };
 
-        await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+        outgoing_conns.send(incoming_conn_a).await.unwrap();
 
         let incoming_connect_b = IncomingConnect {
             receiver: c_bc,
@@ -406,9 +412,9 @@ mod tests {
             inner: IncomingConnInner::Connect(incoming_connect_b),
         };
 
-        await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+        outgoing_conns.send(incoming_conn_b).await.unwrap();
 
-        let msg = await!(a_ca.next()).unwrap();
+        let msg = a_ca.next().await.unwrap();
         assert_eq!(
             msg,
             IncomingConnection {
@@ -430,19 +436,19 @@ mod tests {
             inner: IncomingConnInner::Accept(incoming_accept_a),
         };
 
-        let _outgoing_conns = await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
+        let _outgoing_conns = outgoing_conns.send(incoming_conn_accept_a).await.unwrap();
 
-        await!(a_ac1.send(vec![1, 2, 3])).unwrap();
-        let msg = await!(b_cb.next()).unwrap();
+        a_ac1.send(vec![1, 2, 3]).await.unwrap();
+        let msg = b_cb.next().await.unwrap();
         assert_eq!(msg, vec![1, 2, 3]);
 
-        await!(b_bc.send(vec![4, 3, 2, 1])).unwrap();
-        let msg = await!(a_ca1.next()).unwrap();
+        b_bc.send(vec![4, 3, 2, 1]).await.unwrap();
+        let msg = a_ca1.next().await.unwrap();
         assert_eq!(msg, vec![4, 3, 2, 1]);
 
         // If one side's sender is dropped, the other side's receiver will be notified:
         drop(b_bc);
-        assert!(await!(a_ca1.next()).is_none());
+        assert!(a_ca1.next().await.is_none());
 
         // Drop here, to make sure values are not automatically dropped earlier:
         drop(a_ac);
@@ -511,7 +517,7 @@ mod tests {
             inner: IncomingConnInner::Listen(incoming_listen_a),
         };
 
-        await!(outgoing_conns.send(incoming_conn_a)).unwrap();
+        outgoing_conns.send(incoming_conn_a).await.unwrap();
 
         let incoming_connect_b = IncomingConnect {
             receiver: c_bc,
@@ -523,9 +529,9 @@ mod tests {
             inner: IncomingConnInner::Connect(incoming_connect_b),
         };
 
-        await!(outgoing_conns.send(incoming_conn_b)).unwrap();
+        outgoing_conns.send(incoming_conn_b).await.unwrap();
 
-        let msg = await!(a_ca.next()).unwrap();
+        let msg = a_ca.next().await.unwrap();
         assert_eq!(
             msg,
             IncomingConnection {
@@ -549,17 +555,17 @@ mod tests {
                 public_key: a_public_key.clone(),
                 inner: IncomingConnInner::Accept(incoming_accept_a),
             };
-            await!(outgoing_conns.send(incoming_conn_accept_a)).unwrap();
+            outgoing_conns.send(incoming_conn_accept_a).await.unwrap();
         }
 
         // A rejects B's connection:
         let reject_connection = RejectConnection {
             public_key: b_public_key,
         };
-        await!(a_ac.send(reject_connection)).unwrap();
+        a_ac.send(reject_connection).await.unwrap();
 
         // B should be notified that the connection is closed:
-        assert!(await!(b_cb.next()).is_none());
+        assert!(b_cb.next().await.is_none());
 
         // Drop here, to make sure values are not automatically dropped earlier:
         drop(a_ac);

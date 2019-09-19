@@ -70,7 +70,7 @@ impl<T> Connected<T> {
     /// Return value of true means send was successful.
     pub async fn send(&mut self, t: T) -> bool {
         match self.opt_sender.take() {
-            Some(mut sender) => match await!(sender.send(t)) {
+            Some(mut sender) => match sender.send(t).await {
                 Ok(()) => {
                     self.opt_sender = Some(sender);
                     true
@@ -193,10 +193,10 @@ where
         let c_friend_public_key = friend_public_key.clone();
         let mut c_event_sender = self.event_sender.clone();
         let connect_fut = async move {
-            match await!(c_connect_client.connect()) {
+            match c_connect_client.connect().await {
                 Ok(raw_conn) => {
                     let event = ChannelerEvent::Connection((c_friend_public_key, raw_conn));
-                    let _ = await!(c_event_sender.send(event));
+                    let _ = c_event_sender.send(event).await;
                 }
                 Err(e) => {
                     // This probably happened because the friend was removed
@@ -233,7 +233,7 @@ where
                 .insert(friend_public_key.clone(), InFriend::Listening);
         } else {
             let (config_client, connect_client) =
-                await!(self.connector.transform(friend_public_key.clone()));
+                self.connector.transform(friend_public_key.clone()).await;
             let out_friend = OutFriend {
                 config_client,
                 connect_client,
@@ -265,16 +265,16 @@ where
                 };
 
                 // TODO: Should we check errors here?
-                let _ = await!(friend_connected.send(message));
+                let _ = friend_connected.send(message).await;
                 Ok(())
             }
             FunderToChanneler::SetRelays(addresses) => {
                 // Our local listening addresses were set.
                 // We update the listener accordingly:
-                await!(self
-                    .listen_config
-                    .send(LpConfig::SetLocalAddresses(addresses)))
-                .map_err(|_| ChannelerError::ListenerConfigError)?;
+                self.listen_config
+                    .send(LpConfig::SetLocalAddresses(addresses))
+                    .await
+                    .map_err(|_| ChannelerError::ListenerConfigError)?;
 
                 Ok(())
             }
@@ -285,17 +285,22 @@ where
                     local_relays,
                 } = channeler_update_friend;
 
-                await!(self.try_create_friend(&friend_public_key))?;
+                self.try_create_friend(&friend_public_key).await?;
 
                 if let Some(_in_friend) = self.friends.in_friends.get(&friend_public_key) {
                     let lp_config =
                         LpConfig::UpdateFriend((friend_public_key.clone(), local_relays));
-                    await!(self.listen_config.send(lp_config))
+                    self.listen_config
+                        .send(lp_config)
+                        .await
                         .map_err(|_| ChannelerError::ListenerConfigError)?;
                 } else if let Some(out_friend) =
                     self.friends.out_friends.get_mut(&friend_public_key)
                 {
-                    await!(out_friend.config_client.config(friend_relays))
+                    out_friend
+                        .config_client
+                        .config(friend_relays)
+                        .await
                         .map_err(|_| ChannelerError::ConnectorConfigError)?;
                 }
 
@@ -304,7 +309,9 @@ where
             FunderToChanneler::RemoveFriend(friend_public_key) => {
                 if self.friends.in_friends.remove(&friend_public_key).is_some() {
                     let lp_config = LpConfig::RemoveFriend(friend_public_key.clone());
-                    await!(self.listen_config.send(lp_config))
+                    self.listen_config
+                        .send(lp_config)
+                        .await
                         .map_err(|_| ChannelerError::ListenerConfigError)?;
                     return Ok(());
                 }
@@ -391,7 +398,7 @@ where
             let receiver_closed_event = ChannelerEvent::FriendEvent(FriendEvent::ReceiverClosed(
                 c_friend_public_key.clone(),
             ));
-            let _ = await!(c_event_sender.send(receiver_closed_event));
+            let _ = c_event_sender.send(receiver_closed_event).await;
         };
 
         self.spawner
@@ -400,7 +407,10 @@ where
 
         // Report to Funder that the friend is online:
         let to_funder = ChannelerToFunder::Online(friend_public_key.clone());
-        await!(self.to_funder.send(to_funder)).map_err(|_| ChannelerError::SendToFunderFailed)?;
+        self.to_funder
+            .send(to_funder)
+            .await
+            .map_err(|_| ChannelerError::SendToFunderFailed)?;
 
         Ok(())
     }
@@ -412,13 +422,17 @@ where
         match friend_event {
             FriendEvent::IncomingMessage((friend_public_key, data)) => {
                 let message = ChannelerToFunder::Message((friend_public_key, data));
-                await!(self.to_funder.send(message))
+                self.to_funder
+                    .send(message)
+                    .await
                     .map_err(|_| ChannelerError::SendToFunderFailed)?
             }
             FriendEvent::ReceiverClosed(friend_public_key) => {
                 // Report Funder that the friend is offline:
                 let to_funder = ChannelerToFunder::Offline(friend_public_key.clone());
-                await!(self.to_funder.send(to_funder))
+                self.to_funder
+                    .send(to_funder)
+                    .await
                     .map_err(|_| ChannelerError::SendToFunderFailed)?;
 
                 /*
@@ -429,7 +443,7 @@ where
                 {
                     // Report Funder that the friend is offline:
                     let to_funder = ChannelerToFunder::Offline(friend_public_key.clone());
-                    await!(self.to_funder.send(to_funder))
+                    self.to_funder.send(to_funder).await
                         .map_err(|_| ChannelerError::SendToFunderFailed)?;
                 }
                 */
@@ -486,9 +500,9 @@ where
     let mut c_event_sender = channeler.event_sender.clone();
     let mut incoming_listen_conns = incoming_listen_conns.map(ChannelerEvent::Connection);
     let send_listen_conns_fut = async move {
-        let _ = await!(c_event_sender.send_all(&mut incoming_listen_conns));
+        let _ = c_event_sender.send_all(&mut incoming_listen_conns).await;
         // If we reach here it means an error occurred.
-        let _ = await!(c_event_sender.send(ChannelerEvent::ListenerClosed));
+        let _ = c_event_sender.send(ChannelerEvent::ListenerClosed).await;
     };
     channeler
         .spawner
@@ -501,16 +515,16 @@ where
 
     let mut events = select_streams![event_receiver, from_funder];
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         match event {
             ChannelerEvent::FromFunder(funder_to_channeler) => {
-                await!(channeler.handle_from_funder(funder_to_channeler))?
+                channeler.handle_from_funder(funder_to_channeler).await?
             }
             ChannelerEvent::Connection((public_key, raw_conn)) => {
-                await!(channeler.handle_connection(public_key, raw_conn))?
+                channeler.handle_connection(public_key, raw_conn).await?
             }
             ChannelerEvent::FriendEvent(friend_event) => {
-                await!(channeler.handle_friend_event(friend_event))?
+                channeler.handle_friend_event(friend_event).await?
             }
             ChannelerEvent::ListenerClosed => return Err(ChannelerError::ListenerClosed),
             ChannelerEvent::FunderClosed => return Err(ChannelerError::FunderClosed),
@@ -567,30 +581,39 @@ mod tests {
             )
             .unwrap();
 
-        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+        let mut listener_request = listener_req_receiver.next().await.unwrap();
 
         // Play with changing relay addresses:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1337u32]))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![0x1337u32]))
+            .await
+            .unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         match lp_config {
             LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![0x1337u32]),
             _ => unreachable!(),
         };
 
         // Empty relay address:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![]))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![]))
+            .await
+            .unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         match lp_config {
             LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![]),
             _ => unreachable!(),
         };
 
         // This is the final address we set for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![0x1u32]))
+            .await
+            .unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         match lp_config {
             LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![0x1u32]),
             _ => unreachable!(),
@@ -603,9 +626,11 @@ mod tests {
             local_relays: vec![0x2u32, 0x3u32],
         };
 
-        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+        funder_sender
+            .send(FunderToChanneler::UpdateFriend(channeler_update_friend))
+            .await
             .unwrap();
-        let conn_request = await!(conn_request_receiver.next()).unwrap();
+        let conn_request = conn_request_receiver.next().await.unwrap();
         assert_eq!(conn_request.address, pks[0]);
         let (connect_sender0, mut connect_receiver0) = mpsc::channel(0);
         let (config_sender0, mut config_receiver0) = mpsc::channel(0);
@@ -614,10 +639,10 @@ mod tests {
         let connect_client0 = CpConnectClient::new(connect_sender0);
         conn_request.reply((config_client0, connect_client0));
 
-        let config0 = await!(config_receiver0.next()).unwrap();
+        let config0 = config_receiver0.next().await.unwrap();
         assert_eq!(config0, vec![0x0u32]);
 
-        let connect_req0 = await!(connect_receiver0.next()).unwrap();
+        let connect_req0 = connect_receiver0.next().await.unwrap();
 
         // Send back a connection:
         let (mut pk0_sender, local_receiver) = mpsc::channel(0);
@@ -628,22 +653,24 @@ mod tests {
             .unwrap();
 
         // Friend should be reported as online:
-        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        let channeler_to_funder = funder_receiver.next().await.unwrap();
         match channeler_to_funder {
             ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[0]),
             _ => unreachable!(),
         };
 
         // Send a message to pks[0]:
-        await!(funder_sender.send(FunderToChanneler::Message((pks[0].clone(), vec![1, 2, 3]))))
+        funder_sender
+            .send(FunderToChanneler::Message((pks[0].clone(), vec![1, 2, 3])))
+            .await
             .unwrap();
-        assert_eq!(await!(pk0_receiver.next()).unwrap(), vec![1, 2, 3]);
+        assert_eq!(pk0_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
         // Send a message from pks[0]:
-        await!(pk0_sender.send(vec![3, 2, 1])).unwrap();
+        pk0_sender.send(vec![3, 2, 1]).await.unwrap();
 
         // We expect to get the message from pks[0]:
-        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        let channeler_to_funder = funder_receiver.next().await.unwrap();
         match channeler_to_funder {
             ChannelerToFunder::Message((public_key, message)) => {
                 assert_eq!(public_key, pks[0]);
@@ -657,14 +684,14 @@ mod tests {
         drop(pk0_receiver);
 
         // pks[0] should be reported as offline:
-        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        let channeler_to_funder = funder_receiver.next().await.unwrap();
         match channeler_to_funder {
             ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[0]),
             _ => unreachable!(),
         };
 
         // Connection to pks[0] should be attempted again:
-        let connect_req0 = await!(connect_receiver0.next()).unwrap();
+        let connect_req0 = connect_receiver0.next().await.unwrap();
 
         let (pk0_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, pk0_receiver) = mpsc::channel(0);
@@ -674,7 +701,7 @@ mod tests {
             .unwrap();
 
         // Online report:
-        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        let channeler_to_funder = funder_receiver.next().await.unwrap();
         match channeler_to_funder {
             ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[0]),
             _ => unreachable!(),
@@ -685,17 +712,20 @@ mod tests {
         drop(pk0_receiver);
 
         // Offline report:
-        let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+        let channeler_to_funder = funder_receiver.next().await.unwrap();
         match channeler_to_funder {
             ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[0]),
             _ => unreachable!(),
         };
 
         // A new connection is attempted:
-        let connect_req0 = await!(connect_receiver0.next()).unwrap();
+        let connect_req0 = connect_receiver0.next().await.unwrap();
 
         // Remove friend:
-        await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[0].clone()))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::RemoveFriend(pks[0].clone()))
+            .await
+            .unwrap();
 
         let (_pk0_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, _pk0_receiver) = mpsc::channel(0);
@@ -706,7 +736,7 @@ mod tests {
         );
 
         // The connection requests receiver should be closed:
-        assert!(await!(connect_receiver0.next()).is_none());
+        assert!(connect_receiver0.next().await.is_none());
     }
 
     #[test]
@@ -758,10 +788,13 @@ mod tests {
             .unwrap();
 
         // Set address for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
-        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![0x1u32]))
+            .await
+            .unwrap();
+        let mut listener_request = listener_req_receiver.next().await.unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         assert_eq!(lp_config, LpConfig::SetLocalAddresses(vec![0x1u32]));
 
         // Add a friend:
@@ -770,10 +803,12 @@ mod tests {
             friend_relays: vec![0x0u32],
             local_relays: vec![0x2u32, 0x3u32],
         };
-        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+        funder_sender
+            .send(FunderToChanneler::UpdateFriend(channeler_update_friend))
+            .await
             .unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         assert_eq!(
             lp_config,
             LpConfig::UpdateFriend((pks[2].clone(), vec![0x2u32, 0x3u32]))
@@ -785,28 +820,31 @@ mod tests {
             // Set up a connection from pks[2]:
             let (mut pk2_sender, receiver) = mpsc::channel(0);
             let (sender, mut pk2_receiver) = mpsc::channel(0);
-            await!(listener_request
+            listener_request
                 .conn_sender
-                .send((pks[2].clone(), (sender, receiver))))
-            .unwrap();
+                .send((pks[2].clone(), (sender, receiver)))
+                .await
+                .unwrap();
 
             // Friend should be reported as online:
-            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            let channeler_to_funder = funder_receiver.next().await.unwrap();
             match channeler_to_funder {
                 ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[2]),
                 _ => unreachable!(),
             };
 
             // Send a message to pks[2]:
-            await!(funder_sender.send(FunderToChanneler::Message((pks[2].clone(), vec![1, 2, 3]))))
+            funder_sender
+                .send(FunderToChanneler::Message((pks[2].clone(), vec![1, 2, 3])))
+                .await
                 .unwrap();
-            assert_eq!(await!(pk2_receiver.next()).unwrap(), vec![1, 2, 3]);
+            assert_eq!(pk2_receiver.next().await.unwrap(), vec![1, 2, 3]);
 
             // Send a message from pks2:
-            await!(pk2_sender.send(vec![3, 2, 1])).unwrap();
+            pk2_sender.send(vec![3, 2, 1]).await.unwrap();
 
             // We expect to get the message from pks[2]:
-            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            let channeler_to_funder = funder_receiver.next().await.unwrap();
             match channeler_to_funder {
                 ChannelerToFunder::Message((public_key, message)) => {
                     assert_eq!(public_key, pks[2]);
@@ -820,7 +858,7 @@ mod tests {
             drop(pk2_receiver);
 
             // Friend should be reported as offline:
-            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            let channeler_to_funder = funder_receiver.next().await.unwrap();
             match channeler_to_funder {
                 ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[2]),
                 _ => unreachable!(),
@@ -828,7 +866,10 @@ mod tests {
         }
 
         // Remove friend:
-        await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone()))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::RemoveFriend(pks[2].clone()))
+            .await
+            .unwrap();
     }
 
     #[test]
@@ -882,10 +923,13 @@ mod tests {
             .unwrap();
 
         // Set address for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
-        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![0x1u32]))
+            .await
+            .unwrap();
+        let mut listener_request = listener_req_receiver.next().await.unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         assert_eq!(lp_config, LpConfig::SetLocalAddresses(vec![0x1u32]));
 
         for _ in 0..3 {
@@ -895,10 +939,12 @@ mod tests {
                 friend_relays: vec![0x0u32],
                 local_relays: vec![0x2u32, 0x3u32],
             };
-            await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+            funder_sender
+                .send(FunderToChanneler::UpdateFriend(channeler_update_friend))
+                .await
                 .unwrap();
 
-            let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+            let lp_config = listener_request.config_receiver.next().await.unwrap();
             assert_eq!(
                 lp_config,
                 LpConfig::UpdateFriend((pks[2].clone(), vec![0x2u32, 0x3u32]))
@@ -907,26 +953,30 @@ mod tests {
             // Set up a connection:
             let (_pk2_sender, receiver) = mpsc::channel(0);
             let (sender, _pk2_receiver) = mpsc::channel(0);
-            await!(listener_request
+            listener_request
                 .conn_sender
-                .send((pks[2].clone(), (sender, receiver))))
-            .unwrap();
+                .send((pks[2].clone(), (sender, receiver)))
+                .await
+                .unwrap();
 
             // Friend should be reported as online:
-            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            let channeler_to_funder = funder_receiver.next().await.unwrap();
             match channeler_to_funder {
                 ChannelerToFunder::Online(public_key) => assert_eq!(public_key, pks[2]),
                 _ => unreachable!(),
             };
 
             // Request to remove the friend in the middle of connection:
-            await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[2].clone()))).unwrap();
+            funder_sender
+                .send(FunderToChanneler::RemoveFriend(pks[2].clone()))
+                .await
+                .unwrap();
 
-            let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+            let lp_config = listener_request.config_receiver.next().await.unwrap();
             assert_eq!(lp_config, LpConfig::RemoveFriend(pks[2].clone()));
 
             // Friend should be reported as offline:
-            let channeler_to_funder = await!(funder_receiver.next()).unwrap();
+            let channeler_to_funder = funder_receiver.next().await.unwrap();
             match channeler_to_funder {
                 ChannelerToFunder::Offline(public_key) => assert_eq!(public_key, pks[2]),
                 _ => unreachable!(),
@@ -982,12 +1032,15 @@ mod tests {
             )
             .unwrap();
 
-        let mut listener_request = await!(listener_req_receiver.next()).unwrap();
+        let mut listener_request = listener_req_receiver.next().await.unwrap();
 
         // This is the final address we set for our relay:
-        await!(funder_sender.send(FunderToChanneler::SetRelays(vec![0x1u32]))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::SetRelays(vec![0x1u32]))
+            .await
+            .unwrap();
 
-        let lp_config = await!(listener_request.config_receiver.next()).unwrap();
+        let lp_config = listener_request.config_receiver.next().await.unwrap();
         match lp_config {
             LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![0x1u32]),
             _ => unreachable!(),
@@ -1000,15 +1053,20 @@ mod tests {
             local_relays: vec![0x2u32, 0x3u32],
         };
 
-        await!(funder_sender.send(FunderToChanneler::UpdateFriend(
-            channeler_update_friend.clone()
-        )))
-        .unwrap();
-        let conn_request = await!(conn_request_receiver.next()).unwrap();
+        funder_sender
+            .send(FunderToChanneler::UpdateFriend(
+                channeler_update_friend.clone(),
+            ))
+            .await
+            .unwrap();
+        let conn_request = conn_request_receiver.next().await.unwrap();
         assert_eq!(conn_request.address, pks[0]);
 
         // Request to remove the friend in the middle of connection attempt:
-        await!(funder_sender.send(FunderToChanneler::RemoveFriend(pks[0].clone()))).unwrap();
+        funder_sender
+            .send(FunderToChanneler::RemoveFriend(pks[0].clone()))
+            .await
+            .unwrap();
 
         // Reply to the conn request too late:
         let (connect_sender0, _connect_receiver0) = mpsc::channel(0);
@@ -1019,10 +1077,12 @@ mod tests {
         conn_request.reply((config_client0, connect_client0));
 
         // UpdateFriend again, to make sure channeler is still alive:
-        await!(funder_sender.send(FunderToChanneler::UpdateFriend(channeler_update_friend)))
+        funder_sender
+            .send(FunderToChanneler::UpdateFriend(channeler_update_friend))
+            .await
             .unwrap();
 
-        let conn_request = await!(conn_request_receiver.next()).unwrap();
+        let conn_request = conn_request_receiver.next().await.unwrap();
         assert_eq!(conn_request.address, pks[0]);
 
         // Reply to the conn request, to avoid panic on exit:

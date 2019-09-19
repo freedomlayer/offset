@@ -111,16 +111,17 @@ where
 
         spawner
             .spawn(async move {
-                while let Some(message) = await!(receiver.next()) {
+                while let Some(message) = receiver.next().await {
                     match message {
                         AppServerToApp::TransactionResult(transaction_result) => {
-                            let _ = await!(
-                                incoming_transaction_results_sender.send(transaction_result)
-                            );
+                            let _ = incoming_transaction_results_sender
+                                .send(transaction_result)
+                                .await;
                         }
                         AppServerToApp::ResponseClosePayment(response_close_payment) => {
-                            let _ = await!(incoming_response_close_payments_sender
-                                .send(response_close_payment));
+                            let _ = incoming_response_close_payments_sender
+                                .send(response_close_payment)
+                                .await;
                         }
                         AppServerToApp::Report(_node_report) => {
                             // TODO: Maybe somehow redesign the type AppServerToApp
@@ -129,16 +130,16 @@ where
                             return;
                         }
                         AppServerToApp::ReportMutations(node_report_mutations) => {
-                            let _ = await!(
-                                incoming_mutations_sender.send(node_report_mutations.mutations)
-                            );
+                            let _ = incoming_mutations_sender
+                                .send(node_report_mutations.mutations)
+                                .await;
                             if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
                                 let _ =
-                                    await!(incoming_done_app_requests_sender.send(app_request_id));
+                                    incoming_done_app_requests_sender.send(app_request_id).await;
                             }
                         }
                         AppServerToApp::ResponseRoutes(client_response_routes) => {
-                            let _ = await!(incoming_routes_sender.send(client_response_routes));
+                            let _ = incoming_routes_sender.send(client_response_routes).await;
                         }
                     }
                 }

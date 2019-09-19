@@ -57,7 +57,7 @@ where
 {
     let (sender, mut receiver) = mpsc::channel::<T>(0);
     let fut = async move {
-        await!(sink.send_all(&mut receiver))
+        sink.send_all(&mut receiver).await
     }.map(|_| ());
     spawner.spawn(fut).unwrap();
     sender
@@ -72,7 +72,7 @@ where
 {
     let (mut sender, receiver) = mpsc::channel::<T>(0);
     let fut = async move {
-        await!(sender.send_all(&mut stream))
+        sender.send_all(&mut stream).await
     }.map(|_| ());
     spawner.spawn(fut).unwrap();
     receiver
@@ -118,17 +118,17 @@ where
     CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let timer_stream = await!(timer_client.request_timer_stream())
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
-    let opt_conn_pair = await!(connect_with_timeout(
-        connector,
-        conn_timeout_ticks,
-        timer_stream
-    ));
+    let opt_conn_pair = connect_with_timeout(connector, conn_timeout_ticks, timer_stream).await;
     let conn_pair = match opt_conn_pair {
         Some(conn_pair) => Ok(conn_pair),
         None => {
-            await!(pending_reject_sender.send(public_key.clone()))
+            pending_reject_sender
+                .send(public_key.clone())
+                .await
                 .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
             Err(AcceptConnectionError::ConnectionFailed)
         }
@@ -138,9 +138,11 @@ where
 
     // Send first message:
     let ser_init_connection = InitConnection::Accept(public_key.clone()).proto_serialize();
-    let send_res = await!(sender.send(ser_init_connection));
+    let send_res = sender.send(ser_init_connection).await;
     if send_res.is_err() {
-        await!(pending_reject_sender.send(public_key))
+        pending_reject_sender
+            .send(public_key)
+            .await
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
@@ -148,14 +150,17 @@ where
     let to_tunnel_sender = sender;
     let from_tunnel_receiver = receiver;
 
-    let (user_to_tunnel_sender, user_from_tunnel_receiver) =
-        await!(keepalive_transform.transform((to_tunnel_sender, from_tunnel_receiver)));
+    let (user_to_tunnel_sender, user_from_tunnel_receiver) = keepalive_transform
+        .transform((to_tunnel_sender, from_tunnel_receiver))
+        .await;
 
-    await!(connections_sender.send((
-        public_key,
-        (user_to_tunnel_sender, user_from_tunnel_receiver)
-    )))
-    .map_err(|_| AcceptConnectionError::SendConnPairError)?;
+    connections_sender
+        .send((
+            public_key,
+            (user_to_tunnel_sender, user_from_tunnel_receiver),
+        ))
+        .await
+        .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
 }
 
@@ -177,7 +182,7 @@ where
     CSE: 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {
-    let conn_pair = match await!(connector.transform(())) {
+    let conn_pair = match connector.transform(()).await {
         Some(conn_pair) => conn_pair,
         None => return Err(ClientListenerError::ConnectionFailure),
     };
@@ -190,11 +195,13 @@ where
     let (mut sender, receiver) = conn_pair;
     let ser_init_connection = InitConnection::Listen.proto_serialize();
 
-    await!(sender.send(ser_init_connection))
+    sender
+        .send(ser_init_connection)
+        .await
         .map_err(|_| ClientListenerError::SendInitConnectionError)?;
 
     let conn_pair = (sender, receiver);
-    let (sender, receiver) = await!(keepalive_transform.transform(conn_pair));
+    let (sender, receiver) = keepalive_transform.transform(conn_pair).await;
 
     // Add serialization for sender:
     let mut sender =
@@ -238,9 +245,9 @@ where
         pending_reject_receiver
     ];
 
-    while let Some(event) = await!(events.next()) {
+    while let Some(event) = events.next().await {
         if let Some(ref mut event_sender) = opt_event_sender {
-            let _ = await!(event_sender.send(event.clone()));
+            let _ = event_sender.send(event.clone()).await;
         }
         match event {
             ClientListenerEvent::AccessControlOp(access_control_op) => {
@@ -249,7 +256,9 @@ where
             ClientListenerEvent::ServerMessage(incoming_connection) => {
                 let public_key = incoming_connection.public_key.clone();
                 if !access_control.is_allowed(&public_key) {
-                    await!(sender.send(RejectConnection { public_key }))
+                    sender
+                        .send(RejectConnection { public_key })
+                        .await
                         .map_err(|_| ClientListenerError::SendToServerError)?;
                 } else {
                     // We will attempt to accept the connection
@@ -272,7 +281,9 @@ where
                 }
             }
             ClientListenerEvent::PendingReject(public_key) => {
-                await!(sender.send(RejectConnection { public_key }))
+                sender
+                    .send(RejectConnection { public_key })
+                    .await
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             }
             ClientListenerEvent::ServerClosed => break,
@@ -336,7 +347,7 @@ where
         let const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
 
         let fut = async move {
-            await!(inner_client_listener(
+            inner_client_listener(
                 const_connector,
                 &mut access_control,
                 &mut access_control_receiver,
@@ -345,10 +356,11 @@ where
                 self.conn_timeout_ticks,
                 self.timer_client,
                 self.spawner,
-                None
+                None,
             )
             .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
-            .map(|_| ()))
+            .map(|_| ())
+            .await
         };
 
         let _ = c_spawner.spawn(fut);
@@ -376,12 +388,12 @@ mod tests {
         let fut_connect = connect_with_timeout(connector, conn_timeout_ticks, timer_stream);
         let fut_conn = spawner.spawn_with_handle(fut_connect).unwrap();
 
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
         let conn_pair = (dummy_sender, dummy_receiver);
         req.reply(Some(conn_pair));
 
-        assert!(await!(fut_conn).is_some());
+        assert!(fut_conn.await.is_some());
     }
 
     #[test]
@@ -400,23 +412,19 @@ mod tests {
 
         spawner
             .spawn(async move {
-                let res = await!(connect_with_timeout(
-                    connector,
-                    conn_timeout_ticks,
-                    timer_stream
-                ));
+                let res = connect_with_timeout(connector, conn_timeout_ticks, timer_stream).await;
                 res_sender.send(res).unwrap();
             })
             .unwrap();
 
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         assert_eq!(req.address, ());
 
         for _ in 0..8usize {
-            await!(timer_sender.send(TimerTick)).unwrap();
+            timer_sender.send(TimerTick).await.unwrap();
         }
 
-        assert!(await!(res_receiver).unwrap().is_none());
+        assert!(res_receiver.await.unwrap().is_none());
     }
 
     #[test]
@@ -458,10 +466,10 @@ mod tests {
         let conn_pair = (local_sender, local_receiver);
 
         // accept_connection() will try to connect. We prepare a connection:
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));
 
-        let vec_init_connection = await!(remote_receiver.next()).unwrap();
+        let vec_init_connection = remote_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Accept(accept_public_key) = init_connection {
             assert_eq!(accept_public_key, public_key);
@@ -472,17 +480,17 @@ mod tests {
         let mut ser_remote_sender = remote_sender;
         let mut ser_remote_receiver = remote_receiver;
 
-        let (accepted_public_key, conn_pair) = await!(connections_receiver.next()).unwrap();
+        let (accepted_public_key, conn_pair) = connections_receiver.next().await.unwrap();
         assert_eq!(accepted_public_key, public_key);
 
         let (mut sender, mut receiver) = conn_pair;
 
-        await!(sender.send(vec![1, 2, 3])).unwrap();
-        let res = await!(ser_remote_receiver.next()).unwrap();
+        sender.send(vec![1, 2, 3]).await.unwrap();
+        let res = ser_remote_receiver.next().await.unwrap();
         assert_eq!(res, vec![1, 2, 3]);
 
-        await!(ser_remote_sender.send(vec![3, 2, 1])).unwrap();
-        let res = await!(receiver.next()).unwrap();
+        ser_remote_sender.send(vec![3, 2, 1]).await.unwrap();
+        let res = receiver.next().await.unwrap();
         assert_eq!(res, vec![3, 2, 1]);
     }
 
@@ -507,7 +515,8 @@ mod tests {
         let c_spawner = spawner.clone();
         let fut_listener = async move {
             let mut access_control = AccessControlPk::new();
-            await!(inner_client_listener(
+            // HACK: Saving temp value in res to make the compiler happy.
+            let res = inner_client_listener(
                 connector,
                 &mut access_control,
                 &mut incoming_access_control,
@@ -516,8 +525,10 @@ mod tests {
                 conn_timeout_ticks,
                 timer_client,
                 c_spawner,
-                Some(event_sender)
-            ))
+                Some(event_sender),
+            )
+            .await;
+            res
         }
             .map_err(|e| warn!("inner_client_listener error: {:?}", e))
             .map(|_| ());
@@ -528,16 +539,19 @@ mod tests {
         let (mut relay_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut relay_receiver) = mpsc::channel(0);
         let conn_pair = (local_sender, local_receiver);
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));
 
         // Open access for a certain public key:
         let public_key_a = PublicKey::from(&[0xaa; PublicKey::len()]);
-        await!(acl_sender.send(AccessControlOp::Add(public_key_a.clone()))).unwrap();
-        await!(event_receiver.next()).unwrap();
+        acl_sender
+            .send(AccessControlOp::Add(public_key_a.clone()))
+            .await
+            .unwrap();
+        event_receiver.next().await.unwrap();
 
         // First message to the relay should be InitConnection::Listen:
-        let vec_init_connection = await!(relay_receiver.next()).unwrap();
+        let vec_init_connection = relay_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Listen = init_connection {
         } else {
@@ -551,11 +565,11 @@ mod tests {
             public_key: public_key_b.clone(),
         };
         let vec_incoming_connection = relay_listen_out.proto_serialize();
-        await!(relay_sender.send(vec_incoming_connection)).unwrap();
-        await!(event_receiver.next()).unwrap();
+        relay_sender.send(vec_incoming_connection).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Listener will reject the connection:
-        let vec_relay_listen_in = await!(relay_receiver.next()).unwrap();
+        let vec_relay_listen_in = relay_receiver.next().await.unwrap();
         let reject_connection = RejectConnection::proto_deserialize(&vec_relay_listen_in).unwrap();
         assert_eq!(reject_connection.public_key, public_key_b);
 
@@ -565,8 +579,8 @@ mod tests {
             public_key: public_key_a.clone(),
         };
         let vec_incoming_connection = incoming_connection.proto_serialize();
-        await!(relay_sender.send(vec_incoming_connection)).unwrap();
-        await!(event_receiver.next()).unwrap();
+        relay_sender.send(vec_incoming_connection).await.unwrap();
+        event_receiver.next().await.unwrap();
 
         // Listener will accept the connection:
         // Listener will open a connection to the relay:
@@ -574,10 +588,10 @@ mod tests {
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
         let conn_pair = (local_sender, local_receiver);
 
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));
 
-        let vec_init_connection = await!(remote_receiver.next()).unwrap();
+        let vec_init_connection = remote_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec_init_connection).unwrap();
         if let InitConnection::Accept(accepted_public_key) = init_connection {
             assert_eq!(accepted_public_key, public_key_a);
@@ -593,5 +607,4 @@ mod tests {
     }
 
     // TODO: Add a test for ClientListener.
-
 }

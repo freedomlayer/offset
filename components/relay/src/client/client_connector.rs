@@ -38,13 +38,18 @@ where
         relay_address: A,
         remote_public_key: PublicKey,
     ) -> Result<ConnPairVec, ClientConnectorError> {
-        let (mut sender, receiver) = await!(self.connector.transform(relay_address))
+        let (mut sender, receiver) = self
+            .connector
+            .transform(relay_address)
+            .await
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
         let ser_init_connection = init_connection.proto_serialize();
-        await!(sender.send(ser_init_connection))
+        sender
+            .send(ser_init_connection)
+            .await
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
 
         let from_tunnel_receiver = receiver;
@@ -52,9 +57,10 @@ where
 
         // TODO: Do something about the unwrap here:
         // Maybe change ConnTransform trait to allow force returning something that is not None?
-        let (user_to_tunnel, user_from_tunnel) = await!(self
+        let (user_to_tunnel, user_from_tunnel) = self
             .keepalive_transform
-            .transform((to_tunnel_sender, from_tunnel_receiver)));
+            .transform((to_tunnel_sender, from_tunnel_receiver))
+            .await;
 
         Ok((user_to_tunnel, user_from_tunnel))
     }
@@ -97,7 +103,7 @@ mod tests {
 
         let conn_pair = (local_sender, local_receiver);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
-        // await!(conn_sender.send(conn_pair)).unwrap();
+        // conn_sender.send(conn_pair).await.unwrap();
         let connector = DummyConnector::new(req_sender);
 
         // keepalive_transform does nothing:
@@ -110,26 +116,29 @@ mod tests {
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner
             .spawn_with_handle(async move {
-                await!(client_connector.transform((address, c_public_key))).unwrap()
+                client_connector
+                    .transform((address, c_public_key))
+                    .await
+                    .unwrap()
             })
             .unwrap();
 
         // Wait for connection request:
-        let req = await!(req_receiver.next()).unwrap();
+        let req = req_receiver.next().await.unwrap();
         // Reply with a connection:
         req.reply(Some(conn_pair));
-        let mut conn_pair = await!(fut_conn_pair);
+        let mut conn_pair = fut_conn_pair.await;
 
-        let vec = await!(relay_receiver.next()).unwrap();
+        let vec = relay_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec).unwrap();
         match init_connection {
             InitConnection::Connect(conn_public_key) => assert_eq!(conn_public_key, public_key),
             _ => unreachable!(),
         };
 
-        await!(relay_sender.send(vec![1, 2, 3])).unwrap();
+        relay_sender.send(vec![1, 2, 3]).await.unwrap();
         let (ref _sender, ref mut receiver) = conn_pair;
-        let vec = await!(receiver.next()).unwrap();
+        let vec = receiver.next().await.unwrap();
         assert_eq!(vec, vec![1, 2, 3]);
     }
 

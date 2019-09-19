@@ -96,21 +96,20 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
     let c_thread_pool = thread_pool.clone();
     thread_pool.run(async move {
         // Connect to node:
-        let node_connection = await!(connect(
+        let node_connection = connect(
             node_address_file.public_key,
             node_address_file.address,
             app_identity_client,
-            c_thread_pool.clone()
-        ))
+            c_thread_pool.clone(),
+        )
+        .await
         .map_err(|_| StCtrlError::ConnectionError)?;
 
         match subcommand {
-            StCtrlSubcommand::Info(info_cmd) => await!(info(info_cmd, node_connection, writer))?,
-            StCtrlSubcommand::Config(config_cmd) => await!(config(config_cmd, node_connection))?,
-            StCtrlSubcommand::Buyer(buyer_cmd) => {
-                await!(buyer(buyer_cmd, node_connection, writer))?
-            }
-            StCtrlSubcommand::Seller(seller_cmd) => await!(seller(seller_cmd, node_connection))?,
+            StCtrlSubcommand::Info(info_cmd) => info(info_cmd, node_connection, writer).await?,
+            StCtrlSubcommand::Config(config_cmd) => config(config_cmd, node_connection).await?,
+            StCtrlSubcommand::Buyer(buyer_cmd) => buyer(buyer_cmd, node_connection, writer).await?,
+            StCtrlSubcommand::Seller(seller_cmd) => seller(seller_cmd, node_connection).await?,
         }
         Ok(())
     })

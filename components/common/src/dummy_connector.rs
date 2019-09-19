@@ -53,8 +53,8 @@ where
         };
 
         let fut_conn_pair = async move {
-            await!(self.req_sender.send(conn_request)).unwrap();
-            await!(response_receiver).unwrap()
+            self.req_sender.send(conn_request).await.unwrap();
+            response_receiver.await.unwrap()
         };
         Box::pin(fut_conn_pair)
     }

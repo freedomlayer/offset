@@ -52,9 +52,9 @@ where
     }
 
     async fn connect(&mut self, index_server_address: ISA) -> Option<SessionHandle> {
-        let (to_server, mut from_server) = await!(self.connector.transform(index_server_address))?;
+        let (to_server, mut from_server) = self.connector.transform(index_server_address).await?;
 
-        let first_time_hash = await!(first_server_time_hash(&mut from_server)).ok()?;
+        let first_time_hash = first_server_time_hash(&mut from_server).await.ok()?;
         let (control_sender, incoming_control) = mpsc::channel(0);
 
         let (close_sender, close_receiver) = oneshot::channel();
@@ -143,20 +143,23 @@ mod tests {
         let mut c_server_sender = server_sender.clone();
 
         let handle_conn_request_fut = async move {
-            let conn_request = await!(connector_receiver.next()).unwrap();
+            let conn_request = connector_receiver.next().await.unwrap();
             conn_request.reply(Some((client_sender, client_receiver)));
 
             // Send a first time hash (Required for connection):
             let time_hash = HashResult::from(&[0xaa; HashResult::len()]);
-            await!(c_server_sender.send(IndexServerToClient::TimeHash(time_hash))).unwrap();
+            c_server_sender
+                .send(IndexServerToClient::TimeHash(time_hash))
+                .await
+                .unwrap();
         };
         let session_handle_fut = index_client_session.transform(0x1337u32);
 
-        let (opt_session_handle, ()) = await!(join(session_handle_fut, handle_conn_request_fut));
+        let (opt_session_handle, ()) = join(session_handle_fut, handle_conn_request_fut).await;
         let (_control_sender, close_receiver) = opt_session_handle.unwrap();
 
         drop(server_sender);
-        let single_client_loop_res = await!(close_receiver).unwrap();
+        let single_client_loop_res = close_receiver.await.unwrap();
         assert_eq!(single_client_loop_res, Err(SingleClientError::ServerClosed));
     }
 

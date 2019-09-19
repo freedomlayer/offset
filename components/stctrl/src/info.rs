@@ -109,8 +109,10 @@ pub enum InfoError {
 
 /// Get a most recently known node report:
 async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError> {
-    let (node_report, incoming_mutations) =
-        await!(app_report.incoming_reports()).map_err(|_| InfoError::GetReportError)?;
+    let (node_report, incoming_mutations) = app_report
+        .incoming_reports()
+        .await
+        .map_err(|_| InfoError::GetReportError)?;
     // We currently don't need live updates about report mutations:
     drop(incoming_mutations);
 
@@ -123,7 +125,7 @@ pub async fn info_public_key(
     mut app_report: AppReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
 
     let public_key_string = public_key_to_string(&report.funder_report.local_public_key);
     writeln!(writer, "{}", &public_key_string).map_err(|_| InfoError::WriteError)?;
@@ -135,7 +137,7 @@ pub async fn info_relays(
     mut app_report: AppReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
 
     let mut table = Table::new();
     // Add title:
@@ -161,7 +163,7 @@ pub async fn info_index(
     mut app_report: AppReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
 
     let mut table = Table::new();
     // Add title:
@@ -255,7 +257,7 @@ pub async fn info_friends(
     mut app_report: AppReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
 
     let mut table = Table::new();
     // Add titlek:
@@ -310,8 +312,10 @@ pub async fn info_friend_last_token(
     }
 
     // Get a recent report:
-    let (node_report, incoming_mutations) =
-        await!(app_report.incoming_reports()).map_err(|_| InfoError::GetReportError)?;
+    let (node_report, incoming_mutations) = app_report
+        .incoming_reports()
+        .await
+        .map_err(|_| InfoError::GetReportError)?;
     // We don't want to listen on incoming mutations:
     drop(incoming_mutations);
 
@@ -354,7 +358,7 @@ pub async fn info_balance(
     mut app_report: AppReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
 
     let mut total_balance: i128 = 0;
     for friend_report in report.funder_report.friends.values() {
@@ -377,7 +381,7 @@ pub async fn info_export_ticket(
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
-    let report = await!(get_report(&mut app_report))?;
+    let report = get_report(&mut app_report).await?;
     let relays: Vec<RelayAddress> = report
         .funder_report
         .relays
@@ -404,16 +408,16 @@ pub async fn info(
     let app_report = app_conn.report().clone();
 
     match info_cmd {
-        // InfoCmd::PublicKey(_public_key_cmd) => await!(info_public_key(app_report, writer))?,
-        InfoCmd::Relays(_relays_cmd) => await!(info_relays(app_report, writer))?,
-        InfoCmd::Index(_index_cmd) => await!(info_index(app_report, writer))?,
-        InfoCmd::Friends(_friends_cmd) => await!(info_friends(app_report, writer))?,
+        // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(app_report, writer).await?,
+        InfoCmd::Relays(_relays_cmd) => info_relays(app_report, writer).await?,
+        InfoCmd::Index(_index_cmd) => info_index(app_report, writer).await?,
+        InfoCmd::Friends(_friends_cmd) => info_friends(app_report, writer).await?,
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
-            await!(info_friend_last_token(friend_last_token_cmd, app_report))?
+            info_friend_last_token(friend_last_token_cmd, app_report).await?
         }
-        InfoCmd::Balance(_balance_cmd) => await!(info_balance(app_report, writer))?,
+        InfoCmd::Balance(_balance_cmd) => info_balance(app_report, writer).await?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
-            await!(info_export_ticket(export_ticket_cmd, app_report))?
+            info_export_ticket(export_ticket_cmd, app_report).await?
         }
     }
     Ok(())

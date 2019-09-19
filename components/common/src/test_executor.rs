@@ -376,11 +376,11 @@ mod tests {
         let c_arc_mutex_res = arc_mutex_res.clone();
         test_executor
             .spawn(async move {
-                await!(init_receiver).unwrap();
+                init_receiver.await.unwrap();
 
                 let (mut a_sender, mut a_receiver) = mpsc::channel::<u32>(0);
-                await!(a_sender.send(0)).unwrap();
-                assert_eq!(await!(a_receiver.next()).unwrap(), 0);
+                a_sender.send(0).await.unwrap();
+                assert_eq!(a_receiver.next().await.unwrap(), 0);
 
                 let mut res_guard = c_arc_mutex_res.lock().unwrap();
                 *res_guard = true;
@@ -390,7 +390,7 @@ mod tests {
         let mut c_test_executor = test_executor.clone();
         let res = test_executor.run(async move {
             init_sender.send(()).unwrap();
-            await!(c_test_executor.wait());
+            c_test_executor.wait().await;
             0x1337
         });
 
@@ -435,7 +435,7 @@ mod tests {
 
         let mut c_test_executor = test_executor.clone();
         test_executor.run(async move {
-            await!(c_test_executor.wait());
+            c_test_executor.wait().await;
         });
     }
 
@@ -453,7 +453,7 @@ mod tests {
                 // We keep sending into the channel.
                 // At some point this loop should be stuck, because the channel is full.
                 loop {
-                    await!(sender.send(0)).unwrap();
+                    sender.send(0).await.unwrap();
                     let mut res_guard = c_arc_mutex_res.lock().unwrap();
                     *res_guard = res_guard.checked_add(1).unwrap();
                 }

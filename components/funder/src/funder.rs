@@ -80,7 +80,7 @@ where
     )))
     .chain(select(incoming_control, incoming_comm));
 
-    while let Some(funder_event) = await!(incoming_messages.next()) {
+    while let Some(funder_event) = incoming_messages.next().await {
         // For testing:
         // Read one message from incoming messages:
         let funder_incoming = match funder_event.clone() {
@@ -89,7 +89,7 @@ where
             FunderEvent::FunderIncoming(funder_incoming) => funder_incoming,
         };
 
-        let res = await!(funder_handle_message(
+        let res = funder_handle_message(
             &mut identity_client,
             &rng,
             funder_state.clone(),
@@ -97,8 +97,9 @@ where
             max_node_relays,
             max_operations_in_batch,
             max_pending_user_requests,
-            funder_incoming
-        ));
+            funder_incoming,
+        )
+        .await;
 
         let handler_output = match res {
             Ok(handler_output) => handler_output,
@@ -115,7 +116,9 @@ where
                 funder_state.mutate(mutation);
             }
             // If there are any mutations, send them to the database:
-            await!(db_client.mutate(handler_output.funder_mutations))
+            db_client
+                .mutate(handler_output.funder_mutations)
+                .await
                 .map_err(|_| FunderError::DbError)?;
         }
 
@@ -126,15 +129,20 @@ where
 
         // Send outgoing communication messages:
         let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
-        await!(comm_sender.send_all(&mut comm_stream)).map_err(|_| FunderError::SendCommError)?;
+        comm_sender
+            .send_all(&mut comm_stream)
+            .await
+            .map_err(|_| FunderError::SendCommError)?;
 
         // Send outgoing control messages:
         let mut control_stream = stream::iter::<_>(handler_output.outgoing_control);
-        await!(control_sender.send_all(&mut control_stream))
+        control_sender
+            .send_all(&mut control_stream)
+            .await
             .map_err(|_| FunderError::SendControlError)?;
 
         if let Some(ref mut event_sender) = opt_event_sender {
-            await!(event_sender.send(funder_event)).unwrap();
+            event_sender.send(funder_event).await.unwrap();
         }
     }
     // TODO: Do we ever really get here?
@@ -158,7 +166,7 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom + 'static,
 {
-    await!(inner_funder_loop(
+    inner_funder_loop(
         identity_client,
         rng,
         incoming_control,
@@ -170,6 +178,7 @@ where
         max_operations_in_batch,
         max_node_relays,
         max_pending_user_requests,
-        None
-    ))
+        None,
+    )
+    .await
 }
