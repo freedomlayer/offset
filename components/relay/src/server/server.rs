@@ -99,10 +99,10 @@ fn handle_accept<MT, KT, MA, KA, TCL>(
 ) -> Result<(), RelayServerError>
 where
     MT: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KT: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
+    KT: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
     MA: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KA: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
-    TCL: Sink<TunnelClosed, SinkError = ()> + Unpin + Send + 'static,
+    KA: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
+    TCL: Sink<TunnelClosed, Error = ()> + Unpin + Send + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
         Some(listener) => listener,
@@ -159,11 +159,11 @@ pub async fn relay_server_loop<ML, KL, MA, KA, MC, KC, S>(
 ) -> Result<(), RelayServerError>
 where
     ML: Stream<Item = RejectConnection> + Unpin + Send + 'static,
-    KL: Sink<IncomingConnection, SinkError = ()> + Unpin + Send + 'static,
+    KL: Sink<IncomingConnection, Error = ()> + Unpin + Send + 'static,
     MA: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KA: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
+    KA: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
     MC: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KC: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
+    KC: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
     S: Stream<Item = IncomingConn<ML, KL, MA, KA, MC, KC>> + Unpin + Send,
 {
     let timer_stream = timer_client
