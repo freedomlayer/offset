@@ -722,7 +722,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub async fn index_client_loop<ISA, FAS, TAS, ICS, TS, S>(
     from_app_server: FAS,
     to_app_server: TAS,
