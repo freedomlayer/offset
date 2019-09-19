@@ -65,7 +65,7 @@ async fn index_server<A, IS, IC, SC, R, GS, S>(
     spawner: S,
 ) -> Result<(), IndexServerError>
 where
-    A: Debug + Send + Clone + 'static,
+    A: Debug + Send + Sync + Clone + 'static,
     IS: Stream<Item = (PublicKey, ServerConn)> + Unpin + Send,
     IC: Stream<Item = (PublicKey, ClientConn)> + Unpin + Send,
     SC: FutTransform<Input = (PublicKey, A), Output = Option<ServerConn>> + Clone + Send + 'static,
@@ -110,14 +110,14 @@ struct ConnTransformer<VT, ET, KT, S> {
 
 impl<VT, ET, KT, S> ConnTransformer<VT, ET, KT, S>
 where
-    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
+    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
     ET: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
-        + Send,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
-    S: Spawn + Clone + Send,
+        + Send + Sync,
+    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
+    S: Spawn + Clone + Send + Sync,
 {
     pub fn new(
         version_transform: VT,
@@ -319,7 +319,7 @@ pub async fn net_index_server<A, ICC, ISC, SC, R, GS, S>(
     mut spawner: S,
 ) -> Result<(), NetIndexServerError>
 where
-    A: Clone + Send + Debug + 'static,
+    A: Clone + Send + Sync + Debug + 'static,
     SC: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     ICC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     ISC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
