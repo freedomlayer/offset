@@ -736,6 +736,7 @@ mod tests {
         // Addresses that we have seen an attempt to connect to:
         let mut observed_addresses = Vec::new();
 
+
         // Connect and handle the connection request at the same time
         let connect_fut = connect_client.connect();
         let handle_connect_fut = async {

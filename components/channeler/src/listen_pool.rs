@@ -613,7 +613,7 @@ mod tests {
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
-        let (mut config_sender, incoming_config) = mpsc::channel(0);
+        let (mut config_sender, incoming_config) = mpsc::channel(1);
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
@@ -672,6 +672,7 @@ mod tests {
         assert!(listen_req1.config_receiver.next().await.is_none());
         drop(listen_req1);
 
+
         // Connection to relay 2u32 is opened:
         let mut listen_req2 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address2, _) = listen_req2.arg;
@@ -685,6 +686,7 @@ mod tests {
             .unwrap();
         event_receiver.next().await.unwrap();
 
+
         // Connection to relay 3u32 is opened:
         let mut listen_req3 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address3, _) = listen_req3.arg;
@@ -697,6 +699,7 @@ mod tests {
                 _ => unreachable!(),
             };
         }
+
 
         config_sender
             .send(LpConfig::RemoveFriend(pk_c.clone()))
