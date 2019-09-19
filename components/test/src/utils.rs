@@ -250,8 +250,9 @@ where
         timer_client,
         app_identity_client,
         rng,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
     .ok()
 }
 
@@ -314,10 +315,14 @@ pub async fn create_index_server<S>(
     let client_listen_address = listen_index_server_client_address(index);
     let server_listen_address = listen_index_server_server_address(index);
 
-    let incoming_client_raw_conns =
-        sim_network_client.listen(client_listen_address).await.unwrap();
-    let incoming_server_raw_conns =
-        sim_network_client.listen(server_listen_address).await.unwrap();
+    let incoming_client_raw_conns = sim_network_client
+        .listen(client_listen_address)
+        .await
+        .unwrap();
+    let incoming_server_raw_conns = sim_network_client
+        .listen(server_listen_address)
+        .await
+        .unwrap();
 
     // Translate index server index into a map of public_key -> NetAddress
     let trusted_servers = trusted_servers

@@ -236,15 +236,18 @@ where
                 _close_receiver = close_receiver.fuse() => None,
             };
             if let Some(server_conn) = select_res {
-                let _ = c_event_sender.send(IndexServerEvent::ServerConnection((
-                    public_key,
-                    server_conn
-                ))).await;
+                let _ = c_event_sender
+                    .send(IndexServerEvent::ServerConnection((
+                        public_key,
+                        server_conn,
+                    )))
+                    .await;
             } else {
                 // Failed to connect, report that the server was closed
                 // TODO: Test this functionality:
-                let _ =
-                    c_event_sender.send(IndexServerEvent::FromServer((public_key, None))).await;
+                let _ = c_event_sender
+                    .send(IndexServerEvent::FromServer((public_key, None)))
+                    .await;
             }
         };
 
@@ -302,10 +305,10 @@ where
         // Expire old edges for `node_public_key`:
         // Note: This tick happens every time a message is received from this `node_public_key`,
         // and not every constant amount of time.
-        self
-            .graph_client
-            .tick(mutations_update.node_public_key.clone()).await
-        .map_err(|_| ServerLoopError::GraphClientError)?;
+        self.graph_client
+            .tick(mutations_update.node_public_key.clone())
+            .await
+            .map_err(|_| ServerLoopError::GraphClientError)?;
 
         // Add a link to the time proof:
         forward_mutations_update
@@ -331,17 +334,21 @@ where
                         rate: update_friend.rate.clone(),
                     };
 
-                    self.graph_client.update_edge(
-                        mutations_update.node_public_key.clone(),
-                        update_friend.public_key.clone(),
-                        capacity_edge,
-                    ).await?;
+                    self.graph_client
+                        .update_edge(
+                            mutations_update.node_public_key.clone(),
+                            update_friend.public_key.clone(),
+                            capacity_edge,
+                        )
+                        .await?;
                 }
                 IndexMutation::RemoveFriend(friend_public_key) => {
-                    self.graph_client.remove_edge(
-                        mutations_update.node_public_key.clone(),
-                        friend_public_key.clone()
-                    ).await?;
+                    self.graph_client
+                        .remove_edge(
+                            mutations_update.node_public_key.clone(),
+                            friend_public_key.clone(),
+                        )
+                        .await?;
                 }
             }
         }
@@ -369,8 +376,8 @@ where
                 let _ = self.verifier.neighbor_tick(public_key, time_hash);
             }
             IndexServerToServer::ForwardMutationsUpdate(forward_mutations_update) => {
-                self
-                    .handle_forward_mutations_update(Some(public_key), forward_mutations_update).await?;
+                self.handle_forward_mutations_update(Some(public_key), forward_mutations_update)
+                    .await?;
             }
         };
         Ok(())
@@ -410,7 +417,9 @@ async fn client_handler(
         match client_msg {
             IndexClientToServer::MutationsUpdate(mutations_update) => {
                 // Forward to main server future to process:
-                event_sender.send(IndexServerEvent::ClientMutationsUpdate(mutations_update)).await
+                event_sender
+                    .send(IndexServerEvent::ClientMutationsUpdate(mutations_update))
+                    .await
                     .map_err(|_| ServerLoopError::ClientEventSenderError)?;
             }
             IndexClientToServer::RequestRoutes(request_routes) => {
@@ -418,12 +427,14 @@ async fn client_handler(
                     .opt_exclude
                     .map(|edge| (edge.from_public_key.clone(), edge.to_public_key.clone()));
 
-                let graph_multi_routes = graph_client.get_multi_routes(
-                    request_routes.source.clone(),
-                    request_routes.destination.clone(),
-                    request_routes.capacity,
-                    opt_exclude_edge,
-                ).await?;
+                let graph_multi_routes = graph_client
+                    .get_multi_routes(
+                        request_routes.source.clone(),
+                        request_routes.destination.clone(),
+                        request_routes.capacity,
+                        opt_exclude_edge,
+                    )
+                    .await?;
                 let multi_routes = graph_multi_routes
                     .into_iter()
                     .map(|graph_multi_route| MultiRoute {
@@ -446,7 +457,10 @@ async fn client_handler(
                     multi_routes,
                 };
                 let message = IndexServerToClient::ResponseRoutes(response_routes);
-                sender.send(message).await.map_err(|_| ServerLoopError::ClientSenderError)?;
+                sender
+                    .send(message)
+                    .await
+                    .map_err(|_| ServerLoopError::ClientSenderError)?;
             }
         }
     }
@@ -575,7 +589,9 @@ where
                     .insert(public_key, remote_server);
             }
             IndexServerEvent::FromServer((public_key, Some(index_server_to_server))) => {
-                index_server.handle_from_server(public_key, index_server_to_server).await?
+                index_server
+                    .handle_from_server(public_key, index_server_to_server)
+                    .await?
             }
             IndexServerEvent::FromServer((public_key, None)) => {
                 // Server connection closed
@@ -614,9 +630,9 @@ where
                 .map_err(|e| error!("client_handler() error: {:?}", e))
                 .then(|_| {
                     async move {
-                        let _ = 
-                            c_event_sender.send(IndexServerEvent::ClientClosed(c_public_key))
-                        .await;
+                        let _ = c_event_sender
+                            .send(IndexServerEvent::ClientClosed(c_public_key))
+                            .await;
                     }
                 });
 
@@ -633,9 +649,10 @@ where
                     mutations_update,
                     time_proof_chain: Vec::new(),
                 };
-                
-                    index_server.handle_forward_mutations_update(None, forward_mutations_update)
-                .await?;
+
+                index_server
+                    .handle_forward_mutations_update(None, forward_mutations_update)
+                    .await?;
             }
             IndexServerEvent::ClientClosed(public_key) => {
                 // Client connection closed
@@ -753,8 +770,9 @@ mod tests {
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver))).await
-        .unwrap();
+            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .await
+            .unwrap();
 
         // Client requests routes:
         let request_id = Uid::from(&[0; Uid::len()]);
@@ -765,7 +783,10 @@ mod tests {
             destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
-        client_sender.send(IndexClientToServer::RequestRoutes(request_routes)).await.unwrap();
+        client_sender
+            .send(IndexClientToServer::RequestRoutes(request_routes))
+            .await
+            .unwrap();
 
         // Handle the graph request:
         match graph_requests_receiver.next().await.unwrap() {
@@ -812,10 +833,14 @@ mod tests {
 
         // Calculate signature:
         mutations_update.signature = identity_client
-            .request_signature(create_mutations_update_signature_buff(&mutations_update)).await
-        .unwrap();
+            .request_signature(create_mutations_update_signature_buff(&mutations_update))
+            .await
+            .unwrap();
 
-        client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update)).await.unwrap();
+        client_sender
+            .send(IndexClientToServer::MutationsUpdate(mutations_update))
+            .await
+            .unwrap();
 
         // Handle tick request:
         match graph_requests_receiver.next().await.unwrap() {
@@ -924,8 +949,11 @@ mod tests {
     }
 
     async fn handle_connect(test_servers: &mut [TestServer], from_index: usize) {
-        let conn_request =
-            test_servers[from_index].server_conn_request_receiver.next().await.unwrap();
+        let conn_request = test_servers[from_index]
+            .server_conn_request_receiver
+            .next()
+            .await
+            .unwrap();
         let (a_sender, b_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (b_sender, a_receiver) = mpsc::channel(CHANNEL_SIZE);
 
@@ -934,17 +962,23 @@ mod tests {
             .server_connections_sender
             .send((
                 test_servers[from_index].public_key.clone(),
-                (b_sender, b_receiver)
-            )).await
-        .unwrap();
+                (b_sender, b_receiver),
+            ))
+            .await
+            .unwrap();
 
         test_servers[dest_index as usize]
             .debug_event_receiver
-            .next().await
-        .unwrap();
+            .next()
+            .await
+            .unwrap();
 
         conn_request.reply(Some((a_sender, a_receiver)));
-        test_servers[from_index].debug_event_receiver.next().await.unwrap();
+        test_servers[from_index]
+            .debug_event_receiver
+            .next()
+            .await
+            .unwrap();
     }
 
     async fn task_index_server_loop_multi_server<S>(spawner: S)
@@ -1015,8 +1049,9 @@ mod tests {
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         test_servers[0]
             .client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver))).await
-        .unwrap();
+            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .await
+            .unwrap();
         test_servers[0].debug_event_receiver.next().await.unwrap();
 
         // Client requests routes: We do this to make sure the new client is registered at the
@@ -1030,10 +1065,18 @@ mod tests {
             destination: PublicKey::from(&[9; PublicKey::len()]),
             opt_exclude: None,
         };
-        client_sender.send(IndexClientToServer::RequestRoutes(request_routes)).await.unwrap();
+        client_sender
+            .send(IndexClientToServer::RequestRoutes(request_routes))
+            .await
+            .unwrap();
 
         // Handle the graph request:
-        match test_servers[0].graph_requests_receiver.next().await.unwrap() {
+        match test_servers[0]
+            .graph_requests_receiver
+            .next()
+            .await
+            .unwrap()
+        {
             GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
@@ -1082,15 +1125,24 @@ mod tests {
 
         // Calculate signature:
         mutations_update.signature = identity_client
-            .request_signature(create_mutations_update_signature_buff(&mutations_update)).await
-        .unwrap();
+            .request_signature(create_mutations_update_signature_buff(&mutations_update))
+            .await
+            .unwrap();
 
-        client_sender.send(IndexClientToServer::MutationsUpdate(mutations_update)).await.unwrap();
+        client_sender
+            .send(IndexClientToServer::MutationsUpdate(mutations_update))
+            .await
+            .unwrap();
 
         macro_rules! process_graph_request {
             ($index:expr) => {
                 // Handle tick request:
-                match test_servers[$index].graph_requests_receiver.next().await.unwrap() {
+                match test_servers[$index]
+                    .graph_requests_receiver
+                    .next()
+                    .await
+                    .unwrap()
+                {
                     GraphRequest::Tick(node, response_sender) => {
                         assert_eq!(node, client_public_key);
                         response_sender.send(()).unwrap();
@@ -1098,7 +1150,12 @@ mod tests {
                     _ => unreachable!(),
                 }
 
-                match test_servers[$index].graph_requests_receiver.next().await.unwrap() {
+                match test_servers[$index]
+                    .graph_requests_receiver
+                    .next()
+                    .await
+                    .unwrap()
+                {
                     GraphRequest::RemoveEdge(src, dest, response_sender) => {
                         assert_eq!(src, client_public_key);
                         assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
@@ -1106,7 +1163,11 @@ mod tests {
                     }
                     _ => unreachable!(),
                 };
-                test_servers[$index].debug_event_receiver.next().await.unwrap();
+                test_servers[$index]
+                    .debug_event_receiver
+                    .next()
+                    .await
+                    .unwrap();
             };
         }
 

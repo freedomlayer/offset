@@ -54,8 +54,9 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .forget();
 
     let mut app0 = create_app(
@@ -63,8 +64,9 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         0,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create initial database for node 1:
@@ -86,8 +88,9 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .forget();
 
     let mut app1 = create_app(
@@ -95,8 +98,9 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create relays:
@@ -104,15 +108,17 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         0,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     let mut config0 = app0.config().unwrap().clone();
     let mut config1 = app1.config().unwrap().clone();
@@ -128,22 +134,26 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    config0.add_friend(
-        node_public_key(1),
-        vec![relay_address(1)],
-        String::from("node1"),
-        100
-    ).await
-    .unwrap();
+    config0
+        .add_friend(
+            node_public_key(1),
+            vec![relay_address(1)],
+            String::from("node1"),
+            100,
+        )
+        .await
+        .unwrap();
 
     // Node1: Add node0 as a friend:
-    config1.add_friend(
-        node_public_key(0),
-        vec![relay_address(0)],
-        String::from("node0"),
-        -100
-    ).await
-    .unwrap();
+    config1
+        .add_friend(
+            node_public_key(0),
+            vec![relay_address(0)],
+            String::from("node0"),
+            -100,
+        )
+        .await
+        .unwrap();
 
     config0.enable_friend(node_public_key(1)).await.unwrap();
     config1.enable_friend(node_public_key(0)).await.unwrap();
@@ -161,13 +171,15 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     // Node0: Add node1 as a friend with a different balance
     // This should cause an inconsistency when the first token
     // message will be sent.
-    config0.add_friend(
-        node_public_key(1),
-        vec![relay_address(1)],
-        String::from("node1"),
-        50
-    ).await
-    .unwrap();
+    config0
+        .add_friend(
+            node_public_key(1),
+            vec![relay_address(1)],
+            String::from("node1"),
+            50,
+        )
+        .await
+        .unwrap();
 
     // Node0 enables the friend node1. This is required to trigger the inconsistency error
     config0.enable_friend(node_public_key(1)).await.unwrap();
@@ -216,7 +228,10 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let reset_token = remote_reset_terms.reset_token.clone();
 
     // Node0 agrees to the conditions of node1:
-    config0.reset_friend_channel(node_public_key(1), reset_token).await.unwrap();
+    config0
+        .reset_friend_channel(node_public_key(1), reset_token)
+        .await
+        .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 

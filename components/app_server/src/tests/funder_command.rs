@@ -37,7 +37,10 @@ where
         config: true,
     };
 
-    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
+    connections_sender
+        .send((app_permissions, app_server_conn_pair))
+        .await
+        .unwrap();
 
     // The app should receive the current node report as the first message:
     let to_app_message = app_receiver.next().await.unwrap();
@@ -70,10 +73,12 @@ where
         opt_app_request_id: Some(Uid::from(&[22; Uid::len()])),
         mutations,
     };
-    funder_sender.send(FunderOutgoingControl::ReportMutations(
-        funder_report_mutations
-    )).await
-    .unwrap();
+    funder_sender
+        .send(FunderOutgoingControl::ReportMutations(
+            funder_report_mutations,
+        ))
+        .await
+        .unwrap();
 
     let to_app_message = app_receiver.next().await.unwrap();
     match to_app_message {

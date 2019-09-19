@@ -202,8 +202,9 @@ where
             &send_commands,
             max_operations_in_batch,
             identity_client,
-            rng
-        ).await;
+            rng,
+        )
+        .await;
 
     for channeler_config in outgoing_channeler_config {
         outgoing_comms.push(FunderOutgoingComm::ChannelerConfig(channeler_config));

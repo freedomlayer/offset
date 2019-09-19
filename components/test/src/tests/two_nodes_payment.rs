@@ -45,41 +45,53 @@ where
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
 
-    app_seller.add_invoice(invoice_id.clone(), total_dest_payment).await.unwrap();
+    app_seller
+        .add_invoice(invoice_id.clone(), total_dest_payment)
+        .await
+        .unwrap();
 
     // Node0: Request routes:
-    let mut routes = app_routes.request_routes(
-        total_dest_payment.checked_add(fees).unwrap(),
-        buyer_public_key.clone(),
-        seller_public_key.clone(),
-        None
-    ).await
-    .unwrap();
+    let mut routes = app_routes
+        .request_routes(
+            total_dest_payment.checked_add(fees).unwrap(),
+            buyer_public_key.clone(),
+            seller_public_key.clone(),
+            None,
+        )
+        .await
+        .unwrap();
 
     let multi_route = routes.pop().unwrap();
     let route = multi_route.routes[0].clone();
 
     // Node0: Open a payment to pay the invoice issued by Node1:
-    app_buyer.create_payment(
-        payment_id.clone(),
-        invoice_id.clone(),
-        total_dest_payment,
-        seller_public_key.clone()
-    ).await
-    .unwrap();
+    app_buyer
+        .create_payment(
+            payment_id.clone(),
+            invoice_id.clone(),
+            total_dest_payment,
+            seller_public_key.clone(),
+        )
+        .await
+        .unwrap();
 
     // Node0: Create one transaction for the given route:
-    let commit = app_buyer.create_transaction(
-        payment_id.clone(),
-        request_id.clone(),
-        route.route.clone(),
-        total_dest_payment,
-        fees,
-    ).await
-    .unwrap();
+    let commit = app_buyer
+        .create_transaction(
+            payment_id.clone(),
+            request_id.clone(),
+            route.route.clone(),
+            total_dest_payment,
+            fees,
+        )
+        .await
+        .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = app_buyer.request_close_payment(payment_id.clone()).await.unwrap();
+    let _ = app_buyer
+        .request_close_payment(payment_id.clone())
+        .await
+        .unwrap();
 
     // Node0: Compose a MultiCommit:
     let multi_commit = MultiCommit {
@@ -97,17 +109,26 @@ where
     advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node0: Check the payment's result:
-    let payment_status = app_buyer.request_close_payment(payment_id.clone()).await.unwrap();
+    let payment_status = app_buyer
+        .request_close_payment(payment_id.clone())
+        .await
+        .unwrap();
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
         PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
-            app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone()).await.unwrap();
+            app_buyer
+                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+                .await
+                .unwrap();
         }
         PaymentStatus::Canceled(ack_uid) => {
-            app_buyer.ack_close_payment(payment_id.clone(), ack_uid.clone()).await.unwrap();
+            app_buyer
+                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+                .await
+                .unwrap();
         }
         _ => unreachable!(),
     }
@@ -150,8 +171,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .forget();
 
     // Connection attempt to the wrong node should fail:
@@ -160,8 +182,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
     assert!(opt_wrong_app.is_none());
 
     let mut app0 = create_app(
@@ -169,8 +192,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         0,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create initial database for node 1:
@@ -192,8 +216,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .forget();
 
     let mut app1 = create_app(
@@ -201,8 +226,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create relays:
@@ -210,15 +236,17 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         0,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     // Create three index servers:
     // 0 -- 2 -- 1
@@ -229,24 +257,27 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         vec![0, 1],
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_index_server(
         0,
         timer_client.clone(),
         sim_net_client.clone(),
         vec![2],
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_index_server(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
         vec![2],
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     let mut config0 = app0.config().unwrap().clone();
     let mut config1 = app1.config().unwrap().clone();
@@ -267,29 +298,39 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     config1.add_relay(named_relay_address(1)).await.unwrap();
 
     // Configure index servers:
-    config0.add_index_server(named_index_server_address(0)).await.unwrap();
-    config1.add_index_server(named_index_server_address(1)).await.unwrap();
+    config0
+        .add_index_server(named_index_server_address(0))
+        .await
+        .unwrap();
+    config1
+        .add_index_server(named_index_server_address(1))
+        .await
+        .unwrap();
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    config0.add_friend(
-        node_public_key(1),
-        vec![relay_address(1)],
-        String::from("node1"),
-        100
-    ).await
-    .unwrap();
+    config0
+        .add_friend(
+            node_public_key(1),
+            vec![relay_address(1)],
+            String::from("node1"),
+            100,
+        )
+        .await
+        .unwrap();
 
     // Node1: Add node0 as a friend:
-    config1.add_friend(
-        node_public_key(0),
-        vec![relay_address(0)],
-        String::from("node0"),
-        -100
-    ).await
-    .unwrap();
+    config1
+        .add_friend(
+            node_public_key(0),
+            vec![relay_address(0)],
+            String::from("node0"),
+            -100,
+        )
+        .await
+        .unwrap();
 
     // Node0: Enable/Disable/Enable node1:
     config0.enable_friend(node_public_key(1)).await.unwrap();
@@ -357,8 +398,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         8u128, // total_dest_payment
         2u128, // fees
         tick_sender.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     if let PaymentStatus::Success(_) = payment_status {
     } else {
@@ -367,7 +409,10 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Node0 allows node1 to have maximum debt of 100
     // (This should allow to node1 to pay back).
-    config0.set_friend_remote_max_debt(node_public_key(1), 100).await.unwrap();
+    config0
+        .set_friend_remote_max_debt(node_public_key(1), 100)
+        .await
+        .unwrap();
 
     // Allow some time for the index servers to be updated about the new state:
     advance_time(40, &mut tick_sender, &test_executor).await;
@@ -382,8 +427,9 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         3u128, // total_dest_payment
         2u128, // fees
         tick_sender.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     if let PaymentStatus::Success(_) = payment_status {
     } else {
@@ -398,38 +444,51 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let invoice_id = InvoiceId::from(&[9u8; InvoiceId::len()]);
     let request_id = Uid::from(&[10u8; Uid::len()]);
 
-    seller0.add_invoice(invoice_id.clone(), total_dest_payment).await.unwrap();
+    seller0
+        .add_invoice(invoice_id.clone(), total_dest_payment)
+        .await
+        .unwrap();
 
     // Node1: Open a payment to pay the invoice issued by Node1:
-    buyer1.create_payment(
-        payment_id.clone(),
-        invoice_id.clone(),
-        total_dest_payment,
-        node_public_key(0),
-    ).await
-    .unwrap();
+    buyer1
+        .create_payment(
+            payment_id.clone(),
+            invoice_id.clone(),
+            total_dest_payment,
+            node_public_key(0),
+        )
+        .await
+        .unwrap();
 
     // Use the route (pk1, pk0)
     let route = FriendsRoute {
         public_keys: vec![node_public_key(1), node_public_key(0)],
     };
     // Node1: Create one transaction for the given route:
-    let res = buyer1.create_transaction(
-        payment_id.clone(),
-        request_id.clone(),
-        route,
-        total_dest_payment,
-        fees,
-    ).await;
+    let res = buyer1
+        .create_transaction(
+            payment_id.clone(),
+            request_id.clone(),
+            route,
+            total_dest_payment,
+            fees,
+        )
+        .await;
     assert!(res.is_err());
 
     // Node0: Check the payment's result:
-    let payment_status = buyer1.request_close_payment(payment_id.clone()).await.unwrap();
+    let payment_status = buyer1
+        .request_close_payment(payment_id.clone())
+        .await
+        .unwrap();
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
         PaymentStatus::Canceled(ack_uid) => {
-            buyer1.ack_close_payment(payment_id.clone(), ack_uid.clone()).await.unwrap();
+            buyer1
+                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+                .await
+                .unwrap();
         }
         _ => unreachable!(),
     }

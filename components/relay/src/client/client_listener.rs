@@ -118,17 +118,17 @@ where
     CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let timer_stream = timer_client.request_timer_stream().await
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
-    let opt_conn_pair = connect_with_timeout(
-        connector,
-        conn_timeout_ticks,
-        timer_stream
-    ).await;
+    let opt_conn_pair = connect_with_timeout(connector, conn_timeout_ticks, timer_stream).await;
     let conn_pair = match opt_conn_pair {
         Some(conn_pair) => Ok(conn_pair),
         None => {
-            pending_reject_sender.send(public_key.clone()).await
+            pending_reject_sender
+                .send(public_key.clone())
+                .await
                 .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
             Err(AcceptConnectionError::ConnectionFailed)
         }
@@ -140,7 +140,9 @@ where
     let ser_init_connection = InitConnection::Accept(public_key.clone()).proto_serialize();
     let send_res = sender.send(ser_init_connection).await;
     if send_res.is_err() {
-        pending_reject_sender.send(public_key).await
+        pending_reject_sender
+            .send(public_key)
+            .await
             .map_err(|_| AcceptConnectionError::PendingRejectSenderError)?;
         return Err(AcceptConnectionError::SendInitConnectionError);
     }
@@ -148,14 +150,17 @@ where
     let to_tunnel_sender = sender;
     let from_tunnel_receiver = receiver;
 
-    let (user_to_tunnel_sender, user_from_tunnel_receiver) =
-        keepalive_transform.transform((to_tunnel_sender, from_tunnel_receiver)).await;
+    let (user_to_tunnel_sender, user_from_tunnel_receiver) = keepalive_transform
+        .transform((to_tunnel_sender, from_tunnel_receiver))
+        .await;
 
-    connections_sender.send((
-        public_key,
-        (user_to_tunnel_sender, user_from_tunnel_receiver)
-    )).await
-    .map_err(|_| AcceptConnectionError::SendConnPairError)?;
+    connections_sender
+        .send((
+            public_key,
+            (user_to_tunnel_sender, user_from_tunnel_receiver),
+        ))
+        .await
+        .map_err(|_| AcceptConnectionError::SendConnPairError)?;
     Ok(())
 }
 
@@ -190,7 +195,9 @@ where
     let (mut sender, receiver) = conn_pair;
     let ser_init_connection = InitConnection::Listen.proto_serialize();
 
-    sender.send(ser_init_connection).await
+    sender
+        .send(ser_init_connection)
+        .await
         .map_err(|_| ClientListenerError::SendInitConnectionError)?;
 
     let conn_pair = (sender, receiver);
@@ -249,7 +256,9 @@ where
             ClientListenerEvent::ServerMessage(incoming_connection) => {
                 let public_key = incoming_connection.public_key.clone();
                 if !access_control.is_allowed(&public_key) {
-                    sender.send(RejectConnection { public_key }).await
+                    sender
+                        .send(RejectConnection { public_key })
+                        .await
                         .map_err(|_| ClientListenerError::SendToServerError)?;
                 } else {
                     // We will attempt to accept the connection
@@ -272,7 +281,9 @@ where
                 }
             }
             ClientListenerEvent::PendingReject(public_key) => {
-                sender.send(RejectConnection { public_key }).await
+                sender
+                    .send(RejectConnection { public_key })
+                    .await
                     .map_err(|_| ClientListenerError::SendToServerError)?;
             }
             ClientListenerEvent::ServerClosed => break,
@@ -345,10 +356,11 @@ where
                 self.conn_timeout_ticks,
                 self.timer_client,
                 self.spawner,
-                None
+                None,
             )
             .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
-            .map(|_| ()).await
+            .map(|_| ())
+            .await
         };
 
         let _ = c_spawner.spawn(fut);
@@ -400,11 +412,7 @@ mod tests {
 
         spawner
             .spawn(async move {
-                let res = connect_with_timeout(
-                    connector,
-                    conn_timeout_ticks,
-                    timer_stream
-                ).await;
+                let res = connect_with_timeout(connector, conn_timeout_ticks, timer_stream).await;
                 res_sender.send(res).unwrap();
             })
             .unwrap();
@@ -517,8 +525,9 @@ mod tests {
                 conn_timeout_ticks,
                 timer_client,
                 c_spawner,
-                Some(event_sender)
-            ).await;
+                Some(event_sender),
+            )
+            .await;
             res
         }
             .map_err(|e| warn!("inner_client_listener error: {:?}", e))
@@ -535,7 +544,10 @@ mod tests {
 
         // Open access for a certain public key:
         let public_key_a = PublicKey::from(&[0xaa; PublicKey::len()]);
-        acl_sender.send(AccessControlOp::Add(public_key_a.clone())).await.unwrap();
+        acl_sender
+            .send(AccessControlOp::Add(public_key_a.clone()))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         // First message to the relay should be InitConnection::Listen:
@@ -595,5 +607,4 @@ mod tests {
     }
 
     // TODO: Add a test for ClientListener.
-
 }

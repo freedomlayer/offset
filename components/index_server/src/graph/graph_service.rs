@@ -132,9 +132,9 @@ impl<N, C, T> GraphClient<N, C, T> {
         capacity_edge: CapacityEdge<C, T>,
     ) -> Result<Option<CapacityEdge<C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel::<Option<CapacityEdge<C, T>>>();
-        self
-            .requests_sender
-            .send(GraphRequest::UpdateEdge(a, b, capacity_edge, sender)).await?;
+        self.requests_sender
+            .send(GraphRequest::UpdateEdge(a, b, capacity_edge, sender))
+            .await?;
         Ok(receiver.await?)
     }
 
@@ -145,9 +145,9 @@ impl<N, C, T> GraphClient<N, C, T> {
         b: N,
     ) -> Result<Option<CapacityEdge<C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
-        self
-            .requests_sender
-            .send(GraphRequest::RemoveEdge(a, b, sender)).await?;
+        self.requests_sender
+            .send(GraphRequest::RemoveEdge(a, b, sender))
+            .await?;
         Ok(receiver.await?)
     }
 
@@ -156,9 +156,9 @@ impl<N, C, T> GraphClient<N, C, T> {
     /// Returns true if the node `a` was present, false otherwise
     pub async fn remove_node(&mut self, a: N) -> Result<bool, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
-        self
-            .requests_sender
-            .send(GraphRequest::RemoveNode(a, sender)).await?;
+        self.requests_sender
+            .send(GraphRequest::RemoveNode(a, sender))
+            .await?;
         Ok(receiver.await?)
     }
 
@@ -175,20 +175,24 @@ impl<N, C, T> GraphClient<N, C, T> {
         opt_exclude: Option<(N, N)>,
     ) -> Result<Vec<CapacityMultiRoute<N, C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
-        self.requests_sender.send(GraphRequest::GetMultiRoutes(
-            a,
-            b,
-            capacity,
-            opt_exclude,
-            sender
-        )).await?;
+        self.requests_sender
+            .send(GraphRequest::GetMultiRoutes(
+                a,
+                b,
+                capacity,
+                opt_exclude,
+                sender,
+            ))
+            .await?;
         Ok(receiver.await?)
     }
 
     /// Remove an edge from the graph
     pub async fn tick(&mut self, a: N) -> Result<(), GraphClientError> {
         let (sender, receiver) = oneshot::channel();
-        self.requests_sender.send(GraphRequest::Tick(a, sender)).await?;
+        self.requests_sender
+            .send(GraphRequest::Tick(a, sender))
+            .await?;
         Ok(receiver.await?)
     }
 }
@@ -236,9 +240,14 @@ mod tests {
         let mut graph_client =
             create_graph_service(capacity_graph, graph_service_spawner, spawner).unwrap();
 
-        graph_client.update_edge(2u32, 5u32, CapacityEdge::new((30, 5), ConstRate(1))).await
+        graph_client
+            .update_edge(2u32, 5u32, CapacityEdge::new((30, 5), ConstRate(1)))
+            .await
             .unwrap();
-        graph_client.update_edge(5, 2, CapacityEdge::new((5, 30), ConstRate(1))).await.unwrap();
+        graph_client
+            .update_edge(5, 2, CapacityEdge::new((5, 30), ConstRate(1)))
+            .await
+            .unwrap();
 
         assert_eq!(
             graph_client.get_multi_routes(2, 5, 29, None).await.unwrap(),

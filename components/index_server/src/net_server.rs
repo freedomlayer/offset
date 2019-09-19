@@ -79,7 +79,9 @@ where
     let graph_client = create_graph_service(capacity_graph, graph_service_spawner, spawner.clone())
         .map_err(|_| IndexServerError::CreateGraphServiceError)?;
 
-    let timer_stream = timer_client.request_timer_stream().await
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| IndexServerError::RequestTimerStreamError)?;
 
     let backoff_connector = BackoffConnector::new(server_connector, timer_client, backoff_ticks);
@@ -95,8 +97,9 @@ where
         verifier,
         timer_stream,
         spawner,
-        None
-    ).await
+        None,
+    )
+    .await
     .map_err(IndexServerError::ServerLoopError)
 }
 
@@ -115,7 +118,8 @@ where
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
-        + Send + Sync,
+        + Send
+        + Sync,
     KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
     S: Spawn + Clone + Send + Sync,
 {
@@ -143,8 +147,9 @@ where
         let mut c_keepalive_transform = self.keepalive_transform.clone();
         Box::pin(async move {
             let conn_pair = c_version_transform.transform(conn_pair).await;
-            let (public_key, conn_pair) =
-                c_encrypt_transform.transform((opt_public_key, conn_pair)).await?;
+            let (public_key, conn_pair) = c_encrypt_transform
+                .transform((opt_public_key, conn_pair))
+                .await?;
             let conn_pair = c_keepalive_transform.transform(conn_pair).await;
             Some((public_key, conn_pair))
         })
@@ -260,8 +265,9 @@ where
     ) -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> {
         let mut c_self = self.clone();
         Box::pin(async move {
-            let (_public_key, (mut sender, mut receiver)) =
-                c_self.version_enc_keepalive(Some(public_key), conn_pair).await?;
+            let (_public_key, (mut sender, mut receiver)) = c_self
+                .version_enc_keepalive(Some(public_key), conn_pair)
+                .await?;
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
@@ -327,7 +333,9 @@ where
     GS: Spawn + Send + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let local_public_key = identity_client.request_public_key().await
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
         .map_err(|_| NetIndexServerError::RequestPublicKeyError)?;
 
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
@@ -354,7 +362,9 @@ where
     let incoming_client_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            c_conn_transformer.incoming_index_client_conn_transform(raw_conn).await
+            c_conn_transformer
+                .incoming_index_client_conn_transform(raw_conn)
+                .await
         })
     });
     let (client_conns_sender, incoming_client_conns) = mpsc::channel(0);
@@ -376,7 +386,9 @@ where
     let incoming_server_transform = FuncFutTransform::new(move |raw_conn| {
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
-            c_conn_transformer.incoming_index_server_conn_transform(raw_conn).await
+            c_conn_transformer
+                .incoming_index_server_conn_transform(raw_conn)
+                .await
         })
     });
     let (server_conns_sender, incoming_server_conns) = mpsc::channel(0);
@@ -400,7 +412,9 @@ where
         let c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
             let raw_conn = c_raw_server_net_connector.transform(net_address).await?;
-            c_conn_transformer.outgoing_index_server_conn_transform(public_key, raw_conn).await
+            c_conn_transformer
+                .outgoing_index_server_conn_transform(public_key, raw_conn)
+                .await
         })
     });
 
@@ -415,7 +429,8 @@ where
         backoff_ticks,
         rng,
         graph_service_spawner,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
     .map_err(NetIndexServerError::IndexServerError)
 }

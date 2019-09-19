@@ -36,7 +36,8 @@ impl<ST, MU> StateClient<ST, MU> {
         let (response_sender, response_receiver) = oneshot::channel();
         let state_request = StateRequest { response_sender };
 
-        self.request_sender.send(state_request)
+        self.request_sender
+            .send(state_request)
             .await
             .map_err(|_| StateClientError::SendRequestError)?;
 

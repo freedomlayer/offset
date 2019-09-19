@@ -85,13 +85,8 @@ where
 {
     let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = receiver.next().await {
-            let dispatch_res = dispatch_conn(
-                sender,
-                receiver,
-                public_key,
-                first_msg,
-                keepalive_transform
-            ).await;
+            let dispatch_res =
+                dispatch_conn(sender, receiver, public_key, first_msg, keepalive_transform).await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -102,11 +97,7 @@ where
     });
 
     let timer_stream = timer_client.request_timer_stream().await.unwrap();
-    let res = future_timeout(
-        fut_receiver,
-        timer_stream,
-        conn_timeout_ticks
-    ).await?;
+    let res = future_timeout(fut_receiver, timer_stream, conn_timeout_ticks).await?;
     if res.is_none() {
         warn!("process_conn(): timeout occurred");
     }
@@ -179,8 +170,9 @@ mod tests {
             receiver,
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform
-        ).await
+            keepalive_transform,
+        )
+        .await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -200,8 +192,9 @@ mod tests {
             receiver,
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform
-        ).await
+            keepalive_transform,
+        )
+        .await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -223,8 +216,9 @@ mod tests {
             receiver,
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform
-        ).await
+            keepalive_transform,
+        )
+        .await
         .unwrap();
 
         assert_eq!(incoming_conn.public_key, public_key);
@@ -256,8 +250,9 @@ mod tests {
             receiver,
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform
-        ).await;
+            keepalive_transform,
+        )
+        .await;
         assert!(res.is_none());
     }
 
@@ -298,12 +293,13 @@ mod tests {
         let ser_first_msg = first_msg.proto_serialize();
         thread_pool
             .spawn(async move {
-                remote_sender.send(ser_first_msg).map(|res| {
-                    match res {
+                remote_sender
+                    .send(ser_first_msg)
+                    .map(|res| match res {
                         Ok(_remote_sender) => (),
                         Err(_) => unreachable!("Sending first message failed!"),
-                    }
-                }).await
+                    })
+                    .await
             })
             .unwrap();
 

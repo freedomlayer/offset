@@ -65,8 +65,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Initialize 2:
@@ -76,8 +77,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Add friend 2:
@@ -97,8 +99,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1: Enable friend 2:
@@ -116,8 +119,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node2: Add friend 1:
@@ -137,8 +141,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2: enable friend 1:
@@ -156,8 +161,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Notify that Node2 is alive
@@ -170,8 +176,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -204,8 +211,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2 sends information about his address to Node1, and updates channeler
@@ -229,8 +237,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // The same message should be again sent by Node2:
@@ -266,8 +275,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
@@ -302,8 +312,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -336,8 +347,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert!(outgoing_comms.is_empty());
@@ -357,8 +369,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1 will send the SetRemoteMaxDebt message to Node2:
@@ -384,8 +397,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -432,8 +446,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);
@@ -458,8 +473,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);
@@ -487,8 +503,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);
@@ -540,8 +557,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1 will request the token:
@@ -561,8 +579,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -581,8 +600,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1 declares that his requests are open:
@@ -601,8 +621,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Checking the current requests status on the mutual credit for Node1:
@@ -648,8 +669,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -673,8 +695,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1 sends a ResponseSendFunds to Node2:
@@ -703,8 +726,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_control.len(), 2);
@@ -739,8 +763,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -770,8 +795,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -801,8 +827,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -832,8 +859,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Current balance from Node1 point of view:
@@ -872,8 +900,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);
@@ -920,8 +949,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2: Request for closing payment again:
@@ -935,8 +965,9 @@ async fn task_handler_pair_basic<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);

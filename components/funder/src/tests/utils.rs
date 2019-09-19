@@ -180,16 +180,11 @@ where
                 let mut c_comm_sender = comm_sender.clone();
                 let mut mapped_comm_in = comm_in
                     .map(move |funder_outgoing_comm| (c_public_key.clone(), funder_outgoing_comm));
-                let fut =
-                    async move { c_comm_sender.send_all(&mut mapped_comm_in).await.unwrap() };
+                let fut = async move { c_comm_sender.send_all(&mut mapped_comm_in).await.unwrap() };
                 spawner.spawn(fut.then(|_| future::ready(()))).unwrap();
             }
             RouterEvent::OutgoingComm((src_public_key, outgoing_comm)) => {
-                router_handle_outgoing_comm(
-                    &mut nodes,
-                    src_public_key,
-                    outgoing_comm
-                ).await;
+                router_handle_outgoing_comm(&mut nodes, src_public_key, outgoing_comm).await;
             }
         };
     }
@@ -231,7 +226,10 @@ where
             app_request_id: app_request_id.clone(),
             funder_control,
         };
-        self.send_control.send(funder_incoming_control).await.unwrap();
+        self.send_control
+            .send(funder_incoming_control)
+            .await
+            .unwrap();
 
         loop {
             match self.recv().await.unwrap() {
@@ -299,11 +297,13 @@ where
     }
 
     pub async fn add_relay<'a>(&'a mut self, named_relay_address: NamedRelayAddress<B>) {
-        self.send(FunderControl::AddRelay(named_relay_address.clone())).await;
+        self.send(FunderControl::AddRelay(named_relay_address.clone()))
+            .await;
     }
 
     pub async fn remove_relay<'a>(&'a mut self, public_key: PublicKey) {
-        self.send(FunderControl::RemoveRelay(public_key.clone())).await;
+        self.send(FunderControl::RemoveRelay(public_key.clone()))
+            .await;
     }
 
     pub async fn add_friend<'a>(
@@ -331,7 +331,8 @@ where
             friend_public_key: friend_public_key.clone(),
             status: status.clone(),
         };
-        self.send(FunderControl::SetFriendStatus(set_friend_status)).await;
+        self.send(FunderControl::SetFriendStatus(set_friend_status))
+            .await;
     }
 
     pub async fn set_remote_max_debt<'a>(
@@ -343,7 +344,8 @@ where
             friend_public_key: friend_public_key.clone(),
             remote_max_debt: remote_max_debt.into(),
         };
-        self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt)).await;
+        self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt))
+            .await;
     }
 
     pub async fn set_requests_status<'a>(
@@ -355,7 +357,8 @@ where
             friend_public_key: friend_public_key.clone(),
             status: requests_status.clone(),
         };
-        self.send(FunderControl::SetRequestsStatus(set_requests_status)).await;
+        self.send(FunderControl::SetRequestsStatus(set_requests_status))
+            .await;
     }
 
     pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, rate: Rate) {
@@ -363,7 +366,8 @@ where
             friend_public_key: friend_public_key.clone(),
             rate,
         };
-        self.send(FunderControl::SetFriendRate(set_friend_rate)).await;
+        self.send(FunderControl::SetFriendRate(set_friend_rate))
+            .await;
     }
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {

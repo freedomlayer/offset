@@ -109,8 +109,10 @@ pub enum InfoError {
 
 /// Get a most recently known node report:
 async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError> {
-    let (node_report, incoming_mutations) =
-        app_report.incoming_reports().await.map_err(|_| InfoError::GetReportError)?;
+    let (node_report, incoming_mutations) = app_report
+        .incoming_reports()
+        .await
+        .map_err(|_| InfoError::GetReportError)?;
     // We currently don't need live updates about report mutations:
     drop(incoming_mutations);
 
@@ -310,8 +312,10 @@ pub async fn info_friend_last_token(
     }
 
     // Get a recent report:
-    let (node_report, incoming_mutations) =
-        app_report.incoming_reports().await.map_err(|_| InfoError::GetReportError)?;
+    let (node_report, incoming_mutations) = app_report
+        .incoming_reports()
+        .await
+        .map_err(|_| InfoError::GetReportError)?;
     // We don't want to listen on incoming mutations:
     drop(incoming_mutations);
 

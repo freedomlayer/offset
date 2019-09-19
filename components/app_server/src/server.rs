@@ -184,7 +184,8 @@ where
 
         let mut app = App::new(permissions, sender);
         // Send the initial node report:
-        app.send(AppServerToApp::Report(self.node_report.clone())).await;
+        app.send(AppServerToApp::Report(self.node_report.clone()))
+            .await;
 
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
@@ -206,7 +207,8 @@ where
     pub async fn broadcast_node_report_mutations(&mut self, report_mutations: ReportMutations<B>) {
         // Send node report mutations to all connected apps
         for app in &mut self.apps.values_mut() {
-            app.send(AppServerToApp::ReportMutations(report_mutations.clone())).await;
+            app.send(AppServerToApp::ReportMutations(report_mutations.clone()))
+                .await;
         }
     }
 
@@ -227,8 +229,9 @@ where
                 };
                 if let Some(app) = self.apps.get_mut(&app_id) {
                     app.send(AppServerToApp::TransactionResult(
-                        transaction_result.clone()
-                    )).await;
+                        transaction_result.clone(),
+                    ))
+                    .await;
                 }
             }
             FunderOutgoingControl::ResponseClosePayment(response_close_payment) => {
@@ -244,8 +247,9 @@ where
                 };
                 if let Some(app) = self.apps.get_mut(&app_id) {
                     app.send(AppServerToApp::ResponseClosePayment(
-                        response_close_payment.clone()
-                    )).await;
+                        response_close_payment.clone(),
+                    ))
+                    .await;
                 }
             }
             FunderOutgoingControl::ReportMutations(funder_report_mutations) => {
@@ -265,11 +269,10 @@ where
 
                 // Send index mutations:
                 if !index_mutations.is_empty() {
-                    self
-                    .to_index_client
-                    .send(AppServerToIndexClient::ApplyMutations(index_mutations))
-                    .await
-                    .map_err(|_| AppServerError::SendToIndexClientError)?;
+                    self.to_index_client
+                        .send(AppServerToIndexClient::ApplyMutations(index_mutations))
+                        .await
+                        .map_err(|_| AppServerError::SendToIndexClientError)?;
                 }
 
                 let mut report_mutations = ReportMutations {
@@ -324,8 +327,9 @@ where
 
                 if let Some(app) = self.apps.get_mut(&app_id) {
                     app.send(AppServerToApp::ResponseRoutes(
-                        client_response_routes.clone()
-                    )).await;
+                        client_response_routes.clone(),
+                    ))
+                    .await;
                 }
             }
         };
@@ -392,22 +396,20 @@ where
         macro_rules! to_funder {
             ( $x:expr ) => {{
                 use FunderControl::*;
-                self
-                .to_funder
-                .send(FunderIncomingControl::new(app_request_id, $x))
-                .await
-                .map_err(|_| AppServerError::SendToFunderError)
+                self.to_funder
+                    .send(FunderIncomingControl::new(app_request_id, $x))
+                    .await
+                    .map_err(|_| AppServerError::SendToFunderError)
             }};
         }
 
         macro_rules! to_index_client {
             ( $x:expr ) => {{
                 use IndexClientRequest::*;
-                self
-                .to_index_client
-                .send(AppServerToIndexClient::AppRequest((app_request_id, $x)))
-                .await
-                .map_err(|_| AppServerError::SendToIndexClientError)
+                self.to_index_client
+                    .send(AppServerToIndexClient::AppRequest((app_request_id, $x)))
+                    .await
+                    .map_err(|_| AppServerError::SendToIndexClientError)
             }};
         }
 
@@ -550,17 +552,23 @@ where
     while let Some(event) = events.next().await {
         match event {
             AppServerEvent::IncomingConnection(incoming_app_connection) => {
-                app_server.handle_incoming_connection(incoming_app_connection).await?
+                app_server
+                    .handle_incoming_connection(incoming_app_connection)
+                    .await?
             }
             AppServerEvent::IncomingConnectionsClosed => {
                 app_server.handle_incoming_connections_closed().await?
             }
             AppServerEvent::FromFunder(funder_outgoing_control) => {
-                app_server.handle_from_funder(funder_outgoing_control).await?
+                app_server
+                    .handle_from_funder(funder_outgoing_control)
+                    .await?
             }
             AppServerEvent::FunderClosed => return Err(AppServerError::FunderClosed),
             AppServerEvent::FromIndexClient(from_index_client) => {
-                app_server.handle_from_index_client(from_index_client).await?
+                app_server
+                    .handle_from_index_client(from_index_client)
+                    .await?
             }
             AppServerEvent::IndexClientClosed => return Err(AppServerError::IndexClientClosed),
             AppServerEvent::FromApp((app_id, opt_app_message)) => {

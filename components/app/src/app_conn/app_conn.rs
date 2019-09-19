@@ -114,13 +114,14 @@ where
                 while let Some(message) = receiver.next().await {
                     match message {
                         AppServerToApp::TransactionResult(transaction_result) => {
-                            let _ = 
-                                incoming_transaction_results_sender.send(transaction_result)
-                            .await;
+                            let _ = incoming_transaction_results_sender
+                                .send(transaction_result)
+                                .await;
                         }
                         AppServerToApp::ResponseClosePayment(response_close_payment) => {
                             let _ = incoming_response_close_payments_sender
-                                .send(response_close_payment).await;
+                                .send(response_close_payment)
+                                .await;
                         }
                         AppServerToApp::Report(_node_report) => {
                             // TODO: Maybe somehow redesign the type AppServerToApp
@@ -129,9 +130,9 @@ where
                             return;
                         }
                         AppServerToApp::ReportMutations(node_report_mutations) => {
-                            let _ = 
-                                incoming_mutations_sender.send(node_report_mutations.mutations)
-                            .await;
+                            let _ = incoming_mutations_sender
+                                .send(node_report_mutations.mutations)
+                                .await;
                             if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
                                 let _ =
                                     incoming_done_app_requests_sender.send(app_request_id).await;

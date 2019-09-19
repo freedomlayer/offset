@@ -21,21 +21,37 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
-    node_controls[0].add_friend(&public_keys[1], relays1, "node1", 8).await;
-    node_controls[1].add_friend(&public_keys[0], relays0, "node0", -8).await;
+    node_controls[0]
+        .add_friend(&public_keys[1], relays1, "node1", 8)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[0], relays0, "node0", -8)
+        .await;
     assert_eq!(node_controls[0].report.friends.len(), 1);
     assert_eq!(node_controls[1].report.friends.len(), 1);
 
-    node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled).await;
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[0], FriendStatus::Enabled)
+        .await;
 
     // Set remote max debt for both sides:
-    node_controls[0].set_remote_max_debt(&public_keys[1], 200).await;
-    node_controls[1].set_remote_max_debt(&public_keys[0], 100).await;
+    node_controls[0]
+        .set_remote_max_debt(&public_keys[1], 200)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[0], 100)
+        .await;
 
     // Open requests:
-    node_controls[0].set_requests_status(&public_keys[1], RequestsStatus::Open).await;
-    node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open).await;
+    node_controls[0]
+        .set_requests_status(&public_keys[1], RequestsStatus::Open)
+        .await;
+    node_controls[1]
+        .set_requests_status(&public_keys[0], RequestsStatus::Open)
+        .await;
 
     // Wait for liveness:
     node_controls[0].wait_until_ready(&public_keys[1]).await;
@@ -46,7 +62,9 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 4,
     };
-    node_controls[1].send(FunderControl::AddInvoice(add_invoice)).await;
+    node_controls[1]
+        .send(FunderControl::AddInvoice(add_invoice))
+        .await;
 
     // Create payment 0 --> 1
     let create_payment = CreatePayment {
@@ -55,7 +73,9 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         total_dest_payment: 4,
         dest_public_key: node_controls[1].public_key.clone(),
     };
-    node_controls[0].send(FunderControl::CreatePayment(create_payment)).await;
+    node_controls[0]
+        .send(FunderControl::CreatePayment(create_payment))
+        .await;
 
     // Create transaction 0 --> 1:
     let create_transaction = CreateTransaction {
@@ -68,8 +88,13 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         fees: 1,
     };
 
-    node_controls[0].send(FunderControl::CreateTransaction(create_transaction)).await;
-    let transaction_result = node_controls[0].recv_until_transaction_result().await.unwrap();
+    node_controls[0]
+        .send(FunderControl::CreateTransaction(create_transaction))
+        .await;
+    let transaction_result = node_controls[0]
+        .recv_until_transaction_result()
+        .await
+        .unwrap();
 
     let commit = match transaction_result.result {
         RequestResult::Success(commit) => commit,
@@ -86,19 +111,24 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     // MultiCommit: 0 ==> 1  (Out of band)
 
     // 1: Apply MultiCommit:
-    node_controls[1].send(FunderControl::CommitInvoice(multi_commit)).await;
+    node_controls[1]
+        .send(FunderControl::CommitInvoice(multi_commit))
+        .await;
 
     // Wait until no more progress can be made (We should get a receipt)
     test_executor.wait().await;
 
     // 0: Expect a receipt:
-    
-        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-            &[2u8; PaymentId::len()]
+
+    node_controls[0]
+        .send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PaymentId::len()],
         )))
-    .await;
-    let response_close_payment =
-        node_controls[0].recv_until_response_close_payment().await.unwrap();
+        .await;
+    let response_close_payment = node_controls[0]
+        .recv_until_response_close_payment()
+        .await
+        .unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
         PaymentStatus::Success(payment_status_success) => (
             payment_status_success.receipt,
@@ -112,7 +142,9 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
-    node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)).await;
+    node_controls[0]
+        .send(FunderControl::AckClosePayment(ack_close_payment))
+        .await;
 
     assert_eq!(
         receipt.invoice_id,
@@ -168,30 +200,60 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
     let relays2 = vec![dummy_relay_address(2)];
-    node_controls[0].add_friend(&public_keys[1], relays1, "node1", 8).await;
-    node_controls[1].add_friend(&public_keys[0], relays0.clone(), "node0", -8).await;
-    node_controls[1].add_friend(&public_keys[2], relays2, "node2", 6).await;
-    node_controls[2].add_friend(&public_keys[1], relays0, "node0", -6).await;
+    node_controls[0]
+        .add_friend(&public_keys[1], relays1, "node1", 8)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[0], relays0.clone(), "node0", -8)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[2], relays2, "node2", 6)
+        .await;
+    node_controls[2]
+        .add_friend(&public_keys[1], relays0, "node0", -6)
+        .await;
 
     // Enable friends:
-    node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled).await;
-    node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[0], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[2], FriendStatus::Enabled)
+        .await;
+    node_controls[2]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
 
     // Set rate:
     // This is the amount of credits node 1 takes from node 0 for forwarding messages.
-    node_controls[1].set_friend_rate(&public_keys[0], Rate { mul: 0, add: 5 }).await;
+    node_controls[1]
+        .set_friend_rate(&public_keys[0], Rate { mul: 0, add: 5 })
+        .await;
 
     // Set remote max debt:
-    node_controls[0].set_remote_max_debt(&public_keys[1], 200).await;
-    node_controls[1].set_remote_max_debt(&public_keys[0], 100).await;
-    node_controls[1].set_remote_max_debt(&public_keys[2], 300).await;
-    node_controls[2].set_remote_max_debt(&public_keys[1], 400).await;
+    node_controls[0]
+        .set_remote_max_debt(&public_keys[1], 200)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[0], 100)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[2], 300)
+        .await;
+    node_controls[2]
+        .set_remote_max_debt(&public_keys[1], 400)
+        .await;
 
     // Open requests, allowing this route: 0 --> 1 --> 2
-    node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open).await;
-    node_controls[2].set_requests_status(&public_keys[1], RequestsStatus::Open).await;
+    node_controls[1]
+        .set_requests_status(&public_keys[0], RequestsStatus::Open)
+        .await;
+    node_controls[2]
+        .set_requests_status(&public_keys[1], RequestsStatus::Open)
+        .await;
 
     // Wait until route is ready (Online + Consistent + open requests)
     // Note: We don't need the other direction to be ready, because the request is sent
@@ -204,7 +266,9 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         total_dest_payment: 15,
     };
-    node_controls[2].send(FunderControl::AddInvoice(add_invoice)).await;
+    node_controls[2]
+        .send(FunderControl::AddInvoice(add_invoice))
+        .await;
 
     // Create payment 0 --> 2
     let create_payment = CreatePayment {
@@ -213,7 +277,9 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         total_dest_payment: 15,
         dest_public_key: node_controls[2].public_key.clone(),
     };
-    node_controls[0].send(FunderControl::CreatePayment(create_payment)).await;
+    node_controls[0]
+        .send(FunderControl::CreatePayment(create_payment))
+        .await;
 
     // Create transaction 0 --> 2:
     let create_transaction = CreateTransaction {
@@ -229,8 +295,13 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         dest_payment: 15,
         fees: 5,
     };
-    node_controls[0].send(FunderControl::CreateTransaction(create_transaction)).await;
-    let transaction_result = node_controls[0].recv_until_transaction_result().await.unwrap();
+    node_controls[0]
+        .send(FunderControl::CreateTransaction(create_transaction))
+        .await;
+    let transaction_result = node_controls[0]
+        .recv_until_transaction_result()
+        .await
+        .unwrap();
 
     let commit = match transaction_result.result {
         RequestResult::Success(commit) => commit,
@@ -247,19 +318,24 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // MultiCommit: 0 ==> 2  (Out of band)
 
     // 2: Apply MultiCommit:
-    node_controls[2].send(FunderControl::CommitInvoice(multi_commit)).await;
+    node_controls[2]
+        .send(FunderControl::CommitInvoice(multi_commit))
+        .await;
 
     // Wait until no more progress can be made (We should get a receipt)
     test_executor.wait().await;
 
     // 0: Expect a receipt:
-    
-        node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-            &[2u8; PaymentId::len()]
+
+    node_controls[0]
+        .send(FunderControl::RequestClosePayment(PaymentId::from(
+            &[2u8; PaymentId::len()],
         )))
-    .await;
-    let response_close_payment =
-        node_controls[0].recv_until_response_close_payment().await.unwrap();
+        .await;
+    let response_close_payment = node_controls[0]
+        .recv_until_response_close_payment()
+        .await
+        .unwrap();
     let (receipt, ack_uid) = match response_close_payment.status {
         PaymentStatus::Success(payment_status_success) => (
             payment_status_success.receipt,
@@ -273,7 +349,9 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
-    node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)).await;
+    node_controls[0]
+        .send(FunderControl::AckClosePayment(ack_close_payment))
+        .await;
 
     assert_eq!(
         receipt.invoice_id,
@@ -353,30 +431,60 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
     let relays2 = vec![dummy_relay_address(2)];
-    node_controls[0].add_friend(&public_keys[1], relays1, "node1", 8).await;
-    node_controls[1].add_friend(&public_keys[0], relays0.clone(), "node0", -8).await;
-    node_controls[1].add_friend(&public_keys[2], relays2, "node2", 6).await;
-    node_controls[2].add_friend(&public_keys[1], relays0, "node0", -6).await;
+    node_controls[0]
+        .add_friend(&public_keys[1], relays1, "node1", 8)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[0], relays0.clone(), "node0", -8)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[2], relays2, "node2", 6)
+        .await;
+    node_controls[2]
+        .add_friend(&public_keys[1], relays0, "node0", -6)
+        .await;
 
     // Enable friends:
-    node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[2], FriendStatus::Enabled).await;
-    node_controls[2].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[0], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[2], FriendStatus::Enabled)
+        .await;
+    node_controls[2]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
 
     // Set rate:
     // This is the amount of credits node 1 takes from node 0 for forwarding messages.
-    node_controls[1].set_friend_rate(&public_keys[0], Rate { mul: 0, add: 5 }).await;
+    node_controls[1]
+        .set_friend_rate(&public_keys[0], Rate { mul: 0, add: 5 })
+        .await;
 
     // Set remote max debt:
-    node_controls[0].set_remote_max_debt(&public_keys[1], 200).await;
-    node_controls[1].set_remote_max_debt(&public_keys[0], 100).await;
-    node_controls[1].set_remote_max_debt(&public_keys[2], 300).await;
-    node_controls[2].set_remote_max_debt(&public_keys[1], 400).await;
+    node_controls[0]
+        .set_remote_max_debt(&public_keys[1], 200)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[0], 100)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[2], 300)
+        .await;
+    node_controls[2]
+        .set_remote_max_debt(&public_keys[1], 400)
+        .await;
 
     // Open requests, allowing this route: 0 --> 1 --> 2
-    node_controls[1].set_requests_status(&public_keys[0], RequestsStatus::Open).await;
-    node_controls[2].set_requests_status(&public_keys[1], RequestsStatus::Open).await;
+    node_controls[1]
+        .set_requests_status(&public_keys[0], RequestsStatus::Open)
+        .await;
+    node_controls[2]
+        .set_requests_status(&public_keys[1], RequestsStatus::Open)
+        .await;
 
     // Wait until route is ready (Online + Consistent + open requests)
     // Note: We don't need the other direction to be ready, because the request is sent
@@ -391,7 +499,9 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
         total_dest_payment: 15,
         dest_public_key: node_controls[3].public_key.clone(),
     };
-    node_controls[0].send(FunderControl::CreatePayment(create_payment)).await;
+    node_controls[0]
+        .send(FunderControl::CreatePayment(create_payment))
+        .await;
 
     // Create transaction 0 --> 3 (3 does not exist):
     let create_transaction = CreateTransaction {
@@ -408,8 +518,13 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
         dest_payment: 15,
         fees: 5,
     };
-    node_controls[0].send(FunderControl::CreateTransaction(create_transaction)).await;
-    let transaction_result = node_controls[0].recv_until_transaction_result().await.unwrap();
+    node_controls[0]
+        .send(FunderControl::CreateTransaction(create_transaction))
+        .await;
+    let transaction_result = node_controls[0]
+        .recv_until_transaction_result()
+        .await
+        .unwrap();
 
     // We expect failure:
     match transaction_result.result {
@@ -419,13 +534,15 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
 
     // 0: Expect that the payment was canceled:
     let ack_uid = loop {
-        
-            node_controls[0].send(FunderControl::RequestClosePayment(PaymentId::from(
-                &[2u8; PaymentId::len()]
+        node_controls[0]
+            .send(FunderControl::RequestClosePayment(PaymentId::from(
+                &[2u8; PaymentId::len()],
             )))
-        .await;
-        let response_close_payment =
-            node_controls[0].recv_until_response_close_payment().await.unwrap();
+            .await;
+        let response_close_payment = node_controls[0]
+            .recv_until_response_close_payment()
+            .await
+            .unwrap();
         match response_close_payment.status {
             PaymentStatus::Canceled(ack_uid) => break ack_uid,
             _ => {}
@@ -437,7 +554,9 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         ack_uid,
     };
-    node_controls[0].send(FunderControl::AckClosePayment(ack_close_payment)).await;
+    node_controls[0]
+        .send(FunderControl::AckClosePayment(ack_close_payment))
+        .await;
 
     // Make sure that node0's balance is left unchanged:
     let pred = |report: &FunderReport<_>| {
@@ -474,11 +593,19 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     // We set incompatible initial balances (non zero sum) to cause an inconsistency:
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
-    node_controls[0].add_friend(&public_keys[1], relays1, "node1", 20).await;
-    node_controls[1].add_friend(&public_keys[0], relays0, "node0", -8).await;
+    node_controls[0]
+        .add_friend(&public_keys[1], relays1, "node1", 20)
+        .await;
+    node_controls[1]
+        .add_friend(&public_keys[0], relays0, "node0", -8)
+        .await;
 
-    node_controls[0].set_friend_status(&public_keys[1], FriendStatus::Enabled).await;
-    node_controls[1].set_friend_status(&public_keys[0], FriendStatus::Enabled).await;
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
+    node_controls[1]
+        .set_friend_status(&public_keys[0], FriendStatus::Enabled)
+        .await;
 
     // Expect inconsistency, together with reset terms:
     let pred = |report: &FunderReport<_>| {
@@ -524,7 +651,9 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
         friend_public_key: public_keys[1].clone(),
         reset_token: reset_terms_report.reset_token.clone(), // TODO: Rename reset_token to reset_token?
     };
-    node_controls[0].send(FunderControl::ResetFriendChannel(reset_friend_channel)).await;
+    node_controls[0]
+        .send(FunderControl::ResetFriendChannel(reset_friend_channel))
+        .await;
 
     // Wait until channel is consistent with the correct balance:
     let pred = |report: &FunderReport<_>| {
@@ -550,8 +679,12 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Make sure that we manage to send messages over the token channel after resolving the
     // inconsistency:
-    node_controls[0].set_remote_max_debt(&public_keys[1], 200).await;
-    node_controls[1].set_remote_max_debt(&public_keys[0], 300).await;
+    node_controls[0]
+        .set_remote_max_debt(&public_keys[1], 200)
+        .await;
+    node_controls[1]
+        .set_remote_max_debt(&public_keys[0], 300)
+        .await;
 }
 
 #[test]

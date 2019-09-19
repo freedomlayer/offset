@@ -32,7 +32,8 @@ impl<T> MultiConsumerClient<T> {
         let multi_consumer_request = MultiConsumerRequest { response_sender };
 
         // Send request:
-        self.request_sender.send(multi_consumer_request)
+        self.request_sender
+            .send(multi_consumer_request)
             .await
             .map_err(|_| MultiConsumerClientError::SendError)?;
 

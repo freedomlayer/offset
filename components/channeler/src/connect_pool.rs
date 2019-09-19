@@ -38,7 +38,10 @@ impl<RA> CpConfigClient<RA> {
     }
 
     pub async fn config(&mut self, config: Vec<RA>) -> Result<(), ConnectPoolClientError> {
-        self.request_sender.send(config).await.map_err(|_| ConnectPoolClientError)?;
+        self.request_sender
+            .send(config)
+            .await
+            .map_err(|_| ConnectPoolClientError)?;
         Ok(())
     }
 }
@@ -51,7 +54,10 @@ impl CpConnectClient {
     pub async fn connect(&mut self) -> Result<RawConn, ConnectPoolClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let connect_request = CpConnectRequest { response_sender };
-        self.request_sender.send(connect_request).await.map_err(|_| ConnectPoolClientError)?;
+        self.request_sender
+            .send(connect_request)
+            .await
+            .map_err(|_| ConnectPoolClientError)?;
 
         response_receiver.await.map_err(|_| ConnectPoolClientError)
     }
@@ -105,8 +111,12 @@ where
 {
     // TODO: How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
-        let raw_conn = client_connector.transform((address, friend_public_key.clone())).await?;
-        encrypt_transform.transform((friend_public_key.clone(), raw_conn)).await
+        let raw_conn = client_connector
+            .transform((address, friend_public_key.clone()))
+            .await?;
+        encrypt_transform
+            .transform((friend_public_key.clone(), raw_conn))
+            .await
     });
 
     // We either finish connecting, or got canceled in the middle:
@@ -125,7 +135,11 @@ where
         + Send
         + Sync
         + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
 {
     pub fn new(
         friend_public_key: PublicKey,
@@ -165,8 +179,9 @@ where
                 address,
                 c_client_connector.clone(),
                 c_encrypt_transform.clone(),
-                cancel_receiver
-            ).await;
+                cancel_receiver,
+            )
+            .await;
             let _ = c_conn_done_sender.send(opt_conn).await;
         };
 
@@ -320,7 +335,11 @@ async fn connect_pool_loop<RA, ET, TS, C, S>(
 ) -> Result<(), ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
     TS: Stream + Unpin + Send,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
@@ -403,7 +422,11 @@ pub fn create_connect_pool<RA, ET, TS, C, S>(
 ) -> Result<ConnectPoolControl<RA>, ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
@@ -480,7 +503,11 @@ where
 impl<RA, C, ET, S> FutTransform for PoolConnector<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
         + Send
@@ -545,8 +572,7 @@ mod tests {
         );
 
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
-        let (mut config_client, mut connect_client) =
-            pool_connector.transform(pk_b.clone()).await;
+        let (mut config_client, mut connect_client) = pool_connector.transform(pk_b.clone()).await;
         let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let addresses = vec![0x0u32, 0x1u32, 0x2u32];

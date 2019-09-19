@@ -148,7 +148,10 @@ mod tests {
 
             // Send a first time hash (Required for connection):
             let time_hash = HashResult::from(&[0xaa; HashResult::len()]);
-            c_server_sender.send(IndexServerToClient::TimeHash(time_hash)).await.unwrap();
+            c_server_sender
+                .send(IndexServerToClient::TimeHash(time_hash))
+                .await
+                .unwrap();
         };
         let session_handle_fut = index_client_session.transform(0x1337u32);
 

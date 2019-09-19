@@ -44,12 +44,15 @@ where
             response_sender,
         };
         // Send the request:
-        self.request_sender.send(database_request)
+        self.request_sender
+            .send(database_request)
             .await
             .map_err(|_| DatabaseClientError::SendError)?;
 
         // Wait for ack from the service:
-        request_done.await.map_err(|_| DatabaseClientError::ResponseCanceled)?;
+        request_done
+            .await
+            .map_err(|_| DatabaseClientError::ResponseCanceled)?;
 
         Ok(())
     }
@@ -168,19 +171,23 @@ mod tests {
         let loop_res_fut = spawner.spawn_with_handle(loop_fut).unwrap();
 
         let mut db_client = DatabaseClient::new(request_sender);
-        db_client.mutate(vec![
-            DummyMutation::Inc,
-            DummyMutation::Inc,
-            DummyMutation::Dec
-        ]).await
-        .unwrap();
+        db_client
+            .mutate(vec![
+                DummyMutation::Inc,
+                DummyMutation::Inc,
+                DummyMutation::Dec,
+            ])
+            .await
+            .unwrap();
 
-        db_client.mutate(vec![
-            DummyMutation::Inc,
-            DummyMutation::Inc,
-            DummyMutation::Dec
-        ]).await
-        .unwrap();
+        db_client
+            .mutate(vec![
+                DummyMutation::Inc,
+                DummyMutation::Inc,
+                DummyMutation::Dec,
+            ])
+            .await
+            .unwrap();
 
         // Dropping the only client should close the loop:
         drop(db_client);

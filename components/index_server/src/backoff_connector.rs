@@ -62,11 +62,9 @@ where
                     return Some(output);
                 }
                 // Wait before we attempt to reconnect:
-                sleep_ticks(
-                    c_self.backoff_ticks,
-                    c_self.timer_client.clone()
-                ).await
-                .ok()?;
+                sleep_ticks(c_self.backoff_ticks, c_self.timer_client.clone())
+                    .await
+                    .ok()?;
             }
         })
     }
@@ -118,7 +116,8 @@ mod tests {
             // Return a dummy channel:
             let (sender, receiver) = mpsc::channel(0);
             req.reply(Some((sender, receiver)));
-        }).await;
+        })
+        .await;
 
         let (mut sender, mut receiver) = opt_conn.unwrap();
         sender.send(vec![1, 2, 3]).await.unwrap();

@@ -76,7 +76,10 @@ impl TimerClient {
     ) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let timer_request = TimerRequest { response_sender };
-        self.sender.send(timer_request).await.map_err(|_| TimerClientError::SendFailure)?;
+        self.sender
+            .send(timer_request)
+            .await
+            .map_err(|_| TimerClientError::SendFailure)?;
 
         match response_receiver.await {
             Ok(timer_stream) => Ok(timer_stream),

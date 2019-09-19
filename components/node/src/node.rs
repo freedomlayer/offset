@@ -317,8 +317,9 @@ where
         node_config.backoff_ticks,
         enc_keepalive_connector,
         rng,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
     .map_err(|_| NodeError::SpawnError)
 }
 
@@ -344,7 +345,9 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
     // Get local public key:
-    let local_public_key = identity_client.request_public_key().await
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
         .map_err(|_| NodeError::RequestPublicKeyError)?;
 
     let initial_node_report = create_node_report(&node_state);
@@ -417,8 +420,9 @@ where
         index_client_to_app_server_sender,
         version_connector,
         rng,
-        spawner
-    ).await?;
+        spawner,
+    )
+    .await?;
 
     // Wait for death of any component
     select! {

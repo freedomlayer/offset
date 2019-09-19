@@ -36,7 +36,10 @@ where
         seller: true,
         config: true,
     };
-    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
+    connections_sender
+        .send((app_permissions, app_server_conn_pair))
+        .await
+        .unwrap();
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
@@ -47,7 +50,10 @@ where
         seller: true,
         config: true,
     };
-    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
+    connections_sender
+        .send((app_permissions, app_server_conn_pair))
+        .await
+        .unwrap();
 
     // The apps should receive the current node report as the first message:
     let _to_app_message = app_receiver0.next().await.unwrap();
@@ -114,7 +120,8 @@ where
         request_id: Uid::from(&[2; Uid::len()]),
         result: RequestResult::Failure,
     };
-    funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result))
+    funder_sender
+        .send(FunderOutgoingControl::TransactionResult(transaction_result))
         .await
         .unwrap();
 
@@ -127,10 +134,12 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
-    funder_sender.send(FunderOutgoingControl::TransactionResult(
-        transaction_result.clone()
-    )).await
-    .unwrap();
+    funder_sender
+        .send(FunderOutgoingControl::TransactionResult(
+            transaction_result.clone(),
+        ))
+        .await
+        .unwrap();
 
     let to_app_message = app_receiver0.next().await.unwrap();
     match to_app_message {
@@ -149,7 +158,9 @@ where
         request_id: Uid::from(&[3; Uid::len()]),
         result: RequestResult::Failure,
     };
-    funder_sender.send(FunderOutgoingControl::TransactionResult(transaction_result)).await
+    funder_sender
+        .send(FunderOutgoingControl::TransactionResult(transaction_result))
+        .await
         .unwrap();
 
     // We shouldn't get an message at any of the apps:

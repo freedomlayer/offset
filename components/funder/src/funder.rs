@@ -97,8 +97,9 @@ where
             max_node_relays,
             max_operations_in_batch,
             max_pending_user_requests,
-            funder_incoming
-        ).await;
+            funder_incoming,
+        )
+        .await;
 
         let handler_output = match res {
             Ok(handler_output) => handler_output,
@@ -115,7 +116,9 @@ where
                 funder_state.mutate(mutation);
             }
             // If there are any mutations, send them to the database:
-            db_client.mutate(handler_output.funder_mutations).await
+            db_client
+                .mutate(handler_output.funder_mutations)
+                .await
                 .map_err(|_| FunderError::DbError)?;
         }
 
@@ -126,11 +129,16 @@ where
 
         // Send outgoing communication messages:
         let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
-        comm_sender.send_all(&mut comm_stream).await.map_err(|_| FunderError::SendCommError)?;
+        comm_sender
+            .send_all(&mut comm_stream)
+            .await
+            .map_err(|_| FunderError::SendCommError)?;
 
         // Send outgoing control messages:
         let mut control_stream = stream::iter::<_>(handler_output.outgoing_control);
-        control_sender.send_all(&mut control_stream).await
+        control_sender
+            .send_all(&mut control_stream)
+            .await
             .map_err(|_| FunderError::SendControlError)?;
 
         if let Some(ref mut event_sender) = opt_event_sender {
@@ -170,6 +178,7 @@ where
         max_operations_in_batch,
         max_node_relays,
         max_pending_user_requests,
-        None
-    ).await
+        None,
+    )
+    .await
 }

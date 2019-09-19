@@ -305,8 +305,9 @@ async fn send_friend_iter1<'a, B, R>(
                 friend_public_key,
                 &c_channel_inconsistent,
                 identity_client,
-                rng
-            ).await;
+                rng,
+            )
+            .await;
         }
     }
 
@@ -914,8 +915,9 @@ where
             &mut cancel_public_keys,
             &mut outgoing_messages,
             &mut outgoing_control,
-            &mut outgoing_channeler_config
-        ).await;
+            &mut outgoing_channeler_config,
+        )
+        .await;
     }
 
     // Create PendingMoveToken-s for all the friends that were queued
@@ -943,8 +945,9 @@ where
             pending_move_token,
             identity_client,
             rng,
-            &mut outgoing_messages
-        ).await;
+            &mut outgoing_messages,
+        )
+        .await;
     }
 
     (

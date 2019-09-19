@@ -60,8 +60,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Initialize 2:
@@ -71,8 +72,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Add friend 2:
@@ -92,8 +94,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    ).await
+        &mut identity_client1,
+    )
+    .await
     .unwrap();
 
     // Node1: Enable friend 2:
@@ -111,8 +114,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node2: Add friend 1:
@@ -132,8 +136,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2: enable friend 1:
@@ -151,8 +156,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Notify that Node2 is alive
@@ -165,8 +171,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -198,8 +205,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2: Receive friend_message from Node1:
@@ -210,8 +218,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -246,8 +255,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 2);
@@ -282,8 +292,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -315,8 +326,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
     assert!(outgoing_comms.is_empty());
 
@@ -331,8 +343,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    ).await
+        &mut identity_client1,
+    )
+    .await
     .unwrap();
 
     // Node1 sends an update about his new address:
@@ -389,8 +402,9 @@ async fn task_handler_change_address(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        &mut identity_client2
-    )).await
+        &mut identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -422,8 +436,9 @@ async fn task_handler_change_address(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        &mut identity_client1
-    )).await
+        &mut identity_client1,
+    ))
+    .await
     .unwrap();
     assert_eq!(outgoing_comms.len(), 1);
     match &outgoing_comms[0] {

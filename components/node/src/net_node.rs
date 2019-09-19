@@ -90,8 +90,7 @@ where
             // Version prefix:
             let ver_conn = self.version_transform.transform(conn_pair).await;
             // Encrypt:
-            let (public_key, enc_conn) =
-                self.encrypt_transform.transform((None, ver_conn)).await?;
+            let (public_key, enc_conn) = self.encrypt_transform.transform((None, ver_conn)).await?;
 
             // Obtain permissions for app (Or reject it if not trusted):
             let c_get_trusted_apps = self.get_trusted_apps.clone();
@@ -190,7 +189,9 @@ where
         })
     });
 
-    let local_public_key = identity_client.request_public_key().await
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
         .map_err(|_| NetNodeError::RequestPublicKeyError)?;
 
     // Get initial node_state:
@@ -262,7 +263,8 @@ where
         version_connector,
         incoming_apps,
         rng,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
     .map_err(NetNodeError::NodeError)
 }

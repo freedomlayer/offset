@@ -100,16 +100,15 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
             node_address_file.public_key,
             node_address_file.address,
             app_identity_client,
-            c_thread_pool.clone()
-        ).await
+            c_thread_pool.clone(),
+        )
+        .await
         .map_err(|_| StCtrlError::ConnectionError)?;
 
         match subcommand {
             StCtrlSubcommand::Info(info_cmd) => info(info_cmd, node_connection, writer).await?,
             StCtrlSubcommand::Config(config_cmd) => config(config_cmd, node_connection).await?,
-            StCtrlSubcommand::Buyer(buyer_cmd) => {
-                buyer(buyer_cmd, node_connection, writer).await?
-            }
+            StCtrlSubcommand::Buyer(buyer_cmd) => buyer(buyer_cmd, node_connection, writer).await?,
             StCtrlSubcommand::Seller(seller_cmd) => seller(seller_cmd, node_connection).await?,
         }
         Ok(())

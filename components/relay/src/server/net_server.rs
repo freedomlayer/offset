@@ -62,12 +62,7 @@ where
     assert!(half_tunnel_ticks < keepalive_ticks);
     assert!(half_tunnel_ticks > 0);
 
-    relay_server_loop(
-        timer_client,
-        processed_conns,
-        half_tunnel_ticks,
-        spawner
-    ).await
+    relay_server_loop(timer_client, processed_conns, half_tunnel_ticks, spawner).await
 }
 
 #[derive(Debug, From)]
@@ -157,7 +152,8 @@ where
         timer_client,
         CONN_TIMEOUT_TICKS,
         KEEPALIVE_TICKS,
-        spawner.clone()
-    ).await?;
+        spawner.clone(),
+    )
+    .await?;
     Ok(())
 }

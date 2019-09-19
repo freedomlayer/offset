@@ -15,7 +15,9 @@ pub async fn sleep_ticks(
     ticks: usize,
     mut timer_client: TimerClient,
 ) -> Result<(), SleepTicksError> {
-    let timer_stream = timer_client.request_timer_stream().await
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
     let ticks_u64 = usize_to_u64(ticks).unwrap();
     let fut = timer_stream.take(ticks_u64).for_each(|_| future::ready(()));
@@ -103,5 +105,4 @@ mod tests {
         let mut thread_pool = ThreadPool::new().unwrap();
         thread_pool.run(task_future_timeout_late(thread_pool.clone()));
     }
-
 }

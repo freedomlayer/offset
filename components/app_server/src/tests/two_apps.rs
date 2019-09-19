@@ -35,7 +35,10 @@ where
         seller: true,
         config: true,
     };
-    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
+    connections_sender
+        .send((app_permissions, app_server_conn_pair))
+        .await
+        .unwrap();
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
@@ -46,7 +49,10 @@ where
         seller: true,
         config: true,
     };
-    connections_sender.send((app_permissions, app_server_conn_pair)).await.unwrap();
+    connections_sender
+        .send((app_permissions, app_server_conn_pair))
+        .await
+        .unwrap();
 
     // The apps should receive the current node report as the first message:
     // Send a report
@@ -74,11 +80,12 @@ where
         opt_app_request_id: None,
         mutations,
     };
-    index_client_sender.send(IndexClientToAppServer::ReportMutations(
-        index_client_report_mutations
-    ))
-    .await
-    .unwrap();
+    index_client_sender
+        .send(IndexClientToAppServer::ReportMutations(
+            index_client_report_mutations,
+        ))
+        .await
+        .unwrap();
 
     // Both apps should get the report:
     let to_app_message = app_receiver0.next().await.unwrap();

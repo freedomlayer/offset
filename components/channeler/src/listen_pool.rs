@@ -130,7 +130,9 @@ where
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
         let send_fut = async move {
-            let _ = c_plain_conn_sender.send_all(&mut connections_receiver).await;
+            let _ = c_plain_conn_sender
+                .send_all(&mut connections_receiver)
+                .await;
             // Notify that this listener was closed:
             let _ = c_relay_closed_sender.send(address).await;
         };
@@ -166,7 +168,8 @@ where
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
                             let _ = access_control_sender
-                                .send(AccessControlOp::Add(friend_public_key.clone())).await;
+                                .send(AccessControlOp::Add(friend_public_key.clone()))
+                                .await;
                         }
                     }
                 }
@@ -176,7 +179,8 @@ where
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
                             let _ = access_control_sender
-                                .send(AccessControlOp::Remove(friend_public_key.clone())).await;
+                                .send(AccessControlOp::Remove(friend_public_key.clone()))
+                                .await;
                         }
                     }
                 }
@@ -201,7 +205,8 @@ where
                         if let RelayStatus::Connected(access_control_sender) = &mut relay.status {
                             // TODO: Error checking here?
                             let _ = access_control_sender
-                                .send(AccessControlOp::Remove(friend_public_key.clone())).await;
+                                .send(AccessControlOp::Remove(friend_public_key.clone()))
+                                .await;
                         }
                     }
                 }
@@ -405,8 +410,9 @@ where
                 c_backoff_ticks,
                 timer_stream,
                 c_spawner,
-                None
-            ).await;
+                None,
+            )
+            .await;
 
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);
@@ -466,7 +472,10 @@ mod tests {
         let mut local_addresses = vec![0x0u32, 0x1u32];
         local_addresses.sort();
 
-        config_sender.send(LpConfig::SetLocalAddresses(local_addresses.clone())).await.unwrap();
+        config_sender
+            .send(LpConfig::SetLocalAddresses(local_addresses.clone()))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         let mut observed_addresses = Vec::new();
@@ -482,8 +491,9 @@ mod tests {
             let (remote_sender, _local_receiver) = mpsc::channel(0);
             listen_req0
                 .conn_sender
-                .send((pk_b.clone(), (remote_sender, remote_receiver))).await
-            .unwrap();
+                .send((pk_b.clone(), (remote_sender, remote_receiver)))
+                .await
+                .unwrap();
 
             let (pk, _conn) = incoming_plain_conns.next().await.unwrap();
             assert_eq!(pk, pk_b);
@@ -497,7 +507,10 @@ mod tests {
         assert_eq!(local_addresses, observed_addresses);
 
         // Reduce the set of local addresses to only contain 0x1u32:
-        config_sender.send(LpConfig::SetLocalAddresses(vec![0x1u32])).await.unwrap();
+        config_sender
+            .send(LpConfig::SetLocalAddresses(vec![0x1u32]))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         // The 0x0u32 listener should be closed:
@@ -552,7 +565,10 @@ mod tests {
 
         spawner.spawn(fut_loop).unwrap();
 
-        config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32])).await.unwrap();
+        config_sender
+            .send(LpConfig::SetLocalAddresses(vec![0x0u32]))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         for _ in 0..5 {
@@ -618,7 +634,10 @@ mod tests {
 
         spawner.spawn(fut_loop).unwrap();
 
-        config_sender.send(LpConfig::SetLocalAddresses(vec![0x0u32])).await.unwrap();
+        config_sender
+            .send(LpConfig::SetLocalAddresses(vec![0x0u32]))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         let mut listen_req0 = listen_req_receiver.next().await.unwrap();
@@ -627,7 +646,10 @@ mod tests {
 
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
 
-        config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32]))).await.unwrap();
+        config_sender
+            .send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x1u32])))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         let mut listen_req1 = listen_req_receiver.next().await.unwrap();
@@ -640,7 +662,10 @@ mod tests {
             _ => unreachable!(),
         };
 
-        config_sender.send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x2u32]))).await.unwrap();
+        config_sender
+            .send(LpConfig::UpdateFriend((pk_b.clone(), vec![0x2u32])))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         // Connection to relay 1u32 should be closed:
@@ -654,7 +679,9 @@ mod tests {
 
         let pk_c = PublicKey::from(&[0xcc; PublicKey::len()]);
 
-        config_sender.send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32]))).await
+        config_sender
+            .send(LpConfig::UpdateFriend((pk_c.clone(), vec![0x2u32, 0x3u32])))
+            .await
             .unwrap();
         event_receiver.next().await.unwrap();
 
@@ -671,7 +698,10 @@ mod tests {
             };
         }
 
-        config_sender.send(LpConfig::RemoveFriend(pk_c.clone())).await.unwrap();
+        config_sender
+            .send(LpConfig::RemoveFriend(pk_c.clone()))
+            .await
+            .unwrap();
         event_receiver.next().await.unwrap();
 
         // Connection to relay 3u32 should be closed:

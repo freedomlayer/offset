@@ -72,16 +72,18 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     let mut app0 = create_app(
         0,
         sim_net_client.clone(),
         timer_client.clone(),
         0,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create initial database for node 1:
@@ -103,16 +105,18 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     let mut app1 = create_app(
         1,
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     // Create relays:
@@ -120,36 +124,41 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         0,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         1,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         2,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         3,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     create_relay(
         4,
         timer_client.clone(),
         sim_net_client.clone(),
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     let mut config0 = app0.config().unwrap().clone();
     let mut config1 = app1.config().unwrap().clone();
@@ -165,22 +174,26 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    config0.add_friend(
-        node_public_key(1),
-        vec![relay_address(1)],
-        String::from("node1"),
-        100
-    ).await
-    .unwrap();
+    config0
+        .add_friend(
+            node_public_key(1),
+            vec![relay_address(1)],
+            String::from("node1"),
+            100,
+        )
+        .await
+        .unwrap();
 
     // Node1: Add node0 as a friend:
-    config1.add_friend(
-        node_public_key(0),
-        vec![relay_address(0)],
-        String::from("node0"),
-        -100
-    ).await
-    .unwrap();
+    config1
+        .add_friend(
+            node_public_key(0),
+            vec![relay_address(0)],
+            String::from("node0"),
+            -100,
+        )
+        .await
+        .unwrap();
 
     config0.enable_friend(node_public_key(1)).await.unwrap();
     config1.enable_friend(node_public_key(0)).await.unwrap();
@@ -232,8 +245,9 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         timer_client.clone(),
         sim_net_client.clone(),
         trusted_apps,
-        test_executor.clone()
-    ).await;
+        test_executor.clone(),
+    )
+    .await;
 
     // Connect an app to node1:
     let mut app1 = create_app(
@@ -241,8 +255,9 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
         sim_net_client.clone(),
         timer_client.clone(),
         1,
-        test_executor.clone()
-    ).await
+        test_executor.clone(),
+    )
+    .await
     .unwrap();
 
     let mut report1 = app1.report().clone();

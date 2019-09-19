@@ -46,28 +46,28 @@ where
     M: Stream<Item = Vec<u8>> + Unpin,
     K: Sink<Vec<u8>, SinkError = EK> + Unpin,
 {
-    let local_public_key = identity_client.request_public_key()
+    let local_public_key = identity_client
+        .request_public_key()
         .await
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
     let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &rng);
     let ser_exchange_rand_nonce = exchange_rand_nonce.proto_serialize();
-    writer.send(ser_exchange_rand_nonce)
+    writer
+        .send(ser_exchange_rand_nonce)
         .await
         .map_err(|_| SecureChannelError::WriterError)?;
 
-    let reader_message = reader.next()
+    let reader_message = reader
+        .next()
         .await
         .ok_or(SecureChannelError::ReaderClosed)?;
 
     let exchange_rand_nonce = ExchangeRandNonce::proto_deserialize(&reader_message)?;
-    let (dh_state_half, exchange_dh) = dh_state_initial.handle_exchange_rand_nonce(
-        exchange_rand_nonce,
-        identity_client.clone(),
-        rng.clone()
-    )
-    .await
-    .map_err(SecureChannelError::HandleExchangeRandNonceError)?;
+    let (dh_state_half, exchange_dh) = dh_state_initial
+        .handle_exchange_rand_nonce(exchange_rand_nonce, identity_client.clone(), rng.clone())
+        .await
+        .map_err(SecureChannelError::HandleExchangeRandNonceError)?;
 
     if let Some(expected_remote) = opt_expected_remote {
         if expected_remote != dh_state_half.remote_public_key {
@@ -76,11 +76,13 @@ where
     }
 
     let ser_exchange_dh = exchange_dh.proto_serialize();
-    writer.send(ser_exchange_dh)
+    writer
+        .send(ser_exchange_dh)
         .await
         .map_err(|_| SecureChannelError::WriterError)?;
 
-    let reader_message = reader.next()
+    let reader_message = reader
+        .next()
         .await
         .ok_or(SecureChannelError::ReaderClosed)?;
     let exchange_dh = ExchangeDh::proto_deserialize(&reader_message)?;
@@ -117,7 +119,8 @@ where
     // TODO: How to perform graceful shutdown of sinks?
     // Is there a way to do it?
 
-    let timer_stream = timer_client.request_timer_stream()
+    let timer_stream = timer_client
+        .request_timer_stream()
         .await
         .map_err(|_| SecureChannelError::RequestTimerStreamError)?;
     let timer_stream = timer_stream
@@ -150,19 +153,22 @@ where
                     cur_ticks_to_rekey = ticks_to_rekey;
                 }
                 if let Some(send_message) = hi_output.opt_send_message {
-                    writer.send(send_message.0)
+                    writer
+                        .send(send_message.0)
                         .await
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
                 if let Some(incoming_message) = hi_output.opt_incoming_message {
-                    to_user.send(incoming_message.0)
+                    to_user
+                        .send(incoming_message.0)
                         .await
                         .map_err(|_| SecureChannelError::WriterError)?;
                 }
             }
             SecureChannelEvent::User(data) => {
                 let enc_data = dh_state.create_outgoing(&PlainData(data), &rng);
-                writer.send(enc_data.0)
+                writer
+                    .send(enc_data.0)
                     .await
                     .map_err(|_| SecureChannelError::WriterError)?;
             }
@@ -176,7 +182,8 @@ where
                     Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
                 };
-                writer.send(enc_data.0)
+                writer
+                    .send(enc_data.0)
                     .await
                     .map_err(|_| SecureChannelError::WriterError)?;
                 cur_ticks_to_rekey = ticks_to_rekey;
@@ -221,8 +228,9 @@ where
         reader,
         identity_client,
         opt_expected_remote,
-        rng.clone()
-    ).await?;
+        rng.clone(),
+    )
+    .await?;
 
     let remote_public_key = dh_state.get_remote_public_key().clone();
 
@@ -310,8 +318,9 @@ where
                 self.rng.clone(),
                 self.timer_client.clone(),
                 self.ticks_to_rekey,
-                self.spawner.clone()
-            ).await
+                self.spawner.clone(),
+            )
+            .await
             .ok()
         })
     }

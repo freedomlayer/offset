@@ -76,29 +76,35 @@ where
     let ver_conn = version_transform.transform(conn_pair).await;
 
     // Encrypt, requiring that the remote side will have node_public_key as public key:
-    let (public_key, enc_conn) =
-        encrypt_transform.transform((Some(node_public_key.clone()), ver_conn)).await
-            .ok_or(SetupConnectionError::EncryptSetupError)?;
+    let (public_key, enc_conn) = encrypt_transform
+        .transform((Some(node_public_key.clone()), ver_conn))
+        .await
+        .ok_or(SetupConnectionError::EncryptSetupError)?;
     assert_eq!(public_key, node_public_key);
 
     // Keepalive wrapper:
     let (mut sender, mut receiver) = keepalive_transform.transform(enc_conn).await;
 
     // Get AppPermissions:
-    let app_permissions_data =
-        receiver.next().await.ok_or(SetupConnectionError::RecvAppPermissionsError)?;
+    let app_permissions_data = receiver
+        .next()
+        .await
+        .ok_or(SetupConnectionError::RecvAppPermissionsError)?;
     let app_permissions = AppPermissions::proto_deserialize(&app_permissions_data)
         .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
     // Wait for the first NodeReport.
-    let data = receiver.next().await.ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
+    let data = receiver
+        .next()
+        .await
+        .ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
     let message = AppServerToApp::proto_deserialize(&data)
         .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
 
     let node_report = if let AppServerToApp::Report(node_report) = message {
         node_report
     } else {
-        return Err(SetupConnectionError::FirstMessageNotNodeReport)
+        return Err(SetupConnectionError::FirstMessageNotNodeReport);
     };
 
     // serialization:
@@ -155,7 +161,9 @@ where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Send + Sync + Clone + 'static,
 {
-    let conn_pair = net_connector.transform(node_net_address).await
+    let conn_pair = net_connector
+        .transform(node_net_address)
+        .await
         .ok_or(NodeConnectError::NetConnectorError)?;
 
     let conn_tuple = setup_connection(
@@ -164,8 +172,9 @@ where
         rng.clone(),
         node_public_key,
         app_identity_client,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
     .map_err(NodeConnectError::SetupConnectionError)?;
 
     AppConn::new(conn_tuple, rng, &mut spawner)
@@ -204,7 +213,8 @@ where
         timer_client,
         app_identity_client,
         rng,
-        spawner
-    ).await
+        spawner,
+    )
+    .await
     .map_err(|_| ConnectError)
 }

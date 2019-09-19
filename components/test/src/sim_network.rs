@@ -96,11 +96,13 @@ impl SimNetworkClient {
         net_address: NetAddress,
     ) -> Result<mpsc::Receiver<ConnPairVec>, SimNetworkClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
-        self
-            .sender
-            .send(SimNetworkRequest::Listen((net_address, response_sender))).await
-        .map_err(|_| SimNetworkClientError::SendRequestError)?;
-        response_receiver.await.map_err(|_| SimNetworkClientError::ReceiveResponseError)
+        self.sender
+            .send(SimNetworkRequest::Listen((net_address, response_sender)))
+            .await
+            .map_err(|_| SimNetworkClientError::SendRequestError)?;
+        response_receiver
+            .await
+            .map_err(|_| SimNetworkClientError::ReceiveResponseError)
     }
 }
 
@@ -112,10 +114,10 @@ impl FutTransform for SimNetworkClient {
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         let (response_sender, response_receiver) = oneshot::channel();
         Box::pin(async move {
-            self
-                .sender
-                .send(SimNetworkRequest::Connect((net_address, response_sender))).await
-            .ok()?;
+            self.sender
+                .send(SimNetworkRequest::Connect((net_address, response_sender)))
+                .await
+                .ok()?;
             response_receiver.await.ok()
         })
     }
@@ -148,12 +150,20 @@ mod tests {
         let mut net_client2 = net_client1.clone();
         let mut net_client3 = net_client1.clone();
 
-        let mut incoming1 = net_client1.listen(net_address("net_client1")).await.unwrap();
-        let mut incoming2 = net_client2.listen(net_address("net_client2")).await.unwrap();
+        let mut incoming1 = net_client1
+            .listen(net_address("net_client1"))
+            .await
+            .unwrap();
+        let mut incoming2 = net_client2
+            .listen(net_address("net_client2"))
+            .await
+            .unwrap();
 
         for _ in 0..3 {
-            let (mut sender3, mut receiver3) =
-                net_client3.transform(net_address("net_client1")).await.unwrap();
+            let (mut sender3, mut receiver3) = net_client3
+                .transform(net_address("net_client1"))
+                .await
+                .unwrap();
             let (mut sender1, mut receiver1) = incoming1.next().await.unwrap();
 
             sender1.send(vec![1, 2, 3]).await.unwrap();
@@ -164,8 +174,10 @@ mod tests {
         }
 
         for _ in 0..3 {
-            let (mut sender3, mut receiver3) =
-                net_client3.transform(net_address("net_client2")).await.unwrap();
+            let (mut sender3, mut receiver3) = net_client3
+                .transform(net_address("net_client2"))
+                .await
+                .unwrap();
             let (mut sender2, mut receiver2) = incoming2.next().await.unwrap();
 
             sender2.send(vec![1, 2, 3]).await.unwrap();
@@ -177,7 +189,10 @@ mod tests {
 
         drop(incoming2);
 
-        assert!(net_client3.transform(net_address("net_client2")).await.is_none());
+        assert!(net_client3
+            .transform(net_address("net_client2"))
+            .await
+            .is_none());
     }
 
     #[test]

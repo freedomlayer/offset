@@ -76,11 +76,17 @@ where
         );
 
         // Start listening to done requests:
-        let mut incoming_done_requests = self.done_app_requests_mc.request_stream().await
+        let mut incoming_done_requests = self
+            .done_app_requests_mc
+            .request_stream()
+            .await
             .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Send CreatePayment:
-        self.sender.send(to_app_server).await.map_err(|_| BuyerError::ConnectivityError)?;
+        self.sender
+            .send(to_app_server)
+            .await
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
         while let Some(done_request_id) = incoming_done_requests.next().await {
@@ -113,10 +119,16 @@ where
             AppRequest::CreateTransaction(create_transaction),
         );
 
-        let mut incoming_transaction_results = self.transaction_results_mc.request_stream().await
+        let mut incoming_transaction_results = self
+            .transaction_results_mc
+            .request_stream()
+            .await
             .map_err(|_| BuyerError::ConnectivityError)?;
 
-        self.sender.send(to_app_server).await.map_err(|_| BuyerError::ConnectivityError)?;
+        self.sender
+            .send(to_app_server)
+            .await
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         while let Some(transaction_result) = incoming_transaction_results.next().await {
             if transaction_result.request_id != request_id {
@@ -143,11 +155,16 @@ where
             AppRequest::RequestClosePayment(payment_id.clone()),
         );
 
-        let mut incoming_response_close_payment =
-            self.response_close_payments_mc.request_stream().await
-                .map_err(|_| BuyerError::ConnectivityError)?;
+        let mut incoming_response_close_payment = self
+            .response_close_payments_mc
+            .request_stream()
+            .await
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
-        self.sender.send(to_app_server).await.map_err(|_| BuyerError::ConnectivityError)?;
+        self.sender
+            .send(to_app_server)
+            .await
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         while let Some(response_close_payment) = incoming_response_close_payment.next().await {
             if response_close_payment.payment_id != payment_id {
@@ -178,11 +195,17 @@ where
         );
 
         // Start listening to done requests:
-        let mut incoming_done_requests = self.done_app_requests_mc.request_stream().await
+        let mut incoming_done_requests = self
+            .done_app_requests_mc
+            .request_stream()
+            .await
             .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Send ReceiptAck:
-        self.sender.send(to_app_server).await.map_err(|_| BuyerError::ConnectivityError)?;
+        self.sender
+            .send(to_app_server)
+            .await
+            .map_err(|_| BuyerError::ConnectivityError)?;
 
         // Wait for a sign that our request was received:
         while let Some(done_request_id) = incoming_done_requests.next().await {

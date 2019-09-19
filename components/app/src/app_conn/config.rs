@@ -45,11 +45,17 @@ where
         let to_app_server = AppToAppServer::new(app_request_id.clone(), app_request);
 
         // Start listening to done requests:
-        let mut incoming_done_requests =
-            self.done_app_requests_mc.request_stream().await.map_err(|_| AppConfigError)?;
+        let mut incoming_done_requests = self
+            .done_app_requests_mc
+            .request_stream()
+            .await
+            .map_err(|_| AppConfigError)?;
 
         // Send our request to offst node:
-        self.sender.send(to_app_server).await.map_err(|_| AppConfigError)?;
+        self.sender
+            .send(to_app_server)
+            .await
+            .map_err(|_| AppConfigError)?;
 
         // Wait for a sign that our request was received:
         while let Some(done_request_id) = incoming_done_requests.next().await {
@@ -64,14 +70,16 @@ where
         &mut self,
         named_relay_address: NamedRelayAddress,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::AddRelay(named_relay_address)).await
+        self.send_request(AppRequest::AddRelay(named_relay_address))
+            .await
     }
 
     pub async fn remove_relay(
         &mut self,
         relay_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::RemoveRelay(relay_public_key)).await
+        self.send_request(AppRequest::RemoveRelay(relay_public_key))
+            .await
     }
 
     pub async fn add_friend(
@@ -99,42 +107,48 @@ where
             friend_public_key,
             relays,
         };
-        self.send_request(AppRequest::SetFriendRelays(set_friend_relays)).await
+        self.send_request(AppRequest::SetFriendRelays(set_friend_relays))
+            .await
     }
 
     pub async fn remove_friend(
         &mut self,
         friend_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::RemoveFriend(friend_public_key)).await
+        self.send_request(AppRequest::RemoveFriend(friend_public_key))
+            .await
     }
 
     pub async fn enable_friend(
         &mut self,
         friend_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::EnableFriend(friend_public_key)).await
+        self.send_request(AppRequest::EnableFriend(friend_public_key))
+            .await
     }
 
     pub async fn disable_friend(
         &mut self,
         friend_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::DisableFriend(friend_public_key)).await
+        self.send_request(AppRequest::DisableFriend(friend_public_key))
+            .await
     }
 
     pub async fn open_friend(
         &mut self,
         friend_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::OpenFriend(friend_public_key)).await
+        self.send_request(AppRequest::OpenFriend(friend_public_key))
+            .await
     }
 
     pub async fn close_friend(
         &mut self,
         friend_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::CloseFriend(friend_public_key)).await
+        self.send_request(AppRequest::CloseFriend(friend_public_key))
+            .await
     }
 
     pub async fn set_friend_remote_max_debt(
@@ -147,8 +161,9 @@ where
             remote_max_debt,
         };
         self.send_request(AppRequest::SetFriendRemoteMaxDebt(
-            set_friend_remote_max_debt
-        )).await
+            set_friend_remote_max_debt,
+        ))
+        .await
     }
 
     pub async fn set_friend_rate(
@@ -160,7 +175,8 @@ where
             friend_public_key,
             rate,
         };
-        self.send_request(AppRequest::SetFriendRate(set_friend_rate)).await
+        self.send_request(AppRequest::SetFriendRate(set_friend_rate))
+            .await
     }
 
     pub async fn reset_friend_channel(
@@ -176,20 +192,23 @@ where
             friend_public_key,
             reset_token,
         };
-        self.send_request(AppRequest::ResetFriendChannel(reset_friend_channel)).await
+        self.send_request(AppRequest::ResetFriendChannel(reset_friend_channel))
+            .await
     }
 
     pub async fn add_index_server(
         &mut self,
         named_index_server: NamedIndexServerAddress,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::AddIndexServer(named_index_server)).await
+        self.send_request(AppRequest::AddIndexServer(named_index_server))
+            .await
     }
 
     pub async fn remove_index_server(
         &mut self,
         index_public_key: PublicKey,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::RemoveIndexServer(index_public_key)).await
+        self.send_request(AppRequest::RemoveIndexServer(index_public_key))
+            .await
     }
 }

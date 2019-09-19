@@ -91,18 +91,25 @@ impl SeqFriendsClient {
     ) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::Mutate(index_mutation, sender);
-        self.requests_sender.send(request).await
+        self.requests_sender
+            .send(request)
+            .await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver
+            .await
+            .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
     pub async fn reset_countdown(&mut self) -> Result<(), SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::ResetCountdown(sender);
-        self.requests_sender.send(request)
+        self.requests_sender
+            .send(request)
             .await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver
+            .await
+            .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 
     pub async fn next_update(
@@ -110,10 +117,13 @@ impl SeqFriendsClient {
     ) -> Result<Option<(usize, UpdateFriend)>, SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::NextUpdate(sender);
-        self.requests_sender.send(request)
+        self.requests_sender
+            .send(request)
             .await
             .map_err(|_| SeqFriendsClientError::SendRequestError)?;
-        Ok(receiver.await.map_err(|_| SeqFriendsClientError::RecvResponseError)?)
+        Ok(receiver
+            .await
+            .map_err(|_| SeqFriendsClientError::RecvResponseError)?)
     }
 }
 

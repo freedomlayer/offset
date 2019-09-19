@@ -130,7 +130,8 @@ where
 
                 // Send request to server:
                 let to_server_message = IndexClientToServer::RequestRoutes(request_routes);
-                self.to_server.send(to_server_message)
+                self.to_server
+                    .send(to_server_message)
                     .await
                     .map_err(|_| SingleClientError::SendToServerError)?;
             }
@@ -162,7 +163,8 @@ where
 
                 // Send MutationsUpdate to server:
                 let to_server_message = IndexClientToServer::MutationsUpdate(mutations_update);
-                self.to_server.send(to_server_message)
+                self.to_server
+                    .send(to_server_message)
                     .await
                     .map_err(|_| SingleClientError::SendToServerError)?;
             }
@@ -226,11 +228,15 @@ where
     while let Some(event) = events.next().await {
         match event {
             SingleClientEvent::FromServer(index_server_to_client) => {
-                single_client.handle_server_message(index_server_to_client).await?
+                single_client
+                    .handle_server_message(index_server_to_client)
+                    .await?
             }
             SingleClientEvent::ServerClosed => return Err(SingleClientError::ServerClosed),
             SingleClientEvent::Control(index_client_control) => {
-                single_client.handle_control_message(index_client_control).await?
+                single_client
+                    .handle_control_message(index_client_control)
+                    .await?
             }
             SingleClientEvent::ControlClosed => return Err(SingleClientError::ControlClosed),
         }
@@ -325,7 +331,10 @@ mod tests {
         // Send some time hashes from server:
         for i in 2..8 {
             let time_hash = HashResult::from(&[i; HashResult::len()]);
-            server_sender.send(IndexServerToClient::TimeHash(time_hash)).await.unwrap();
+            server_sender
+                .send(IndexServerToClient::TimeHash(time_hash))
+                .await
+                .unwrap();
         }
 
         // Request routes:
@@ -358,7 +367,8 @@ mod tests {
             multi_routes: vec![], // No suitable routes were found
         };
 
-        server_sender.send(IndexServerToClient::ResponseRoutes(response_routes.clone()))
+        server_sender
+            .send(IndexServerToClient::ResponseRoutes(response_routes.clone()))
             .await
             .unwrap();
 
@@ -369,7 +379,10 @@ mod tests {
         for iter in 0..3 {
             // Counter should increment every time
             // Send mutations:
-            control_sender.send(SingleClientControl::SendMutations(vec![])).await.unwrap();
+            control_sender
+                .send(SingleClientControl::SendMutations(vec![]))
+                .await
+                .unwrap();
 
             // Mutations should be sent to the server:
             let index_client_to_server = server_receiver.next().await.unwrap();

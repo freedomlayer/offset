@@ -38,13 +38,18 @@ where
         relay_address: A,
         remote_public_key: PublicKey,
     ) -> Result<ConnPairVec, ClientConnectorError> {
-        let (mut sender, receiver) = self.connector.transform(relay_address).await
+        let (mut sender, receiver) = self
+            .connector
+            .transform(relay_address)
+            .await
             .ok_or(ClientConnectorError::InnerConnectorError)?;
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
         let ser_init_connection = init_connection.proto_serialize();
-        sender.send(ser_init_connection).await
+        sender
+            .send(ser_init_connection)
+            .await
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
 
         let from_tunnel_receiver = receiver;
@@ -54,7 +59,8 @@ where
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = self
             .keepalive_transform
-            .transform((to_tunnel_sender, from_tunnel_receiver)).await;
+            .transform((to_tunnel_sender, from_tunnel_receiver))
+            .await;
 
         Ok((user_to_tunnel, user_from_tunnel))
     }
@@ -110,7 +116,10 @@ mod tests {
         let c_public_key = public_key.clone();
         let fut_conn_pair = spawner
             .spawn_with_handle(async move {
-                client_connector.transform((address, c_public_key)).await.unwrap()
+                client_connector
+                    .transform((address, c_public_key))
+                    .await
+                    .unwrap()
             })
             .unwrap();
 

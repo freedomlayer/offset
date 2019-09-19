@@ -36,8 +36,9 @@ where
         TEST_MAX_NODE_RELAYS,
         TEST_MAX_OPERATIONS_IN_BATCH,
         TEST_MAX_PENDING_USER_REQUESTS,
-        funder_incoming
-    ).await?;
+        funder_incoming,
+    )
+    .await?;
 
     let FunderHandlerOutput {
         ephemeral_mutations,

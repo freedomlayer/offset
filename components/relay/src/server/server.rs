@@ -128,7 +128,8 @@ where
         remote_sender
             .send_all(&mut receiver)
             .map_err(|e| error!("send_fut1 error: {:?}", e))
-            .then(|_| future::ready(())).await
+            .then(|_| future::ready(()))
+            .await
     };
     let send_fut2 = async move {
         sender
@@ -140,7 +141,8 @@ where
                     listen_public_key: acceptor_public_key,
                 };
                 send_to_sink(tunnel_closed_sender, tunnel_closed).then(|_| future::ready(()))
-            }).await
+            })
+            .await
     };
 
     spawner.spawn(send_fut1).unwrap();
@@ -164,7 +166,9 @@ where
     KC: Sink<Vec<u8>, SinkError = ()> + Unpin + Send + 'static,
     S: Stream<Item = IncomingConn<ML, KL, MA, KA, MC, KC>> + Unpin + Send,
 {
-    let timer_stream = timer_client.request_timer_stream().await
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
         .map_err(|_| RelayServerError::RequestTimerStreamError)?;
     let timer_stream = timer_stream
         .map(|_| RelayServerEvent::TimerTick)
@@ -206,7 +210,8 @@ where
                                 let mut sender = sender.sink_map_err(|_| ());
                                 sender
                                     .send_all(&mut mpsc_receiver)
-                                    .then(|_| future::ready(())).await
+                                    .then(|_| future::ready(()))
+                                    .await
                             })
                             .unwrap();
                         let listener = Listener::new(mpsc_sender);
@@ -227,7 +232,8 @@ where
                                 let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
                                 c_event_sender
                                     .send_all(&mut receiver)
-                                    .then(|_| future::ready(())).await
+                                    .then(|_| future::ready(()))
+                                    .await
                             })
                             .unwrap();
                     }

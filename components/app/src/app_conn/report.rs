@@ -23,8 +23,11 @@ impl AppReport {
     pub async fn incoming_reports(
         &mut self,
     ) -> Result<(NodeReport, mpsc::Receiver<Vec<NodeReportMutation>>), AppReportError> {
-        let (batch_mutable, incoming_mutations) =
-            self.report_client.request_state().await.map_err(|_| AppReportError)?;
+        let (batch_mutable, incoming_mutations) = self
+            .report_client
+            .request_state()
+            .await
+            .map_err(|_| AppReportError)?;
 
         Ok((batch_mutable.0, incoming_mutations))
     }

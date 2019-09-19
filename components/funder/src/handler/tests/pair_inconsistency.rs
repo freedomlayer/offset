@@ -61,8 +61,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Initialize 2:
@@ -72,8 +73,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Add friend 2:
@@ -93,8 +95,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1: Enable friend 2:
@@ -112,8 +115,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node2: Add friend 1:
@@ -135,8 +139,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2: enable friend 1:
@@ -154,8 +159,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node1: Notify that Node2 is alive
@@ -168,8 +174,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -203,8 +210,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2 sends information about his address to Node1:
@@ -218,8 +226,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2 should retransmit his outgoing message:
@@ -254,8 +263,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Node1 should send an inconsistency error:
@@ -283,8 +293,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2 should send his reset terms:
@@ -312,8 +323,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     assert!(outgoing_comms.is_empty());
@@ -336,8 +348,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     let friend2 = state1.friends.get(&pk2).unwrap();
@@ -387,8 +400,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     // Node2 should send back an empty move token:
@@ -422,8 +436,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
 
     // Inconsistency is resolved.
@@ -460,8 +475,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state2,
         &mut ephemeral2,
         &mut rng,
-        identity_client2
-    )).await
+        identity_client2,
+    ))
+    .await
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
@@ -493,8 +509,9 @@ async fn task_handler_pair_inconsistency<'a>(
         &mut state1,
         &mut ephemeral1,
         &mut rng,
-        identity_client1
-    )).await
+        identity_client1,
+    ))
+    .await
     .unwrap();
     assert!(outgoing_comms.is_empty());
 }

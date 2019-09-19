@@ -89,7 +89,8 @@ where
                 dest_plain_lock.hash_lock(),
                 rand_nonce,
                 identity_client,
-            ).await;
+            )
+            .await;
 
             let backwards_op = BackwardsOp::Response(response_send_funds);
             let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(backwards_op);

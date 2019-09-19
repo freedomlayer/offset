@@ -138,7 +138,8 @@ where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let timer_stream = timer_client.request_timer_stream()
+    let timer_stream = timer_client
+        .request_timer_stream()
         .await
         .map_err(|_| SpawnIndexClientError::RequestTimerStreamError)?;
 

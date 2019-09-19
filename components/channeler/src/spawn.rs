@@ -45,7 +45,8 @@ where
         Box::pin(async move {
             let (_public_key, conn_pair) = self
                 .encrypt_transform
-                .transform((Some(public_key), conn_pair)).await?;
+                .transform((Some(public_key), conn_pair))
+                .await?;
             Some(conn_pair)
         })
     }
@@ -78,9 +79,9 @@ where
         let (public_key, conn_pair) = input;
 
         Box::pin(async move {
-            self
-                .encrypt_transform
-                .transform((Some(public_key), conn_pair)).await
+            self.encrypt_transform
+                .transform((Some(public_key), conn_pair))
+                .await
         })
     }
 }
@@ -157,6 +158,7 @@ where
         to_funder,
         pool_connector,
         pool_listener,
-        spawner.clone()
-    ).await
+        spawner.clone(),
+    )
+    .await
 }
