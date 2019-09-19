@@ -251,6 +251,7 @@ async fn config_add_relay(
     // TODO: Possibly do not take a struct here?
     // Take 3 arguments instead.
     // HACK:
+    #[allow(clippy::let_and_return)]
     let res = app_config.add_relay(named_relay_address).await.map_err(|_| ConfigError::AppConfigError);
     res
 }
@@ -303,6 +304,7 @@ async fn config_add_index(
 
     // TODO: Possibly take three arguments instead of a struct?
     // HACK:
+    #[allow(clippy::let_and_return)]
     let res = app_config.add_index_server(named_index_server_address).await
         .map_err(|_| ConfigError::AppConfigError);
     res

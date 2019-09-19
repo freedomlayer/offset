@@ -98,7 +98,7 @@ where
     let node_report = if let AppServerToApp::Report(node_report) = message {
         node_report
     } else {
-        return Err(SetupConnectionError::FirstMessageNotNodeReport)?;
+        return Err(SetupConnectionError::FirstMessageNotNodeReport)
     };
 
     // serialization:

@@ -147,6 +147,7 @@ async fn seller_commit_invoice(
     }
 
     // HACK:
+    #[allow(clippy::let_and_return)]
     let res = app_seller.commit_invoice(multi_commit).await.map_err(|_| SellerError::CommitInvoiceError);
     res
 }
