@@ -123,8 +123,9 @@ where
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
         + Send
+        + Sync
         + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
 {
     pub fn new(
         friend_public_key: PublicKey,
@@ -319,11 +320,12 @@ async fn connect_pool_loop<RA, ET, TS, C, S>(
 ) -> Result<(), ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
     TS: Stream + Unpin + Send,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
         + Send
+        + Sync
         + 'static,
     S: Spawn + Clone,
 {
@@ -401,11 +403,12 @@ pub fn create_connect_pool<RA, ET, TS, C, S>(
 ) -> Result<ConnectPoolControl<RA>, ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
         + Send
+        + Sync
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -477,10 +480,11 @@ where
 impl<RA, C, ET, S> FutTransform for PoolConnector<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + Sync + 'static,
     ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
         + Clone
         + Send
+        + Sync
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
