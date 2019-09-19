@@ -4,7 +4,7 @@
 #![feature(generators)]
 #![feature(never_type)]
 #![feature(unboxed_closures)]
-#![type_length_limit = "8388608"]
+#![type_length_limit = "20844883"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
