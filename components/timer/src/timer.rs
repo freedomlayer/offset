@@ -28,7 +28,7 @@
 use common::futures_compat::create_interval;
 use common::select_streams::{select_streams, BoxStream};
 use futures::channel::{mpsc, oneshot};
-use futures::future::FutureExt;
+// use futures::future::FutureExt;
 use futures::prelude::*;
 use futures::stream;
 use futures::task::{Spawn, SpawnExt};
@@ -329,7 +329,7 @@ mod tests {
         mut timer_client: TimerClient,
     ) -> Result<(), ()>
     where
-        S: Sink<(), SinkError = ()> + std::marker::Unpin + 'static,
+        S: Sink<(), Error = ()> + std::marker::Unpin + 'static,
     {
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
