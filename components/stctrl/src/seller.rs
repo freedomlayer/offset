@@ -146,7 +146,9 @@ async fn seller_commit_invoice(
         return Err(SellerError::InvoiceCommitMismatch);
     }
 
-    app_seller.commit_invoice(multi_commit).await.map_err(|_| SellerError::CommitInvoiceError)
+    // HACK:
+    let res = app_seller.commit_invoice(multi_commit).await.map_err(|_| SellerError::CommitInvoiceError);
+    res
 }
 
 pub async fn seller(seller_cmd: SellerCmd, mut app_conn: AppConn) -> Result<(), SellerError> {
