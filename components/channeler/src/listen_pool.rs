@@ -672,7 +672,6 @@ mod tests {
         assert!(listen_req1.config_receiver.next().await.is_none());
         drop(listen_req1);
 
-
         // Connection to relay 2u32 is opened:
         let mut listen_req2 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address2, _) = listen_req2.arg;
@@ -686,7 +685,6 @@ mod tests {
             .unwrap();
         event_receiver.next().await.unwrap();
 
-
         // Connection to relay 3u32 is opened:
         let mut listen_req3 = listen_req_receiver.next().await.unwrap();
         let (ref relay_address3, _) = listen_req3.arg;
@@ -699,7 +697,6 @@ mod tests {
                 _ => unreachable!(),
             };
         }
-
 
         config_sender
             .send(LpConfig::RemoveFriend(pk_c.clone()))

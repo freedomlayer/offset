@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use futures::future::{self, FutureObj};
-use futures::task::{ArcWake, Context, Spawn, SpawnError, Waker, waker};
+use futures::task::{waker, ArcWake, Context, Spawn, SpawnError, Waker};
 use futures::{Future, Poll};
 
 // use crate::caller_info::{get_caller_info, CallerInfo};
