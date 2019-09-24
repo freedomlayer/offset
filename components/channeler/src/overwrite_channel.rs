@@ -26,7 +26,7 @@ where
     M: Stream<Item = T> + Unpin,
     K: Sink<T> + Unpin,
 {
-    type Output = Result<(), K::SinkError>;
+    type Output = Result<(), K::Error>;
 
     fn poll(mut self: Pin<&mut Self>, context: &mut Context) -> Poll<Self::Output> {
         let mut fself = Pin::new(&mut self);
@@ -82,7 +82,7 @@ pub fn overwrite_send_all<T, E, M, K>(sender: K, receiver: M) -> impl Future<Out
 where
     T: Unpin,
     M: Stream<Item = T> + Unpin,
-    K: Sink<T, SinkError = E> + Unpin,
+    K: Sink<T, Error = E> + Unpin,
 {
     OverwriteChannel::new(sender, receiver)
 }

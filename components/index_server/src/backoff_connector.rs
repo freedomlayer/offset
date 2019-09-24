@@ -114,7 +114,7 @@ mod tests {
 
             // Finally we let the connection attempt succeed.
             // Return a dummy channel:
-            let (sender, receiver) = mpsc::channel(0);
+            let (sender, receiver) = mpsc::channel(1);
             req.reply(Some((sender, receiver)));
         })
         .await;

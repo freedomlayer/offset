@@ -998,8 +998,8 @@ mod tests {
     where
         S: Spawn + Clone + Send + Sync + 'static,
     {
-        let (mut funder_sender, from_funder) = mpsc::channel(0);
-        let (to_funder, _funder_receiver) = mpsc::channel(0);
+        let (mut funder_sender, from_funder) = mpsc::channel(1);
+        let (to_funder, _funder_receiver) = mpsc::channel(1);
 
         // We sort the public keys ahead of time, so that we know how to break ties.
         // Our local public key will be pks[1]. pks[0] < pks[1] < pks[2]
@@ -1011,10 +1011,10 @@ mod tests {
             .collect::<Vec<PublicKey>>();
         pks.sort_by(compare_public_key);
 
-        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
+        let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(1);
         let connector = DummyConnector::new(conn_request_sender);
 
-        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(1);
         let listener = DummyListener::new(listener_req_sender, spawner.clone());
 
         spawner
@@ -1069,8 +1069,8 @@ mod tests {
             .unwrap();
 
         // Reply to the conn request too late:
-        let (connect_sender0, _connect_receiver0) = mpsc::channel(0);
-        let (config_sender0, _config_receiver0) = mpsc::channel(0);
+        let (connect_sender0, _connect_receiver0) = mpsc::channel(1);
+        let (config_sender0, _config_receiver0) = mpsc::channel(1);
 
         let config_client0 = CpConfigClient::new(config_sender0);
         let connect_client0 = CpConnectClient::new(connect_sender0);
@@ -1086,8 +1086,8 @@ mod tests {
         assert_eq!(conn_request.address, pks[0]);
 
         // Reply to the conn request, to avoid panic on exit:
-        let (connect_sender0, _connect_receiver0) = mpsc::channel(0);
-        let (config_sender0, _config_receiver0) = mpsc::channel(0);
+        let (connect_sender0, _connect_receiver0) = mpsc::channel(1);
+        let (config_sender0, _config_receiver0) = mpsc::channel(1);
 
         let config_client0 = CpConfigClient::new(config_sender0);
         let connect_client0 = CpConnectClient::new(connect_sender0);

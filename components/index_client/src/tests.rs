@@ -42,8 +42,8 @@ fn basic_index_client<S>(mut spawner: S) -> IndexClientControl<u32>
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let (app_server_sender, from_app_server) = mpsc::channel(0);
-    let (to_app_server, app_server_receiver) = mpsc::channel(0);
+    let (app_server_sender, from_app_server) = mpsc::channel(1);
+    let (to_app_server, app_server_receiver) = mpsc::channel(1);
 
     let index_server37 = NamedIndexServerAddress {
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),

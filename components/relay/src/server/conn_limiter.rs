@@ -45,7 +45,7 @@ async fn conn_limiter<M, K, KE, T>(incoming_conns: T, max_conns: usize) -> Resul
 where
     T: Stream<Item = (M, K, PublicKey)>,
     M: Stream<Item = Vec<u8>>,
-    K: Sink<Vec<u8>, SinkError = KE>,
+    K: Sink<Vec<u8>, Error = KE>,
 {
     let mut cur_conns: usize = 0;
     unimplemented!();

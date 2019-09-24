@@ -98,11 +98,11 @@ mod tests {
     use common::dummy_connector::DummyConnector;
 
     async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
-        let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
+        let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(1);
+        let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
 
         let conn_pair = (local_sender, local_receiver);
-        let (req_sender, mut req_receiver) = mpsc::channel(0);
+        let (req_sender, mut req_receiver) = mpsc::channel(1);
         // conn_sender.send(conn_pair).await.unwrap();
         let connector = DummyConnector::new(req_sender);
 

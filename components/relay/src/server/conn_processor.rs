@@ -25,11 +25,11 @@ async fn dispatch_conn<FT>(
 ) -> Option<
     IncomingConn<
         impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<IncomingConnection, SinkError = ()> + Unpin,
+        impl Sink<IncomingConnection, Error = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, Error = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, Error = ()> + Unpin,
     >,
 >
 where
@@ -73,11 +73,11 @@ async fn process_conn<FT>(
 ) -> Option<
     IncomingConn<
         impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<IncomingConnection, SinkError = ()> + Unpin,
+        impl Sink<IncomingConnection, Error = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, Error = ()> + Unpin,
         impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, SinkError = ()> + Unpin,
+        impl Sink<Vec<u8>, Error = ()> + Unpin,
     >,
 >
 where
@@ -116,11 +116,11 @@ pub fn conn_processor<T, FT>(
 ) -> impl Stream<
     Item = IncomingConn<
         impl Stream<Item = RejectConnection>,
-        impl Sink<IncomingConnection, SinkError = ()>,
+        impl Sink<IncomingConnection, Error = ()>,
         impl Stream<Item = Vec<u8>>,
-        impl Sink<Vec<u8>, SinkError = ()>,
+        impl Sink<Vec<u8>, Error = ()>,
         impl Stream<Item = Vec<u8>>,
-        impl Sink<Vec<u8>, SinkError = ()>,
+        impl Sink<Vec<u8>, Error = ()>,
     >,
 >
 where

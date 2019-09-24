@@ -173,8 +173,8 @@ where
     ) -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
         let (to_remote, from_remote) = conn_pair;
 
-        let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
+        let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
+        let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
 
         Box::pin(async move {
             if let Ok(timer_stream) = self.timer_client.request_timer_stream().await {
@@ -269,8 +269,8 @@ mod tests {
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
 
-        let (to_remote, mut remote_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (mut remote_sender, from_remote) = mpsc::channel::<Vec<u8>>(0);
+        let (to_remote, mut remote_receiver) = mpsc::channel::<Vec<u8>>(1);
+        let (mut remote_sender, from_remote) = mpsc::channel::<Vec<u8>>(1);
 
         let (to_user, mut user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
@@ -355,8 +355,8 @@ mod tests {
          *   <-- | <-- | <--
          */
 
-        let (a_sender, b_receiver) = mpsc::channel(0);
-        let (b_sender, a_receiver) = mpsc::channel(0);
+        let (a_sender, b_receiver) = mpsc::channel(1);
+        let (b_sender, a_receiver) = mpsc::channel(1);
 
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let (mut a_sender, mut a_receiver) = keepalive_channel(

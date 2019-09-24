@@ -44,7 +44,7 @@ async fn initial_exchange<EK, M: 'static, K: 'static, R: CryptoRandom + 'static>
 where
     R: CryptoRandom + Clone,
     M: Stream<Item = Vec<u8>> + Unpin,
-    K: Sink<Vec<u8>, SinkError = EK> + Unpin,
+    K: Sink<Vec<u8>, Error = EK> + Unpin,
 {
     let local_public_key = identity_client
         .request_public_key()
@@ -114,7 +114,7 @@ async fn secure_channel_loop<EK, M: 'static, K: 'static, R: CryptoRandom + 'stat
 where
     R: CryptoRandom,
     M: Stream<Item = Vec<u8>> + Unpin + Send,
-    K: Sink<Vec<u8>, SinkError = EK> + Unpin,
+    K: Sink<Vec<u8>, Error = EK> + Unpin,
 {
     // TODO: How to perform graceful shutdown of sinks?
     // Is there a way to do it?
@@ -219,7 +219,7 @@ async fn create_secure_channel<EK, M, K, R, S>(
 where
     EK: 'static,
     M: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    K: Sink<Vec<u8>, SinkError = EK> + Unpin + Send + 'static,
+    K: Sink<Vec<u8>, Error = EK> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn,
 {
@@ -234,8 +234,8 @@ where
 
     let remote_public_key = dh_state.get_remote_public_key().clone();
 
-    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
-    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
+    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
 
     let sc_loop = secure_channel_loop(
         dh_state,
@@ -405,8 +405,8 @@ mod tests {
             .spawn(identity_server2.then(|_| future::ready(())))
             .unwrap();
 
-        let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(0);
-        let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(0);
+        let (sender1, receiver2) = mpsc::channel::<Vec<u8>>(1);
+        let (sender2, receiver1) = mpsc::channel::<Vec<u8>>(1);
 
         let ticks_to_rekey: usize = 16;
 

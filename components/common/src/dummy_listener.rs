@@ -61,8 +61,8 @@ where
     type Arg = AR;
 
     fn listen(self, arg: AR) -> (mpsc::Sender<CONF>, mpsc::Receiver<CONN>) {
-        let (conn_sender, conn_receiver) = mpsc::channel(0);
-        let (config_sender, config_receiver) = mpsc::channel(0);
+        let (conn_sender, conn_receiver) = mpsc::channel(1);
+        let (config_sender, config_receiver) = mpsc::channel(1);
 
         let listen_request = ListenRequest {
             conn_sender,

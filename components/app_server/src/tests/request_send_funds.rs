@@ -27,8 +27,8 @@ where
     ) = spawn_dummy_app_server(spawner.clone());
 
     // Connect two apps:
-    let (mut app_sender0, app_server_receiver) = mpsc::channel(0);
-    let (app_server_sender, mut app_receiver0) = mpsc::channel(0);
+    let (mut app_sender0, app_server_receiver) = mpsc::channel(1);
+    let (app_server_sender, mut app_receiver0) = mpsc::channel(1);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
@@ -41,8 +41,8 @@ where
         .await
         .unwrap();
 
-    let (_app_sender1, app_server_receiver) = mpsc::channel(0);
-    let (app_server_sender, mut app_receiver1) = mpsc::channel(0);
+    let (_app_sender1, app_server_receiver) = mpsc::channel(1);
+    let (app_server_sender, mut app_receiver1) = mpsc::channel(1);
     let app_server_conn_pair = (app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,

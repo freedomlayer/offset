@@ -613,7 +613,7 @@ mod tests {
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
-        let (mut config_sender, incoming_config) = mpsc::channel(0);
+        let (mut config_sender, incoming_config) = mpsc::channel(1);
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);

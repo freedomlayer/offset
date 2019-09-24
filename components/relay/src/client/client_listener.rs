@@ -52,7 +52,7 @@ enum AcceptConnectionError {
 /// This is done to overcome some compiler type limitations.
 fn to_mpsc_sender<T,SI,SE>(mut sink: SI, mut spawner: impl Spawn) -> mpsc::Sender<T>
 where
-    SI: Sink<T, SinkError=SE> + Unpin + Send + 'static,
+    SI: Sink<T, Error=SE> + Unpin + Send + 'static,
     T: Send + 'static,
 {
     let (sender, mut receiver) = mpsc::channel::<T>(0);
@@ -115,7 +115,7 @@ async fn accept_connection<C, CS, CSE, FT>(
 ) -> Result<(), AcceptConnectionError>
 where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send,
-    CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + 'static,
+    CS: Sink<(PublicKey, ConnPairVec), Error = CSE> + Unpin + 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
     let timer_stream = timer_client
@@ -178,7 +178,7 @@ async fn inner_client_listener<'a, C, IAC, CS, CSE, FT>(
 where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send + Sync + Clone + 'static,
     IAC: Stream<Item = AccessControlOp<PublicKey>> + Unpin + Send + 'static,
-    CS: Sink<(PublicKey, ConnPairVec), SinkError = CSE> + Unpin + Clone + Send + 'static,
+    CS: Sink<(PublicKey, ConnPairVec), Error = CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {
@@ -460,8 +460,8 @@ mod tests {
 
         spawner.spawn(fut_accept).unwrap();
 
-        let (local_sender, mut remote_receiver) = mpsc::channel(0);
-        let (remote_sender, local_receiver) = mpsc::channel(0);
+        let (local_sender, mut remote_receiver) = mpsc::channel(1);
+        let (remote_sender, local_receiver) = mpsc::channel(1);
 
         let conn_pair = (local_sender, local_receiver);
 
@@ -536,8 +536,8 @@ mod tests {
         spawner.spawn(fut_listener).unwrap();
 
         // listener will attempt to start a main connection to the relay:
-        let (mut relay_sender, local_receiver) = mpsc::channel(0);
-        let (local_sender, mut relay_receiver) = mpsc::channel(0);
+        let (mut relay_sender, local_receiver) = mpsc::channel(1);
+        let (local_sender, mut relay_receiver) = mpsc::channel(1);
         let conn_pair = (local_sender, local_receiver);
         let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));
