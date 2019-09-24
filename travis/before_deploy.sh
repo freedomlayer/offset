@@ -33,7 +33,6 @@ mk_tarball() {
         cp "target/$TARGET/release/stindex" "$staging/bin/stindex"
         cp "target/$TARGET/release/stnode" "$staging/bin/stnode"
         cp "target/$TARGET/release/stctrl" "$staging/bin/stctrl"
-        cp "target/$TARGET/release/stregister" "$staging/bin/stregister"
 
         # Copy the licenses and README.
         cp {README.md,LICENSE} "$staging/"
