@@ -234,8 +234,8 @@ where
 
     let remote_public_key = dh_state.get_remote_public_key().clone();
 
-    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
-    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
+    let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
+    let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
 
     let sc_loop = secure_channel_loop(
         dh_state,
