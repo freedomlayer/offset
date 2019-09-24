@@ -173,8 +173,8 @@ where
     ) -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
         let (to_remote, from_remote) = conn_pair;
 
-        let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
+        let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
+        let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
 
         Box::pin(async move {
             if let Ok(timer_stream) = self.timer_client.request_timer_stream().await {
