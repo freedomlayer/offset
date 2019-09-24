@@ -496,7 +496,6 @@ where
     }
 }
 
-#[allow(unused)]
 pub async fn app_server_loop<B, FF, TF, FIC, TIC, IC, S>(
     from_funder: FF,
     to_funder: TF,
@@ -504,7 +503,7 @@ pub async fn app_server_loop<B, FF, TF, FIC, TIC, IC, S>(
     to_index_client: TIC,
     incoming_connections: IC,
     initial_node_report: NodeReport<B>,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), AppServerError>
 where
     B: Clone + PartialEq + Eq + Debug + Send + Sync + 'static,
