@@ -163,13 +163,7 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
     }
 }
 
-#[capnp_conv(crate::funder_capnp::move_token)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<B = NetAddress, S = Signature> {
-    pub operations: Vec<FriendTcOp>,
-    #[capnp_conv(with = OptLocalRelays<NetAddress>)]
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    pub old_token: Signature,
+/*
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
@@ -181,6 +175,28 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub local_pending_debt: u128,
     #[capnp_conv(with = Wrapper<u128>)]
     pub remote_pending_debt: u128,
+*/
+
+/// Implicit values that both sides agree upon.
+/// Those values are also signed as part of the prefix hash.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TokenInfo {
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
+    pub balance: i128,
+    pub local_pending_debt: u128,
+    pub remote_pending_debt: u128,
+}
+
+#[capnp_conv(crate::funder_capnp::move_token)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct MoveToken<B = NetAddress, S = Signature> {
+    pub operations: Vec<FriendTcOp>,
+    #[capnp_conv(with = OptLocalRelays<NetAddress>)]
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    pub old_token: Signature,
     pub rand_nonce: RandValue,
     pub new_token: S,
 }

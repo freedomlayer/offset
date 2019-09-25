@@ -5,7 +5,7 @@ use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, FriendTcOp,
-    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
+    FunderIncomingControl, FunderOutgoingControl, MoveToken, TokenInfo, PendingTransaction,
     RequestSendFundsOp, ResponseSendFundsOp, TransactionStage,
 };
 
@@ -185,12 +185,14 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<B>(move_token: &MoveToken<B>) -> MoveTokenHashed
+pub fn create_hashed<B>(move_token: &MoveToken<B>, token_info: &TokenInfo) -> MoveTokenHashed
 where
     B: CanonicalSerialize,
 {
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
+        token_info: token_info.clone(),
+        /*
         local_public_key: move_token.local_public_key.clone(),
         remote_public_key: move_token.remote_public_key.clone(),
         inconsistency_counter: move_token.inconsistency_counter,
@@ -198,6 +200,7 @@ where
         balance: move_token.balance,
         local_pending_debt: move_token.local_pending_debt,
         remote_pending_debt: move_token.remote_pending_debt,
+        */
         rand_nonce: move_token.rand_nonce.clone(),
         new_token: move_token.new_token.clone(),
     }

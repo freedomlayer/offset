@@ -6,7 +6,7 @@ use crypto::identity::verify_signature;
 
 use proto::crypto::{InvoiceId, PublicKey};
 
-use proto::funder::messages::{Commit, MoveToken, MultiCommit, Receipt};
+use proto::funder::messages::{Commit, MoveToken, MultiCommit, Receipt, TokenInfo};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -83,11 +83,15 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token<B>(move_token: &MoveToken<B>, public_key: &PublicKey) -> bool
+pub fn verify_move_token<B>(
+    move_token: &MoveToken<B>,
+    token_info: &TokenInfo,
+    public_key: &PublicKey,
+) -> bool
 where
     B: CanonicalSerialize,
 {
-    let sig_buffer = move_token_signature_buff(move_token);
+    let sig_buffer = move_token_signature_buff(move_token, token_info);
     verify_signature(&sig_buffer, public_key, &move_token.new_token)
 }
 

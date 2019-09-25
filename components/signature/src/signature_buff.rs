@@ -7,7 +7,7 @@ use proto::crypto::HashResult;
 use common::int_convert::usize_to_u64;
 
 use crate::canonical::CanonicalSerialize;
-use proto::funder::messages::{MoveToken, PendingTransaction, ResponseSendFundsOp};
+use proto::funder::messages::{MoveToken, PendingTransaction, ResponseSendFundsOp, TokenInfo};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -67,8 +67,20 @@ where
     sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
+/*
+pub struct ImplicitMoveToken {
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
+    pub balance: i128,
+    pub local_pending_debt: u128,
+    pub remote_pending_debt: u128,
+}
+*/
+
 /// Hash operations and local_address:
-pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>) -> HashResult
+pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>, token_info: &TokenInfo) -> HashResult
 where
     B: CanonicalSerialize,
 {
@@ -85,35 +97,38 @@ where
     }
 
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
+
+    hash_buff.extend_from_slice(&token_info.local_public_key);
+    hash_buff.extend_from_slice(&token_info.remote_public_key);
+    hash_buff
+        .write_u64::<BigEndian>(token_info.inconsistency_counter)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.move_token_counter)
+        .unwrap();
+    hash_buff
+        .write_i128::<BigEndian>(token_info.balance)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.local_pending_debt)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.remote_pending_debt)
+        .unwrap();
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<B, S>(move_token: &MoveToken<B, S>) -> Vec<u8>
+pub fn move_token_signature_buff<B, S>(
+    move_token: &MoveToken<B, S>,
+    token_info: &TokenInfo,
+) -> Vec<u8>
 where
     B: CanonicalSerialize,
 {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&prefix_hash(move_token));
-    sig_buffer.extend_from_slice(&move_token.local_public_key);
-    sig_buffer.extend_from_slice(&move_token.remote_public_key);
-    sig_buffer
-        .write_u64::<BigEndian>(move_token.inconsistency_counter)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.move_token_counter)
-        .unwrap();
-    sig_buffer
-        .write_i128::<BigEndian>(move_token.balance)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.local_pending_debt)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.remote_pending_debt)
-        .unwrap();
+    sig_buffer.extend_from_slice(&prefix_hash(move_token, token_info));
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
-
     sig_buffer
 }
 
