@@ -79,25 +79,8 @@ pub struct ImplicitMoveToken {
 }
 */
 
-/// Hash operations and local_address:
-pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>, token_info: &TokenInfo) -> HashResult
-where
-    B: CanonicalSerialize,
-{
+pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
     let mut hash_buff = Vec::new();
-
-    hash_buff.extend_from_slice(&move_token.old_token);
-
-    // TODO: Use CanonicalSerialize instead here:
-    hash_buff
-        .write_u64::<BigEndian>(usize_to_u64(move_token.operations.len()).unwrap())
-        .unwrap();
-    for op in &move_token.operations {
-        hash_buff.extend_from_slice(&op.canonical_serialize());
-    }
-
-    hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
-
     hash_buff.extend_from_slice(&token_info.local_public_key);
     hash_buff.extend_from_slice(&token_info.remote_public_key);
     hash_buff
@@ -118,16 +101,36 @@ where
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<B, S>(
-    move_token: &MoveToken<B, S>,
-    token_info: &TokenInfo,
-) -> Vec<u8>
+/// Hash operations and local_address:
+pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>) -> HashResult
+where
+    B: CanonicalSerialize,
+{
+    let mut hash_buff = Vec::new();
+
+    hash_buff.extend_from_slice(&move_token.old_token);
+
+    // TODO: Use CanonicalSerialize instead here:
+    hash_buff
+        .write_u64::<BigEndian>(usize_to_u64(move_token.operations.len()).unwrap())
+        .unwrap();
+    for op in &move_token.operations {
+        hash_buff.extend_from_slice(&op.canonical_serialize());
+    }
+
+    hash_buff.extend_from_slice(&move_token.info_hash);
+    hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
+
+    sha_512_256(&hash_buff)
+}
+
+pub fn move_token_signature_buff<B, S>(move_token: &MoveToken<B, S>) -> Vec<u8>
 where
     B: CanonicalSerialize,
 {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&prefix_hash(move_token, token_info));
+    sig_buffer.extend_from_slice(&prefix_hash(move_token));
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
     sig_buffer
 }

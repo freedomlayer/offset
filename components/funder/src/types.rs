@@ -10,7 +10,7 @@ use proto::funder::messages::{
 };
 
 use signature::signature_buff::{
-    create_response_signature_buffer, move_token_signature_buff, prefix_hash,
+    create_response_signature_buffer, move_token_signature_buff, prefix_hash, hash_token_info,
 };
 
 use identity::IdentityClient;
@@ -20,6 +20,7 @@ pub type UnsignedMoveToken<B> = MoveToken<B, ()>;
 
 pub async fn sign_move_token<'a, B>(
     unsigned_move_token: UnsignedMoveToken<B>,
+    token_info: &TokenInfo, 
     identity_client: &'a mut IdentityClient,
 ) -> MoveToken<B>
 where
@@ -35,6 +36,8 @@ where
         operations: unsigned_move_token.operations,
         opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
+        info_hash: hash_token_info(token_info),
+        /*
         local_public_key: unsigned_move_token.local_public_key,
         remote_public_key: unsigned_move_token.remote_public_key,
         inconsistency_counter: unsigned_move_token.inconsistency_counter,
@@ -42,6 +45,7 @@ where
         balance: unsigned_move_token.balance,
         local_pending_debt: unsigned_move_token.local_pending_debt,
         remote_pending_debt: unsigned_move_token.remote_pending_debt,
+        */
         rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
     }
@@ -108,6 +112,8 @@ pub enum UnsignedFriendTcOp {
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
+    pub token_info: TokenInfo,
+    /*
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
     pub inconsistency_counter: u64,
@@ -115,6 +121,7 @@ pub struct MoveTokenHashed {
     pub balance: i128,
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
+    */
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
@@ -122,7 +129,9 @@ pub struct MoveTokenHashed {
 pub fn create_unsigned_move_token<B>(
     operations: Vec<FriendTcOp>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    token_info: &TokenInfo,
     old_token: Signature,
+    /*
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
     inconsistency_counter: u64,
@@ -130,12 +139,15 @@ pub fn create_unsigned_move_token<B>(
     balance: i128,
     local_pending_debt: u128,
     remote_pending_debt: u128,
+    */
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     MoveToken {
         operations,
         opt_local_relays,
+        info_hash: hash_token_info(token_info),
         old_token,
+        /*
         local_public_key,
         remote_public_key,
         inconsistency_counter,
@@ -143,6 +155,7 @@ pub fn create_unsigned_move_token<B>(
         balance,
         local_pending_debt,
         remote_pending_debt,
+        */
         rand_nonce,
         new_token: (),
     }

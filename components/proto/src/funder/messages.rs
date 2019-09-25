@@ -196,6 +196,7 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub operations: Vec<FriendTcOp>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    pub info_hash: HashResult,
     pub old_token: Signature,
     pub rand_nonce: RandValue,
     pub new_token: S,

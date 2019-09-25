@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TransactionResult,
+    RequestResult, RequestsStatus, TransactionResult, TokenInfo,
 };
 
 use identity::IdentityClient;
@@ -239,28 +239,31 @@ pub async fn apply_local_reset<'a, B, R>(
     let local_pending_debt = 0;
     let remote_pending_debt = 0;
     let opt_local_relays = None;
+
+    let token_info = TokenInfo {
+        local_public_key: m_state.state().local_public_key.clone(),
+        remote_public_key: friend_public_key.clone(),
+        inconsistency_counter: remote_reset_terms.inconsistency_counter,
+        move_token_counter,
+        balance: remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
+        local_pending_debt,
+        remote_pending_debt,
+    };
+
     let u_reset_move_token = create_unsigned_move_token(
         // No operations are required for a reset move token
         Vec::new(),
         opt_local_relays,
+        &token_info,
         remote_reset_terms.reset_token.clone(),
-        m_state.state().local_public_key.clone(),
-        friend_public_key.clone(),
-        remote_reset_terms.inconsistency_counter,
-        move_token_counter,
-        remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-        local_pending_debt,
-        remote_pending_debt,
         rand_nonce,
     );
 
-    let reset_move_token = sign_move_token(u_reset_move_token, identity_client).await;
+    let reset_move_token = sign_move_token(u_reset_move_token, &token_info, identity_client).await;
 
     let token_channel = TokenChannel::new_from_local_reset(
-        &m_state.state().local_public_key,
-        friend_public_key,
         &reset_move_token,
-        remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
+        &token_info,
         channel_inconsistent.opt_last_incoming_move_token.clone(),
     );
 
@@ -796,12 +799,12 @@ async fn send_move_token<'a, B, R>(
         TcDirection::Incoming(tc_incoming) => tc_incoming,
     };
 
-    let u_move_token =
+    let (u_move_token, token_info) =
         tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
 
-    let move_token = sign_move_token(u_move_token, identity_client).await;
+    let move_token = sign_move_token(u_move_token, &token_info, identity_client).await;
 
-    let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing(move_token));
+    let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((move_token, token_info)));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));

@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage,
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
-    ResetTerms, ResponseSendFundsOp, TransactionResult,
+    ResetTerms, ResponseSendFundsOp, TokenInfo, TransactionResult,
 };
 use signature::verify::verify_move_token;
 
@@ -71,7 +71,7 @@ where
     }
 }
 
-/// Check if channel reset is required (Remove side used the RESET token)
+/// Check if channel reset is required (Remote side used the RESET token)
 /// If so, reset the channel.
 pub fn try_reset_channel<B>(
     m_state: &mut MutableFunderState<B>,
@@ -84,26 +84,36 @@ pub fn try_reset_channel<B>(
 {
     let move_token = &move_token_request.move_token;
 
+    // TODO:
+    // Obtain token channel, and get current
+
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token
         || !move_token.operations.is_empty()
         || move_token.opt_local_relays.is_some()
-        || move_token.inconsistency_counter != local_reset_terms.inconsistency_counter
-        || move_token.move_token_counter != 0
-        || move_token.balance != local_reset_terms.balance_for_reset.checked_neg().unwrap()
-        || move_token.local_pending_debt != 0
-        || move_token.remote_pending_debt != 0
         || !verify_move_token(move_token, friend_public_key)
     {
         send_commands.set_resend_outgoing(friend_public_key);
         return;
     }
 
+    let token_info = TokenInfo {
+        local_public_key: m_state.state().local_public_key.clone(),
+        remote_public_key: friend_public_key.clone(),
+        inconsistency_counter: local_reset_terms.inconsistency_counter,
+        move_token_counter: 0,
+        balance: local_reset_terms.balance_for_reset,
+        // TODO: Those two are probably not taken into account in new_from_remote_reset():
+        local_pending_debt: 0,
+        remote_pending_debt: 0,
+    };
+
     let token_channel = TokenChannel::new_from_remote_reset(
-        &m_state.state().local_public_key,
-        friend_public_key,
+        // &m_state.state().local_public_key,
+        // friend_public_key,
         move_token,
-        local_reset_terms.balance_for_reset,
+        &token_info,
+        // local_reset_terms.balance_for_reset,
     );
 
     // This is a reset message. We reset the token channel:
