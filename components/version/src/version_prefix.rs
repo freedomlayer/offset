@@ -138,7 +138,7 @@ mod tests {
         let (_b_sender, mut b_receiver) = version_prefix_4.spawn_prefix((b_sender, b_receiver));
 
         // We expect the connection to be closed because of version mismatch:
-        a_sender.send(vec![1, 2, 3]).await.unwrap();
+        let _ = a_sender.send(vec![1, 2, 3]).await;
         assert!(b_receiver.next().await.is_none());
 
         // b_sender.send(vec![3, 2, 1]).await.unwrap();

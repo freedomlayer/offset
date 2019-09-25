@@ -34,8 +34,11 @@ mk_tarball() {
         cp "target/$TARGET/release/stnode" "$staging/bin/stnode"
         cp "target/$TARGET/release/stctrl" "$staging/bin/stctrl"
 
-        # Copy the licenses and README.
-        cp {README.md,LICENSE} "$staging/"
+        # Copy README file:
+        cp README.md "$staging/"
+
+        # Copy all licenses:
+        cp LICENSE-* "$staging/"
 
         # Copy mkdocs documentation:
         cp -R "doc/." "$staging/doc/"
