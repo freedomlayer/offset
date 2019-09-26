@@ -11,6 +11,7 @@ use proto::funder::messages::{
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
     ResetTerms, ResponseSendFundsOp, TokenInfo, TransactionResult,
 };
+use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
 
 use crate::mutual_credit::incoming::{
@@ -84,29 +85,27 @@ pub fn try_reset_channel<B>(
 {
     let move_token = &move_token_request.move_token;
 
-    // TODO:
     // Obtain token channel, and get current
-
-    // Check if incoming message is a valid attempt to reset the channel:
-    if move_token.old_token != local_reset_terms.reset_token
-        || !move_token.operations.is_empty()
-        || move_token.opt_local_relays.is_some()
-        || !verify_move_token(move_token, friend_public_key)
-    {
-        send_commands.set_resend_outgoing(friend_public_key);
-        return;
-    }
-
     let remote_token_info = TokenInfo {
         local_public_key: friend_public_key.clone(),
         remote_public_key: m_state.state().local_public_key.clone(),
         inconsistency_counter: local_reset_terms.inconsistency_counter,
         move_token_counter: 0,
         balance: local_reset_terms.balance_for_reset.checked_neg().unwrap(),
-        // TODO: Those two are probably not taken into account in new_from_remote_reset():
         local_pending_debt: 0,
         remote_pending_debt: 0,
     };
+
+    // Check if incoming message is a valid attempt to reset the channel:
+    if move_token.old_token != local_reset_terms.reset_token
+        || !move_token.operations.is_empty()
+        || move_token.opt_local_relays.is_some()
+        || hash_token_info(&remote_token_info) != move_token.info_hash
+        || !verify_move_token(move_token, friend_public_key)
+    {
+        send_commands.set_resend_outgoing(friend_public_key);
+        return;
+    }
 
     let token_channel = TokenChannel::new_from_remote_reset(move_token, &remote_token_info);
 
