@@ -106,7 +106,6 @@ where
         hash_buff.extend_from_slice(&op.canonical_serialize());
     }
 
-    hash_buff.extend_from_slice(&move_token.info_hash);
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
 
     sha_512_256(&hash_buff)
@@ -119,6 +118,7 @@ where
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
+    sig_buffer.extend_from_slice(&move_token.info_hash);
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
     sig_buffer
 }
@@ -151,9 +151,20 @@ pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate
 pub fn move_token_hashed_report_signature_buff(
     move_token_hashed_report: &MoveTokenHashedReport,
 ) -> Vec<u8> {
+    let token_info = TokenInfo {
+        local_public_key: move_token_hashed_report.local_public_key.clone(),
+        remote_public_key: move_token_hashed_report.remote_public_key.clone(),
+        inconsistency_counter: move_token_hashed_report.inconsistency_counter,
+        move_token_counter: move_token_hashed_report.move_token_counter,
+        balance: move_token_hashed_report.balance,
+        local_pending_debt: move_token_hashed_report.local_pending_debt,
+        remote_pending_debt: move_token_hashed_report.remote_pending_debt,
+    };
+
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token_hashed_report.prefix_hash);
+    sig_buffer.extend_from_slice(&hash_token_info(&token_info));
     sig_buffer.extend_from_slice(&move_token_hashed_report.rand_nonce);
     sig_buffer
 }
