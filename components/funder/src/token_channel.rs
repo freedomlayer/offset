@@ -465,7 +465,7 @@ where
 
                 let token_info = TokenInfo {
                     local_public_key: remote_public_key.clone(),
-                    remote_public_key: mutual_credit.state().idents.local_public_key,
+                    remote_public_key: mutual_credit.state().idents.local_public_key.clone(),
                     inconsistency_counter: self.token_info.inconsistency_counter,
                     move_token_counter: expected_move_token_counter,
                     balance: mutual_credit.state().balance.balance.checked_neg().unwrap(),
@@ -555,7 +555,9 @@ mod tests {
         MoveToken {
             operations: unsigned_move_token.operations,
             opt_local_relays: unsigned_move_token.opt_local_relays,
+            info_hash: unsigned_move_token.info_hash,
             old_token: unsigned_move_token.old_token,
+            /*
             local_public_key: unsigned_move_token.local_public_key,
             remote_public_key: unsigned_move_token.remote_public_key,
             inconsistency_counter: unsigned_move_token.inconsistency_counter,
@@ -563,6 +565,7 @@ mod tests {
             balance: unsigned_move_token.balance,
             local_pending_debt: unsigned_move_token.local_pending_debt,
             remote_pending_debt: unsigned_move_token.local_pending_debt,
+            */
             rand_nonce: unsigned_move_token.rand_nonce,
             new_token: identity.sign(&signature_buff),
         }
@@ -588,7 +591,9 @@ mod tests {
 
         let out_hashed = match &out_tc.direction {
             TcDirection::Incoming(_) => unreachable!(),
-            TcDirection::Outgoing(outgoing) => create_hashed(&outgoing.move_token_out),
+            TcDirection::Outgoing(outgoing) => {
+                create_hashed(&outgoing.move_token_out, &outgoing.token_info)
+            }
         };
 
         let in_hashed = match &in_tc.direction {
@@ -649,7 +654,7 @@ mod tests {
 
         let rand_nonce = RandValue::from(&[5; RandValue::len()]);
         let opt_local_relays = None;
-        let unsigned_move_token =
+        let (unsigned_move_token, token_info) =
             tc2_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
@@ -657,8 +662,10 @@ mod tests {
         for mc_mutation in mc_mutations {
             tc2.mutate(&TcMutation::McMutation(mc_mutation));
         }
-        let tc_mutation =
-            TcMutation::SetDirection(SetDirection::Outgoing(friend_move_token.clone()));
+        let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
+            friend_move_token.clone(),
+            token_info.clone(),
+        )));
         tc2.mutate(&tc_mutation);
 
         assert!(tc2.is_outgoing());
@@ -688,7 +695,7 @@ mod tests {
                     seen_set_direction = true;
                     match set_direction {
                         SetDirection::Incoming(incoming_friend_move_token) => assert_eq!(
-                            &create_hashed(&friend_move_token),
+                            &create_hashed(&friend_move_token, &token_info),
                             incoming_friend_move_token
                         ),
                         _ => unreachable!(),
@@ -706,7 +713,10 @@ mod tests {
         match &tc1.direction {
             TcDirection::Outgoing(_) => unreachable!(),
             TcDirection::Incoming(tc_incoming) => {
-                assert_eq!(tc_incoming.move_token_in, create_hashed(&friend_move_token));
+                assert_eq!(
+                    tc_incoming.move_token_in,
+                    create_hashed(&friend_move_token, &token_info)
+                );
             }
         };
         // assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));

@@ -65,13 +65,13 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
             prefix_hash: move_token_hashed.prefix_hash.clone(),
-            local_public_key: move_token_hashed.local_public_key.clone(),
-            remote_public_key: move_token_hashed.remote_public_key.clone(),
-            inconsistency_counter: move_token_hashed.inconsistency_counter,
-            move_token_counter: move_token_hashed.move_token_counter,
-            balance: move_token_hashed.balance,
-            local_pending_debt: move_token_hashed.local_pending_debt,
-            remote_pending_debt: move_token_hashed.remote_pending_debt,
+            local_public_key: move_token_hashed.token_info.local_public_key.clone(),
+            remote_public_key: move_token_hashed.token_info.remote_public_key.clone(),
+            inconsistency_counter: move_token_hashed.token_info.inconsistency_counter,
+            move_token_counter: move_token_hashed.token_info.move_token_counter,
+            balance: move_token_hashed.token_info.balance,
+            local_pending_debt: move_token_hashed.token_info.local_pending_debt,
+            remote_pending_debt: move_token_hashed.token_info.remote_pending_debt,
             rand_nonce: move_token_hashed.rand_nonce.clone(),
             new_token: move_token_hashed.new_token.clone(),
         }
