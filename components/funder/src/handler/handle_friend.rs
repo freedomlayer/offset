@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage,
     FunderOutgoingControl, MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp,
-    ResetTerms, ResponseSendFundsOp, TokenInfo, TransactionResult,
+    ResetTerms, ResponseSendFundsOp, TransactionResult,
 };
 use signature::verify::verify_move_token;
 
@@ -97,18 +97,13 @@ pub fn try_reset_channel<B>(
         return;
     }
 
-    let remote_token_info = TokenInfo {
-        local_public_key: friend_public_key.clone(),
-        remote_public_key: m_state.state().local_public_key.clone(),
-        inconsistency_counter: local_reset_terms.inconsistency_counter,
-        move_token_counter: 0,
-        balance: local_reset_terms.balance_for_reset.checked_neg().unwrap(),
-        // TODO: Those two are probably not taken into account in new_from_remote_reset():
-        local_pending_debt: 0,
-        remote_pending_debt: 0,
-    };
-
-    let token_channel = TokenChannel::new_from_remote_reset(move_token, &remote_token_info);
+    let token_channel = TokenChannel::new_from_remote_reset(
+        move_token,
+        &m_state.state().local_public_key,
+        friend_public_key,
+        local_reset_terms.balance_for_reset,
+        local_reset_terms.inconsistency_counter,
+    );
 
     // This is a reset message. We reset the token channel:
     let friend_mutation = FriendMutation::SetConsistent(token_channel);

@@ -187,17 +187,32 @@ where
 
     pub fn new_from_remote_reset(
         reset_move_token: &MoveToken<B>,
-        remote_token_info: &TokenInfo,
+        local_public_key: &PublicKey,
+        remote_public_key: &PublicKey,
+        local_balance: i128,
+        inconsistency_counter: u64,
     ) -> TokenChannel<B> {
         // is balance redundant here?
+        //
+        let remote_token_info = TokenInfo {
+            local_public_key: remote_public_key.clone(),
+            remote_public_key: local_public_key.clone(),
+            inconsistency_counter,
+            move_token_counter: 0,
+            balance: local_balance.checked_neg().unwrap(),
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+        };
+
+        let mutual_credit = MutualCredit::new(
+            &remote_token_info.remote_public_key,
+            &remote_token_info.local_public_key,
+            remote_token_info.balance.checked_neg().unwrap(),
+        );
 
         let tc_incoming = TcIncoming {
-            mutual_credit: MutualCredit::new(
-                &remote_token_info.remote_public_key,
-                &remote_token_info.local_public_key,
-                remote_token_info.balance.checked_neg().unwrap(),
-            ),
-            move_token_in: create_hashed(&reset_move_token, remote_token_info),
+            mutual_credit,
+            move_token_in: create_hashed(&reset_move_token, &remote_token_info),
         };
 
         TokenChannel {
