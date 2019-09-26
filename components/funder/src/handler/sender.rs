@@ -259,7 +259,7 @@ pub async fn apply_local_reset<'a, B, R>(
         rand_nonce,
     );
 
-    let reset_move_token = sign_move_token(u_reset_move_token, &token_info, identity_client).await;
+    let reset_move_token = sign_move_token(u_reset_move_token, identity_client).await;
 
     let token_channel = TokenChannel::new_from_local_reset(
         &reset_move_token,
@@ -802,7 +802,7 @@ async fn send_move_token<'a, B, R>(
     let (u_move_token, token_info) =
         tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
 
-    let move_token = sign_move_token(u_move_token, &token_info, identity_client).await;
+    let move_token = sign_move_token(u_move_token, identity_client).await;
 
     let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((move_token, token_info)));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
