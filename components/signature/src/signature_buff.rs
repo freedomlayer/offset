@@ -166,24 +166,6 @@ pub fn move_token_hashed_report_signature_buff(
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token_hashed_report.prefix_hash);
-    sig_buffer.extend_from_slice(&move_token_hashed_report.local_public_key);
-    sig_buffer.extend_from_slice(&move_token_hashed_report.remote_public_key);
-    sig_buffer
-        .write_u64::<BigEndian>(move_token_hashed_report.inconsistency_counter)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.move_token_counter)
-        .unwrap();
-    sig_buffer
-        .write_i128::<BigEndian>(move_token_hashed_report.balance)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.local_pending_debt)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.remote_pending_debt)
-        .unwrap();
     sig_buffer.extend_from_slice(&move_token_hashed_report.rand_nonce);
-
     sig_buffer
 }
