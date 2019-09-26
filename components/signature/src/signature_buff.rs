@@ -67,18 +67,6 @@ where
     sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
-/*
-pub struct ImplicitMoveToken {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
-}
-*/
-
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&token_info.local_public_key);
