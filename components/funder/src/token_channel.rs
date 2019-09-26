@@ -186,21 +186,18 @@ where
     }
 
     pub fn new_from_remote_reset(
-        // local_public_key: &PublicKey,
-        // remote_public_key: &PublicKey,
         reset_move_token: &MoveToken<B>,
-        token_info: &TokenInfo,
-        // balance: i128,
+        remote_token_info: &TokenInfo,
     ) -> TokenChannel<B> {
         // is balance redundant here?
 
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(
-                &token_info.local_public_key,
-                &token_info.remote_public_key,
-                token_info.balance,
+                &remote_token_info.remote_public_key,
+                &remote_token_info.local_public_key,
+                remote_token_info.balance.checked_neg().unwrap(),
             ),
-            move_token_in: create_hashed(&reset_move_token, token_info),
+            move_token_in: create_hashed(&reset_move_token, remote_token_info),
         };
 
         TokenChannel {
@@ -300,6 +297,7 @@ where
         }
     }
 
+    /*
     pub fn get_move_token_counter(&self) -> u128 {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
@@ -308,6 +306,7 @@ where
             TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.move_token_counter,
         }
     }
+    */
 
     pub fn is_outgoing(&self) -> bool {
         match self.direction {
@@ -372,16 +371,6 @@ impl TcIncoming {
             opt_local_relays,
             &token_info,
             self.move_token_in.new_token.clone(),
-            // Note the swap here (remote, local):
-            /*
-            self.move_token_in.remote_public_key.clone(),
-            self.move_token_in.local_public_key.clone(),
-            self.move_token_in.inconsistency_counter,
-            self.move_token_in.move_token_counter.wrapping_add(1),
-            self.mutual_credit.state().balance.balance,
-            self.mutual_credit.state().balance.local_pending_debt,
-            self.mutual_credit.state().balance.remote_pending_debt,
-            */
             rand_nonce,
         );
 
@@ -438,19 +427,6 @@ where
         if !verify_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
-
-        // Verify counters:
-        /*
-        if new_move_token.inconsistency_counter != self.move_token_out.inconsistency_counter {
-            return Err(ReceiveMoveTokenError::InvalidInconsistencyCounter);
-        }
-        */
-
-        /*
-        if new_move_token.move_token_counter != expected_move_token_counter {
-            return Err(ReceiveMoveTokenError::InvalidMoveTokenCounter);
-        }
-        */
 
         let mut mutual_credit = self.mutual_credit.clone();
         let res = process_operations_list(&mut mutual_credit, new_move_token.operations.clone());

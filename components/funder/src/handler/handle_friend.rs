@@ -97,24 +97,18 @@ pub fn try_reset_channel<B>(
         return;
     }
 
-    let token_info = TokenInfo {
-        local_public_key: m_state.state().local_public_key.clone(),
-        remote_public_key: friend_public_key.clone(),
+    let remote_token_info = TokenInfo {
+        local_public_key: friend_public_key.clone(),
+        remote_public_key: m_state.state().local_public_key.clone(),
         inconsistency_counter: local_reset_terms.inconsistency_counter,
         move_token_counter: 0,
-        balance: local_reset_terms.balance_for_reset,
+        balance: local_reset_terms.balance_for_reset.checked_neg().unwrap(),
         // TODO: Those two are probably not taken into account in new_from_remote_reset():
         local_pending_debt: 0,
         remote_pending_debt: 0,
     };
 
-    let token_channel = TokenChannel::new_from_remote_reset(
-        // &m_state.state().local_public_key,
-        // friend_public_key,
-        move_token,
-        &token_info,
-        // local_reset_terms.balance_for_reset,
-    );
+    let token_channel = TokenChannel::new_from_remote_reset(move_token, &remote_token_info);
 
     // This is a reset message. We reset the token channel:
     let friend_mutation = FriendMutation::SetConsistent(token_channel);
