@@ -479,3 +479,52 @@ where
         },
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::types::create_hashed;
+
+    use proto::crypto::{PublicKey, RandValue, Signature};
+    use proto::funder::messages::{MoveToken, TokenInfo};
+    use signature::signature_buff::{
+        hash_token_info, move_token_hashed_report_signature_buff, move_token_signature_buff,
+    };
+
+    #[test]
+    fn test_move_token_signature_buff_sync() {
+        let token_info = TokenInfo {
+            local_public_key: PublicKey::from(&[0; PublicKey::len()]),
+            remote_public_key: PublicKey::from(&[1; PublicKey::len()]),
+            inconsistency_counter: 3,
+            move_token_counter: 7,
+            balance: 5,
+            local_pending_debt: 4,
+            remote_pending_debt: 2,
+        };
+
+        let move_token = MoveToken::<u32> {
+            operations: Vec::new(),
+            opt_local_relays: None,
+            info_hash: hash_token_info(&token_info),
+            old_token: Signature::from(&[0x55; Signature::len()]),
+            rand_nonce: RandValue::from(&[0x66; RandValue::len()]),
+            new_token: Signature::from(&[0x77; Signature::len()]),
+        };
+
+        let move_token_hashed = create_hashed(&move_token, &token_info);
+        let move_token_hashed_report = MoveTokenHashedReport::from(&move_token_hashed);
+
+        // Make sure that we get the same signature buffer from all the different representations
+        // of MoveToken:
+        let sig_buff = move_token_signature_buff(&move_token);
+        let sig_buff_report = move_token_hashed_report_signature_buff(&move_token_hashed_report);
+
+        assert_eq!(sig_buff, sig_buff_report);
+        assert_eq!(move_token.new_token, move_token_hashed.new_token);
+        assert_eq!(
+            move_token_hashed.new_token,
+            move_token_hashed_report.new_token
+        );
+    }
+}
