@@ -189,8 +189,6 @@ where
         reset_move_token: &MoveToken<B>,
         remote_token_info: &TokenInfo,
     ) -> TokenChannel<B> {
-        // is balance redundant here?
-
         let tc_incoming = TcIncoming {
             mutual_credit: MutualCredit::new(
                 &remote_token_info.remote_public_key,
