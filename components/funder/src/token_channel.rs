@@ -391,17 +391,6 @@ where
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
-        // Make sure that the stated remote public key and local public key match:
-        /*
-        if !((self.mutual_credit.state().idents.local_public_key
-            == new_move_token.remote_public_key)
-            && (self.mutual_credit.state().idents.remote_public_key
-                == new_move_token.local_public_key))
-        {
-            return Err(ReceiveMoveTokenError::ChainInconsistency);
-        }
-        */
-
         if new_move_token.old_token == self.move_token_out.new_token {
             self.handle_incoming_token_match(new_move_token)
         // self.outgoing_to_incoming(friend_move_token, new_move_token)
@@ -533,15 +522,6 @@ mod tests {
             opt_local_relays: unsigned_move_token.opt_local_relays,
             info_hash: unsigned_move_token.info_hash,
             old_token: unsigned_move_token.old_token,
-            /*
-            local_public_key: unsigned_move_token.local_public_key,
-            remote_public_key: unsigned_move_token.remote_public_key,
-            inconsistency_counter: unsigned_move_token.inconsistency_counter,
-            move_token_counter: unsigned_move_token.move_token_counter,
-            balance: unsigned_move_token.balance,
-            local_pending_debt: unsigned_move_token.local_pending_debt,
-            remote_pending_debt: unsigned_move_token.local_pending_debt,
-            */
             rand_nonce: unsigned_move_token.rand_nonce,
             new_token: identity.sign(&signature_buff),
         }
