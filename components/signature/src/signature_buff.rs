@@ -147,7 +147,6 @@ pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate
     res_bytes
 }
 
-// TODO: How to keep this function in sync with move_token_signature_buff?
 pub fn move_token_hashed_report_signature_buff(
     move_token_hashed_report: &MoveTokenHashedReport,
 ) -> Vec<u8> {
