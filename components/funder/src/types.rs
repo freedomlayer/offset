@@ -20,7 +20,6 @@ pub type UnsignedMoveToken<B> = MoveToken<B, ()>;
 
 pub async fn sign_move_token<'a, B>(
     unsigned_move_token: UnsignedMoveToken<B>,
-    token_info: &TokenInfo, 
     identity_client: &'a mut IdentityClient,
 ) -> MoveToken<B>
 where
@@ -36,7 +35,7 @@ where
         operations: unsigned_move_token.operations,
         opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
-        info_hash: hash_token_info(token_info),
+        info_hash: unsigned_move_token.info_hash,
         /*
         local_public_key: unsigned_move_token.local_public_key,
         remote_public_key: unsigned_move_token.remote_public_key,
