@@ -6,11 +6,11 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, FriendTcOp,
     FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TransactionStage,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
 };
 
 use signature::signature_buff::{
-    create_response_signature_buffer, move_token_signature_buff, prefix_hash,
+    create_response_signature_buffer, hash_token_info, move_token_signature_buff, prefix_hash,
 };
 
 use identity::IdentityClient;
@@ -35,13 +35,7 @@ where
         operations: unsigned_move_token.operations,
         opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
-        local_public_key: unsigned_move_token.local_public_key,
-        remote_public_key: unsigned_move_token.remote_public_key,
-        inconsistency_counter: unsigned_move_token.inconsistency_counter,
-        move_token_counter: unsigned_move_token.move_token_counter,
-        balance: unsigned_move_token.balance,
-        local_pending_debt: unsigned_move_token.local_pending_debt,
-        remote_pending_debt: unsigned_move_token.remote_pending_debt,
+        info_hash: unsigned_move_token.info_hash,
         rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
     }
@@ -108,13 +102,7 @@ pub enum UnsignedFriendTcOp {
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
+    pub token_info: TokenInfo,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
@@ -122,27 +110,15 @@ pub struct MoveTokenHashed {
 pub fn create_unsigned_move_token<B>(
     operations: Vec<FriendTcOp>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    token_info: &TokenInfo,
     old_token: Signature,
-    local_public_key: PublicKey,
-    remote_public_key: PublicKey,
-    inconsistency_counter: u64,
-    move_token_counter: u128,
-    balance: i128,
-    local_pending_debt: u128,
-    remote_pending_debt: u128,
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     MoveToken {
         operations,
         opt_local_relays,
+        info_hash: hash_token_info(token_info),
         old_token,
-        local_public_key,
-        remote_public_key,
-        inconsistency_counter,
-        move_token_counter,
-        balance,
-        local_pending_debt,
-        remote_pending_debt,
         rand_nonce,
         new_token: (),
     }
@@ -185,19 +161,13 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<B>(move_token: &MoveToken<B>) -> MoveTokenHashed
+pub fn create_hashed<B>(move_token: &MoveToken<B>, token_info: &TokenInfo) -> MoveTokenHashed
 where
     B: CanonicalSerialize,
 {
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
-        local_public_key: move_token.local_public_key.clone(),
-        remote_public_key: move_token.remote_public_key.clone(),
-        inconsistency_counter: move_token.inconsistency_counter,
-        move_token_counter: move_token.move_token_counter,
-        balance: move_token.balance,
-        local_pending_debt: move_token.local_pending_debt,
-        remote_pending_debt: move_token.remote_pending_debt,
+        token_info: token_info.clone(),
         rand_nonce: move_token.rand_nonce.clone(),
         new_token: move_token.new_token.clone(),
     }

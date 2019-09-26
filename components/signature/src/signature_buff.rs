@@ -7,7 +7,7 @@ use proto::crypto::HashResult;
 use common::int_convert::usize_to_u64;
 
 use crate::canonical::CanonicalSerialize;
-use proto::funder::messages::{MoveToken, PendingTransaction, ResponseSendFundsOp};
+use proto::funder::messages::{MoveToken, PendingTransaction, ResponseSendFundsOp, TokenInfo};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -67,6 +67,28 @@ where
     sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
+pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
+    let mut hash_buff = Vec::new();
+    hash_buff.extend_from_slice(&token_info.local_public_key);
+    hash_buff.extend_from_slice(&token_info.remote_public_key);
+    hash_buff
+        .write_u64::<BigEndian>(token_info.inconsistency_counter)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.move_token_counter)
+        .unwrap();
+    hash_buff
+        .write_i128::<BigEndian>(token_info.balance)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.local_pending_debt)
+        .unwrap();
+    hash_buff
+        .write_u128::<BigEndian>(token_info.remote_pending_debt)
+        .unwrap();
+    sha_512_256(&hash_buff)
+}
+
 /// Hash operations and local_address:
 pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>) -> HashResult
 where
@@ -85,6 +107,7 @@ where
     }
 
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
+
     sha_512_256(&hash_buff)
 }
 
@@ -95,25 +118,8 @@ where
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&prefix_hash(move_token));
-    sig_buffer.extend_from_slice(&move_token.local_public_key);
-    sig_buffer.extend_from_slice(&move_token.remote_public_key);
-    sig_buffer
-        .write_u64::<BigEndian>(move_token.inconsistency_counter)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.move_token_counter)
-        .unwrap();
-    sig_buffer
-        .write_i128::<BigEndian>(move_token.balance)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.local_pending_debt)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token.remote_pending_debt)
-        .unwrap();
+    sig_buffer.extend_from_slice(&move_token.info_hash);
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
-
     sig_buffer
 }
 
@@ -141,31 +147,23 @@ pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate
     res_bytes
 }
 
-// TODO: How to keep this function in sync with move_token_signature_buff?
 pub fn move_token_hashed_report_signature_buff(
     move_token_hashed_report: &MoveTokenHashedReport,
 ) -> Vec<u8> {
+    let token_info = TokenInfo {
+        local_public_key: move_token_hashed_report.local_public_key.clone(),
+        remote_public_key: move_token_hashed_report.remote_public_key.clone(),
+        inconsistency_counter: move_token_hashed_report.inconsistency_counter,
+        move_token_counter: move_token_hashed_report.move_token_counter,
+        balance: move_token_hashed_report.balance,
+        local_pending_debt: move_token_hashed_report.local_pending_debt,
+        remote_pending_debt: move_token_hashed_report.remote_pending_debt,
+    };
+
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token_hashed_report.prefix_hash);
-    sig_buffer.extend_from_slice(&move_token_hashed_report.local_public_key);
-    sig_buffer.extend_from_slice(&move_token_hashed_report.remote_public_key);
-    sig_buffer
-        .write_u64::<BigEndian>(move_token_hashed_report.inconsistency_counter)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.move_token_counter)
-        .unwrap();
-    sig_buffer
-        .write_i128::<BigEndian>(move_token_hashed_report.balance)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.local_pending_debt)
-        .unwrap();
-    sig_buffer
-        .write_u128::<BigEndian>(move_token_hashed_report.remote_pending_debt)
-        .unwrap();
+    sig_buffer.extend_from_slice(&hash_token_info(&token_info));
     sig_buffer.extend_from_slice(&move_token_hashed_report.rand_nonce);
-
     sig_buffer
 }

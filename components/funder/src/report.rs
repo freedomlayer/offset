@@ -65,13 +65,13 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
             prefix_hash: move_token_hashed.prefix_hash.clone(),
-            local_public_key: move_token_hashed.local_public_key.clone(),
-            remote_public_key: move_token_hashed.remote_public_key.clone(),
-            inconsistency_counter: move_token_hashed.inconsistency_counter,
-            move_token_counter: move_token_hashed.move_token_counter,
-            balance: move_token_hashed.balance,
-            local_pending_debt: move_token_hashed.local_pending_debt,
-            remote_pending_debt: move_token_hashed.remote_pending_debt,
+            local_public_key: move_token_hashed.token_info.local_public_key.clone(),
+            remote_public_key: move_token_hashed.token_info.remote_public_key.clone(),
+            inconsistency_counter: move_token_hashed.token_info.inconsistency_counter,
+            move_token_counter: move_token_hashed.token_info.move_token_counter,
+            balance: move_token_hashed.token_info.balance,
+            local_pending_debt: move_token_hashed.token_info.local_pending_debt,
+            remote_pending_debt: move_token_hashed.token_info.remote_pending_debt,
             rand_nonce: move_token_hashed.rand_nonce.clone(),
             new_token: move_token_hashed.new_token.clone(),
         }
@@ -477,5 +477,54 @@ where
                 ))]
             }
         },
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::types::create_hashed;
+
+    use proto::crypto::{PublicKey, RandValue, Signature};
+    use proto::funder::messages::{MoveToken, TokenInfo};
+    use signature::signature_buff::{
+        hash_token_info, move_token_hashed_report_signature_buff, move_token_signature_buff,
+    };
+
+    #[test]
+    fn test_move_token_signature_buff_sync() {
+        let token_info = TokenInfo {
+            local_public_key: PublicKey::from(&[0; PublicKey::len()]),
+            remote_public_key: PublicKey::from(&[1; PublicKey::len()]),
+            inconsistency_counter: 3,
+            move_token_counter: 7,
+            balance: 5,
+            local_pending_debt: 4,
+            remote_pending_debt: 2,
+        };
+
+        let move_token = MoveToken::<u32> {
+            operations: Vec::new(),
+            opt_local_relays: None,
+            info_hash: hash_token_info(&token_info),
+            old_token: Signature::from(&[0x55; Signature::len()]),
+            rand_nonce: RandValue::from(&[0x66; RandValue::len()]),
+            new_token: Signature::from(&[0x77; Signature::len()]),
+        };
+
+        let move_token_hashed = create_hashed(&move_token, &token_info);
+        let move_token_hashed_report = MoveTokenHashedReport::from(&move_token_hashed);
+
+        // Make sure that we get the same signature buffer from all the different representations
+        // of MoveToken:
+        let sig_buff = move_token_signature_buff(&move_token);
+        let sig_buff_report = move_token_hashed_report_signature_buff(&move_token_hashed_report);
+
+        assert_eq!(sig_buff, sig_buff_report);
+        assert_eq!(move_token.new_token, move_token_hashed.new_token);
+        assert_eq!(
+            move_token_hashed.new_token,
+            move_token_hashed_report.new_token
+        );
     }
 }
