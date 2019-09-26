@@ -706,10 +706,10 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(_move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                // let friend_move_token = &move_token_request.move_token;
-                // assert_eq!(friend_move_token.balance, 0);
-                // assert_eq!(friend_move_token.local_pending_debt, 0);
-                // assert_eq!(friend_move_token.remote_pending_debt, 20);
+            // let friend_move_token = &move_token_request.move_token;
+            // assert_eq!(friend_move_token.balance, 0);
+            // assert_eq!(friend_move_token.local_pending_debt, 0);
+            // assert_eq!(friend_move_token.remote_pending_debt, 20);
             } else {
                 unreachable!();
             }
@@ -775,10 +775,10 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(_move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                // let friend_move_token = &move_token_request.move_token;
-                // assert_eq!(friend_move_token.balance, 0);
-                // assert_eq!(friend_move_token.local_pending_debt, 0);
-                // assert_eq!(friend_move_token.remote_pending_debt, 20);
+            // let friend_move_token = &move_token_request.move_token;
+            // assert_eq!(friend_move_token.balance, 0);
+            // assert_eq!(friend_move_token.local_pending_debt, 0);
+            // assert_eq!(friend_move_token.remote_pending_debt, 20);
             } else {
                 unreachable!();
             }
@@ -807,10 +807,10 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(_move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                // let friend_move_token = &move_token_request.move_token;
-                // assert_eq!(friend_move_token.balance, 0);
-                // assert_eq!(friend_move_token.local_pending_debt, 20);
-                // assert_eq!(friend_move_token.remote_pending_debt, 0);
+            // let friend_move_token = &move_token_request.move_token;
+            // assert_eq!(friend_move_token.balance, 0);
+            // assert_eq!(friend_move_token.local_pending_debt, 20);
+            // assert_eq!(friend_move_token.remote_pending_debt, 0);
             } else {
                 unreachable!();
             }
@@ -839,10 +839,10 @@ async fn task_handler_pair_basic<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(_move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                // let friend_move_token = &move_token_request.move_token;
-                // assert_eq!(friend_move_token.balance, 20);
-                // assert_eq!(friend_move_token.local_pending_debt, 0);
-                // assert_eq!(friend_move_token.remote_pending_debt, 0);
+            // let friend_move_token = &move_token_request.move_token;
+            // assert_eq!(friend_move_token.balance, 20);
+            // assert_eq!(friend_move_token.local_pending_debt, 0);
+            // assert_eq!(friend_move_token.remote_pending_debt, 0);
             } else {
                 unreachable!();
             }
