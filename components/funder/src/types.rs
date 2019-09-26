@@ -36,15 +36,6 @@ where
         opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
         info_hash: unsigned_move_token.info_hash,
-        /*
-        local_public_key: unsigned_move_token.local_public_key,
-        remote_public_key: unsigned_move_token.remote_public_key,
-        inconsistency_counter: unsigned_move_token.inconsistency_counter,
-        move_token_counter: unsigned_move_token.move_token_counter,
-        balance: unsigned_move_token.balance,
-        local_pending_debt: unsigned_move_token.local_pending_debt,
-        remote_pending_debt: unsigned_move_token.remote_pending_debt,
-        */
         rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
     }
@@ -112,15 +103,6 @@ pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
     pub token_info: TokenInfo,
-    /*
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
-    */
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }
@@ -130,15 +112,6 @@ pub fn create_unsigned_move_token<B>(
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
     token_info: &TokenInfo,
     old_token: Signature,
-    /*
-    local_public_key: PublicKey,
-    remote_public_key: PublicKey,
-    inconsistency_counter: u64,
-    move_token_counter: u128,
-    balance: i128,
-    local_pending_debt: u128,
-    remote_pending_debt: u128,
-    */
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     MoveToken {
@@ -146,15 +119,6 @@ pub fn create_unsigned_move_token<B>(
         opt_local_relays,
         info_hash: hash_token_info(token_info),
         old_token,
-        /*
-        local_public_key,
-        remote_public_key,
-        inconsistency_counter,
-        move_token_counter,
-        balance,
-        local_pending_debt,
-        remote_pending_debt,
-        */
         rand_nonce,
         new_token: (),
     }
@@ -204,15 +168,6 @@ where
     MoveTokenHashed {
         prefix_hash: prefix_hash(move_token),
         token_info: token_info.clone(),
-        /*
-        local_public_key: move_token.local_public_key.clone(),
-        remote_public_key: move_token.remote_public_key.clone(),
-        inconsistency_counter: move_token.inconsistency_counter,
-        move_token_counter: move_token.move_token_counter,
-        balance: move_token.balance,
-        local_pending_debt: move_token.local_pending_debt,
-        remote_pending_debt: move_token.remote_pending_debt,
-        */
         rand_nonce: move_token.rand_nonce.clone(),
         new_token: move_token.new_token.clone(),
     }
