@@ -182,8 +182,8 @@ pub struct TokenInfo {
 #[capnp_conv(crate::funder_capnp::currency_operations)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyOperations {
-    currency: Currency,
-    operations: Vec<FriendTcOp>,
+    pub currency: Currency,
+    pub operations: Vec<FriendTcOp>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token)]
