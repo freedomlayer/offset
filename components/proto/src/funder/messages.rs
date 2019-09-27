@@ -1,8 +1,11 @@
 use std::cmp::Eq;
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
+
+use derive_more::Display;
 
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
@@ -14,7 +17,7 @@ use crate::crypto::{
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::consts::MAX_ROUTE_LEN;
+use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
@@ -210,7 +213,8 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 }
 
 #[capnp_conv(crate::common_capnp::currency)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[display(fmt = "{}", currency)]
 pub struct Currency {
     currency: String,
 }
@@ -708,6 +712,27 @@ pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
     ReportMutations(FunderReportMutations<B>),
+}
+
+impl Currency {
+    pub fn as_str(&self) -> &str {
+        &self.currency
+    }
+}
+
+#[derive(Debug)]
+pub enum CurrencyError {
+    CurrencyNameTooLong,
+}
+
+impl TryFrom<String> for Currency {
+    type Error = CurrencyError;
+    fn try_from(currency: String) -> Result<Self, Self::Error> {
+        if currency.len() > MAX_CURRENCY_LEN {
+            return Err(CurrencyError::CurrencyNameTooLong);
+        }
+        Ok(Currency { currency })
+    }
 }
 
 #[cfg(test)]
