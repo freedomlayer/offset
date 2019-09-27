@@ -125,9 +125,7 @@ struct RequestSendFundsOp {
         totalDestPayment @4: CustomUInt128;
         invoiceId @5: InvoiceId;
         # Id number of the invoice we are attempting to pay
-        currency @6: Currency;
-        # Currency in use (Units of payment)
-        leftFees @7: CustomUInt128;
+        leftFees @6: CustomUInt128;
         # Amount of fees left to give to mediators
         # Every mediator takes the amount of fees he wants and subtracts this
         # value accordingly.
@@ -146,12 +144,8 @@ struct ResponseSendFundsOp {
         #   destPayment ||
         #   totalDestPayment ||
         #   invoiceId ||
-        #   currency
+        #   currency [Implicitly known by the mutual credit]
         # )
-        #
-        # Note that the signature contains an inner blob (requestId || ...).
-        # This was done to make the size of the receipt shorter, as previously
-        # this contained a full route.
 }
 
 struct CancelSendFundsOp {
