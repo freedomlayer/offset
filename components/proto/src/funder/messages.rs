@@ -190,10 +190,17 @@ pub struct TokenInfo {
     pub remote_pending_debt: u128,
 }
 
+#[capnp_conv(crate::funder_capnp::currency_operations)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CurrencyOperations {
+    currency: Currency,
+    operations: Vec<FriendTcOp>,
+}
+
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
-    pub operations: Vec<FriendTcOp>,
+    pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub info_hash: HashResult,
@@ -202,13 +209,26 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub new_token: S,
 }
 
+#[capnp_conv(crate::common_capnp::currency)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Currency {
+    currency: String,
+}
+
+#[capnp_conv(crate::funder_capnp::currency_balance)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrencyBalance {
+    currency: Currency,
+    #[capnp_conv(with = Wrapper<i128>)]
+    balance: i128,
+}
+
 #[capnp_conv(crate::funder_capnp::reset_terms)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance_for_reset: i128,
+    pub balance_for_reset: Vec<CurrencyBalance>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
