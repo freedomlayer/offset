@@ -2,8 +2,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, OptLocalRelays, Receipt,
-    RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute,
+    OptLocalRelays, Receipt, RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, UpdateFriend};
 use proto::net::messages::NetAddress;
@@ -86,6 +86,21 @@ where
         res_data.extend_from_slice(&t.canonical_serialize());
         res_data.extend_from_slice(&w.canonical_serialize());
         res_data
+    }
+}
+
+impl CanonicalSerialize for Currency {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        self.as_str().canonical_serialize()
+    }
+}
+
+impl CanonicalSerialize for CurrencyOperations {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.currency.canonical_serialize());
+        res_bytes.extend_from_slice(&self.operations.canonical_serialize());
+        res_bytes
     }
 }
 

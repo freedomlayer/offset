@@ -49,13 +49,7 @@ pub const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
 pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {
-    let mut operations_data = Vec::new();
-    operations_data
-        .write_u64::<BigEndian>(usize_to_u64(move_token.operations.len()).unwrap())
-        .unwrap();
-    for op in &move_token.operations {
-        operations_data.extend_from_slice(&op.canonical_serialize());
-    }
+    let operations_data = move_token.currencies_operations.canonical_serialize();
     sha_512_256(&operations_data)
 }
 
@@ -98,14 +92,7 @@ where
 
     hash_buff.extend_from_slice(&move_token.old_token);
 
-    // TODO: Use CanonicalSerialize instead here:
-    hash_buff
-        .write_u64::<BigEndian>(usize_to_u64(move_token.operations.len()).unwrap())
-        .unwrap();
-    for op in &move_token.operations {
-        hash_buff.extend_from_slice(&op.canonical_serialize());
-    }
-
+    hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
 
     sha_512_256(&hash_buff)
