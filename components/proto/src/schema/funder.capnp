@@ -16,34 +16,6 @@ using import "common.capnp".HashResult;
 # Token channel messages
 # ----------------------
 
-#       localPublicKey @4: PublicKey;
-#       # Public key of the sender of this message
-#       # Having this information here is useful if this message is later presented as a proof
-#       # of communication between the two sides.
-#       remotePublicKey @5: PublicKey;
-#       # Public key of the receiver of this message
-#       # Having this information here is useful if this message is later presented as a proof
-#       # of communication between the two sides.
-#       inconsistencyCounter @6: UInt64;
-#       # Amount of inconsistencies that have occurred so far. Begins from 0,
-#       # and increases every time an inconsistency was resolved.
-#       moveTokenCounter @7: CustomUInt128;
-#       # Amount of MoveToken messages in this token channel. Begins from 0,
-#       # and increases every time a MoveToken message increases. This number
-#       # is shared for both sides of the token channel.
-#       balance @8 : CustomInt128;
-#       # Balance between the two parties in the token channel. This number could be
-#       # deduced by each of the parties only by looking at the operations
-#       # field. We put the balance here to make sure it is signed by the
-#       # sending party, allowing the receiving party to use
-#       # this MoveToken as a proof later.
-#       # Note that the balance here is represented from the point of view of the sender.
-#       # The receiver will have to negate this value.
-#       localPendingDebt @9: CustomUInt128;
-#       # The current local pending debt from the point of view of the sender.
-#       remotePendingDebt @10: CustomUInt128;
-#       # The current remote pending debt from the point of view of the sender.
-
 struct MoveToken {
         operations @0: List(FriendTcOp);
         # Ordered batched operations for this move token.
