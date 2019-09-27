@@ -166,17 +166,47 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
     }
 }
 
-/// Implicit values that both sides agree upon.
-/// Those values are also signed as part of the prefix hash.
+/// Balance information for a single currency
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct TokenInfo {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
+pub struct BalanceInfo {
     pub balance: i128,
     pub local_pending_debt: u128,
     pub remote_pending_debt: u128,
+}
+
+/// Mutual Credit info
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct McInfo {
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
+    pub balances: HashMap<Currency, Balance>,
+}
+
+/// Token channel counters.
+/// Both sides agree on these values implicitly.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CountersInfo {
+    pub inconsistency_counter: u64,
+    pub move_token_counter: u128,
+}
+
+/// Implicit values that both sides agree upon.
+/// Those values are also signed as part of the prefix hash.
+/// A hash of this structure is included inside MoveToken.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TokenInfo {
+    pub mc: McInfo,
+    pub counters: CountersInfo,
+}
+
+/// Information about an old move token.
+/// Saved together with the corresponding information
+/// (Equivalent to the state that was obtained right after the MoveToken message was applied).
+/// Those values are also signed as part of the prefix hash.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct OldMoveToken<B = NetAddress, S = Signature> {
+    pub move_token: MoveToken<B, S>,
+    pub token_info: TokenInfo,
 }
 
 #[capnp_conv(crate::funder_capnp::currency_operations)]
