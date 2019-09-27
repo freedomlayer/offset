@@ -166,20 +166,6 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
     }
 }
 
-/*
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub move_token_counter: u128,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub local_pending_debt: u128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub remote_pending_debt: u128,
-*/
-
 /// Implicit values that both sides agree upon.
 /// Those values are also signed as part of the prefix hash.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -539,18 +525,6 @@ struct FriendsRouteCapacity {
     capacity: u128,
 }
 
-/*
-/// A request to send funds that originates from the user
-#[capnp_conv(crate::app_server_capnp::user_request_send_funds)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserRequestSendFunds {
-    pub payment_id: PaymentId,
-    pub route: FriendsRoute,
-    pub invoice_id: InvoiceId,
-    pub dest_payment: Wrapper<u128>,
-}
-*/
-
 #[capnp_conv(crate::app_server_capnp::receipt_ack)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReceiptAck {
@@ -621,7 +595,7 @@ pub enum FunderControl<B> {
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
     CreatePayment(CreatePayment),
-    CreateTransaction(CreateTransaction), // TODO
+    CreateTransaction(CreateTransaction),
     RequestClosePayment(PaymentId),
     AckClosePayment(AckClosePayment),
     // Seller API:
@@ -644,28 +618,6 @@ impl<B> FunderIncomingControl<B> {
         }
     }
 }
-
-// impl UserRequestSendFunds {
-/*
-pub fn into_request(self) -> RequestSendFunds {
-    RequestSendFunds {
-        request_id: self.request_id,
-        route: self.route,
-        invoice_id: self.invoice_id,
-        dest_payment: self.dest_payment,
-    }
-}
-
-pub fn create_pending_transaction(&self) -> PendingTransaction {
-    PendingTransaction {
-        request_id: self.request_id,
-        route: self.route.clone(),
-        dest_payment: self.dest_payment,
-        invoice_id: self.invoice_id.clone(),
-    }
-}
-*/
-// }
 
 #[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
