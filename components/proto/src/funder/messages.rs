@@ -147,6 +147,13 @@ pub enum OptLocalRelays<B = NetAddress> {
     Relays(Vec<RelayAddress<B>>),
 }
 
+#[capnp_conv(crate::funder_capnp::move_token::opt_add_active_currencies)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum OptAddActiveCurrencies {
+    Empty,
+    Currencies(Vec<Currency>),
+}
+
 // TODO: Create a macro that does this:
 impl<B> From<Option<Vec<RelayAddress<B>>>> for OptLocalRelays<B> {
     fn from(opt: Option<Vec<RelayAddress<B>>>) -> Self {
@@ -162,6 +169,24 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
         match opt {
             OptLocalRelays::Relays(relays) => Some(relays),
             OptLocalRelays::Empty => None,
+        }
+    }
+}
+
+impl From<Option<Vec<Currency>>> for OptAddActiveCurrencies {
+    fn from(opt: Option<Vec<Currency>>) -> Self {
+        match opt {
+            Some(currencies) => OptAddActiveCurrencies::Currencies(currencies),
+            None => OptAddActiveCurrencies::Empty,
+        }
+    }
+}
+
+impl From<OptAddActiveCurrencies> for Option<Vec<Currency>> {
+    fn from(opt: OptAddActiveCurrencies) -> Self {
+        match opt {
+            OptAddActiveCurrencies::Currencies(currencies) => Some(currencies),
+            OptAddActiveCurrencies::Empty => None,
         }
     }
 }
@@ -238,6 +263,8 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    #[capnp_conv(with = OptAddActiveCurrencies)]
+    pub opt_add_active_currencies: Option<Vec<Currency>>,
     pub info_hash: HashResult,
     pub rand_nonce: RandValue,
     pub new_token: S,
@@ -729,6 +756,44 @@ impl TryFrom<String> for Currency {
             return Err(CurrencyError::CurrencyNameTooLong);
         }
         Ok(Currency { currency })
+    }
+}
+
+impl BalanceInfo {
+    fn flip(self) -> BalanceInfo {
+        BalanceInfo {
+            balance: self.balance.checked_neg().unwrap(),
+            local_pending_debt: self.remote_pending_debt,
+            remote_pending_debt: self.local_pending_debt,
+        }
+    }
+}
+
+impl McInfo {
+    pub fn flip(self) -> McInfo {
+        let balances = self
+            .balances
+            .into_iter()
+            .map(|currency_balance_info| CurrencyBalanceInfo {
+                currency: currency_balance_info.currency,
+                balance_info: currency_balance_info.balance_info.flip(),
+            })
+            .collect();
+
+        McInfo {
+            local_public_key: self.remote_public_key,
+            remote_public_key: self.local_public_key,
+            balances,
+        }
+    }
+}
+
+impl TokenInfo {
+    pub fn flip(self) -> TokenInfo {
+        TokenInfo {
+            mc: self.mc.flip(),
+            counters: self.counters,
+        }
     }
 }
 

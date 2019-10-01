@@ -57,7 +57,6 @@ pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {
     sha_512_256(&operations_data)
 }
 
-/// Combine all operations into one hash value.
 pub fn local_address_hash<B>(move_token: &MoveToken<B>) -> HashResult
 where
     B: CanonicalSerialize,
@@ -79,6 +78,7 @@ where
     hash_buff.extend_from_slice(&move_token.old_token);
     hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
+    hash_buff.extend_from_slice(&move_token.opt_add_active_currencies.canonical_serialize());
 
     sha_512_256(&hash_buff)
 }

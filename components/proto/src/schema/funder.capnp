@@ -45,7 +45,7 @@ struct MoveToken {
         optAddActiveCurrencies: union {
                 empty @4: Void;
                 # Nothing has changed
-                currency @5: List(Currency);
+                currencies @5: List(Currency);
                 # Add the given currencies
         }
         # Add a list of active currencies. (empty means that no change happens)
