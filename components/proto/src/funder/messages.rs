@@ -167,32 +167,47 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
 }
 
 /// Balance information for a single currency
+#[capnp_conv(crate::report_capnp::balance_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
+    #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub local_pending_debt: u128,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub remote_pending_debt: u128,
 }
 
+#[capnp_conv(crate::report_capnp::currency_balance_info)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CurrencyBalanceInfo {
+    pub currency: Currency,
+    pub balance_info: BalanceInfo,
+}
+
 /// Mutual Credit info
+#[capnp_conv(crate::report_capnp::mc_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub balances: HashMap<Currency, Balance>,
+    pub balances: Vec<CurrencyBalanceInfo>,
 }
 
 /// Token channel counters.
 /// Both sides agree on these values implicitly.
+#[capnp_conv(crate::report_capnp::counters_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
+    #[capnp_conv(with = Wrapper<u128>)]
     pub move_token_counter: u128,
 }
 
 /// Implicit values that both sides agree upon.
 /// Those values are also signed as part of the prefix hash.
 /// A hash of this structure is included inside MoveToken.
+#[capnp_conv(crate::report_capnp::token_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
     pub mc: McInfo,
@@ -219,11 +234,11 @@ pub struct CurrencyOperations {
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
+    pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     pub info_hash: HashResult,
-    pub old_token: Signature,
     pub rand_nonce: RandValue,
     pub new_token: S,
 }

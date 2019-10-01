@@ -7,7 +7,7 @@ using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
 using import "common.capnp".RandValue;
 using import "common.capnp".Rate;
-
+using import "common.capnp".Currency;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NamedIndexServerAddress;
@@ -16,17 +16,38 @@ using import "common.capnp".NetAddress;
 ## Report related structs
 #########################
 
+struct CountersInfo {
+        inconsistencyCounter @0: UInt64;
+        moveTokenCounter @1: CustomUInt128;
+}
+
+struct BalanceInfo {
+        balance @0: CustomInt128;
+        localPendingDebt @1: CustomUInt128;
+        remotePendingDebt @2: CustomUInt128;
+}
+
+struct CurrencyBalanceInfo {
+        currency @0: Currency;
+        balanceInfo @1: BalanceInfo;
+}
+
+struct McInfo {
+        localPublicKey @0: PublicKey;
+        remotePublicKey @1: PublicKey;
+        balances @2: List(CurrencyBalanceInfo);
+}
+
+struct TokenInfo {
+        mc @0: McInfo;
+        counters @1: CountersInfo;
+}
+
 struct MoveTokenHashedReport {
         prefixHash @0: HashResult;
-        localPublicKey @1: PublicKey;
-        remotePublicKey @2: PublicKey;
-        inconsistencyCounter @3: UInt64;
-        moveTokenCounter @4: CustomUInt128;
-        balance @5: CustomInt128;
-        localPendingDebt @6: CustomUInt128;
-        remotePendingDebt @7: CustomUInt128;
-        randNonce @8: RandValue;
-        newToken @9: Signature;
+        tokenInfo @1: TokenInfo;
+        randNonce @2: RandValue;
+        newToken @3: Signature;
 }
 
 

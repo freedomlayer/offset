@@ -11,7 +11,7 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};
+use crate::funder::messages::{FriendStatus, Rate, RequestsStatus, TokenInfo};
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
@@ -19,17 +19,7 @@ use crate::wrapper::Wrapper;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
     pub prefix_hash: HashResult,
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub move_token_counter: u128,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub local_pending_debt: u128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub remote_pending_debt: u128,
+    pub token_info: TokenInfo,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
 }

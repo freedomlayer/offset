@@ -1,9 +1,11 @@
 use byteorder::{BigEndian, WriteBytesExt};
+use std::collections::HashMap;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute,
-    OptLocalRelays, Receipt, RequestSendFundsOp, ResponseSendFundsOp,
+    BalanceInfo, CancelSendFundsOp, CollectSendFundsOp, CountersInfo, Currency, CurrencyOperations,
+    FriendTcOp, FriendsRoute, McInfo, OptLocalRelays, Receipt, RequestSendFundsOp,
+    ResponseSendFundsOp, TokenInfo,
 };
 use proto::index_server::messages::{IndexMutation, UpdateFriend};
 use proto::net::messages::NetAddress;
@@ -75,6 +77,30 @@ impl CanonicalSerialize for u32 {
     }
 }
 
+impl CanonicalSerialize for u64 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_data = Vec::new();
+        res_data.write_u64::<BigEndian>(*self).unwrap();
+        res_data
+    }
+}
+
+impl CanonicalSerialize for u128 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_data = Vec::new();
+        res_data.write_u128::<BigEndian>(*self).unwrap();
+        res_data
+    }
+}
+
+impl CanonicalSerialize for i128 {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_data = Vec::new();
+        res_data.write_i128::<BigEndian>(*self).unwrap();
+        res_data
+    }
+}
+
 impl<T, W> CanonicalSerialize for (T, W)
 where
     T: CanonicalSerialize,
@@ -88,6 +114,20 @@ where
         res_data
     }
 }
+
+/*
+impl<K, V> CanonicalSerialize for HashMap<K, V>
+where
+    K: CanonicalSerialize + Ord + Clone,
+    V: CanonicalSerialize + Clone,
+{
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut vec: Vec<(K, V)> = self.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        vec.sort_by(|(k1, v1), (k2, v2)| k1.cmp(k2));
+        vec.canonical_serialize()
+    }
+}
+*/
 
 impl CanonicalSerialize for Currency {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -273,6 +313,44 @@ impl CanonicalSerialize for IndexMutation {
                 res_bytes.extend_from_slice(public_key);
             }
         };
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for BalanceInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.balance.canonical_serialize());
+        res_bytes.extend_from_slice(&self.local_pending_debt.canonical_serialize());
+        res_bytes.extend_from_slice(&self.remote_pending_debt.canonical_serialize());
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for McInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.local_public_key);
+        res_bytes.extend_from_slice(&self.remote_public_key);
+        res_bytes.extend_from_slice(&self.balances.canonical_serialize());
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for CountersInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.inconsistency_counter.canonical_serialize());
+        res_bytes.extend_from_slice(&self.move_token_counter.canonical_serialize());
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for TokenInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.mc.canonical_serialize());
+        res_bytes.extend_from_slice(&self.counters.canonical_serialize());
         res_bytes
     }
 }

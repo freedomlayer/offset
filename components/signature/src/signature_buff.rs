@@ -62,25 +62,7 @@ where
 }
 
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
-    let mut hash_buff = Vec::new();
-    hash_buff.extend_from_slice(&token_info.local_public_key);
-    hash_buff.extend_from_slice(&token_info.remote_public_key);
-    hash_buff
-        .write_u64::<BigEndian>(token_info.inconsistency_counter)
-        .unwrap();
-    hash_buff
-        .write_u128::<BigEndian>(token_info.move_token_counter)
-        .unwrap();
-    hash_buff
-        .write_i128::<BigEndian>(token_info.balance)
-        .unwrap();
-    hash_buff
-        .write_u128::<BigEndian>(token_info.local_pending_debt)
-        .unwrap();
-    hash_buff
-        .write_u128::<BigEndian>(token_info.remote_pending_debt)
-        .unwrap();
-    sha_512_256(&hash_buff)
+    sha_512_256(&token_info.canonical_serialize())
 }
 
 /// Hash operations and local_address:
@@ -91,7 +73,6 @@ where
     let mut hash_buff = Vec::new();
 
     hash_buff.extend_from_slice(&move_token.old_token);
-
     hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
 
