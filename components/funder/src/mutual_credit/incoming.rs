@@ -269,8 +269,11 @@ fn process_response_send_funds(
         pending_transaction.route.public_keys.last().unwrap()
     };
 
-    let response_signature_buffer =
-        create_response_signature_buffer(&response_send_funds, &pending_transaction);
+    let response_signature_buffer = create_response_signature_buffer(
+        &mutual_credit.state().currency,
+        &response_send_funds,
+        &pending_transaction,
+    );
 
     // Verify response funds signature:
     if !verify_signature(

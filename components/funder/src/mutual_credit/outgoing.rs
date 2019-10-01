@@ -189,8 +189,11 @@ impl OutgoingMc {
         // TODO: Possibly get rid of clone() here for optimization later
 
         // verify signature:
-        let response_signature_buffer =
-            create_response_signature_buffer(&response_send_funds, &pending_transaction);
+        let response_signature_buffer = create_response_signature_buffer(
+            &self.mutual_credit.state().currency,
+            &response_send_funds,
+            &pending_transaction,
+        );
         // The response was signed by the destination node:
         let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
             &self.mutual_credit.state().idents.local_public_key

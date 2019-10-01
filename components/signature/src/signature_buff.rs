@@ -7,7 +7,9 @@ use proto::crypto::HashResult;
 use common::int_convert::usize_to_u64;
 
 use crate::canonical::CanonicalSerialize;
-use proto::funder::messages::{MoveToken, PendingTransaction, ResponseSendFundsOp, TokenInfo};
+use proto::funder::messages::{
+    Currency, MoveToken, PendingTransaction, ResponseSendFundsOp, TokenInfo,
+};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -18,6 +20,7 @@ pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
 pub fn create_response_signature_buffer<S>(
+    currency: &Currency,
     response_send_funds: &ResponseSendFundsOp<S>,
     pending_transaction: &PendingTransaction,
 ) -> Vec<u8> {
@@ -39,6 +42,7 @@ pub fn create_response_signature_buffer<S>(
         .write_u128::<BigEndian>(pending_transaction.total_dest_payment)
         .unwrap();
     sbuffer.extend_from_slice(&pending_transaction.invoice_id);
+    sbuffer.extend_from_slice(&currency.canonical_serialize());
 
     sbuffer
 }

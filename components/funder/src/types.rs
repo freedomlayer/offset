@@ -6,7 +6,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, CurrencyOperations,
     FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, Currency,
 };
 
 use signature::signature_buff::{
@@ -42,6 +42,7 @@ where
 }
 
 pub async fn create_response_send_funds<'a>(
+    currency: &Currency,
     pending_transaction: &'a PendingTransaction,
     dest_hashed_lock: HashedLock,
     rand_nonce: RandValue,
@@ -55,7 +56,7 @@ pub async fn create_response_send_funds<'a>(
     };
 
     let signature_buff =
-        create_response_signature_buffer(&u_response_send_funds, pending_transaction);
+        create_response_signature_buffer(currency, &u_response_send_funds, pending_transaction);
     let signature = identity_client
         .request_signature(signature_buff)
         .await
