@@ -1,11 +1,11 @@
 use byteorder::{BigEndian, WriteBytesExt};
-use std::collections::HashMap;
+// use std::collections::HashMap;
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    BalanceInfo, CancelSendFundsOp, CollectSendFundsOp, CountersInfo, Currency, CurrencyOperations,
-    FriendTcOp, FriendsRoute, McInfo, OptLocalRelays, Receipt, RequestSendFundsOp,
-    ResponseSendFundsOp, TokenInfo,
+    BalanceInfo, CancelSendFundsOp, CollectSendFundsOp, CountersInfo, Currency,
+    CurrencyBalanceInfo, CurrencyOperations, FriendTcOp, FriendsRoute, McInfo, OptLocalRelays,
+    Receipt, RequestSendFundsOp, ResponseSendFundsOp, TokenInfo,
 };
 use proto::index_server::messages::{IndexMutation, UpdateFriend};
 use proto::net::messages::NetAddress;
@@ -323,6 +323,15 @@ impl CanonicalSerialize for BalanceInfo {
         res_bytes.extend_from_slice(&self.balance.canonical_serialize());
         res_bytes.extend_from_slice(&self.local_pending_debt.canonical_serialize());
         res_bytes.extend_from_slice(&self.remote_pending_debt.canonical_serialize());
+        res_bytes
+    }
+}
+
+impl CanonicalSerialize for CurrencyBalanceInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.currency.canonical_serialize());
+        res_bytes.extend_from_slice(&self.balance_info.canonical_serialize());
         res_bytes
     }
 }
