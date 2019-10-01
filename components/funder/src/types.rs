@@ -4,7 +4,7 @@ use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, FriendTcOp,
+    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, CurrencyOperations,
     FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
     RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
 };
@@ -32,9 +32,9 @@ where
         .unwrap();
 
     MoveToken {
-        operations: unsigned_move_token.operations,
-        opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
+        currencies_operations: unsigned_move_token.currencies_operations,
+        opt_local_relays: unsigned_move_token.opt_local_relays,
         info_hash: unsigned_move_token.info_hash,
         rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
@@ -108,17 +108,17 @@ pub struct MoveTokenHashed {
 }
 
 pub fn create_unsigned_move_token<B>(
-    operations: Vec<FriendTcOp>,
+    currencies_operations: Vec<CurrencyOperations>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
     token_info: &TokenInfo,
     old_token: Signature,
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     MoveToken {
-        operations,
+        old_token,
+        currencies_operations,
         opt_local_relays,
         info_hash: hash_token_info(token_info),
-        old_token,
         rand_nonce,
         new_token: (),
     }
