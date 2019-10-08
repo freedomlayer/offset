@@ -67,15 +67,11 @@ pub struct TcOutgoing<B> {
     pub move_token_out: MoveToken<B>,
     pub token_info: TokenInfo,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
-    active_currencies: ActiveCurrencies,
-    mutual_credits: ImHashMap<Currency, MutualCredit>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcIncoming {
     pub move_token_in: MoveTokenHashed,
-    mutual_credits: ImHashMap<Currency, MutualCredit>,
-    active_currencies: ActiveCurrencies,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -85,9 +81,31 @@ pub enum TcDirection<B> {
     Outgoing(TcOutgoing<B>),
 }
 
+#[derive(Clone, Debug)]
+pub struct TcInBorrow<'a> {
+    tc_incoming: &'a mut TcIncoming,
+    mutual_credits: &'a mut ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a mut ActiveCurrencies,
+}
+
+#[derive(Clone, Debug)]
+pub struct TcOutBorrow<'a, B> {
+    tc_outgoing: &'a mut TcOutgoing<B>,
+    mutual_credits: &'a mut ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a mut ActiveCurrencies,
+}
+
+#[derive(Clone, Debug)]
+pub enum TcDirectionBorrow<'a, B> {
+    In(TcInBorrow<'a>),
+    Out(TcOutBorrow<'a, B>),
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
+    mutual_credits: ImHashMap<Currency, MutualCredit>,
+    active_currencies: ActiveCurrencies,
 }
 
 #[derive(Debug)]
@@ -327,8 +345,19 @@ where
             .remote_max_debt
     }
 
-    pub fn get_direction(&self) -> &TcDirection<B> {
-        &self.direction
+    pub fn get_direction<'a>(&'a self) -> TcDirectionBorrow<'a, B> {
+        match &self.direction {
+            TcDirection::Incoming(tc_incoming) => TcDirectionBorrow::In(TcInBorrow {
+                tc_incoming: &mut tc_incoming,
+                mutual_credits: &mut self.mutual_credits,
+                active_currencies: &mut self.active_currencies,
+            }),
+            TcDirection::Outgoing(tc_outgoing) => TcDirectionBorrow::Out(TcOutBorrow {
+                tc_outgoing: &mut tc_outgoing,
+                mutual_credits: &mut self.mutual_credits,
+                active_currencies: &mut self.active_currencies,
+            }),
+        }
     }
 
     /// Get the last incoming move token
@@ -470,7 +499,7 @@ where
     }
 }
 
-impl TcIncoming {
+impl<'a> TcInBorrow<'a> {
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<B>(
         &self,
@@ -481,7 +510,9 @@ impl TcIncoming {
     {
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
-        if self.move_token_in == create_hashed(&new_move_token, &self.move_token_in.token_info) {
+        if self.tc_incoming.move_token_in
+            == create_hashed(&new_move_token, &self.tc_incoming.move_token_in.token_info)
+        {
             // Duplicate
             Ok(ReceiveMoveTokenOutput::Duplicate)
         } else {
@@ -497,7 +528,7 @@ impl TcIncoming {
         opt_add_active_currencies: Option<Vec<Currency>>,
         rand_nonce: RandValue,
     ) -> (UnsignedMoveToken<B>, TokenInfo) {
-        let mut token_info = self.move_token_in.token_info.clone().flip();
+        let mut token_info = self.tc_incoming.move_token_in.token_info.clone().flip();
         token_info.counters.move_token_counter =
             token_info.counters.move_token_counter.wrapping_add(1);
 
@@ -506,7 +537,7 @@ impl TcIncoming {
             opt_local_relays,
             opt_add_active_currencies,
             &token_info,
-            self.move_token_in.new_token.clone(),
+            self.tc_incoming.move_token_in.new_token.clone(),
             rand_nonce,
         );
 
@@ -518,7 +549,7 @@ impl TcIncoming {
     }
 }
 
-impl<B> TcOutgoing<B>
+impl<'a, B> TcOutBorrow<'a, B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -527,15 +558,15 @@ where
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
-        if new_move_token.old_token == self.move_token_out.new_token {
+        if new_move_token.old_token == self.tc_outgoing.move_token_out.new_token {
             Ok(ReceiveMoveTokenOutput::Received(
                 self.handle_incoming_token_match(new_move_token)?,
             ))
         // self.outgoing_to_incoming(friend_move_token, new_move_token)
-        } else if self.move_token_out.old_token == new_move_token.new_token {
+        } else if self.tc_outgoing.move_token_out.old_token == new_move_token.new_token {
             // We should retransmit our move token message to the remote side.
             Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(
-                self.move_token_out.clone(),
+                self.tc_outgoing.move_token_out.clone(),
             ))
         } else {
             Err(ReceiveMoveTokenError::ChainInconsistency)
@@ -550,7 +581,7 @@ where
         // Note that we only verify the signature here, and not at the Incoming part.
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
-        let remote_public_key = &self.token_info.mc.remote_public_key;
+        let remote_public_key = &self.tc_outgoing.token_info.mc.remote_public_key;
         if !verify_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
@@ -595,7 +626,7 @@ where
                 process_operations_list(&mut mutual_credit, currency_operations.operations.clone())
                     .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
 
-            let mut token_info = self.token_info.clone().flip();
+            let mut token_info = self.tc_outgoing.token_info.clone().flip();
             token_info.counters.move_token_counter = token_info
                 .counters
                 .move_token_counter
