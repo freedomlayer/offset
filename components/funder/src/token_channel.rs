@@ -555,28 +555,34 @@ where
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
 
+        // Aggregate results for every currency:
+        let mut move_token_received = MoveTokenReceived {
+            mutations: Vec::new(),
+            currencies: Vec::new(),
+        };
+
         let mutual_credits = self.mutual_credits.clone();
 
+        /*
         if let Some(ref add_active_currencies) = new_move_token.opt_add_active_currencies {
             for currency in add_active_currencies {
                 if self.active_currencies.remote.contains(currency) {
                     return Err(ReceiveMoveTokenError::InvalidAddActiveCurrencies);
                 }
                 if self.active_currencies.local.contains(currency) {
+                    move_token_received.mutations.push(TcMutation::SetDirection(
+                        SetDirection::Incoming(create_hashed(&new_move_token, &token_info)),
+                    ));
+
                     // TODO
                 }
             }
         }
+        */
 
         // TODO: We might need to create a new mutual_credit here.
         // according to new_move_token.opt_add_active_currencies
         assert!(false);
-
-        // Aggregate results for every currency:
-        let mut move_token_received = MoveTokenReceived {
-            mutations: Vec::new(),
-            currencies: Vec::new(),
-        };
 
         for currency_operations in &new_move_token.currencies_operations {
             let mut mutual_credit = self
