@@ -37,6 +37,9 @@ pub enum SetDirection<B> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<B> {
     McMutation((Currency, McMutation)),
+    AddLocalActiveCurrency(Currency),
+    AddRemoteActiveCurrency(Currency),
+    AddMutualCredit(Currency),
     SetDirection(SetDirection<B>),
 }
 
@@ -102,12 +105,17 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived<B> {
+pub struct MoveTokenReceivedCurrency<B> {
     pub currency: Currency,
     pub incoming_messages: Vec<IncomingMessage>,
-    pub mutations: Vec<TcMutation<B>>,
     pub remote_requests_closed: bool,
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+}
+
+#[derive(Debug)]
+pub struct MoveTokenReceived<B> {
+    pub mutations: Vec<TcMutation<B>>,
+    pub currencies: Vec<MoveTokenReceivedCurrency<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -115,7 +123,7 @@ pub struct MoveTokenReceived<B> {
 pub enum ReceiveMoveTokenOutput<B> {
     Duplicate,
     RetransmitOutgoing(MoveToken<B>),
-    Received(Vec<MoveTokenReceived<B>>),
+    Received(MoveTokenReceived<B>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
@@ -370,6 +378,51 @@ where
                     }
                 };
             }
+            TcMutation::AddLocalActiveCurrency(ref currency) => {
+                let active_currencies = match &mut self.direction {
+                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
+                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
+                };
+                active_currencies.local.insert(currency.clone());
+            }
+            TcMutation::AddRemoteActiveCurrency(ref currency) => {
+                let active_currencies = match &mut self.direction {
+                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
+                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
+                };
+                active_currencies.remote.insert(currency.clone());
+            }
+            TcMutation::AddMutualCredit(ref currency) => {
+                let active_currencies = match &mut self.direction {
+                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
+                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
+                };
+                assert!(active_currencies.local.contains(currency));
+                assert!(active_currencies.remote.contains(currency));
+
+                let token_info = match &self.direction {
+                    TcDirection::Incoming(tc_incoming) => {
+                        tc_incoming.move_token_in.token_info.clone().flip()
+                    }
+                    TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.clone(),
+                };
+
+                let mutual_credits = match &mut self.direction {
+                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.mutual_credits,
+                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.mutual_credits,
+                };
+
+                let balance = 0;
+                let new_mutual_credit = MutualCredit::new(
+                    &token_info.mc.local_public_key,
+                    &token_info.mc.remote_public_key,
+                    currency,
+                    balance,
+                );
+                let res = mutual_credits.insert(currency.clone(), new_mutual_credit);
+                // Make sure that this currency was not already present:
+                assert!(res.is_none());
+            }
         }
     }
 
@@ -492,7 +545,7 @@ where
     fn handle_incoming_token_match(
         &self,
         new_move_token: MoveToken<B>,
-    ) -> Result<Vec<MoveTokenReceived<B>>, ReceiveMoveTokenError> {
+    ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError> {
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
         // This allows the genesis move token to occur smoothly, even though its signature
@@ -517,11 +570,13 @@ where
 
         // TODO: We might need to create a new mutual_credit here.
         // according to new_move_token.opt_add_active_currencies
-        // Where do we save our own active currencies?
         assert!(false);
 
         // Aggregate results for every currency:
-        let mut move_token_received_vec = Vec::new();
+        let mut move_token_received = MoveTokenReceived {
+            mutations: Vec::new(),
+            currencies: Vec::new(),
+        };
 
         for currency_operations in &new_move_token.currencies_operations {
             let mut mutual_credit = self
@@ -544,7 +599,6 @@ where
             let initial_remote_requests = mutual_credit.state().requests_status.remote.is_open();
 
             let mut incoming_messages = Vec::new();
-            let mut mutations = Vec::new();
 
             // We apply mutations on this token channel, to verify stated balance values
             let mut check_mutual_credit = mutual_credit.clone();
@@ -564,7 +618,7 @@ where
                     if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
                         final_remote_requests = requests_status.is_open();
                     }
-                    mutations.push(TcMutation::McMutation((
+                    move_token_received.mutations.push(TcMutation::McMutation((
                         currency_operations.currency.clone(),
                         mc_mutation,
                     )));
@@ -577,23 +631,26 @@ where
                 return Err(ReceiveMoveTokenError::InvalidStatedBalance);
             }
 
-            mutations.push(TcMutation::SetDirection(SetDirection::Incoming(
-                create_hashed(&new_move_token, &token_info),
-            )));
+            move_token_received
+                .mutations
+                .push(TcMutation::SetDirection(SetDirection::Incoming(
+                    create_hashed(&new_move_token, &token_info),
+                )));
 
-            let move_token_received = MoveTokenReceived {
+            let move_token_received_currency = MoveTokenReceivedCurrency {
                 currency: currency_operations.currency.clone(),
                 incoming_messages,
-                mutations,
                 // Were the remote requests initially open and now it is closed?
                 remote_requests_closed: final_remote_requests && !initial_remote_requests,
                 opt_local_relays: new_move_token.opt_local_relays.clone(),
             };
 
-            move_token_received_vec.push(move_token_received);
+            move_token_received
+                .currencies
+                .push(move_token_received_currency);
         }
 
-        Ok(move_token_received_vec)
+        Ok(move_token_received)
     }
 
     /// Get the current outgoing move token
