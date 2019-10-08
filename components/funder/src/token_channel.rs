@@ -83,16 +83,16 @@ pub enum TcDirection<B> {
 
 #[derive(Clone, Debug)]
 pub struct TcInBorrow<'a> {
-    tc_incoming: &'a mut TcIncoming,
-    mutual_credits: &'a mut ImHashMap<Currency, MutualCredit>,
-    active_currencies: &'a mut ActiveCurrencies,
+    tc_incoming: &'a TcIncoming,
+    mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a ActiveCurrencies,
 }
 
 #[derive(Clone, Debug)]
 pub struct TcOutBorrow<'a, B> {
-    tc_outgoing: &'a mut TcOutgoing<B>,
-    mutual_credits: &'a mut ImHashMap<Currency, MutualCredit>,
-    active_currencies: &'a mut ActiveCurrencies,
+    tc_outgoing: &'a TcOutgoing<B>,
+    mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a ActiveCurrencies,
 }
 
 #[derive(Clone, Debug)]
@@ -217,11 +217,11 @@ where
                 move_token_out,
                 token_info,
                 opt_prev_move_token_in: None,
-                mutual_credits: ImHashMap::new(),
-                active_currencies: ActiveCurrencies::new(),
             };
             TokenChannel {
                 direction: TcDirection::Outgoing(tc_outgoing),
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             }
         } else {
             // We are the second sender
@@ -229,13 +229,11 @@ where
                 initial_move_token(remote_public_key, local_public_key);
             let move_token_in = create_hashed::<B>(&move_token_in_full, &token_info);
 
-            let tc_incoming = TcIncoming {
-                move_token_in,
-                mutual_credits: ImHashMap::new(),
-                active_currencies: ActiveCurrencies::new(),
-            };
+            let tc_incoming = TcIncoming { move_token_in };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             }
         }
     }
@@ -269,15 +267,15 @@ where
 
         let tc_incoming = TcIncoming {
             move_token_in: create_hashed(&reset_move_token, remote_token_info),
+        };
+
+        TokenChannel {
+            direction: TcDirection::Incoming(tc_incoming),
             mutual_credits,
             active_currencies: ActiveCurrencies {
                 local: active_currencies.clone(),
                 remote: active_currencies,
             },
-        };
-
-        TokenChannel {
-            direction: TcDirection::Incoming(tc_incoming),
         }
     }
 
@@ -308,36 +306,20 @@ where
             move_token_out: reset_move_token.clone(),
             token_info: token_info.clone(),
             opt_prev_move_token_in: opt_last_incoming_move_token,
+        };
+
+        TokenChannel {
+            direction: TcDirection::Outgoing(tc_outgoing),
             mutual_credits,
             active_currencies: ActiveCurrencies {
                 local: active_currencies.clone(),
                 remote: active_currencies,
             },
-        };
-
-        TokenChannel {
-            direction: TcDirection::Outgoing(tc_outgoing),
-        }
-    }
-
-    /// Get a reference to internal mutual_credit.
-    pub fn get_mutual_credits(&self) -> &ImHashMap<Currency, MutualCredit> {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => &tc_incoming.mutual_credits,
-            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.mutual_credits,
-        }
-    }
-
-    /// Get a reference to internal mutual_credit.
-    fn get_active_currencies(&self) -> &ActiveCurrencies {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => &tc_incoming.active_currencies,
-            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.active_currencies,
         }
     }
 
     pub fn get_remote_max_debt(&self, currency: &Currency) -> u128 {
-        self.get_mutual_credits()
+        self.mutual_credits
             .get(currency)
             .unwrap()
             .state()
@@ -348,14 +330,14 @@ where
     pub fn get_direction<'a>(&'a self) -> TcDirectionBorrow<'a, B> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => TcDirectionBorrow::In(TcInBorrow {
-                tc_incoming: &mut tc_incoming,
-                mutual_credits: &mut self.mutual_credits,
-                active_currencies: &mut self.active_currencies,
+                tc_incoming: &tc_incoming,
+                mutual_credits: &self.mutual_credits,
+                active_currencies: &self.active_currencies,
             }),
             TcDirection::Outgoing(tc_outgoing) => TcDirectionBorrow::Out(TcOutBorrow {
-                tc_outgoing: &mut tc_outgoing,
-                mutual_credits: &mut self.mutual_credits,
-                active_currencies: &mut self.active_currencies,
+                tc_outgoing: &tc_outgoing,
+                mutual_credits: &self.mutual_credits,
+                active_currencies: &self.active_currencies,
             }),
         }
     }
@@ -376,11 +358,7 @@ where
     pub fn mutate(&mut self, d_mutation: &TcMutation<B>) {
         match d_mutation {
             TcMutation::McMutation((currency, mc_mutation)) => {
-                let mutual_credits = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.mutual_credits,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.mutual_credits,
-                };
-                let mutual_credit = mutual_credits.get_mut(currency).unwrap();
+                let mutual_credit = self.mutual_credits.get_mut(currency).unwrap();
                 mutual_credit.mutate(mc_mutation);
             }
             TcMutation::SetDirection(ref set_direction) => {
@@ -388,8 +366,6 @@ where
                     SetDirection::Incoming(friend_move_token_hashed) => {
                         let tc_incoming = TcIncoming {
                             move_token_in: friend_move_token_hashed.clone(),
-                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
-                            active_currencies: self.get_active_currencies().clone(),
                         };
                         TcDirection::Incoming(tc_incoming)
                     }
@@ -400,45 +376,26 @@ where
                             opt_prev_move_token_in: self
                                 .get_last_incoming_move_token_hashed()
                                 .cloned(),
-                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
-                            active_currencies: self.get_active_currencies().clone(),
                         };
                         TcDirection::Outgoing(tc_outgoing)
                     }
                 };
             }
             TcMutation::AddLocalActiveCurrency(ref currency) => {
-                let active_currencies = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
-                };
-                active_currencies.local.insert(currency.clone());
+                self.active_currencies.local.insert(currency.clone());
             }
             TcMutation::AddRemoteActiveCurrency(ref currency) => {
-                let active_currencies = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
-                };
-                active_currencies.remote.insert(currency.clone());
+                self.active_currencies.remote.insert(currency.clone());
             }
             TcMutation::AddMutualCredit(ref currency) => {
-                let active_currencies = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.active_currencies,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.active_currencies,
-                };
-                assert!(active_currencies.local.contains(currency));
-                assert!(active_currencies.remote.contains(currency));
+                assert!(self.active_currencies.local.contains(currency));
+                assert!(self.active_currencies.remote.contains(currency));
 
                 let token_info = match &self.direction {
                     TcDirection::Incoming(tc_incoming) => {
                         tc_incoming.move_token_in.token_info.clone().flip()
                     }
                     TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.clone(),
-                };
-
-                let mutual_credits = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.mutual_credits,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.mutual_credits,
                 };
 
                 let balance = 0;
@@ -448,7 +405,9 @@ where
                     currency,
                     balance,
                 );
-                let res = mutual_credits.insert(currency.clone(), new_mutual_credit);
+                let res = self
+                    .mutual_credits
+                    .insert(currency.clone(), new_mutual_credit);
                 // Make sure that this currency was not already present:
                 assert!(res.is_none());
             }
@@ -492,9 +451,9 @@ where
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => tc_incoming.handle_incoming(new_move_token),
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.handle_incoming(new_move_token),
+        match &self.get_direction() {
+            TcDirectionBorrow::In(tc_in_borrow) => tc_in_borrow.handle_incoming(new_move_token),
+            TcDirectionBorrow::Out(tc_out_borrow) => tc_out_borrow.handle_incoming(new_move_token),
         }
     }
 }
@@ -692,7 +651,7 @@ where
 
     /// Get the current outgoing move token
     pub fn create_outgoing_move_token(&self) -> MoveToken<B> {
-        self.move_token_out.clone()
+        self.tc_outgoing.move_token_out.clone()
     }
 }
 
