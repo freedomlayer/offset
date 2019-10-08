@@ -37,8 +37,9 @@ pub enum QueueOperationError {
     DestPaymentExceedsTotal,
 }
 
-/// A wrapper over a token channel, accumulating funds to be sent as one transaction.
+/// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 impl OutgoingMc {
+    // TODO: Take MutualCredit instead of &MutualCredit?
     pub fn new(mutual_credit: &MutualCredit) -> OutgoingMc {
         OutgoingMc {
             mutual_credit: mutual_credit.clone(),
