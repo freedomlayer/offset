@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+
+use im::hashmap::HashMap as ImHashMap;
+use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -37,18 +40,39 @@ pub enum TcMutation<B> {
     SetDirection(SetDirection<B>),
 }
 
+/// The currencies set to be active by two sides of the token channel.
+/// Only currencies that are active on both sides (Intersection) can be used for trading.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ActiveCurrencies {
+    /// Currencies set to be active by local side
+    pub local: ImHashSet<Currency>,
+    /// Currencies set to be active by remote side
+    pub remote: ImHashSet<Currency>,
+}
+
+impl ActiveCurrencies {
+    fn new() -> Self {
+        Self {
+            local: ImHashSet::new(),
+            remote: ImHashSet::new(),
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcOutgoing<B> {
-    pub mutual_credits: HashMap<Currency, MutualCredit>,
     pub move_token_out: MoveToken<B>,
     pub token_info: TokenInfo,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
+    active_currencies: ActiveCurrencies,
+    mutual_credits: ImHashMap<Currency, MutualCredit>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcIncoming {
-    pub mutual_credits: HashMap<Currency, MutualCredit>,
     pub move_token_in: MoveTokenHashed,
+    mutual_credits: ImHashMap<Currency, MutualCredit>,
+    active_currencies: ActiveCurrencies,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -74,10 +98,12 @@ pub enum ReceiveMoveTokenError {
     InvalidMoveTokenCounter,
     TooManyOperations,
     InvalidCurrency,
+    InvalidAddActiveCurrencies,
 }
 
 #[derive(Debug)]
 pub struct MoveTokenReceived<B> {
+    pub currency: Currency,
     pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation<B>>,
     pub remote_requests_closed: bool,
@@ -89,7 +115,7 @@ pub struct MoveTokenReceived<B> {
 pub enum ReceiveMoveTokenOutput<B> {
     Duplicate,
     RetransmitOutgoing(MoveToken<B>),
-    Received(HashMap<Currency, MoveTokenReceived<B>>),
+    Received(Vec<MoveTokenReceived<B>>),
     // In case of a reset, all the local pending requests will be canceled.
 }
 
@@ -162,10 +188,11 @@ where
             let (move_token_out, token_info) =
                 initial_move_token(local_public_key, remote_public_key);
             let tc_outgoing = TcOutgoing {
-                mutual_credits: HashMap::new(),
                 move_token_out,
                 token_info,
                 opt_prev_move_token_in: None,
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             };
             TokenChannel {
                 direction: TcDirection::Outgoing(tc_outgoing),
@@ -177,8 +204,9 @@ where
             let move_token_in = create_hashed::<B>(&move_token_in_full, &token_info);
 
             let tc_incoming = TcIncoming {
-                mutual_credits: HashMap::new(),
                 move_token_in,
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
@@ -190,7 +218,7 @@ where
         reset_move_token: &MoveToken<B>,
         remote_token_info: &TokenInfo,
     ) -> TokenChannel<B> {
-        let mutual_credits = remote_token_info
+        let mutual_credits: ImHashMap<Currency, MutualCredit> = remote_token_info
             .mc
             .balances
             .iter()
@@ -211,9 +239,15 @@ where
             })
             .collect();
 
+        let active_currencies: ImHashSet<_> = mutual_credits.keys().cloned().collect();
+
         let tc_incoming = TcIncoming {
-            mutual_credits,
             move_token_in: create_hashed(&reset_move_token, remote_token_info),
+            mutual_credits,
+            active_currencies: ActiveCurrencies {
+                local: active_currencies.clone(),
+                remote: active_currencies,
+            },
         };
 
         TokenChannel {
@@ -226,7 +260,7 @@ where
         token_info: &TokenInfo,
         opt_last_incoming_move_token: Option<MoveTokenHashed>,
     ) -> TokenChannel<B> {
-        let mutual_credits = token_info
+        let mutual_credits: ImHashMap<Currency, MutualCredit> = token_info
             .mc
             .balances
             .iter()
@@ -242,22 +276,37 @@ where
                 )
             })
             .collect();
+
+        let active_currencies: ImHashSet<_> = mutual_credits.keys().cloned().collect();
         let tc_outgoing = TcOutgoing {
-            mutual_credits,
             move_token_out: reset_move_token.clone(),
             token_info: token_info.clone(),
             opt_prev_move_token_in: opt_last_incoming_move_token,
+            mutual_credits,
+            active_currencies: ActiveCurrencies {
+                local: active_currencies.clone(),
+                remote: active_currencies,
+            },
         };
+
         TokenChannel {
             direction: TcDirection::Outgoing(tc_outgoing),
         }
     }
 
     /// Get a reference to internal mutual_credit.
-    pub fn get_mutual_credits(&self) -> &HashMap<Currency, MutualCredit> {
+    pub fn get_mutual_credits(&self) -> &ImHashMap<Currency, MutualCredit> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => &tc_incoming.mutual_credits,
             TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.mutual_credits,
+        }
+    }
+
+    /// Get a reference to internal mutual_credit.
+    fn get_active_currencies(&self) -> &ActiveCurrencies {
+        match &self.direction {
+            TcDirection::Incoming(tc_incoming) => &tc_incoming.active_currencies,
+            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.active_currencies,
         }
     }
 
@@ -301,19 +350,21 @@ where
                 self.direction = match set_direction {
                     SetDirection::Incoming(friend_move_token_hashed) => {
                         let tc_incoming = TcIncoming {
-                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
                             move_token_in: friend_move_token_hashed.clone(),
+                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
+                            active_currencies: self.get_active_currencies().clone(),
                         };
                         TcDirection::Incoming(tc_incoming)
                     }
                     SetDirection::Outgoing((friend_move_token, token_info)) => {
                         let tc_outgoing = TcOutgoing {
-                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
                             move_token_out: friend_move_token.clone(),
                             token_info: token_info.clone(),
                             opt_prev_move_token_in: self
                                 .get_last_incoming_move_token_hashed()
                                 .cloned(),
+                            mutual_credits: self.get_mutual_credits().clone(), // TODO: Remove this clone()
+                            active_currencies: self.get_active_currencies().clone(),
                         };
                         TcDirection::Outgoing(tc_outgoing)
                     }
@@ -441,7 +492,7 @@ where
     fn handle_incoming_token_match(
         &self,
         new_move_token: MoveToken<B>,
-    ) -> Result<HashMap<Currency, MoveTokenReceived<B>>, ReceiveMoveTokenError> {
+    ) -> Result<Vec<MoveTokenReceived<B>>, ReceiveMoveTokenError> {
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
         // This allows the genesis move token to occur smoothly, even though its signature
@@ -451,7 +502,26 @@ where
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
 
-        let mut move_token_received_map = HashMap::new();
+        let mutual_credits = self.mutual_credits.clone();
+
+        if let Some(ref add_active_currencies) = new_move_token.opt_add_active_currencies {
+            for currency in add_active_currencies {
+                if self.active_currencies.remote.contains(currency) {
+                    return Err(ReceiveMoveTokenError::InvalidAddActiveCurrencies);
+                }
+                if self.active_currencies.local.contains(currency) {
+                    // TODO
+                }
+            }
+        }
+
+        // TODO: We might need to create a new mutual_credit here.
+        // according to new_move_token.opt_add_active_currencies
+        // Where do we save our own active currencies?
+        assert!(false);
+
+        // Aggregate results for every currency:
+        let mut move_token_received_vec = Vec::new();
 
         for currency_operations in &new_move_token.currencies_operations {
             let mut mutual_credit = self
@@ -512,6 +582,7 @@ where
             )));
 
             let move_token_received = MoveTokenReceived {
+                currency: currency_operations.currency.clone(),
                 incoming_messages,
                 mutations,
                 // Were the remote requests initially open and now it is closed?
@@ -519,11 +590,10 @@ where
                 opt_local_relays: new_move_token.opt_local_relays.clone(),
             };
 
-            move_token_received_map
-                .insert(currency_operations.currency.clone(), move_token_received);
+            move_token_received_vec.push(move_token_received);
         }
 
-        Ok(move_token_received_map)
+        Ok(move_token_received_vec)
     }
 
     /// Get the current outgoing move token
