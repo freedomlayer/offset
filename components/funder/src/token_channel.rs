@@ -484,6 +484,10 @@ impl<'a> TcInBorrow<'a> {
         opt_add_active_currencies: Option<Vec<Currency>>,
         rand_nonce: RandValue,
     ) -> (UnsignedMoveToken<B>, TokenInfo) {
+        // TODO: If opt_add_active_currencies contains new currencies, we might need to add
+        // new balances (mutual_credits) for the new currencies.
+        assert!(false);
+
         let balances = currencies_operations
             .iter()
             .map(|currency_operations| {
