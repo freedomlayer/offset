@@ -440,10 +440,26 @@ where
     }
     */
 
+    /*
     pub fn is_outgoing(&self) -> bool {
         match self.direction {
             TcDirection::Incoming(_) => false,
             TcDirection::Outgoing(_) => true,
+        }
+    }
+    */
+
+    pub fn get_outgoing<'a>(&'a self) -> Option<TcOutBorrow<'a, B>> {
+        match self.get_direction() {
+            TcDirectionBorrow::In(_) => None,
+            TcDirectionBorrow::Out(tc_out_borrow) => Some(tc_out_borrow),
+        }
+    }
+
+    pub fn get_incoming<'a>(&'a self) -> Option<TcInBorrow<'a>> {
+        match self.get_direction() {
+            TcDirectionBorrow::In(tc_in_borrow) => Some(tc_in_borrow),
+            TcDirectionBorrow::Out(_) => None,
         }
     }
 
@@ -532,15 +548,29 @@ where
         }
     }
 
+    /// Create a full TokenChannel (Outgoing direction)
+    fn create_token_channel(&self) -> TokenChannel<B> {
+        TokenChannel {
+            direction: TcDirection::Outgoing(self.tc_outgoing.clone()),
+            mutual_credits: self.mutual_credits.clone(),
+            active_currencies: self.active_currencies.clone(),
+        }
+    }
+
     fn handle_incoming_token_match(
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError> {
+        // We create a clone `token_channel` on which we are going to apply all the mutations.
+        // Eventually this cloned TokenChannel is discarded, and we only output the applied mutations.
+        let mut token_channel = self.create_token_channel();
+        let tc_out_borrow = token_channel.get_outgoing().unwrap();
+
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
-        let remote_public_key = &self.tc_outgoing.token_info.mc.remote_public_key;
+        let remote_public_key = &tc_out_borrow.tc_outgoing.token_info.mc.remote_public_key;
         if !verify_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
@@ -551,31 +581,36 @@ where
             currencies: Vec::new(),
         };
 
-        let mutual_credits = self.mutual_credits.clone();
+        let mutual_credits = tc_out_borrow.mutual_credits.clone();
 
-        /*
+        // Handle add_active_currencies:
         if let Some(ref add_active_currencies) = new_move_token.opt_add_active_currencies {
             for currency in add_active_currencies {
-                if self.active_currencies.remote.contains(currency) {
+                let tc_out_borrow = token_channel.get_outgoing().unwrap();
+                // Add active currency to remote (If does not already exist):
+                if tc_out_borrow.active_currencies.remote.contains(currency) {
                     return Err(ReceiveMoveTokenError::InvalidAddActiveCurrencies);
                 }
-                if self.active_currencies.local.contains(currency) {
-                    move_token_received.mutations.push(TcMutation::SetDirection(
-                        SetDirection::Incoming(create_hashed(&new_move_token, &token_info)),
-                    ));
+                let mutation = TcMutation::AddRemoteActiveCurrency(currency.clone());
+                token_channel.mutate(&mutation);
+                move_token_received.mutations.push(mutation);
 
-                    // TODO
+                let tc_out_borrow = token_channel.get_outgoing().unwrap();
+
+                // Possibly add a new MutualCredit:
+                if tc_out_borrow.active_currencies.local.contains(currency) {
+                    let mutation = TcMutation::AddMutualCredit(currency.clone());
+                    token_channel.mutate(&mutation);
+                    move_token_received.mutations.push(mutation);
                 }
             }
         }
-        */
 
-        // TODO: We might need to create a new mutual_credit here.
-        // according to new_move_token.opt_add_active_currencies
-        assert!(false);
+        let tc_out_borrow = token_channel.get_outgoing().unwrap();
 
+        // Attempt to apply operations for every currency:
         for currency_operations in &new_move_token.currencies_operations {
-            let mut mutual_credit = self
+            let mut mutual_credit = tc_out_borrow
                 .mutual_credits
                 .get(&currency_operations.currency)
                 .ok_or(ReceiveMoveTokenError::InvalidCurrency)?
@@ -585,7 +620,7 @@ where
                 process_operations_list(&mut mutual_credit, currency_operations.operations.clone())
                     .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
 
-            let mut token_info = self.tc_outgoing.token_info.clone().flip();
+            let mut token_info = tc_out_borrow.tc_outgoing.token_info.clone().flip();
             token_info.counters.move_token_counter = token_info
                 .counters
                 .move_token_counter
