@@ -484,9 +484,47 @@ impl<'a> TcInBorrow<'a> {
         opt_add_active_currencies: Option<Vec<Currency>>,
         rand_nonce: RandValue,
     ) -> (UnsignedMoveToken<B>, TokenInfo) {
-        let mut token_info = self.tc_incoming.move_token_in.token_info.clone().flip();
-        token_info.counters.move_token_counter =
-            token_info.counters.move_token_counter.wrapping_add(1);
+        let balances = currencies_operations
+            .iter()
+            .map(|currency_operations| {
+                let mut mutual_credit = self
+                    .mutual_credits
+                    .get(&currency_operations.currency)
+                    .unwrap()
+                    .clone();
+
+                let mut outgoing_mc = OutgoingMc::new(&mutual_credit);
+                for op in &currency_operations.operations {
+                    let mutations = outgoing_mc.queue_operation(op).unwrap();
+                    for mutation in mutations {
+                        mutual_credit.mutate(&mutation);
+                    }
+                }
+
+                CurrencyBalanceInfo {
+                    currency: currency_operations.currency.clone(),
+                    balance_info: BalanceInfo {
+                        balance: mutual_credit.state().balance.balance,
+                        local_pending_debt: mutual_credit.state().balance.local_pending_debt,
+                        remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
+                    },
+                }
+            })
+            .collect();
+
+        let cur_token_info = &self.tc_incoming.move_token_in.token_info;
+
+        let token_info = TokenInfo {
+            mc: McInfo {
+                local_public_key: cur_token_info.mc.remote_public_key.clone(),
+                remote_public_key: cur_token_info.mc.local_public_key.clone(),
+                balances,
+            },
+            counters: CountersInfo {
+                move_token_counter: cur_token_info.counters.move_token_counter.wrapping_add(1),
+                inconsistency_counter: cur_token_info.counters.inconsistency_counter,
+            },
+        };
 
         let unsigned_move_token = create_unsigned_move_token(
             currencies_operations,
@@ -839,6 +877,15 @@ mod tests {
         )));
         tc2.mutate(&tc_mutation);
 
+        for currency in currencies {
+            let tc_mutation = TcMutation::AddLocalActiveCurrency(currency.clone());
+            tc2.mutate(&tc_mutation);
+
+            if tc2.active_currencies.remote.contains(&currency) {
+                tc2.mutate(&TcMutation::AddMutualCredit(currency.clone()));
+            }
+        }
+
         assert!(tc2.get_outgoing().is_some());
 
         let receive_move_token_output = tc1
@@ -851,8 +898,7 @@ mod tests {
         };
 
         assert!(move_token_received.currencies.is_empty());
-        assert_eq!(move_token_received.mutations.len(), 1);
-        dbg!(&move_token_received.mutations);
+        assert_eq!(move_token_received.mutations.len(), 2);
 
         // let mut seen_mc_mutation = false;
         // let mut seen_set_direction = false;
@@ -1024,18 +1070,18 @@ mod tests {
             &[currency.clone()],
         );
 
-        /*
-
         // Current state:  tc2 --> tc1
         // tc1: incoming
         // tc2: outgoing
         add_currencies(
             &identity2,
             &identity1,
-            &mut tc1,
             &mut tc2,
+            &mut tc1,
             &[currency.clone()],
         );
+
+        /*
 
         // Current state:  tc1 --> tc2
         // tc1: outgoing
