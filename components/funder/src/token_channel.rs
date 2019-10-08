@@ -429,17 +429,6 @@ where
         }
     }
 
-    /*
-    pub fn get_move_token_counter(&self) -> u128 {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => {
-                tc_incoming.move_token_in.token_info.move_token_counter
-            }
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.move_token_counter,
-        }
-    }
-    */
-
     pub fn get_outgoing<'a>(&'a self) -> Option<TcOutBorrow<'a, B>> {
         match self.get_direction() {
             TcDirectionBorrow::In(_) => None,
@@ -773,7 +762,6 @@ mod tests {
         }
     }
 
-    /*
     /// Before: tc1: outgoing, tc2: incoming
     /// Send SetRemoteMaxDebt: tc2 -> tc1
     /// After: tc1: incoming, tc2: outgoing
@@ -782,30 +770,37 @@ mod tests {
         identity2: &I,
         tc1: &mut TokenChannel<u32>,
         tc2: &mut TokenChannel<u32>,
+        currency: &Currency,
     ) where
         I: Identity,
     {
-        let currency = Currency::try_from("FST".to_owned()).unwrap();
-
         assert!(tc1.get_outgoing().is_some());
         assert!(!tc2.get_outgoing().is_some());
 
         let tc2_in_borrow = tc2.get_incoming().unwrap();
-        // TODO: We will probably not have this currency at this point:
         let mut outgoing_mc = tc2_in_borrow.begin_outgoing_move_token(&currency).unwrap();
         let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
         let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
-        let operations = vec![friend_tc_op];
+        let currency_operations = CurrencyOperations {
+            currency: currency.clone(),
+            operations: vec![friend_tc_op],
+        };
+        let currencies_operations = vec![currency_operations];
 
         let rand_nonce = RandValue::from(&[5; RandValue::len()]);
         let opt_local_relays = None;
-        let (unsigned_move_token, token_info) =
-            tc2_in_borrow.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
+        let opt_add_active_currencies = None;
+        let (unsigned_move_token, token_info) = tc2_in_borrow.create_unsigned_move_token(
+            currencies_operations,
+            opt_local_relays,
+            opt_add_active_currencies,
+            rand_nonce,
+        );
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
 
         for mc_mutation in mc_mutations {
-            tc2.mutate(&TcMutation::McMutation(mc_mutation));
+            tc2.mutate(&TcMutation::McMutation((currency.clone(), mc_mutation)));
         }
         let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
             friend_move_token.clone(),
@@ -824,7 +819,9 @@ mod tests {
             _ => unreachable!(),
         };
 
-        assert!(move_token_received.incoming_messages.is_empty());
+        assert!(move_token_received.currencies[0]
+            .incoming_messages
+            .is_empty());
         assert_eq!(move_token_received.mutations.len(), 2);
 
         let mut seen_mc_mutation = false;
@@ -834,7 +831,10 @@ mod tests {
             match &move_token_received.mutations[i] {
                 TcMutation::McMutation(mc_mutation) => {
                     seen_mc_mutation = true;
-                    assert_eq!(mc_mutation, &McMutation::SetLocalMaxDebt(100));
+                    assert_eq!(
+                        mc_mutation,
+                        &(currency.clone(), McMutation::SetLocalMaxDebt(100))
+                    );
                 }
                 TcMutation::SetDirection(set_direction) => {
                     seen_set_direction = true;
@@ -846,6 +846,7 @@ mod tests {
                         _ => unreachable!(),
                     }
                 }
+                _ => unreachable!(),
             }
         }
         assert!(seen_mc_mutation && seen_set_direction);
@@ -864,14 +865,23 @@ mod tests {
                 );
             }
         };
-        // assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));
-        assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
+
+        assert_eq!(
+            tc1.mutual_credits
+                .get(&currency)
+                .unwrap()
+                .state()
+                .balance
+                .local_max_debt,
+            100
+        );
     }
-    */
 
     /// This tests sends a SetRemoteMaxDebt(100) in both ways.
     #[test]
     fn test_simulate_receive_move_token_basic() {
+        let currency = Currency::try_from("FST".to_owned()).unwrap();
+
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_private_key(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
@@ -887,17 +897,15 @@ mod tests {
         let mut tc1 = TokenChannel::<u32>::new(&pk1, &pk2); // (local, remote)
         let mut tc2 = TokenChannel::<u32>::new(&pk2, &pk1); // (local, remote)
 
-        /*
         // Current state:  tc1 --> tc2
         // tc1: outgoing
         // tc2: incoming
-        set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2);
+        set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2, &currency);
 
         // Current state:  tc2 --> tc1
         // tc1: incoming
         // tc2: outgoing
-        set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1);
-        */
+        set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1, &currency);
     }
 
     // TODO: Add more tests.
