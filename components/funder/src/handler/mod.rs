@@ -9,7 +9,8 @@
 // mod state_wrap;
 #[allow(unused)]
 mod types;
-// mod utils;
+#[allow(unused)]
+mod utils;
 
 // #[cfg(test)]
 // mod tests;
