@@ -147,9 +147,9 @@ pub enum OptLocalRelays<B = NetAddress> {
     Relays(Vec<RelayAddress<B>>),
 }
 
-#[capnp_conv(crate::funder_capnp::move_token::opt_add_active_currencies)]
+#[capnp_conv(crate::funder_capnp::move_token::opt_active_currencies)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub enum OptAddActiveCurrencies {
+pub enum OptActiveCurrencies {
     Empty,
     Currencies(Vec<Currency>),
 }
@@ -173,20 +173,20 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
     }
 }
 
-impl From<Option<Vec<Currency>>> for OptAddActiveCurrencies {
+impl From<Option<Vec<Currency>>> for OptActiveCurrencies {
     fn from(opt: Option<Vec<Currency>>) -> Self {
         match opt {
-            Some(currencies) => OptAddActiveCurrencies::Currencies(currencies),
-            None => OptAddActiveCurrencies::Empty,
+            Some(currencies) => OptActiveCurrencies::Currencies(currencies),
+            None => OptActiveCurrencies::Empty,
         }
     }
 }
 
-impl From<OptAddActiveCurrencies> for Option<Vec<Currency>> {
-    fn from(opt: OptAddActiveCurrencies) -> Self {
+impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
+    fn from(opt: OptActiveCurrencies) -> Self {
         match opt {
-            OptAddActiveCurrencies::Currencies(currencies) => Some(currencies),
-            OptAddActiveCurrencies::Empty => None,
+            OptActiveCurrencies::Currencies(currencies) => Some(currencies),
+            OptActiveCurrencies::Empty => None,
         }
     }
 }
@@ -263,8 +263,8 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    #[capnp_conv(with = OptAddActiveCurrencies)]
-    pub opt_add_active_currencies: Option<Vec<Currency>>,
+    #[capnp_conv(with = OptActiveCurrencies)]
+    pub opt_active_currencies: Option<Vec<Currency>>,
     pub info_hash: HashResult,
     pub rand_nonce: RandValue,
     pub new_token: S,

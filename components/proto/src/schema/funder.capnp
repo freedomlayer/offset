@@ -41,12 +41,12 @@ struct MoveToken {
                 # Set this exact list to be the list of relays
         }
         # Set the relays used by the sender of this MoveToken message.
-        # (empty means no change happens).
-        optAddActiveCurrencies: union {
+        # (Empty means no change happens).
+        optActiveCurrencies: union {
                 empty @4: Void;
                 # Nothing has changed
                 currencies @5: List(Currency);
-                # Add the given currencies
+                # Set this exact list to be the list of currencies
         }
         # Add a list of active currencies. (empty means that no change happens)
         # Note that this field only allows to add new currencies.
