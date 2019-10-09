@@ -54,7 +54,6 @@ struct AddFriend {
         friendPublicKey @0: PublicKey;
         relays @1: List(RelayAddress);
         name @2: Text;
-        balance @3: CustomInt128;
 }
 
 # Application -> AppServer

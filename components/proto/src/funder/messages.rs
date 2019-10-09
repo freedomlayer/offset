@@ -533,8 +533,6 @@ pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128, // Initial balance
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
