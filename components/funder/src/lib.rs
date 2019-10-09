@@ -20,11 +20,13 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-// mod ephemeral;
+#[allow(unused)]
+mod ephemeral;
 // mod friend;
 // mod funder;
 // mod handler;
-// mod liveness;
+#[allow(unused)]
+mod liveness;
 #[allow(unused)]
 mod mutual_credit;
 // pub mod report;
