@@ -168,10 +168,9 @@ where
         remote_public_key: &PublicKey,
         remote_relays: Vec<RelayAddress<B>>,
         name: String,
-        balance: i128,
     ) -> Self {
         let channel_consistent = ChannelConsistent {
-            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+            token_channel: TokenChannel::new(local_public_key, remote_public_key),
             pending_requests: ImVec::new(),
             pending_backwards_ops: ImVec::new(),
             pending_user_requests: ImVec::new(),
