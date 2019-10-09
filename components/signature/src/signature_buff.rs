@@ -65,6 +65,7 @@ where
 }
 
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
+    dbg!(&token_info);
     sha_512_256(&token_info.canonical_serialize())
 }
 
@@ -78,7 +79,7 @@ where
     hash_buff.extend_from_slice(&move_token.old_token);
     hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
     hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
-    hash_buff.extend_from_slice(&move_token.opt_add_active_currencies.canonical_serialize());
+    hash_buff.extend_from_slice(&move_token.opt_active_currencies.canonical_serialize());
 
     sha_512_256(&hash_buff)
 }
