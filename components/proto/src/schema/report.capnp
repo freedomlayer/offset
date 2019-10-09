@@ -13,6 +13,8 @@ using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NamedIndexServerAddress;
 using import "common.capnp".NetAddress;
 
+using import "funder.capnp".CurrencyBalance;
+
 ## Report related structs
 #########################
 
@@ -98,21 +100,27 @@ struct McBalanceReport {
     # Frozen credits by the remote side
 }
 
-struct TcReport {
-        direction @0: DirectionReport;
+struct CurrencyReport {
+        currency @0: Currency;
         balance @1: McBalanceReport;
         requestsStatus @2: McRequestsStatusReport;
         numLocalPendingRequests @3: UInt64;
         numRemotePendingRequests @4: UInt64;
 }
 
+struct TcReport {
+        direction @0: DirectionReport;
+        currencyReports @1: List(CurrencyReport);
+}
+
 struct ResetTermsReport {
         resetToken @0: Signature;
-        balanceForReset @1: CustomInt128;
+        balanceForReset @1: List(CurrencyBalance);
+        # List of expected balance for each currency
 }
 
 struct ChannelInconsistentReport {
-        localResetTermsBalance @0: CustomInt128;
+        localResetTerms @0: List(CurrencyBalance);
         optRemoteResetTerms: union {
                 remoteResetTerms @1: ResetTermsReport;
                 empty @2: Void;
@@ -192,11 +200,10 @@ struct FunderReport {
 
 struct AddFriendReport {
         friendPublicKey @0: PublicKey;
-        name @2: Text;
-        relays @1: List(RelayAddress);
-        balance @3: CustomInt128;
-        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
-        channelStatus @5: ChannelStatusReport;
+        name @1: Text;
+        relays @2: List(RelayAddress);
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        channelStatus @4: ChannelStatusReport;
 }
 
 struct FriendReportMutation {

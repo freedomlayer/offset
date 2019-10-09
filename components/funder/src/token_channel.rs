@@ -253,6 +253,10 @@ where
         }
     }
 
+    pub fn get_mutual_credits(&self) -> &ImHashMap<Currency, MutualCredit> {
+        &self.mutual_credits
+    }
+
     pub fn new_from_remote_reset(
         reset_move_token: &MoveToken<B>,
         remote_token_info: &TokenInfo,

@@ -30,7 +30,7 @@ mod friend;
 mod liveness;
 #[allow(unused)]
 mod mutual_credit;
-// pub mod report;
+pub mod report;
 #[allow(unused)]
 mod state;
 // #[cfg(test)]

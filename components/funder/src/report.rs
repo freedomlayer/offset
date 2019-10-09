@@ -5,10 +5,10 @@ use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
-    DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport,
-    FunderReport, FunderReportMutation, McBalanceReport, McRequestsStatusReport,
-    MoveTokenHashedReport, RelaysTransitionReport, RequestsStatusReport, ResetTermsReport,
-    SentLocalRelaysReport, TcReport,
+    CurrencyReport, DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation,
+    FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
+    McRequestsStatusReport, MoveTokenHashedReport, RelaysTransitionReport, RequestsStatusReport,
+    ResetTermsReport, SentLocalRelaysReport, TcReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -18,7 +18,7 @@ use crate::friend::{ChannelStatus, FriendMutation, FriendState, SentLocalRelays}
 use crate::liveness::LivenessMutation;
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::state::{FunderMutation, FunderState};
-use crate::token_channel::{TcDirection, TcMutation, TokenChannel};
+use crate::token_channel::TokenChannel;
 
 impl<B> Into<SentLocalRelaysReport<B>> for &SentLocalRelays<B>
 where
@@ -65,13 +65,7 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     fn from(move_token_hashed: &MoveTokenHashed) -> MoveTokenHashedReport {
         MoveTokenHashedReport {
             prefix_hash: move_token_hashed.prefix_hash.clone(),
-            local_public_key: move_token_hashed.token_info.local_public_key.clone(),
-            remote_public_key: move_token_hashed.token_info.remote_public_key.clone(),
-            inconsistency_counter: move_token_hashed.token_info.inconsistency_counter,
-            move_token_counter: move_token_hashed.token_info.move_token_counter,
-            balance: move_token_hashed.token_info.balance,
-            local_pending_debt: move_token_hashed.token_info.local_pending_debt,
-            remote_pending_debt: move_token_hashed.token_info.remote_pending_debt,
+            token_info: move_token_hashed.token_info.clone(),
             rand_nonce: move_token_hashed.rand_nonce.clone(),
             new_token: move_token_hashed.new_token.clone(),
         }
@@ -83,23 +77,36 @@ where
     B: Clone + CanonicalSerialize,
 {
     fn from(token_channel: &TokenChannel<B>) -> TcReport {
-        let direction = match token_channel.get_direction() {
-            TcDirection::Incoming(_) => DirectionReport::Incoming,
-            TcDirection::Outgoing(_) => DirectionReport::Outgoing,
+        let currency_reports = token_channel
+            .get_mutual_credits()
+            .iter()
+            .map(|(currency, mutual_credit)| {
+                let mc_state = mutual_credit.state();
+                CurrencyReport {
+                    currency: currency.clone(),
+                    balance: McBalanceReport::from(&mc_state.balance),
+                    requests_status: McRequestsStatusReport::from(&mc_state.requests_status),
+                    num_local_pending_requests: usize_to_u64(
+                        mc_state.pending_transactions.local.len(),
+                    )
+                    .unwrap(),
+                    num_remote_pending_requests: usize_to_u64(
+                        mc_state.pending_transactions.remote.len(),
+                    )
+                    .unwrap(),
+                }
+            })
+            .collect();
+
+        let direction = if token_channel.get_outgoing().is_some() {
+            DirectionReport::Outgoing
+        } else {
+            DirectionReport::Incoming
         };
-        let mutual_credit_state = token_channel.get_mutual_credit().state();
+
         TcReport {
             direction,
-            balance: McBalanceReport::from(&mutual_credit_state.balance),
-            requests_status: McRequestsStatusReport::from(&mutual_credit_state.requests_status),
-            num_local_pending_requests: usize_to_u64(
-                mutual_credit_state.pending_transactions.local.len(),
-            )
-            .unwrap(),
-            num_remote_pending_requests: usize_to_u64(
-                mutual_credit_state.pending_transactions.remote.len(),
-            )
-            .unwrap(),
+            currency_reports,
         }
     }
 }
@@ -119,9 +126,10 @@ where
                         balance_for_reset: remote_reset_terms.balance_for_reset,
                     });
                 let channel_inconsistent_report = ChannelInconsistentReport {
-                    local_reset_terms_balance: channel_inconsistent
+                    local_reset_terms: channel_inconsistent
                         .local_reset_terms
-                        .balance_for_reset,
+                        .balance_for_reset
+                        .clone(),
                     opt_remote_reset_terms,
                 };
                 ChannelStatusReport::Inconsistent(channel_inconsistent_report)
@@ -216,23 +224,17 @@ where
     let mut friend_after = friend.clone();
     friend_after.mutate(friend_mutation);
     match friend_mutation {
-        FriendMutation::TcMutation(tc_mutation) => match tc_mutation {
-            TcMutation::McMutation(_) | TcMutation::SetDirection(_) => {
-                let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
-                let set_channel_status =
-                    FriendReportMutation::SetChannelStatus(channel_status_report);
-                let set_last_incoming_move_token =
-                    FriendReportMutation::SetOptLastIncomingMoveToken(
-                        friend_after
-                            .channel_status
-                            .get_last_incoming_move_token_hashed()
-                            .map(|move_token_hashed| {
-                                MoveTokenHashedReport::from(&move_token_hashed)
-                            }),
-                    );
-                vec![set_channel_status, set_last_incoming_move_token]
-            }
-        },
+        FriendMutation::TcMutation(_tc_mutation) => {
+            let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
+            let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
+            let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
+                friend_after
+                    .channel_status
+                    .get_last_incoming_move_token_hashed()
+                    .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
+            );
+            vec![set_channel_status, set_last_incoming_move_token]
+        }
         FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
             vec![FriendReportMutation::SetWantedRemoteMaxDebt(
                 *wanted_remote_max_debt,
@@ -386,7 +388,6 @@ where
                 friend_public_key: add_friend.friend_public_key.clone(),
                 name: add_friend.name.clone(),
                 relays: add_friend.relays.clone(),
-                balance: add_friend.balance, // Initial balance
                 opt_last_incoming_move_token: friend_after
                     .channel_status
                     .get_last_incoming_move_token_hashed()
@@ -483,29 +484,45 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use std::convert::TryFrom;
+
     use crate::types::create_hashed;
 
     use proto::crypto::{PublicKey, RandValue, Signature};
-    use proto::funder::messages::{MoveToken, TokenInfo};
+    use proto::funder::messages::{
+        BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, McInfo, MoveToken, TokenInfo,
+    };
     use signature::signature_buff::{
         hash_token_info, move_token_hashed_report_signature_buff, move_token_signature_buff,
     };
 
     #[test]
     fn test_move_token_signature_buff_sync() {
+        let currency = Currency::try_from("FST".to_owned()).unwrap();
         let token_info = TokenInfo {
-            local_public_key: PublicKey::from(&[0; PublicKey::len()]),
-            remote_public_key: PublicKey::from(&[1; PublicKey::len()]),
-            inconsistency_counter: 3,
-            move_token_counter: 7,
-            balance: 5,
-            local_pending_debt: 4,
-            remote_pending_debt: 2,
+            mc: McInfo {
+                local_public_key: PublicKey::from(&[0; PublicKey::len()]),
+                remote_public_key: PublicKey::from(&[1; PublicKey::len()]),
+                balances: vec![CurrencyBalanceInfo {
+                    currency: currency.clone(),
+                    balance_info: BalanceInfo {
+                        balance: 5,
+                        local_pending_debt: 4,
+                        remote_pending_debt: 2,
+                    },
+                }],
+            },
+            counters: CountersInfo {
+                inconsistency_counter: 3,
+                move_token_counter: 7,
+            },
         };
 
         let move_token = MoveToken::<u32> {
-            operations: Vec::new(),
+            currencies_operations: Vec::new(),
             opt_local_relays: None,
+            opt_active_currencies: None,
             info_hash: hash_token_info(&token_info),
             old_token: Signature::from(&[0x55; Signature::len()]),
             rand_nonce: RandValue::from(&[0x66; RandValue::len()]),

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -23,6 +24,9 @@ use crate::report::messages::{
 
 // TODO: Maybe this logic shouldn't be here? Where should we move it to?
 // TODO: Add tests (Mostly for arithmetic stuff here)
+
+/*
+ * TODO: Restore this code later (When adjusting index client):
 
 /// Calculate send and receive capacities for a given `friend_report`.
 fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> (u128, u128)
@@ -153,5 +157,6 @@ where
         }
     }
 }
+*/
 
 // TODO: Add tests.

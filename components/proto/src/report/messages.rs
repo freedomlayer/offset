@@ -11,7 +11,9 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{FriendStatus, Rate, RequestsStatus, TokenInfo};
+use crate::funder::messages::{
+    Currency, CurrencyBalance, FriendStatus, Rate, RequestsStatus, TokenInfo,
+};
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
@@ -125,22 +127,28 @@ impl FriendLivenessReport {
     }
 }
 
-#[capnp_conv(crate::report_capnp::tc_report)]
+#[capnp_conv(crate::report_capnp::currency_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TcReport {
-    pub direction: DirectionReport,
+pub struct CurrencyReport {
+    pub currency: Currency,
     pub balance: McBalanceReport,
     pub requests_status: McRequestsStatusReport,
     pub num_local_pending_requests: u64,
     pub num_remote_pending_requests: u64,
 }
 
+#[capnp_conv(crate::report_capnp::tc_report)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TcReport {
+    pub direction: DirectionReport,
+    pub currency_reports: Vec<CurrencyReport>,
+}
+
 #[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance_for_reset: i128,
+    pub balance_for_reset: Vec<CurrencyBalance>,
 }
 
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report::opt_remote_reset_terms)]
@@ -172,8 +180,7 @@ impl From<OptRemoteResetTerms> for Option<ResetTermsReport> {
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub local_reset_terms_balance: i128,
+    pub local_reset_terms: Vec<CurrencyBalance>,
     #[capnp_conv(with = OptRemoteResetTerms)]
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
@@ -332,8 +339,6 @@ pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128, // Initial balance
     #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
