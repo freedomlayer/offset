@@ -65,7 +65,6 @@ where
 }
 
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
-    dbg!(&token_info);
     sha_512_256(&token_info.canonical_serialize())
 }
 
