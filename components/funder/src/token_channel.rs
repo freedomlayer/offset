@@ -151,6 +151,7 @@ pub enum ReceiveMoveTokenOutput<B> {
 pub struct SendMoveTokenOutput<B> {
     pub unsigned_move_token: UnsignedMoveToken<B>,
     pub mutations: Vec<TcMutation<B>>,
+    pub token_info: TokenInfo,
 }
 
 #[derive(Debug)]
@@ -611,6 +612,7 @@ impl<'a> TcInBorrow<'a> {
         Ok(SendMoveTokenOutput {
             unsigned_move_token,
             mutations: tc_mutations,
+            token_info: token_info,
         })
     }
 
@@ -950,29 +952,32 @@ mod tests {
         let rand_nonce = RandValue::from(&[7; RandValue::len()]);
         let opt_local_relays = None;
         let opt_active_currencies = Some(currencies.to_vec());
-        let (unsigned_move_token, token_info) = tc2_in_borrow.create_unsigned_move_token(
-            currencies_operations,
-            opt_local_relays,
-            opt_active_currencies,
-            rand_nonce,
-        );
 
+        let SendMoveTokenOutput {
+            unsigned_move_token,
+            mutations,
+            token_info,
+        } = tc2_in_borrow
+            .simulate_send_move_token(
+                currencies_operations,
+                opt_local_relays,
+                opt_active_currencies,
+                rand_nonce,
+            )
+            .unwrap();
+
+        for tc_mutation in mutations {
+            tc2.mutate(&tc_mutation);
+        }
+
+        // This is the only mutation we can not produce from inside TokenChannel, because it
+        // requires a signature:
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
-
         let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
             friend_move_token.clone(),
             token_info.clone(),
         )));
         tc2.mutate(&tc_mutation);
-
-        for currency in currencies {
-            let tc_mutation = TcMutation::AddLocalActiveCurrency(currency.clone());
-            tc2.mutate(&tc_mutation);
-
-            if tc2.active_currencies.remote.contains(&currency) {
-                tc2.mutate(&TcMutation::AddMutualCredit(currency.clone()));
-            }
-        }
 
         assert!(tc2.get_outgoing().is_some());
 
@@ -1040,18 +1045,25 @@ mod tests {
         let rand_nonce = RandValue::from(&[5; RandValue::len()]);
         let opt_local_relays = None;
         let opt_active_currencies = None;
-        let (unsigned_move_token, token_info) = tc2_in_borrow.create_unsigned_move_token(
-            currencies_operations,
-            opt_local_relays,
-            opt_active_currencies,
-            rand_nonce,
-        );
+
+        let SendMoveTokenOutput {
+            unsigned_move_token,
+            mutations,
+            token_info,
+        } = tc2_in_borrow
+            .simulate_send_move_token(
+                currencies_operations,
+                opt_local_relays,
+                opt_active_currencies,
+                rand_nonce,
+            )
+            .unwrap();
+
+        for tc_mutation in mutations {
+            tc2.mutate(&tc_mutation);
+        }
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
-
-        for mc_mutation in mc_mutations {
-            tc2.mutate(&TcMutation::McMutation((currency.clone(), mc_mutation)));
-        }
         let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
             friend_move_token.clone(),
             token_info.clone(),
