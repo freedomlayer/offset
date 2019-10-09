@@ -280,9 +280,9 @@ pub struct Currency {
 #[capnp_conv(crate::funder_capnp::currency_balance)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CurrencyBalance {
-    currency: Currency,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<i128>)]
-    balance: i128,
+    pub balance: i128,
 }
 
 #[capnp_conv(crate::funder_capnp::reset_terms)]

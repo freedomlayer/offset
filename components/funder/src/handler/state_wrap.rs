@@ -84,7 +84,12 @@ where
 
             // Mutation to push the new response:
             let rand_nonce = RandValue::rand_gen(rng);
+
+
+            assert!(false);
+            // TODO: How to get currency here?
             let response_send_funds = create_response_send_funds(
+                &currency,
                 &pending_transaction,
                 dest_plain_lock.hash_lock(),
                 rand_nonce,

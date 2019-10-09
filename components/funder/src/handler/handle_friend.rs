@@ -34,8 +34,8 @@ use crate::handler::canceler::{
     remove_transaction, reply_with_cancel,
 };
 use crate::handler::prepare::{prepare_commit, prepare_receipt};
-use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 use crate::handler::utils::{find_request_origin, is_friend_ready};
 
 #[derive(Debug)]

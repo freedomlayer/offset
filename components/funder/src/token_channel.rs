@@ -84,14 +84,14 @@ pub enum TcDirection<B> {
 
 #[derive(Clone, Debug)]
 pub struct TcInBorrow<'a> {
-    tc_incoming: &'a TcIncoming,
+    pub tc_incoming: &'a TcIncoming,
     mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
     active_currencies: &'a ActiveCurrencies,
 }
 
 #[derive(Clone, Debug)]
 pub struct TcOutBorrow<'a, B> {
-    tc_outgoing: &'a TcOutgoing<B>,
+    pub tc_outgoing: &'a TcOutgoing<B>,
     mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
     active_currencies: &'a ActiveCurrencies,
 }

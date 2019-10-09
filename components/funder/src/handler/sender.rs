@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TokenInfo, TransactionResult,
+    RequestResult, RequestsStatus, TokenInfo, TransactionResult, McInfo, CountersInfo, CurrencyBalanceInfo, BalanceInfo,
 };
 
 use identity::IdentityClient;
@@ -23,83 +23,17 @@ use crate::types::{
 use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
-use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
+use crate::token_channel::{SetDirection, TcDirectionBorrow, TcMutation, TokenChannel};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::remove_transaction;
 use crate::handler::state_wrap::MutableFunderState;
 use crate::handler::utils::find_request_origin;
+use crate::handler::types::{SendCommands, FriendSendCommands};
 use crate::state::{FunderMutation, FunderState};
-
-#[derive(Debug, Clone)]
-pub struct FriendSendCommands {
-    /// Try to send whatever possible through this friend.
-    pub try_send: bool,
-    /// Resend the outgoing move token message
-    pub resend_outgoing: bool,
-    /// Remote friend wants the token.
-    pub remote_wants_token: bool,
-    /// We want to perform a local reset
-    pub local_reset: bool,
-}
-
-impl FriendSendCommands {
-    fn new() -> Self {
-        FriendSendCommands {
-            try_send: false,
-            resend_outgoing: false,
-            remote_wants_token: false,
-            local_reset: false,
-        }
-    }
-}
 
 pub type OutgoingMessage<B> = (PublicKey, FriendMessage<B>);
 
-#[derive(Clone)]
-pub struct SendCommands {
-    pub send_commands: HashMap<PublicKey, FriendSendCommands>,
-}
-
-impl SendCommands {
-    pub fn new() -> Self {
-        SendCommands {
-            send_commands: HashMap::new(),
-        }
-    }
-
-    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.try_send = true;
-    }
-
-    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.resend_outgoing = true;
-    }
-
-    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.remote_wants_token = true;
-    }
-
-    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.local_reset = true;
-    }
-}
 
 #[derive(Debug)]
 enum PendingQueueError {
@@ -204,10 +138,7 @@ fn transmit_outgoing<B>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let move_token = match &token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token(),
-        TcDirection::Incoming(_) => unreachable!(),
-    };
+    let move_token = token_channel.get_outgoing().unwrap().tc_outgoing.create_outgoing_move_token();
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -239,21 +170,36 @@ pub async fn apply_local_reset<'a, B, R>(
     let local_pending_debt = 0;
     let remote_pending_debt = 0;
     let opt_local_relays = None;
+    let opt_active_currencies = None;
+
+    let balances = remote_reset_terms.balance_for_reset.iter().map(|currency_balance| {
+        CurrencyBalanceInfo {
+            currency: currency_balance.currency.clone(),
+            balance_info: BalanceInfo {
+                balance: currency_balance.balance.checked_neg().unwrap(),
+                local_pending_debt,
+                remote_pending_debt,
+            },
+        }
+    }).collect();
 
     let token_info = TokenInfo {
-        local_public_key: m_state.state().local_public_key.clone(),
-        remote_public_key: friend_public_key.clone(),
-        inconsistency_counter: remote_reset_terms.inconsistency_counter,
-        move_token_counter,
-        balance: remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-        local_pending_debt,
-        remote_pending_debt,
+        mc: McInfo {
+            local_public_key: m_state.state().local_public_key.clone(),
+            remote_public_key: friend_public_key.clone(),
+            balances,
+        },
+        counters: CountersInfo {
+            inconsistency_counter: remote_reset_terms.inconsistency_counter,
+            move_token_counter,
+        },
     };
 
     let u_reset_move_token = create_unsigned_move_token(
         // No operations are required for a reset move token
         Vec::new(),
         opt_local_relays,
+        opt_active_currencies,
         &token_info,
         remote_reset_terms.reset_token.clone(),
         rand_nonce,
@@ -334,7 +280,8 @@ async fn send_friend_iter1<'a, B, R>(
     let token_channel = &channel_consistent.token_channel;
 
     let tc_incoming = match &token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => {
+        TcDirectionBorrow::Out(tc_out_borrow) => {
+            let tc_outgoing = &tc_out_borrow.tc_outgoing;
             if estimate_should_send(m_state.state(), friend_public_key) {
                 let is_token_wanted = true;
                 transmit_outgoing(
@@ -355,7 +302,7 @@ async fn send_friend_iter1<'a, B, R>(
 
             return;
         }
-        TcDirection::Incoming(tc_incoming) => tc_incoming,
+        TcDirectionBorrow::In(tc_in_borrow) => &tc_in_borrow.tc_incoming,
     };
 
     // If we are here, the token channel is incoming:
@@ -365,7 +312,9 @@ async fn send_friend_iter1<'a, B, R>(
     // -- This could happen in handle_liveness.
     // assert!(!friend_send_commands.resend_outgoing);
 
-    let outgoing_mc = tc_incoming.begin_outgoing_move_token();
+    assert!(false);
+    // TODO: We need to be able to specify specific currency here:
+    let outgoing_mc = tc_incoming.create_outgoing_mc();
     let may_send_empty =
         friend_send_commands.resend_outgoing || friend_send_commands.remote_wants_token;
     let pending_move_token = PendingMoveToken::new(
@@ -794,10 +743,7 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_incoming = match channel_consistent.token_channel.get_direction() {
-        TcDirection::Outgoing(_) => unreachable!(),
-        TcDirection::Incoming(tc_incoming) => tc_incoming,
-    };
+    let tc_incoming = &channel_consistent.token_channel.get_incoming().unwrap().tc_incoming;
 
     let (u_move_token, token_info) =
         tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
@@ -816,10 +762,7 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_outgoing = match channel_consistent.token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
-        TcDirection::Incoming(_) => unreachable!(),
-    };
+    let tc_outgoing = &channel_consistent.token_channel.get_outgoing().unwrap().tc_outgoing;
 
     let move_token = tc_outgoing.create_outgoing_move_token();
     let move_token_request = MoveTokenRequest {
@@ -862,9 +805,9 @@ fn init_cancel_pending_move_token<B>(
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
-        let tc_incoming = match &token_channel.get_direction() {
-            TcDirection::Outgoing(_) => continue,
-            TcDirection::Incoming(tc_incoming) => tc_incoming,
+        let tc_incoming = match &token_channel.get_incoming() {
+            None => continue,
+            Some(tc_in_borrow) => &tc_in_borrow.tc_incoming,
         };
         let outgoing_mc = tc_incoming.begin_outgoing_move_token();
 

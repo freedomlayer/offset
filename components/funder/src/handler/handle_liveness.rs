@@ -12,8 +12,8 @@ use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
 use crate::handler::canceler::{cancel_pending_requests, cancel_pending_user_requests};
-use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 
 #[derive(Debug)]
 pub enum HandleLivenessError {

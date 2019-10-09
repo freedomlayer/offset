@@ -7,8 +7,8 @@ use crypto::rand::{CryptoRandom, RandGen};
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{FunderOutgoingControl, RequestResult, TransactionResult};
 
-use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::MutableFunderState;
+use crate::handler::types::SendCommands;
 use crate::handler::utils::find_request_origin;
 
 use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};

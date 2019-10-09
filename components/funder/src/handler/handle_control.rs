@@ -26,8 +26,8 @@ use crate::handler::canceler::{
     reply_with_cancel,
 };
 use crate::handler::prepare::prepare_commit;
-use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 use crate::handler::utils::{find_local_pending_transaction, find_request_origin, is_friend_ready};
 
 use crate::types::ChannelerConfig;
