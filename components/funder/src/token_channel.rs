@@ -114,7 +114,7 @@ pub enum ReceiveMoveTokenError {
     ChainInconsistency,
     InvalidTransaction(ProcessTransListError),
     InvalidSignature,
-    InvalidStatedBalance,
+    InvalidTokenInfo,
     InvalidInconsistencyCounter,
     MoveTokenCounterOverflow,
     InvalidMoveTokenCounter,
@@ -551,37 +551,41 @@ impl<'a> TcInBorrow<'a> {
             }
         }
 
-        let balances = currencies_operations
+        // Update mutual credits:
+        for currency_operations in &currencies_operations {
+            let tc_in_borrow = token_channel.get_incoming().unwrap();
+            let mut mutual_credit = tc_in_borrow
+                .mutual_credits
+                .get(&currency_operations.currency)
+                .unwrap()
+                .clone();
+
+            let mut outgoing_mc = OutgoingMc::new(&mutual_credit);
+            for op in &currency_operations.operations {
+                let mc_mutations = outgoing_mc.queue_operation(op).unwrap();
+                for mc_mutation in mc_mutations {
+                    let mutation = TcMutation::McMutation((
+                        currency_operations.currency.clone(),
+                        mc_mutation.clone(),
+                    ));
+                    token_channel.mutate(&mutation);
+                    tc_mutations.push(mutation);
+                }
+            }
+        }
+
+        let tc_in_borrow = token_channel.get_incoming().unwrap();
+
+        let balances = tc_in_borrow
+            .mutual_credits
             .iter()
-            .map(|currency_operations| {
-                let tc_in_borrow = token_channel.get_incoming().unwrap();
-                let mut mutual_credit = tc_in_borrow
-                    .mutual_credits
-                    .get(&currency_operations.currency)
-                    .unwrap()
-                    .clone();
-
-                let mut outgoing_mc = OutgoingMc::new(&mutual_credit);
-                for op in &currency_operations.operations {
-                    let mc_mutations = outgoing_mc.queue_operation(op).unwrap();
-                    for mc_mutation in mc_mutations {
-                        let mutation = TcMutation::McMutation((
-                            currency_operations.currency.clone(),
-                            mc_mutation.clone(),
-                        ));
-                        token_channel.mutate(&mutation);
-                        tc_mutations.push(mutation);
-                    }
-                }
-
-                CurrencyBalanceInfo {
-                    currency: currency_operations.currency.clone(),
-                    balance_info: BalanceInfo {
-                        balance: mutual_credit.state().balance.balance,
-                        local_pending_debt: mutual_credit.state().balance.local_pending_debt,
-                        remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
-                    },
-                }
+            .map(|(currency, mutual_credit)| CurrencyBalanceInfo {
+                currency: currency.clone(),
+                balance_info: BalanceInfo {
+                    balance: mutual_credit.state().balance.balance,
+                    local_pending_debt: mutual_credit.state().balance.local_pending_debt,
+                    remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
+                },
             })
             .collect();
 
@@ -822,7 +826,7 @@ where
         // Verify stated balances:
         let info_hash = hash_token_info(&expected_token_info);
         if new_move_token.info_hash != info_hash {
-            return Err(ReceiveMoveTokenError::InvalidStatedBalance);
+            return Err(ReceiveMoveTokenError::InvalidTokenInfo);
         }
 
         move_token_received
@@ -991,7 +995,6 @@ mod tests {
         };
 
         assert!(move_token_received.currencies.is_empty());
-        assert_eq!(move_token_received.mutations.len(), 2);
 
         // let mut seen_mc_mutation = false;
         // let mut seen_set_direction = false;
@@ -1181,8 +1184,6 @@ mod tests {
             &[currency.clone()],
         );
 
-        /*
-
         // Current state:  tc1 --> tc2
         // tc1: outgoing
         // tc2: incoming
@@ -1192,7 +1193,6 @@ mod tests {
         // tc1: incoming
         // tc2: outgoing
         set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1, &currency);
-        */
     }
 
     // TODO: Add more tests.
