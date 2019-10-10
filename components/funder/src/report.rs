@@ -257,7 +257,7 @@ where
                 usize_to_u64(channel_consistent.pending_requests.len()).unwrap(),
             )]
         }
-        FriendMutation::PopFrontPendingRequest => {
+        FriendMutation::PopFrontPendingRequest(currency) => {
             let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
                 &friend_after.channel_status
             {
