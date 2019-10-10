@@ -7,6 +7,7 @@ using import "common.capnp".RandValue;
 using import "common.capnp".Uid;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".Rate;
+using import "common.capnp".Currency;
 
 using import "funder.capnp".FriendsRoute;
 
@@ -21,12 +22,13 @@ struct Edge {
 # IndexClient -> IndexServer
 struct RequestRoutes {
         requestId @0: Uid;
-        capacity @1: CustomUInt128;
-        source @2: PublicKey;
-        destination @3: PublicKey;
+        currency @1: Currency;
+        capacity @2: CustomUInt128;
+        source @3: PublicKey;
+        destination @4: PublicKey;
         optExclude: union {
-                empty @4: Void;
-                edge @5: Edge;
+                empty @5: Void;
+                edge @6: Edge;
         }
 }
 

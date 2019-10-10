@@ -7,9 +7,9 @@ use common::mutable_state::MutableState;
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,
-    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, TransactionResult,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
+    MultiCommit, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
+    SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -119,6 +119,20 @@ pub enum NamedRelaysMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
 }
 
+#[capnp_conv(crate::app_server_capnp::open_friend)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OpenFriend {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+}
+
+#[capnp_conv(crate::app_server_capnp::close_friend)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct CloseFriend {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+}
+
 #[capnp_conv(crate::app_server_capnp::app_request)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {
@@ -132,8 +146,8 @@ pub enum AppRequest<B = NetAddress> {
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
     DisableFriend(PublicKey),
-    OpenFriend(PublicKey),
-    CloseFriend(PublicKey),
+    OpenFriend(OpenFriend),
+    CloseFriend(CloseFriend),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendRate(SetFriendRate),
     ResetFriendChannel(ResetFriendChannel),

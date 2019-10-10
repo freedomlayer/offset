@@ -556,6 +556,7 @@ pub struct SetFriendStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRemoteMaxDebt {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub remote_max_debt: u128,
 }
@@ -585,6 +586,7 @@ pub struct ResetFriendChannel {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetFriendRate {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     pub rate: Rate,
 }
 
@@ -610,6 +612,7 @@ pub struct CreatePayment {
     /// certain payment.
     pub payment_id: PaymentId,
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
     pub dest_public_key: PublicKey,

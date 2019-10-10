@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
-use crate::funder::messages::{FriendsRoute, Rate};
+use crate::funder::messages::{Currency, FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
@@ -45,6 +45,7 @@ impl From<OptExclude> for Option<Edge> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
+    pub currency: Currency,
     /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
     #[capnp_conv(with = Wrapper<u128>)]
