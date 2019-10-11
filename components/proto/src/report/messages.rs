@@ -189,9 +189,6 @@ pub struct ChannelInconsistentReport {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelConsistentReport {
     pub tc_report: TcReport,
-    pub num_pending_requests: u64,
-    pub num_pending_backwards_ops: u64,
-    pub num_pending_user_requests: u64,
 }
 
 #[capnp_conv(crate::report_capnp::channel_status_report)]
@@ -324,9 +321,6 @@ pub enum FriendReportMutation<B = NetAddress> {
     #[capnp_conv(with = Wrapper<u128>)]
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatusReport),
-    SetNumPendingRequests(u64),
-    SetNumPendingBackwardsOps(u64),
-    SetNumPendingUserRequests(u64),
     SetStatus(FriendStatusReport),
     #[capnp_conv(with = OptLastIncomingMoveToken)]
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
@@ -442,35 +436,6 @@ where
             }
             FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
                 self.wanted_local_requests_status = wanted_local_requests_status.clone();
-            }
-            FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_backwards_ops =
-                        *num_pending_backwards_ops;
-                } else {
-                    unreachable!();
-                }
-            }
-            FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_requests = *num_pending_requests;
-                } else {
-                    unreachable!();
-                }
-            }
-            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_user_requests =
-                        *num_pending_user_requests;
-                } else {
-                    unreachable!();
-                }
             }
             FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();

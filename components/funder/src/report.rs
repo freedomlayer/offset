@@ -137,16 +137,6 @@ where
             ChannelStatus::Consistent(channel_consistent) => {
                 let channel_consistent_report = ChannelConsistentReport {
                     tc_report: TcReport::from(&channel_consistent.token_channel),
-                    num_pending_requests: usize_to_u64(channel_consistent.pending_requests.len())
-                        .unwrap(),
-                    num_pending_backwards_ops: usize_to_u64(
-                        channel_consistent.pending_backwards_ops.len(),
-                    )
-                    .unwrap(),
-                    num_pending_user_requests: usize_to_u64(
-                        channel_consistent.pending_user_requests.len(),
-                    )
-                    .unwrap(),
                 };
                 ChannelStatusReport::Consistent(channel_consistent_report)
             }
@@ -245,78 +235,12 @@ where
                 RequestsStatusReport::from(requests_status),
             )]
         }
-        FriendMutation::PushBackPendingRequest(_request_send_funds) => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingRequests(
-                usize_to_u64(channel_consistent.pending_requests.len()).unwrap(),
-            )]
-        }
-        FriendMutation::PopFrontPendingRequest(currency) => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingRequests(
-                usize_to_u64(channel_consistent.pending_requests.len()).unwrap(),
-            )]
-        }
-        FriendMutation::PushBackPendingBackwardsOp(_backwards_op) => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingBackwardsOps(
-                usize_to_u64(channel_consistent.pending_backwards_ops.len()).unwrap(),
-            )]
-        }
-        FriendMutation::PopFrontPendingBackwardsOp => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingBackwardsOps(
-                usize_to_u64(channel_consistent.pending_backwards_ops.len()).unwrap(),
-            )]
-        }
-        FriendMutation::PushBackPendingUserRequest(_request_send_funds) => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingUserRequests(
-                usize_to_u64(channel_consistent.pending_user_requests.len()).unwrap(),
-            )]
-        }
-        FriendMutation::PopFrontPendingUserRequest => {
-            let channel_consistent = if let ChannelStatus::Consistent(channel_consistent) =
-                &friend_after.channel_status
-            {
-                channel_consistent
-            } else {
-                unreachable!();
-            };
-            vec![FriendReportMutation::SetNumPendingUserRequests(
-                usize_to_u64(channel_consistent.pending_user_requests.len()).unwrap(),
-            )]
-        }
+        FriendMutation::PushBackPendingRequest(_)
+        | FriendMutation::PopFrontPendingRequest(_)
+        | FriendMutation::PushBackPendingBackwardsOp(_)
+        | FriendMutation::PopFrontPendingBackwardsOp(_)
+        | FriendMutation::PushBackPendingUserRequest(_)
+        | FriendMutation::PopFrontPendingUserRequest(_) => vec![],
         FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(
             FriendStatusReport::from(friend_status),
         )],

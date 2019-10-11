@@ -215,12 +215,9 @@ struct FriendReportMutation {
                 setChannelStatus @4: ChannelStatusReport;
                 setWantedRemoteMaxDebt @5: CustomUInt128;
                 setWantedLocalRequestsStatus @6: RequestsStatusReport;
-                setNumPendingRequests @7: UInt64;
-                setNumPendingBackwardsOps @8: UInt64;
-                setStatus @9: FriendStatusReport;
-                setNumPendingUserRequests @10: UInt64;
-                setOptLastIncomingMoveToken @11: OptLastIncomingMoveToken;
-                setLiveness @12: FriendLivenessReport;
+                setStatus @7: FriendStatusReport;
+                setOptLastIncomingMoveToken @8: OptLastIncomingMoveToken;
+                setLiveness @9: FriendLivenessReport;
         }
 }
 

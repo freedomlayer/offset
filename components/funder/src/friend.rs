@@ -282,7 +282,7 @@ where
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     let _ = channel_consistent
                         .currency_queues
-                        .get(currency)
+                        .get_mut(currency)
                         .unwrap()
                         .pending_requests
                         .pop_front();
@@ -308,7 +308,7 @@ where
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     let _ = channel_consistent
                         .currency_queues
-                        .get(currency)
+                        .get_mut(currency)
                         .unwrap()
                         .pending_backwards_ops
                         .pop_front();
@@ -334,7 +334,7 @@ where
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     let _ = channel_consistent
                         .currency_queues
-                        .get(currency)
+                        .get_mut(currency)
                         .unwrap()
                         .pending_user_requests
                         .pop_front();
