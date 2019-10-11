@@ -6,7 +6,7 @@ use crypto::hash_lock::HashLock;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PlainLock, PublicKey, RandValue};
-use proto::funder::messages::PendingTransaction;
+use proto::funder::messages::{PendingTransaction, Currency};
 
 use identity::IdentityClient;
 
@@ -19,6 +19,7 @@ use crate::types::create_response_send_funds;
 #[derive(Debug, Clone)]
 pub struct SemiResponse {
     friend_public_key: PublicKey,
+    currency: Currency,
     pending_transaction: PendingTransaction,
 }
 
@@ -48,10 +49,12 @@ where
     pub fn queue_unsigned_response(
         &mut self,
         friend_public_key: PublicKey,
+        currency: Currency,
         pending_transaction: PendingTransaction,
     ) {
         self.unsigned_responses.push(SemiResponse {
             friend_public_key,
+            currency,
             pending_transaction,
         });
     }
@@ -76,6 +79,7 @@ where
         while let Some(semi_response) = self.unsigned_responses.pop() {
             let SemiResponse {
                 friend_public_key,
+                currency,
                 pending_transaction,
             } = semi_response;
 
@@ -85,9 +89,6 @@ where
             // Mutation to push the new response:
             let rand_nonce = RandValue::rand_gen(rng);
 
-
-            assert!(false);
-            // TODO: How to get currency here?
             let response_send_funds = create_response_send_funds(
                 &currency,
                 &pending_transaction,
@@ -98,7 +99,7 @@ where
             .await;
 
             let backwards_op = BackwardsOp::Response(response_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(backwards_op);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op));
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             self.mutate(funder_mutation);
