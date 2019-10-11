@@ -106,8 +106,8 @@ mod tests {
     use crate::friend::{ChannelStatus, FriendMutation};
     use crate::state::{FunderMutation, FunderState};
 
-    use crate::handler::sender::SendCommands;
     use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+    use crate::handler::types::SendCommands;
     use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
