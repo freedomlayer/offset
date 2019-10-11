@@ -1,4 +1,5 @@
-// mod canceler;
+#[allow(unused)]
+mod canceler;
 // mod handle_control;
 // mod handle_friend;
 // mod handle_init;
