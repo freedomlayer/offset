@@ -114,6 +114,8 @@ where
         if let Some(mutual_credit) = token_channel.get_mutual_credits().get(currency) {
             mutual_credit
         } else {
+            // TODO: Possibly a different error message for this case? Maybe to be added externally at
+            // the call site? The currency does not exist!
             return false;
         };
 

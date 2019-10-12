@@ -134,7 +134,8 @@ struct AckClosePayment {
 
 struct AddInvoice {
         invoiceId @0: InvoiceId;
-        totalDestPayment @1: CustomUInt128;
+        currency @1: Currency;
+        totalDestPayment @2: CustomUInt128;
 }
 
 #####################################################################

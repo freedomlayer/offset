@@ -13,7 +13,7 @@
     clippy::new_without_default
 )]
 
-// #[macro_use]
+#[macro_use]
 extern crate log;
 
 #[macro_use]

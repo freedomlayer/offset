@@ -53,6 +53,7 @@ pub enum HandleControlError {
     InvoiceAlreadyExists,
     InvoiceDoesNotExist,
     InvalidMultiCommit,
+    FriendCurrencyDoesNotExist,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -499,6 +500,7 @@ where
     let payment = Payment::NewTransactions(NewTransactions {
         num_transactions: 0,
         invoice_id: create_payment.invoice_id.clone(),
+        currency: create_payment.currency.clone(),
         total_dest_payment: create_payment.total_dest_payment,
         dest_public_key: create_payment.dest_public_key.clone(),
     });
@@ -560,7 +562,9 @@ where
         None => Err(HandleControlError::FriendDoesNotExist),
     }?;
 
-    if !is_friend_ready(m_state.state(), ephemeral, &friend_public_key) {
+    let currency = new_transactions.currency.clone();
+
+    if !is_friend_ready(m_state.state(), ephemeral, &friend_public_key, &currency) {
         return Err(HandleControlError::FriendNotReady);
     }
 
@@ -573,18 +577,25 @@ where
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
 
-    // If payment is already in progress, we do nothing:
-    // Check if there is already a pending user payment with the same payment_id:
-    for user_request in &channel_consistent.pending_user_requests {
-        if create_transaction.request_id == user_request.request_id {
-            return Err(HandleControlError::RequestAlreadyInProgress);
+    // TODO: Do we actually need to check it here? Maybe it should be checked later, inside
+    // MutualCredit?
+    //
+    // If this transaction is already in progress, we do nothing:
+    if let Some(channel_queues) = channel_consistent.currency_queues.get(&currency) {
+        // Check if there is already a pending user transaction with the same request_id:
+        for user_request in &channel_queues.pending_user_requests {
+            if create_transaction.request_id == user_request.request_id {
+                return Err(HandleControlError::RequestAlreadyInProgress);
+            }
         }
     }
 
     // Check if there is an ongoing request with the same request_id with this specific friend:
     if channel_consistent
         .token_channel
-        .get_mutual_credit()
+        .get_mutual_credits()
+        .get(&currency)
+        .ok_or(HandleControlError::FriendCurrencyDoesNotExist)?
         .state()
         .pending_transactions
         .local
@@ -594,8 +605,10 @@ where
     }
 
     // Check if we have room to push this message:
-    if channel_consistent.pending_user_requests.len() >= max_pending_user_requests {
-        return Err(HandleControlError::PendingUserRequestsFull);
+    if let Some(channel_queues) = channel_consistent.currency_queues.get(&currency) {
+        if channel_queues.pending_user_requests.len() >= max_pending_user_requests {
+            return Err(HandleControlError::PendingUserRequestsFull);
+        }
     }
 
     // Randomly generate a new PlainLock:
@@ -637,7 +650,8 @@ where
         left_fees: create_transaction.fees,
     };
 
-    let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
+    let friend_mutation =
+        FriendMutation::PushBackPendingUserRequest((currency.clone(), request_send_funds));
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -660,6 +674,19 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
+    // Find the corresponding payment:
+    let payment = m_state
+        .state()
+        .payments
+        .get(&create_transaction.payment_id)
+        .ok_or(HandleControlError::OpenPaymentNotFound)?;
+
+    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+        new_transactions.clone()
+    } else {
+        return Err(HandleControlError::NewTransactionsNotAllowed);
+    };
+
     // If we already have this transaction:
     // - If we have a ready response, we return a Commit message.
     // - Else, we do nothing.
@@ -673,7 +700,11 @@ where
     {
         if let (Some(response_send_funds), Some(pending_transaction)) = (
             &open_transaction.opt_response,
-            find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
+            find_local_pending_transaction(
+                m_state.state(),
+                &new_transactions.currency,
+                &create_transaction.request_id,
+            ),
         ) {
             let commit = prepare_commit(
                 response_send_funds,
@@ -883,8 +914,11 @@ where
     }
 
     // Add new invoice:
-    let funder_mutation =
-        FunderMutation::AddInvoice((add_invoice.invoice_id, add_invoice.total_dest_payment));
+    let funder_mutation = FunderMutation::AddInvoice((
+        add_invoice.invoice_id,
+        add_invoice.currency,
+        add_invoice.total_dest_payment,
+    ));
     m_state.mutate(funder_mutation);
 
     Ok(())
@@ -911,10 +945,17 @@ where
         // Explaining the unwrap() below:
         // We expect that the origin of this request must be from an existing friend.
         // We can not be the originator of this request.
-        let friend_public_key = find_request_origin(m_state.state(), &request_id)
-            .unwrap()
-            .clone();
-        reply_with_cancel(m_state, send_commands, &friend_public_key, &request_id);
+        let friend_public_key =
+            find_request_origin(m_state.state(), &open_invoice.currency, &request_id)
+                .unwrap()
+                .clone();
+        reply_with_cancel(
+            m_state,
+            send_commands,
+            &friend_public_key,
+            &open_invoice.currency,
+            &request_id,
+        );
     }
 
     // Remove invoice:
@@ -956,9 +997,11 @@ where
             continue;
         };
 
-        let friend_public_key = if let Some(friend_public_key) =
-            find_request_origin(m_state.state(), &incoming_transaction.request_id)
-        {
+        let friend_public_key = if let Some(friend_public_key) = find_request_origin(
+            m_state.state(),
+            &open_invoice.currency,
+            &incoming_transaction.request_id,
+        ) {
             friend_public_key.clone()
         } else {
             warn!("control_commit_invoice(): Failed to find request origin");
@@ -971,8 +1014,10 @@ where
             dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
         };
 
-        let friend_mutation =
-            FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Collect(collect_send_funds));
+        let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((
+            open_invoice.currency.clone(),
+            BackwardsOp::Collect(collect_send_funds),
+        ));
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);

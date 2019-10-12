@@ -640,6 +640,8 @@ pub struct CreateTransaction {
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     pub invoice_id: InvoiceId,
+    /// Currency in use
+    pub currency: Currency,
     /// Total amount of credits to be paid.
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,

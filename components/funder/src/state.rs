@@ -7,7 +7,7 @@ use signature::canonical::CanonicalSerialize;
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
 use proto::app_server::messages::NamedRelayAddress;
-use proto::funder::messages::{AddFriend, Receipt, ResponseSendFundsOp};
+use proto::funder::messages::{AddFriend, Currency, Receipt, ResponseSendFundsOp};
 
 use crate::friend::{FriendMutation, FriendState};
 
@@ -32,6 +32,7 @@ pub struct FunderState<B: Clone> {
 pub struct NewTransactions {
     pub num_transactions: u64,
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     pub total_dest_payment: u128,
     pub dest_public_key: PublicKey,
 }
@@ -63,6 +64,8 @@ pub struct IncomingTransaction {
 /// A local invoice in progress
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenInvoice {
+    /// Currency in use for this invoice
+    pub currency: Currency,
     /// Total payment required to fulfill this invoice:
     pub total_dest_payment: u128,
     /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
@@ -70,8 +73,9 @@ pub struct OpenInvoice {
 }
 
 impl OpenInvoice {
-    pub fn new(total_dest_payment: u128) -> Self {
+    pub fn new(currency: Currency, total_dest_payment: u128) -> Self {
         OpenInvoice {
+            currency,
             total_dest_payment,
             incoming_transactions: ImHashMap::new(),
         }
@@ -96,7 +100,7 @@ pub enum FunderMutation<B: Clone> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
-    AddInvoice((InvoiceId, u128)), // (InvoiceId, total_dest_payment)
+    AddInvoice((InvoiceId, Currency, u128)), // (InvoiceId, total_dest_payment)
     AddIncomingTransaction((InvoiceId, Uid, PlainLock)), // (invoice_id, request_id, dest_plain_lock)
     RemoveInvoice(InvoiceId),
     AddTransaction((Uid, PaymentId, PlainLock)), // (request_id, payment_id,src_plain_lock)
@@ -161,9 +165,11 @@ where
             FunderMutation::RemoveFriend(public_key) => {
                 let _ = self.friends.remove(&public_key);
             }
-            FunderMutation::AddInvoice((invoice_id, total_dest_payment)) => {
-                self.open_invoices
-                    .insert(invoice_id.clone(), OpenInvoice::new(*total_dest_payment));
+            FunderMutation::AddInvoice((invoice_id, currency, total_dest_payment)) => {
+                self.open_invoices.insert(
+                    invoice_id.clone(),
+                    OpenInvoice::new(currency.clone(), *total_dest_payment),
+                );
             }
             FunderMutation::AddIncomingTransaction((invoice_id, request_id, dest_plain_lock)) => {
                 let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
