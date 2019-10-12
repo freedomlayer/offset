@@ -6,7 +6,8 @@ mod canceler;
 #[allow(unused)]
 mod handle_liveness;
 // mod handler;
-// mod prepare;
+#[allow(unused)]
+mod prepare;
 // mod sender;
 #[allow(unused)]
 mod state_wrap;
