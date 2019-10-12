@@ -15,6 +15,14 @@ use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
 use crate::state::{FunderMutation, Payment};
 use crate::types::{create_cancel_send_funds, create_pending_transaction};
 
+#[derive(Debug)]
+pub enum CurrencyChoice {
+    /// Just one currency
+    One(Currency),
+    /// All currency
+    All,
+}
+
 /// Reply to a single request message with a cancellation.
 pub fn reply_with_cancel<B>(
     m_state: &mut MutableFunderState<B>,
@@ -182,6 +190,7 @@ pub fn cancel_pending_requests<B, R>(
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     rng: &R,
     friend_public_key: &PublicKey,
+    currency_choice: &CurrencyChoice,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
@@ -191,9 +200,16 @@ pub fn cancel_pending_requests<B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
-    let currency_queues = channel_consistent.currency_queues.clone();
+    let mut currency_queues = channel_consistent.currency_queues.clone();
 
-    for (currency, mut channel_queues) in currency_queues {
+    let currencies = if let CurrencyChoice::One(currency) = currency_choice {
+        vec![currency.clone()]
+    } else {
+        currency_queues.keys().cloned().collect()
+    };
+
+    for currency in currencies {
+        let channel_queues = currency_queues.get_mut(&currency).unwrap();
         let mut pending_requests = &mut channel_queues.pending_requests;
         while let Some(pending_request) = pending_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingRequest(currency.clone());
@@ -242,6 +258,7 @@ pub fn cancel_pending_user_requests<B, R>(
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     rng: &R,
     friend_public_key: &PublicKey,
+    currency_choice: &CurrencyChoice,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
@@ -251,9 +268,16 @@ pub fn cancel_pending_user_requests<B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
-    let currency_queues = channel_consistent.currency_queues.clone();
+    let mut currency_queues = channel_consistent.currency_queues.clone();
 
-    for (currency, mut channel_queues) in currency_queues {
+    let currencies = if let CurrencyChoice::One(currency) = currency_choice {
+        vec![currency.clone()]
+    } else {
+        currency_queues.keys().cloned().collect()
+    };
+
+    for currency in currencies {
+        let channel_queues = currency_queues.get_mut(&currency).unwrap();
         let mut pending_user_requests = &mut channel_queues.pending_user_requests;
         while let Some(pending_user_request) = pending_user_requests.pop_front() {
             let friend_mutation = FriendMutation::PopFrontPendingUserRequest(currency.clone());

@@ -23,7 +23,7 @@ use signature::verify::verify_multi_commit;
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
     cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
-    reply_with_cancel,
+    reply_with_cancel, CurrencyChoice,
 };
 use crate::handler::prepare::prepare_commit;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
@@ -166,9 +166,16 @@ fn disable_friend<B, R>(
         outgoing_control,
         rng,
         friend_public_key,
+        &CurrencyChoice::All,
     );
 
-    cancel_pending_user_requests(m_state, outgoing_control, rng, friend_public_key);
+    cancel_pending_user_requests(
+        m_state,
+        outgoing_control,
+        rng,
+        friend_public_key,
+        &CurrencyChoice::All,
+    );
 
     // Notify Channeler:
     let channeler_config = ChannelerConfig::RemoveFriend(friend_public_key.clone());

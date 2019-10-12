@@ -125,17 +125,17 @@ pub enum ReceiveMoveTokenError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceivedCurrency<B> {
+pub struct MoveTokenReceivedCurrency {
     pub currency: Currency,
     pub incoming_messages: Vec<IncomingMessage>,
     pub remote_requests_closed: bool,
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
 #[derive(Debug)]
 pub struct MoveTokenReceived<B> {
     pub mutations: Vec<TcMutation<B>>,
-    pub currencies: Vec<MoveTokenReceivedCurrency<B>>,
+    pub currencies: Vec<MoveTokenReceivedCurrency>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -684,6 +684,7 @@ where
         let mut move_token_received = MoveTokenReceived {
             mutations: Vec::new(),
             currencies: Vec::new(),
+            opt_local_relays: new_move_token.opt_local_relays.clone(),
         };
 
         let mutual_credits = tc_out_borrow.mutual_credits.clone();
@@ -771,7 +772,6 @@ where
                 incoming_messages,
                 // Were the remote requests initially open and now it is closed?
                 remote_requests_closed: final_remote_requests && !initial_remote_requests,
-                opt_local_relays: new_move_token.opt_local_relays.clone(),
             };
 
             move_token_received

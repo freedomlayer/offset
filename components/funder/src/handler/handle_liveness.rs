@@ -11,7 +11,9 @@ use crate::types::IncomingLivenessMessage;
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
-use crate::handler::canceler::{cancel_pending_requests, cancel_pending_user_requests};
+use crate::handler::canceler::{
+    cancel_pending_requests, cancel_pending_user_requests, CurrencyChoice,
+};
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 use crate::handler::types::SendCommands;
 
@@ -83,8 +85,15 @@ where
                 outgoing_control,
                 rng,
                 &friend_public_key,
+                &CurrencyChoice::All,
             );
-            cancel_pending_user_requests(m_state, outgoing_control, rng, &friend_public_key);
+            cancel_pending_user_requests(
+                m_state,
+                outgoing_control,
+                rng,
+                &friend_public_key,
+                &CurrencyChoice::All,
+            );
         }
     };
     Ok(())
