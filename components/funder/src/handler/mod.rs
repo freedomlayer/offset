@@ -3,7 +3,8 @@ mod canceler;
 #[allow(unused)]
 mod handle_control;
 // mod handle_friend;
-// mod handle_init;
+#[allow(unused)]
+mod handle_init;
 #[allow(unused)]
 mod handle_liveness;
 // mod handler;
