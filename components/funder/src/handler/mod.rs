@@ -1,4 +1,3 @@
-#[allow(unused)]
 mod canceler;
 #[allow(unused)]
 mod handle_control;
@@ -9,15 +8,13 @@ mod handle_init;
 #[allow(unused)]
 mod handle_liveness;
 // mod handler;
-#[allow(unused)]
 mod prepare;
-// #[allow(unused)]
-// mod sender;
+#[allow(unused)]
+mod sender;
 #[allow(unused)]
 mod state_wrap;
 #[allow(unused)]
 mod types;
-#[allow(unused)]
 mod utils;
 
 // #[cfg(test)]
