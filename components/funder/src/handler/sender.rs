@@ -376,7 +376,7 @@ where
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            if !friend.wanted_remote_max_debt.is_empty() {
+            if !channel_consistent.wanted_remote_max_debt.is_empty() {
                 return true;
             }
 
@@ -390,7 +390,7 @@ where
                 .local;
             */
 
-            if !friend.wanted_local_requests_status.is_empty() {
+            if !channel_consistent.wanted_local_requests_status.is_empty() {
                 return true;
             }
 
@@ -560,7 +560,11 @@ where
 
     // Deal with active currencies:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    if let Some(wanted_active_currencies) = friend.wanted_active_currencies.clone() {
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+    if let Some(wanted_active_currencies) = channel_consistent.wanted_active_currencies.clone() {
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
@@ -580,9 +584,13 @@ where
 
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
 
     // Set remote_max_debt if needed:
-    for (currency, wanted_remote_max_debt) in friend.wanted_remote_max_debt.clone() {
+    for (currency, wanted_remote_max_debt) in channel_consistent.wanted_remote_max_debt.clone() {
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
         let remote_max_debt = match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
@@ -610,9 +618,13 @@ where
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
 
     // Open or close requests is needed:
-    for (currency, wanted_local_requests_status) in friend.wanted_local_requests_status.clone() {
+    for (currency, wanted_local_requests_status) in channel_consistent.wanted_local_requests_status.clone() {
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
         let channel_consistent = match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => channel_consistent,

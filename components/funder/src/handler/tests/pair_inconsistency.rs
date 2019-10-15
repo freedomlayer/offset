@@ -86,7 +86,7 @@ async fn task_handler_pair_inconsistency<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 20i128,
+        // balance: 20i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; Uid::len()]),
@@ -130,7 +130,7 @@ async fn task_handler_pair_inconsistency<'a>(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: -10i128,
+        // balance: -10i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; Uid::len()]),

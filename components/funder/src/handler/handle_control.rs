@@ -54,6 +54,7 @@ pub enum HandleControlError {
     InvoiceDoesNotExist,
     InvalidMultiCommit,
     FriendCurrencyDoesNotExist,
+    CanNotRemoveActiveCurrency,
 }
 
 fn control_set_friend_remote_max_debt<B>(
@@ -71,7 +72,21 @@ where
         .get(&set_friend_remote_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if let Some(wanted_remote_max_debt) = friend
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+
+    if channel_consistent
+        .token_channel
+        .get_mutual_credits()
+        .get(&set_friend_remote_max_debt.currency)
+        .is_none()
+    {
+        return Err(HandleControlError::FriendCurrencyDoesNotExist);
+    }
+
+    if let Some(wanted_remote_max_debt) = channel_consistent
         .wanted_remote_max_debt
         .get(&set_friend_remote_max_debt.currency)
     {
@@ -373,7 +388,21 @@ where
         .get(&set_requests_status.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if let Some(wanted_requests_status) = friend
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+
+    if channel_consistent
+        .token_channel
+        .get_mutual_credits()
+        .get(&set_requests_status.currency)
+        .is_none()
+    {
+        return Err(HandleControlError::FriendCurrencyDoesNotExist);
+    }
+
+    if let Some(wanted_requests_status) = channel_consistent
         .wanted_local_requests_status
         .get(&set_requests_status.currency)
     {
@@ -514,12 +543,27 @@ where
         .get(&set_friend_currencies.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+    };
+
+    for currency in channel_consistent
+        .token_channel
+        .get_active_currencies()
+        .calc_active()
+    {
+        if !set_friend_currencies.currencies.contains(&currency) {
+            return Err(HandleControlError::CanNotRemoveActiveCurrency);
+        }
+    }
+
     // Canonicalize by sorting:
     let mut new_active_currencies = set_friend_currencies.currencies.clone();
     new_active_currencies.sort();
 
     // If the newly proposed friend currencies is the same as the old one, we do nothing:
-    if friend.wanted_active_currencies == Some(new_active_currencies.clone()) {
+    if channel_consistent.wanted_active_currencies == Some(new_active_currencies.clone()) {
         return Ok(());
     }
 
