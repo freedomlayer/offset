@@ -1,6 +1,7 @@
 use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
@@ -15,7 +16,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::Uid;
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
-    ResetFriendChannel, SetFriendStatus,
+    ResetFriendChannel, SetFriendStatus, Currency, CurrencyBalance,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -34,6 +35,8 @@ async fn task_handler_pair_inconsistency<'a>(
     // NOTE: We use Box::pin() in order to make sure we don't get a too large Future which will
     // cause a stack overflow.
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330
+    
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = identity_client1.request_public_key().await.unwrap();
@@ -269,7 +272,7 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, 20i128);
+                assert_eq!(reset_terms.balance_for_reset, vec![CurrencyBalance {currency: currency.clone(), balance: 20i128}]);
                 assert_eq!(pk, &pk2);
             } else {
                 unreachable!();
@@ -299,7 +302,7 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, -10i128);
+                assert_eq!(reset_terms.balance_for_reset, vec![CurrencyBalance {currency: currency.clone(), balance: -10i128}]);
                 assert_eq!(pk, &pk1);
                 (friend_message.clone(), reset_terms.reset_token.clone())
             } else {
@@ -353,7 +356,9 @@ async fn task_handler_pair_inconsistency<'a>(
             assert_eq!(
                 channel_consistent
                     .token_channel
-                    .get_mutual_credit()
+                    .get_mutual_credits()
+                    .get(&currency)
+                    .unwrap()
                     .state()
                     .balance
                     .balance,
@@ -406,7 +411,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
+                assert!(friend_move_token.currencies_operations.is_empty());
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
@@ -439,7 +444,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
+                assert!(friend_move_token.currencies_operations.is_empty());
                 assert_eq!(
                     friend_move_token.opt_local_relays,
                     Some(vec![dummy_relay_address(1)])
@@ -473,7 +478,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
+                assert!(friend_move_token.currencies_operations.is_empty());
                 assert_eq!(friend_move_token.opt_local_relays, None);
             } else {
                 unreachable!();
