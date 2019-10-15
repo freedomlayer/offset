@@ -1,6 +1,7 @@
-use super::utils::apply_funder_incoming;
-
 use std::cmp::Ordering;
+use std::convert::TryFrom;
+
+use super::utils::apply_funder_incoming;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
@@ -18,7 +19,7 @@ use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
     FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendRemoteMaxDebt,
-    SetFriendStatus, SetRequestsStatus,
+    SetFriendStatus, SetRequestsStatus, Currency,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -38,6 +39,8 @@ async fn task_handler_pair_basic<'a>(
     // NOTE: We use Box::pin() in order to make sure we don't get a too large Future which will
     // cause a stack overflow.
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330
+
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = identity_client1.request_public_key().await.unwrap();
@@ -87,7 +90,6 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; Uid::len()]),
@@ -129,7 +131,6 @@ async fn task_handler_pair_basic<'a>(
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: 0i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; Uid::len()]),
@@ -357,6 +358,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 receives control message to set remote max debt.
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
         friend_public_key: pk2.clone(),
+        currency: currency.clone(),
         remote_max_debt: 100,
     };
     let incoming_control_message = FunderIncomingControl::new(
@@ -407,7 +409,9 @@ async fn task_handler_pair_basic<'a>(
         ChannelStatus::Consistent(channel_consistent) => {
             channel_consistent
                 .token_channel
-                .get_mutual_credit()
+                .get_mutual_credits()
+                .get(&currency)
+                .unwrap()
                 .state()
                 .balance
                 .remote_max_debt
@@ -421,7 +425,9 @@ async fn task_handler_pair_basic<'a>(
         ChannelStatus::Consistent(channel_consistent) => {
             channel_consistent
                 .token_channel
-                .get_mutual_credit()
+                .get_mutual_credits()
+                .get(&currency)
+                .unwrap()
                 .state()
                 .balance
                 .local_max_debt
@@ -433,6 +439,7 @@ async fn task_handler_pair_basic<'a>(
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+        currency: currency.clone(),
         total_dest_payment: 16,
     };
 
@@ -459,6 +466,7 @@ async fn task_handler_pair_basic<'a>(
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+        currency: currency.clone(),
         total_dest_payment: 16,
         dest_public_key: pk1.clone(),
     };
@@ -528,7 +536,7 @@ async fn task_handler_pair_basic<'a>(
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credit().state()
+            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
         }
         _ => unreachable!(),
     };
@@ -545,6 +553,7 @@ async fn task_handler_pair_basic<'a>(
     // However, Node1 doesn't have the token at this moment.
     let set_requests_status = SetRequestsStatus {
         friend_public_key: pk2.clone(),
+        currency: currency.clone(),
         status: RequestsStatus::Open,
     };
     let incoming_control_message = FunderIncomingControl::new(
@@ -630,7 +639,7 @@ async fn task_handler_pair_basic<'a>(
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credit().state()
+            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
         }
         _ => unreachable!(),
     };
@@ -641,7 +650,7 @@ async fn task_handler_pair_basic<'a>(
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credit().state()
+            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
         }
         _ => unreachable!(),
     };
@@ -868,7 +877,7 @@ async fn task_handler_pair_basic<'a>(
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credit().state()
+            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
         }
         _ => unreachable!(),
     };
@@ -880,7 +889,7 @@ async fn task_handler_pair_basic<'a>(
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credit().state()
+            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
         }
         _ => unreachable!(),
     };
