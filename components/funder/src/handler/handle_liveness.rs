@@ -137,7 +137,6 @@ mod tests {
             friend_public_key: remote_pk.clone(),
             relays: vec![dummy_relay_address(1)],
             name: "remote_pk".into(),
-            balance: 0i128,
         };
         let funder_mutation = FunderMutation::AddFriend(add_friend);
         state.mutate(&funder_mutation);
@@ -153,7 +152,7 @@ mod tests {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             _ => unreachable!(),
         };
-        assert!(token_channel.is_outgoing());
+        assert!(token_channel.get_outgoing().is_some());
 
         let ephemeral = Ephemeral::new();
 

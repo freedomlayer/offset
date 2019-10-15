@@ -78,7 +78,6 @@ mod tests {
             friend_public_key: pk_b.clone(),
             relays: vec![dummy_relay_address(3)],
             name: "pk_b".into(),
-            balance: 0i128,
         };
         let f_mutation = FunderMutation::AddFriend(add_friend);
         state.mutate(&f_mutation);

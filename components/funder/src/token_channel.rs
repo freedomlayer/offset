@@ -1045,9 +1045,9 @@ mod tests {
         assert!(tc2.get_incoming().is_some());
 
         let tc2_in_borrow = tc2.get_incoming().unwrap();
-        let mut outgoing_mc = tc2_in_borrow.create_outgoing_mc(&currency).unwrap();
+        // let mut outgoing_mc = tc2_in_borrow.create_outgoing_mc(&currency).unwrap();
         let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
-        let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
+        // let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
         let currency_operations = CurrencyOperations {
             currency: currency.clone(),
             operations: vec![friend_tc_op],

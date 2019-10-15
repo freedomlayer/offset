@@ -22,7 +22,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
     RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult,
+    SetRequestsStatus, TransactionResult, Currency,
 };
 
 use database::DatabaseClient;
@@ -317,7 +317,6 @@ where
             friend_public_key: friend_public_key.clone(),
             relays,
             name: name.into(),
-            balance: balance.into(),
         };
         self.send(FunderControl::AddFriend(add_friend)).await;
     }
@@ -338,10 +337,12 @@ where
     pub async fn set_remote_max_debt<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
         remote_max_debt: u128,
     ) {
         let set_remote_max_debt = SetFriendRemoteMaxDebt {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             remote_max_debt: remote_max_debt.into(),
         };
         self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt))
@@ -351,28 +352,32 @@ where
     pub async fn set_requests_status<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
         requests_status: RequestsStatus,
     ) {
         let set_requests_status = SetRequestsStatus {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             status: requests_status.clone(),
         };
         self.send(FunderControl::SetRequestsStatus(set_requests_status))
             .await;
     }
 
-    pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, rate: Rate) {
+    pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, 
+        currency: &'a Currency, rate: Rate) {
         let set_friend_rate = SetFriendRate {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             rate,
         };
         self.send(FunderControl::SetFriendRate(set_friend_rate))
             .await;
     }
 
-    pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
+    /*
+    pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency) {
         let pred = |report: &FunderReport<_>| {
-            // TODO: get_friend_report() is inefficient
             let friend = match report.friends.get(&friend_public_key) {
                 None => return false,
                 Some(friend) => friend,
@@ -386,13 +391,14 @@ where
                 }
                 _ => return false,
             };
-            tc_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
+            // TODO: Fix this part:
+            tc_report.currency_reports.get(currency).unwrap().requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
         };
         self.recv_until(pred).await;
     }
+    */
 }
 
-// TODO: Add this back later:
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
 /// We use A = u32:
