@@ -93,6 +93,11 @@ struct SetFriendRate {
         rate @2: Rate;
 }
 
+struct SetFriendCurrencies {
+        friendPublicKey @0: PublicKey;
+        currencies @1: List(Currency);
+}
+
 # Application -> AppServer
 struct ResetFriendChannel {
         friendPublicKey @0: PublicKey;
@@ -239,14 +244,15 @@ struct AppRequest {
         closeFriend @16: CloseFriend;
         setFriendRemoteMaxDebt @17: SetFriendRemoteMaxDebt;
         setFriendRate @18: SetFriendRate;
-        resetFriendChannel @19: ResetFriendChannel;
+        setFriendCurrencies @19: SetFriendCurrencies;
+        resetFriendChannel @20: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @20: RequestRoutes;
+        requestRoutes @21: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @21: NamedIndexServerAddress;
-        removeIndexServer @22: PublicKey;
+        addIndexServer @22: NamedIndexServerAddress;
+        removeIndexServer @23: PublicKey;
     }
 }
 

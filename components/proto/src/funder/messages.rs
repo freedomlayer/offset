@@ -591,6 +591,13 @@ pub struct SetFriendRate {
     pub rate: Rate,
 }
 
+#[capnp_conv(crate::app_server_capnp::set_friend_currencies)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetFriendCurrencies {
+    pub friend_public_key: PublicKey,
+    pub currencies: Vec<Currency>,
+}
+
 /// A friend's route with known capacity
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FriendsRouteCapacity {

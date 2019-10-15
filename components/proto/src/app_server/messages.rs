@@ -8,8 +8,8 @@ use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
-    MultiCommit, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
-    SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
+    MultiCommit, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencies, SetFriendName,
+    SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -150,6 +150,7 @@ pub enum AppRequest<B = NetAddress> {
     CloseFriend(CloseFriend),
     SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
     SetFriendRate(SetFriendRate),
+    SetFriendCurrencies(SetFriendCurrencies),
     ResetFriendChannel(ResetFriendChannel),
     /// Buyer:
     CreatePayment(CreatePayment),
