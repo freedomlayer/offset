@@ -70,16 +70,23 @@ where
         .get(&set_friend_remote_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
-        // Wanted remote max debt is already set to this value. Nothing to do here.
-        return Ok(());
+    if let Some(wanted_remote_max_debt) = friend
+        .wanted_remote_max_debt
+        .get(&set_friend_remote_max_debt.currency)
+    {
+        if *wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
+            // Wanted remote max debt is already set to this value. Nothing to do here.
+            return Ok(());
+        }
     }
 
     // We only set the wanted remote max debt here. The actual remote max debt will be changed
     // only when we manage to send a move token message containing the SetRemoteMaxDebt
     // operation.
-    let friend_mutation =
-        FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
+    let friend_mutation = FriendMutation::SetWantedRemoteMaxDebt((
+        set_friend_remote_max_debt.currency.clone(),
+        set_friend_remote_max_debt.remote_max_debt,
+    ));
     let m_mutation = FunderMutation::FriendMutation((
         set_friend_remote_max_debt.friend_public_key.clone(),
         friend_mutation,
@@ -359,13 +366,26 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     // Make sure that friend exists:
-    let _friend = m_state
+    let friend = m_state
         .state()
         .friends
         .get(&set_requests_status.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
+    if let Some(wanted_requests_status) = friend
+        .wanted_local_requests_status
+        .get(&set_requests_status.currency)
+    {
+        if *wanted_requests_status == set_requests_status.status {
+            // Wanted requests status is already set currectly. We can exit early.
+            return Ok(());
+        }
+    }
+
+    let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus((
+        set_requests_status.currency,
+        set_requests_status.status,
+    ));
     let funder_mutation = FunderMutation::FriendMutation((
         set_requests_status.friend_public_key.clone(),
         friend_mutation,

@@ -244,9 +244,6 @@ pub struct FriendReport<B = NetAddress> {
     // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub wanted_remote_max_debt: u128,
-    pub wanted_local_requests_status: RequestsStatusReport,
     pub status: FriendStatusReport,
 }
 
@@ -318,9 +315,6 @@ pub enum FriendReportMutation<B = NetAddress> {
     SetRate(Rate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
-    #[capnp_conv(with = Wrapper<u128>)]
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatusReport),
     SetStatus(FriendStatusReport),
     #[capnp_conv(with = OptLastIncomingMoveToken)]
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
@@ -431,12 +425,6 @@ where
             FriendReportMutation::SetChannelStatus(channel_status_report) => {
                 self.channel_status = channel_status_report.clone();
             }
-            FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-                self.wanted_remote_max_debt = *wanted_remote_max_debt;
-            }
-            FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
-                self.wanted_local_requests_status = wanted_local_requests_status.clone();
-            }
             FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
             }
@@ -486,10 +474,6 @@ where
                         .clone(),
                     liveness: FriendLivenessReport::Offline,
                     channel_status: add_friend_report.channel_status.clone(),
-                    wanted_remote_max_debt: 0,
-                    wanted_local_requests_status: RequestsStatusReport::from(
-                        &RequestsStatus::Closed,
-                    ),
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                 };
                 if self

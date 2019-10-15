@@ -9,7 +9,8 @@ use proto::app_server::messages::RelayAddress;
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TokenInfo, TransactionResult, McInfo, CountersInfo, CurrencyBalanceInfo, BalanceInfo,
+    RequestResult, RequestsStatus, TokenInfo, TransactionResult, McInfo, CountersInfo,
+    CurrencyBalanceInfo, BalanceInfo, Currency, CurrencyOperations,
 };
 
 use identity::IdentityClient;
@@ -23,7 +24,7 @@ use crate::types::{
 use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
-use crate::token_channel::{SetDirection, TcDirectionBorrow, TcMutation, TokenChannel};
+use crate::token_channel::{SetDirection, TcDirectionBorrow, TcMutation, TokenChannel, SendMoveTokenOutput};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::remove_transaction;
@@ -46,11 +47,22 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
+#[derive(Debug)]
+/// Pending messages we want to send through a single currency
+/// in the next MoveToken.
+struct PendingCurrency {
+    /// Mutual credit state for this currency, allowing us to simulate sending operations
+    /// through this channel.
+    outgoing_mc: OutgoingMc,
+    /// Pending outgoing operations
+    operations: Vec<FriendTcOp>,
+}
+
 struct PendingMoveToken<B> {
     friend_public_key: PublicKey,
-    outgoing_mc: OutgoingMc,
-    operations: Vec<FriendTcOp>,
+    pending_currencies: HashMap<Currency, PendingCurrency>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    opt_active_currencies: Option<Vec<Currency>>,
     token_wanted: bool,
     max_operations_in_batch: usize,
     /// Can we send this move token with empty operations list
@@ -64,15 +76,14 @@ where
 {
     fn new(
         friend_public_key: PublicKey,
-        outgoing_mc: OutgoingMc,
         max_operations_in_batch: usize,
         may_send_empty: bool,
     ) -> Self {
         PendingMoveToken {
             friend_public_key,
-            outgoing_mc,
-            operations: Vec::new(),
+            pending_currencies: HashMap::new(),
             opt_local_relays: None,
+            opt_active_currencies: None,
             token_wanted: false,
             max_operations_in_batch,
             may_send_empty,
@@ -84,14 +95,27 @@ where
     /// Otherwise, an error is returned.
     fn queue_operation(
         &mut self,
+        currency: &Currency,
         operation: &FriendTcOp,
         m_state: &mut MutableFunderState<B>,
     ) -> Result<(), PendingQueueError> {
-        if self.operations.len() >= self.max_operations_in_batch {
+
+        // Make sure we do not have too many operations queued:
+        let num_operations: usize = self.pending_currencies.values().map(|pending_currency| pending_currency.operations.len()).sum();
+        if num_operations >= self.max_operations_in_batch {
             return Err(PendingQueueError::MaxOperationsReached);
         }
 
-        let mc_mutations = match self.outgoing_mc.queue_operation(operation) {
+        let friend = m_state.state().friends.get(&self.friend_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
+        let outgoing_mc = token_channel.get_incoming().unwrap().create_outgoing_mc(currency).unwrap();
+        let pending_currency = self.pending_currencies.entry(currency.clone()).or_insert(PendingCurrency {outgoing_mc, operations: Vec::new()});
+
+        let mc_mutations = match pending_currency.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
             Err(QueueOperationError::RequestAlreadyExists) => {
                 warn!("Request already exists: {:?}", operation);
@@ -104,11 +128,11 @@ where
         }?;
 
         // Add operation:
-        self.operations.push(operation.clone());
+        pending_currency.operations.push(operation.clone());
 
         // Apply mutations:
         for mc_mutation in mc_mutations {
-            let tc_mutation = TcMutation::McMutation(mc_mutation);
+            let tc_mutation = TcMutation::McMutation((currency.clone(), mc_mutation));
             let friend_mutation = FriendMutation::TcMutation(tc_mutation);
             let funder_mutation =
                 FunderMutation::FriendMutation((self.friend_public_key.clone(), friend_mutation));
@@ -118,9 +142,12 @@ where
         Ok(())
     }
 
-    /// Set local address inside pending move token.
     fn set_local_relays(&mut self, local_relays: Vec<RelayAddress<B>>) {
         self.opt_local_relays = Some(local_relays);
+    }
+
+    fn set_active_currencies(&mut self, active_currencies: Vec<Currency>) {
+        self.opt_active_currencies = Some(active_currencies);
     }
 }
 
@@ -138,7 +165,7 @@ fn transmit_outgoing<B>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let move_token = token_channel.get_outgoing().unwrap().tc_outgoing.create_outgoing_move_token();
+    let move_token = token_channel.get_outgoing().unwrap().create_outgoing_move_token();
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -311,15 +338,11 @@ async fn send_friend_iter1<'a, B, R>(
     // is in incoming mode.
     // -- This could happen in handle_liveness.
     // assert!(!friend_send_commands.resend_outgoing);
-
-    assert!(false);
-    // TODO: We need to be able to specify specific currency here:
-    let outgoing_mc = tc_incoming.create_outgoing_mc();
+    
     let may_send_empty =
         friend_send_commands.resend_outgoing || friend_send_commands.remote_wants_token;
     let pending_move_token = PendingMoveToken::new(
         friend_public_key.clone(),
-        outgoing_mc,
         max_operations_in_batch,
         may_send_empty,
     );
@@ -720,14 +743,15 @@ async fn send_move_token<'a, B, R>(
     R: CryptoRandom,
 {
     let PendingMoveToken {
-        operations,
+        pending_currencies,
         opt_local_relays,
+        opt_active_currencies,
         token_wanted,
         may_send_empty,
         ..
     } = pending_move_token;
 
-    if operations.is_empty() && opt_local_relays.is_none() && !may_send_empty {
+    if pending_currencies.is_empty() && opt_local_relays.is_none() && !may_send_empty {
         return;
     }
 
@@ -743,12 +767,26 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_incoming = &channel_consistent.token_channel.get_incoming().unwrap().tc_incoming;
+    let tc_in_borrow = &channel_consistent.token_channel.get_incoming().unwrap();
 
-    let (u_move_token, token_info) =
-        tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
+    let currencies_operations = pending_currencies.into_iter().map(|(currency, pending_currency)| {
+        CurrencyOperations {
+            currency,
+            operations: pending_currency.operations,
+        }
 
-    let move_token = sign_move_token(u_move_token, identity_client).await;
+    }).collect();
+
+
+    // let (u_move_token, token_info) =
+    let SendMoveTokenOutput {
+        unsigned_move_token,
+        mutations,
+        token_info,
+    } = tc_in_borrow.simulate_send_move_token(currencies_operations, opt_local_relays, opt_active_currencies, rand_nonce).unwrap();
+
+
+    let move_token = sign_move_token(unsigned_move_token, identity_client).await;
 
     let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((move_token, token_info)));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
@@ -762,9 +800,9 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_outgoing = &channel_consistent.token_channel.get_outgoing().unwrap().tc_outgoing;
+    let tc_out_borrow = &channel_consistent.token_channel.get_outgoing().unwrap();
 
-    let move_token = tc_outgoing.create_outgoing_move_token();
+    let move_token = tc_out_borrow.create_outgoing_move_token();
     let move_token_request = MoveTokenRequest {
         move_token,
         token_wanted,

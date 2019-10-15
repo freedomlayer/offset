@@ -170,9 +170,7 @@ struct FriendReport {
         optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
         liveness @5: FriendLivenessReport;
         channelStatus @6: ChannelStatusReport;
-        wantedRemoteMaxDebt @7: CustomUInt128;
-        wantedLocalRequestsStatus @8: RequestsStatusReport;
-        status @9: FriendStatusReport;
+        status @7: FriendStatusReport;
 }
 
 struct PkFriendReport {
@@ -213,11 +211,9 @@ struct FriendReportMutation {
                 setRate @2: Rate;
                 setSentLocalRelays @3: SentLocalRelaysReport;
                 setChannelStatus @4: ChannelStatusReport;
-                setWantedRemoteMaxDebt @5: CustomUInt128;
-                setWantedLocalRequestsStatus @6: RequestsStatusReport;
-                setStatus @7: FriendStatusReport;
-                setOptLastIncomingMoveToken @8: OptLastIncomingMoveToken;
-                setLiveness @9: FriendLivenessReport;
+                setStatus @5: FriendStatusReport;
+                setOptLastIncomingMoveToken @6: OptLastIncomingMoveToken;
+                setLiveness @7: FriendLivenessReport;
         }
 }
 

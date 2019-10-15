@@ -15,6 +15,7 @@ use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
+#[derive(Debug)]
 pub struct OutgoingMc {
     mutual_credit: MutualCredit,
 }

@@ -543,6 +543,7 @@ pub struct RemoveFriend {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetRequestsStatus {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     pub status: RequestsStatus,
 }
 

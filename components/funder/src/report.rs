@@ -7,8 +7,8 @@ use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
     CurrencyReport, DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation,
     FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
-    McRequestsStatusReport, MoveTokenHashedReport, RelaysTransitionReport, RequestsStatusReport,
-    ResetTermsReport, SentLocalRelaysReport, TcReport,
+    McRequestsStatusReport, MoveTokenHashedReport, RelaysTransitionReport, ResetTermsReport,
+    SentLocalRelaysReport, TcReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -164,10 +164,6 @@ where
             .map(|move_token_hashed| MoveTokenHashedReport::from(&move_token_hashed)),
         liveness: friend_liveness.clone(),
         channel_status,
-        wanted_remote_max_debt: friend_state.wanted_remote_max_debt,
-        wanted_local_requests_status: RequestsStatusReport::from(
-            &friend_state.wanted_local_requests_status,
-        ),
         status: FriendStatusReport::from(&friend_state.status),
     }
 }
@@ -225,17 +221,11 @@ where
             );
             vec![set_channel_status, set_last_incoming_move_token]
         }
-        FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-            vec![FriendReportMutation::SetWantedRemoteMaxDebt(
-                *wanted_remote_max_debt,
-            )]
-        }
-        FriendMutation::SetWantedLocalRequestsStatus(requests_status) => {
-            vec![FriendReportMutation::SetWantedLocalRequestsStatus(
-                RequestsStatusReport::from(requests_status),
-            )]
-        }
-        FriendMutation::PushBackPendingRequest(_)
+        FriendMutation::SetWantedRemoteMaxDebt(_)
+        | FriendMutation::ClearWantedRemoteMaxDebt(_)
+        | FriendMutation::SetWantedLocalRequestsStatus(_)
+        | FriendMutation::ClearWantedLocalRequestsStatus(_)
+        | FriendMutation::PushBackPendingRequest(_)
         | FriendMutation::PopFrontPendingRequest
         | FriendMutation::PushBackPendingBackwardsOp(_)
         | FriendMutation::PopFrontPendingBackwardsOp

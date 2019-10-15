@@ -156,11 +156,11 @@ pub struct FriendState<B: Clone> {
     /// Wanted credit frame for the remote side (Set by the user of this node)
     /// It might take a while until this value is applied, as it needs to be communicated to the
     /// remote side.
-    pub wanted_remote_max_debt: u128,
+    pub wanted_remote_max_debt: ImHashMap<Currency, u128>,
     /// Can the remote friend send requests through us? This is a value chosen by the user, and it
     /// might take some time until it is applied (As it should be communicated to the remote
     /// friend).
-    pub wanted_local_requests_status: RequestsStatus,
+    pub wanted_local_requests_status: ImHashMap<Currency, RequestsStatus>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -169,8 +169,10 @@ pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),
     SetConsistent(TokenChannel<B>),
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatus),
+    SetWantedRemoteMaxDebt((Currency, u128)),
+    ClearWantedRemoteMaxDebt(Currency),
+    SetWantedLocalRequestsStatus((Currency, RequestsStatus)),
+    ClearWantedLocalRequestsStatus(Currency),
     PushBackPendingRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingRequest,
     PushBackPendingBackwardsOp((Currency, BackwardsOp)),
@@ -216,8 +218,8 @@ where
 
             // The remote_max_debt we want to have. When possible, this will be sent to the remote
             // side.
-            wanted_remote_max_debt: 0,
-            wanted_local_requests_status: RequestsStatus::Closed,
+            wanted_remote_max_debt: ImHashMap::new(),
+            wanted_local_requests_status: ImHashMap::new(),
         }
     }
 
@@ -270,11 +272,26 @@ where
                 };
                 self.channel_status = ChannelStatus::Consistent(channel_consistent);
             }
-            FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-                self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            FriendMutation::SetWantedRemoteMaxDebt((currency, wanted_remote_max_debt)) => {
+                let _ = self
+                    .wanted_remote_max_debt
+                    .insert(currency.clone(), wanted_remote_max_debt.clone());
             }
-            FriendMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
-                self.wanted_local_requests_status = wanted_local_requests_status.clone();
+            FriendMutation::ClearWantedRemoteMaxDebt(currency) => {
+                let res = self.wanted_remote_max_debt.remove(currency);
+                assert!(res.is_some());
+            }
+            FriendMutation::SetWantedLocalRequestsStatus((
+                currency,
+                wanted_local_requests_status,
+            )) => {
+                let _ = self
+                    .wanted_local_requests_status
+                    .insert(currency.clone(), wanted_local_requests_status.clone());
+            }
+            FriendMutation::ClearWantedLocalRequestsStatus(currency) => {
+                let res = self.wanted_local_requests_status.remove(currency);
+                assert!(res.is_some());
             }
             FriendMutation::PushBackPendingRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
