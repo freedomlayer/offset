@@ -20,7 +20,6 @@ extern crate log;
 extern crate serde;
 
 mod ephemeral;
-#[allow(unused)]
 mod friend;
 mod funder;
 mod handler;

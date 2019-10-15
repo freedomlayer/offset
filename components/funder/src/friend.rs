@@ -69,30 +69,6 @@ pub struct ChannelInconsistent {
 }
 
 #[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
-pub struct ChannelQueues {
-    /// A queue of requests that need to be sent to the remote friend
-    pub pending_requests: ImVec<RequestSendFundsOp>,
-    /// A queue of backwards operations (Response, Cancel, Commit) that need to be sent to the remote side
-    /// We keep backwards op on a separate queue because those operations are not supposed to fail
-    /// (While requests may fail due to lack of trust for example)
-    pub pending_backwards_ops: ImVec<BackwardsOp>,
-    /// Pending requests originating from the user.
-    /// We care more about these requests, because those are payments that our user wants to make.
-    /// This queue should be bounded in size (TODO: Check this)
-    pub pending_user_requests: ImVec<RequestSendFundsOp>,
-}
-
-impl ChannelQueues {
-    pub fn new() -> Self {
-        Self {
-            pending_requests: ImVec::new(),
-            pending_backwards_ops: ImVec::new(),
-            pending_user_requests: ImVec::new(),
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelConsistent<B> {
     /// Our mutual state with the remote side
     pub token_channel: TokenChannel<B>,
