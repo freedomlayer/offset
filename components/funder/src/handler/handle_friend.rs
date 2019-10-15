@@ -31,8 +31,8 @@ use crate::state::{FunderMutation, Payment};
 use crate::ephemeral::Ephemeral;
 
 use crate::handler::canceler::{
-    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
-    remove_transaction, reply_with_cancel, CurrencyChoice,
+    cancel_local_pending_transactions, cancel_pending_requests, remove_transaction,
+    reply_with_cancel, CurrencyChoice,
 };
 use crate::handler::prepare::{prepare_commit, prepare_receipt};
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
@@ -573,13 +573,6 @@ fn handle_move_token_error<B, R>(
         remote_public_key,
         &CurrencyChoice::All,
     );
-    cancel_pending_user_requests(
-        m_state,
-        outgoing_control,
-        rng,
-        remote_public_key,
-        &CurrencyChoice::All,
-    );
 
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
@@ -696,13 +689,6 @@ fn handle_move_token_success<B, R>(
                     cancel_pending_requests(
                         m_state,
                         send_commands,
-                        outgoing_control,
-                        rng,
-                        remote_public_key,
-                        &CurrencyChoice::One(move_token_received_currency.currency.clone()),
-                    );
-                    cancel_pending_user_requests(
-                        m_state,
                         outgoing_control,
                         rng,
                         remote_public_key,
@@ -843,13 +829,6 @@ where
         cancel_pending_requests(
             m_state,
             send_commands,
-            outgoing_control,
-            rng,
-            remote_public_key,
-            &CurrencyChoice::All,
-        );
-        cancel_pending_user_requests(
-            m_state,
             outgoing_control,
             rng,
             remote_public_key,

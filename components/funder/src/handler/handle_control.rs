@@ -22,8 +22,7 @@ use signature::verify::verify_multi_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
-    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
-    reply_with_cancel, CurrencyChoice,
+    cancel_local_pending_transactions, cancel_pending_requests, reply_with_cancel, CurrencyChoice,
 };
 use crate::handler::prepare::prepare_commit;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
@@ -163,14 +162,6 @@ fn disable_friend<B, R>(
     cancel_pending_requests(
         m_state,
         send_commands,
-        outgoing_control,
-        rng,
-        friend_public_key,
-        &CurrencyChoice::All,
-    );
-
-    cancel_pending_user_requests(
-        m_state,
         outgoing_control,
         rng,
         friend_public_key,
@@ -588,12 +579,10 @@ where
     // MutualCredit?
     //
     // If this transaction is already in progress, we do nothing:
-    if let Some(channel_queues) = channel_consistent.currency_queues.get(&currency) {
-        // Check if there is already a pending user transaction with the same request_id:
-        for user_request in &channel_queues.pending_user_requests {
-            if create_transaction.request_id == user_request.request_id {
-                return Err(HandleControlError::RequestAlreadyInProgress);
-            }
+    // Check if there is already a pending user transaction with the same request_id:
+    for (currency0, user_request) in &channel_consistent.pending_user_requests {
+        if (*currency0 == currency) && (create_transaction.request_id == user_request.request_id) {
+            return Err(HandleControlError::RequestAlreadyInProgress);
         }
     }
 
@@ -612,10 +601,8 @@ where
     }
 
     // Check if we have room to push this message:
-    if let Some(channel_queues) = channel_consistent.currency_queues.get(&currency) {
-        if channel_queues.pending_user_requests.len() >= max_pending_user_requests {
-            return Err(HandleControlError::PendingUserRequestsFull);
-        }
+    if channel_consistent.pending_user_requests.len() >= max_pending_user_requests {
+        return Err(HandleControlError::PendingUserRequestsFull);
     }
 
     // Randomly generate a new PlainLock:

@@ -5,7 +5,9 @@ use signature::canonical::CanonicalSerialize;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, FunderOutgoingControl, RequestResult, TransactionResult};
+use proto::funder::messages::{
+    Currency, FunderOutgoingControl, RequestResult, RequestSendFundsOp, TransactionResult,
+};
 
 use crate::handler::state_wrap::MutableFunderState;
 use crate::handler::types::SendCommands;
@@ -182,6 +184,67 @@ pub fn cancel_local_pending_transactions<B, R>(
     }
 }
 
+/// Cancel a pending request
+pub fn cancel_request<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
+    currency: &Currency,
+    pending_request: &RequestSendFundsOp,
+) where
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
+{
+    let opt_origin_public_key =
+        find_request_origin(m_state.state(), &currency, &pending_request.request_id).cloned();
+    match opt_origin_public_key {
+        Some(origin_public_key) => {
+            let pending_local_transaction = create_pending_transaction(&pending_request);
+            let cancel_send_funds = create_cancel_send_funds(pending_local_transaction.request_id);
+            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((
+                currency.clone(),
+                BackwardsOp::Cancel(cancel_send_funds),
+            ));
+            let funder_mutation =
+                FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+            send_commands.set_try_send(&origin_public_key);
+        }
+        None => {
+            // We are the origin of this request:
+            let transaction_result = TransactionResult {
+                request_id: pending_request.request_id.clone(),
+                result: RequestResult::Failure,
+            };
+            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+            remove_transaction(m_state, rng, &pending_request.request_id);
+        }
+    };
+}
+
+/*
+/// Cancel a pending request that the user of this node has created
+pub fn cancel_user_request<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
+    currency: &Currency,
+    pending_request: &RequestSendFundsOp,
+) where
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
+{
+    let transaction_result = TransactionResult {
+        request_id: pending_user_request.request_id.clone(),
+        result: RequestResult::Failure,
+    };
+    outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
+    remove_transaction(m_state, rng, &pending_user_request.request_id);
+}
+*/
+
 /// Cancel all pending request messages at the pending_requests queue.
 /// These are requests that were forwarded from other nodes.
 pub fn cancel_pending_requests<B, R>(
@@ -200,98 +263,52 @@ pub fn cancel_pending_requests<B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
-    let mut currency_queues = channel_consistent.currency_queues.clone();
+    let mut channel_consistent = channel_consistent.clone();
 
-    let currencies = if let CurrencyChoice::One(currency) = currency_choice {
-        vec![currency.clone()]
-    } else {
-        currency_queues.keys().cloned().collect()
-    };
-
-    for currency in currencies {
-        let channel_queues = currency_queues.get_mut(&currency).unwrap();
-        let mut pending_requests = &mut channel_queues.pending_requests;
-        while let Some(pending_request) = pending_requests.pop_front() {
-            let friend_mutation = FriendMutation::PopFrontPendingRequest(currency.clone());
-            let funder_mutation =
-                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            m_state.mutate(funder_mutation);
-
-            let opt_origin_public_key =
-                find_request_origin(m_state.state(), &currency, &pending_request.request_id)
-                    .cloned();
-            match opt_origin_public_key {
-                Some(origin_public_key) => {
-                    let pending_local_transaction = create_pending_transaction(&pending_request);
-                    let cancel_send_funds =
-                        create_cancel_send_funds(pending_local_transaction.request_id);
-                    let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((
-                        currency.clone(),
-                        BackwardsOp::Cancel(cancel_send_funds),
-                    ));
-                    let funder_mutation = FunderMutation::FriendMutation((
-                        origin_public_key.clone(),
-                        friend_mutation,
-                    ));
-                    m_state.mutate(funder_mutation);
-                    send_commands.set_try_send(&origin_public_key);
-                }
-                None => {
-                    // We are the origin of this request:
-                    let transaction_result = TransactionResult {
-                        request_id: pending_request.request_id.clone(),
-                        result: RequestResult::Failure,
-                    };
-                    outgoing_control
-                        .push(FunderOutgoingControl::TransactionResult(transaction_result));
-                    remove_transaction(m_state, rng, &pending_request.request_id);
-                }
-            };
+    // Cancel requests (Queue backwards ops):
+    while let Some((currency, pending_request)) = channel_consistent.pending_requests.pop_front() {
+        if let CurrencyChoice::One(currency0) = &currency_choice {
+            if *currency0 != currency {
+                continue;
+            }
         }
+        cancel_request(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            &currency,
+            &pending_request,
+        );
     }
-}
 
-/// Cancel all pending request messages at the user_pending_requests queue.
-/// These are requests that were created by the local user of this node.
-pub fn cancel_pending_user_requests<B, R>(
-    m_state: &mut MutableFunderState<B>,
-    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
-    friend_public_key: &PublicKey,
-    currency_choice: &CurrencyChoice,
-) where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
-    R: CryptoRandom,
-{
-    let friend = m_state.state().friends.get(&friend_public_key).unwrap();
-    let channel_consistent = match &friend.channel_status {
-        ChannelStatus::Inconsistent(_) => unreachable!(),
-        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
-    };
-    let mut currency_queues = channel_consistent.currency_queues.clone();
-
-    let currencies = if let CurrencyChoice::One(currency) = currency_choice {
-        vec![currency.clone()]
-    } else {
-        currency_queues.keys().cloned().collect()
-    };
-
-    for currency in currencies {
-        let channel_queues = currency_queues.get_mut(&currency).unwrap();
-        let mut pending_user_requests = &mut channel_queues.pending_user_requests;
-        while let Some(pending_user_request) = pending_user_requests.pop_front() {
-            let friend_mutation = FriendMutation::PopFrontPendingUserRequest(currency.clone());
-            let funder_mutation =
-                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            m_state.mutate(funder_mutation);
-
-            // We are the origin of this request:
-            let transaction_result = TransactionResult {
-                request_id: pending_user_request.request_id.clone(),
-                result: RequestResult::Failure,
-            };
-            outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
-            remove_transaction(m_state, rng, &pending_user_request.request_id);
+    // Cancel user requests (Queue backwards ops):
+    while let Some((currency, pending_user_request)) =
+        channel_consistent.pending_user_requests.pop_front()
+    {
+        if let CurrencyChoice::One(currency0) = &currency_choice {
+            if *currency0 != currency {
+                continue;
+            }
         }
+        cancel_request(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            &currency,
+            &pending_user_request,
+        );
     }
+
+    // Remove requests:
+    let friend_mutation = if let CurrencyChoice::One(currency0) = currency_choice {
+        FriendMutation::RemovePendingRequestsCurrency(currency0.clone())
+    } else {
+        FriendMutation::RemovePendingRequests
+    };
+
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
 }

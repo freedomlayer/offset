@@ -96,10 +96,16 @@ impl ChannelQueues {
 pub struct ChannelConsistent<B> {
     /// Our mutual state with the remote side
     pub token_channel: TokenChannel<B>,
-    /// A set of queues for every currency
-    /// Note: The currency keys of currency_queues are always a subset of the currency keys of
-    /// token_channel.mutual_credits.
-    pub currency_queues: ImHashMap<Currency, ChannelQueues>,
+    /// A queue of requests that need to be sent to the remote friend
+    pub pending_requests: ImVec<(Currency, RequestSendFundsOp)>,
+    /// A queue of backwards operations (Response, Cancel, Commit) that need to be sent to the remote side
+    /// We keep backwards op on a separate queue because those operations are not supposed to fail
+    /// (While requests may fail due to lack of trust for example)
+    pub pending_backwards_ops: ImVec<(Currency, BackwardsOp)>,
+    /// Pending requests originating from the user.
+    /// We care more about these requests, because those are payments that our user wants to make.
+    /// This queue should be bounded in size (TODO: Check this)
+    pub pending_user_requests: ImVec<(Currency, RequestSendFundsOp)>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -166,11 +172,13 @@ pub enum FriendMutation<B: Clone> {
     SetWantedRemoteMaxDebt(u128),
     SetWantedLocalRequestsStatus(RequestsStatus),
     PushBackPendingRequest((Currency, RequestSendFundsOp)),
-    PopFrontPendingRequest(Currency),
+    PopFrontPendingRequest,
     PushBackPendingBackwardsOp((Currency, BackwardsOp)),
-    PopFrontPendingBackwardsOp(Currency),
+    PopFrontPendingBackwardsOp,
     PushBackPendingUserRequest((Currency, RequestSendFundsOp)),
-    PopFrontPendingUserRequest(Currency),
+    PopFrontPendingUserRequest,
+    RemovePendingRequestsCurrency(Currency),
+    RemovePendingRequests,
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
@@ -190,7 +198,9 @@ where
     ) -> Self {
         let channel_consistent = ChannelConsistent {
             token_channel: TokenChannel::new(local_public_key, remote_public_key),
-            currency_queues: ImHashMap::new(),
+            pending_requests: ImVec::new(),
+            pending_backwards_ops: ImVec::new(),
+            pending_user_requests: ImVec::new(),
         };
 
         FriendState {
@@ -254,7 +264,9 @@ where
             FriendMutation::SetConsistent(token_channel) => {
                 let channel_consistent = ChannelConsistent {
                     token_channel: token_channel.clone(),
-                    currency_queues: ImHashMap::new(),
+                    pending_requests: ImVec::new(),
+                    pending_backwards_ops: ImVec::new(),
+                    pending_user_requests: ImVec::new(),
                 };
                 self.channel_status = ChannelStatus::Consistent(channel_consistent);
             }
@@ -266,78 +278,70 @@ where
             }
             FriendMutation::PushBackPendingRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let channel_queues = channel_consistent
-                        .currency_queues
-                        .entry(currency.clone())
-                        .or_insert(ChannelQueues::new());
-
-                    channel_queues
+                    channel_consistent
                         .pending_requests
-                        .push_back(request_send_funds.clone());
+                        .push_back((currency.clone(), request_send_funds.clone()));
                 } else {
                     unreachable!();
                 }
             }
-            FriendMutation::PopFrontPendingRequest(currency) => {
+            FriendMutation::PopFrontPendingRequest => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent
-                        .currency_queues
-                        .get_mut(currency)
-                        .unwrap()
-                        .pending_requests
-                        .pop_front();
+                    channel_consistent.pending_requests.pop_front();
                 } else {
                     unreachable!();
                 }
             }
             FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let channel_queues = channel_consistent
-                        .currency_queues
-                        .entry(currency.clone())
-                        .or_insert(ChannelQueues::new());
-
-                    channel_queues
+                    channel_consistent
                         .pending_backwards_ops
-                        .push_back(backwards_op.clone());
+                        .push_back((currency.clone(), backwards_op.clone()));
                 } else {
                     unreachable!();
                 }
             }
-            FriendMutation::PopFrontPendingBackwardsOp(currency) => {
+            FriendMutation::PopFrontPendingBackwardsOp => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent
-                        .currency_queues
-                        .get_mut(currency)
-                        .unwrap()
-                        .pending_backwards_ops
-                        .pop_front();
+                    channel_consistent.pending_backwards_ops.pop_front();
                 } else {
                     unreachable!();
                 }
             }
             FriendMutation::PushBackPendingUserRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let channel_queues = channel_consistent
-                        .currency_queues
-                        .entry(currency.clone())
-                        .or_insert(ChannelQueues::new());
-
-                    channel_queues
+                    channel_consistent
                         .pending_user_requests
-                        .push_back(request_send_funds.clone());
+                        .push_back((currency.clone(), request_send_funds.clone()));
                 } else {
                     unreachable!();
                 }
             }
-            FriendMutation::PopFrontPendingUserRequest(currency) => {
+            FriendMutation::PopFrontPendingUserRequest => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent
-                        .currency_queues
-                        .get_mut(currency)
-                        .unwrap()
+                    channel_consistent.pending_user_requests.pop_front();
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendMutation::RemovePendingRequestsCurrency(currency) => {
+                // Remove all pending outgoing messages for a certain currency.
+                if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
+                    channel_consistent
+                        .pending_requests
+                        .retain(|(currency0, _)| currency0 != currency);
+
+                    channel_consistent
                         .pending_user_requests
-                        .pop_front();
+                        .retain(|(currency0, _)| currency0 != currency);
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendMutation::RemovePendingRequests => {
+                if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
+                    channel_consistent.pending_requests = ImVec::new();
+                    channel_consistent.pending_user_requests = ImVec::new();
                 } else {
                     unreachable!();
                 }

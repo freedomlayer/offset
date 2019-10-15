@@ -236,11 +236,13 @@ where
             )]
         }
         FriendMutation::PushBackPendingRequest(_)
-        | FriendMutation::PopFrontPendingRequest(_)
+        | FriendMutation::PopFrontPendingRequest
         | FriendMutation::PushBackPendingBackwardsOp(_)
-        | FriendMutation::PopFrontPendingBackwardsOp(_)
+        | FriendMutation::PopFrontPendingBackwardsOp
         | FriendMutation::PushBackPendingUserRequest(_)
-        | FriendMutation::PopFrontPendingUserRequest(_) => vec![],
+        | FriendMutation::PopFrontPendingUserRequest
+        | FriendMutation::RemovePendingRequests
+        | FriendMutation::RemovePendingRequestsCurrency(_) => vec![],
         FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(
             FriendStatusReport::from(friend_status),
         )],
