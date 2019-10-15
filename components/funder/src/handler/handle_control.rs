@@ -531,6 +531,7 @@ where
 
 fn control_set_friend_currencies<B>(
     m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
     set_friend_currencies: SetFriendCurrencies,
 ) -> Result<(), HandleControlError>
 where
@@ -573,6 +574,7 @@ where
         friend_mutation,
     ));
     m_state.mutate(funder_mutation);
+    send_commands.set_try_send(&set_friend_currencies.friend_public_key);
 
     Ok(())
 }
@@ -1206,7 +1208,7 @@ where
         }
 
         FunderControl::SetFriendCurrencies(set_friend_currencies) => {
-            control_set_friend_currencies(m_state, set_friend_currencies)
+            control_set_friend_currencies(m_state, send_commands, set_friend_currencies)
         }
 
         // Buyer API:

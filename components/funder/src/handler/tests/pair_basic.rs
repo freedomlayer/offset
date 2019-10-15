@@ -19,7 +19,7 @@ use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
     FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendRemoteMaxDebt,
-    SetFriendStatus, SetRequestsStatus, Currency,
+    SetFriendStatus, SetRequestsStatus, Currency, SetFriendCurrencies,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -354,6 +354,103 @@ async fn task_handler_pair_basic<'a>(
     .unwrap();
 
     assert!(outgoing_comms.is_empty());
+
+    // Node1 receives control message to add a currency:
+    let set_friend_currencies = SetFriendCurrencies {
+        friend_public_key: pk2.clone(),
+        currencies: vec![currency.clone()],
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; Uid::len()]),
+        FunderControl::SetFriendCurrencies(set_friend_currencies),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 produces outgoing communication (Adding an active currency):
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2 gets a MoveToken message from Node1, asking to add an active currency:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2 receives control message to add a currency:
+    let set_friend_currencies = SetFriendCurrencies {
+        friend_public_key: pk1.clone(),
+        currencies: vec![currency.clone()],
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[17; Uid::len()]),
+        FunderControl::SetFriendCurrencies(set_friend_currencies),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2 produces outgoing communication (Adding an active currency):
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1 gets a MoveToken message from Node2, asking to add an active currency:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
 
     // Node1 receives control message to set remote max debt.
     let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
@@ -997,6 +1094,8 @@ async fn task_handler_pair_basic<'a>(
 
 #[test]
 fn test_handler_pair_basic() {
+    pretty_env_logger::init();
+
     let mut thread_pool = ThreadPool::new().unwrap();
 
     let rng1 = DummyRandom::new(&[1u8]);

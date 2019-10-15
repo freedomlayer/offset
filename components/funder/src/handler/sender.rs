@@ -325,6 +325,7 @@ async fn send_friend_iter1<'a, B, R>(
                 &mut outgoing_messages,
             );
         }
+
         return;
     }
 
@@ -380,15 +381,9 @@ where
                 return true;
             }
 
-            // Open or close requests is needed:
-            /*
-            let local_requests_status = &channel_consistent
-                .token_channel
-                .get_mutual_credit()
-                .state()
-                .requests_status
-                .local;
-            */
+            if channel_consistent.wanted_active_currencies.is_some() {
+                return true;
+            }
 
             if !channel_consistent.wanted_local_requests_status.is_empty() {
                 return true;
@@ -808,7 +803,7 @@ async fn send_move_token<'a, B, R>(
         ..
     } = pending_move_token;
 
-    if pending_currencies.is_empty() && opt_local_relays.is_none() && !may_send_empty {
+    if pending_currencies.is_empty() && opt_active_currencies.is_none() && opt_local_relays.is_none() && !may_send_empty {
         return;
     }
 
