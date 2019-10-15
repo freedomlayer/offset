@@ -11,7 +11,7 @@ mod state_wrap;
 mod types;
 mod utils;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
-// pub use self::handler::{funder_handle_message, FunderHandlerError};
+pub use self::handler::{funder_handle_message, FunderHandlerError};
