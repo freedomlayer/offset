@@ -675,6 +675,7 @@ pub enum FunderControl<B> {
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
     SetFriendRate(SetFriendRate),
+    SetFriendCurrencies(SetFriendCurrencies),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
     CreatePayment(CreatePayment),

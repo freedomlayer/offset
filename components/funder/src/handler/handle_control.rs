@@ -15,8 +15,9 @@ use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RequestResult,
-    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
-    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencies,
+    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
+    SetRequestsStatus, TransactionResult,
 };
 use signature::verify::verify_multi_commit;
 
@@ -492,6 +493,39 @@ where
     let friend_mutation = FriendMutation::SetRate(set_friend_rate.rate);
     let funder_mutation = FunderMutation::FriendMutation((
         set_friend_rate.friend_public_key.clone(),
+        friend_mutation,
+    ));
+    m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
+fn control_set_friend_currencies<B>(
+    m_state: &mut MutableFunderState<B>,
+    set_friend_currencies: SetFriendCurrencies,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Make sure that friend exists:
+    let friend = m_state
+        .state()
+        .friends
+        .get(&set_friend_currencies.friend_public_key)
+        .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+    // Canonicalize by sorting:
+    let mut new_active_currencies = set_friend_currencies.currencies.clone();
+    new_active_currencies.sort();
+
+    // If the newly proposed friend currencies is the same as the old one, we do nothing:
+    if friend.wanted_active_currencies == Some(new_active_currencies.clone()) {
+        return Ok(());
+    }
+
+    let friend_mutation = FriendMutation::SetWantedActiveCurrencies(new_active_currencies);
+    let funder_mutation = FunderMutation::FriendMutation((
+        set_friend_currencies.friend_public_key.clone(),
         friend_mutation,
     ));
     m_state.mutate(funder_mutation);
@@ -1125,6 +1159,10 @@ where
         }
         FunderControl::SetFriendRate(set_friend_rate) => {
             control_set_friend_rate(m_state, set_friend_rate)
+        }
+
+        FunderControl::SetFriendCurrencies(set_friend_currencies) => {
+            control_set_friend_currencies(m_state, set_friend_currencies)
         }
 
         // Buyer API:
