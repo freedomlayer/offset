@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 
 use im::hashmap::HashMap as ImHashMap;
@@ -566,7 +565,7 @@ impl<'a> TcInBorrow<'a> {
         // Update mutual credits:
         for currency_operations in &currencies_operations {
             let tc_in_borrow = token_channel.get_incoming().unwrap();
-            let mut mutual_credit = tc_in_borrow
+            let mutual_credit = tc_in_borrow
                 .mutual_credits
                 .get(&currency_operations.currency)
                 .unwrap()
@@ -694,8 +693,6 @@ where
             currencies: Vec::new(),
             opt_local_relays: new_move_token.opt_local_relays.clone(),
         };
-
-        let mutual_credits = tc_out_borrow.mutual_credits.clone();
 
         // Handle active_currencies:
         if let Some(active_currencies) = new_move_token.opt_active_currencies.as_ref() {
