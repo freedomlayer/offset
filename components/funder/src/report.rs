@@ -225,6 +225,8 @@ where
         | FriendMutation::ClearWantedRemoteMaxDebt(_)
         | FriendMutation::SetWantedLocalRequestsStatus(_)
         | FriendMutation::ClearWantedLocalRequestsStatus(_)
+        | FriendMutation::SetWantedActiveCurrencies(_)
+        | FriendMutation::ClearWantedActiveCurrencies
         | FriendMutation::PushBackPendingRequest(_)
         | FriendMutation::PopFrontPendingRequest
         | FriendMutation::PushBackPendingBackwardsOp(_)

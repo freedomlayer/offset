@@ -61,6 +61,10 @@ impl ActiveCurrencies {
             remote: ImHashSet::new(),
         }
     }
+
+    pub fn calc_active(&self) -> ImHashSet<Currency> {
+        self.local.clone().intersection(self.remote.clone())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -255,6 +259,10 @@ where
 
     pub fn get_mutual_credits(&self) -> &ImHashMap<Currency, MutualCredit> {
         &self.mutual_credits
+    }
+
+    pub fn get_active_currencies(&self) -> &ActiveCurrencies {
+        &self.active_currencies
     }
 
     pub fn new_from_remote_reset(

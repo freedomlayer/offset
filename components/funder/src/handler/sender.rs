@@ -24,7 +24,7 @@ use crate::types::{
 use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
 };
-use crate::token_channel::{SetDirection, TcDirectionBorrow, TcMutation, TokenChannel, SendMoveTokenOutput};
+use crate::token_channel::{SetDirection, TcMutation, TokenChannel, SendMoveTokenOutput};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::remove_transaction;
@@ -306,31 +306,27 @@ async fn send_friend_iter1<'a, B, R>(
 
     let token_channel = &channel_consistent.token_channel;
 
-    let tc_incoming = match &token_channel.get_direction() {
-        TcDirectionBorrow::Out(tc_out_borrow) => {
-            let tc_outgoing = &tc_out_borrow.tc_outgoing;
-            if estimate_should_send(m_state.state(), friend_public_key) {
-                let is_token_wanted = true;
-                transmit_outgoing(
-                    m_state,
-                    &friend_public_key,
-                    is_token_wanted,
-                    &mut outgoing_messages,
-                );
-            } else if friend_send_commands.resend_outgoing {
-                let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
-                transmit_outgoing(
-                    m_state,
-                    &friend_public_key,
-                    is_token_wanted,
-                    &mut outgoing_messages,
-                );
-            }
-
-            return;
+    if let Some(tc_out_borrow) = &token_channel.get_outgoing() {
+        let tc_outgoing = &tc_out_borrow.tc_outgoing;
+        if estimate_should_send(m_state.state(), friend_public_key) {
+            let is_token_wanted = true;
+            transmit_outgoing(
+                m_state,
+                &friend_public_key,
+                is_token_wanted,
+                &mut outgoing_messages,
+            );
+        } else if friend_send_commands.resend_outgoing {
+            let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
+            transmit_outgoing(
+                m_state,
+                &friend_public_key,
+                is_token_wanted,
+                &mut outgoing_messages,
+            );
         }
-        TcDirectionBorrow::In(tc_in_borrow) => &tc_in_borrow.tc_incoming,
-    };
+        return;
+    }
 
     // If we are here, the token channel is incoming:
 
@@ -561,6 +557,27 @@ where
         let channeler_config = ChannelerConfig::UpdateFriend(update_friend);
         outgoing_channeler_config.push(channeler_config);
     }
+
+    // Deal with active currencies:
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    if let Some(wanted_active_currencies) = friend.wanted_active_currencies.clone() {
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
+        // Assert that all active currencies must be included inside the wanted_active_currencies:
+        for currency in token_channel.get_active_currencies().calc_active() {
+            assert!(wanted_active_currencies.contains(&currency));
+        }
+        pending_move_token.set_active_currencies(wanted_active_currencies);
+        let friend_mutation = FriendMutation::ClearWantedActiveCurrencies;
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
+    }
+
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -813,9 +830,17 @@ async fn send_move_token<'a, B, R>(
         token_info,
     } = tc_in_borrow.simulate_send_move_token(currencies_operations, opt_local_relays, opt_active_currencies, rand_nonce).unwrap();
 
+    // Apply mutations:
+    for tc_mutation in mutations {
+        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
+    }
 
+    // Apply final SetDirection mutation (Can not be created from inside of the TokenChannel
+    // because a signature is required.
     let move_token = sign_move_token(unsigned_move_token, identity_client).await;
-
     let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((move_token, token_info)));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
     let funder_mutation =
@@ -843,7 +868,6 @@ async fn send_move_token<'a, B, R>(
 }
 
 fn init_cancel_pending_move_token<B>(
-    m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     max_operations_in_batch: usize,
     cancel_public_keys: &HashSet<PublicKey>,
@@ -861,24 +885,6 @@ fn init_cancel_pending_move_token<B>(
         {
             continue;
         }
-
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-
-        // We expect that this friend has a consistent channel,
-        // because we just attempted to forward a request that originated from
-        // this friend.
-
-        /*
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        let tc_in_borrow = match &token_channel.get_incoming() {
-            None => continue,
-            Some(tc_in_borrow) => tc_in_borrow,
-        };
-        let outgoing_mc = tc_in_borrow.begin_outgoing_move_token();
-        */
 
         let may_send_empty = false;
         let pending_move_token = PendingMoveToken::new(
@@ -937,7 +943,6 @@ where
     // Create PendingMoveToken-s for all the friends that were queued
     // new pending messages during `send_friend_iter1`:
     init_cancel_pending_move_token(
-        m_state,
         ephemeral,
         max_operations_in_batch,
         &cancel_public_keys,

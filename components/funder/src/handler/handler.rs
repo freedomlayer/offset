@@ -17,7 +17,8 @@ use crate::handler::handle_control::handle_control_message;
 use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_init::handle_init;
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
-use crate::handler::sender::{create_friend_messages, SendCommands};
+use crate::handler::sender::{create_friend_messages};
+use crate::handler::types::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};

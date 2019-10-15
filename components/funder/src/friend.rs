@@ -161,6 +161,10 @@ pub struct FriendState<B: Clone> {
     /// might take some time until it is applied (As it should be communicated to the remote
     /// friend).
     pub wanted_local_requests_status: ImHashMap<Currency, RequestsStatus>,
+    /// Which currencies do we want to trade with this remote friend?
+    /// This is our planned value for `active_currencies`. (It should be communicated to the remote
+    /// friend)
+    pub wanted_active_currencies: Option<Vec<Currency>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -173,6 +177,8 @@ pub enum FriendMutation<B: Clone> {
     ClearWantedRemoteMaxDebt(Currency),
     SetWantedLocalRequestsStatus((Currency, RequestsStatus)),
     ClearWantedLocalRequestsStatus(Currency),
+    SetWantedActiveCurrencies(Vec<Currency>),
+    ClearWantedActiveCurrencies,
     PushBackPendingRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingRequest,
     PushBackPendingBackwardsOp((Currency, BackwardsOp)),
@@ -220,6 +226,7 @@ where
             // side.
             wanted_remote_max_debt: ImHashMap::new(),
             wanted_local_requests_status: ImHashMap::new(),
+            wanted_active_currencies: None,
         }
     }
 
@@ -292,6 +299,12 @@ where
             FriendMutation::ClearWantedLocalRequestsStatus(currency) => {
                 let res = self.wanted_local_requests_status.remove(currency);
                 assert!(res.is_some());
+            }
+            FriendMutation::SetWantedActiveCurrencies(currencies) => {
+                self.wanted_active_currencies = Some(currencies.clone());
+            }
+            FriendMutation::ClearWantedActiveCurrencies => {
+                self.wanted_active_currencies = None;
             }
             FriendMutation::PushBackPendingRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
