@@ -125,7 +125,6 @@ pub fn try_reset_channel<B>(
     // Check if incoming message is a valid attempt to reset the channel:
     if move_token.old_token != local_reset_terms.reset_token
         || !move_token.currencies_operations.is_empty()
-        || move_token.opt_local_relays.is_some()
         || hash_token_info(&remote_token_info) != move_token.info_hash
         || !verify_move_token(move_token, friend_public_key)
     {
@@ -140,6 +139,23 @@ pub fn try_reset_channel<B>(
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
+
+    // Update our knowledge about remote relays if required:
+    if let Some(remote_relays) = &move_token.opt_local_relays {
+        if remote_relays
+            != &m_state
+                .state()
+                .friends
+                .get(&friend_public_key)
+                .unwrap()
+                .remote_relays
+        {
+            let friend_mutation = FriendMutation::SetRemoteRelays(remote_relays.clone());
+            let funder_mutation =
+                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+        }
+    }
 
     send_commands.set_try_send(friend_public_key);
     if move_token_request.token_wanted {

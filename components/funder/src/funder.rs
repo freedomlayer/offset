@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use futures::channel::mpsc;
 use futures::stream::select;
@@ -51,7 +52,7 @@ pub async fn inner_funder_loop<B, R>(
     mut opt_event_sender: Option<mpsc::Sender<FunderEvent<B>>>,
 ) -> Result<(), FunderError>
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom + 'static,
 {
     // Transform error type:
@@ -163,7 +164,7 @@ pub async fn funder_loop<B, R>(
     db_client: DatabaseClient<FunderMutation<B>>,
 ) -> Result<(), FunderError>
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom + 'static,
 {
     inner_funder_loop(

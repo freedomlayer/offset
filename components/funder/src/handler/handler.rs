@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -169,7 +170,7 @@ pub async fn funder_handle_message<'a, B, R>(
     funder_incoming: FunderIncoming<B>,
 ) -> Result<FunderHandlerOutput<B>, FunderHandlerError>
 where
-    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom + 'a,
 {
     let mut m_state = MutableFunderState::new(funder_state);

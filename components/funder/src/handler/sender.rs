@@ -1,11 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::hash::Hash;
+
+use im::vector::Vector as ImVec;
 
 use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::app_server::messages::RelayAddress;
+use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
@@ -187,18 +190,39 @@ pub async fn apply_local_reset<'a, B, R>(
     identity_client: &'a mut IdentityClient,
     rng: &'a R,
 ) where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug + Hash,
     R: CryptoRandom,
 {
     // TODO: How to do this without unwrap?:
     let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms.clone().unwrap();
 
-    let rand_nonce = RandValue::rand_gen(rng);
-    let move_token_counter = 0;
+    // Update last_sent_relays:
+    let sent_local_relays = &m_state.state().friends.get(friend_public_key).unwrap().sent_local_relays;
+    let old_local_relays = match sent_local_relays {
+        SentLocalRelays::NeverSent => ImVec::new(),
+        SentLocalRelays::Transition((last_sent, before_last_sent)) => {
+            // We fear that the remote side might lose our relays (After the reset)
+            // To be on the safe side, we take all the relays the remote side might know about us,
+            // and set them as the old relays.
+            let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
+            let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
+            last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect()
+        },
+        SentLocalRelays::LastSent(last_sent) => last_sent.clone(),
+    };
 
+    let friend_mutation = FriendMutation::SetSentLocalRelays(SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays)));
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
+
+    // Prepare our current relays:
+    let opt_local_relays = Some(m_state.state().relays.clone().into_iter().map(RelayAddress::from).collect());
+
+
+    let move_token_counter = 0;
     let local_pending_debt = 0;
     let remote_pending_debt = 0;
-    let opt_local_relays = None;
     let opt_active_currencies = None;
 
     let balances = remote_reset_terms.balance_for_reset.iter().map(|currency_balance| {
@@ -224,6 +248,7 @@ pub async fn apply_local_reset<'a, B, R>(
         },
     };
 
+    let rand_nonce = RandValue::rand_gen(rng);
     let u_reset_move_token = create_unsigned_move_token(
         // No operations are required for a reset move token
         Vec::new(),
@@ -246,6 +271,7 @@ pub async fn apply_local_reset<'a, B, R>(
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
+
 }
 
 async fn send_friend_iter1<'a, B, R>(
@@ -261,7 +287,7 @@ async fn send_friend_iter1<'a, B, R>(
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
 ) where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
     // If we got here, it must be because some send_commands attribute was set:
@@ -320,17 +346,14 @@ async fn send_friend_iter1<'a, B, R>(
     let token_channel = &channel_consistent.token_channel;
 
     if let Some(tc_out_borrow) = &token_channel.get_outgoing() {
+        // Remote side has the token:
+        
         let tc_outgoing = &tc_out_borrow.tc_outgoing;
-        if estimate_should_send(m_state.state(), friend_public_key) {
-            let is_token_wanted = true;
-            transmit_outgoing(
-                m_state,
-                &friend_public_key,
-                is_token_wanted,
-                &mut outgoing_messages,
-            );
-        } else if friend_send_commands.resend_outgoing {
-            let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
+        // Do we have anything that we want to send? 
+        // (Currently the token is at the remote side)
+        let is_pending = estimate_should_send(m_state.state(), friend_public_key);
+        if is_pending || friend_send_commands.resend_outgoing {
+            let is_token_wanted = is_pending || tc_outgoing.move_token_out.opt_local_relays.is_some();
             transmit_outgoing(
                 m_state,
                 &friend_public_key,
@@ -344,6 +367,9 @@ async fn send_friend_iter1<'a, B, R>(
 
     // If we are here, the token channel is incoming:
 
+    // TODO: Make sure resend_outgoing is set smartly in handle_liveness
+    // (Only in case of inconsistency?, or outgoing direction)
+    //
     // It will be strange if we need to resend outgoing, because the channel
     // is in incoming mode.
     // -- This could happen in handle_liveness.
@@ -356,8 +382,11 @@ async fn send_friend_iter1<'a, B, R>(
         max_operations_in_batch,
         may_send_empty,
     );
+
+    // TODO: Find a more elegant way to insert and get_mut() right after it?
     pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
+
     let _ = collect_outgoing_move_token(
         m_state,
         rng,
@@ -930,7 +959,7 @@ pub async fn create_friend_messages<'a, B, R>(
     Vec<ChannelerConfig<RelayAddress<B>>>,
 )
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
     let mut outgoing_control = Vec::new();
