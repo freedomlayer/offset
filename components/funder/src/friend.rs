@@ -134,8 +134,9 @@ pub struct FriendState<B: Clone> {
     pub sent_local_relays: SentLocalRelays<B>,
     /// Locally maintained name of the remote friend node.
     pub name: String,
-    /// Rate of forwarding transactions that arrived from this friend to any other friend.
-    pub rate: Rate,
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
+    pub rates: ImHashMap<Currency, Rate>,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).
     pub status: FriendStatus,
@@ -166,7 +167,7 @@ pub enum FriendMutation<B: Clone> {
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate(Rate),
+    SetRate((Currency, Rate)),
     SetSentLocalRelays(SentLocalRelays<B>),
 }
 
@@ -198,8 +199,7 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
-            // Initial rate is 0 for a new friend:
-            rate: Rate::new(),
+            rates: ImHashMap::new(),
             status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(channel_consistent),
         }
@@ -391,8 +391,8 @@ where
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
             }
-            FriendMutation::SetRate(friend_rate) => {
-                self.rate = friend_rate.clone();
+            FriendMutation::SetRate((currency, friend_rate)) => {
+                let _ = self.rates.insert(currency.clone(), friend_rate.clone());
             }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();

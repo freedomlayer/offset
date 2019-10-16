@@ -515,11 +515,13 @@ where
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     // If the newly proposed rate is the same as the old one, we do nothing:
-    if friend.rate == set_friend_rate.rate {
-        return Ok(());
+    if let Some(rate) = friend.rates.get(&set_friend_rate.currency) {
+        if rate == &set_friend_rate.rate {
+            return Ok(());
+        }
     }
 
-    let friend_mutation = FriendMutation::SetRate(set_friend_rate.rate);
+    let friend_mutation = FriendMutation::SetRate((set_friend_rate.currency, set_friend_rate.rate));
     let funder_mutation = FunderMutation::FriendMutation((
         set_friend_rate.friend_public_key.clone(),
         friend_mutation,

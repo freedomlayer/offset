@@ -5,8 +5,8 @@ use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
-    CurrencyReport, DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation,
-    FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
+    CurrencyRate, CurrencyReport, DirectionReport, FriendLivenessReport, FriendReport,
+    FriendReportMutation, FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
     McRequestsStatusReport, MoveTokenHashedReport, RelaysTransitionReport, ResetTermsReport,
     SentLocalRelaysReport, TcReport,
 };
@@ -155,7 +155,12 @@ where
 
     FriendReport {
         name: friend_state.name.clone(),
-        rate: friend_state.rate.clone(),
+        rates: friend_state
+            .rates
+            .iter()
+            .cloned()
+            .map(|(currency, rate)| CurrencyRate { currency, rate })
+            .collect(),
         remote_relays: friend_state.remote_relays.clone(),
         sent_local_relays: (&friend_state.sent_local_relays).into(),
         opt_last_incoming_move_token: friend_state
@@ -242,7 +247,12 @@ where
             vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())]
         }
         FriendMutation::SetName(name) => vec![FriendReportMutation::SetName(name.clone())],
-        FriendMutation::SetRate(rate) => vec![FriendReportMutation::SetRate(rate.clone())],
+        FriendMutation::SetRate((currency, rate)) => {
+            vec![FriendReportMutation::SetRate(CurrencyRate {
+                currency: currency.clone(),
+                rate: rate.clone(),
+            })]
+        }
         FriendMutation::SetSentLocalRelays(sent_local_relays) => {
             vec![FriendReportMutation::SetSentLocalRelays(
                 sent_local_relays.into(),

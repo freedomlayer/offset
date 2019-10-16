@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     BalanceInfo, CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, CountersInfo,
     Currency, CurrencyBalance, CurrencyBalanceInfo, FriendMessage, FunderOutgoingControl, McInfo,
-    MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp, ResetTerms,
+    MoveTokenRequest, PendingTransaction, Rate, RequestResult, RequestSendFundsOp, ResetTerms,
     ResponseSendFundsOp, TokenInfo, TransactionResult,
 };
 use signature::signature_buff::hash_token_info;
@@ -230,7 +230,17 @@ fn handle_request_send_funds<B>(
     // Attempt to take our fee for forwarding the request.
     // Note that the rate is determined by the rate we set with the node that sent us the request
     // (And **not** with the node that we forward the request to).
-    let rate = &m_state.state().friends.get(remote_public_key).unwrap().rate;
+    let rates = &m_state
+        .state()
+        .friends
+        .get(remote_public_key)
+        .unwrap()
+        .rates;
+
+    // Get the rate for this currency. If not set up, the rate is 0:
+    let default_rate = Rate::new();
+    let rate = rates.get(currency).unwrap_or(&default_rate);
+
     let opt_local_fee = rate.calc_fee(request_send_funds.dest_payment);
 
     let request_id = request_send_funds.request_id.clone();

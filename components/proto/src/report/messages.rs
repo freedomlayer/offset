@@ -229,11 +229,18 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
     }
 }
 
+#[capnp_conv(crate::report_capnp::currency_rate)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CurrencyRate {
+    pub currency: Currency,
+    pub rate: Rate,
+}
+
 #[capnp_conv(crate::report_capnp::friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
     pub name: String,
-    pub rate: Rate,
+    pub rates: Vec<CurrencyRate>,
     pub remote_relays: Vec<RelayAddress<B>>,
     pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
@@ -312,7 +319,7 @@ pub struct FunderReport<B = NetAddress> {
 pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate(Rate),
+    SetRate(CurrencyRate),
     SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
     SetStatus(FriendStatusReport),
@@ -413,9 +420,22 @@ where
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             }
-            FriendReportMutation::SetRate(rate) => {
-                self.rate = rate.clone();
+            FriendReportMutation::SetRate(currency_rate) => {
+                if let Some(pos) = self
+                    .rates
+                    .iter()
+                    .position(|c_r| c_r.currency == currency_rate.currency)
+                {
+                    self.rates[pos] = currency_rate.clone();
+                } else {
+                    // Not found:
+                    self.rates.push(currency_rate.clone());
+                    // Canonicalize:
+                    self.rates
+                        .sort_by(|cr1, cr2| cr1.currency.cmp(&cr2.currency));
+                }
             }
+
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
             }
@@ -466,7 +486,7 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
-                    rate: Rate::new(),
+                    rates: Vec::new(),
                     remote_relays: add_friend_report.relays.clone(),
                     sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report

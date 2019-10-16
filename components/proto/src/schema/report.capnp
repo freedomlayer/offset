@@ -162,9 +162,14 @@ struct SentLocalRelaysReport {
         }
 }
 
+struct CurrencyRate {
+        currency @0: Currency;
+        rate @1: Rate;
+}
+
 struct FriendReport {
         name @0: Text;
-        rate @1: Rate;
+        rates @1: List(CurrencyRate);
         remoteRelays @2: List(RelayAddress);
         sentLocalRelays @3: SentLocalRelaysReport;
         optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
@@ -208,7 +213,7 @@ struct FriendReportMutation {
         union {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
-                setRate @2: Rate;
+                setRate @2: CurrencyRate;
                 setSentLocalRelays @3: SentLocalRelaysReport;
                 setChannelStatus @4: ChannelStatusReport;
                 setStatus @5: FriendStatusReport;
