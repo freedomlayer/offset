@@ -264,13 +264,11 @@ async fn send_friend_iter1<'a, B, R>(
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
-    if !friend_send_commands.try_send
-        && !friend_send_commands.resend_outgoing
-        && !friend_send_commands.remote_wants_token
-        && !friend_send_commands.local_reset
-    {
-        return;
-    }
+    // If we got here, it must be because some send_commands attribute was set:
+    assert!(friend_send_commands.try_send || 
+        friend_send_commands.resend_outgoing || 
+        friend_send_commands.remote_wants_token || 
+        friend_send_commands.local_reset);
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
