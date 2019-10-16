@@ -115,7 +115,7 @@ where
         let outgoing_mc = token_channel.get_incoming().unwrap().create_outgoing_mc(currency).unwrap();
         let pending_currency = self.pending_currencies.entry(currency.clone()).or_insert(PendingCurrency {outgoing_mc, operations: Vec::new()});
 
-        let mc_mutations = match pending_currency.outgoing_mc.queue_operation(operation) {
+        let _mc_mutations = match pending_currency.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
             Err(QueueOperationError::RequestAlreadyExists) => {
                 warn!("Request already exists: {:?}", operation);
@@ -130,6 +130,7 @@ where
         // Add operation:
         pending_currency.operations.push(operation.clone());
 
+        /*
         // Apply mutations:
         for mc_mutation in mc_mutations {
             let tc_mutation = TcMutation::McMutation((currency.clone(), mc_mutation));
@@ -138,6 +139,7 @@ where
                 FunderMutation::FriendMutation((self.friend_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
         }
+        */
 
         Ok(())
     }

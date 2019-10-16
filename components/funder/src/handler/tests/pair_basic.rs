@@ -765,6 +765,7 @@ async fn task_handler_pair_basic<'a>(
         fees: 4,
     };
 
+
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[20; Uid::len()]),
         FunderControl::CreateTransaction(create_transaction),
@@ -779,6 +780,7 @@ async fn task_handler_pair_basic<'a>(
     ))
     .await
     .unwrap();
+
 
     assert_eq!(outgoing_comms.len(), 1);
     // Report mutations:
