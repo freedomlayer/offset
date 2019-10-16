@@ -856,6 +856,7 @@ async fn task_handler_pair_basic<'a>(
     // Node2: Compose a MultiCommit message:
     let multi_commit = MultiCommit {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+        currency: currency.clone(),
         total_dest_payment: 16u128,
         commits: vec![commit],
     };
@@ -1096,8 +1097,6 @@ async fn task_handler_pair_basic<'a>(
 
 #[test]
 fn test_handler_pair_basic() {
-    pretty_env_logger::init();
-
     let mut thread_pool = ThreadPool::new().unwrap();
 
     let rng1 = DummyRandom::new(&[1u8]);

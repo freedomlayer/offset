@@ -406,6 +406,7 @@ fn handle_collect_send_funds<B, R>(
                 Payment::NewTransactions(new_transactions) => {
                     // Create a Receipt:
                     let receipt = prepare_receipt(
+                        currency,
                         &collect_send_funds,
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,
@@ -420,6 +421,7 @@ fn handle_collect_send_funds<B, R>(
                 Payment::InProgress(num_transactions) => {
                     // Create a Receipt:
                     let receipt = prepare_receipt(
+                        currency,
                         &collect_send_funds,
                         open_transaction.opt_response.as_ref().unwrap(),
                         &pending_transaction,

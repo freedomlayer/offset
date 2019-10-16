@@ -114,6 +114,7 @@ pub struct Commit {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MultiCommit {
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
     pub commits: Vec<Commit>,
@@ -317,6 +318,7 @@ pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || randNonce)
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -332,7 +334,8 @@ pub struct Receipt {
     #   dstHashedLock ||
     #   destPayment ||
     #   totalDestPayment ||
-    #   invoiceId
+    #   invoiceId ||
+    #   currency
     # )
     */
 }
