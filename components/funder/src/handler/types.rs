@@ -6,6 +6,8 @@ use proto::crypto::PublicKey;
 pub struct FriendSendCommands {
     /// Try to send whatever possible through this friend.
     pub try_send: bool,
+    /// Resend our current local relays to the remote side
+    pub resend_relays: bool,
     /// Resend the outgoing move token message
     pub resend_outgoing: bool,
     /// Remote friend wants the token.
@@ -18,6 +20,7 @@ impl FriendSendCommands {
     fn new() -> Self {
         FriendSendCommands {
             try_send: false,
+            resend_relays: false,
             resend_outgoing: false,
             remote_wants_token: false,
             local_reset: false,
@@ -43,6 +46,14 @@ impl SendCommands {
             .entry(friend_public_key.clone())
             .or_insert_with(FriendSendCommands::new);
         friend_send_commands.try_send = true;
+    }
+
+    pub fn set_resend_relays(&mut self, friend_public_key: &PublicKey) {
+        let friend_send_commands = self
+            .send_commands
+            .entry(friend_public_key.clone())
+            .or_insert_with(FriendSendCommands::new);
+        friend_send_commands.resend_relays = true;
     }
 
     pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {

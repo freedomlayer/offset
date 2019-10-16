@@ -157,6 +157,9 @@ pub fn try_reset_channel<B>(
         }
     }
 
+    // We should send our relays to the remote side:
+    send_commands.set_resend_relays(friend_public_key);
+
     send_commands.set_try_send(friend_public_key);
     if move_token_request.token_wanted {
         send_commands.set_remote_wants_token(friend_public_key);

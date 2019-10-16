@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use im::vector::Vector as ImVec;
+// use im::vector::Vector as ImVec;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -198,20 +198,21 @@ pub async fn apply_local_reset<'a, B, R>(
 
     // Update last_sent_relays:
     let sent_local_relays = &m_state.state().friends.get(friend_public_key).unwrap().sent_local_relays;
-    let old_local_relays = match sent_local_relays {
-        SentLocalRelays::NeverSent => ImVec::new(),
+    let new_sent_local_relays = match sent_local_relays {
+        SentLocalRelays::NeverSent => SentLocalRelays::LastSent(m_state.state().relays.clone()),
         SentLocalRelays::Transition((last_sent, before_last_sent)) => {
             // We fear that the remote side might lose our relays (After the reset)
             // To be on the safe side, we take all the relays the remote side might know about us,
             // and set them as the old relays.
             let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
             let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
-            last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect()
+            let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect();
+            SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
         },
-        SentLocalRelays::LastSent(last_sent) => last_sent.clone(),
+        SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),
     };
 
-    let friend_mutation = FriendMutation::SetSentLocalRelays(SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays)));
+    let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -291,7 +292,9 @@ async fn send_friend_iter1<'a, B, R>(
     R: CryptoRandom,
 {
     // If we got here, it must be because some send_commands attribute was set:
-    assert!(friend_send_commands.try_send || 
+    assert!(
+        friend_send_commands.try_send || 
+        friend_send_commands.resend_relays ||
         friend_send_commands.resend_outgoing || 
         friend_send_commands.remote_wants_token || 
         friend_send_commands.local_reset);
@@ -395,6 +398,7 @@ async fn send_friend_iter1<'a, B, R>(
         cancel_public_keys,
         friend_public_key,
         pending_move_token,
+        friend_send_commands.resend_relays,
     );
 }
 
@@ -531,9 +535,10 @@ fn collect_outgoing_move_token<'a, B, R>(
     cancel_public_keys: &'a mut HashSet<PublicKey>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
+    resend_relays: bool,
 ) -> Result<(), CollectOutgoingError>
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
     /*
@@ -551,33 +556,49 @@ where
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let local_named_relays = m_state.state().relays.clone();
 
-    let local_relays = local_named_relays
+    let local_relays: Vec<_> = local_named_relays
         .iter()
         .cloned()
         .map(RelayAddress::from)
         .collect();
 
-    let opt_new_sent_local_relays = match &friend.sent_local_relays {
-        SentLocalRelays::NeverSent => {
-            pending_move_token.set_local_relays(local_relays);
-            Some(SentLocalRelays::LastSent(local_named_relays.clone()))
-        }
-        SentLocalRelays::Transition((last_sent_local_relays, _))
-        | SentLocalRelays::LastSent(last_sent_local_relays) => {
-            if &local_named_relays != last_sent_local_relays {
-                pending_move_token.set_local_relays(local_relays.clone());
-                Some(SentLocalRelays::Transition((
-                    local_named_relays.clone(),
-                    last_sent_local_relays.clone(),
-                )))
-            } else {
-                None
+    let opt_new_sent_local_relays = if resend_relays {
+        // We need to resend relays, due to a reset (that was initiated from remote side):
+        Some(match &friend.sent_local_relays {
+            SentLocalRelays::NeverSent => SentLocalRelays::LastSent(m_state.state().relays.clone()),
+            SentLocalRelays::Transition((last_sent, before_last_sent)) => {
+                // We fear that the remote side might lose our relays (After the reset)
+                // To be on the safe side, we take all the relays the remote side might know about us,
+                // and set them as the old relays.
+                let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
+                let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
+                let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect();
+                SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
+            },
+            SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),
+        })
+    } else {
+        match &friend.sent_local_relays {
+            SentLocalRelays::NeverSent => {
+                Some(SentLocalRelays::LastSent(local_named_relays.clone()))
+            },
+            SentLocalRelays::Transition((last_sent_local_relays, _)) |
+            SentLocalRelays::LastSent(last_sent_local_relays) => {
+                if &local_named_relays != last_sent_local_relays {
+                    Some(SentLocalRelays::Transition((
+                        local_named_relays.clone(),
+                        last_sent_local_relays.clone(),
+                    )))
+                } else {
+                    None
+                }
             }
         }
     };
 
     // Update friend.sent_local_relays accordingly:
     if let Some(new_sent_local_relays) = opt_new_sent_local_relays {
+        pending_move_token.set_local_relays(local_relays.clone());
         let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));

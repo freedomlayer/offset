@@ -714,11 +714,12 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
+                // Token is wanted because local relays were sent:
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.old_token, reset_token2);
-                // assert!(friend_move_token.opt_local_relays.is_none());
+                assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
             }
@@ -740,17 +741,18 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node2 should send back an empty move token:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
+    // Node2 should send back a move token with local relays:
+    assert_eq!(outgoing_comms.len(), 2);
+    let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                assert_eq!(move_token_request.token_wanted, false);
+                // Token is wanted because local relays were sent:
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
                 assert!(friend_move_token.currencies_operations.is_empty());
-                assert!(friend_move_token.opt_local_relays.is_none());
+                assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
             }
@@ -772,8 +774,39 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Inconsistency is resolved.
-    assert_eq!(dbg!(outgoing_comms).len(), 1);
+    // Node1 sends to Node2 an empty move token message (Because token is wanted by Node2):
+    assert_eq!(outgoing_comms.len(), 2);
+    let friend_message = match &outgoing_comms[1] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+
+                let friend_move_token = &move_token_request.move_token;
+                assert!(friend_move_token.currencies_operations.is_empty());
+                assert!(friend_move_token.opt_local_relays.is_none());
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive empty MoveToken from Node1:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    assert_eq!(outgoing_comms.len(), 1);
 }
 
 #[test]
