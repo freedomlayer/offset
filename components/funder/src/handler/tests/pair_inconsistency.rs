@@ -709,12 +709,11 @@ async fn task_handler_pair_inconsistency<'a>(
     };
 
     // Node1 should send a MoveToken message that resolves the inconsistency:
-    assert_eq!(dbg!(&outgoing_comms).len(), 1);
+    assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                // Token is wanted because Node1 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
@@ -747,7 +746,6 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                // Token is wanted because Node2 wants to send his configured address later.
                 assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
