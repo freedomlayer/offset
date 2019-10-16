@@ -284,6 +284,19 @@ async fn send_friend_iter1<'a, B, R>(
                 rng,
             )
             .await;
+
+            // TODO: Is the token wanted after reset?
+            let is_token_wanted = true;
+            transmit_outgoing(
+                m_state,
+                friend_public_key,
+                is_token_wanted,
+                &mut outgoing_messages,
+            );
+            return;
+
+        } else {
+            unreachable!();
         }
     }
 
