@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::collections::{HashMap, HashSet};
 
 use common::mutable_state::MutableState;
@@ -86,9 +87,12 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
     nodes: &'a mut HashMap<PublicKey, Node<B>>,
     src_public_key: PublicKey,
     outgoing_comm: FunderOutgoingComm<B>,
-) {
+) 
+    where B: Debug 
+{
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
+            // dbg!(&dest_public_key, &friend_message);
             let node = nodes.get_mut(&dest_public_key).unwrap();
             assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message =
@@ -149,7 +153,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
 /// Simulates the Channeler interface
 async fn router<B, S>(incoming_new_node: mpsc::Receiver<NewNode<B>>, mut spawner: S)
 where
-    B: Send + 'static,
+    B: Send + Debug + 'static,
     S: Spawn + Clone,
 {
     let mut nodes: HashMap<PublicKey, Node<B>> = HashMap::new();
@@ -402,6 +406,7 @@ where
                 }
                 _ => return false,
             };
+
             if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
                 true
             } else {
@@ -429,6 +434,24 @@ where
             if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
                 let currency_report = &tc_report.currency_reports[pos];
                 currency_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
+            } else {
+                false
+            }
+        };
+        self.recv_until(pred).await;
+    }
+
+    pub async fn wait_friend_balance<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency, balance: i128) {
+        let pred = |report: &FunderReport<_>| {
+            let friend = report.friends.get(friend_public_key).unwrap();
+            let tc_report = match &friend.channel_status {
+                ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
+                _ => return false,
+            };
+
+            let opt_pos = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency);
+            if let Some(pos) = opt_pos {
+                tc_report.currency_reports[pos].balance.balance == balance
             } else {
                 false
             }

@@ -799,7 +799,11 @@ where
                 token_wanted,
             );
         }
-        Err(_receive_move_token_error) => {
+        Err(receive_move_token_error) => {
+            warn!(
+                "simulate_receive_move_token() error: {:?}",
+                receive_move_token_error
+            );
             handle_move_token_error(
                 m_state,
                 send_commands,
