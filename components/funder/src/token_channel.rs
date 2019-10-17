@@ -587,7 +587,7 @@ impl<'a> TcInBorrow<'a> {
 
         let tc_in_borrow = token_channel.get_incoming().unwrap();
 
-        let balances = tc_in_borrow
+        let mut balances: Vec<_> = tc_in_borrow
             .mutual_credits
             .iter()
             .map(|(currency, mutual_credit)| CurrencyBalanceInfo {
@@ -599,6 +599,9 @@ impl<'a> TcInBorrow<'a> {
                 },
             })
             .collect();
+
+        // Canonicalize balances:
+        balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
 
         let tc_in_borrow = token_channel.get_incoming().unwrap();
         let cur_token_info = &tc_in_borrow.tc_incoming.move_token_in.token_info;
@@ -786,7 +789,7 @@ where
 
         // Create what we expect to be TokenInfo (From the point of view of remote side):
         let tc_out_borrow = token_channel.get_outgoing().unwrap();
-        let expected_balances = tc_out_borrow
+        let mut expected_balances: Vec<_> = tc_out_borrow
             .mutual_credits
             .iter()
             .map(|(currency, mc)| CurrencyBalanceInfo {
@@ -798,6 +801,9 @@ where
                 },
             })
             .collect();
+
+        // Canonicalize:
+        expected_balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
 
         let expected_token_info = TokenInfo {
             mc: McInfo {
