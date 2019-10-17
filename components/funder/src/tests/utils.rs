@@ -21,7 +21,7 @@ use proto::report::messages::{
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
+    AddFriend, RemoveFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
     RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
     SetRequestsStatus, TransactionResult, Currency, SetFriendCurrencies,
 };
@@ -328,6 +328,16 @@ where
             name: name.into(),
         };
         self.send(FunderControl::AddFriend(add_friend)).await;
+    }
+
+    pub async fn remove_friend<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+    ) {
+        let remove_friend = RemoveFriend {
+            friend_public_key: friend_public_key.clone(),
+        };
+        self.send(FunderControl::RemoveFriend(remove_friend)).await;
     }
 
     pub async fn set_friend_status<'a>(
