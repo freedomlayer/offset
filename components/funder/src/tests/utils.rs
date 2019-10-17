@@ -375,7 +375,6 @@ where
             .await;
     }
 
-    /*
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency) {
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {
@@ -391,12 +390,15 @@ where
                 }
                 _ => return false,
             };
-            // TODO: Fix this part:
-            tc_report.currency_reports.get(currency).unwrap().requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
+            if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
+                let currency_report = &tc_report.currency_reports[pos];
+                currency_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
+            } else {
+                false
+            }
         };
         self.recv_until(pred).await;
     }
-    */
 }
 
 /// Create a few node_controls, together with a router connecting them all.
