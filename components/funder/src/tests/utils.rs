@@ -423,7 +423,7 @@ where
                 _ => return false,
             };
 
-            if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
+            if let Some(_) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
                 true
             } else {
                 false
