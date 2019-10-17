@@ -132,7 +132,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .send(FunderControl::CommitInvoice(multi_commit))
         .await;
 
-    // Wait until no more progress can be made (We should get a receipt)
+    // Wait until no more progress can be made
     test_executor.wait().await;
 
     // 0: Expect a receipt:
