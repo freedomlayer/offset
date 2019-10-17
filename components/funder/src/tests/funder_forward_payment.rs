@@ -28,7 +28,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .map(|nc| nc.public_key.clone())
         .collect::<Vec<PublicKey>>();
 
-    dbg!("Was here! -10");
     // Add friends:
     let relays0 = vec![dummy_relay_address(0)];
     let relays1 = vec![dummy_relay_address(1)];
@@ -46,8 +45,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .add_friend(&public_keys[1], relays0, "node0")
         .await;
 
-    dbg!("Was here! -9");
-
     // Enable friends:
     node_controls[0]
         .set_friend_status(&public_keys[1], FriendStatus::Enabled)
@@ -62,19 +59,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .set_friend_status(&public_keys[1], FriendStatus::Enabled)
         .await;
 
-    dbg!("Was here! -8");
-
     test_executor.wait().await;
 
     // Add active currencies:
-    /*
     node_controls[0]
         .set_friend_currencies(&public_keys[1], vec![currency1.clone()])
         .await;
     node_controls[1]
         .set_friend_currencies(&public_keys[0], vec![currency1.clone(), currency2.clone()])
         .await;
-    */
     node_controls[1]
         .set_friend_currencies(&public_keys[2], vec![currency1.clone(), currency2.clone()])
         .await;
@@ -84,28 +77,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
     test_executor.wait().await;
 
-    dbg!("Was here! -7");
-
-    /*
     // Wait for active currencies to be ready:
     node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
-    dbg!("111");
     node_controls[1].wait_until_currency_active(&public_keys[0], &currency1).await;
-    dbg!("211");
     node_controls[1].wait_until_currency_active(&public_keys[2], &currency1).await;
-    */
-    dbg!("311");
     node_controls[2].wait_until_currency_active(&public_keys[1], &currency1).await;
-    /*
     node_controls[1].wait_until_currency_active(&public_keys[2], &currency2).await;
     node_controls[2].wait_until_currency_active(&public_keys[1], &currency2).await;
-    */
 
-    dbg!("Was here!");
-
-
-    assert!(false);
-
+    test_executor.wait().await;
     // Set rate:
     // This is the amount of credits node 1 takes from node 0 for forwarding messages.
     node_controls[1]
@@ -134,12 +114,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .set_requests_status(&public_keys[1], &currency1, RequestsStatus::Open)
         .await;
 
-    // Just for testing sake, also add 1 --> 0 for currency2:
+    // Just for testing sake, also add 2 --> 1 for currency2:
+    node_controls[2]
+        .set_requests_status(&public_keys[1], &currency2, RequestsStatus::Open)
+        .await;
+
+    // This will fail, because node1 and node0 don't trade in currency2:
     node_controls[1]
         .set_requests_status(&public_keys[0], &currency2, RequestsStatus::Open)
         .await;
-
-    dbg!("Was here -6");
 
     // Wait until route is ready (Online + Consistent + open requests)
     // Note: We don't need the other direction to be ready, because the request is sent
@@ -233,8 +216,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         _ => unreachable!(),
     };
 
-    dbg!("Was here!-2");
-
     // 0: Acknowledge response close:
     let ack_close_payment = AckClosePayment {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
@@ -251,32 +232,23 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     assert_eq!(receipt.dest_payment, 15);
     assert_eq!(receipt.total_dest_payment, 15);
 
-    dbg!("Was here!-1");
-
     // Wait until no more progress can be made (All payments should have already happened):
     test_executor.wait().await;
-
-    dbg!("Was here!0");
 
     // Make sure that node2 got the credits:
     node_controls[2]
         .wait_friend_balance(&public_keys[1], &currency1, 15)
         .await;
 
-    dbg!("Was here!1");
-
     // Make sure that node1 got his fees:
     node_controls[1]
         .wait_friend_balance(&public_keys[0], &currency1, 20)
         .await;
 
-    dbg!("Was here!2");
-
     node_controls[1]
         .wait_friend_balance(&public_keys[2], &currency1, -15)
         .await;
 
-    dbg!("Was here!3");
 
     // Verify balance from the side of node0:
     node_controls[0]
@@ -286,7 +258,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
 
 #[test]
 fn test_funder_forward_payment() {
-    pretty_env_logger::init();
     let test_executor = TestExecutor::new();
     let res = test_executor.run(task_funder_forward_payment(test_executor.clone()));
     assert!(res.is_output());
