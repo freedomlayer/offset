@@ -22,7 +22,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
     RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult, Currency,
+    SetRequestsStatus, TransactionResult, Currency, SetFriendCurrencies,
 };
 
 use database::DatabaseClient;
@@ -311,7 +311,6 @@ where
         friend_public_key: &'a PublicKey,
         relays: Vec<RelayAddress<B>>,
         name: &'a str,
-        balance: i128,
     ) {
         let add_friend = AddFriend {
             friend_public_key: friend_public_key.clone(),
@@ -331,6 +330,19 @@ where
             status: status.clone(),
         };
         self.send(FunderControl::SetFriendStatus(set_friend_status))
+            .await;
+    }
+
+    pub async fn set_friend_currencies<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currencies: Vec<Currency>,
+    ) {
+        let set_friend_currencies = SetFriendCurrencies {
+            friend_public_key: friend_public_key.clone(),
+            currencies,
+        };
+        self.send(FunderControl::SetFriendCurrencies(set_friend_currencies))
             .await;
     }
 
@@ -373,6 +385,30 @@ where
         };
         self.send(FunderControl::SetFriendRate(set_friend_rate))
             .await;
+    }
+
+    pub async fn wait_until_currency_active<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency) {
+        let pred = |report: &FunderReport<_>| {
+            let friend = match report.friends.get(&friend_public_key) {
+                None => return false,
+                Some(friend) => friend,
+            };
+            if friend.liveness != FriendLivenessReport::Online {
+                return false;
+            }
+            let tc_report = match &friend.channel_status {
+                ChannelStatusReport::Consistent(channel_consistent) => {
+                    &channel_consistent.tc_report
+                }
+                _ => return false,
+            };
+            if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
+                true
+            } else {
+                false
+            }
+        };
+        self.recv_until(pred).await;
     }
 
     pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency) {
