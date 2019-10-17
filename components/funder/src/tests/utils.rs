@@ -92,7 +92,6 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
 {
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
-            // dbg!(&dest_public_key, &friend_message);
             let node = nodes.get_mut(&dest_public_key).unwrap();
             assert!(node.friends.contains(&src_public_key));
             let incoming_comm_message =
@@ -103,8 +102,15 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
             match channeler_config {
                 ChannelerConfig::UpdateFriend(channeler_add_friend) => {
                     let node = nodes.get_mut(&src_public_key).unwrap();
+                    if node.friends.contains(&channeler_add_friend.friend_public_key) {
+                        // Nothing changed, we exit early.
+                        return;
+                    }
+
                     node.friends
                         .insert(channeler_add_friend.friend_public_key.clone());
+
+
                     let mut comm_out = node.comm_out.clone();
 
                     let remote_node = nodes.get(&channeler_add_friend.friend_public_key).unwrap();
