@@ -87,11 +87,13 @@ pub struct ResponseRoutes {
     pub multi_routes: Vec<MultiRoute>,
 }
 
-#[capnp_conv(crate::index_capnp::update_friend)]
+#[capnp_conv(crate::index_capnp::update_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateFriend {
+pub struct UpdateFriendCurrency {
     /// Friend's public key
     pub public_key: PublicKey,
+    /// Currency being updated
+    pub currency: Currency,
     /// To denote remote requests closed, assign 0 to sendCapacity
     #[capnp_conv(with = Wrapper<u128>)]
     pub send_capacity: u128,
@@ -108,12 +110,21 @@ pub struct UpdateFriend {
     pub rate: Rate,
 }
 
+#[capnp_conv(crate::index_capnp::remove_friend_currency)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveFriendCurrency {
+    /// Friend's public key
+    pub public_key: PublicKey,
+    /// Currency being removed
+    pub currency: Currency,
+}
+
 /// IndexClient -> IndexServer
 #[capnp_conv(crate::index_capnp::index_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexMutation {
-    UpdateFriend(UpdateFriend),
-    RemoveFriend(PublicKey),
+    UpdateFriendCurrency(UpdateFriendCurrency),
+    RemoveFriendCurrency(RemoveFriendCurrency),
 }
 
 #[capnp_conv(crate::index_capnp::mutations_update)]

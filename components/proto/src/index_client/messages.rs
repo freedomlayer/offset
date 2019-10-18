@@ -6,7 +6,9 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{PublicKey, Uid};
 use crate::funder::messages::Rate;
-pub use crate::index_server::messages::{IndexMutation, RequestRoutes, UpdateFriend};
+pub use crate::index_server::messages::{
+    IndexMutation, RemoveFriendCurrency, RequestRoutes, UpdateFriendCurrency,
+};
 use crate::index_server::messages::{MultiRoute, NamedIndexServerAddress};
 use crate::net::messages::NetAddress;
 

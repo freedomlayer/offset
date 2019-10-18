@@ -49,24 +49,34 @@ struct ResponseRoutes {
         multiRoutes @1: List(MultiRoute);
 }
 
-struct UpdateFriend {
+struct UpdateFriendCurrency {
         publicKey @0: PublicKey;
         # Friend's public key
-        sendCapacity @1: CustomUInt128;
+        currency @1: Currency;
+        # Currency being updated
+        sendCapacity @2: CustomUInt128;
         # To denote remote requests closed, assign 0 to sendCapacity
-        recvCapacity @2: CustomUInt128;
+        recvCapacity @3: CustomUInt128;
         # To denote local requests closed, assign 0 to recvCapacity
-        rate @3: Rate;
+        rate @4: Rate;
         # Rate a node takes for forwarding messages for this friend (to another
         # node).
 }
+
+struct RemoveFriendCurrency {
+        publicKey @0: PublicKey;
+        # Friend's public key
+        currency @1: Currency;
+        # Currency being removed
+}
+
 
 
 # IndexClient -> IndexServer
 struct IndexMutation {
         union {
-                updateFriend @0: UpdateFriend;
-                removeFriend @1: PublicKey;
+                updateFriendCurrency @0: UpdateFriendCurrency;
+                removeFriendCurrency @1: RemoveFriendCurrency;
         }
 }
 

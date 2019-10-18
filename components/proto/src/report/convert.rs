@@ -8,7 +8,7 @@ use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 use crate::crypto::PublicKey;
 
 use crate::index_client::messages::{FriendInfo, IndexClientState};
-use crate::index_server::messages::{IndexMutation, UpdateFriend};
+use crate::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 
 use crate::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FriendReport, FriendStatusReport, FunderReport,
