@@ -5,13 +5,15 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{PublicKey, Uid};
-use crate::funder::messages::Rate;
+use crate::funder::messages::{Currency, Rate};
 pub use crate::index_server::messages::{
     IndexMutation, RemoveFriendCurrency, RequestRoutes, UpdateFriendCurrency,
 };
 use crate::index_server::messages::{MultiRoute, NamedIndexServerAddress};
 use crate::net::messages::NetAddress;
 
+// TODO: Possibly rename to something more meaningful?
+/// Capacity through a (PublicKey, Currency) channel.
 #[derive(Debug, Clone)]
 pub struct FriendInfo {
     pub send_capacity: u128,
@@ -21,7 +23,7 @@ pub struct FriendInfo {
 
 #[derive(Debug, Clone)]
 pub struct IndexClientState {
-    pub friends: HashMap<PublicKey, FriendInfo>,
+    pub friends: HashMap<(PublicKey, Currency), FriendInfo>,
 }
 
 // ---------------------------------------------------

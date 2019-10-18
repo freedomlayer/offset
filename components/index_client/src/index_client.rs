@@ -152,14 +152,14 @@ async fn send_full_state(
             .await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
-        let (cyclic_countdown, update_friend) = match next_update_res {
+        let (cyclic_countdown, update_friend_currency) = match next_update_res {
             Some(next_update) => next_update,
             None => break,
         };
 
         // TODO: Maybe send mutations in batches in the future:
         // However, we need to be careful to not send too many mutations in one batch.
-        let mutations = vec![IndexMutation::UpdateFriend(update_friend)];
+        let mutations = vec![IndexMutation::UpdateFriendCurrency(update_friend_currency)];
         if control_sender
             .send(SingleClientControl::SendMutations(mutations))
             .await
@@ -534,8 +534,8 @@ where
             .await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
-        if let Some((_cycle_countdown, update_friend)) = next_update_res {
-            mutations.push(IndexMutation::UpdateFriend(update_friend));
+        if let Some((_cycle_countdown, update_friend_currency)) = next_update_res {
+            mutations.push(IndexMutation::UpdateFriendCurrency(update_friend_currency));
         }
 
         if let Ok(()) = control_sender
@@ -707,8 +707,8 @@ where
             .await
             .map_err(|_| IndexClientError::SeqFriendsError)?;
 
-        if let Some((_cycle_countdown, update_friend)) = next_update_res {
-            mutations.push(IndexMutation::UpdateFriend(update_friend));
+        if let Some((_cycle_countdown, update_friend_currency)) = next_update_res {
+            mutations.push(IndexMutation::UpdateFriendCurrency(update_friend_currency));
         }
 
         if let Ok(()) = control_sender

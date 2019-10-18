@@ -3,16 +3,17 @@ use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
 use proto::crypto::PublicKey;
-use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriend};
+use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriendCurrency};
+use proto::funder::messages::Currency;
 
 use crate::seq_map::SeqMap;
 
-pub type SeqFriends = SeqMap<PublicKey, FriendInfo>;
+pub type SeqFriends = SeqMap<(PublicKey, Currency), FriendInfo>;
 
 pub enum SeqFriendsRequest {
     Mutate(IndexMutation, oneshot::Sender<()>),
     ResetCountdown(oneshot::Sender<()>),
-    NextUpdate(oneshot::Sender<Option<(usize, UpdateFriend)>>),
+    NextUpdate(oneshot::Sender<Option<(usize, UpdateFriendCurrency)>>),
 }
 
 #[derive(Debug)]
@@ -28,16 +29,16 @@ pub struct SeqFriendsClient {
 
 fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMutation) {
     match index_mutation {
-        IndexMutation::UpdateFriend(update_friend) => {
+        IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
             let friend_info = FriendInfo {
-                send_capacity: update_friend.send_capacity,
-                recv_capacity: update_friend.recv_capacity,
-                rate: update_friend.rate.clone(),
+                send_capacity: update_friend_currency.send_capacity,
+                recv_capacity: update_friend_currency.recv_capacity,
+                rate: update_friend_currency.rate.clone(),
             };
-            let _ = seq_friends.update(update_friend.public_key.clone(), friend_info);
+            let _ = seq_friends.update((update_friend_currency.public_key.clone(), update_friend_currency.currency.clone()), friend_info);
         }
-        IndexMutation::RemoveFriend(public_key) => {
-            let _ = seq_friends.remove(public_key);
+        IndexMutation::RemoveFriendCurrency(remove_friend_currency) => {
+            let _ = seq_friends.remove(&(remove_friend_currency.public_key.clone(), remove_friend_currency.currency.clone()));
         }
     }
 }
@@ -60,14 +61,15 @@ async fn seq_friends_loop(
                 let update_friend =
                     seq_friends
                         .next()
-                        .map(|(cycle_countdown, (public_key, friend_info))| {
+                        .map(|(cycle_countdown, ((public_key, currency), friend_info))| {
                             let FriendInfo {
                                 send_capacity,
                                 recv_capacity,
                                 rate,
                             } = friend_info;
-                            let update_friend = UpdateFriend {
+                            let update_friend = UpdateFriendCurrency {
                                 public_key,
+                                currency,
                                 send_capacity,
                                 recv_capacity,
                                 rate,
@@ -114,7 +116,7 @@ impl SeqFriendsClient {
 
     pub async fn next_update(
         &mut self,
-    ) -> Result<Option<(usize, UpdateFriend)>, SeqFriendsClientError> {
+    ) -> Result<Option<(usize, UpdateFriendCurrency)>, SeqFriendsClientError> {
         let (sender, receiver) = oneshot::channel();
         let request = SeqFriendsRequest::NextUpdate(sender);
         self.requests_sender
