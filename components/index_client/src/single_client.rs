@@ -9,16 +9,17 @@ use common::select_streams::{select_streams, BoxStream};
 
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
+use proto::index_server::messages::{
+    IndexClientToServer, IndexMutation, IndexServerToClient, MultiRoute, MutationsUpdate,
+    RequestRoutes, ResponseRoutes,
+};
+
 use signature::signature_buff::create_mutations_update_signature_buff;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
 use identity::IdentityClient;
 
-use proto::index_server::messages::{
-    IndexClientToServer, IndexMutation, IndexServerToClient, MultiRoute, MutationsUpdate,
-    RequestRoutes, ResponseRoutes,
-};
 
 pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 
@@ -248,10 +249,14 @@ where
 mod tests {
     use super::*;
 
+    use std::convert::TryFrom;
+
     use futures::executor::ThreadPool;
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
+
+    use proto::funder::messages::Currency;
 
     use signature::verify::verify_mutations_update;
 
@@ -298,6 +303,7 @@ mod tests {
     where
         S: Spawn,
     {
+        let currency = Currency::try_from("FST".to_owned()).unwrap();
         let (mut server_sender, client_receiver) = mpsc::channel(0);
         let (client_sender, mut server_receiver) = mpsc::channel(0);
         let (mut control_sender, incoming_control) = mpsc::channel(0);
@@ -340,6 +346,7 @@ mod tests {
         // Request routes:
         let request_routes = RequestRoutes {
             request_id: Uid::from(&[3; Uid::len()]),
+            currency: currency.clone(),
             capacity: 20,
             source: PublicKey::from(&[0xcc; PublicKey::len()]),
             destination: PublicKey::from(&[0xdd; PublicKey::len()]),

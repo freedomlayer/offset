@@ -87,6 +87,7 @@ pub struct ResponseRoutes {
     pub multi_routes: Vec<MultiRoute>,
 }
 
+// TODO: Possibly think of a better name for this structure?
 #[capnp_conv(crate::index_capnp::update_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateFriendCurrency {
@@ -110,6 +111,7 @@ pub struct UpdateFriendCurrency {
     pub rate: Rate,
 }
 
+// TODO: Possibly think of a better name for this structure?
 #[capnp_conv(crate::index_capnp::remove_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoveFriendCurrency {
