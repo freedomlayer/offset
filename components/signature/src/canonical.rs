@@ -7,7 +7,7 @@ use proto::funder::messages::{
     CurrencyBalanceInfo, CurrencyOperations, FriendTcOp, FriendsRoute, McInfo, OptLocalRelays,
     Receipt, RequestSendFundsOp, ResponseSendFundsOp, TokenInfo,
 };
-use proto::index_server::messages::{IndexMutation, UpdateFriend};
+use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
 
 use common::int_convert::usize_to_u64;
@@ -286,10 +286,11 @@ where
     }
 }
 
-impl CanonicalSerialize for UpdateFriend {
+impl CanonicalSerialize for UpdateFriendCurrency {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.currency.canonical_serialize());
         res_bytes
             .write_u128::<BigEndian>(self.send_capacity)
             .unwrap();
@@ -300,17 +301,26 @@ impl CanonicalSerialize for UpdateFriend {
     }
 }
 
+impl CanonicalSerialize for RemoveFriendCurrency {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.public_key);
+        res_bytes.extend_from_slice(&self.currency.canonical_serialize());
+        res_bytes
+    }
+}
+
 impl CanonicalSerialize for IndexMutation {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
-            IndexMutation::UpdateFriend(update_friend) => {
+            IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
                 res_bytes.push(0);
-                res_bytes.extend(update_friend.canonical_serialize());
+                res_bytes.extend(update_friend_currency.canonical_serialize());
             }
-            IndexMutation::RemoveFriend(public_key) => {
+            IndexMutation::RemoveFriendCurrency(remove_friend_currency) => {
                 res_bytes.push(1);
-                res_bytes.extend_from_slice(public_key);
+                res_bytes.extend(remove_friend_currency.canonical_serialize());
             }
         };
         res_bytes
