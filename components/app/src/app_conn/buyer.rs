@@ -9,7 +9,7 @@ use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{
     AckClosePayment, Commit, CreatePayment, CreateTransaction, FriendsRoute, PaymentStatus,
-    RequestResult, ResponseClosePayment, TransactionResult,
+    RequestResult, ResponseClosePayment, TransactionResult, Currency,
 };
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
@@ -59,12 +59,14 @@ where
         &mut self,
         payment_id: PaymentId,
         invoice_id: InvoiceId,
+        currency: Currency,
         total_dest_payment: u128,
         dest_public_key: PublicKey,
     ) -> Result<(), BuyerError> {
         let create_payment = CreatePayment {
             payment_id,
             invoice_id,
+            currency,
             total_dest_payment,
             dest_public_key,
         };

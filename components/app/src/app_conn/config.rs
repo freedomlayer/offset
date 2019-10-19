@@ -7,9 +7,9 @@ use proto::crypto::{PublicKey, Signature, Uid};
 
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
-use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress};
+use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress, OpenFriendCurrency, CloseFriendCurrency};
 use proto::funder::messages::{
-    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt,
+    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt, Currency
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -87,13 +87,11 @@ where
         friend_public_key: PublicKey,
         relays: Vec<RelayAddress>,
         name: String,
-        balance: i128,
     ) -> Result<(), AppConfigError> {
         let add_friend = AddFriend {
             friend_public_key,
             relays,
             name,
-            balance,
         };
         self.send_request(AppRequest::AddFriend(add_friend)).await
     }
@@ -135,29 +133,37 @@ where
             .await
     }
 
-    pub async fn open_friend(
+    pub async fn open_friend_currency(
         &mut self,
         friend_public_key: PublicKey,
+        currency: Currency,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::OpenFriend(friend_public_key))
-            .await
+        self.send_request(AppRequest::OpenFriendCurrency(OpenFriendCurrency {
+            friend_public_key,
+            currency,
+        })).await
     }
 
-    pub async fn close_friend(
+    pub async fn close_friend_currency(
         &mut self,
         friend_public_key: PublicKey,
+        currency: Currency,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::CloseFriend(friend_public_key))
-            .await
+        self.send_request(AppRequest::CloseFriendCurrency(CloseFriendCurrency {
+            friend_public_key,
+            currency,
+        })).await
     }
 
     pub async fn set_friend_currency_max_debt(
         &mut self,
         friend_public_key: PublicKey,
+        currency: Currency,
         remote_max_debt: u128,
     ) -> Result<(), AppConfigError> {
         let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
             friend_public_key,
+            currency,
             remote_max_debt,
         };
         self.send_request(AppRequest::SetFriendCurrencyMaxDebt(
@@ -169,10 +175,12 @@ where
     pub async fn set_friend_currency_rate(
         &mut self,
         friend_public_key: PublicKey,
+        currency: Currency,
         rate: Rate,
     ) -> Result<(), AppConfigError> {
         let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key,
+            currency,
             rate,
         };
         self.send_request(AppRequest::SetFriendCurrencyRate(set_friend_currency_rate))
