@@ -556,9 +556,9 @@ pub struct SetFriendStatus {
     pub status: FriendStatus,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_remote_max_debt)]
+#[capnp_conv(crate::app_server_capnp::set_friend_currency_max_debt)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendRemoteMaxDebt {
+pub struct SetFriendCurrencyMaxDebt {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -586,9 +586,9 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_rate)]
+#[capnp_conv(crate::app_server_capnp::set_friend_currency_rate)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendRate {
+pub struct SetFriendCurrencyRate {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
     pub rate: Rate,
@@ -674,10 +674,10 @@ pub enum FunderControl<B> {
     RemoveFriend(RemoveFriend),
     SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
-    SetFriendRate(SetFriendRate),
+    SetFriendCurrencyRate(SetFriendCurrencyRate),
     SetFriendCurrencies(SetFriendCurrencies),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:

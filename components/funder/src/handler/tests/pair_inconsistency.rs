@@ -16,7 +16,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::Uid;
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
-    ResetFriendChannel, SetFriendStatus, Currency, CurrencyBalance, SetFriendCurrencies, SetFriendRemoteMaxDebt,
+    ResetFriendChannel, SetFriendStatus, Currency, CurrencyBalance, SetFriendCurrencies, SetFriendCurrencyMaxDebt,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -455,14 +455,14 @@ async fn task_handler_pair_inconsistency<'a>(
     ///////////////////////////////////////
 
     // Node1 receives control message to set remote max debt.
-    let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
         friend_public_key: pk2.clone(),
         currency: currency.clone(),
         remote_max_debt: 100,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[15; Uid::len()]),
-        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt),
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -555,14 +555,14 @@ async fn task_handler_pair_inconsistency<'a>(
     ///////////////////////////////////////
 
     // Node2 receives control message to set remote max debt.
-    let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
         friend_public_key: pk1.clone(),
         currency: currency.clone(),
         remote_max_debt: 200,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[16; Uid::len()]),
-        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt),
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(

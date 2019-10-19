@@ -9,7 +9,7 @@ use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, Rate, ResetFriendChannel, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt,
+    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -151,31 +151,31 @@ where
             .await
     }
 
-    pub async fn set_friend_remote_max_debt(
+    pub async fn set_friend_currency_max_debt(
         &mut self,
         friend_public_key: PublicKey,
         remote_max_debt: u128,
     ) -> Result<(), AppConfigError> {
-        let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
+        let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
             friend_public_key,
             remote_max_debt,
         };
-        self.send_request(AppRequest::SetFriendRemoteMaxDebt(
-            set_friend_remote_max_debt,
+        self.send_request(AppRequest::SetFriendCurrencyMaxDebt(
+            set_friend_currency_max_debt,
         ))
         .await
     }
 
-    pub async fn set_friend_rate(
+    pub async fn set_friend_currency_rate(
         &mut self,
         friend_public_key: PublicKey,
         rate: Rate,
     ) -> Result<(), AppConfigError> {
-        let set_friend_rate = SetFriendRate {
+        let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key,
             rate,
         };
-        self.send_request(AppRequest::SetFriendRate(set_friend_rate))
+        self.send_request(AppRequest::SetFriendCurrencyRate(set_friend_currency_rate))
             .await
     }
 

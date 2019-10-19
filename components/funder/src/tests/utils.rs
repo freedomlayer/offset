@@ -22,7 +22,7 @@ use proto::report::messages::{
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, RemoveFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
-    RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
+    RequestsStatus, ResponseClosePayment, SetFriendCurrencyRate, SetFriendCurrencyMaxDebt, SetFriendStatus,
     SetRequestsStatus, TransactionResult, Currency, SetFriendCurrencies,
 };
 
@@ -372,12 +372,12 @@ where
         currency: &'a Currency,
         remote_max_debt: u128,
     ) {
-        let set_remote_max_debt = SetFriendRemoteMaxDebt {
+        let set_remote_max_debt = SetFriendCurrencyMaxDebt {
             friend_public_key: friend_public_key.clone(),
             currency: currency.clone(),
             remote_max_debt: remote_max_debt.into(),
         };
-        self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt))
+        self.send(FunderControl::SetFriendCurrencyMaxDebt(set_remote_max_debt))
             .await;
     }
 
@@ -396,14 +396,14 @@ where
             .await;
     }
 
-    pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, 
+    pub async fn set_friend_currency_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, 
         currency: &'a Currency, rate: Rate) {
-        let set_friend_rate = SetFriendRate {
+        let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key: friend_public_key.clone(),
             currency: currency.clone(),
             rate,
         };
-        self.send(FunderControl::SetFriendRate(set_friend_rate))
+        self.send(FunderControl::SetFriendCurrencyRate(set_friend_currency_rate))
             .await;
     }
 

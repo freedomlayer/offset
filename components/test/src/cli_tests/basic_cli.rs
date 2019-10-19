@@ -8,7 +8,7 @@ use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCmd, ConfigCmd, DisableFriendCmd,
-    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendRateCmd,
+    EnableFriendCmd, OpenFriendCmd, SetFriendMaxDebtCmd, SetFriendCurrencyRateCmd,
 };
 
 use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
@@ -293,12 +293,12 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     // Can only be tested in the case of a chain of at least 3 nodes.
     // ---------
     for j in 0..2 {
-        let set_friend_rate_cmd = SetFriendRateCmd {
+        let set_friend_currency_rate_cmd = SetFriendCurrencyRateCmd {
             friend_name: format!("node{}", 1 - j),
             mul: 0,
             add: 1,
         };
-        let config_cmd = ConfigCmd::SetFriendRate(set_friend_rate_cmd);
+        let config_cmd = ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd);
         let subcommand = StCtrlSubcommand::Config(config_cmd);
 
         let st_ctrl_cmd = StCtrlCmd {

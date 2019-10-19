@@ -69,25 +69,25 @@ struct SetFriendRelays {
 }
 
 # Application -> AppServer
-struct OpenFriend {
+struct OpenFriendCurrency {
         friendPublicKey @0: PublicKey;
         currency @1: Currency;
 }
 
 # Application -> AppServer
-struct CloseFriend {
+struct CloseFriendCurrency {
         friendPublicKey @0: PublicKey;
         currency @1: Currency;
 }
 
 # Application -> AppServer
-struct SetFriendRemoteMaxDebt {
+struct SetFriendCurrencyMaxDebt {
         friendPublicKey @0: PublicKey;
         currency @1: Currency;
         remoteMaxDebt @2: CustomUInt128;
 }
 
-struct SetFriendRate {
+struct SetFriendCurrencyRate {
         friendPublicKey @0: PublicKey;
         currency @1: Currency;
         rate @2: Rate;
@@ -240,10 +240,10 @@ struct AppRequest {
         removeFriend @12: PublicKey;
         enableFriend @13: PublicKey;
         disableFriend @14: PublicKey;
-        openFriend @15: OpenFriend;
-        closeFriend @16: CloseFriend;
-        setFriendRemoteMaxDebt @17: SetFriendRemoteMaxDebt;
-        setFriendRate @18: SetFriendRate;
+        openFriendCurrency @15: OpenFriendCurrency;
+        closeFriendCurrency @16: CloseFriendCurrency;
+        setFriendCurrencyMaxDebt @17: SetFriendCurrencyMaxDebt;
+        setFriendCurrencyRate @18: SetFriendCurrencyRate;
         setFriendCurrencies @19: SetFriendCurrencies;
         resetFriendChannel @20: ResetFriendChannel;
 

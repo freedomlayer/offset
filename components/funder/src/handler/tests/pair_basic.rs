@@ -18,7 +18,7 @@ use proto::crypto::{InvoiceId, PaymentId, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
     FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendRemoteMaxDebt,
+    MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendCurrencyMaxDebt,
     SetFriendStatus, SetRequestsStatus, Currency, SetFriendCurrencies,
 };
 
@@ -453,14 +453,14 @@ async fn task_handler_pair_basic<'a>(
 
 
     // Node1 receives control message to set remote max debt.
-    let set_friend_remote_max_debt = SetFriendRemoteMaxDebt {
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
         friend_public_key: pk2.clone(),
         currency: currency.clone(),
         remote_max_debt: 100,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[15; Uid::len()]),
-        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt),
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(

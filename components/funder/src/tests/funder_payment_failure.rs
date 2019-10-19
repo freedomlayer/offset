@@ -88,7 +88,7 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     // Set rate:
     // This is the amount of credits node 1 takes from node 0 for forwarding messages.
     node_controls[1]
-        .set_friend_rate(&public_keys[0], &currency1, Rate { mul: 0, add: 5 })
+        .set_friend_currency_rate(&public_keys[0], &currency1, Rate { mul: 0, add: 5 })
         .await;
 
     // Set remote max debt:

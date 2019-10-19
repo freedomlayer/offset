@@ -131,7 +131,7 @@ pub struct SetFriendMaxDebtCmd {
 /// Set friend's maximum allowed debt
 /// If you lose this friend, you can lose this amount of credits.
 #[derive(Clone, Debug, StructOpt)]
-pub struct SetFriendRateCmd {
+pub struct SetFriendCurrencyRateCmd {
     /// Friend name
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
@@ -192,7 +192,7 @@ pub enum ConfigCmd {
     /// Set friend's rate: How much we charge for forwarding this friend's transactions to other
     /// friends?
     #[structopt(name = "set-friend-rate")]
-    SetFriendRate(SetFriendRateCmd),
+    SetFriendCurrencyRate(SetFriendCurrencyRateCmd),
     /// Reset mutual credit with a friend according to friend's terms
     #[structopt(name = "reset-friend")]
     ResetFriend(ResetFriendCmd),
@@ -509,21 +509,21 @@ async fn config_set_friend_max_debt(
         .clone();
 
     app_config
-        .set_friend_remote_max_debt(friend_public_key, max_debt)
+        .set_friend_currency_max_debt(friend_public_key, max_debt)
         .await
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_set_friend_rate(
-    set_friend_rate_cmd: SetFriendRateCmd,
+async fn config_set_friend_currency_rate(
+    set_friend_currency_rate_cmd: SetFriendCurrencyRateCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let SetFriendRateCmd {
+    let SetFriendCurrencyRateCmd {
         friend_name,
         mul,
         add,
-    } = set_friend_rate_cmd;
+    } = set_friend_currency_rate_cmd;
 
     let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
@@ -532,7 +532,7 @@ async fn config_set_friend_rate(
     let rate = Rate { mul, add };
 
     app_config
-        .set_friend_rate(friend_public_key, rate)
+        .set_friend_currency_rate(friend_public_key, rate)
         .await
         .map_err(|_| ConfigError::AppConfigError)
 }
@@ -622,8 +622,8 @@ pub async fn config(config_cmd: ConfigCmd, mut app_conn: AppConn) -> Result<(), 
         ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => {
             config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report).await?
         }
-        ConfigCmd::SetFriendRate(set_friend_rate_cmd) => {
-            config_set_friend_rate(set_friend_rate_cmd, app_config, node_report).await?
+        ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd) => {
+            config_set_friend_currency_rate(set_friend_currency_rate_cmd, app_config, node_report).await?
         }
         ConfigCmd::ResetFriend(reset_friend_cmd) => {
             config_reset_friend(reset_friend_cmd, app_config, node_report).await?

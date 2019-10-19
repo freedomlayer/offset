@@ -410,7 +410,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Node0 allows node1 to have maximum debt of 100
     // (This should allow to node1 to pay back).
     config0
-        .set_friend_remote_max_debt(node_public_key(1), 100)
+        .set_friend_currency_max_debt(node_public_key(1), 100)
         .await
         .unwrap();
 

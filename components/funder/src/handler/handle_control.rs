@@ -16,8 +16,8 @@ use proto::funder::messages::{
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RequestResult,
     RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencies,
-    SetFriendName, SetFriendRate, SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult,
+    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendName, SetFriendRelays,
+    SetFriendStatus, SetRequestsStatus, TransactionResult,
 };
 use signature::verify::verify_multi_commit;
 
@@ -57,10 +57,10 @@ pub enum HandleControlError {
     CanNotRemoveActiveCurrency,
 }
 
-fn control_set_friend_remote_max_debt<B>(
+fn control_set_friend_currency_max_debt<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    set_friend_remote_max_debt: SetFriendRemoteMaxDebt,
+    set_friend_currency_max_debt: SetFriendCurrencyMaxDebt,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -69,7 +69,7 @@ where
     let friend = m_state
         .state()
         .friends
-        .get(&set_friend_remote_max_debt.friend_public_key)
+        .get(&set_friend_currency_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     let channel_consistent = match &friend.channel_status {
@@ -80,7 +80,7 @@ where
     if channel_consistent
         .token_channel
         .get_mutual_credits()
-        .get(&set_friend_remote_max_debt.currency)
+        .get(&set_friend_currency_max_debt.currency)
         .is_none()
     {
         return Err(HandleControlError::FriendCurrencyDoesNotExist);
@@ -88,9 +88,9 @@ where
 
     if let Some(wanted_remote_max_debt) = channel_consistent
         .wanted_remote_max_debt
-        .get(&set_friend_remote_max_debt.currency)
+        .get(&set_friend_currency_max_debt.currency)
     {
-        if *wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
+        if *wanted_remote_max_debt == set_friend_currency_max_debt.remote_max_debt {
             // Wanted remote max debt is already set to this value. Nothing to do here.
             return Ok(());
         }
@@ -100,16 +100,16 @@ where
     // only when we manage to send a move token message containing the SetRemoteMaxDebt
     // operation.
     let friend_mutation = FriendMutation::SetWantedRemoteMaxDebt((
-        set_friend_remote_max_debt.currency.clone(),
-        set_friend_remote_max_debt.remote_max_debt,
+        set_friend_currency_max_debt.currency.clone(),
+        set_friend_currency_max_debt.remote_max_debt,
     ));
     let m_mutation = FunderMutation::FriendMutation((
-        set_friend_remote_max_debt.friend_public_key.clone(),
+        set_friend_currency_max_debt.friend_public_key.clone(),
         friend_mutation,
     ));
     m_state.mutate(m_mutation);
 
-    send_commands.set_try_send(&set_friend_remote_max_debt.friend_public_key);
+    send_commands.set_try_send(&set_friend_currency_max_debt.friend_public_key);
     Ok(())
 }
 
@@ -500,9 +500,9 @@ where
     Ok(())
 }
 
-fn control_set_friend_rate<B>(
+fn control_set_friend_currency_rate<B>(
     m_state: &mut MutableFunderState<B>,
-    set_friend_rate: SetFriendRate,
+    set_friend_currency_rate: SetFriendCurrencyRate,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -511,19 +511,19 @@ where
     let friend = m_state
         .state()
         .friends
-        .get(&set_friend_rate.friend_public_key)
+        .get(&set_friend_currency_rate.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     // If the newly proposed rate is the same as the old one, we do nothing:
-    if let Some(rate) = friend.rates.get(&set_friend_rate.currency) {
-        if rate == &set_friend_rate.rate {
+    if let Some(rate) = friend.rates.get(&set_friend_currency_rate.currency) {
+        if rate == &set_friend_currency_rate.rate {
             return Ok(());
         }
     }
 
-    let friend_mutation = FriendMutation::SetRate((set_friend_rate.currency, set_friend_rate.rate));
+    let friend_mutation = FriendMutation::SetRate((set_friend_currency_rate.currency, set_friend_currency_rate.rate));
     let funder_mutation = FunderMutation::FriendMutation((
-        set_friend_rate.friend_public_key.clone(),
+        set_friend_currency_rate.friend_public_key.clone(),
         friend_mutation,
     ));
     m_state.mutate(funder_mutation);
@@ -1145,8 +1145,8 @@ where
     R: CryptoRandom,
 {
     match incoming_control {
-        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
-            control_set_friend_remote_max_debt(m_state, send_commands, set_friend_remote_max_debt)
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt) => {
+            control_set_friend_currency_max_debt(m_state, send_commands, set_friend_currency_max_debt)
         }
 
         FunderControl::ResetFriendChannel(reset_friend_channel) => {
@@ -1205,8 +1205,8 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
-        FunderControl::SetFriendRate(set_friend_rate) => {
-            control_set_friend_rate(m_state, set_friend_rate)
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate) => {
+            control_set_friend_currency_rate(m_state, set_friend_currency_rate)
         }
 
         FunderControl::SetFriendCurrencies(set_friend_currencies) => {

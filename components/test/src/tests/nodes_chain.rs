@@ -276,7 +276,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[0]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100)
+        .set_friend_currency_max_debt(node_public_key(1), 100)
         .await
         .unwrap();
 
@@ -307,13 +307,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(0), 100)
+        .set_friend_currency_max_debt(node_public_key(0), 100)
         .await
         .unwrap();
     apps[1]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(0), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(node_public_key(0), Rate { mul: 0, add: 1 })
         .await
         .unwrap();
 
@@ -344,13 +344,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100)
+        .set_friend_currency_max_debt(node_public_key(2), 100)
         .await
         .unwrap();
     apps[1]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 2 })
+        .set_friend_currency_rate(node_public_key(2), Rate { mul: 0, add: 2 })
         .await
         .unwrap();
 
@@ -381,13 +381,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100)
+        .set_friend_currency_max_debt(node_public_key(1), 100)
         .await
         .unwrap();
     apps[2]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(1), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(node_public_key(1), Rate { mul: 0, add: 1 })
         .await
         .unwrap();
 
@@ -418,7 +418,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[1]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(3), 100)
+        .set_friend_currency_max_debt(node_public_key(3), 100)
         .await
         .unwrap();
 
@@ -449,7 +449,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[3]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(1), 100)
+        .set_friend_currency_max_debt(node_public_key(1), 100)
         .await
         .unwrap();
 
@@ -480,13 +480,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(5), 100)
+        .set_friend_currency_max_debt(node_public_key(5), 100)
         .await
         .unwrap();
     apps[2]
         .config()
         .unwrap()
-        .set_friend_rate(
+        .set_friend_currency_rate(
             node_public_key(5),
             Rate {
                 mul: 0x80000000,
@@ -523,7 +523,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[5]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100)
+        .set_friend_currency_max_debt(node_public_key(2), 100)
         .await
         .unwrap();
 
@@ -554,7 +554,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[2]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(4), 100)
+        .set_friend_currency_max_debt(node_public_key(4), 100)
         .await
         .unwrap();
 
@@ -587,13 +587,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[4]
         .config()
         .unwrap()
-        .set_friend_remote_max_debt(node_public_key(2), 100)
+        .set_friend_currency_max_debt(node_public_key(2), 100)
         .await
         .unwrap();
     apps[4]
         .config()
         .unwrap()
-        .set_friend_rate(node_public_key(2), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(node_public_key(2), Rate { mul: 0, add: 1 })
         .await
         .unwrap();
 
