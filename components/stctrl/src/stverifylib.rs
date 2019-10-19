@@ -75,48 +75,55 @@ fn stverify_verify_token(
 
     if verify_move_token_hashed_report(
         &move_token_hashed_report,
-        &move_token_hashed_report.local_public_key,
+        &move_token_hashed_report.token_info.mc.local_public_key,
     ) {
         writeln!(writer, "Token is valid!").map_err(|_| StVerifyError::WriteError)?;
         writeln!(writer).map_err(|_| StVerifyError::WriteError)?;
         writeln!(
             writer,
             "local_public_key: {}",
-            public_key_to_string(&move_token_hashed_report.local_public_key)
+            public_key_to_string(&move_token_hashed_report.token_info.mc.local_public_key)
         )
         .map_err(|_| StVerifyError::WriteError)?;
         writeln!(
             writer,
             "remote_public_key: {}",
-            public_key_to_string(&move_token_hashed_report.remote_public_key)
+            public_key_to_string(&move_token_hashed_report.token_info.mc.remote_public_key)
         )
         .map_err(|_| StVerifyError::WriteError)?;
         writeln!(
             writer,
             "inconsistency_counter: {}",
-            move_token_hashed_report.inconsistency_counter
+            move_token_hashed_report
+                .token_info
+                .counters
+                .inconsistency_counter
         )
         .map_err(|_| StVerifyError::WriteError)?;
-        writeln!(writer, "balance: {}", move_token_hashed_report.balance)
-            .map_err(|_| StVerifyError::WriteError)?;
         writeln!(
             writer,
             "move_token_counter: {}",
-            move_token_hashed_report.move_token_counter
+            move_token_hashed_report
+                .token_info
+                .counters
+                .move_token_counter
         )
         .map_err(|_| StVerifyError::WriteError)?;
-        writeln!(
-            writer,
-            "local_pending_debt: {}",
-            move_token_hashed_report.local_pending_debt
-        )
-        .map_err(|_| StVerifyError::WriteError)?;
-        writeln!(
-            writer,
-            "remote_pending_debt: {}",
-            move_token_hashed_report.remote_pending_debt
-        )
-        .map_err(|_| StVerifyError::WriteError)?;
+
+        writeln!(writer, "balances:\n");
+
+        for currency_balance_info in move_token_hashed_report.token_info.mc.balances {
+            let balance_info = &currency_balance_info.balance_info;
+            writeln!(
+                writer,
+                "- {}: balance={}, lpd={}, rpd={}",
+                currency_balance_info.currency,
+                balance_info.balance,
+                balance_info.local_pending_debt,
+                balance_info.remote_pending_debt
+            )
+            .map_err(|_| StVerifyError::WriteError)?;
+        }
 
         Ok(())
     } else {

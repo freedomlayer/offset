@@ -1,12 +1,13 @@
 use std::fs;
 use std::path::PathBuf;
+use std::convert::TryFrom;
 
 use structopt::StructOpt;
 
 use derive_more::From;
 
 use app::report::{ChannelStatusReport, NodeReport};
-use app::{AppConfig, AppConn, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress};
+use app::{AppConfig, AppConn, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress, Currency};
 
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
 use app::ser_string::{deserialize_from_string, StringSerdeError};
@@ -60,9 +61,6 @@ pub struct AddFriendCmd {
     /// Assigned friend name (You can pick any name)
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
-    /// Initial balance with friend
-    #[structopt(long = "balance")]
-    pub balance: i128,
 }
 
 /// Set friend relays
@@ -102,27 +100,36 @@ pub struct DisableFriendCmd {
 
 /// Enable forwarding of payment requests from friend to us
 #[derive(Clone, Debug, StructOpt)]
-pub struct OpenFriendCmd {
+pub struct OpenFriendCurrencyCmd {
     /// Friend name to open
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
+    /// Currency to open
+    #[structopt(long = "currency", short = "c")]
+    pub currency_name: String,
 }
 
 /// Disable forwarding of payment requests from friend to us
 #[derive(Clone, Debug, StructOpt)]
-pub struct CloseFriendCmd {
+pub struct CloseFriendCurrencyCmd {
     /// Friend name to close
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
+    /// Currency to close
+    #[structopt(long = "currency", short = "c")]
+    pub currency_name: String,
 }
 
 /// Set friend's maximum allowed debt
 /// If you lose this friend, you can lose this amount of credits.
 #[derive(Clone, Debug, StructOpt)]
-pub struct SetFriendMaxDebtCmd {
+pub struct SetFriendCurrencyMaxDebtCmd {
     /// Friend name
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
+    /// Currency to set remote max debt
+    #[structopt(long = "currency", short = "c")]
+    pub currency_name: String,
     /// Max debt allowed for friend
     #[structopt(long = "mdebt", short = "m")]
     pub max_debt: u128,
@@ -135,6 +142,9 @@ pub struct SetFriendCurrencyRateCmd {
     /// Friend name
     #[structopt(long = "name", short = "n")]
     pub friend_name: String,
+    /// Currency to set remote max debt
+    #[structopt(long = "currency", short = "c")]
+    pub currency_name: String,
     /// Multiplier (fee = x * mul + add)
     #[structopt(long = "mul", short = "m")]
     pub mul: u32,
@@ -182,13 +192,13 @@ pub enum ConfigCmd {
     DisableFriend(DisableFriendCmd),
     /// Open requests from friend
     #[structopt(name = "open-friend")]
-    OpenFriend(OpenFriendCmd),
+    OpenFriendCurrency(OpenFriendCurrencyCmd),
     /// Close requests from friend
     #[structopt(name = "close-friend")]
-    CloseFriend(CloseFriendCmd),
+    CloseFriendCurrency(CloseFriendCurrencyCmd),
     /// Set friend's max debt
     #[structopt(name = "set-friend-max-debt")]
-    SetFriendMaxDebt(SetFriendMaxDebtCmd),
+    SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebtCmd),
     /// Set friend's rate: How much we charge for forwarding this friend's transactions to other
     /// friends?
     #[structopt(name = "set-friend-rate")]
@@ -222,6 +232,7 @@ pub enum ConfigError {
     UnknownRemoteResetTerms,
     IoError(std::io::Error),
     StringSerdeError(StringSerdeError),
+    InvalidCurrencyName,
 }
 
 async fn config_add_relay(
@@ -346,7 +357,6 @@ async fn config_add_friend(
     let AddFriendCmd {
         friend_path,
         friend_name,
-        balance,
     } = add_friend_cmd;
 
     for (_friend_public_key, friend_report) in node_report.funder_report.friends {
@@ -370,7 +380,6 @@ async fn config_add_friend(
                 .map(RelayAddress::from)
                 .collect(),
             friend_name.to_owned(),
-            balance,
         )
         .await
         .map_err(|_| ConfigError::AppConfigError)?;
@@ -464,54 +473,71 @@ async fn config_disable_friend(
         .map_err(|_| ConfigError::AppConfigError)
 }
 
-async fn config_open_friend(
-    open_friend_cmd: OpenFriendCmd,
+async fn config_open_friend_currency(
+    open_friend_currency_cmd: OpenFriendCurrencyCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_public_key = friend_public_key_by_name(&node_report, &open_friend_cmd.friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &open_friend_currency_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    app_config
-        .open_friend(friend_public_key)
+    let currency = Currency::try_from(open_friend_currency_cmd.currency_name)
+        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+
+    // TODO: A hack to overcome a compiler issue.
+    // Fix later:
+    let res = app_config
+        .open_friend_currency(friend_public_key, currency)
         .await
-        .map_err(|_| ConfigError::AppConfigError)
+        .map_err(|_| ConfigError::AppConfigError);
+    res
 }
 
-async fn config_close_friend(
-    close_friend_cmd: CloseFriendCmd,
+async fn config_close_friend_currency(
+    close_friend_currency_cmd: CloseFriendCurrencyCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_public_key = friend_public_key_by_name(&node_report, &close_friend_cmd.friend_name)
+    let friend_public_key = friend_public_key_by_name(&node_report, &close_friend_currency_cmd.friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    app_config
-        .close_friend(friend_public_key)
+    let currency = Currency::try_from(close_friend_currency_cmd.currency_name)
+        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+
+    // TODO: A temporary fix due to compiler issue:
+    let res = app_config
+        .close_friend_currency(friend_public_key, currency)
         .await
-        .map_err(|_| ConfigError::AppConfigError)
+        .map_err(|_| ConfigError::AppConfigError);
+    res
 }
 
-async fn config_set_friend_max_debt(
-    set_friend_max_debt_cmd: SetFriendMaxDebtCmd,
+async fn config_set_friend_currency_max_debt(
+    set_friend_currency_max_debt_cmd: SetFriendCurrencyMaxDebtCmd,
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let SetFriendMaxDebtCmd {
+    let SetFriendCurrencyMaxDebtCmd {
         friend_name,
+        currency_name,
         max_debt,
-    } = set_friend_max_debt_cmd;
+    } = set_friend_currency_max_debt_cmd;
 
     let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    app_config
-        .set_friend_currency_max_debt(friend_public_key, max_debt)
+    let currency = Currency::try_from(currency_name)
+        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+
+    // TODO: A temporary fix due to compiler issue:
+    let res = app_config
+        .set_friend_currency_max_debt(friend_public_key, currency, max_debt)
         .await
-        .map_err(|_| ConfigError::AppConfigError)
+        .map_err(|_| ConfigError::AppConfigError);
+    res
 }
 
 async fn config_set_friend_currency_rate(
@@ -521,6 +547,7 @@ async fn config_set_friend_currency_rate(
 ) -> Result<(), ConfigError> {
     let SetFriendCurrencyRateCmd {
         friend_name,
+        currency_name,
         mul,
         add,
     } = set_friend_currency_rate_cmd;
@@ -529,12 +556,17 @@ async fn config_set_friend_currency_rate(
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
+    let currency = Currency::try_from(currency_name)
+        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+
     let rate = Rate { mul, add };
 
-    app_config
-        .set_friend_currency_rate(friend_public_key, rate)
+    // TODO: A temporary fix due to compiler issue:
+    let res = app_config
+        .set_friend_currency_rate(friend_public_key, currency, rate)
         .await
-        .map_err(|_| ConfigError::AppConfigError)
+        .map_err(|_| ConfigError::AppConfigError);
+    res
 }
 
 async fn config_reset_friend(
@@ -613,14 +645,14 @@ pub async fn config(config_cmd: ConfigCmd, mut app_conn: AppConn) -> Result<(), 
         ConfigCmd::DisableFriend(disable_friend_cmd) => {
             config_disable_friend(disable_friend_cmd, app_config, node_report).await?
         }
-        ConfigCmd::OpenFriend(open_friend_cmd) => {
-            config_open_friend(open_friend_cmd, app_config, node_report).await?
+        ConfigCmd::OpenFriendCurrency(open_friend_currency_cmd) => {
+            config_open_friend_currency(open_friend_currency_cmd, app_config, node_report).await?
         }
-        ConfigCmd::CloseFriend(close_friend_cmd) => {
-            config_close_friend(close_friend_cmd, app_config, node_report).await?
+        ConfigCmd::CloseFriendCurrency(close_friend_currency_cmd) => {
+            config_close_friend_currency(close_friend_currency_cmd, app_config, node_report).await?
         }
-        ConfigCmd::SetFriendMaxDebt(set_friend_max_debt_cmd) => {
-            config_set_friend_max_debt(set_friend_max_debt_cmd, app_config, node_report).await?
+        ConfigCmd::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt_cmd) => {
+            config_set_friend_currency_max_debt(set_friend_currency_max_debt_cmd, app_config, node_report).await?
         }
         ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd) => {
             config_set_friend_currency_rate(set_friend_currency_rate_cmd, app_config, node_report).await?
