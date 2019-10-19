@@ -201,6 +201,10 @@ where
     type Capacity = u128;
     type Rate = T;
 
+    fn new() -> Self {
+        SimpleCapacityGraph::new()
+    }
+
     /// Add or update edge
     fn update_edge(
         &mut self,

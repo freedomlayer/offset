@@ -1,25 +1,30 @@
+use std::collections::HashMap;
+use std::hash::Hash;
+
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
 use super::capacity_graph::{CapacityEdge, CapacityGraph, CapacityMultiRoute};
 
-pub enum GraphRequest<N, C, T> {
+pub enum GraphRequest<G, N, C, T> {
     /// Change capacities on a directed edge:
     UpdateEdge(
+        G,
         N,
         N,
         CapacityEdge<C, T>,
         oneshot::Sender<Option<CapacityEdge<C, T>>>,
     ),
     /// Remove a directed edge:
-    RemoveEdge(N, N, oneshot::Sender<Option<CapacityEdge<C, T>>>),
+    RemoveEdge(G, N, N, oneshot::Sender<Option<CapacityEdge<C, T>>>),
     /// Remove a node and all edges starting from this node.
     /// Note: This will not remove edges going to this node.
-    RemoveNode(N, oneshot::Sender<bool>),
+    RemoveNode(G, N, oneshot::Sender<bool>),
     /// Get some routes from one node to another of at least certain capacity.
     /// If an exclude directed edge is provided, the routes must not contain this directed edge.
     GetMultiRoutes(
+        G,
         N,
         N,
         C,
@@ -38,40 +43,54 @@ pub enum GraphServiceError {
 
 /// Process one GraphRequest, and send the response through the provided sender.
 /// This function might perform a long computation and take a long time to complete.
-fn process_request<N, C, T, CG>(capacity_graph: &mut CG, graph_request: GraphRequest<N, C, T>)
+fn process_request<G, N, C, T, CG>(capacity_graphs: &mut HashMap<G, CG>, graph_request: GraphRequest<G, N, C, T>)
 where
+    G: Hash + Eq,
     CG: CapacityGraph<Node = N, Capacity = C, Rate = T>,
 {
     match graph_request {
-        GraphRequest::UpdateEdge(a, b, capacity_edge, sender) => {
+        GraphRequest::UpdateEdge(g, a, b, capacity_edge, sender) => {
+            let capacity_graph = capacity_graphs.entry(g).or_insert(CG::new());
             let _ = sender.send(capacity_graph.update_edge(a, b, capacity_edge));
         }
-        GraphRequest::RemoveEdge(a, b, sender) => {
-            let _ = sender.send(capacity_graph.remove_edge(&a, &b));
+        GraphRequest::RemoveEdge(g, a, b, sender) => {
+            if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
+                let _ = sender.send(capacity_graph.remove_edge(&a, &b));
+            }
         }
-        GraphRequest::RemoveNode(a, sender) => {
-            let _ = sender.send(capacity_graph.remove_node(&a));
+        GraphRequest::RemoveNode(g, a, sender) => {
+            if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
+                let _ = sender.send(capacity_graph.remove_node(&a));
+            }
         }
-        GraphRequest::GetMultiRoutes(a, b, capacity, opt_exclude, sender) => {
-            let routes = match opt_exclude {
-                Some((c, d)) => capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d))),
-                None => capacity_graph.get_multi_routes(&a, &b, capacity, None),
+        GraphRequest::GetMultiRoutes(g, a, b, capacity, opt_exclude, sender) => {
+            let routes = if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
+                match opt_exclude {
+                    Some((c, d)) => capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d))),
+                    None => capacity_graph.get_multi_routes(&a, &b, capacity, None),
+                }
+            }
+            else {
+                vec![]
             };
             let _ = sender.send(routes);
         }
         GraphRequest::Tick(a, sender) => {
-            capacity_graph.tick(&a);
+            for capacity_graph in capacity_graphs.values_mut() {
+                capacity_graph.tick(&a);
+            }
             let _ = sender.send(());
         }
     }
 }
 
-async fn graph_service_loop<N, C, T, CG, GS>(
-    mut capacity_graph: CG,
-    mut incoming_requests: mpsc::Receiver<GraphRequest<N, C, T>>,
+async fn graph_service_loop<G, N, C, T, CG, GS>(
+    mut capacity_graphs: HashMap<G, CG>,
+    mut incoming_requests: mpsc::Receiver<GraphRequest<G, N, C, T>>,
     mut graph_service_spawner: GS,
 ) -> Result<(), GraphServiceError>
 where
+    G: Send + Hash + Eq + 'static,
     N: Send + 'static,
     C: Send + 'static,
     T: Send + 'static,
@@ -85,13 +104,13 @@ where
         // Run the graph computation over own pool:
         let process_request_handle = graph_service_spawner
             .spawn_with_handle(async move {
-                process_request(&mut capacity_graph, graph_request);
-                capacity_graph
+                process_request(&mut capacity_graphs, graph_request);
+                capacity_graphs
             })
             .map_err(|_| GraphServiceError::LocalSpawnError)?;
 
         // Wait for completion of the computation on the external pool:
-        capacity_graph = process_request_handle.await;
+        capacity_graphs = process_request_handle.await;
     }
     Ok(())
 }
@@ -115,25 +134,26 @@ impl From<mpsc::SendError> for GraphClientError {
 }
 
 #[derive(Clone)]
-pub struct GraphClient<N, C, T> {
-    requests_sender: mpsc::Sender<GraphRequest<N, C, T>>,
+pub struct GraphClient<G, N, C, T> {
+    requests_sender: mpsc::Sender<GraphRequest<G, N, C, T>>,
 }
 
-impl<N, C, T> GraphClient<N, C, T> {
-    pub fn new(requests_sender: mpsc::Sender<GraphRequest<N, C, T>>) -> Self {
+impl<G, N, C, T> GraphClient<G, N, C, T> {
+    pub fn new(requests_sender: mpsc::Sender<GraphRequest<G, N, C, T>>) -> Self {
         GraphClient { requests_sender }
     }
 
     /// Add or update edge
     pub async fn update_edge(
         &mut self,
+        g: G,
         a: N,
         b: N,
         capacity_edge: CapacityEdge<C, T>,
     ) -> Result<Option<CapacityEdge<C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel::<Option<CapacityEdge<C, T>>>();
         self.requests_sender
-            .send(GraphRequest::UpdateEdge(a, b, capacity_edge, sender))
+            .send(GraphRequest::UpdateEdge(g, a, b, capacity_edge, sender))
             .await?;
         Ok(receiver.await?)
     }
@@ -141,23 +161,26 @@ impl<N, C, T> GraphClient<N, C, T> {
     /// Remove an edge from the graph
     pub async fn remove_edge(
         &mut self,
+        g: G,
         a: N,
         b: N,
     ) -> Result<Option<CapacityEdge<C, T>>, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
         self.requests_sender
-            .send(GraphRequest::RemoveEdge(a, b, sender))
+            .send(GraphRequest::RemoveEdge(g, a, b, sender))
             .await?;
         Ok(receiver.await?)
     }
 
+    // TODO: Maybe we need to remove the node from all the graphs in this case?
+    // This would mean the `g` argument is not required here.
     /// Remove a node and all related edges known from him.
     /// Note: This method will not remove an edge from another node b pointing to a.
     /// Returns true if the node `a` was present, false otherwise
-    pub async fn remove_node(&mut self, a: N) -> Result<bool, GraphClientError> {
+    pub async fn remove_node(&mut self, g: G, a: N) -> Result<bool, GraphClientError> {
         let (sender, receiver) = oneshot::channel();
         self.requests_sender
-            .send(GraphRequest::RemoveNode(a, sender))
+            .send(GraphRequest::RemoveNode(g, a, sender))
             .await?;
         Ok(receiver.await?)
     }
@@ -169,6 +192,7 @@ impl<N, C, T> GraphClient<N, C, T> {
     /// edge). This can be useful for finding non trivial loops.
     pub async fn get_multi_routes(
         &mut self,
+        g: G,
         a: N,
         b: N,
         capacity: C,
@@ -177,6 +201,7 @@ impl<N, C, T> GraphClient<N, C, T> {
         let (sender, receiver) = oneshot::channel();
         self.requests_sender
             .send(GraphRequest::GetMultiRoutes(
+                g,
                 a,
                 b,
                 capacity,
@@ -199,12 +224,12 @@ impl<N, C, T> GraphClient<N, C, T> {
 
 /// Spawn a graph service, returning a GraphClient on success.
 /// GraphClient can be cloned to allow multiple clients.
-pub fn create_graph_service<N, C, T, CG, GS, S>(
-    capacity_graph: CG,
+pub fn create_graph_service<G, N, C, T, CG, GS, S>(
     graph_service_spawner: GS,
     mut spawner: S,
-) -> Result<GraphClient<N, C, T>, SpawnError>
+) -> Result<GraphClient<G, N, C, T>, SpawnError>
 where
+    G: Hash + Eq + Send + 'static,
     N: Send + 'static,
     C: Send + 'static,
     T: Send + 'static,
@@ -214,8 +239,10 @@ where
 {
     let (requests_sender, requests_receiver) = mpsc::channel(0);
 
+    let capacity_graphs = HashMap::<G,CG>::new();
+
     let graph_service_loop_fut =
-        graph_service_loop(capacity_graph, requests_receiver, graph_service_spawner)
+        graph_service_loop(capacity_graphs, requests_receiver, graph_service_spawner)
             .map_err(|e| error!("graph_service_loop() error: {:?}", e))
             .map(|_| ());
 
@@ -235,22 +262,25 @@ mod tests {
     where
         S: Spawn,
     {
+        // We use currency as the G type. Every currency should have its own graph:
+        let currency1 = 1u8;
+
         let graph_service_spawner = ThreadPool::new().unwrap();
-        let capacity_graph = SimpleCapacityGraph::new();
         let mut graph_client =
-            create_graph_service(capacity_graph, graph_service_spawner, spawner).unwrap();
+            create_graph_service::<u8,u32,u128,ConstRate,SimpleCapacityGraph<u32,ConstRate>,_,_>(graph_service_spawner, spawner).unwrap();
+
 
         graph_client
-            .update_edge(2u32, 5u32, CapacityEdge::new((30, 5), ConstRate(1)))
+            .update_edge(currency1, 2u32, 5u32, CapacityEdge::new((30u128, 5), ConstRate(1u32)))
             .await
             .unwrap();
         graph_client
-            .update_edge(5, 2, CapacityEdge::new((5, 30), ConstRate(1)))
+            .update_edge(currency1, 5, 2, CapacityEdge::new((5, 30), ConstRate(1)))
             .await
             .unwrap();
 
         assert_eq!(
-            graph_client.get_multi_routes(2, 5, 29, None).await.unwrap(),
+            graph_client.get_multi_routes(currency1, 2, 5, 29, None).await.unwrap(),
             vec![CapacityMultiRoute {
                 routes: vec![CapacityRoute {
                     route: vec![2, 5],
@@ -260,7 +290,7 @@ mod tests {
             }]
         );
         assert_eq!(
-            graph_client.get_multi_routes(2, 5, 30, None).await.unwrap(),
+            graph_client.get_multi_routes(currency1, 2, 5, 30, None).await.unwrap(),
             vec![CapacityMultiRoute {
                 routes: vec![CapacityRoute {
                     route: vec![2, 5],
@@ -270,18 +300,18 @@ mod tests {
             }]
         );
         assert_eq!(
-            graph_client.get_multi_routes(2, 5, 31, None).await.unwrap(),
+            graph_client.get_multi_routes(currency1, 2, 5, 31, None).await.unwrap(),
             vec![]
         );
 
         graph_client.tick(2).await.unwrap();
 
         assert_eq!(
-            graph_client.remove_edge(2, 5).await.unwrap(),
+            graph_client.remove_edge(currency1, 2, 5).await.unwrap(),
             Some(CapacityEdge::new((30, 5), ConstRate(1)))
         );
-        assert_eq!(graph_client.remove_node(2).await.unwrap(), false);
-        assert_eq!(graph_client.remove_node(5).await.unwrap(), true);
+        assert_eq!(graph_client.remove_node(currency1, 2).await.unwrap(), false);
+        assert_eq!(graph_client.remove_node(currency1, 5).await.unwrap(), true);
     }
 
     #[test]
@@ -291,3 +321,5 @@ mod tests {
         thread_pool.run(task_create_graph_service_basic(thread_pool.clone()));
     }
 }
+
+// TODO: Add a test for multiple currencies at the same time (Different values for the G type)

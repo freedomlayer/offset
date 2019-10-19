@@ -46,6 +46,9 @@ pub trait CapacityGraph {
     type Capacity; // Directed capacity between two neighboring nodes
     type Rate; // A type for the rate of sending credits along an edge/route.
 
+    /// Create a new empty CapacityGraph
+    fn new() -> Self;
+
     /// Add or update edge
     fn update_edge(
         &mut self,
