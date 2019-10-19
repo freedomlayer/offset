@@ -310,8 +310,8 @@ mod tests {
             graph_client.remove_edge(currency1, 2, 5).await.unwrap(),
             Some(CapacityEdge::new((30, 5), ConstRate(1)))
         );
-        assert_eq!(graph_client.remove_node(currency1, 2).await.unwrap(), false);
-        assert_eq!(graph_client.remove_node(currency1, 5).await.unwrap(), true);
+        graph_client.remove_node(2).await.unwrap();
+        graph_client.remove_node(5).await.unwrap();
     }
 
     #[test]
