@@ -119,8 +119,8 @@ fn check_request_permissions<B>(
         AppRequest::RemoveFriend(_) => app_permissions.config,
         AppRequest::EnableFriend(_) => app_permissions.config,
         AppRequest::DisableFriend(_) => app_permissions.config,
-        AppRequest::OpenFriend(_) => app_permissions.config,
-        AppRequest::CloseFriend(_) => app_permissions.config,
+        AppRequest::OpenFriendCurrency(_) => app_permissions.config,
+        AppRequest::CloseFriendCurrency(_) => app_permissions.config,
         AppRequest::SetFriendCurrencyMaxDebt(_) => app_permissions.config,
         AppRequest::SetFriendCurrencyRate(_) => app_permissions.config,
         AppRequest::SetFriendCurrencies(_) => app_permissions.config,
@@ -463,18 +463,18 @@ where
                 };
                 to_funder!(SetFriendStatus(set_friend_status))
             }
-            OpenFriend(open_friend) => {
+            OpenFriendCurrency(open_friend_currency) => {
                 let set_requests_status = SetRequestsStatus {
-                    friend_public_key: open_friend.friend_public_key,
-                    currency: open_friend.currency,
+                    friend_public_key: open_friend_currency.friend_public_key,
+                    currency: open_friend_currency.currency,
                     status: RequestsStatus::Open,
                 };
                 to_funder!(SetRequestsStatus(set_requests_status))
             }
-            CloseFriend(close_friend) => {
+            CloseFriendCurrency(close_friend_currency) => {
                 let set_requests_status = SetRequestsStatus {
-                    friend_public_key: close_friend.friend_public_key,
-                    currency: close_friend.currency,
+                    friend_public_key: close_friend_currency.friend_public_key,
+                    currency: close_friend_currency.currency,
                     status: RequestsStatus::Closed,
                 };
                 to_funder!(SetRequestsStatus(set_requests_status))
