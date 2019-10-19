@@ -216,6 +216,7 @@ where
     friend_after.mutate(friend_mutation);
     match friend_mutation {
         FriendMutation::TcMutation(_tc_mutation) => {
+            // TODO: Maybe have more delicate mutations as FriendReportMutation?
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);
             let set_last_incoming_move_token = FriendReportMutation::SetOptLastIncomingMoveToken(
