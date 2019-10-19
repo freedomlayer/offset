@@ -21,11 +21,12 @@ extern crate log;
 extern crate common;
 */
 
-// mod backoff_connector;
+#[allow(unused)]
+mod backoff_connector;
 #[allow(unused)]
 mod graph;
 // mod net_server;
 // mod server;
-// mod verifier;
+mod verifier;
 
 // pub use net_server::{net_index_server, NetIndexServerError};
