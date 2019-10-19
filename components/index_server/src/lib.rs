@@ -19,9 +19,7 @@ extern crate log;
 #[macro_use]
 extern crate common;
 
-#[allow(unused)]
 mod backoff_connector;
-#[allow(unused)]
 mod graph;
 mod net_server;
 mod server;

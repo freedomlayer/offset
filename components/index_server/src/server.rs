@@ -687,6 +687,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::convert::TryFrom;
+
     use futures::executor::ThreadPool;
     use futures::task::Spawn;
 
@@ -696,7 +699,8 @@ mod tests {
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};
-    use proto::index_server::messages::RequestRoutes;
+    use proto::index_server::messages::{RequestRoutes, RemoveFriendCurrency};
+    use proto::funder::messages::Currency;
 
     use signature::signature_buff::create_mutations_update_signature_buff;
 
@@ -727,6 +731,7 @@ mod tests {
     where
         S: Spawn + Clone + Send + 'static,
     {
+        let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
         let server_pk = PublicKey::from(&[0; PublicKey::len()]);
 
         let local_public_key = server_pk.clone();
@@ -782,6 +787,7 @@ mod tests {
         let request_id = Uid::from(&[0; Uid::len()]);
         let request_routes = RequestRoutes {
             request_id: request_id.clone(),
+            currency: currency1.clone(),
             capacity: 100,
             source: PublicKey::from(&[8; PublicKey::len()]),
             destination: PublicKey::from(&[9; PublicKey::len()]),
@@ -794,7 +800,8 @@ mod tests {
 
         // Handle the graph request:
         match graph_requests_receiver.next().await.unwrap() {
-            GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(currency, src, dest, capacity, opt_exclude, response_sender) => {
+                assert_eq!(currency, currency1);
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
                 assert_eq!(capacity, 100);
@@ -821,9 +828,10 @@ mod tests {
         };
 
         // Send mutations update to the server:
-        let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(
-            &[11; PublicKey::len()],
-        ))];
+        let index_mutations = vec![IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+            public_key: PublicKey::from(&[11; PublicKey::len()]),
+            currency: currency1.clone(),
+        })];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
@@ -857,7 +865,8 @@ mod tests {
 
         // Handle the graph request:
         match graph_requests_receiver.next().await.unwrap() {
-            GraphRequest::RemoveEdge(src, dest, response_sender) => {
+            GraphRequest::RemoveEdge(currency, src, dest, response_sender) => {
+                assert_eq!(currency, currency1);
                 assert_eq!(src, client_public_key);
                 assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
                 response_sender.send(None).unwrap();
@@ -880,7 +889,7 @@ mod tests {
         tick_sender: mpsc::Sender<()>,
         server_connections_sender: mpsc::Sender<(PublicKey, ServerConn)>,
         client_connections_sender: mpsc::Sender<(PublicKey, ClientConn)>,
-        graph_requests_receiver: mpsc::Receiver<GraphRequest<PublicKey, u128, Rate>>,
+        graph_requests_receiver: mpsc::Receiver<GraphRequest<Currency, PublicKey, u128, Rate>>,
         server_conn_request_receiver:
             mpsc::Receiver<ConnRequest<(PublicKey, u8), Option<ServerConn>>>,
         debug_event_receiver: mpsc::Receiver<()>,
@@ -997,6 +1006,8 @@ mod tests {
          *    2 -- 3 -- 4
          */
 
+        let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+
         let mut test_servers = Vec::new();
         test_servers.push(create_test_server(0, &[1, 2], spawner.clone()));
         test_servers.push(create_test_server(1, &[0, 3], spawner.clone()));
@@ -1064,6 +1075,7 @@ mod tests {
         let request_id = Uid::from(&[0; Uid::len()]);
         let request_routes = RequestRoutes {
             request_id: request_id.clone(),
+            currency: currency1.clone(),
             capacity: 100,
             source: PublicKey::from(&[8; PublicKey::len()]),
             destination: PublicKey::from(&[9; PublicKey::len()]),
@@ -1081,7 +1093,8 @@ mod tests {
             .await
             .unwrap()
         {
-            GraphRequest::GetMultiRoutes(src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(currency, src, dest, capacity, opt_exclude, response_sender) => {
+                assert_eq!(currency, currency1);
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
                 assert_eq!(capacity, 100);
@@ -1113,9 +1126,10 @@ mod tests {
         };
 
         // Send mutations update to the server:
-        let index_mutations = vec![IndexMutation::RemoveFriend(PublicKey::from(
-            &[11; PublicKey::len()],
-        ))];
+        let index_mutations = vec![IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+            public_key: PublicKey::from(&[11; PublicKey::len()]),
+            currency: currency1.clone(),
+        })];
 
         let mut mutations_update = MutationsUpdate {
             node_public_key: client_public_key.clone(),
@@ -1160,7 +1174,8 @@ mod tests {
                     .await
                     .unwrap()
                 {
-                    GraphRequest::RemoveEdge(src, dest, response_sender) => {
+                    GraphRequest::RemoveEdge(currency, src, dest, response_sender) => {
+                        assert_eq!(currency, currency1);
                         assert_eq!(src, client_public_key);
                         assert_eq!(dest, PublicKey::from(&[11; PublicKey::len()]));
                         response_sender.send(None).unwrap();

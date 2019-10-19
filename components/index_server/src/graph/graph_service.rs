@@ -59,7 +59,7 @@ where
             }
         }
         GraphRequest::RemoveNode(a, sender) => {
-            capacity_graphs.retain(|g, capacity_graph| {
+            capacity_graphs.retain(|_g, capacity_graph| {
                 capacity_graph.remove_node(&a)
             });
             let _ = sender.send(());
