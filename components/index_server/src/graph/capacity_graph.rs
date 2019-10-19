@@ -22,7 +22,6 @@ pub struct CapacityEdge<C, T> {
     pub rate: T,
 }
 
-#[allow(unused)]
 impl<C, T> CapacityEdge<C, T> {
     pub fn new(capacity: CapacityPair<C>, rate: T) -> Self {
         Self { capacity, rate }
@@ -66,7 +65,7 @@ pub trait CapacityGraph {
 
     /// Remove a node and all related edges known from him.
     /// Note: This method will not remove an edge from another node b pointing to a.
-    /// Returns true if the node `a` was present, false otherwise
+    /// Returns true if the CapacityGraph is now empty
     fn remove_node(&mut self, a: &Self::Node) -> bool;
 
     /// Get a multi routes with capacity at least `capacity`.

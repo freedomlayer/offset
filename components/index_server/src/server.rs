@@ -17,7 +17,7 @@ use proto::index_server::messages::{
     TimeProofLink,
 };
 
-use proto::funder::messages::{FriendsRoute, Rate};
+use proto::funder::messages::{FriendsRoute, Rate, Currency};
 
 use signature::verify::verify_mutations_update;
 
@@ -114,7 +114,7 @@ struct RemoteServer<A> {
 struct IndexServer<A, S, SC, V, CMP> {
     local_public_key: PublicKey,
     server_connector: SC,
-    graph_client: GraphClient<PublicKey, u128, Rate>,
+    graph_client: GraphClient<Currency, PublicKey, u128, Rate>,
     verifier: V,
     compare_public_key: CMP,
     remote_servers: HashMap<PublicKey, RemoteServer<A>>,
@@ -168,7 +168,7 @@ where
         local_public_key: PublicKey,
         trusted_servers: HashMap<PublicKey, A>,
         server_connector: SC,
-        graph_client: GraphClient<PublicKey, u128, Rate>,
+        graph_client: GraphClient<Currency, PublicKey, u128, Rate>,
         compare_public_key: CMP,
         verifier: V,
         event_sender: mpsc::Sender<IndexServerEvent>,
@@ -320,33 +320,36 @@ where
         // Apply mutations:
         for index_mutation in &mutations_update.index_mutations {
             match index_mutation {
-                IndexMutation::UpdateFriend(update_friend) => {
+                IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
                     info!(
-                        "pk: {}, send: {}, recv: {}, rate: {:?}",
-                        update_friend.public_key[0],
-                        update_friend.send_capacity,
-                        update_friend.recv_capacity,
-                        update_friend.rate,
+                        "pk: {}, currency: {}, send: {}, recv: {}, rate: {:?}",
+                        update_friend_currency.public_key[0],
+                        update_friend_currency.currency,
+                        update_friend_currency.send_capacity,
+                        update_friend_currency.recv_capacity,
+                        update_friend_currency.rate,
                     );
 
                     let capacity_edge = CapacityEdge {
-                        capacity: (update_friend.send_capacity, update_friend.recv_capacity),
-                        rate: update_friend.rate.clone(),
+                        capacity: (update_friend_currency.send_capacity, update_friend_currency.recv_capacity),
+                        rate: update_friend_currency.rate.clone(),
                     };
 
                     self.graph_client
                         .update_edge(
+                            update_friend_currency.currency.clone(),
                             mutations_update.node_public_key.clone(),
-                            update_friend.public_key.clone(),
+                            update_friend_currency.public_key.clone(),
                             capacity_edge,
                         )
                         .await?;
                 }
-                IndexMutation::RemoveFriend(friend_public_key) => {
+                IndexMutation::RemoveFriendCurrency(remove_friend_currency) => {
                     self.graph_client
                         .remove_edge(
+                            remove_friend_currency.currency.clone(),
                             mutations_update.node_public_key.clone(),
-                            friend_public_key.clone(),
+                            remove_friend_currency.public_key.clone(),
                         )
                         .await?;
                 }
@@ -406,7 +409,7 @@ where
 }
 
 async fn client_handler(
-    mut graph_client: GraphClient<PublicKey, u128, Rate>,
+    mut graph_client: GraphClient<Currency, PublicKey, u128, Rate>,
     _public_key: PublicKey, // TODO: unused?
     client_conn: ClientConn,
     mut event_sender: mpsc::Sender<IndexServerEvent>,
@@ -429,6 +432,7 @@ async fn client_handler(
 
                 let graph_multi_routes = graph_client
                     .get_multi_routes(
+                        request_routes.currency.clone(),
                         request_routes.source.clone(),
                         request_routes.destination.clone(),
                         request_routes.capacity,
@@ -473,7 +477,7 @@ pub async fn server_loop<A, IS, IC, SC, CMP, V, TS, S>(
     incoming_server_connections: IS,
     incoming_client_connections: IC,
     server_connector: SC,
-    graph_client: GraphClient<PublicKey, u128, Rate>,
+    graph_client: GraphClient<Currency, PublicKey, u128, Rate>,
     compare_public_key: CMP,
     verifier: V,
     timer_stream: TS,

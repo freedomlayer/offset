@@ -20,7 +20,7 @@ pub enum GraphRequest<G, N, C, T> {
     RemoveEdge(G, N, N, oneshot::Sender<Option<CapacityEdge<C, T>>>),
     /// Remove a node and all edges starting from this node.
     /// Note: This will not remove edges going to this node.
-    RemoveNode(G, N, oneshot::Sender<bool>),
+    RemoveNode(N, oneshot::Sender<()>),
     /// Get some routes from one node to another of at least certain capacity.
     /// If an exclude directed edge is provided, the routes must not contain this directed edge.
     GetMultiRoutes(
@@ -58,10 +58,11 @@ where
                 let _ = sender.send(capacity_graph.remove_edge(&a, &b));
             }
         }
-        GraphRequest::RemoveNode(g, a, sender) => {
-            if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
-                let _ = sender.send(capacity_graph.remove_node(&a));
-            }
+        GraphRequest::RemoveNode(a, sender) => {
+            capacity_graphs.retain(|g, capacity_graph| {
+                capacity_graph.remove_node(&a)
+            });
+            let _ = sender.send(());
         }
         GraphRequest::GetMultiRoutes(g, a, b, capacity, opt_exclude, sender) => {
             let routes = if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
@@ -172,16 +173,15 @@ impl<G, N, C, T> GraphClient<G, N, C, T> {
         Ok(receiver.await?)
     }
 
-    // TODO: Maybe we need to remove the node from all the graphs in this case?
-    // This would mean the `g` argument is not required here.
     /// Remove a node and all related edges known from him.
     /// Note: This method will not remove an edge from another node b pointing to a.
-    /// Returns true if the node `a` was present, false otherwise
-    pub async fn remove_node(&mut self, g: G, a: N) -> Result<bool, GraphClientError> {
+    pub async fn remove_node(&mut self, a: N) -> Result<(), GraphClientError> {
         let (sender, receiver) = oneshot::channel();
+
         self.requests_sender
-            .send(GraphRequest::RemoveNode(g, a, sender))
+            .send(GraphRequest::RemoveNode(a, sender))
             .await?;
+
         Ok(receiver.await?)
     }
 

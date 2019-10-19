@@ -240,8 +240,10 @@ where
 
     /// Remove a node and all related edges known from him.
     /// Note: This method will not remove an edge from another node b pointing to a.
+    /// Returns true if the SimpleCapacityGraph is now empty.
     fn remove_node(&mut self, a: &N) -> bool {
-        self.nodes.remove(a).is_some()
+        let _ = self.nodes.remove(a);
+        self.nodes.is_empty()
     }
 
     fn get_multi_routes(
