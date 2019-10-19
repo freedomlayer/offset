@@ -123,6 +123,7 @@ fn check_request_permissions<B>(
         AppRequest::CloseFriend(_) => app_permissions.config,
         AppRequest::SetFriendRemoteMaxDebt(_) => app_permissions.config,
         AppRequest::SetFriendRate(_) => app_permissions.config,
+        AppRequest::SetFriendCurrencies(_) => app_permissions.config,
         AppRequest::ResetFriendChannel(_) => app_permissions.config,
         AppRequest::RequestRoutes(_) => app_permissions.routes,
         AppRequest::AddIndexServer(_) => app_permissions.config,
@@ -257,14 +258,12 @@ where
                 for funder_report_mutation in &funder_report_mutations.mutations {
                     // Transform the funder report mutation to index mutations
                     // and send it to IndexClient
-                    let opt_index_mutation = funder_report_mutation_to_index_mutation(
+                    let res_index_mutations = funder_report_mutation_to_index_mutation(
                         &self.node_report.funder_report,
                         funder_report_mutation,
                     );
-
-                    if let Some(index_mutation) = opt_index_mutation {
-                        index_mutations.push(index_mutation);
-                    }
+                    
+                    index_mutations.extend(res_index_mutations);
                 }
 
                 // Send index mutations:
@@ -438,6 +437,7 @@ where
             SetFriendName(x) => to_funder!(SetFriendName(x)),
             SetFriendRemoteMaxDebt(x) => to_funder!(SetFriendRemoteMaxDebt(x)),
             SetFriendRate(x) => to_funder!(SetFriendRate(x)),
+            SetFriendCurrencies(x) => to_funder!(SetFriendCurrencies(x)),
             ResetFriendChannel(x) => to_funder!(ResetFriendChannel(x)),
             CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
@@ -463,16 +463,18 @@ where
                 };
                 to_funder!(SetFriendStatus(set_friend_status))
             }
-            OpenFriend(friend_public_key) => {
+            OpenFriend(open_friend) => {
                 let set_requests_status = SetRequestsStatus {
-                    friend_public_key,
+                    friend_public_key: open_friend.friend_public_key,
+                    currency: open_friend.currency,
                     status: RequestsStatus::Open,
                 };
                 to_funder!(SetRequestsStatus(set_requests_status))
             }
-            CloseFriend(friend_public_key) => {
+            CloseFriend(close_friend) => {
                 let set_requests_status = SetRequestsStatus {
-                    friend_public_key,
+                    friend_public_key: close_friend.friend_public_key,
+                    currency: close_friend.currency,
                     status: RequestsStatus::Closed,
                 };
                 to_funder!(SetRequestsStatus(set_requests_status))
