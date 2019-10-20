@@ -101,6 +101,8 @@ struct CurrencyReport {
 
 struct ResetTermsReport {
         resetToken @0: Signature;
+        # TODO: Possibly do not expose resetToken to the user? Instead, have
+        # here a some binary blob?
         balanceForReset @1: List(CurrencyBalance);
         # List of expected balance for each currency
 }
@@ -141,6 +143,8 @@ struct FriendReport {
         name @0: Text;
         rates @1: List(CurrencyRate);
         remoteRelays @2: List(RelayAddress);
+        # TODO: Not sure if we should keep this field.
+        # Is the user actually going to use remoteRelays? Maybe to export a friend?
         optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
         liveness @4: FriendLivenessReport;
         channelStatus @5: ChannelStatusReport;
@@ -231,6 +235,9 @@ struct IndexClientReportMutation {
 ############################################################################
 ##### Node report
 ############################################################################
+
+# TODO: Possibly add reports for the liveness of our relays (From the
+# Channeler?)
 
 struct NodeReport {
         funderReport @0: FunderReport;
