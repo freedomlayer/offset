@@ -161,9 +161,6 @@ struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(NamedRelayAddress);
         friends @2: PkFriendReportList;
-        numOpenInvoices @3: UInt64;
-        numPayments @4: UInt64;
-        numOpenTransactions @5: UInt64;
 }
 
 
