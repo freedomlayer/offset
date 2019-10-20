@@ -150,7 +150,13 @@ where
     }
 
     // Push update mutations:
-    for ((public_key, currency), friend_info) in new_friends_info {
+    for (public_key_currency, friend_info) in new_friends_info {
+        if let Some(old_friend_info) = old_friends_info.get(&public_key_currency) {
+            if old_friend_info == &friend_info {
+                continue;
+            }
+        }
+        let (public_key, currency) = public_key_currency;
         res_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
             public_key,
             currency,
@@ -340,6 +346,7 @@ mod tests {
         let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
         let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
         let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
+        let currency4 = Currency::try_from("FST4".to_owned()).unwrap();
 
         let pk1 = PublicKey::from(&[1; PublicKey::len()]);
         let pk2 = PublicKey::from(&[2; PublicKey::len()]);
@@ -386,6 +393,22 @@ mod tests {
                                 },
                                 requests_status: McRequestsStatusReport {
                                     local: RequestsStatusReport::Closed,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency4.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 30,
+                                    remote_max_debt: 40,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
                                     remote: RequestsStatusReport::Open,
                                 },
                                 num_local_pending_requests: 0,
@@ -448,6 +471,22 @@ mod tests {
                                     remote_max_debt: 200,
                                     local_pending_debt: 10,
                                     remote_pending_debt: 30,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency4.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 30,
+                                    remote_max_debt: 40,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
                                 },
                                 requests_status: McRequestsStatusReport {
                                     local: RequestsStatusReport::Open,
