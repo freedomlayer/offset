@@ -325,7 +325,6 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
             node_public_key(1),
             vec![relay_address(1)],
             String::from("node1"),
-            // 100,
         )
         .await
         .unwrap();
@@ -336,7 +335,6 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
             node_public_key(0),
             vec![relay_address(0)],
             String::from("node0"),
-            // -100,
         )
         .await
         .unwrap();
