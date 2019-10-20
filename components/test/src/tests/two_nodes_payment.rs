@@ -402,9 +402,34 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     config0.open_friend_currency(node_public_key(1), currency1.clone()).await.unwrap();
     config1.open_friend_currency(node_public_key(0), currency1.clone()).await.unwrap();
 
+    config1.open_friend_currency(node_public_key(0), currency2.clone()).await.unwrap();
+    config0.open_friend_currency(node_public_key(1), currency2.clone()).await.unwrap();
+
     // Wait some time, to let the index servers exchange information:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
+    /*
+    // Node0 allows node1 to have maximum debt of 100
+    config0
+        .set_friend_currency_max_debt(node_public_key(1), currency1.clone(), 100)
+        .await
+        .unwrap();
+    */
+    // Node1 allows node0 to have maximum debt of 10
+    config1
+        .set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10)
+        .await
+        .unwrap();
+
+    config1
+        .set_friend_currency_max_debt(node_public_key(0), currency2.clone(), 15)
+        .await
+        .unwrap();
+
+    // Wait until the max debt was set:
+    advance_time(40, &mut tick_sender, &test_executor).await;
+
+    // Send 10 currency1 credits from node0 to node1:
     let payment_status = make_test_payment(
         &mut buyer0,
         &mut seller1,
@@ -424,12 +449,28 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         unreachable!();
     };
 
-    // Node0 allows node1 to have maximum debt of 100
-    // (This should allow to node1 to pay back).
-    config0
-        .set_friend_currency_max_debt(node_public_key(1), currency1.clone(), 100)
-        .await
-        .unwrap();
+    // Allow some time for the index servers to be updated about the new state:
+    advance_time(40, &mut tick_sender, &test_executor).await;
+
+    // Send 11 currency2 credits from node0 to node1:
+    let payment_status = make_test_payment(
+        &mut buyer0,
+        &mut seller1,
+        &mut routes0,
+        node_public_key(0),
+        node_public_key(1),
+        currency2.clone(),
+        9u128, // total_dest_payment
+        2u128, // fees
+        tick_sender.clone(),
+        test_executor.clone(),
+    )
+    .await;
+
+    if let PaymentStatus::Success(_) = payment_status {
+    } else {
+        unreachable!();
+    };
 
     // Allow some time for the index servers to be updated about the new state:
     advance_time(40, &mut tick_sender, &test_executor).await;
