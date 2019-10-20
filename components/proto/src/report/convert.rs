@@ -175,4 +175,324 @@ where
     calc_index_mutations(funder_report, &new_funder_report)
 }
 
-// TODO: Add tests.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::report::messages::{
+        ChannelConsistentReport, CurrencyRate, CurrencyReport, DirectionReport, McBalanceReport,
+        McRequestsStatusReport, RequestsStatusReport, SentLocalRelaysReport, TcReport,
+    };
+    use std::convert::TryFrom;
+
+    #[test]
+    fn test_calc_friends_info() {
+        let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+        let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
+        let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
+
+        let pk1 = PublicKey::from(&[1; PublicKey::len()]);
+        let pk2 = PublicKey::from(&[2; PublicKey::len()]);
+        let pk3 = PublicKey::from(&[3; PublicKey::len()]);
+
+        let mut friends = HashMap::new();
+        friends.insert(
+            pk2.clone(),
+            FriendReport::<u32> {
+                name: "friend_name".to_owned(),
+                rates: vec![CurrencyRate {
+                    currency: currency3.clone(),
+                    rate: Rate { mul: 1, add: 10 },
+                }],
+                remote_relays: vec![],
+                sent_local_relays: SentLocalRelaysReport::NeverSent,
+                opt_last_incoming_move_token: None,
+                liveness: FriendLivenessReport::Online,
+                channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
+                    tc_report: TcReport {
+                        direction: DirectionReport::Incoming,
+                        currency_reports: vec![
+                            CurrencyReport {
+                                currency: currency1.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency2.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Closed,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency3.clone(),
+                                balance: McBalanceReport {
+                                    balance: 50,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 10,
+                                    remote_pending_debt: 30,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                        ],
+                    },
+                }),
+                status: FriendStatusReport::Enabled,
+            },
+        );
+
+        friends.insert(
+            pk3.clone(),
+            FriendReport::<u32> {
+                name: "friend_name".to_owned(),
+                rates: vec![CurrencyRate {
+                    currency: currency1.clone(),
+                    rate: Rate { mul: 2, add: 2 },
+                }],
+                remote_relays: vec![],
+                sent_local_relays: SentLocalRelaysReport::NeverSent,
+                opt_last_incoming_move_token: None,
+                liveness: FriendLivenessReport::Online,
+                channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
+                    tc_report: TcReport {
+                        direction: DirectionReport::Incoming,
+                        currency_reports: vec![CurrencyReport {
+                            currency: currency1.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
+                            },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
+                            },
+                            num_local_pending_requests: 0,
+                            num_remote_pending_requests: 0,
+                        }],
+                    },
+                }),
+                status: FriendStatusReport::Enabled,
+            },
+        );
+        let funder_report = FunderReport {
+            local_public_key: pk1.clone(),
+            relays: Vec::new(),
+            friends,
+            num_open_invoices: 0,
+            num_payments: 0,
+            num_open_transactions: 0,
+        };
+        let friends_info: HashMap<(PublicKey, Currency), FriendInfo> =
+            calc_friends_info(&funder_report).collect();
+
+        let friend_info = friends_info.get(&(pk2.clone(), currency1.clone())).unwrap();
+        assert_eq!(friend_info.send_capacity, 100);
+        assert_eq!(friend_info.recv_capacity, 200);
+        assert_eq!(friend_info.rate, Rate::new());
+
+        let friend_info = friends_info.get(&(pk2.clone(), currency2.clone())).unwrap();
+        assert_eq!(friend_info.send_capacity, 100);
+        assert_eq!(friend_info.recv_capacity, 0);
+        assert_eq!(friend_info.rate, Rate::new());
+
+        let friend_info = friends_info.get(&(pk2.clone(), currency3.clone())).unwrap();
+        assert_eq!(friend_info.send_capacity, 140);
+        assert_eq!(friend_info.recv_capacity, 120);
+        assert_eq!(friend_info.rate, Rate { mul: 1, add: 10 });
+
+        let friend_info = friends_info.get(&(pk3.clone(), currency1.clone())).unwrap();
+        assert_eq!(friend_info.send_capacity, 100);
+        assert_eq!(friend_info.recv_capacity, 200);
+        assert_eq!(friend_info.rate, Rate { mul: 2, add: 2 });
+    }
+
+    #[test]
+    fn test_calc_index_mutations() {
+        let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+        let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
+        let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
+
+        let pk1 = PublicKey::from(&[1; PublicKey::len()]);
+        let pk2 = PublicKey::from(&[2; PublicKey::len()]);
+        let _pk3 = PublicKey::from(&[3; PublicKey::len()]);
+
+        let mut friends = HashMap::new();
+        friends.insert(
+            pk2.clone(),
+            FriendReport::<u32> {
+                name: "friend_name".to_owned(),
+                rates: vec![],
+                remote_relays: vec![],
+                sent_local_relays: SentLocalRelaysReport::NeverSent,
+                opt_last_incoming_move_token: None,
+                liveness: FriendLivenessReport::Online,
+                channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
+                    tc_report: TcReport {
+                        direction: DirectionReport::Incoming,
+                        currency_reports: vec![
+                            CurrencyReport {
+                                currency: currency1.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency2.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Closed,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                        ],
+                    },
+                }),
+                status: FriendStatusReport::Enabled,
+            },
+        );
+
+        let old_funder_report = FunderReport {
+            local_public_key: pk1.clone(),
+            relays: Vec::new(),
+            friends,
+            num_open_invoices: 0,
+            num_payments: 0,
+            num_open_transactions: 0,
+        };
+
+        let mut friends = HashMap::new();
+        friends.insert(
+            pk2.clone(),
+            FriendReport::<u32> {
+                name: "friend_name".to_owned(),
+                rates: vec![CurrencyRate {
+                    currency: currency3.clone(),
+                    rate: Rate { mul: 1, add: 10 },
+                }],
+                remote_relays: vec![],
+                sent_local_relays: SentLocalRelaysReport::NeverSent,
+                opt_last_incoming_move_token: None,
+                liveness: FriendLivenessReport::Online,
+                channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
+                    tc_report: TcReport {
+                        direction: DirectionReport::Incoming,
+                        currency_reports: vec![
+                            CurrencyReport {
+                                currency: currency1.clone(),
+                                balance: McBalanceReport {
+                                    balance: 0,
+                                    local_max_debt: 50,
+                                    remote_max_debt: 300,
+                                    local_pending_debt: 0,
+                                    remote_pending_debt: 0,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                            CurrencyReport {
+                                currency: currency3.clone(),
+                                balance: McBalanceReport {
+                                    balance: 50,
+                                    local_max_debt: 100,
+                                    remote_max_debt: 200,
+                                    local_pending_debt: 10,
+                                    remote_pending_debt: 30,
+                                },
+                                requests_status: McRequestsStatusReport {
+                                    local: RequestsStatusReport::Open,
+                                    remote: RequestsStatusReport::Open,
+                                },
+                                num_local_pending_requests: 0,
+                                num_remote_pending_requests: 0,
+                            },
+                        ],
+                    },
+                }),
+                status: FriendStatusReport::Enabled,
+            },
+        );
+        let new_funder_report = FunderReport {
+            local_public_key: pk1.clone(),
+            relays: Vec::new(),
+            friends,
+            num_open_invoices: 0,
+            num_payments: 0,
+            num_open_transactions: 0,
+        };
+
+        let index_mutations = calc_index_mutations(&old_funder_report, &new_funder_report);
+        assert_eq!(index_mutations.len(), 3);
+        for index_mutation in index_mutations {
+            match index_mutation {
+                IndexMutation::RemoveFriendCurrency(remove_friend_currency) => {
+                    assert_eq!(remove_friend_currency.public_key, pk2);
+                    assert_eq!(remove_friend_currency.currency, currency2);
+                }
+                IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
+                    if update_friend_currency.currency == currency3 {
+                        assert_eq!(update_friend_currency.public_key, pk2);
+                        assert_eq!(update_friend_currency.send_capacity, 140);
+                        assert_eq!(update_friend_currency.recv_capacity, 120);
+                        assert_eq!(update_friend_currency.rate, Rate { mul: 1, add: 10 });
+                    } else {
+                        assert_eq!(update_friend_currency.public_key, pk2);
+                        assert_eq!(update_friend_currency.send_capacity, 50);
+                        assert_eq!(update_friend_currency.recv_capacity, 300);
+                        assert_eq!(update_friend_currency.rate, Rate::new());
+                    }
+                }
+            }
+        }
+    }
+}
