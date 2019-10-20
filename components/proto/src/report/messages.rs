@@ -26,21 +26,6 @@ pub struct MoveTokenHashedReport {
     pub new_token: Signature,
 }
 
-#[capnp_conv(crate::report_capnp::relays_transition_report)]
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct RelaysTransitionReport<B = NetAddress> {
-    pub last_sent: Vec<NamedRelayAddress<B>>,
-    pub before_last_sent: Vec<NamedRelayAddress<B>>,
-}
-
-#[capnp_conv(crate::report_capnp::sent_local_relays_report)]
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalRelaysReport<B = NetAddress> {
-    NeverSent,
-    Transition(RelaysTransitionReport<B>),
-    LastSent(Vec<NamedRelayAddress<B>>),
-}
-
 #[capnp_conv(crate::report_capnp::friend_status_report)]
 #[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
@@ -85,31 +70,6 @@ pub struct McBalanceReport {
     pub remote_pending_debt: u128,
 }
 
-#[capnp_conv(crate::report_capnp::direction_report)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DirectionReport {
-    Incoming,
-    Outgoing,
-}
-
-impl DirectionReport {
-    pub fn is_incoming(&self) -> bool {
-        if let DirectionReport::Incoming = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_outgoing(&self) -> bool {
-        if let DirectionReport::Outgoing = self {
-            true
-        } else {
-            false
-        }
-    }
-}
-
 #[capnp_conv(crate::report_capnp::friend_liveness_report)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
@@ -135,12 +95,13 @@ pub struct CurrencyReport {
     pub requests_status: McRequestsStatusReport,
 }
 
+/*
 #[capnp_conv(crate::report_capnp::tc_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TcReport {
-    pub direction: DirectionReport,
     pub currency_reports: Vec<CurrencyReport>,
 }
+*/
 
 #[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -186,7 +147,7 @@ pub struct ChannelInconsistentReport {
 #[capnp_conv(crate::report_capnp::channel_consistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelConsistentReport {
-    pub tc_report: TcReport,
+    pub currency_reports: Vec<CurrencyReport>,
 }
 
 #[capnp_conv(crate::report_capnp::channel_status_report)]
@@ -240,7 +201,6 @@ pub struct FriendReport<B = NetAddress> {
     pub name: String,
     pub rates: Vec<CurrencyRate>,
     pub remote_relays: Vec<RelayAddress<B>>,
-    pub sent_local_relays: SentLocalRelaysReport<B>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
     #[capnp_conv(with = OptLastIncomingMoveToken)]
@@ -315,7 +275,6 @@ pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
     SetRate(CurrencyRate),
-    SetSentLocalRelays(SentLocalRelaysReport<B>),
     SetChannelStatus(ChannelStatusReport),
     SetStatus(FriendStatusReport),
     #[capnp_conv(with = OptLastIncomingMoveToken)]
@@ -431,9 +390,6 @@ where
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
             }
-            FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) => {
-                self.sent_local_relays = sent_local_relays_report.clone();
-            }
             FriendReportMutation::SetChannelStatus(channel_status_report) => {
                 self.channel_status = channel_status_report.clone();
             }
@@ -480,7 +436,6 @@ where
                     name: add_friend_report.name.clone(),
                     rates: Vec::new(),
                     remote_relays: add_friend_report.relays.clone(),
-                    sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report
                         .opt_last_incoming_move_token
                         .clone(),

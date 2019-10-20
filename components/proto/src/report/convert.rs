@@ -37,14 +37,12 @@ where
         // return (0, 0);
     }
 
-    let tc_report = match &friend_report.channel_status {
+    let channel_consistent_report = match &friend_report.channel_status {
         ChannelStatusReport::Inconsistent(_) => return HashMap::new(),
-        ChannelStatusReport::Consistent(channel_consistent_report) => {
-            &channel_consistent_report.tc_report
-        }
+        ChannelStatusReport::Consistent(channel_consistent_report) => channel_consistent_report,
     };
 
-    tc_report
+    channel_consistent_report
         .currency_reports
         .iter()
         .map(|currency_report| {
@@ -186,8 +184,8 @@ mod tests {
     use super::*;
 
     use crate::report::messages::{
-        ChannelConsistentReport, CurrencyRate, CurrencyReport, DirectionReport, McBalanceReport,
-        McRequestsStatusReport, RequestsStatusReport, SentLocalRelaysReport, TcReport,
+        ChannelConsistentReport, CurrencyRate, CurrencyReport, McBalanceReport,
+        McRequestsStatusReport, RequestsStatusReport,
     };
     use std::convert::TryFrom;
 
@@ -211,57 +209,53 @@ mod tests {
                     rate: Rate { mul: 1, add: 10 },
                 }],
                 remote_relays: vec![],
-                sent_local_relays: SentLocalRelaysReport::NeverSent,
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
                 channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
-                    tc_report: TcReport {
-                        direction: DirectionReport::Incoming,
-                        currency_reports: vec![
-                            CurrencyReport {
-                                currency: currency1.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                    currency_reports: vec![
+                        CurrencyReport {
+                            currency: currency1.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
-                            CurrencyReport {
-                                currency: currency2.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Closed,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
                             },
-                            CurrencyReport {
-                                currency: currency3.clone(),
-                                balance: McBalanceReport {
-                                    balance: 50,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 10,
-                                    remote_pending_debt: 30,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                        },
+                        CurrencyReport {
+                            currency: currency2.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
-                        ],
-                    },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Closed,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                        CurrencyReport {
+                            currency: currency3.clone(),
+                            balance: McBalanceReport {
+                                balance: 50,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 10,
+                                remote_pending_debt: 30,
+                            },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                    ],
                 }),
                 status: FriendStatusReport::Enabled,
             },
@@ -276,27 +270,23 @@ mod tests {
                     rate: Rate { mul: 2, add: 2 },
                 }],
                 remote_relays: vec![],
-                sent_local_relays: SentLocalRelaysReport::NeverSent,
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
                 channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
-                    tc_report: TcReport {
-                        direction: DirectionReport::Incoming,
-                        currency_reports: vec![CurrencyReport {
-                            currency: currency1.clone(),
-                            balance: McBalanceReport {
-                                balance: 0,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
-                                local_pending_debt: 0,
-                                remote_pending_debt: 0,
-                            },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
-                            },
-                        }],
-                    },
+                    currency_reports: vec![CurrencyReport {
+                        currency: currency1.clone(),
+                        balance: McBalanceReport {
+                            balance: 0,
+                            local_max_debt: 100,
+                            remote_max_debt: 200,
+                            local_pending_debt: 0,
+                            remote_pending_debt: 0,
+                        },
+                        requests_status: McRequestsStatusReport {
+                            local: RequestsStatusReport::Open,
+                            remote: RequestsStatusReport::Open,
+                        },
+                    }],
                 }),
                 status: FriendStatusReport::Enabled,
             },
@@ -348,57 +338,53 @@ mod tests {
                 name: "friend_name".to_owned(),
                 rates: vec![],
                 remote_relays: vec![],
-                sent_local_relays: SentLocalRelaysReport::NeverSent,
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
                 channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
-                    tc_report: TcReport {
-                        direction: DirectionReport::Incoming,
-                        currency_reports: vec![
-                            CurrencyReport {
-                                currency: currency1.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                    currency_reports: vec![
+                        CurrencyReport {
+                            currency: currency1.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
-                            CurrencyReport {
-                                currency: currency2.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Closed,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
                             },
-                            CurrencyReport {
-                                currency: currency4.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 30,
-                                    remote_max_debt: 40,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                        },
+                        CurrencyReport {
+                            currency: currency2.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
-                        ],
-                    },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Closed,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                        CurrencyReport {
+                            currency: currency4.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 30,
+                                remote_max_debt: 40,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
+                            },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                    ],
                 }),
                 status: FriendStatusReport::Enabled,
             },
@@ -420,57 +406,53 @@ mod tests {
                     rate: Rate { mul: 1, add: 10 },
                 }],
                 remote_relays: vec![],
-                sent_local_relays: SentLocalRelaysReport::NeverSent,
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
                 channel_status: ChannelStatusReport::Consistent(ChannelConsistentReport {
-                    tc_report: TcReport {
-                        direction: DirectionReport::Incoming,
-                        currency_reports: vec![
-                            CurrencyReport {
-                                currency: currency1.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 50,
-                                    remote_max_debt: 300,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                    currency_reports: vec![
+                        CurrencyReport {
+                            currency: currency1.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 50,
+                                remote_max_debt: 300,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
-                            CurrencyReport {
-                                currency: currency3.clone(),
-                                balance: McBalanceReport {
-                                    balance: 50,
-                                    local_max_debt: 100,
-                                    remote_max_debt: 200,
-                                    local_pending_debt: 10,
-                                    remote_pending_debt: 30,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
                             },
-                            CurrencyReport {
-                                currency: currency4.clone(),
-                                balance: McBalanceReport {
-                                    balance: 0,
-                                    local_max_debt: 30,
-                                    remote_max_debt: 40,
-                                    local_pending_debt: 0,
-                                    remote_pending_debt: 0,
-                                },
-                                requests_status: McRequestsStatusReport {
-                                    local: RequestsStatusReport::Open,
-                                    remote: RequestsStatusReport::Open,
-                                },
+                        },
+                        CurrencyReport {
+                            currency: currency3.clone(),
+                            balance: McBalanceReport {
+                                balance: 50,
+                                local_max_debt: 100,
+                                remote_max_debt: 200,
+                                local_pending_debt: 10,
+                                remote_pending_debt: 30,
                             },
-                        ],
-                    },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                        CurrencyReport {
+                            currency: currency4.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_max_debt: 30,
+                                remote_max_debt: 40,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
+                            },
+                            requests_status: McRequestsStatusReport {
+                                local: RequestsStatusReport::Open,
+                                remote: RequestsStatusReport::Open,
+                            },
+                        },
+                    ],
                 }),
                 status: FriendStatusReport::Enabled,
             },

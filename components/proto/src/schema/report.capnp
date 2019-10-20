@@ -74,13 +74,6 @@ struct FriendLivenessReport {
         }
 }
 
-struct DirectionReport {
-        union {
-                incoming @0: Void;
-                outgoing @1: Void;
-        }
-}
-
 struct McRequestsStatusReport {
         local @0: RequestsStatusReport;
         remote @1: RequestsStatusReport;
@@ -106,11 +99,6 @@ struct CurrencyReport {
         requestsStatus @2: McRequestsStatusReport;
 }
 
-struct TcReport {
-        direction @0: DirectionReport;
-        currencyReports @1: List(CurrencyReport);
-}
-
 struct ResetTermsReport {
         resetToken @0: Signature;
         balanceForReset @1: List(CurrencyBalance);
@@ -126,10 +114,7 @@ struct ChannelInconsistentReport {
 }
 
 struct ChannelConsistentReport {
-        tcReport @0: TcReport;
-        numPendingRequests @1: UInt64;
-        numPendingBackwardsOps @2: UInt64;
-        numPendingUserRequests @3: UInt64;
+        currencyReports @0: List(CurrencyReport);
 }
 
 
@@ -147,19 +132,6 @@ struct OptLastIncomingMoveToken {
         }
 }
 
-struct RelaysTransitionReport {
-        lastSent @0: List(NamedRelayAddress);
-        beforeLastSent @1: List(NamedRelayAddress);
-}
-
-struct SentLocalRelaysReport {
-        union {
-                neverSent @0: Void;
-                transition @1: RelaysTransitionReport;
-                lastSent @2: List(NamedRelayAddress);
-        }
-}
-
 struct CurrencyRate {
         currency @0: Currency;
         rate @1: Rate;
@@ -169,11 +141,10 @@ struct FriendReport {
         name @0: Text;
         rates @1: List(CurrencyRate);
         remoteRelays @2: List(RelayAddress);
-        sentLocalRelays @3: SentLocalRelaysReport;
-        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
-        liveness @5: FriendLivenessReport;
-        channelStatus @6: ChannelStatusReport;
-        status @7: FriendStatusReport;
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        liveness @4: FriendLivenessReport;
+        channelStatus @5: ChannelStatusReport;
+        status @6: FriendStatusReport;
 }
 
 struct PkFriendReport {
@@ -212,11 +183,10 @@ struct FriendReportMutation {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
                 setRate @2: CurrencyRate;
-                setSentLocalRelays @3: SentLocalRelaysReport;
-                setChannelStatus @4: ChannelStatusReport;
-                setStatus @5: FriendStatusReport;
-                setOptLastIncomingMoveToken @6: OptLastIncomingMoveToken;
-                setLiveness @7: FriendLivenessReport;
+                setChannelStatus @3: ChannelStatusReport;
+                setStatus @4: FriendStatusReport;
+                setOptLastIncomingMoveToken @5: OptLastIncomingMoveToken;
+                setLiveness @6: FriendLivenessReport;
         }
 }
 

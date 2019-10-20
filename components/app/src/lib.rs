@@ -39,10 +39,9 @@ pub use self::identity::{identity_from_file, IdentityFromFileError};
 pub mod report {
     pub use proto::report::messages::{
         AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, CurrencyReport,
-        DirectionReport, FriendLivenessReport, FriendReport, FriendReportMutation,
-        FriendStatusReport, FunderReport, FunderReportMutateError, FunderReportMutation,
-        FunderReportMutations, McBalanceReport, McRequestsStatusReport, MoveTokenHashedReport,
-        RequestsStatusReport, ResetTermsReport, SentLocalRelaysReport, TcReport,
+        FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
+        FunderReportMutateError, FunderReportMutation, FunderReportMutations, McBalanceReport,
+        McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
     };
 
     pub use proto::app_server::messages::{NodeReport, NodeReportMutation};

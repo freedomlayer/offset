@@ -416,14 +416,14 @@ where
             if friend.liveness != FriendLivenessReport::Online {
                 return false;
             }
-            let tc_report = match &friend.channel_status {
+            let currency_reports = match &friend.channel_status {
                 ChannelStatusReport::Consistent(channel_consistent) => {
-                    &channel_consistent.tc_report
+                    &channel_consistent.currency_reports
                 }
                 _ => return false,
             };
 
-            if let Some(_) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
+            if let Some(_) = currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
                 true
             } else {
                 false
@@ -441,14 +441,14 @@ where
             if friend.liveness != FriendLivenessReport::Online {
                 return false;
             }
-            let tc_report = match &friend.channel_status {
+            let currency_reports = match &friend.channel_status {
                 ChannelStatusReport::Consistent(channel_consistent) => {
-                    &channel_consistent.tc_report
+                    &channel_consistent.currency_reports
                 }
                 _ => return false,
             };
-            if let Some(pos) = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
-                let currency_report = &tc_report.currency_reports[pos];
+            if let Some(pos) = currency_reports.iter().position(|currency_report| &currency_report.currency == currency) {
+                let currency_report = &currency_reports[pos];
                 currency_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
             } else {
                 false
@@ -460,14 +460,14 @@ where
     pub async fn wait_friend_balance<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency, balance: i128) {
         let pred = |report: &FunderReport<_>| {
             let friend = report.friends.get(friend_public_key).unwrap();
-            let tc_report = match &friend.channel_status {
-                ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.tc_report,
+            let currency_reports = match &friend.channel_status {
+                ChannelStatusReport::Consistent(channel_consistent) => &channel_consistent.currency_reports,
                 _ => return false,
             };
 
-            let opt_pos = tc_report.currency_reports.iter().position(|currency_report| &currency_report.currency == currency);
+            let opt_pos = currency_reports.iter().position(|currency_report| &currency_report.currency == currency);
             if let Some(pos) = opt_pos {
-                tc_report.currency_reports[pos].balance.balance == balance
+                currency_reports[pos].balance.balance == balance
             } else {
                 false
             }

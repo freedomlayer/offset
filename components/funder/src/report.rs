@@ -4,40 +4,18 @@ use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
-    CurrencyRate, CurrencyReport, DirectionReport, FriendLivenessReport, FriendReport,
-    FriendReportMutation, FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
-    McRequestsStatusReport, MoveTokenHashedReport, RelaysTransitionReport, ResetTermsReport,
-    SentLocalRelaysReport, TcReport,
+    CurrencyRate, CurrencyReport, FriendLivenessReport, FriendReport, FriendReportMutation,
+    FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
+    McRequestsStatusReport, MoveTokenHashedReport, ResetTermsReport,
 };
 
 use crate::types::MoveTokenHashed;
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
-use crate::friend::{ChannelStatus, FriendMutation, FriendState, SentLocalRelays};
+use crate::friend::{ChannelStatus, FriendMutation, FriendState};
 use crate::liveness::LivenessMutation;
 use crate::mutual_credit::types::{McBalance, McRequestsStatus};
 use crate::state::{FunderMutation, FunderState};
-use crate::token_channel::TokenChannel;
-
-impl<B> Into<SentLocalRelaysReport<B>> for &SentLocalRelays<B>
-where
-    B: Clone,
-{
-    fn into(self) -> SentLocalRelaysReport<B> {
-        match self {
-            SentLocalRelays::NeverSent => SentLocalRelaysReport::NeverSent,
-            SentLocalRelays::Transition((last_sent, before_last_sent)) => {
-                SentLocalRelaysReport::Transition(RelaysTransitionReport {
-                    last_sent: last_sent.into_iter().cloned().collect(),
-                    before_last_sent: before_last_sent.into_iter().cloned().collect(),
-                })
-            }
-            SentLocalRelays::LastSent(address) => {
-                SentLocalRelaysReport::LastSent(address.clone().into_iter().collect())
-            }
-        }
-    }
-}
 
 impl From<&McRequestsStatus> for McRequestsStatusReport {
     fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
@@ -71,37 +49,6 @@ impl From<&MoveTokenHashed> for MoveTokenHashedReport {
     }
 }
 
-impl<B> From<&TokenChannel<B>> for TcReport
-where
-    B: Clone + CanonicalSerialize,
-{
-    fn from(token_channel: &TokenChannel<B>) -> TcReport {
-        let currency_reports = token_channel
-            .get_mutual_credits()
-            .iter()
-            .map(|(currency, mutual_credit)| {
-                let mc_state = mutual_credit.state();
-                CurrencyReport {
-                    currency: currency.clone(),
-                    balance: McBalanceReport::from(&mc_state.balance),
-                    requests_status: McRequestsStatusReport::from(&mc_state.requests_status),
-                }
-            })
-            .collect();
-
-        let direction = if token_channel.get_outgoing().is_some() {
-            DirectionReport::Outgoing
-        } else {
-            DirectionReport::Incoming
-        };
-
-        TcReport {
-            direction,
-            currency_reports,
-        }
-    }
-}
-
 impl<B> From<&ChannelStatus<B>> for ChannelStatusReport
 where
     B: Clone + CanonicalSerialize,
@@ -127,7 +74,21 @@ where
             }
             ChannelStatus::Consistent(channel_consistent) => {
                 let channel_consistent_report = ChannelConsistentReport {
-                    tc_report: TcReport::from(&channel_consistent.token_channel),
+                    currency_reports: channel_consistent
+                        .token_channel
+                        .get_mutual_credits()
+                        .iter()
+                        .map(|(currency, mutual_credit)| {
+                            let mc_state = mutual_credit.state();
+                            CurrencyReport {
+                                currency: currency.clone(),
+                                balance: McBalanceReport::from(&mc_state.balance),
+                                requests_status: McRequestsStatusReport::from(
+                                    &mc_state.requests_status,
+                                ),
+                            }
+                        })
+                        .collect(),
                 };
                 ChannelStatusReport::Consistent(channel_consistent_report)
             }
@@ -153,7 +114,6 @@ where
             .map(|(currency, rate)| CurrencyRate { currency, rate })
             .collect(),
         remote_relays: friend_state.remote_relays.clone(),
-        sent_local_relays: (&friend_state.sent_local_relays).into(),
         opt_last_incoming_move_token: friend_state
             .channel_status
             .get_last_incoming_move_token_hashed()
@@ -242,11 +202,7 @@ where
                 rate: rate.clone(),
             })]
         }
-        FriendMutation::SetSentLocalRelays(sent_local_relays) => {
-            vec![FriendReportMutation::SetSentLocalRelays(
-                sent_local_relays.into(),
-            )]
-        }
+        FriendMutation::SetSentLocalRelays(_) => vec![],
         FriendMutation::SetInconsistent(_) | FriendMutation::SetConsistent(_) => {
             let channel_status_report = ChannelStatusReport::from(&friend_after.channel_status);
             let set_channel_status = FriendReportMutation::SetChannelStatus(channel_status_report);

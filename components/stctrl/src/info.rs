@@ -237,10 +237,9 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(channel_consistent_report) => {
-            let tc_report = &channel_consistent_report.tc_report;
             res += "Consistent:\n";
 
-            for currency_report in &tc_report.currency_reports {
+            for currency_report in &channel_consistent_report.currency_reports {
                 res += &format!("- {}: {}\n", currency_report.currency, currency_report_str(&currency_report));
             }
         }
