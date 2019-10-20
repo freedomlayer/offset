@@ -406,13 +406,6 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     // Wait some time, to let the index servers exchange information:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    /*
-    // Node0 allows node1 to have maximum debt of 100
-    config0
-        .set_friend_currency_max_debt(node_public_key(1), currency1.clone(), 100)
-        .await
-        .unwrap();
-    */
     // Node1 allows node0 to have maximum debt of 10
     config1
         .set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10)
