@@ -28,5 +28,5 @@ mod utils;
 #[cfg(test)]
 mod tests;
 
-// #[cfg(test)]
-// mod cli_tests;
+#[cfg(test)]
+mod cli_tests;
