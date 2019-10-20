@@ -313,9 +313,6 @@ mod tests {
             local_public_key: pk1.clone(),
             relays: Vec::new(),
             friends,
-            num_open_invoices: 0,
-            num_payments: 0,
-            num_open_transactions: 0,
         };
         let friends_info: HashMap<(PublicKey, Currency), FriendInfo> =
             calc_friends_info(&funder_report).collect();
@@ -425,9 +422,6 @@ mod tests {
             local_public_key: pk1.clone(),
             relays: Vec::new(),
             friends,
-            num_open_invoices: 0,
-            num_payments: 0,
-            num_open_transactions: 0,
         };
 
         let mut friends = HashMap::new();
@@ -505,9 +499,6 @@ mod tests {
             local_public_key: pk1.clone(),
             relays: Vec::new(),
             friends,
-            num_open_invoices: 0,
-            num_payments: 0,
-            num_open_transactions: 0,
         };
 
         let index_mutations = calc_index_mutations(&old_funder_report, &new_funder_report);

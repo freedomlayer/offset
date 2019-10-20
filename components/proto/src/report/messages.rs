@@ -308,9 +308,6 @@ pub struct FunderReport<B = NetAddress> {
     pub relays: Vec<NamedRelayAddress<B>>,
     #[capnp_conv(with = PkFriendReportList)]
     pub friends: HashMap<PublicKey, FriendReport<B>>,
-    pub num_open_invoices: u64,
-    pub num_payments: u64,
-    pub num_open_transactions: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -373,9 +370,6 @@ pub enum FunderReportMutation<B = NetAddress> {
     RemoveFriend(PublicKey),
     #[capnp_conv(with = PkFriendReportMutation<NetAddress>)]
     PkFriendReportMutation((PublicKey, FriendReportMutation<B>)),
-    SetNumOpenInvoices(u64),
-    SetNumPayments(u64),
-    SetNumOpenTransactions(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -522,18 +516,6 @@ where
                     .get_mut(friend_public_key)
                     .ok_or(FunderReportMutateError::FriendDoesNotExist)?;
                 friend.mutate(friend_report_mutation)?;
-                Ok(())
-            }
-            FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
-                self.num_open_invoices = *num_open_invoices;
-                Ok(())
-            }
-            FunderReportMutation::SetNumPayments(num_payments) => {
-                self.num_payments = *num_payments;
-                Ok(())
-            }
-            FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {
-                self.num_open_transactions = *num_open_transactions;
                 Ok(())
             }
         }

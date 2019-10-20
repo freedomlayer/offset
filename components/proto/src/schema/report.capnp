@@ -235,9 +235,6 @@ struct FunderReportMutation {
                 addFriend @2: AddFriendReport;
                 removeFriend @3: PublicKey;
                 pkFriendReportMutation @4: PkFriendReportMutation;
-                setNumOpenInvoices @5: UInt64;
-                setNumPayments @6: UInt64;
-                setNumOpenTransactions @7: UInt64;
         }
 }
 

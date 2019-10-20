@@ -192,9 +192,6 @@ where
         local_public_key: funder_state.local_public_key.clone(),
         relays: funder_state.relays.clone().into_iter().collect(),
         friends: friends.clone().into_iter().collect(),
-        num_open_invoices: usize_to_u64(funder_state.open_invoices.len()).unwrap(),
-        num_payments: usize_to_u64(funder_state.payments.len()).unwrap(),
-        num_open_transactions: usize_to_u64(funder_state.open_transactions.len()).unwrap(),
     }
 }
 
@@ -330,35 +327,14 @@ where
                 friend_public_key.clone(),
             )]
         }
-        FunderMutation::AddInvoice(_) | FunderMutation::RemoveInvoice(_) => {
-            if funder_state_after.open_invoices.len() != funder_state.open_invoices.len() {
-                vec![FunderReportMutation::SetNumOpenInvoices(
-                    usize_to_u64(funder_state_after.open_invoices.len()).unwrap(),
-                )]
-            } else {
-                Vec::new()
-            }
-        }
-        FunderMutation::AddIncomingTransaction(_) => vec![],
-        FunderMutation::AddTransaction(_) | FunderMutation::RemoveTransaction(_) => {
-            if funder_state_after.open_transactions.len() != funder_state.open_transactions.len() {
-                vec![FunderReportMutation::SetNumOpenTransactions(
-                    usize_to_u64(funder_state_after.open_transactions.len()).unwrap(),
-                )]
-            } else {
-                Vec::new()
-            }
-        }
-        FunderMutation::SetTransactionResponse(_) => vec![],
-        FunderMutation::UpdatePayment(_) | FunderMutation::RemovePayment(_) => {
-            if funder_state_after.payments.len() != funder_state.payments.len() {
-                vec![FunderReportMutation::SetNumPayments(
-                    usize_to_u64(funder_state_after.payments.len()).unwrap(),
-                )]
-            } else {
-                Vec::new()
-            }
-        }
+        FunderMutation::AddInvoice(_)
+        | FunderMutation::RemoveInvoice(_)
+        | FunderMutation::AddIncomingTransaction(_)
+        | FunderMutation::AddTransaction(_)
+        | FunderMutation::RemoveTransaction(_)
+        | FunderMutation::SetTransactionResponse(_)
+        | FunderMutation::UpdatePayment(_)
+        | FunderMutation::RemovePayment(_) => vec![],
     }
 }
 
