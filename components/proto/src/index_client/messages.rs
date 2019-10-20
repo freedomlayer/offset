@@ -14,7 +14,7 @@ use crate::net::messages::NetAddress;
 
 // TODO: Possibly rename to something more meaningful?
 /// Capacity through a (PublicKey, Currency) channel.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FriendInfo {
     pub send_capacity: u128,
     pub recv_capacity: u128,
