@@ -101,7 +101,7 @@ struct CurrencyReport {
 struct ResetTermsReport {
         resetToken @0: Signature;
         # TODO: Possibly do not expose resetToken to the user? Instead, have
-        # here a some binary blob?
+        # here some random binary blob or a u64 number?
         balanceForReset @1: List(CurrencyBalance);
         # List of expected balance for each currency
 }
