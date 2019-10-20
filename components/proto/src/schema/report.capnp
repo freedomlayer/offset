@@ -11,7 +11,6 @@ using import "common.capnp".Currency;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NamedIndexServerAddress;
-using import "common.capnp".NetAddress;
 
 using import "funder.capnp".CurrencyBalance;
 
