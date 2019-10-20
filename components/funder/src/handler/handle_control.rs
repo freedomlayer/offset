@@ -521,7 +521,10 @@ where
         }
     }
 
-    let friend_mutation = FriendMutation::SetRate((set_friend_currency_rate.currency, set_friend_currency_rate.rate));
+    let friend_mutation = FriendMutation::SetRate((
+        set_friend_currency_rate.currency,
+        set_friend_currency_rate.rate,
+    ));
     let funder_mutation = FunderMutation::FriendMutation((
         set_friend_currency_rate.friend_public_key.clone(),
         friend_mutation,
@@ -596,6 +599,10 @@ where
     {
         return Err(HandleControlError::PaymentAlreadyOpen);
     }
+
+    // TODO: Possibly check:
+    // - det_public_key exists
+    // - currency is active for this friend
 
     let payment = Payment::NewTransactions(NewTransactions {
         num_transactions: 0,
@@ -1146,7 +1153,11 @@ where
 {
     match incoming_control {
         FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt) => {
-            control_set_friend_currency_max_debt(m_state, send_commands, set_friend_currency_max_debt)
+            control_set_friend_currency_max_debt(
+                m_state,
+                send_commands,
+                set_friend_currency_max_debt,
+            )
         }
 
         FunderControl::ResetFriendChannel(reset_friend_channel) => {
