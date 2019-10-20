@@ -104,8 +104,6 @@ struct CurrencyReport {
         currency @0: Currency;
         balance @1: McBalanceReport;
         requestsStatus @2: McRequestsStatusReport;
-        numLocalPendingRequests @3: UInt64;
-        numRemotePendingRequests @4: UInt64;
 }
 
 struct TcReport {

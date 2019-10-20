@@ -133,8 +133,6 @@ pub struct CurrencyReport {
     pub currency: Currency,
     pub balance: McBalanceReport,
     pub requests_status: McRequestsStatusReport,
-    pub num_local_pending_requests: u64,
-    pub num_remote_pending_requests: u64,
 }
 
 #[capnp_conv(crate::report_capnp::tc_report)]

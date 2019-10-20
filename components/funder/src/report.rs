@@ -1,6 +1,5 @@
 use im::hashmap::HashMap as ImHashMap;
 
-use common::int_convert::usize_to_u64;
 use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
@@ -86,14 +85,6 @@ where
                     currency: currency.clone(),
                     balance: McBalanceReport::from(&mc_state.balance),
                     requests_status: McRequestsStatusReport::from(&mc_state.requests_status),
-                    num_local_pending_requests: usize_to_u64(
-                        mc_state.pending_transactions.local.len(),
-                    )
-                    .unwrap(),
-                    num_remote_pending_requests: usize_to_u64(
-                        mc_state.pending_transactions.remote.len(),
-                    )
-                    .unwrap(),
                 }
             })
             .collect();
