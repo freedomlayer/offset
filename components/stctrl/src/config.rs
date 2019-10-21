@@ -153,6 +153,23 @@ pub struct SetFriendCurrencyRateCmd {
     pub add: u32,
 }
 
+/// Remove a currency from the set of currencies we are willing to trade
+/// with a remote friend.
+/// This operation will succeed only if we do not already have an active channel trading this
+/// currency. 
+/// If we already have an open active channel with this currency, the currency will not
+/// be removed.
+#[derive(Clone, Debug, StructOpt)]
+pub struct RemoveFriendCurrencyCmd {
+    /// Friend name
+    #[structopt(long = "name", short = "n")]
+    pub friend_name: String,
+    /// Currency to set remote max debt
+    #[structopt(long = "currency", short = "c")]
+    pub currency_name: String,
+}
+
+
 /// Reset mutual credit with friend according to friend's terms.
 #[derive(Clone, Debug, StructOpt)]
 pub struct ResetFriendCmd {
@@ -191,18 +208,21 @@ pub enum ConfigCmd {
     #[structopt(name = "disable-friend")]
     DisableFriend(DisableFriendCmd),
     /// Open requests from friend
-    #[structopt(name = "open-friend")]
+    #[structopt(name = "open-currency")]
     OpenFriendCurrency(OpenFriendCurrencyCmd),
     /// Close requests from friend
-    #[structopt(name = "close-friend")]
+    #[structopt(name = "close-currency")]
     CloseFriendCurrency(CloseFriendCurrencyCmd),
     /// Set friend's max debt
-    #[structopt(name = "set-friend-max-debt")]
+    #[structopt(name = "set-currency-max-debt")]
     SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebtCmd),
     /// Set friend's rate: How much we charge for forwarding this friend's transactions to other
     /// friends?
-    #[structopt(name = "set-friend-rate")]
+    #[structopt(name = "set-currency-rate")]
     SetFriendCurrencyRate(SetFriendCurrencyRateCmd),
+    /// Remove a currency from the set of currencies we are willing to trade with a friend.
+    #[structopt(name = "remove-currency")]
+    RemoveFriendCurrency(RemoveFriendCurrencyCmd),
     /// Reset mutual credit with a friend according to friend's terms
     #[structopt(name = "reset-friend")]
     ResetFriend(ResetFriendCmd),
@@ -569,6 +589,33 @@ async fn config_set_friend_currency_rate(
     res
 }
 
+async fn config_remove_friend_currency(
+    remove_friend_currency_cmd: RemoveFriendCurrencyCmd,
+    mut app_config: AppConfig,
+    node_report: NodeReport,
+) -> Result<(), ConfigError> {
+
+    let RemoveFriendCurrencyCmd {
+        friend_name,
+        currency_name,
+    } = remove_friend_currency_cmd;
+
+    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
+        .ok_or(ConfigError::FriendNameNotFound)?
+        .clone();
+
+    let currency = Currency::try_from(currency_name)
+        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+
+    // TODO: A temporary fix due to compiler issue:
+    let res = app_config
+        .remove_friend_currency(friend_public_key, currency)
+        .await
+        .map_err(|_| ConfigError::AppConfigError);
+    res
+
+}
+
 async fn config_reset_friend(
     reset_friend_cmd: ResetFriendCmd,
     mut app_config: AppConfig,
@@ -656,6 +703,9 @@ pub async fn config(config_cmd: ConfigCmd, mut app_conn: AppConn) -> Result<(), 
         }
         ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd) => {
             config_set_friend_currency_rate(set_friend_currency_rate_cmd, app_config, node_report).await?
+        }
+        ConfigCmd::RemoveFriendCurrency(remove_friend_currency_cmd) => {
+            config_remove_friend_currency(remove_friend_currency_cmd, app_config, node_report).await?
         }
         ConfigCmd::ResetFriend(reset_friend_cmd) => {
             config_reset_friend(reset_friend_cmd, app_config, node_report).await?
