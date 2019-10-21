@@ -24,7 +24,8 @@ use crate::token_channel::{MoveTokenReceived, ReceiveMoveTokenOutput, TokenChann
 use crate::types::{create_pending_transaction, ChannelerConfig};
 
 use crate::friend::{
-    BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
+    BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
+    SentLocalRelays,
 };
 use crate::state::{FunderMutation, Payment};
 
@@ -139,6 +140,28 @@ pub fn try_reset_channel<B>(
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
+
+    // Update our configured currencies accordingly (Possibly add new currencies with empty
+    // configurations):
+    let currency_configs = m_state
+        .state()
+        .friends
+        .get(friend_public_key)
+        .unwrap()
+        .currency_configs
+        .clone();
+    for currency_balance in &local_reset_terms.balance_for_reset {
+        if !currency_configs.contains_key(&currency_balance.currency) {
+            // This is a reset message. We reset the token channel:
+            let friend_mutation = FriendMutation::UpdateCurrencyConfig((
+                currency_balance.currency.clone(),
+                CurrencyConfig::new(),
+            ));
+            let funder_mutation =
+                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+        }
+    }
 
     // Update our knowledge about remote relays if required:
     if let Some(remote_relays) = &move_token.opt_local_relays {

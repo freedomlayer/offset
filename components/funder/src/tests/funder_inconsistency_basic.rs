@@ -188,7 +188,7 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     ///////////////////////////////////////////////////////////
     // Intentionally create an inconsistency
     ///////////////////////////////////////////////////////////
-
+    
     // Node0: Remove friend node1, and add it again.
     // This should cause an inconsistency.
     node_controls[0]
