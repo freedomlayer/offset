@@ -8,7 +8,7 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate, Currency};
+use proto::funder::messages::{Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate};
 
 use timer::create_timer_incoming;
 
@@ -152,7 +152,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         }
     }
 
-
     // Configure index servers:
     apps[0]
         .config()
@@ -225,15 +224,15 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
     // Enable friends and set active currencies:
     // 0 -- 1
-    for (i,j) in &[(0u8,1u8), (1,3), (1,2), (2,5), (2,4)] {
-        for (&a,&b) in &[(i,j), (j,i)] {
+    for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
+        for (&a, &b) in &[(i, j), (j, i)] {
             apps[a as usize]
                 .config()
                 .unwrap()
                 .add_friend(
                     node_public_key(b),
-                    vec![relay_address(node_relays[b as usize][0])],  // Pick one relay
-                    format!("node{}", b)
+                    vec![relay_address(node_relays[b as usize][0])], // Pick one relay
+                    format!("node{}", b),
                 )
                 .await
                 .unwrap();
@@ -252,16 +251,16 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
                     // .set_friend_currencies(node_public_key(b), vec![currency1.clone(), currency2.clone()])
                     .await
                     .unwrap();
-                }
             }
+        }
     }
 
     // Wait until active currencies are negotiated:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Open channels:
-    for (i,j) in &[(0u8,1u8), (1,3), (1,2), (2,5), (2,4)] {
-        for (&a,&b) in &[(i,j), (j,i)] {
+    for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
+        for (&a, &b) in &[(i, j), (j, i)] {
             apps[a as usize]
                 .config()
                 .unwrap()
@@ -270,8 +269,8 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
                 .unwrap();
         }
     }
-    for (i,j) in &[(0u8,1u8), (1,3), (1,2), (2,5), (2,4)] {
-        for (&a,&b) in &[(i,j), (j,i)] {
+    for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
+        for (&a, &b) in &[(i, j), (j, i)] {
             apps[a as usize]
                 .config()
                 .unwrap()
@@ -287,7 +286,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[1]
         .config()
         .unwrap()
-        .set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(
+            node_public_key(0),
+            currency1.clone(),
+            Rate { mul: 0, add: 1 },
+        )
         .await
         .unwrap();
 
@@ -295,7 +298,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[1]
         .config()
         .unwrap()
-        .set_friend_currency_rate(node_public_key(2), currency1.clone(), Rate { mul: 0, add: 2 })
+        .set_friend_currency_rate(
+            node_public_key(2),
+            currency1.clone(),
+            Rate { mul: 0, add: 2 },
+        )
         .await
         .unwrap();
 
@@ -303,7 +310,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[2]
         .config()
         .unwrap()
-        .set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(
+            node_public_key(1),
+            currency1.clone(),
+            Rate { mul: 0, add: 1 },
+        )
         .await
         .unwrap();
 
@@ -334,7 +345,11 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     apps[4]
         .config()
         .unwrap()
-        .set_friend_currency_rate(node_public_key(2), currency1.clone(), Rate { mul: 0, add: 1 })
+        .set_friend_currency_rate(
+            node_public_key(2),
+            currency1.clone(),
+            Rate { mul: 0, add: 1 },
+        )
         .await
         .unwrap();
 
@@ -342,9 +357,10 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Make sure that nodes see each other as online along the chain 0 -- 1 -- 2 -- 4:
-    for (i,j) in &[(0u8,1u8), (1,2), (2,4)] {
-        for (&a,&b) in &[(i,j), (j,i)] {
-            let (node_report, mutations_receiver) = apps[a as usize].report().incoming_reports().await.unwrap();
+    for (i, j) in &[(0u8, 1u8), (1, 2), (2, 4)] {
+        for (&a, &b) in &[(i, j), (j, i)] {
+            let (node_report, mutations_receiver) =
+                apps[a as usize].report().incoming_reports().await.unwrap();
             drop(mutations_receiver);
             let friend_report = match node_report.funder_report.friends.get(&node_public_key(b)) {
                 None => unreachable!(),
@@ -353,7 +369,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             assert!(friend_report.liveness.is_online());
         }
     }
-
 
     // Perform a payment through the chain: 0 -> 1 -> 2 -> 4
     // ======================================================
@@ -376,7 +391,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let multi_routes = apps[0]
         .routes()
         .unwrap()
-        .request_routes(currency1.clone(), 20, node_public_key(0), node_public_key(4), None)
+        .request_routes(
+            currency1.clone(),
+            20,
+            node_public_key(0),
+            node_public_key(4),
+            None,
+        )
         .await
         .unwrap();
 
@@ -488,7 +509,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     let multi_routes = apps[5]
         .routes()
         .unwrap()
-        .request_routes(currency1.clone(), 10, node_public_key(5), node_public_key(3), None)
+        .request_routes(
+            currency1.clone(),
+            10,
+            node_public_key(5),
+            node_public_key(3),
+            None,
+        )
         .await
         .unwrap();
 

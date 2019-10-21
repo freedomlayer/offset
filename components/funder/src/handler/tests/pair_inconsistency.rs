@@ -15,17 +15,19 @@ use crypto::test_utils::DummyRandom;
 
 use proto::crypto::Uid;
 use proto::funder::messages::{
-    AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
-    ResetFriendChannel, SetFriendStatus, Currency, CurrencyBalance, SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, Rate
+    AddFriend, Currency, CurrencyBalance, FriendMessage, FriendStatus, FunderControl,
+    FunderIncomingControl, Rate, ResetFriendChannel, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, SetFriendStatus,
 };
 
 use crate::ephemeral::Ephemeral;
-use crate::token_channel::TcMutation;
-use crate::mutual_credit::types::McMutation;
 use crate::friend::{ChannelStatus, FriendMutation};
-use crate::state::{FunderState, FunderMutation};
+use crate::mutual_credit::types::McMutation;
+use crate::state::{FunderMutation, FunderState};
+use crate::token_channel::TcMutation;
 use crate::types::{
-    FunderIncoming, FunderIncomingComm, FunderOutgoingComm, IncomingLivenessMessage, ChannelerConfig,
+    ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm,
+    IncomingLivenessMessage,
 };
 
 use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
@@ -451,7 +453,6 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-
     ///////////////////////////////////////
     // Set remote max debt (Node1 -> Node2)
     ///////////////////////////////////////
@@ -537,11 +538,9 @@ async fn task_handler_pair_inconsistency<'a>(
     };
     assert_eq!(local_max_debt, 100);
 
-
     /////////////////////////////////////////////////
     // Create inconsistency intentionaly:
     /////////////////////////////////////////////////
-
 
     // Change the balance intentionaly, to cause an inconsistency error.
     // Node1 will now think that Node2 owes him 10 credits:
@@ -609,12 +608,17 @@ async fn task_handler_pair_inconsistency<'a>(
     // Inconsistency is noticed:
     /////////////////////////////////////////////////
 
-
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, vec![CurrencyBalance {currency: currency.clone(), balance: 10i128}]);
+                assert_eq!(
+                    reset_terms.balance_for_reset,
+                    vec![CurrencyBalance {
+                        currency: currency.clone(),
+                        balance: 10i128
+                    }]
+                );
                 assert_eq!(pk, &pk2);
             } else {
                 unreachable!();
@@ -644,7 +648,13 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, vec![CurrencyBalance {currency: currency.clone(), balance: 0}]);
+                assert_eq!(
+                    reset_terms.balance_for_reset,
+                    vec![CurrencyBalance {
+                        currency: currency.clone(),
+                        balance: 0
+                    }]
+                );
                 assert_eq!(pk, &pk1);
                 (friend_message.clone(), reset_terms.reset_token.clone())
             } else {

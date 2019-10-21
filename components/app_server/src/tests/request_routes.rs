@@ -8,11 +8,11 @@ use futures::{SinkExt, StreamExt};
 use proto::crypto::{PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
+use proto::funder::messages::Currency;
 use proto::index_client::messages::{
     AppServerToIndexClient, ClientResponseRoutes, IndexClientRequest, IndexClientToAppServer,
     RequestRoutes, ResponseRoutesResult,
 };
-use proto::funder::messages::Currency;
 
 use super::utils::spawn_dummy_app_server;
 

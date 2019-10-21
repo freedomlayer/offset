@@ -4,9 +4,9 @@ use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, CurrencyOperations,
-    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, Currency,
+    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, Currency, CurrencyOperations,
+    FriendMessage, FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
 };
 
 use signature::signature_buff::{

@@ -3,8 +3,8 @@ use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
 use proto::crypto::PublicKey;
-use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriendCurrency};
 use proto::funder::messages::Currency;
+use proto::index_client::messages::{FriendInfo, IndexMutation, UpdateFriendCurrency};
 
 use crate::seq_map::SeqMap;
 
@@ -35,10 +35,19 @@ fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMuta
                 recv_capacity: update_friend_currency.recv_capacity,
                 rate: update_friend_currency.rate.clone(),
             };
-            let _ = seq_friends.update((update_friend_currency.public_key.clone(), update_friend_currency.currency.clone()), friend_info);
+            let _ = seq_friends.update(
+                (
+                    update_friend_currency.public_key.clone(),
+                    update_friend_currency.currency.clone(),
+                ),
+                friend_info,
+            );
         }
         IndexMutation::RemoveFriendCurrency(remove_friend_currency) => {
-            let _ = seq_friends.remove(&(remove_friend_currency.public_key.clone(), remove_friend_currency.currency.clone()));
+            let _ = seq_friends.remove(&(
+                remove_friend_currency.public_key.clone(),
+                remove_friend_currency.currency.clone(),
+            ));
         }
     }
 }
@@ -58,24 +67,23 @@ async fn seq_friends_loop(
                 let _ = response_sender.send(());
             }
             SeqFriendsRequest::NextUpdate(response_sender) => {
-                let update_friend =
-                    seq_friends
-                        .next()
-                        .map(|(cycle_countdown, ((public_key, currency), friend_info))| {
-                            let FriendInfo {
-                                send_capacity,
-                                recv_capacity,
-                                rate,
-                            } = friend_info;
-                            let update_friend = UpdateFriendCurrency {
-                                public_key,
-                                currency,
-                                send_capacity,
-                                recv_capacity,
-                                rate,
-                            };
-                            (cycle_countdown, update_friend)
-                        });
+                let update_friend = seq_friends.next().map(
+                    |(cycle_countdown, ((public_key, currency), friend_info))| {
+                        let FriendInfo {
+                            send_capacity,
+                            recv_capacity,
+                            rate,
+                        } = friend_info;
+                        let update_friend = UpdateFriendCurrency {
+                            public_key,
+                            currency,
+                            send_capacity,
+                            recv_capacity,
+                            rate,
+                        };
+                        (cycle_countdown, update_friend)
+                    },
+                );
                 let _ = response_sender.send(update_friend);
             }
         }

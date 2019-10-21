@@ -4,12 +4,11 @@ use common::test_executor::TestExecutor;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
-    AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
-    FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus, Currency,
+    AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
+    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
 
 use super::utils::{create_node_controls, dummy_relay_address};
-
 
 async fn task_funder_forward_payment(test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -78,12 +77,24 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     test_executor.wait().await;
 
     // Wait for active currencies to be ready:
-    node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[0], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[2], &currency1).await;
-    node_controls[2].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[2], &currency2).await;
-    node_controls[2].wait_until_currency_active(&public_keys[1], &currency2).await;
+    node_controls[0]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[0], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[2], &currency1)
+        .await;
+    node_controls[2]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[2], &currency2)
+        .await;
+    node_controls[2]
+        .wait_until_currency_active(&public_keys[1], &currency2)
+        .await;
 
     test_executor.wait().await;
     // Set rate:
@@ -127,8 +138,12 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
     // Wait until route is ready (Online + Consistent + open requests)
     // Note: We don't need the other direction to be ready, because the request is sent
     // along the following route: 0 --> 1 --> 2
-    node_controls[0].wait_until_ready(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_ready(&public_keys[2], &currency1).await;
+    node_controls[0]
+        .wait_until_ready(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_ready(&public_keys[2], &currency1)
+        .await;
 
     // Let node 2 open an invoice:
     let add_invoice = AddInvoice {
@@ -249,7 +264,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .wait_friend_balance(&public_keys[2], &currency1, -15)
         .await;
 
-
     // Verify balance from the side of node0:
     node_controls[0]
         .wait_friend_balance(&public_keys[1], &currency1, -20)
@@ -262,4 +276,3 @@ fn test_funder_forward_payment() {
     let res = test_executor.run(task_funder_forward_payment(test_executor.clone()));
     assert!(res.is_output());
 }
-

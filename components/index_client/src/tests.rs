@@ -9,7 +9,7 @@ use common::dummy_connector::{ConnRequest, DummyConnector};
 
 use proto::crypto::{PublicKey, Uid};
 
-use proto::funder::messages::{Rate, Currency};
+use proto::funder::messages::{Currency, Rate};
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientReportMutation, IndexClientRequest, IndexClientToAppServer,
     IndexMutation, RequestRoutes, ResponseRoutesResult, UpdateFriendCurrency,

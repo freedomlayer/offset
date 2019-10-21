@@ -7,9 +7,13 @@ use proto::crypto::{PublicKey, Signature, Uid};
 
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
-use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress, OpenFriendCurrency, CloseFriendCurrency};
+use proto::app_server::messages::{
+    AppRequest, AppToAppServer, CloseFriendCurrency, NamedRelayAddress, OpenFriendCurrency,
+    RelayAddress,
+};
 use proto::funder::messages::{
-    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt, Currency, RemoveFriendCurrency,
+    AddFriend, Currency, Rate, RemoveFriendCurrency, ResetFriendChannel, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, SetFriendRelays,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -141,7 +145,8 @@ where
         self.send_request(AppRequest::RemoveFriendCurrency(RemoveFriendCurrency {
             friend_public_key,
             currency,
-        })).await
+        }))
+        .await
     }
 
     pub async fn open_friend_currency(
@@ -152,7 +157,8 @@ where
         self.send_request(AppRequest::OpenFriendCurrency(OpenFriendCurrency {
             friend_public_key,
             currency,
-        })).await
+        }))
+        .await
     }
 
     pub async fn close_friend_currency(
@@ -163,7 +169,8 @@ where
         self.send_request(AppRequest::CloseFriendCurrency(CloseFriendCurrency {
             friend_public_key,
             currency,
-        })).await
+        }))
+        .await
     }
 
     pub async fn set_friend_currency_max_debt(

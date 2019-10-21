@@ -4,12 +4,11 @@ use common::test_executor::TestExecutor;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
-    AckClosePayment, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
-    FunderControl, PaymentStatus, Rate, RequestResult, RequestsStatus, Currency,
+    AckClosePayment, CreatePayment, CreateTransaction, Currency, FriendStatus, FriendsRoute,
+    FunderControl, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
 
 use super::utils::{create_node_controls, dummy_relay_address};
-
 
 async fn task_funder_payment_failure(test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -78,12 +77,24 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     test_executor.wait().await;
 
     // Wait for active currencies to be ready:
-    node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[0], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[2], &currency1).await;
-    node_controls[2].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[2], &currency2).await;
-    node_controls[2].wait_until_currency_active(&public_keys[1], &currency2).await;
+    node_controls[0]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[0], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[2], &currency1)
+        .await;
+    node_controls[2]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[2], &currency2)
+        .await;
+    node_controls[2]
+        .wait_until_currency_active(&public_keys[1], &currency2)
+        .await;
 
     // Set rate:
     // This is the amount of credits node 1 takes from node 0 for forwarding messages.
@@ -116,8 +127,12 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     // Wait until route is ready (Online + Consistent + open requests)
     // Note: We don't need the other direction to be ready, because the request is sent
     // along the following route: 0 --> 1 --> 2
-    node_controls[0].wait_until_ready(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_ready(&public_keys[2], &currency1).await;
+    node_controls[0]
+        .wait_until_ready(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_ready(&public_keys[2], &currency1)
+        .await;
 
     // Create payment 0 --> 3 (Where 3 does not exist)
     let create_payment = CreatePayment {
@@ -153,7 +168,6 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
         .recv_until_transaction_result()
         .await
         .unwrap();
-
 
     // We expect failure:
     match transaction_result.result {
@@ -199,4 +213,3 @@ fn test_funder_payment_failure() {
     let res = test_executor.run(task_funder_payment_failure(test_executor.clone()));
     assert!(res.is_output());
 }
-

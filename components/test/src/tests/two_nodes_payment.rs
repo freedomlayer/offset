@@ -392,20 +392,38 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Set active currencies for both sides:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
-        config0.set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new()).await.unwrap();
+        config0
+            .set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new())
+            .await
+            .unwrap();
     }
     for currency in [&currency1, &currency2].into_iter() {
-        config1.set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new()).await.unwrap();
+        config1
+            .set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new())
+            .await
+            .unwrap();
     }
 
     // Wait some time, to let the two nodes negotiate currencies:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    config0.open_friend_currency(node_public_key(1), currency1.clone()).await.unwrap();
-    config1.open_friend_currency(node_public_key(0), currency1.clone()).await.unwrap();
+    config0
+        .open_friend_currency(node_public_key(1), currency1.clone())
+        .await
+        .unwrap();
+    config1
+        .open_friend_currency(node_public_key(0), currency1.clone())
+        .await
+        .unwrap();
 
-    config1.open_friend_currency(node_public_key(0), currency2.clone()).await.unwrap();
-    config0.open_friend_currency(node_public_key(1), currency2.clone()).await.unwrap();
+    config1
+        .open_friend_currency(node_public_key(0), currency2.clone())
+        .await
+        .unwrap();
+    config0
+        .open_friend_currency(node_public_key(1), currency2.clone())
+        .await
+        .unwrap();
 
     // Wait some time, to let the index servers exchange information:
     advance_time(40, &mut tick_sender, &test_executor).await;

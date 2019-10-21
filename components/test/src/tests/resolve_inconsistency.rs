@@ -9,12 +9,12 @@ use common::test_executor::TestExecutor;
 
 use crypto::rand::CryptoRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::app_server::messages::AppPermissions;
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::report::messages::ChannelStatusReport;
 
-use app::{AppBuyer, AppSeller, Rate, Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess};
 use app::route::FriendsRoute;
+use app::{AppBuyer, AppSeller, Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate};
 
 use timer::create_timer_incoming;
 
@@ -53,7 +53,9 @@ where
         .unwrap();
 
     // Note: We build the route on our own, without using index servers:
-    let route = FriendsRoute {public_keys: vec![buyer_public_key.clone(), seller_public_key.clone()]};
+    let route = FriendsRoute {
+        public_keys: vec![buyer_public_key.clone(), seller_public_key.clone()],
+    };
 
     // Node0: Open a payment to pay the invoice issued by Node1:
     app_buyer
@@ -272,8 +274,14 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     config1.enable_friend(node_public_key(0)).await.unwrap();
 
     // Set active currencies for both sides:
-    config0.set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate::new()).await.unwrap();
-    config1.set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate::new()).await.unwrap();
+    config0
+        .set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate::new())
+        .await
+        .unwrap();
+    config1
+        .set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate::new())
+        .await
+        .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
@@ -287,8 +295,14 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    config0.open_friend_currency(node_public_key(1), currency1.clone()).await.unwrap();
-    config1.open_friend_currency(node_public_key(0), currency1.clone()).await.unwrap();
+    config0
+        .open_friend_currency(node_public_key(1), currency1.clone())
+        .await
+        .unwrap();
+    config1
+        .open_friend_currency(node_public_key(0), currency1.clone())
+        .await
+        .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
@@ -411,8 +425,14 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     };
 
     // Let both sides open the channel:
-    config0.open_friend_currency(node_public_key(1), currency1.clone()).await.unwrap();
-    config1.open_friend_currency(node_public_key(0), currency1.clone()).await.unwrap();
+    config0
+        .open_friend_currency(node_public_key(1), currency1.clone())
+        .await
+        .unwrap();
+    config1
+        .open_friend_currency(node_public_key(0), currency1.clone())
+        .await
+        .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 

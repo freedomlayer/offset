@@ -17,7 +17,7 @@ use proto::index_server::messages::{
     TimeProofLink,
 };
 
-use proto::funder::messages::{FriendsRoute, Rate, Currency};
+use proto::funder::messages::{Currency, FriendsRoute, Rate};
 
 use signature::verify::verify_mutations_update;
 
@@ -332,7 +332,10 @@ where
                     );
 
                     let capacity_edge = CapacityEdge {
-                        capacity: (update_friend_currency.send_capacity, update_friend_currency.recv_capacity),
+                        capacity: (
+                            update_friend_currency.send_capacity,
+                            update_friend_currency.recv_capacity,
+                        ),
                         rate: update_friend_currency.rate.clone(),
                     };
 
@@ -700,8 +703,8 @@ mod tests {
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};
-    use proto::index_server::messages::{RequestRoutes, RemoveFriendCurrency};
     use proto::funder::messages::Currency;
+    use proto::index_server::messages::{RemoveFriendCurrency, RequestRoutes};
 
     use signature::signature_buff::create_mutations_update_signature_buff;
 
@@ -801,7 +804,14 @@ mod tests {
 
         // Handle the graph request:
         match graph_requests_receiver.next().await.unwrap() {
-            GraphRequest::GetMultiRoutes(currency, src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(
+                currency,
+                src,
+                dest,
+                capacity,
+                opt_exclude,
+                response_sender,
+            ) => {
                 assert_eq!(currency, currency1);
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));
@@ -1094,7 +1104,14 @@ mod tests {
             .await
             .unwrap()
         {
-            GraphRequest::GetMultiRoutes(currency, src, dest, capacity, opt_exclude, response_sender) => {
+            GraphRequest::GetMultiRoutes(
+                currency,
+                src,
+                dest,
+                capacity,
+                opt_exclude,
+                response_sender,
+            ) => {
                 assert_eq!(currency, currency1);
                 assert_eq!(src, PublicKey::from(&[8; PublicKey::len()]));
                 assert_eq!(dest, PublicKey::from(&[9; PublicKey::len()]));

@@ -7,7 +7,7 @@ use proto::crypto::{InvoiceId, Uid};
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
-use proto::funder::messages::{AddInvoice, MultiCommit, Currency};
+use proto::funder::messages::{AddInvoice, Currency, MultiCommit};
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]

@@ -7,8 +7,8 @@ use proto::crypto::{PublicKey, Uid};
 
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
-use proto::funder::messages::Currency;
 use proto::app_server::messages::{AppRequest, AppToAppServer};
+use proto::funder::messages::Currency;
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use proto::index_server::messages::{Edge, MultiRoute, RequestRoutes};
 

@@ -9,8 +9,8 @@ use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
-    CreatePayment, CreateTransaction, FriendsRoute, FunderControl, FunderOutgoingControl,
-    RequestResult, TransactionResult, Currency,
+    CreatePayment, CreateTransaction, Currency, FriendsRoute, FunderControl, FunderOutgoingControl,
+    RequestResult, TransactionResult,
 };
 
 use super::utils::spawn_dummy_app_server;

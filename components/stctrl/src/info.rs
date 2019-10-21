@@ -8,7 +8,8 @@ use structopt::StructOpt;
 use derive_more::From;
 
 use app::report::{
-    ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport, CurrencyReport,
+    ChannelStatusReport, CurrencyReport, FriendReport, FriendStatusReport, NodeReport,
+    RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
 use app::{AppConn, AppReport, RelayAddress};
@@ -240,20 +241,30 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
             res += "Consistent:\n";
 
             for currency_report in &channel_consistent_report.currency_reports {
-                res += &format!("- {}: {}\n", currency_report.currency, currency_report_str(&currency_report));
+                res += &format!(
+                    "- {}: {}\n",
+                    currency_report.currency,
+                    currency_report_str(&currency_report)
+                );
             }
         }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
             res += "Inconsistent:\n";
             res += "Local Reset Terms:\n";
             for currency_balance in &channel_inconsistent_report.local_reset_terms {
-                res += &format!("- {}: {}\n", currency_balance.currency, currency_balance.balance);
+                res += &format!(
+                    "- {}: {}\n",
+                    currency_balance.currency, currency_balance.balance
+                );
             }
             match &channel_inconsistent_report.opt_remote_reset_terms {
                 Some(remote_reset_terms) => {
                     res += "Remote Reset Terms:\n";
                     for currency_balance in &remote_reset_terms.balance_for_reset {
-                        res += &format!("- {}: {}\n", currency_balance.currency, currency_balance.balance);
+                        res += &format!(
+                            "- {}: {}\n",
+                            currency_balance.currency, currency_balance.balance
+                        );
                     }
                 }
                 None => {

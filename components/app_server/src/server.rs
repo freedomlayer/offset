@@ -13,7 +13,7 @@ use proto::crypto::{PaymentId, Uid};
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RequestsStatus,
-    SetFriendStatus, SetFriendCurrencyRequestsStatus,
+    SetFriendCurrencyRequestsStatus, SetFriendStatus,
 };
 use proto::report::convert::funder_report_mutation_to_index_mutation;
 
@@ -262,7 +262,7 @@ where
                         &self.node_report.funder_report,
                         funder_report_mutation,
                     );
-                    
+
                     index_mutations.extend(res_index_mutations);
                 }
 

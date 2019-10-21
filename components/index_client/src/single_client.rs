@@ -20,7 +20,6 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use identity::IdentityClient;
 
-
 pub type ServerConn = ConnPair<IndexClientToServer, IndexServerToClient>;
 
 #[derive(Debug)]

@@ -8,8 +8,8 @@ use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
 use proto::funder::messages::{
-    AckClosePayment, Commit, CreatePayment, CreateTransaction, FriendsRoute, PaymentStatus,
-    RequestResult, ResponseClosePayment, TransactionResult, Currency,
+    AckClosePayment, Commit, CreatePayment, CreateTransaction, Currency, FriendsRoute,
+    PaymentStatus, RequestResult, ResponseClosePayment, TransactionResult,
 };
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:

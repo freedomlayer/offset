@@ -1,14 +1,14 @@
+use std::convert::TryFrom;
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::convert::TryFrom;
 
 use derive_more::From;
 
 use app::crypto::PublicKey;
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, MultiCommit, Currency};
+use app::{AppConn, AppSeller, Currency, MultiCommit};
 
 use crate::file::InvoiceFile;
 use crate::file::MultiCommitFile;
@@ -81,7 +81,6 @@ pub enum SellerError {
     InvalidCurrencyName,
 }
 
-
 async fn seller_create_invoice(
     create_invoice_cmd: CreateInvoiceCmd,
     local_public_key: PublicKey,
@@ -93,8 +92,8 @@ async fn seller_create_invoice(
         invoice_path,
     } = create_invoice_cmd;
 
-    let currency = Currency::try_from(currency_name)
-        .map_err(|_| SellerError::InvalidCurrencyName)?;
+    let currency =
+        Currency::try_from(currency_name).map_err(|_| SellerError::InvalidCurrencyName)?;
 
     // Make sure we don't override an existing invoice file:
     if invoice_path.exists() {
@@ -104,7 +103,6 @@ async fn seller_create_invoice(
     let invoice_id = gen_invoice_id();
 
     let dest_public_key = local_public_key;
-
 
     let invoice_file = InvoiceFile {
         invoice_id: invoice_id.clone(),

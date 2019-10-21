@@ -16,10 +16,11 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{InvoiceId, PaymentId, Uid};
 
 use proto::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
-    FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendCurrencyMaxDebt,
-    SetFriendStatus, SetFriendCurrencyRequestsStatus, Currency, SetFriendCurrencyRate, Rate,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
+    FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
+    FunderOutgoingControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
+    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus,
+    SetFriendStatus,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -453,7 +454,6 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
-
     // Node1 receives control message to set remote max debt.
     let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
         friend_public_key: pk2.clone(),
@@ -634,9 +634,12 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
-        }
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state(),
         _ => unreachable!(),
     };
     assert_eq!(
@@ -737,9 +740,12 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit for Node1:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
-        }
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state(),
         _ => unreachable!(),
     };
     assert!(mutual_credit_state.requests_status.local.is_open());
@@ -748,9 +754,12 @@ async fn task_handler_pair_basic<'a>(
     // Checking the current requests status on the mutual credit for Node2:
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
-        }
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state(),
         _ => unreachable!(),
     };
     assert!(!mutual_credit_state.requests_status.local.is_open());
@@ -767,7 +776,6 @@ async fn task_handler_pair_basic<'a>(
         fees: 4,
     };
 
-
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[20; Uid::len()]),
         FunderControl::CreateTransaction(create_transaction),
@@ -782,7 +790,6 @@ async fn task_handler_pair_basic<'a>(
     ))
     .await
     .unwrap();
-
 
     assert_eq!(outgoing_comms.len(), 1);
     // Report mutations:
@@ -978,9 +985,12 @@ async fn task_handler_pair_basic<'a>(
     // Current balance from Node1 point of view:
     let friend2 = state1.friends.get(&pk2).unwrap();
     let mutual_credit_state = match &friend2.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
-        }
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state(),
         _ => unreachable!(),
     };
     assert_eq!(mutual_credit_state.balance.balance, 20);
@@ -990,9 +1000,12 @@ async fn task_handler_pair_basic<'a>(
     // Current balance from Node2 point of view:
     let friend1 = state2.friends.get(&pk1).unwrap();
     let mutual_credit_state = match &friend1.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent.token_channel.get_mutual_credits().get(&currency).unwrap().state()
-        }
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state(),
         _ => unreachable!(),
     };
     assert_eq!(mutual_credit_state.balance.balance, -20);

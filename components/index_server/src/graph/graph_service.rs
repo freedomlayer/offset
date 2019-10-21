@@ -44,8 +44,10 @@ pub enum GraphServiceError {
 #[allow(clippy::many_single_char_names)]
 /// Process one GraphRequest, and send the response through the provided sender.
 /// This function might perform a long computation and take a long time to complete.
-fn process_request<G, N, C, T, CG>(capacity_graphs: &mut HashMap<G, CG>, graph_request: GraphRequest<G, N, C, T>)
-where
+fn process_request<G, N, C, T, CG>(
+    capacity_graphs: &mut HashMap<G, CG>,
+    graph_request: GraphRequest<G, N, C, T>,
+) where
     G: Hash + Eq,
     CG: CapacityGraph<Node = N, Capacity = C, Rate = T>,
 {
@@ -60,19 +62,18 @@ where
             }
         }
         GraphRequest::RemoveNode(a, sender) => {
-            capacity_graphs.retain(|_g, capacity_graph| {
-                capacity_graph.remove_node(&a)
-            });
+            capacity_graphs.retain(|_g, capacity_graph| capacity_graph.remove_node(&a));
             let _ = sender.send(());
         }
         GraphRequest::GetMultiRoutes(g, a, b, capacity, opt_exclude, sender) => {
             let routes = if let Some(capacity_graph) = capacity_graphs.get_mut(&g) {
                 match opt_exclude {
-                    Some((c, d)) => capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d))),
+                    Some((c, d)) => {
+                        capacity_graph.get_multi_routes(&a, &b, capacity, Some((&c, &d)))
+                    }
                     None => capacity_graph.get_multi_routes(&a, &b, capacity, None),
                 }
-            }
-            else {
+            } else {
                 vec![]
             };
             let _ = sender.send(routes);
@@ -240,7 +241,7 @@ where
 {
     let (requests_sender, requests_receiver) = mpsc::channel(0);
 
-    let capacity_graphs = HashMap::<G,CG>::new();
+    let capacity_graphs = HashMap::<G, CG>::new();
 
     let graph_service_loop_fut =
         graph_service_loop(capacity_graphs, requests_receiver, graph_service_spawner)
@@ -267,12 +268,24 @@ mod tests {
         let currency1 = 1u8;
 
         let graph_service_spawner = ThreadPool::new().unwrap();
-        let mut graph_client =
-            create_graph_service::<u8,u32,u128,ConstRate,SimpleCapacityGraph<u32,ConstRate>,_,_>(graph_service_spawner, spawner).unwrap();
-
+        let mut graph_client = create_graph_service::<
+            u8,
+            u32,
+            u128,
+            ConstRate,
+            SimpleCapacityGraph<u32, ConstRate>,
+            _,
+            _,
+        >(graph_service_spawner, spawner)
+        .unwrap();
 
         graph_client
-            .update_edge(currency1, 2u32, 5u32, CapacityEdge::new((30u128, 5), ConstRate(1u32)))
+            .update_edge(
+                currency1,
+                2u32,
+                5u32,
+                CapacityEdge::new((30u128, 5), ConstRate(1u32)),
+            )
             .await
             .unwrap();
         graph_client
@@ -281,7 +294,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            graph_client.get_multi_routes(currency1, 2, 5, 29, None).await.unwrap(),
+            graph_client
+                .get_multi_routes(currency1, 2, 5, 29, None)
+                .await
+                .unwrap(),
             vec![CapacityMultiRoute {
                 routes: vec![CapacityRoute {
                     route: vec![2, 5],
@@ -291,7 +307,10 @@ mod tests {
             }]
         );
         assert_eq!(
-            graph_client.get_multi_routes(currency1, 2, 5, 30, None).await.unwrap(),
+            graph_client
+                .get_multi_routes(currency1, 2, 5, 30, None)
+                .await
+                .unwrap(),
             vec![CapacityMultiRoute {
                 routes: vec![CapacityRoute {
                     route: vec![2, 5],
@@ -301,7 +320,10 @@ mod tests {
             }]
         );
         assert_eq!(
-            graph_client.get_multi_routes(currency1, 2, 5, 31, None).await.unwrap(),
+            graph_client
+                .get_multi_routes(currency1, 2, 5, 31, None)
+                .await
+                .unwrap(),
             vec![]
         );
 

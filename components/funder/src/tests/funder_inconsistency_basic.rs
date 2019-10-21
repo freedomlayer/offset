@@ -3,13 +3,14 @@ use std::convert::TryFrom;
 use common::test_executor::TestExecutor;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
-use proto::funder::messages::{FriendStatus, ResetFriendChannel, AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendsRoute,
-    FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus, Currency
+use proto::funder::messages::{
+    AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
+    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus,
+    ResetFriendChannel,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
 use super::utils::{create_node_controls, dummy_named_relay_address, dummy_relay_address};
-
 
 /// Test a basic inconsistency between two adjacent nodes
 async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
@@ -50,8 +51,12 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
         .set_friend_currencies(&public_keys[0], vec![currency1.clone(), currency2.clone()])
         .await;
 
-    node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[0], &currency1).await;
+    node_controls[0]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[0], &currency1)
+        .await;
 
     // Set remote max debt for both sides:
     node_controls[0]
@@ -70,8 +75,12 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
         .await;
 
     // Wait for liveness:
-    node_controls[0].wait_until_ready(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_ready(&public_keys[0], &currency1).await;
+    node_controls[0]
+        .wait_until_ready(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_ready(&public_keys[0], &currency1)
+        .await;
 
     // Let node 1 open an invoice:
     let add_invoice = AddInvoice {
@@ -172,7 +181,6 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     assert_eq!(receipt.dest_payment, 4);
     assert_eq!(receipt.total_dest_payment, 4);
 
-
     // Verify expected balances:
     node_controls[0]
         .wait_friend_balance(&public_keys[1], &currency1, -5)
@@ -184,16 +192,13 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     // Wait until no more progress can be made
     test_executor.wait().await;
 
-
     ///////////////////////////////////////////////////////////
     // Intentionally create an inconsistency
     ///////////////////////////////////////////////////////////
-    
+
     // Node0: Remove friend node1, and add it again.
     // This should cause an inconsistency.
-    node_controls[0]
-        .remove_friend(&public_keys[1])
-        .await;
+    node_controls[0].remove_friend(&public_keys[1]).await;
 
     node_controls[0]
         .add_friend(&public_keys[1], relays1, "node1")
@@ -214,13 +219,18 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
         };
         assert!(channel_inconsistent_report.local_reset_terms.is_empty());
 
-        let reset_terms_report = if let Some(reset_terms_report) = &channel_inconsistent_report.opt_remote_reset_terms {
-            reset_terms_report
-        } else {
-            return false;
-        };
+        let reset_terms_report =
+            if let Some(reset_terms_report) = &channel_inconsistent_report.opt_remote_reset_terms {
+                reset_terms_report
+            } else {
+                return false;
+            };
 
-        if let Some(pos) = reset_terms_report.balance_for_reset.iter().position(|currency_balance| currency_balance.currency == currency1) {
+        if let Some(pos) = reset_terms_report
+            .balance_for_reset
+            .iter()
+            .position(|currency_balance| currency_balance.currency == currency1)
+        {
             reset_terms_report.balance_for_reset[pos].balance == 5
         } else {
             false

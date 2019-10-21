@@ -2,19 +2,18 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-
 use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::app_server::messages::{RelayAddress, NamedRelayAddress};
+use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
-    ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
-    RequestResult, RequestsStatus, TokenInfo, TransactionResult, McInfo, CountersInfo,
-    CurrencyBalanceInfo, BalanceInfo, Currency, CurrencyOperations,
+    BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
+    CurrencyOperations, FriendMessage, FriendTcOp, FunderOutgoingControl, McInfo, MoveTokenRequest,
+    RequestResult, RequestsStatus, TokenInfo, TransactionResult,
 };
 
 use identity::IdentityClient;
@@ -26,19 +25,19 @@ use crate::types::{
 };
 
 use crate::friend::{
-    BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays, CurrencyConfig,
+    BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
+    SentLocalRelays,
 };
-use crate::token_channel::{SetDirection, TcMutation, TokenChannel, SendMoveTokenOutput};
+use crate::token_channel::{SendMoveTokenOutput, SetDirection, TcMutation, TokenChannel};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::remove_transaction;
 use crate::handler::state_wrap::MutableFunderState;
+use crate::handler::types::{FriendSendCommands, SendCommands};
 use crate::handler::utils::find_request_origin;
-use crate::handler::types::{SendCommands, FriendSendCommands};
 use crate::state::{FunderMutation, FunderState};
 
 pub type OutgoingMessage<B> = (PublicKey, FriendMessage<B>);
-
 
 #[derive(Debug)]
 enum PendingQueueError {
@@ -103,21 +102,38 @@ where
         operation: &FriendTcOp,
         m_state: &mut MutableFunderState<B>,
     ) -> Result<(), PendingQueueError> {
-
         // Make sure we do not have too many operations queued:
-        let num_operations: usize = self.pending_currencies.values().map(|pending_currency| pending_currency.operations.len()).sum();
+        let num_operations: usize = self
+            .pending_currencies
+            .values()
+            .map(|pending_currency| pending_currency.operations.len())
+            .sum();
         if num_operations >= self.max_operations_in_batch {
             return Err(PendingQueueError::MaxOperationsReached);
         }
 
-        let friend = m_state.state().friends.get(&self.friend_public_key).unwrap();
+        let friend = m_state
+            .state()
+            .friends
+            .get(&self.friend_public_key)
+            .unwrap();
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
 
-        let outgoing_mc = token_channel.get_incoming().unwrap().create_outgoing_mc(currency).unwrap();
-        let pending_currency = self.pending_currencies.entry(currency.clone()).or_insert(PendingCurrency {outgoing_mc, operations: Vec::new()});
+        let outgoing_mc = token_channel
+            .get_incoming()
+            .unwrap()
+            .create_outgoing_mc(currency)
+            .unwrap();
+        let pending_currency =
+            self.pending_currencies
+                .entry(currency.clone())
+                .or_insert(PendingCurrency {
+                    outgoing_mc,
+                    operations: Vec::new(),
+                });
 
         let _mc_mutations = match pending_currency.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
@@ -171,7 +187,10 @@ fn transmit_outgoing<B>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let move_token = token_channel.get_outgoing().unwrap().create_outgoing_move_token();
+    let move_token = token_channel
+        .get_outgoing()
+        .unwrap()
+        .create_outgoing_move_token();
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -198,19 +217,31 @@ pub async fn apply_local_reset<'a, B, R>(
     let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms.clone().unwrap();
 
     // Update last_sent_relays:
-    let sent_local_relays = &m_state.state().friends.get(friend_public_key).unwrap().sent_local_relays;
+    let sent_local_relays = &m_state
+        .state()
+        .friends
+        .get(friend_public_key)
+        .unwrap()
+        .sent_local_relays;
     let new_sent_local_relays = match sent_local_relays {
         SentLocalRelays::NeverSent => SentLocalRelays::LastSent(m_state.state().relays.clone()),
         SentLocalRelays::Transition((last_sent, before_last_sent)) => {
             // We fear that the remote side might lose our relays (After the reset)
             // To be on the safe side, we take all the relays the remote side might know about us,
             // and set them as the old relays.
-            let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
-            let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
-            let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().collect();
+            let last_sent_set: HashSet<NamedRelayAddress<B>> =
+                last_sent.clone().into_iter().collect();
+            let before_last_sent_set: HashSet<NamedRelayAddress<B>> =
+                before_last_sent.clone().into_iter().collect();
+            let old_local_relays = last_sent_set
+                .union(&before_last_sent_set)
+                .cloned()
+                .collect();
             SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
-        },
-        SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),
+        }
+        SentLocalRelays::LastSent(last_sent) => {
+            SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone()))
+        }
     };
 
     let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
@@ -219,24 +250,33 @@ pub async fn apply_local_reset<'a, B, R>(
     m_state.mutate(funder_mutation);
 
     // Prepare our current relays:
-    let opt_local_relays = Some(m_state.state().relays.clone().into_iter().map(RelayAddress::from).collect());
-
+    let opt_local_relays = Some(
+        m_state
+            .state()
+            .relays
+            .clone()
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
+    );
 
     let move_token_counter = 0;
     let local_pending_debt = 0;
     let remote_pending_debt = 0;
     let opt_active_currencies = None;
 
-    let balances = remote_reset_terms.balance_for_reset.iter().map(|currency_balance| {
-        CurrencyBalanceInfo {
+    let balances = remote_reset_terms
+        .balance_for_reset
+        .iter()
+        .map(|currency_balance| CurrencyBalanceInfo {
             currency: currency_balance.currency.clone(),
             balance_info: BalanceInfo {
                 balance: currency_balance.balance.checked_neg().unwrap(),
                 local_pending_debt,
                 remote_pending_debt,
             },
-        }
-    }).collect();
+        })
+        .collect();
 
     let token_info = TokenInfo {
         mc: McInfo {
@@ -294,7 +334,6 @@ pub async fn apply_local_reset<'a, B, R>(
             m_state.mutate(funder_mutation);
         }
     }
-
 }
 
 async fn send_friend_iter1<'a, B, R>(
@@ -315,11 +354,12 @@ async fn send_friend_iter1<'a, B, R>(
 {
     // If we got here, it must be because some send_commands attribute was set:
     assert!(
-        friend_send_commands.try_send || 
-        friend_send_commands.resend_relays ||
-        friend_send_commands.resend_outgoing || 
-        friend_send_commands.remote_wants_token || 
-        friend_send_commands.local_reset);
+        friend_send_commands.try_send
+            || friend_send_commands.resend_relays
+            || friend_send_commands.resend_outgoing
+            || friend_send_commands.remote_wants_token
+            || friend_send_commands.local_reset
+    );
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -345,7 +385,6 @@ async fn send_friend_iter1<'a, B, R>(
                 &mut outgoing_messages,
             );
             return;
-
         } else {
             unreachable!();
         }
@@ -372,13 +411,14 @@ async fn send_friend_iter1<'a, B, R>(
 
     if let Some(tc_out_borrow) = &token_channel.get_outgoing() {
         // Remote side has the token:
-        
+
         let tc_outgoing = &tc_out_borrow.tc_outgoing;
-        // Do we have anything that we want to send? 
+        // Do we have anything that we want to send?
         // (Currently the token is at the remote side)
         let is_pending = estimate_should_send(m_state.state(), friend_public_key);
         if is_pending || friend_send_commands.resend_outgoing {
-            let is_token_wanted = is_pending || tc_outgoing.move_token_out.opt_local_relays.is_some();
+            let is_token_wanted =
+                is_pending || tc_outgoing.move_token_out.opt_local_relays.is_some();
             transmit_outgoing(
                 m_state,
                 &friend_public_key,
@@ -399,7 +439,7 @@ async fn send_friend_iter1<'a, B, R>(
     // is in incoming mode.
     // -- This could happen in handle_liveness.
     // assert!(!friend_send_commands.resend_outgoing);
-    
+
     let may_send_empty =
         friend_send_commands.resend_outgoing || friend_send_commands.remote_wants_token;
     let pending_move_token = PendingMoveToken::new(
@@ -446,21 +486,34 @@ where
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
             // Check if we need to tell remote side about our local active currencies:
-            let wanted_local_currencies: ImHashSet<_> = friend.currency_configs.keys().cloned().collect();
-            if wanted_local_currencies != channel_consistent.token_channel.get_active_currencies().local {
+            let wanted_local_currencies: ImHashSet<_> =
+                friend.currency_configs.keys().cloned().collect();
+            if wanted_local_currencies
+                != channel_consistent
+                    .token_channel
+                    .get_active_currencies()
+                    .local
+            {
                 return true;
             }
 
             for (currency, currency_config) in &friend.currency_configs {
-                if let Some(mutual_credit) = channel_consistent.token_channel.get_mutual_credits().get(currency) {
-
+                if let Some(mutual_credit) = channel_consistent
+                    .token_channel
+                    .get_mutual_credits()
+                    .get(currency)
+                {
                     // We need to change remote_max_debt:
-                    if currency_config.wanted_remote_max_debt != mutual_credit.state().balance.remote_max_debt {
+                    if currency_config.wanted_remote_max_debt
+                        != mutual_credit.state().balance.remote_max_debt
+                    {
                         return true;
                     }
 
                     // We need to change local requests status:
-                    if currency_config.wanted_local_requests_status != mutual_credit.state().requests_status.local {
+                    if currency_config.wanted_local_requests_status
+                        != mutual_credit.state().requests_status.local
+                    {
                         return true;
                     }
                 }
@@ -521,7 +574,8 @@ where
             let pending_transaction = create_pending_transaction(request_send_funds);
             let cancel_send_funds =
                 BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id));
-            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((currency.clone(), cancel_send_funds));
+            let friend_mutation =
+                FriendMutation::PushBackPendingBackwardsOp((currency.clone(), cancel_send_funds));
             let funder_mutation =
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -601,20 +655,27 @@ where
                 // We fear that the remote side might lose our relays (After the reset)
                 // To be on the safe side, we take all the relays the remote side might know about us,
                 // and set them as the old relays.
-                let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
-                let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
-                let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().collect();
+                let last_sent_set: HashSet<NamedRelayAddress<B>> =
+                    last_sent.clone().into_iter().collect();
+                let before_last_sent_set: HashSet<NamedRelayAddress<B>> =
+                    before_last_sent.clone().into_iter().collect();
+                let old_local_relays = last_sent_set
+                    .union(&before_last_sent_set)
+                    .cloned()
+                    .collect();
                 SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
-            },
-            SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),
+            }
+            SentLocalRelays::LastSent(last_sent) => {
+                SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone()))
+            }
         })
     } else {
         match &friend.sent_local_relays {
             SentLocalRelays::NeverSent => {
                 Some(SentLocalRelays::LastSent(local_named_relays.clone()))
-            },
-            SentLocalRelays::Transition((last_sent_local_relays, _)) |
-            SentLocalRelays::LastSent(last_sent_local_relays) => {
+            }
+            SentLocalRelays::Transition((last_sent_local_relays, _))
+            | SentLocalRelays::LastSent(last_sent_local_relays) => {
                 if &local_named_relays != last_sent_local_relays {
                     Some(SentLocalRelays::Transition((
                         local_named_relays.clone(),
@@ -657,7 +718,10 @@ where
     let wanted_local_currencies: ImHashSet<_> = friend.currency_configs.keys().cloned().collect();
     if wanted_local_currencies != token_channel.get_active_currencies().local {
         // Assert that all active currencies must be included inside the wanted_active_currencies:
-        assert!(token_channel.get_active_currencies().calc_active().is_subset(&wanted_local_currencies));
+        assert!(token_channel
+            .get_active_currencies()
+            .calc_active()
+            .is_subset(&wanted_local_currencies));
         pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
     }
 
@@ -671,10 +735,12 @@ where
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
         if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
-
             // We need to change remote_max_debt:
-            if currency_config.wanted_remote_max_debt != mutual_credit.state().balance.remote_max_debt {
-                let operation = FriendTcOp::SetRemoteMaxDebt(currency_config.wanted_remote_max_debt);
+            if currency_config.wanted_remote_max_debt
+                != mutual_credit.state().balance.remote_max_debt
+            {
+                let operation =
+                    FriendTcOp::SetRemoteMaxDebt(currency_config.wanted_remote_max_debt);
                 queue_operation_or_cancel(
                     m_state,
                     rng,
@@ -699,12 +765,15 @@ where
         };
         if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
             // We need to change local requests status:
-            if currency_config.wanted_local_requests_status != mutual_credit.state().requests_status.local {
-                let friend_op = if let RequestsStatus::Open = currency_config.wanted_local_requests_status {
-                    FriendTcOp::EnableRequests
-                } else {
-                    FriendTcOp::DisableRequests
-                };
+            if currency_config.wanted_local_requests_status
+                != mutual_credit.state().requests_status.local
+            {
+                let friend_op =
+                    if let RequestsStatus::Open = currency_config.wanted_local_requests_status {
+                        FriendTcOp::EnableRequests
+                    } else {
+                        FriendTcOp::DisableRequests
+                    };
                 queue_operation_or_cancel(
                     m_state,
                     rng,
@@ -937,7 +1006,11 @@ async fn send_move_token<'a, B, R>(
         ..
     } = pending_move_token;
 
-    if pending_currencies.is_empty() && opt_active_currencies.is_none() && opt_local_relays.is_none() && !may_send_empty {
+    if pending_currencies.is_empty()
+        && opt_active_currencies.is_none()
+        && opt_local_relays.is_none()
+        && !may_send_empty
+    {
         return;
     }
 
@@ -955,21 +1028,27 @@ async fn send_move_token<'a, B, R>(
 
     let tc_in_borrow = &channel_consistent.token_channel.get_incoming().unwrap();
 
-    let currencies_operations = pending_currencies.into_iter().map(|(currency, pending_currency)| {
-        CurrencyOperations {
+    let currencies_operations = pending_currencies
+        .into_iter()
+        .map(|(currency, pending_currency)| CurrencyOperations {
             currency,
             operations: pending_currency.operations,
-        }
-
-    }).collect();
-
+        })
+        .collect();
 
     // let (u_move_token, token_info) =
     let SendMoveTokenOutput {
         unsigned_move_token,
         mutations,
         token_info,
-    } = tc_in_borrow.simulate_send_move_token(currencies_operations, opt_local_relays, opt_active_currencies, rand_nonce).unwrap();
+    } = tc_in_borrow
+        .simulate_send_move_token(
+            currencies_operations,
+            opt_local_relays,
+            opt_active_currencies,
+            rand_nonce,
+        )
+        .unwrap();
 
     // Apply mutations:
     for tc_mutation in mutations {

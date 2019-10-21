@@ -1,13 +1,15 @@
+use std::convert::TryFrom;
 use std::fs;
 use std::path::PathBuf;
-use std::convert::TryFrom;
 
 use structopt::StructOpt;
 
 use derive_more::From;
 
 use app::report::{ChannelStatusReport, NodeReport};
-use app::{AppConfig, AppConn, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress, Currency};
+use app::{
+    AppConfig, AppConn, Currency, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress,
+};
 
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
 use app::ser_string::{deserialize_from_string, StringSerdeError};
@@ -156,7 +158,7 @@ pub struct SetFriendCurrencyRateCmd {
 /// Remove a currency from the set of currencies we are willing to trade
 /// with a remote friend.
 /// This operation will succeed only if we do not already have an active channel trading this
-/// currency. 
+/// currency.
 /// If we already have an open active channel with this currency, the currency will not
 /// be removed.
 #[derive(Clone, Debug, StructOpt)]
@@ -168,7 +170,6 @@ pub struct RemoveFriendCurrencyCmd {
     #[structopt(long = "currency", short = "c")]
     pub currency_name: String,
 }
-
 
 /// Reset mutual credit with friend according to friend's terms.
 #[derive(Clone, Debug, StructOpt)]
@@ -498,9 +499,10 @@ async fn config_open_friend_currency(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_public_key = friend_public_key_by_name(&node_report, &open_friend_currency_cmd.friend_name)
-        .ok_or(ConfigError::FriendNameNotFound)?
-        .clone();
+    let friend_public_key =
+        friend_public_key_by_name(&node_report, &open_friend_currency_cmd.friend_name)
+            .ok_or(ConfigError::FriendNameNotFound)?
+            .clone();
 
     let currency = Currency::try_from(open_friend_currency_cmd.currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
@@ -520,9 +522,10 @@ async fn config_close_friend_currency(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-    let friend_public_key = friend_public_key_by_name(&node_report, &close_friend_currency_cmd.friend_name)
-        .ok_or(ConfigError::FriendNameNotFound)?
-        .clone();
+    let friend_public_key =
+        friend_public_key_by_name(&node_report, &close_friend_currency_cmd.friend_name)
+            .ok_or(ConfigError::FriendNameNotFound)?
+            .clone();
 
     let currency = Currency::try_from(close_friend_currency_cmd.currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
@@ -551,8 +554,8 @@ async fn config_set_friend_currency_max_debt(
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    let currency = Currency::try_from(currency_name)
-        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+    let currency =
+        Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     #[allow(clippy::let_and_return)]
     // TODO: A temporary fix due to compiler issue:
@@ -579,8 +582,8 @@ async fn config_set_friend_currency_rate(
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    let currency = Currency::try_from(currency_name)
-        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+    let currency =
+        Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     let rate = Rate { mul, add };
 
@@ -598,7 +601,6 @@ async fn config_remove_friend_currency(
     mut app_config: AppConfig,
     node_report: NodeReport,
 ) -> Result<(), ConfigError> {
-
     let RemoveFriendCurrencyCmd {
         friend_name,
         currency_name,
@@ -608,8 +610,8 @@ async fn config_remove_friend_currency(
         .ok_or(ConfigError::FriendNameNotFound)?
         .clone();
 
-    let currency = Currency::try_from(currency_name)
-        .map_err(|_| ConfigError::InvalidCurrencyName)?;
+    let currency =
+        Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     #[allow(clippy::let_and_return)]
     // TODO: A temporary fix due to compiler issue:
@@ -618,7 +620,6 @@ async fn config_remove_friend_currency(
         .await
         .map_err(|_| ConfigError::AppConfigError);
     res
-
 }
 
 async fn config_reset_friend(
@@ -704,13 +705,20 @@ pub async fn config(config_cmd: ConfigCmd, mut app_conn: AppConn) -> Result<(), 
             config_close_friend_currency(close_friend_currency_cmd, app_config, node_report).await?
         }
         ConfigCmd::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt_cmd) => {
-            config_set_friend_currency_max_debt(set_friend_currency_max_debt_cmd, app_config, node_report).await?
+            config_set_friend_currency_max_debt(
+                set_friend_currency_max_debt_cmd,
+                app_config,
+                node_report,
+            )
+            .await?
         }
         ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd) => {
-            config_set_friend_currency_rate(set_friend_currency_rate_cmd, app_config, node_report).await?
+            config_set_friend_currency_rate(set_friend_currency_rate_cmd, app_config, node_report)
+                .await?
         }
         ConfigCmd::RemoveFriendCurrency(remove_friend_currency_cmd) => {
-            config_remove_friend_currency(remove_friend_currency_cmd, app_config, node_report).await?
+            config_remove_friend_currency(remove_friend_currency_cmd, app_config, node_report)
+                .await?
         }
         ConfigCmd::ResetFriend(reset_friend_cmd) => {
             config_reset_friend(reset_friend_cmd, app_config, node_report).await?

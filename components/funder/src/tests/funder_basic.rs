@@ -4,8 +4,8 @@ use common::test_executor::TestExecutor;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
-    AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
-    FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus, Currency, Rate
+    AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
+    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
 
 use super::utils::{create_node_controls, dummy_relay_address};
@@ -42,7 +42,8 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // The two nodes should eventually agree to trade `currency1`.
     node_controls[0]
-        .set_friend_currency_rate(&public_keys[1], &currency1, Rate::new()).await;
+        .set_friend_currency_rate(&public_keys[1], &currency1, Rate::new())
+        .await;
 
     // Remove and add currency back, just for testing:
     node_controls[0]
@@ -59,8 +60,12 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .set_friend_currency_rate(&public_keys[0], &currency2, Rate::new())
         .await;
 
-    node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_currency_active(&public_keys[0], &currency1).await;
+    node_controls[0]
+        .wait_until_currency_active(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_currency_active(&public_keys[0], &currency1)
+        .await;
 
     // Set remote max debt for both sides:
     node_controls[0]
@@ -79,8 +84,12 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .await;
 
     // Wait for liveness:
-    node_controls[0].wait_until_ready(&public_keys[1], &currency1).await;
-    node_controls[1].wait_until_ready(&public_keys[0], &currency1).await;
+    node_controls[0]
+        .wait_until_ready(&public_keys[1], &currency1)
+        .await;
+    node_controls[1]
+        .wait_until_ready(&public_keys[0], &currency1)
+        .await;
 
     // Let node 1 open an invoice:
     let add_invoice = AddInvoice {
@@ -180,7 +189,6 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     );
     assert_eq!(receipt.dest_payment, 4);
     assert_eq!(receipt.total_dest_payment, 4);
-
 
     // Verify expected balances:
     node_controls[0]

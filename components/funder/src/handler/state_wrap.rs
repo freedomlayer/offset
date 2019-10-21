@@ -6,7 +6,7 @@ use crypto::hash_lock::HashLock;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PlainLock, PublicKey, RandValue};
-use proto::funder::messages::{PendingTransaction, Currency};
+use proto::funder::messages::{Currency, PendingTransaction};
 
 use identity::IdentityClient;
 
@@ -99,7 +99,8 @@ where
             .await;
 
             let backwards_op = BackwardsOp::Response(response_send_funds);
-            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op));
+            let friend_mutation =
+                FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op));
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             self.mutate(funder_mutation);
