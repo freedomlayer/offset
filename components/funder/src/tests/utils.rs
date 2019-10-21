@@ -23,7 +23,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AddFriend, RemoveFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
     RequestsStatus, ResponseClosePayment, SetFriendCurrencyRate, SetFriendCurrencyMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult, Currency, SetFriendCurrencies,
+    SetFriendCurrencyRequestsStatus, TransactionResult, Currency, RemoveFriendCurrency,
 };
 
 use database::DatabaseClient;
@@ -353,19 +353,6 @@ where
             .await;
     }
 
-    pub async fn set_friend_currencies<'a>(
-        &'a mut self,
-        friend_public_key: &'a PublicKey,
-        currencies: Vec<Currency>,
-    ) {
-        let set_friend_currencies = SetFriendCurrencies {
-            friend_public_key: friend_public_key.clone(),
-            currencies,
-        };
-        self.send(FunderControl::SetFriendCurrencies(set_friend_currencies))
-            .await;
-    }
-
     pub async fn set_remote_max_debt<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
@@ -381,18 +368,32 @@ where
             .await;
     }
 
+    #[allow(unused)]
+    pub async fn remove_friend_currency<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+    ) {
+        let remove_friend_currency = RemoveFriendCurrency {
+            friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
+        };
+        self.send(FunderControl::RemoveFriendCurrency(remove_friend_currency))
+            .await;
+    }
+
     pub async fn set_requests_status<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
         currency: &'a Currency,
         requests_status: RequestsStatus,
     ) {
-        let set_requests_status = SetRequestsStatus {
+        let set_requests_status = SetFriendCurrencyRequestsStatus {
             friend_public_key: friend_public_key.clone(),
             currency: currency.clone(),
             status: requests_status.clone(),
         };
-        self.send(FunderControl::SetRequestsStatus(set_requests_status))
+        self.send(FunderControl::SetFriendCurrencyRequestsStatus(set_requests_status))
             .await;
     }
 
@@ -405,6 +406,13 @@ where
         };
         self.send(FunderControl::SetFriendCurrencyRate(set_friend_currency_rate))
             .await;
+    }
+
+    /// A shim, allowing to easily enable multiple currencies at once
+    pub async fn set_friend_currencies<'a>(&'a mut self, friend_public_key: &'a PublicKey, currencies: Vec<Currency>) {
+        for currency in currencies {
+            self.set_friend_currency_rate(friend_public_key, &currency, Rate::new()).await;
+        }
     }
 
     pub async fn wait_until_currency_active<'a>(&'a mut self, friend_public_key: &'a PublicKey, currency: &'a Currency) {

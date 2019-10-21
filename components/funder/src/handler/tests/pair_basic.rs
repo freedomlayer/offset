@@ -19,7 +19,7 @@ use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, FriendMessage,
     FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl, FunderOutgoingControl,
     MultiCommit, PaymentStatus, RequestResult, RequestsStatus, SetFriendCurrencyMaxDebt,
-    SetFriendStatus, SetRequestsStatus, Currency, SetFriendCurrencies,
+    SetFriendStatus, SetFriendCurrencyRequestsStatus, Currency, SetFriendCurrencyRate, Rate,
 };
 
 use crate::ephemeral::Ephemeral;
@@ -356,13 +356,14 @@ async fn task_handler_pair_basic<'a>(
     assert!(outgoing_comms.is_empty());
 
     // Node1 receives control message to add a currency:
-    let set_friend_currencies = SetFriendCurrencies {
+    let set_friend_currency_rate = SetFriendCurrencyRate {
         friend_public_key: pk2.clone(),
-        currencies: vec![currency.clone()],
+        currency: currency.clone(),
+        rate: Rate::new(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[16; Uid::len()]),
-        FunderControl::SetFriendCurrencies(set_friend_currencies),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -404,13 +405,14 @@ async fn task_handler_pair_basic<'a>(
     .unwrap();
 
     // Node2 receives control message to add a currency:
-    let set_friend_currencies = SetFriendCurrencies {
+    let set_friend_currency_rate = SetFriendCurrencyRate {
         friend_public_key: pk1.clone(),
-        currencies: vec![currency.clone()],
+        currency: currency.clone(),
+        rate: Rate::new(),
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[17; Uid::len()]),
-        FunderControl::SetFriendCurrencies(set_friend_currencies),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -648,14 +650,14 @@ async fn task_handler_pair_basic<'a>(
 
     // Node1 gets a control message to declare his requests are open,
     // However, Node1 doesn't have the token at this moment.
-    let set_requests_status = SetRequestsStatus {
+    let set_requests_status = SetFriendCurrencyRequestsStatus {
         friend_public_key: pk2.clone(),
         currency: currency.clone(),
         status: RequestsStatus::Open,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[19; Uid::len()]),
-        FunderControl::SetRequestsStatus(set_requests_status),
+        FunderControl::SetFriendCurrencyRequestsStatus(set_requests_status),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
