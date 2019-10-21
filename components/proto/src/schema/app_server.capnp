@@ -93,9 +93,15 @@ struct SetFriendCurrencyRate {
         rate @2: Rate;
 }
 
-struct SetFriendCurrencies {
+struct UpdateFriendCurrency {
         friendPublicKey @0: PublicKey;
-        currencies @1: List(Currency);
+        currency @1: Currency;
+        rate @2: Rate;
+}
+
+struct RemoveFriendCurrency {
+        friendPublicKey @0: PublicKey;
+        currency @1: Currency;
 }
 
 # Application -> AppServer
@@ -243,8 +249,8 @@ struct AppRequest {
         openFriendCurrency @15: OpenFriendCurrency;
         closeFriendCurrency @16: CloseFriendCurrency;
         setFriendCurrencyMaxDebt @17: SetFriendCurrencyMaxDebt;
-        setFriendCurrencyRate @18: SetFriendCurrencyRate;
-        setFriendCurrencies @19: SetFriendCurrencies;
+        updateFriendCurrency @18: UpdateFriendCurrency;
+        removeFriendCurrency @19: RemoveFriendCurrency;
         resetFriendChannel @20: ResetFriendChannel;
 
         # Routes:

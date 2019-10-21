@@ -93,7 +93,7 @@ where
             calc_friend_capacities(friend_report).into_iter().map(
                 move |(currency, (send_capacity, recv_capacity))| {
                     let rate = friend_report
-                        .rates
+                        .currency_rates
                         .iter()
                         .find(|currency_rate| currency_rate.currency == currency)
                         .map(|currency_rate| currency_rate.rate.clone())
@@ -204,7 +204,7 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                rates: vec![CurrencyRate {
+                currency_rates: vec![CurrencyRate {
                     currency: currency3.clone(),
                     rate: Rate { mul: 1, add: 10 },
                 }],
@@ -265,7 +265,7 @@ mod tests {
             pk3.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                rates: vec![CurrencyRate {
+                currency_rates: vec![CurrencyRate {
                     currency: currency1.clone(),
                     rate: Rate { mul: 2, add: 2 },
                 }],
@@ -336,7 +336,7 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                rates: vec![],
+                currency_rates: vec![],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
@@ -401,7 +401,7 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                rates: vec![CurrencyRate {
+                currency_rates: vec![CurrencyRate {
                     currency: currency3.clone(),
                     rate: Rate { mul: 1, add: 10 },
                 }],

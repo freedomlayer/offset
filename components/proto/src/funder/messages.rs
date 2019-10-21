@@ -586,19 +586,19 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_currency_rate)]
+#[capnp_conv(crate::app_server_capnp::update_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendCurrencyRate {
+pub struct UpdateFriendCurrency {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
     pub rate: Rate,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_currencies)]
+#[capnp_conv(crate::app_server_capnp::remove_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendCurrencies {
+pub struct RemoveFriendCurrency {
     pub friend_public_key: PublicKey,
-    pub currencies: Vec<Currency>,
+    pub currency: Currency,
 }
 
 /// A friend's route with known capacity
@@ -677,8 +677,8 @@ pub enum FunderControl<B> {
     SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
-    SetFriendCurrencyRate(SetFriendCurrencyRate),
-    SetFriendCurrencies(SetFriendCurrencies),
+    UpdateFriendCurrency(UpdateFriendCurrency),
+    RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
     CreatePayment(CreatePayment),

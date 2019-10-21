@@ -199,7 +199,7 @@ pub struct CurrencyRate {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
     pub name: String,
-    pub rates: Vec<CurrencyRate>,
+    pub currency_rates: Vec<CurrencyRate>,
     pub remote_relays: Vec<RelayAddress<B>>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
@@ -373,16 +373,16 @@ where
             }
             FriendReportMutation::SetRate(currency_rate) => {
                 if let Some(pos) = self
-                    .rates
+                    .currency_rates
                     .iter()
                     .position(|c_r| c_r.currency == currency_rate.currency)
                 {
-                    self.rates[pos] = currency_rate.clone();
+                    self.currency_rates[pos] = currency_rate.clone();
                 } else {
                     // Not found:
-                    self.rates.push(currency_rate.clone());
+                    self.currency_rates.push(currency_rate.clone());
                     // Canonicalize:
-                    self.rates
+                    self.currency_rates
                         .sort_by(|cr1, cr2| cr1.currency.cmp(&cr2.currency));
                 }
             }
@@ -434,7 +434,7 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
-                    rates: Vec::new(),
+                    currency_rates: Vec::new(),
                     remote_relays: add_friend_report.relays.clone(),
                     opt_last_incoming_move_token: add_friend_report
                         .opt_last_incoming_move_token

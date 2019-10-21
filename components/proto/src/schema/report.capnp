@@ -140,10 +140,10 @@ struct CurrencyRate {
 
 struct FriendReport {
         name @0: Text;
-        rates @1: List(CurrencyRate);
-        remoteRelays @2: List(RelayAddress);
+        remoteRelays @1: List(RelayAddress);
         # TODO: Not sure if we should keep this field.
         # Is the user actually going to use remoteRelays? Maybe to export a friend?
+        currencyRates @2: List(CurrencyRate);
         optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
         liveness @4: FriendLivenessReport;
         channelStatus @5: ChannelStatusReport;
