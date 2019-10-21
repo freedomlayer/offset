@@ -14,10 +14,10 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RequestResult,
-    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencies,
-    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendName, SetFriendRelays,
-    SetFriendStatus, SetRequestsStatus, TransactionResult,
+    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RemoveFriendCurrency,
+    RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
+    SetFriendCurrencyMaxDebt, SetFriendName, SetFriendRelays, SetFriendStatus, SetRequestsStatus,
+    TransactionResult, UpdateFriendCurrency,
 };
 use signature::verify::verify_multi_commit;
 
@@ -500,13 +500,16 @@ where
     Ok(())
 }
 
-fn control_set_friend_currency_rate<B>(
+fn control_update_friend_currency<B>(
     m_state: &mut MutableFunderState<B>,
-    set_friend_currency_rate: SetFriendCurrencyRate,
+    update_friend_currency: UpdateFriendCurrency,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+    // TODO: Update this implementation.
+    assert!(false);
+
     // Make sure that friend exists:
     let friend = m_state
         .state()
@@ -534,7 +537,7 @@ where
     Ok(())
 }
 
-fn control_set_friend_currencies<B>(
+fn control_remove_friend_currency<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     set_friend_currencies: SetFriendCurrencies,
@@ -542,6 +545,8 @@ fn control_set_friend_currencies<B>(
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
+    // TODO: Update this implementation
+    assert!(false);
     // Make sure that friend exists:
     let friend = m_state
         .state()
@@ -1216,12 +1221,12 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
-        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate) => {
-            control_set_friend_currency_rate(m_state, set_friend_currency_rate)
+        FunderControl::UpdateFriendCurrency(update_friend_currency) => {
+            control_update_friend_currency(m_state, update_friend_currency)
         }
 
-        FunderControl::SetFriendCurrencies(set_friend_currencies) => {
-            control_set_friend_currencies(m_state, send_commands, set_friend_currencies)
+        FunderControl::RemoveFriendCurrency(remove_friend_currency) => {
+            control_remove_friend_currency(m_state, send_commands, remove_friend_currency)
         }
 
         // Buyer API:

@@ -138,12 +138,19 @@ struct CurrencyRate {
         rate @1: Rate;
 }
 
+struct CurrencyConfigReport {
+        currency @0: Currency;
+        rate @1: Rate;
+        wantedRemoteMaxDebt @2: CustomUInt128;
+        wantedLocalRequestsStatus @3: RequestsStatusReport;
+}
+
 struct FriendReport {
         name @0: Text;
         remoteRelays @1: List(RelayAddress);
         # TODO: Not sure if we should keep this field.
         # Is the user actually going to use remoteRelays? Maybe to export a friend?
-        currencyRates @2: List(CurrencyRate);
+        currencyConfigs @2: List(CurrencyConfigReport);
         optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
         liveness @4: FriendLivenessReport;
         channelStatus @5: ChannelStatusReport;
@@ -182,11 +189,12 @@ struct FriendReportMutation {
         union {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
-                setRate @2: CurrencyRate;
-                setChannelStatus @3: ChannelStatusReport;
-                setStatus @4: FriendStatusReport;
-                setOptLastIncomingMoveToken @5: OptLastIncomingMoveToken;
-                setLiveness @6: FriendLivenessReport;
+                updateCurrencyConfig @2: CurrencyConfigReport;
+                removeCurrencyConfig @3: Currency;
+                setChannelStatus @4: ChannelStatusReport;
+                setStatus @5: FriendStatusReport;
+                setOptLastIncomingMoveToken @6: OptLastIncomingMoveToken;
+                setLiveness @7: FriendLivenessReport;
         }
 }
 

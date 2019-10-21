@@ -82,18 +82,6 @@ pub struct ChannelConsistent<B> {
     /// We care more about these requests, because those are payments that our user wants to make.
     /// This queue should be bounded in size (TODO: Check this)
     pub pending_user_requests: ImVec<(Currency, RequestSendFundsOp)>,
-    /// Wanted credit frame for the remote side (Set by the user of this node)
-    /// It might take a while until this value is applied, as it needs to be communicated to the
-    /// remote side.
-    pub wanted_remote_max_debt: ImHashMap<Currency, u128>,
-    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
-    /// might take some time until it is applied (As it should be communicated to the remote
-    /// friend).
-    pub wanted_local_requests_status: ImHashMap<Currency, RequestsStatus>,
-    /// Which currencies do we want to trade with this remote friend?
-    /// This is our planned value for `active_currencies`. (It should be communicated to the remote
-    /// friend)
-    pub wanted_active_currencies: Option<Vec<Currency>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -121,6 +109,21 @@ where
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct CurrencyConfig {
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
+    pub rate: Rate,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatus,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
     pub local_public_key: PublicKey,
@@ -134,9 +137,8 @@ pub struct FriendState<B: Clone> {
     pub sent_local_relays: SentLocalRelays<B>,
     /// Locally maintained name of the remote friend node.
     pub name: String,
-    /// Rate of forwarding transactions that arrived from this friend to any other friend
-    /// for a certain currency.
-    pub rates: ImHashMap<Currency, Rate>,
+    /// Local configurations for currencies relationship with this friend
+    pub currency_configs: ImHashMap<Currency, CurrencyConfig>,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).
     pub status: FriendStatus,
@@ -150,12 +152,8 @@ pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),
     SetConsistent(TokenChannel<B>),
-    SetWantedRemoteMaxDebt((Currency, u128)),
-    ClearWantedRemoteMaxDebt(Currency),
-    SetWantedLocalRequestsStatus((Currency, RequestsStatus)),
-    ClearWantedLocalRequestsStatus(Currency),
-    SetWantedActiveCurrencies(Vec<Currency>),
-    ClearWantedActiveCurrencies,
+    UpdateCurrencyConfig((Currency, CurrencyConfig)),
+    RemoveCurrencyConfig(Currency),
     PushBackPendingRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingRequest,
     PushBackPendingBackwardsOp((Currency, BackwardsOp)),
@@ -257,60 +255,26 @@ where
                 };
                 self.channel_status = ChannelStatus::Consistent(channel_consistent);
             }
-            FriendMutation::SetWantedRemoteMaxDebt((currency, wanted_remote_max_debt)) => {
-                let channel_consistent = match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
-                };
-
-                let _ = channel_consistent
-                    .wanted_remote_max_debt
-                    .insert(currency.clone(), wanted_remote_max_debt.clone());
+            FriendMutation::UpdateCurrencyConfig((currency, currency_config)) => {
+                let _ = self
+                    .currency_configs
+                    .insert(currency.clone(), currency_config.clone());
             }
-            FriendMutation::ClearWantedRemoteMaxDebt(currency) => {
+            FriendMutation::RemoveCurrencyConfig(currency) => {
                 let channel_consistent = match &mut self.channel_status {
                     ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
                     ChannelStatus::Inconsistent(_) => unreachable!(),
                 };
-
-                let res = channel_consistent.wanted_remote_max_debt.remove(currency);
-                assert!(res.is_some());
-            }
-            FriendMutation::SetWantedLocalRequestsStatus((
-                currency,
-                wanted_local_requests_status,
-            )) => {
-                let channel_consistent = match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
-                };
-                let _ = channel_consistent
-                    .wanted_local_requests_status
-                    .insert(currency.clone(), wanted_local_requests_status.clone());
-            }
-            FriendMutation::ClearWantedLocalRequestsStatus(currency) => {
-                let channel_consistent = match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
-                };
-                let res = channel_consistent
-                    .wanted_local_requests_status
-                    .remove(currency);
-                assert!(res.is_some());
-            }
-            FriendMutation::SetWantedActiveCurrencies(currencies) => {
-                let channel_consistent = match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
-                };
-                channel_consistent.wanted_active_currencies = Some(currencies.clone());
-            }
-            FriendMutation::ClearWantedActiveCurrencies => {
-                let channel_consistent = match &mut self.channel_status {
-                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
-                    ChannelStatus::Inconsistent(_) => unreachable!(),
-                };
-                channel_consistent.wanted_active_currencies = None;
+                // We can not remove configuration for a currency that is currency in use.
+                if channel_consistent
+                    .token_channel
+                    .active_currencies
+                    .calc_active()
+                    .contains(currency)
+                {
+                    unreachable!();
+                }
+                let _ = self.currency_configs.remove(currency);
             }
             FriendMutation::PushBackPendingRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {

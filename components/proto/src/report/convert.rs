@@ -93,10 +93,10 @@ where
             calc_friend_capacities(friend_report).into_iter().map(
                 move |(currency, (send_capacity, recv_capacity))| {
                     let rate = friend_report
-                        .currency_rates
+                        .currency_configs
                         .iter()
-                        .find(|currency_rate| currency_rate.currency == currency)
-                        .map(|currency_rate| currency_rate.rate.clone())
+                        .find(|currency_config| currency_config.currency == currency)
+                        .map(|currency_config| currency_config.rate.clone())
                         .unwrap_or(Rate::new());
 
                     (
@@ -184,7 +184,7 @@ mod tests {
     use super::*;
 
     use crate::report::messages::{
-        ChannelConsistentReport, CurrencyRate, CurrencyReport, McBalanceReport,
+        ChannelConsistentReport, CurrencyConfigReport, CurrencyReport, McBalanceReport,
         McRequestsStatusReport, RequestsStatusReport,
     };
     use std::convert::TryFrom;
@@ -204,9 +204,11 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_rates: vec![CurrencyRate {
+                currency_configs: vec![CurrencyConfigReport {
                     currency: currency3.clone(),
                     rate: Rate { mul: 1, add: 10 },
+                    wanted_remote_max_debt: 0,
+                    wanted_local_requests_status: RequestsStatusReport::Open,
                 }],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
@@ -265,9 +267,11 @@ mod tests {
             pk3.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_rates: vec![CurrencyRate {
+                currency_configs: vec![CurrencyConfigReport {
                     currency: currency1.clone(),
                     rate: Rate { mul: 2, add: 2 },
+                    wanted_remote_max_debt: 0,
+                    wanted_local_requests_status: RequestsStatusReport::Open,
                 }],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
@@ -336,7 +340,7 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_rates: vec![],
+                currency_configs: vec![],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
@@ -401,9 +405,11 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_rates: vec![CurrencyRate {
+                currency_configs: vec![CurrencyConfigReport {
                     currency: currency3.clone(),
                     rate: Rate { mul: 1, add: 10 },
+                    wanted_remote_max_debt: 0,
+                    wanted_local_requests_status: RequestsStatusReport::Open,
                 }],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,

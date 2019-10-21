@@ -188,19 +188,30 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
     }
 }
 
-#[capnp_conv(crate::report_capnp::currency_rate)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CurrencyRate {
+#[capnp_conv(crate::report_capnp::currency_config_report)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct CurrencyConfigReport {
     pub currency: Currency,
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
     pub rate: Rate,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatusReport,
 }
 
 #[capnp_conv(crate::report_capnp::friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
     pub name: String,
-    pub currency_rates: Vec<CurrencyRate>,
     pub remote_relays: Vec<RelayAddress<B>>,
+    pub currency_configs: Vec<CurrencyConfigReport>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
     #[capnp_conv(with = OptLastIncomingMoveToken)]
@@ -274,7 +285,8 @@ pub struct FunderReport<B = NetAddress> {
 pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate(CurrencyRate),
+    UpdateCurrencyConfig(CurrencyConfigReport),
+    RemoveCurrencyConfig(Currency),
     SetChannelStatus(ChannelStatusReport),
     SetStatus(FriendStatusReport),
     #[capnp_conv(with = OptLastIncomingMoveToken)]
@@ -371,20 +383,24 @@ where
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             }
-            FriendReportMutation::SetRate(currency_rate) => {
+            FriendReportMutation::UpdateCurrencyConfig(currency_config_report) => {
                 if let Some(pos) = self
-                    .currency_rates
+                    .currency_configs
                     .iter()
-                    .position(|c_r| c_r.currency == currency_rate.currency)
+                    .position(|c_c| c_c.currency == currency_config_report.currency)
                 {
-                    self.currency_rates[pos] = currency_rate.clone();
+                    self.currency_configs[pos] = currency_config_report.clone();
                 } else {
                     // Not found:
-                    self.currency_rates.push(currency_rate.clone());
+                    self.currency_configs.push(currency_config_report.clone());
                     // Canonicalize:
-                    self.currency_rates
-                        .sort_by(|cr1, cr2| cr1.currency.cmp(&cr2.currency));
+                    self.currency_configs
+                        .sort_by(|c_c1, c_c2| c_c1.currency.cmp(&c_c2.currency));
                 }
+            }
+            FriendReportMutation::RemoveCurrencyConfig(currency) => {
+                self.currency_configs
+                    .retain(|c_c| c_c.currency != *currency);
             }
 
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
@@ -434,7 +450,7 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
-                    currency_rates: Vec::new(),
+                    currency_configs: Vec::new(),
                     remote_relays: add_friend_report.relays.clone(),
                     opt_last_incoming_move_token: add_friend_report
                         .opt_last_incoming_move_token
