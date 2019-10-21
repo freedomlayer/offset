@@ -2,6 +2,7 @@ use std::cmp::Eq;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::hash::Hash;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -771,6 +772,19 @@ impl TryFrom<String> for Currency {
             return Err(CurrencyError::CurrencyNameTooLong);
         }
         Ok(Currency { currency })
+    }
+}
+
+impl FromStr for Currency {
+    type Err = CurrencyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() > MAX_CURRENCY_LEN {
+            return Err(CurrencyError::CurrencyNameTooLong);
+        }
+        Ok(Currency {
+            currency: s.to_owned(),
+        })
     }
 }
 
