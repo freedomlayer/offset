@@ -12,9 +12,9 @@ use crypto::rand::CryptoRandom;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::app_server::messages::AppPermissions;
 use proto::report::messages::ChannelStatusReport;
-use proto::funder::messages::{FriendsRoute, MultiCommit, PaymentStatus, PaymentStatusSuccess, Currency};
 
-use app::{AppBuyer, AppSeller};
+use app::{AppBuyer, AppSeller, Rate, Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess};
+use app::route::FriendsRoute;
 
 use timer::create_timer_incoming;
 
@@ -272,8 +272,8 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     config1.enable_friend(node_public_key(0)).await.unwrap();
 
     // Set active currencies for both sides:
-    config0.set_friend_currencies(node_public_key(1), vec![currency1.clone()]).await.unwrap();
-    config1.set_friend_currencies(node_public_key(0), vec![currency1.clone()]).await.unwrap();
+    config0.set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate::new()).await.unwrap();
+    config1.set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate::new()).await.unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 

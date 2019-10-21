@@ -9,7 +9,7 @@ use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer, NamedRelayAddress, RelayAddress, OpenFriendCurrency, CloseFriendCurrency};
 use proto::funder::messages::{
-    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt, Currency, SetFriendCurrencies,
+    AddFriend, Rate, ResetFriendChannel, SetFriendCurrencyRate, SetFriendRelays, SetFriendCurrencyMaxDebt, Currency, RemoveFriendCurrency,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -133,14 +133,14 @@ where
             .await
     }
 
-    pub async fn set_friend_currencies(
+    pub async fn remove_friend_currency(
         &mut self,
         friend_public_key: PublicKey,
-        currencies: Vec<Currency>,
+        currency: Currency,
     ) -> Result<(), AppConfigError> {
-        self.send_request(AppRequest::SetFriendCurrencies(SetFriendCurrencies {
+        self.send_request(AppRequest::RemoveFriendCurrency(RemoveFriendCurrency {
             friend_public_key,
-            currencies,
+            currency,
         })).await
     }
 

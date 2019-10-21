@@ -243,12 +243,16 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
                 .enable_friend(node_public_key(b))
                 .await
                 .unwrap();
-            apps[a as usize]
-                .config()
-                .unwrap()
-                .set_friend_currencies(node_public_key(b), vec![currency1.clone(), currency2.clone()])
-                .await
-                .unwrap();
+
+            for currency in [&currency1, &currency2].iter() {
+                apps[a as usize]
+                    .config()
+                    .unwrap()
+                    .set_friend_currency_rate(node_public_key(b), (*currency).clone(), Rate::new())
+                    // .set_friend_currencies(node_public_key(b), vec![currency1.clone(), currency2.clone()])
+                    .await
+                    .unwrap();
+                }
             }
     }
 

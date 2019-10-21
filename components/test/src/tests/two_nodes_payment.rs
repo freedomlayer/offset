@@ -17,7 +17,7 @@ use crypto::rand::CryptoRandom;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
-use app::{AppBuyer, AppRoutes, AppSeller, Currency};
+use app::{AppBuyer, AppRoutes, AppSeller, Currency, Rate};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -391,8 +391,12 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     drop(mutations_receiver);
 
     // Set active currencies for both sides:
-    config0.set_friend_currencies(node_public_key(1), vec![currency1.clone(), currency2.clone(), currency3.clone()]).await.unwrap();
-    config1.set_friend_currencies(node_public_key(0), vec![currency1.clone(), currency2.clone()]).await.unwrap();
+    for currency in [&currency1, &currency2, &currency3].into_iter() {
+        config0.set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new()).await.unwrap();
+    }
+    for currency in [&currency1, &currency2].into_iter() {
+        config1.set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new()).await.unwrap();
+    }
 
     // Wait some time, to let the two nodes negotiate currencies:
     advance_time(40, &mut tick_sender, &test_executor).await;

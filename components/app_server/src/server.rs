@@ -13,7 +13,7 @@ use proto::crypto::{PaymentId, Uid};
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RequestsStatus,
-    SetFriendStatus, SetRequestsStatus,
+    SetFriendStatus, SetFriendCurrencyRequestsStatus,
 };
 use proto::report::convert::funder_report_mutation_to_index_mutation;
 
@@ -123,7 +123,7 @@ fn check_request_permissions<B>(
         AppRequest::CloseFriendCurrency(_) => app_permissions.config,
         AppRequest::SetFriendCurrencyMaxDebt(_) => app_permissions.config,
         AppRequest::SetFriendCurrencyRate(_) => app_permissions.config,
-        AppRequest::SetFriendCurrencies(_) => app_permissions.config,
+        AppRequest::RemoveFriendCurrency(_) => app_permissions.config,
         AppRequest::ResetFriendChannel(_) => app_permissions.config,
         AppRequest::RequestRoutes(_) => app_permissions.routes,
         AppRequest::AddIndexServer(_) => app_permissions.config,
@@ -437,7 +437,7 @@ where
             SetFriendName(x) => to_funder!(SetFriendName(x)),
             SetFriendCurrencyMaxDebt(x) => to_funder!(SetFriendCurrencyMaxDebt(x)),
             SetFriendCurrencyRate(x) => to_funder!(SetFriendCurrencyRate(x)),
-            SetFriendCurrencies(x) => to_funder!(SetFriendCurrencies(x)),
+            RemoveFriendCurrency(x) => to_funder!(RemoveFriendCurrency(x)),
             ResetFriendChannel(x) => to_funder!(ResetFriendChannel(x)),
             CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
@@ -464,20 +464,20 @@ where
                 to_funder!(SetFriendStatus(set_friend_status))
             }
             OpenFriendCurrency(open_friend_currency) => {
-                let set_requests_status = SetRequestsStatus {
+                let set_requests_status = SetFriendCurrencyRequestsStatus {
                     friend_public_key: open_friend_currency.friend_public_key,
                     currency: open_friend_currency.currency,
                     status: RequestsStatus::Open,
                 };
-                to_funder!(SetRequestsStatus(set_requests_status))
+                to_funder!(SetFriendCurrencyRequestsStatus(set_requests_status))
             }
             CloseFriendCurrency(close_friend_currency) => {
-                let set_requests_status = SetRequestsStatus {
+                let set_requests_status = SetFriendCurrencyRequestsStatus {
                     friend_public_key: close_friend_currency.friend_public_key,
                     currency: close_friend_currency.currency,
                     status: RequestsStatus::Closed,
                 };
-                to_funder!(SetRequestsStatus(set_requests_status))
+                to_funder!(SetFriendCurrencyRequestsStatus(set_requests_status))
             }
 
             // Requests that go to index client:
