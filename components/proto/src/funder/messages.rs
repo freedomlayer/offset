@@ -21,6 +21,7 @@ use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
+use crate::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use crate::wrapper::Wrapper;
 
@@ -198,16 +199,20 @@ impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
     #[capnp_conv(with = Wrapper<i128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub balance: i128,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub local_pending_debt: u128,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub remote_pending_debt: u128,
 }
 
 #[capnp_conv(crate::report_capnp::currency_balance_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyBalanceInfo {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     pub balance_info: BalanceInfo,
 }
@@ -216,7 +221,9 @@ pub struct CurrencyBalanceInfo {
 #[capnp_conv(crate::report_capnp::mc_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub local_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub remote_public_key: PublicKey,
     pub balances: Vec<CurrencyBalanceInfo>,
 }
@@ -228,6 +235,7 @@ pub struct McInfo {
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub move_token_counter: u128,
 }
 

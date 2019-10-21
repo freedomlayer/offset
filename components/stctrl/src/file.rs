@@ -83,11 +83,11 @@ pub struct ReceiptFile {
 pub struct TokenFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub prefix_hash: HashResult,
-    pub token_info: TokenInfo,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub rand_nonce: RandValue,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub new_token: Signature,
+    pub token_info: TokenInfo,
 }
 
 impl std::convert::From<MultiCommit> for MultiCommitFile {
@@ -165,11 +165,14 @@ mod test {
                 move_token_counter: 4u128,
             },
         };
+
         let token_file = TokenFile {
             prefix_hash: HashResult::from(&[0; HashResult::len()]),
-            token_info,
             rand_nonce: RandValue::from(&[1; RandValue::len()]),
             new_token: Signature::from(&[2; Signature::len()]),
+            token_info,
         };
+
+        let _ = toml::to_string(&token_file).unwrap();
     }
 }
