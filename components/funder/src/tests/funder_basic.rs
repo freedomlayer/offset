@@ -5,7 +5,7 @@ use common::test_executor::TestExecutor;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, FriendStatus, FriendsRoute,
-    FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus, Currency
+    FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus, Currency, Rate
 };
 
 use super::utils::{create_node_controls, dummy_relay_address};
@@ -42,10 +42,21 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // The two nodes should eventually agree to trade `currency1`.
     node_controls[0]
-        .set_friend_currencies(&public_keys[1], vec![currency1.clone()])
+        .set_friend_currency_rate(&public_keys[1], &currency1, Rate::new()).await;
+
+    // Remove and add currency back, just for testing:
+    node_controls[0]
+        .remove_friend_currency(&public_keys[1], &currency1)
+        .await;
+    node_controls[0]
+        .set_friend_currency_rate(&public_keys[1], &currency1, Rate::new())
+        .await;
+
+    node_controls[1]
+        .set_friend_currency_rate(&public_keys[0], &currency1, Rate::new())
         .await;
     node_controls[1]
-        .set_friend_currencies(&public_keys[0], vec![currency1.clone(), currency2.clone()])
+        .set_friend_currency_rate(&public_keys[0], &currency2, Rate::new())
         .await;
 
     node_controls[0].wait_until_currency_active(&public_keys[1], &currency1).await;
