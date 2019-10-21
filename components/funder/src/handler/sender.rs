@@ -207,7 +207,7 @@ pub async fn apply_local_reset<'a, B, R>(
             // and set them as the old relays.
             let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
             let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
-            let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect();
+            let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().collect();
             SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
         },
         SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),
@@ -603,7 +603,7 @@ where
                 // and set them as the old relays.
                 let last_sent_set: HashSet<NamedRelayAddress<B>> = last_sent.clone().into_iter().collect();
                 let before_last_sent_set: HashSet<NamedRelayAddress<B>> = before_last_sent.clone().into_iter().collect();
-                let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().into_iter().collect();
+                let old_local_relays = last_sent_set.union(&before_last_sent_set).cloned().collect();
                 SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
             },
             SentLocalRelays::LastSent(last_sent) => SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone())),

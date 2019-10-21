@@ -41,6 +41,7 @@ pub enum GraphServiceError {
     LocalSpawnError,
 }
 
+#[allow(clippy::many_single_char_names)]
 /// Process one GraphRequest, and send the response through the provided sender.
 /// This function might perform a long computation and take a long time to complete.
 fn process_request<G, N, C, T, CG>(capacity_graphs: &mut HashMap<G, CG>, graph_request: GraphRequest<G, N, C, T>)
@@ -50,7 +51,7 @@ where
 {
     match graph_request {
         GraphRequest::UpdateEdge(g, a, b, capacity_edge, sender) => {
-            let capacity_graph = capacity_graphs.entry(g).or_insert(CG::new());
+            let capacity_graph = capacity_graphs.entry(g).or_insert_with(CG::new);
             let _ = sender.send(capacity_graph.update_edge(a, b, capacity_edge));
         }
         GraphRequest::RemoveEdge(g, a, b, sender) => {

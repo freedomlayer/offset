@@ -505,6 +505,7 @@ async fn config_open_friend_currency(
     let currency = Currency::try_from(open_friend_currency_cmd.currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
+    #[allow(clippy::let_and_return)]
     // TODO: A hack to overcome a compiler issue.
     // Fix later:
     let res = app_config
@@ -526,7 +527,8 @@ async fn config_close_friend_currency(
     let currency = Currency::try_from(close_friend_currency_cmd.currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
-    // TODO: A temporary fix due to compiler issue:
+    #[allow(clippy::let_and_return)]
+    // TODO: A temporary hack due to compiler issue:
     let res = app_config
         .close_friend_currency(friend_public_key, currency)
         .await
@@ -552,6 +554,7 @@ async fn config_set_friend_currency_max_debt(
     let currency = Currency::try_from(currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
+    #[allow(clippy::let_and_return)]
     // TODO: A temporary fix due to compiler issue:
     let res = app_config
         .set_friend_currency_max_debt(friend_public_key, currency, max_debt)
@@ -581,6 +584,7 @@ async fn config_set_friend_currency_rate(
 
     let rate = Rate { mul, add };
 
+    #[allow(clippy::let_and_return)]
     // TODO: A temporary fix due to compiler issue:
     let res = app_config
         .set_friend_currency_rate(friend_public_key, currency, rate)
@@ -607,6 +611,7 @@ async fn config_remove_friend_currency(
     let currency = Currency::try_from(currency_name)
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
+    #[allow(clippy::let_and_return)]
     // TODO: A temporary fix due to compiler issue:
     let res = app_config
         .remove_friend_currency(friend_public_key, currency)

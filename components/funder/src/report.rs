@@ -202,7 +202,7 @@ where
                 CurrencyConfigReport {
                     currency: currency.clone(),
                     rate: currency_config.rate.clone(),
-                    wanted_remote_max_debt: currency_config.wanted_remote_max_debt.clone(),
+                    wanted_remote_max_debt: currency_config.wanted_remote_max_debt,
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &currency_config.wanted_local_requests_status,
                     ),

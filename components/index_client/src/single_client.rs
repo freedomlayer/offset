@@ -38,6 +38,7 @@ pub enum SingleClientError {
     CounterOverflow,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 enum SingleClientEvent {
     FromServer(IndexServerToClient),

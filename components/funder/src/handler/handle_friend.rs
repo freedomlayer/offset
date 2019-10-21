@@ -80,7 +80,7 @@ where
         // TODO: Should we do something other than wrapping_add(1)?
         // 2**64 inconsistencies are required for an overflow.
         inconsistency_counter: token_channel.get_inconsistency_counter().wrapping_add(1),
-        balance_for_reset: balance_for_reset,
+        balance_for_reset,
     }
 }
 

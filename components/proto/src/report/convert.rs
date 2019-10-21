@@ -97,7 +97,7 @@ where
                         .iter()
                         .find(|currency_config| currency_config.currency == currency)
                         .map(|currency_config| currency_config.rate.clone())
-                        .unwrap_or(Rate::new());
+                        .unwrap_or_else(Rate::new);
 
                     (
                         (friend_public_key.clone(), currency),

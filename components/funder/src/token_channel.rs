@@ -353,7 +353,7 @@ where
             .remote_max_debt
     }
 
-    pub fn get_direction<'a>(&'a self) -> TcDirectionBorrow<'a, B> {
+    pub fn get_direction(&self) -> TcDirectionBorrow<'_, B> {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => TcDirectionBorrow::In(TcInBorrow {
                 tc_incoming: &tc_incoming,
@@ -455,14 +455,14 @@ where
         }
     }
 
-    pub fn get_outgoing<'a>(&'a self) -> Option<TcOutBorrow<'a, B>> {
+    pub fn get_outgoing(&self) -> Option<TcOutBorrow<'_, B>> {
         match self.get_direction() {
             TcDirectionBorrow::In(_) => None,
             TcDirectionBorrow::Out(tc_out_borrow) => Some(tc_out_borrow),
         }
     }
 
-    pub fn get_incoming<'a>(&'a self) -> Option<TcInBorrow<'a>> {
+    pub fn get_incoming(&self) -> Option<TcInBorrow<'_>> {
         match self.get_direction() {
             TcDirectionBorrow::In(tc_in_borrow) => Some(tc_in_borrow),
             TcDirectionBorrow::Out(_) => None,
@@ -630,7 +630,7 @@ impl<'a> TcInBorrow<'a> {
         Ok(SendMoveTokenOutput {
             unsigned_move_token,
             mutations: tc_mutations,
-            token_info: token_info,
+            token_info,
         })
     }
 
