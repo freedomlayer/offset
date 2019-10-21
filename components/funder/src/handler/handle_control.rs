@@ -486,6 +486,7 @@ where
 
 fn control_set_friend_currency_rate<B>(
     m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
     set_friend_currency_rate: SetFriendCurrencyRate,
 ) -> Result<(), HandleControlError>
 where
@@ -508,6 +509,8 @@ where
         }
         currency_config.clone()
     } else {
+        // A new local currency was added, we need to report to remote side:
+        send_commands.set_try_send(&set_friend_currency_rate.friend_public_key);
         CurrencyConfig::new()
     };
 
@@ -1208,7 +1211,7 @@ where
             control_set_friend_name(m_state, set_friend_name)
         }
         FunderControl::SetFriendCurrencyRate(set_friend_currency_rate) => {
-            control_set_friend_currency_rate(m_state, set_friend_currency_rate)
+            control_set_friend_currency_rate(m_state, send_commands, set_friend_currency_rate)
         }
 
         FunderControl::RemoveFriendCurrency(remove_friend_currency) => {
