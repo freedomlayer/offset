@@ -11,9 +11,9 @@ use crate::types::IncomingLivenessMessage;
 use crate::ephemeral::EphemeralMutation;
 use crate::liveness::LivenessMutation;
 
-use crate::handler::canceler::{cancel_pending_requests, cancel_pending_user_requests};
-use crate::handler::sender::SendCommands;
+use crate::handler::canceler::{cancel_pending_requests, CurrencyChoice};
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 
 #[derive(Debug)]
 pub enum HandleLivenessError {
@@ -83,8 +83,8 @@ where
                 outgoing_control,
                 rng,
                 &friend_public_key,
+                &CurrencyChoice::All,
             );
-            cancel_pending_user_requests(m_state, outgoing_control, rng, &friend_public_key);
         }
     };
     Ok(())
@@ -106,8 +106,8 @@ mod tests {
     use crate::friend::{ChannelStatus, FriendMutation};
     use crate::state::{FunderMutation, FunderState};
 
-    use crate::handler::sender::SendCommands;
     use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+    use crate::handler::types::SendCommands;
     use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
@@ -137,7 +137,6 @@ mod tests {
             friend_public_key: remote_pk.clone(),
             relays: vec![dummy_relay_address(1)],
             name: "remote_pk".into(),
-            balance: 0i128,
         };
         let funder_mutation = FunderMutation::AddFriend(add_friend);
         state.mutate(&funder_mutation);
@@ -153,7 +152,7 @@ mod tests {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             _ => unreachable!(),
         };
-        assert!(token_channel.is_outgoing());
+        assert!(token_channel.get_outgoing().is_some());
 
         let ephemeral = Ephemeral::new();
 

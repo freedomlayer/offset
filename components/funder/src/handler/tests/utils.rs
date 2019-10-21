@@ -1,5 +1,7 @@
-use identity::IdentityClient;
 use std::fmt::Debug;
+use std::hash::Hash;
+
+use identity::IdentityClient;
 
 use crypto::rand::CryptoRandom;
 use signature::canonical::CanonicalSerialize;
@@ -25,7 +27,7 @@ pub async fn apply_funder_incoming<'a, B, R>(
     identity_client: &'a mut IdentityClient,
 ) -> Result<(Vec<FunderOutgoingComm<B>>, Vec<FunderOutgoingControl<B>>), FunderHandlerError>
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + 'a,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash + 'a,
     R: CryptoRandom + 'a,
 {
     let funder_handler_output = funder_handle_message(

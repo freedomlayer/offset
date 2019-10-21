@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use futures::channel::mpsc;
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
@@ -6,6 +8,7 @@ use futures::{SinkExt, StreamExt};
 use proto::crypto::{PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
+use proto::funder::messages::Currency;
 use proto::index_client::messages::{
     AppServerToIndexClient, ClientResponseRoutes, IndexClientRequest, IndexClientToAppServer,
     RequestRoutes, ResponseRoutesResult,
@@ -59,9 +62,12 @@ where
     let _to_app_message = app_receiver0.next().await.unwrap();
     let _to_app_message = app_receiver1.next().await.unwrap();
 
+    let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+
     // Send a request routes message through app0:
     let request_routes = RequestRoutes {
         request_id: Uid::from(&[3; Uid::len()]),
+        currency: currency1.clone(),
         capacity: 250,
         source: PublicKey::from(&[0xee; PublicKey::len()]),
         destination: PublicKey::from(&[0xff; PublicKey::len()]),

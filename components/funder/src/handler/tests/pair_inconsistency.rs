@@ -1,6 +1,7 @@
-use super::utils::apply_funder_incoming;
-
 use std::cmp::Ordering;
+use std::convert::TryFrom;
+
+use super::utils::apply_funder_incoming;
 
 use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
@@ -14,15 +15,19 @@ use crypto::test_utils::DummyRandom;
 
 use proto::crypto::Uid;
 use proto::funder::messages::{
-    AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl,
-    ResetFriendChannel, SetFriendStatus,
+    AddFriend, Currency, CurrencyBalance, FriendMessage, FriendStatus, FunderControl,
+    FunderIncomingControl, Rate, ResetFriendChannel, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, SetFriendStatus,
 };
 
 use crate::ephemeral::Ephemeral;
-use crate::friend::ChannelStatus;
-use crate::state::FunderState;
+use crate::friend::{ChannelStatus, FriendMutation};
+use crate::mutual_credit::types::McMutation;
+use crate::state::{FunderMutation, FunderState};
+use crate::token_channel::TcMutation;
 use crate::types::{
-    FunderIncoming, FunderIncomingComm, FunderOutgoingComm, IncomingLivenessMessage,
+    ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm,
+    IncomingLivenessMessage,
 };
 
 use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
@@ -34,6 +39,8 @@ async fn task_handler_pair_inconsistency<'a>(
     // NOTE: We use Box::pin() in order to make sure we don't get a too large Future which will
     // cause a stack overflow.
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330
+
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = identity_client1.request_public_key().await.unwrap();
@@ -83,7 +90,6 @@ async fn task_handler_pair_inconsistency<'a>(
         friend_public_key: pk2.clone(),
         relays: vec![dummy_relay_address(2)],
         name: String::from("pk2"),
-        balance: 20i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[11; Uid::len()]),
@@ -121,13 +127,10 @@ async fn task_handler_pair_inconsistency<'a>(
     .unwrap();
 
     // Node2: Add friend 1:
-    // Note that this friend's initial balance should have been
-    // -20i128, but we assign -10i128 to cause an inconsistency.
     let add_friend = AddFriend {
         friend_public_key: pk1.clone(),
         relays: vec![dummy_relay_address(1)],
         name: String::from("pk1"),
-        balance: -10i128,
     };
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[13; Uid::len()]),
@@ -188,6 +191,9 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
+                // assert_eq!(friend_move_token.move_token_counter, 0);
+                // assert_eq!(friend_move_token.inconsistency_counter, 0);
+                // assert_eq!(friend_move_token.balance, 0);
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
@@ -201,7 +207,6 @@ async fn task_handler_pair_inconsistency<'a>(
     let incoming_liveness_message = IncomingLivenessMessage::Online(pk1.clone());
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Liveness(incoming_liveness_message));
-    // TODO: Check outgoing_comms here:
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
@@ -212,10 +217,20 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node2 sends information about his address to Node1:
+    // Node2 sends information about his address to Node1, and updates channeler
     assert_eq!(outgoing_comms.len(), 2);
 
+    match &outgoing_comms[0] {
+        FunderOutgoingComm::ChannelerConfig(ChannelerConfig::UpdateFriend(update_friend)) => {
+            assert_eq!(update_friend.friend_public_key, pk1);
+            assert_eq!(update_friend.friend_relays, vec![dummy_relay_address(1)]);
+            assert_eq!(update_friend.local_relays, vec![dummy_relay_address(2)]);
+        }
+        _ => unreachable!(),
+    };
+
     // Node2: Receive MoveToken from Node1:
+    // (Node2 should be able to discard this duplicate message)
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -228,8 +243,7 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node2 should retransmit his outgoing message:
-    // Note that Node2 haven't yet detected the inconsistency.
+    // The same message should be again sent by Node2:
     assert_eq!(outgoing_comms.len(), 1);
 
     let friend_message = match &outgoing_comms[0] {
@@ -239,7 +253,13 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.opt_local_relays.is_some());
+                // assert_eq!(friend_move_token.move_token_counter, 1);
+                // assert_eq!(friend_move_token.inconsistency_counter, 0);
+                // assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(
+                    friend_move_token.opt_local_relays,
+                    Some(vec![dummy_relay_address(2)])
+                );
             } else {
                 unreachable!();
             }
@@ -248,8 +268,7 @@ async fn task_handler_pair_inconsistency<'a>(
         _ => unreachable!(),
     };
 
-    // Node1: Receive MoveToken from Node2 with invalid balance.
-    // At this point Node1 should detect inconsistency
+    // Node1: Receive the message from Node2 (Setting address):
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -262,14 +281,344 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node1 should send an inconsistency error:
+    assert_eq!(outgoing_comms.len(), 2);
+    // Node1 should send a message containing opt_local_relays to Node2:
+    let friend_message = match &outgoing_comms[1] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, true);
+
+                let friend_move_token = &move_token_request.move_token;
+                // assert_eq!(friend_move_token.move_token_counter, 2);
+                // assert_eq!(friend_move_token.inconsistency_counter, 0);
+                // assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(
+                    friend_move_token.opt_local_relays,
+                    Some(vec![dummy_relay_address(1)])
+                );
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive the message from Node1 (Setting address):
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
     assert_eq!(outgoing_comms.len(), 1);
+
+    // Node2 sends an empty move token to node1:
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+
+                let friend_move_token = &move_token_request.move_token;
+                // assert_eq!(friend_move_token.move_token_counter, 3);
+                // assert_eq!(friend_move_token.inconsistency_counter, 0);
+                // assert_eq!(friend_move_token.balance, 0);
+                assert_eq!(friend_move_token.opt_local_relays, None);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1: Receives the empty move token message from Node2:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    assert!(outgoing_comms.is_empty());
+
+    // Node1 receives control message to add a currency:
+    let set_friend_currency_rate = SetFriendCurrencyRate {
+        friend_public_key: pk2.clone(),
+        currency: currency.clone(),
+        rate: Rate::new(),
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; Uid::len()]),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 produces outgoing communication (Adding an active currency):
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2 gets a MoveToken message from Node1, asking to add an active currency:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2 receives control message to add a currency:
+    let set_friend_currency_rate = SetFriendCurrencyRate {
+        friend_public_key: pk1.clone(),
+        currency: currency.clone(),
+        rate: Rate::new(),
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[17; Uid::len()]),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2 produces outgoing communication (Adding an active currency):
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1 gets a MoveToken message from Node2, asking to add an active currency:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    ///////////////////////////////////////
+    // Set remote max debt (Node1 -> Node2)
+    ///////////////////////////////////////
+
+    // Node1 receives control message to set remote max debt.
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
+        friend_public_key: pk2.clone(),
+        currency: currency.clone(),
+        remote_max_debt: 100,
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[15; Uid::len()]),
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 will send the SetRemoteMaxDebt message to Node2:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    let friend2 = state1.friends.get(&pk2).unwrap();
+    let remote_max_debt = match &friend2.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => {
+            channel_consistent
+                .token_channel
+                .get_mutual_credits()
+                .get(&currency)
+                .unwrap()
+                .state()
+                .balance
+                .remote_max_debt
+        }
+        _ => unreachable!(),
+    };
+    assert_eq!(remote_max_debt, 100);
+
+    let friend1 = state2.friends.get(&pk1).unwrap();
+    let local_max_debt = match &friend1.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => {
+            channel_consistent
+                .token_channel
+                .get_mutual_credits()
+                .get(&currency)
+                .unwrap()
+                .state()
+                .balance
+                .local_max_debt
+        }
+        _ => unreachable!(),
+    };
+    assert_eq!(local_max_debt, 100);
+
+    /////////////////////////////////////////////////
+    // Create inconsistency intentionaly:
+    /////////////////////////////////////////////////
+
+    // Change the balance intentionaly, to cause an inconsistency error.
+    // Node1 will now think that Node2 owes him 10 credits:
+    let mc_mutation = McMutation::SetBalance(10i128);
+    let tc_mutation = TcMutation::McMutation((currency.clone(), mc_mutation));
+    let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+    let funder_mutation = FunderMutation::FriendMutation((pk2.clone(), friend_mutation));
+    state1.mutate(&funder_mutation);
+
+    ///////////////////////////////////////
+    // Set remote max debt (Node2 -> Node1)
+    // This will not work, because an inconsistency will be noticed
+    ///////////////////////////////////////
+
+    // Node2 receives control message to set remote max debt.
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
+        friend_public_key: pk1.clone(),
+        currency: currency.clone(),
+        remote_max_debt: 200,
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; Uid::len()]),
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2 will send the SetRemoteMaxDebt message to Node1:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive friend_message (With SetRemoteMaxDebt) from Node2:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    /////////////////////////////////////////////////
+    // Inconsistency is noticed:
+    /////////////////////////////////////////////////
 
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, 20i128);
+                assert_eq!(
+                    reset_terms.balance_for_reset,
+                    vec![CurrencyBalance {
+                        currency: currency.clone(),
+                        balance: 10i128
+                    }]
+                );
                 assert_eq!(pk, &pk2);
             } else {
                 unreachable!();
@@ -299,7 +648,13 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::InconsistencyError(reset_terms) = friend_message {
                 assert_eq!(reset_terms.inconsistency_counter, 1);
-                assert_eq!(reset_terms.balance_for_reset, -10i128);
+                assert_eq!(
+                    reset_terms.balance_for_reset,
+                    vec![CurrencyBalance {
+                        currency: currency.clone(),
+                        balance: 0
+                    }]
+                );
                 assert_eq!(pk, &pk1);
                 (friend_message.clone(), reset_terms.reset_token.clone())
             } else {
@@ -353,11 +708,13 @@ async fn task_handler_pair_inconsistency<'a>(
             assert_eq!(
                 channel_consistent
                     .token_channel
-                    .get_mutual_credit()
+                    .get_mutual_credits()
+                    .get(&currency)
+                    .unwrap()
                     .state()
                     .balance
                     .balance,
-                10i128
+                0i128
             );
         }
         _ => unreachable!(),
@@ -369,12 +726,12 @@ async fn task_handler_pair_inconsistency<'a>(
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                // Token is wanted because Node1 wants to send his configured address later.
+                // Token is wanted because local relays were sent:
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
                 assert_eq!(friend_move_token.old_token, reset_token2);
-                assert!(friend_move_token.opt_local_relays.is_none());
+                assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
             }
@@ -396,18 +753,19 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node2 should send back an empty move token:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
+    // Node2 should send back a move token with local relays:
+    assert_eq!(outgoing_comms.len(), 2);
+    let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk1);
-                // Token is wanted because Node2 wants to send his configured address later.
-                assert_eq!(move_token_request.token_wanted, false);
+                // Token is wanted because local relays were sent:
+                assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
-                assert!(friend_move_token.opt_local_relays.is_none());
+                // Should contain SetRemoteMaxDebt:
+                assert_eq!(friend_move_token.currencies_operations.len(), 1);
+                assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
             }
@@ -429,21 +787,18 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Inconsistency is resolved.
-    // Node1 sends his address:
+    // Node1 sends to Node2 an empty move token message (Because token is wanted by Node2):
     assert_eq!(outgoing_comms.len(), 2);
     let friend_message = match &outgoing_comms[1] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
                 assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, true);
+                assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
-                assert_eq!(
-                    friend_move_token.opt_local_relays,
-                    Some(vec![dummy_relay_address(1)])
-                );
+                // Should contain SetRemoteMaxDebt:
+                assert_eq!(friend_move_token.currencies_operations.len(), 1);
+                assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
             }
@@ -452,7 +807,7 @@ async fn task_handler_pair_inconsistency<'a>(
         _ => unreachable!(),
     };
 
-    // Node2: Receive MoveToken from Node1:
+    // Node2: Receive empty MoveToken from Node1:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -466,36 +821,6 @@ async fn task_handler_pair_inconsistency<'a>(
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 1);
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk1);
-                assert_eq!(move_token_request.token_wanted, false);
-
-                let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.operations.is_empty());
-                assert_eq!(friend_move_token.opt_local_relays, None);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        }
-        _ => unreachable!(),
-    };
-
-    // Node1: Receive MoveToken from Node2:
-    let funder_incoming =
-        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
-        funder_incoming,
-        &mut state1,
-        &mut ephemeral1,
-        &mut rng,
-        identity_client1,
-    ))
-    .await
-    .unwrap();
-    assert!(outgoing_comms.is_empty());
 }
 
 #[test]

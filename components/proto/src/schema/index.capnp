@@ -7,6 +7,7 @@ using import "common.capnp".RandValue;
 using import "common.capnp".Uid;
 using import "common.capnp".CustomUInt128;
 using import "common.capnp".Rate;
+using import "common.capnp".Currency;
 
 using import "funder.capnp".FriendsRoute;
 
@@ -21,12 +22,13 @@ struct Edge {
 # IndexClient -> IndexServer
 struct RequestRoutes {
         requestId @0: Uid;
-        capacity @1: CustomUInt128;
-        source @2: PublicKey;
-        destination @3: PublicKey;
+        currency @1: Currency;
+        capacity @2: CustomUInt128;
+        source @3: PublicKey;
+        destination @4: PublicKey;
         optExclude: union {
-                empty @4: Void;
-                edge @5: Edge;
+                empty @5: Void;
+                edge @6: Edge;
         }
 }
 
@@ -47,24 +49,34 @@ struct ResponseRoutes {
         multiRoutes @1: List(MultiRoute);
 }
 
-struct UpdateFriend {
+struct UpdateFriendCurrency {
         publicKey @0: PublicKey;
         # Friend's public key
-        sendCapacity @1: CustomUInt128;
+        currency @1: Currency;
+        # Currency being updated
+        sendCapacity @2: CustomUInt128;
         # To denote remote requests closed, assign 0 to sendCapacity
-        recvCapacity @2: CustomUInt128;
+        recvCapacity @3: CustomUInt128;
         # To denote local requests closed, assign 0 to recvCapacity
-        rate @3: Rate;
+        rate @4: Rate;
         # Rate a node takes for forwarding messages for this friend (to another
         # node).
 }
+
+struct RemoveFriendCurrency {
+        publicKey @0: PublicKey;
+        # Friend's public key
+        currency @1: Currency;
+        # Currency being removed
+}
+
 
 
 # IndexClient -> IndexServer
 struct IndexMutation {
         union {
-                updateFriend @0: UpdateFriend;
-                removeFriend @1: PublicKey;
+                updateFriendCurrency @0: UpdateFriendCurrency;
+                removeFriendCurrency @1: RemoveFriendCurrency;
         }
 }
 

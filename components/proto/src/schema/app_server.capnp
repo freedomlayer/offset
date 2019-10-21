@@ -9,7 +9,6 @@ using import "common.capnp".PublicKey;
 using import "common.capnp".Signature;
 using import "common.capnp".PaymentId;
 using import "common.capnp".Rate;
-
 using import "common.capnp".Receipt;
 using import "common.capnp".Commit;
 using import "common.capnp".MultiCommit;
@@ -17,6 +16,7 @@ using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
 using import "common.capnp".NamedIndexServerAddress;
+using import "common.capnp".Currency;
 
 using import "report.capnp".NodeReport;
 using import "report.capnp".NodeReportMutation;
@@ -54,7 +54,6 @@ struct AddFriend {
         friendPublicKey @0: PublicKey;
         relays @1: List(RelayAddress);
         name @2: Text;
-        balance @3: CustomInt128;
 }
 
 # Application -> AppServer
@@ -63,20 +62,40 @@ struct SetFriendName {
         name @1: Text;
 }
 
+# Application -> AppServer
 struct SetFriendRelays {
         friendPublicKey @0: PublicKey;
         relays @1: List(RelayAddress);
 }
 
 # Application -> AppServer
-struct SetFriendRemoteMaxDebt {
+struct OpenFriendCurrency {
         friendPublicKey @0: PublicKey;
-        remoteMaxDebt @1: CustomUInt128;
+        currency @1: Currency;
 }
 
-struct SetFriendRate {
+# Application -> AppServer
+struct CloseFriendCurrency {
         friendPublicKey @0: PublicKey;
-        rate @1: Rate;
+        currency @1: Currency;
+}
+
+# Application -> AppServer
+struct SetFriendCurrencyMaxDebt {
+        friendPublicKey @0: PublicKey;
+        currency @1: Currency;
+        remoteMaxDebt @2: CustomUInt128;
+}
+
+struct SetFriendCurrencyRate {
+        friendPublicKey @0: PublicKey;
+        currency @1: Currency;
+        rate @2: Rate;
+}
+
+struct RemoveFriendCurrency {
+        friendPublicKey @0: PublicKey;
+        currency @1: Currency;
 }
 
 # Application -> AppServer
@@ -100,8 +119,9 @@ struct ClientResponseRoutes {
 struct CreatePayment {
         paymentId @0: PaymentId;
         invoiceId @1: InvoiceId;
-        totalDestPayment @2: CustomUInt128;
-        destPublicKey @3: PublicKey;
+        currency @2: Currency;
+        totalDestPayment @3: CustomUInt128;
+        destPublicKey @4: PublicKey;
 }
 
 struct CreateTransaction {
@@ -119,7 +139,8 @@ struct AckClosePayment {
 
 struct AddInvoice {
         invoiceId @0: InvoiceId;
-        totalDestPayment @1: CustomUInt128;
+        currency @1: Currency;
+        totalDestPayment @2: CustomUInt128;
 }
 
 #####################################################################
@@ -219,18 +240,19 @@ struct AppRequest {
         removeFriend @12: PublicKey;
         enableFriend @13: PublicKey;
         disableFriend @14: PublicKey;
-        openFriend @15: PublicKey;
-        closeFriend @16: PublicKey;
-        setFriendRemoteMaxDebt @17: SetFriendRemoteMaxDebt;
-        setFriendRate @18: SetFriendRate;
-        resetFriendChannel @19: ResetFriendChannel;
+        openFriendCurrency @15: OpenFriendCurrency;
+        closeFriendCurrency @16: CloseFriendCurrency;
+        setFriendCurrencyMaxDebt @17: SetFriendCurrencyMaxDebt;
+        setFriendCurrencyRate @18: SetFriendCurrencyRate;
+        removeFriendCurrency @19: RemoveFriendCurrency;
+        resetFriendChannel @20: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @20: RequestRoutes;
+        requestRoutes @21: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @21: NamedIndexServerAddress;
-        removeIndexServer @22: PublicKey;
+        addIndexServer @22: NamedIndexServerAddress;
+        removeIndexServer @23: PublicKey;
     }
 }
 

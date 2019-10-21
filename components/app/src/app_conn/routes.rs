@@ -8,6 +8,7 @@ use proto::crypto::{PublicKey, Uid};
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
+use proto::funder::messages::Currency;
 use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 use proto::index_server::messages::{Edge, MultiRoute, RequestRoutes};
 
@@ -66,6 +67,7 @@ where
 
     pub async fn request_routes(
         &mut self,
+        currency: Currency,
         capacity: u128,
         source: PublicKey,
         destination: PublicKey,
@@ -78,6 +80,7 @@ where
         });
         let request_routes = RequestRoutes {
             request_id: request_routes_id.clone(),
+            currency,
             capacity,
             source,
             destination,

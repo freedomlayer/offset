@@ -4,7 +4,7 @@ use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
-use crate::ser_string::{from_base64, to_base64};
+use crate::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
@@ -30,6 +30,7 @@ pub struct FriendAddressFile {
 pub struct RelayAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub address: NetAddress,
 }
 
@@ -53,6 +54,7 @@ pub struct IdentityFile {
 pub struct IndexServerFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub address: NetAddress,
 }
 
@@ -61,6 +63,7 @@ pub struct IndexServerFile {
 pub struct NodeAddressFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub public_key: PublicKey,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub address: NetAddress,
 }
 

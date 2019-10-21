@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use futures::channel::mpsc;
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
@@ -7,7 +9,7 @@ use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use proto::app_server::messages::{AppPermissions, AppRequest, AppServerToApp, AppToAppServer};
 use proto::funder::messages::{
-    CreatePayment, CreateTransaction, FriendsRoute, FunderControl, FunderOutgoingControl,
+    CreatePayment, CreateTransaction, Currency, FriendsRoute, FunderControl, FunderOutgoingControl,
     RequestResult, TransactionResult,
 };
 
@@ -62,9 +64,12 @@ where
     let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
     let pk_f = PublicKey::from(&[0xff; PublicKey::len()]);
 
+    let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+
     let create_payment = CreatePayment {
         payment_id: PaymentId::from(&[1; PaymentId::len()]),
         invoice_id: InvoiceId::from(&[2; InvoiceId::len()]),
+        currency: currency1.clone(),
         total_dest_payment: 20,
         dest_public_key: pk_f.clone(),
     };

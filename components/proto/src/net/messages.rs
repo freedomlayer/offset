@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -6,7 +7,6 @@ use derive_more::Display;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-// use byteorder::{WriteBytesExt, BigEndian};
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
 #[capnp_conv(crate::common_capnp::net_address)]
@@ -34,5 +34,18 @@ impl TryFrom<String> for NetAddress {
             return Err(NetAddressError::AddressTooLong);
         }
         Ok(NetAddress { address })
+    }
+}
+
+impl FromStr for NetAddress {
+    type Err = NetAddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() > MAX_NET_ADDRESS_LENGTH {
+            return Err(NetAddressError::AddressTooLong);
+        }
+        Ok(NetAddress {
+            address: s.to_owned(),
+        })
     }
 }

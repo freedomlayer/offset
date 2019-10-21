@@ -1,8 +1,12 @@
 use std::cmp::Eq;
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::hash::Hash;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
+
+use derive_more::Display;
 
 use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
@@ -14,9 +18,10 @@ use crate::crypto::{
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::consts::MAX_ROUTE_LEN;
+use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
+use crate::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use crate::wrapper::Wrapper;
 
@@ -111,6 +116,7 @@ pub struct Commit {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MultiCommit {
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
     pub commits: Vec<Commit>,
@@ -144,6 +150,13 @@ pub enum OptLocalRelays<B = NetAddress> {
     Relays(Vec<RelayAddress<B>>),
 }
 
+#[capnp_conv(crate::funder_capnp::move_token::opt_active_currencies)]
+#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub enum OptActiveCurrencies {
+    Empty,
+    Currencies(Vec<Currency>),
+}
+
 // TODO: Create a macro that does this:
 impl<B> From<Option<Vec<RelayAddress<B>>>> for OptLocalRelays<B> {
     fn from(opt: Option<Vec<RelayAddress<B>>>) -> Self {
@@ -163,43 +176,123 @@ impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> 
     }
 }
 
-/*
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub move_token_counter: u128,
+impl From<Option<Vec<Currency>>> for OptActiveCurrencies {
+    fn from(opt: Option<Vec<Currency>>) -> Self {
+        match opt {
+            Some(currencies) => OptActiveCurrencies::Currencies(currencies),
+            None => OptActiveCurrencies::Empty,
+        }
+    }
+}
+
+impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
+    fn from(opt: OptActiveCurrencies) -> Self {
+        match opt {
+            OptActiveCurrencies::Currencies(currencies) => Some(currencies),
+            OptActiveCurrencies::Empty => None,
+        }
+    }
+}
+
+/// Balance information for a single currency
+#[capnp_conv(crate::report_capnp::balance_info)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct BalanceInfo {
     #[capnp_conv(with = Wrapper<i128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub balance: i128,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub local_pending_debt: u128,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub remote_pending_debt: u128,
-*/
+}
+
+#[capnp_conv(crate::report_capnp::currency_balance_info)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CurrencyBalanceInfo {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    pub balance_info: BalanceInfo,
+}
+
+/// Mutual Credit info
+#[capnp_conv(crate::report_capnp::mc_info)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct McInfo {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub local_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub remote_public_key: PublicKey,
+    pub balances: Vec<CurrencyBalanceInfo>,
+}
+
+/// Token channel counters.
+/// Both sides agree on these values implicitly.
+#[capnp_conv(crate::report_capnp::counters_info)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CountersInfo {
+    pub inconsistency_counter: u64,
+    #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub move_token_counter: u128,
+}
 
 /// Implicit values that both sides agree upon.
 /// Those values are also signed as part of the prefix hash.
+/// A hash of this structure is included inside MoveToken.
+#[capnp_conv(crate::report_capnp::token_info)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    pub move_token_counter: u128,
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
+    pub mc: McInfo,
+    pub counters: CountersInfo,
+}
+
+/// Information about an old move token.
+/// Saved together with the corresponding information
+/// (Equivalent to the state that was obtained right after the MoveToken message was applied).
+/// Those values are also signed as part of the prefix hash.
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct OldMoveToken<B = NetAddress, S = Signature> {
+    pub move_token: MoveToken<B, S>,
+    pub token_info: TokenInfo,
+}
+
+#[capnp_conv(crate::funder_capnp::currency_operations)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CurrencyOperations {
+    pub currency: Currency,
+    pub operations: Vec<FriendTcOp>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
-    pub operations: Vec<FriendTcOp>,
+    pub old_token: Signature,
+    pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    #[capnp_conv(with = OptActiveCurrencies)]
+    pub opt_active_currencies: Option<Vec<Currency>>,
     pub info_hash: HashResult,
-    pub old_token: Signature,
     pub rand_nonce: RandValue,
     pub new_token: S,
+}
+
+#[capnp_conv(crate::common_capnp::currency)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[display(fmt = "{}", currency)]
+pub struct Currency {
+    currency: String,
+}
+
+#[capnp_conv(crate::funder_capnp::currency_balance)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrencyBalance {
+    pub currency: Currency,
+    #[capnp_conv(with = Wrapper<i128>)]
+    pub balance: i128,
 }
 
 #[capnp_conv(crate::funder_capnp::reset_terms)]
@@ -207,8 +300,7 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance_for_reset: i128,
+    pub balance_for_reset: Vec<CurrencyBalance>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
@@ -235,6 +327,7 @@ pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || randNonce)
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -250,7 +343,8 @@ pub struct Receipt {
     #   dstHashedLock ||
     #   destPayment ||
     #   totalDestPayment ||
-    #   invoiceId
+    #   invoiceId ||
+    #   currency
     # )
     */
 }
@@ -451,8 +545,6 @@ pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128, // Initial balance
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -461,8 +553,9 @@ pub struct RemoveFriend {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetRequestsStatus {
+pub struct SetFriendCurrencyRequestsStatus {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     pub status: RequestsStatus,
 }
 
@@ -472,10 +565,11 @@ pub struct SetFriendStatus {
     pub status: FriendStatus,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_remote_max_debt)]
+#[capnp_conv(crate::app_server_capnp::set_friend_currency_max_debt)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendRemoteMaxDebt {
+pub struct SetFriendCurrencyMaxDebt {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub remote_max_debt: u128,
 }
@@ -501,11 +595,19 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
-#[capnp_conv(crate::app_server_capnp::set_friend_rate)]
+#[capnp_conv(crate::app_server_capnp::set_friend_currency_rate)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetFriendRate {
+pub struct SetFriendCurrencyRate {
     pub friend_public_key: PublicKey,
+    pub currency: Currency,
     pub rate: Rate,
+}
+
+#[capnp_conv(crate::app_server_capnp::remove_friend_currency)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveFriendCurrency {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
 }
 
 /// A friend's route with known capacity
@@ -514,18 +616,6 @@ struct FriendsRouteCapacity {
     route: FriendsRoute,
     capacity: u128,
 }
-
-/*
-/// A request to send funds that originates from the user
-#[capnp_conv(crate::app_server_capnp::user_request_send_funds)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserRequestSendFunds {
-    pub payment_id: PaymentId,
-    pub route: FriendsRoute,
-    pub invoice_id: InvoiceId,
-    pub dest_payment: Wrapper<u128>,
-}
-*/
 
 #[capnp_conv(crate::app_server_capnp::receipt_ack)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -542,6 +632,7 @@ pub struct CreatePayment {
     /// certain payment.
     pub payment_id: PaymentId,
     pub invoice_id: InvoiceId,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
     pub dest_public_key: PublicKey,
@@ -569,6 +660,8 @@ pub struct CreateTransaction {
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     pub invoice_id: InvoiceId,
+    /// Currency in use
+    pub currency: Currency,
     /// Total amount of credits to be paid.
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
@@ -588,16 +681,17 @@ pub enum FunderControl<B> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(RemoveFriend),
-    SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
+    SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
-    SetFriendRate(SetFriendRate),
+    SetFriendCurrencyRate(SetFriendCurrencyRate),
+    SetFriendCurrencyRequestsStatus(SetFriendCurrencyRequestsStatus),
+    RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:
     CreatePayment(CreatePayment),
-    CreateTransaction(CreateTransaction), // TODO
+    CreateTransaction(CreateTransaction),
     RequestClosePayment(PaymentId),
     AckClosePayment(AckClosePayment),
     // Seller API:
@@ -620,28 +714,6 @@ impl<B> FunderIncomingControl<B> {
         }
     }
 }
-
-// impl UserRequestSendFunds {
-/*
-pub fn into_request(self) -> RequestSendFunds {
-    RequestSendFunds {
-        request_id: self.request_id,
-        route: self.route,
-        invoice_id: self.invoice_id,
-        dest_payment: self.dest_payment,
-    }
-}
-
-pub fn create_pending_transaction(&self) -> PendingTransaction {
-    PendingTransaction {
-        request_id: self.request_id,
-        route: self.route.clone(),
-        dest_payment: self.dest_payment,
-        invoice_id: self.invoice_id.clone(),
-    }
-}
-*/
-// }
 
 #[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -688,6 +760,78 @@ pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
     ReportMutations(FunderReportMutations<B>),
+}
+
+impl Currency {
+    pub fn as_str(&self) -> &str {
+        &self.currency
+    }
+}
+
+#[derive(Debug)]
+pub enum CurrencyError {
+    CurrencyNameTooLong,
+}
+
+impl TryFrom<String> for Currency {
+    type Error = CurrencyError;
+    fn try_from(currency: String) -> Result<Self, Self::Error> {
+        if currency.len() > MAX_CURRENCY_LEN {
+            return Err(CurrencyError::CurrencyNameTooLong);
+        }
+        Ok(Currency { currency })
+    }
+}
+
+impl FromStr for Currency {
+    type Err = CurrencyError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() > MAX_CURRENCY_LEN {
+            return Err(CurrencyError::CurrencyNameTooLong);
+        }
+        Ok(Currency {
+            currency: s.to_owned(),
+        })
+    }
+}
+
+impl BalanceInfo {
+    fn flip(self) -> BalanceInfo {
+        BalanceInfo {
+            balance: self.balance.checked_neg().unwrap(),
+            local_pending_debt: self.remote_pending_debt,
+            remote_pending_debt: self.local_pending_debt,
+        }
+    }
+}
+
+impl McInfo {
+    pub fn flip(self) -> McInfo {
+        let balances = self
+            .balances
+            .into_iter()
+            .map(|currency_balance_info| CurrencyBalanceInfo {
+                currency: currency_balance_info.currency,
+                balance_info: currency_balance_info.balance_info.flip(),
+            })
+            .collect();
+
+        McInfo {
+            local_public_key: self.remote_public_key,
+            remote_public_key: self.local_public_key,
+            balances,
+        }
+    }
+}
+
+impl TokenInfo {
+    pub fn flip(self) -> TokenInfo {
+        TokenInfo {
+            mc: self.mc.flip(),
+            counters: self.counters,
+        }
+    }
 }
 
 #[cfg(test)]

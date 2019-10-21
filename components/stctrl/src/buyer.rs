@@ -117,6 +117,7 @@ async fn buyer_pay_invoice(
     // (Should the Server take into account the extra credits that should be paid along the way?).
     let multi_routes = app_routes
         .request_routes(
+            invoice_file.currency.clone(),
             invoice_file.dest_payment,
             local_public_key, // source
             invoice_file.dest_public_key.clone(),
@@ -156,6 +157,7 @@ async fn buyer_pay_invoice(
         .create_payment(
             payment_id.clone(),
             invoice_file.invoice_id.clone(),
+            invoice_file.currency.clone(),
             invoice_file.dest_payment,
             invoice_file.dest_public_key.clone(),
         )
@@ -204,6 +206,7 @@ async fn buyer_pay_invoice(
 
     let multi_commit = MultiCommit {
         invoice_id: invoice_file.invoice_id.clone(),
+        currency: invoice_file.currency.clone(),
         total_dest_payment: invoice_file.dest_payment,
         commits,
     };

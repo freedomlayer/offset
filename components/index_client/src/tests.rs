@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use futures::channel::{mpsc, oneshot};
 use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
@@ -7,10 +9,10 @@ use common::dummy_connector::{ConnRequest, DummyConnector};
 
 use proto::crypto::{PublicKey, Uid};
 
-use proto::funder::messages::Rate;
+use proto::funder::messages::{Currency, Rate};
 use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientReportMutation, IndexClientRequest, IndexClientToAppServer,
-    IndexMutation, RequestRoutes, ResponseRoutesResult, UpdateFriend,
+    IndexMutation, RequestRoutes, ResponseRoutesResult, UpdateFriendCurrency,
 };
 use proto::index_server::messages::{IndexServerAddress, NamedIndexServerAddress};
 
@@ -149,11 +151,14 @@ where
             _ => unreachable!(),
         };
 
+        let currency = Currency::try_from("FST".to_owned()).unwrap();
+
         // Feeding the send_full_state() task with one friend state:
         match self.seq_friends_receiver.next().await.unwrap() {
             SeqFriendsRequest::NextUpdate(response_sender) => {
-                let update_friend = UpdateFriend {
+                let update_friend = UpdateFriendCurrency {
                     public_key: PublicKey::from(PublicKey::from(&[0xaa; PublicKey::len()])),
+                    currency: currency.clone(),
                     send_capacity: 100,
                     recv_capacity: 50,
                     rate: Rate { mul: 0, add: 1 },
@@ -323,6 +328,8 @@ async fn task_index_client_loop_apply_mutations<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
+
     let mut icc = basic_index_client(spawner.clone());
     let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
@@ -330,13 +337,14 @@ where
     };
     let (mut control_receiver, _close_sender) = icc.expect_server_connection(index_server).await;
 
-    let update_friend = UpdateFriend {
+    let update_friend_currency = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
+        currency: currency.clone(),
         send_capacity: 200,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
     };
-    let index_mutation = IndexMutation::UpdateFriend(update_friend);
+    let index_mutation = IndexMutation::UpdateFriendCurrency(update_friend_currency);
     let mutations = vec![index_mutation.clone()];
     icc.app_server_sender
         .send(AppServerToIndexClient::ApplyMutations(mutations))
@@ -354,8 +362,9 @@ where
 
     // Wait for a request for next update from seq_friends.
     // This is the one extra sequential friend update sent with our update:
-    let next_update_friend = UpdateFriend {
+    let next_update_friend = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xcc; PublicKey::len()])),
+        currency: currency.clone(),
         send_capacity: 20,
         recv_capacity: 30,
         rate: Rate { mul: 0, add: 1 },
@@ -373,7 +382,7 @@ where
     // Wait for SendMutations:
     match control_receiver.next().await.unwrap() {
         SingleClientControl::SendMutations(mutations0) => {
-            let next_update = IndexMutation::UpdateFriend(next_update_friend);
+            let next_update = IndexMutation::UpdateFriendCurrency(next_update_friend);
             assert_eq!(mutations0, vec![index_mutation, next_update]);
         }
         _ => unreachable!(),
@@ -390,6 +399,7 @@ async fn task_index_client_loop_request_routes_basic<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
     let mut icc = basic_index_client(spawner.clone());
     let index_server = IndexServerAddress {
         public_key: PublicKey::from(&[0x37; PublicKey::len()]),
@@ -399,6 +409,7 @@ where
 
     let request_routes = RequestRoutes {
         request_id: Uid::from(&[3; Uid::len()]),
+        currency: currency.clone(),
         capacity: 250,
         source: PublicKey::from(PublicKey::from(&[0xee; PublicKey::len()])),
         destination: PublicKey::from(PublicKey::from(&[0xff; PublicKey::len()])),
@@ -466,6 +477,7 @@ async fn task_index_client_loop_connecting_state<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
+    let currency = Currency::try_from("FST".to_owned()).unwrap();
     let mut icc = basic_index_client(spawner.clone());
 
     // Wait for a connection request:
@@ -482,13 +494,14 @@ where
     // During the "Connecting" state we expect that IndexClient
     // will drop ApplyMutations messages:
 
-    let update_friend = UpdateFriend {
+    let update_friend_currency = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
+        currency: currency.clone(),
         send_capacity: 200,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
     };
-    let index_mutation = IndexMutation::UpdateFriend(update_friend);
+    let index_mutation = IndexMutation::UpdateFriendCurrency(update_friend_currency);
     let mutations = vec![index_mutation.clone()];
     icc.app_server_sender
         .send(AppServerToIndexClient::ApplyMutations(mutations))
@@ -510,6 +523,7 @@ where
 
     let request_routes = RequestRoutes {
         request_id: Uid::from(&[3; Uid::len()]),
+        currency: currency.clone(),
         capacity: 250,
         source: PublicKey::from(PublicKey::from(&[0xee; PublicKey::len()])),
         destination: PublicKey::from(PublicKey::from(&[0xff; PublicKey::len()])),

@@ -1,10 +1,11 @@
 use crypto::hash;
 use proto::crypto::PlainLock;
 use proto::funder::messages::{
-    CollectSendFundsOp, Commit, PendingTransaction, Receipt, ResponseSendFundsOp,
+    CollectSendFundsOp, Commit, Currency, PendingTransaction, Receipt, ResponseSendFundsOp,
 };
 
 pub fn prepare_receipt(
+    currency: &Currency,
     collect_send_funds: &CollectSendFundsOp,
     response_send_funds: &ResponseSendFundsOp,
     pending_transaction: &PendingTransaction,
@@ -18,6 +19,7 @@ pub fn prepare_receipt(
     Receipt {
         response_hash,
         invoice_id: pending_transaction.invoice_id.clone(),
+        currency: currency.clone(),
         src_plain_lock: collect_send_funds.src_plain_lock.clone(),
         dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
         dest_payment: pending_transaction.dest_payment,

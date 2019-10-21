@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
-use crate::funder::messages::{FriendsRoute, Rate};
+use crate::funder::messages::{Currency, FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
@@ -45,6 +45,7 @@ impl From<OptExclude> for Option<Edge> {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RequestRoutes {
     pub request_id: Uid,
+    pub currency: Currency,
     /// Wanted capacity for the route.
     /// 0 means we want to optimize for capacity??
     #[capnp_conv(with = Wrapper<u128>)]
@@ -86,11 +87,14 @@ pub struct ResponseRoutes {
     pub multi_routes: Vec<MultiRoute>,
 }
 
-#[capnp_conv(crate::index_capnp::update_friend)]
+// TODO: Possibly think of a better name for this structure?
+#[capnp_conv(crate::index_capnp::update_friend_currency)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateFriend {
+pub struct UpdateFriendCurrency {
     /// Friend's public key
     pub public_key: PublicKey,
+    /// Currency being updated
+    pub currency: Currency,
     /// To denote remote requests closed, assign 0 to sendCapacity
     #[capnp_conv(with = Wrapper<u128>)]
     pub send_capacity: u128,
@@ -107,12 +111,22 @@ pub struct UpdateFriend {
     pub rate: Rate,
 }
 
+// TODO: Possibly think of a better name for this structure?
+#[capnp_conv(crate::index_capnp::remove_friend_currency)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveFriendCurrency {
+    /// Friend's public key
+    pub public_key: PublicKey,
+    /// Currency being removed
+    pub currency: Currency,
+}
+
 /// IndexClient -> IndexServer
 #[capnp_conv(crate::index_capnp::index_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexMutation {
-    UpdateFriend(UpdateFriend),
-    RemoveFriend(PublicKey),
+    UpdateFriendCurrency(UpdateFriendCurrency),
+    RemoveFriendCurrency(RemoveFriendCurrency),
 }
 
 #[capnp_conv(crate::index_capnp::mutations_update)]

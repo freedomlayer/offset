@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -17,8 +18,9 @@ use crate::handler::handle_control::handle_control_message;
 use crate::handler::handle_friend::{handle_friend_message, HandleFriendError};
 use crate::handler::handle_init::handle_init;
 use crate::handler::handle_liveness::{handle_liveness_message, HandleLivenessError};
-use crate::handler::sender::{create_friend_messages, SendCommands};
+use crate::handler::sender::create_friend_messages;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::report::{ephemeral_mutation_to_report_mutations, funder_mutation_to_report_mutations};
@@ -83,7 +85,7 @@ where
                 max_pending_user_requests,
                 funder_incoming_control.funder_control,
             ) {
-                error!("handle_control_error(): {:?}", e);
+                warn!("handle_control_error(): {:?}", e);
             }
             Some(funder_incoming_control.app_request_id)
         }
@@ -168,7 +170,7 @@ pub async fn funder_handle_message<'a, B, R>(
     funder_incoming: FunderIncoming<B>,
 ) -> Result<FunderHandlerOutput<B>, FunderHandlerError>
 where
-    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: 'a + Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom + 'a,
 {
     let mut m_state = MutableFunderState::new(funder_state);

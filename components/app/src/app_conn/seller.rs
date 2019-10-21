@@ -7,7 +7,7 @@ use proto::crypto::{InvoiceId, Uid};
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
-use proto::funder::messages::{AddInvoice, MultiCommit};
+use proto::funder::messages::{AddInvoice, Currency, MultiCommit};
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
@@ -49,11 +49,13 @@ where
     pub async fn add_invoice(
         &mut self,
         invoice_id: InvoiceId,
+        currency: Currency,
         total_dest_payment: u128,
     ) -> Result<(), SellerError> {
         let app_request_id = Uid::rand_gen(&self.rng);
         let add_invoice = AddInvoice {
             invoice_id,
+            currency,
             total_dest_payment,
         };
         let to_app_server =

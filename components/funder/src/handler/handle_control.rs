@@ -7,27 +7,27 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
-use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
+use crate::friend::{BackwardsOp, ChannelStatus, CurrencyConfig, FriendMutation};
 use crate::state::{FunderMutation, NewTransactions, Payment};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RequestResult,
-    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate,
-    SetFriendRelays, SetFriendRemoteMaxDebt, SetFriendStatus, SetRequestsStatus, TransactionResult,
+    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RemoveFriendCurrency,
+    RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
+    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus,
+    SetFriendName, SetFriendRelays, SetFriendStatus, TransactionResult,
 };
 use signature::verify::verify_multi_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
-    cancel_local_pending_transactions, cancel_pending_requests, cancel_pending_user_requests,
-    reply_with_cancel,
+    cancel_local_pending_transactions, cancel_pending_requests, reply_with_cancel, CurrencyChoice,
 };
 use crate::handler::prepare::prepare_commit;
-use crate::handler::sender::SendCommands;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+use crate::handler::types::SendCommands;
 use crate::handler::utils::{find_local_pending_transaction, find_request_origin, is_friend_ready};
 
 use crate::types::ChannelerConfig;
@@ -53,12 +53,15 @@ pub enum HandleControlError {
     InvoiceAlreadyExists,
     InvoiceDoesNotExist,
     InvalidMultiCommit,
+    FriendCurrencyDoesNotExist,
+    CanNotRemoveActiveCurrency,
+    CurrencyNotConfigured,
 }
 
-fn control_set_friend_remote_max_debt<B>(
+fn control_set_friend_currency_max_debt<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    set_friend_remote_max_debt: SetFriendRemoteMaxDebt,
+    set_friend_currency_max_debt: SetFriendCurrencyMaxDebt,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -67,26 +70,35 @@ where
     let friend = m_state
         .state()
         .friends
-        .get(&set_friend_remote_max_debt.friend_public_key)
+        .get(&set_friend_currency_max_debt.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    if friend.wanted_remote_max_debt == set_friend_remote_max_debt.remote_max_debt {
-        // Wanted remote max debt is already set to this value. Nothing to do here.
-        return Ok(());
-    }
+    // If the newly proposed rate is the same as the old one, we do nothing:
+    let mut new_currency_config = if let Some(currency_config) = friend
+        .currency_configs
+        .get(&set_friend_currency_max_debt.currency)
+    {
+        if currency_config.wanted_remote_max_debt == set_friend_currency_max_debt.remote_max_debt {
+            return Ok(());
+        }
+        currency_config.clone()
+    } else {
+        CurrencyConfig::new()
+    };
 
-    // We only set the wanted remote max debt here. The actual remote max debt will be changed
-    // only when we manage to send a move token message containing the SetRemoteMaxDebt
-    // operation.
-    let friend_mutation =
-        FriendMutation::SetWantedRemoteMaxDebt(set_friend_remote_max_debt.remote_max_debt);
-    let m_mutation = FunderMutation::FriendMutation((
-        set_friend_remote_max_debt.friend_public_key.clone(),
+    new_currency_config.wanted_remote_max_debt = set_friend_currency_max_debt.remote_max_debt;
+
+    let friend_mutation = FriendMutation::UpdateCurrencyConfig((
+        set_friend_currency_max_debt.currency,
+        new_currency_config,
+    ));
+    let funder_mutation = FunderMutation::FriendMutation((
+        set_friend_currency_max_debt.friend_public_key.clone(),
         friend_mutation,
     ));
-    m_state.mutate(m_mutation);
+    m_state.mutate(funder_mutation);
 
-    send_commands.set_try_send(&set_friend_remote_max_debt.friend_public_key);
+    send_commands.set_try_send(&set_friend_currency_max_debt.friend_public_key);
     Ok(())
 }
 
@@ -165,9 +177,8 @@ fn disable_friend<B, R>(
         outgoing_control,
         rng,
         friend_public_key,
+        &CurrencyChoice::All,
     );
-
-    cancel_pending_user_requests(m_state, outgoing_control, rng, friend_public_key);
 
     // Notify Channeler:
     let channeler_config = ChannelerConfig::RemoveFriend(friend_public_key.clone());
@@ -351,29 +362,51 @@ where
     Ok(())
 }
 
-fn control_set_requests_status<B>(
+fn control_set_friend_currency_requests_status<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    set_requests_status: SetRequestsStatus,
+    set_friend_currency_requests_status: SetFriendCurrencyRequestsStatus,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
     // Make sure that friend exists:
-    let _friend = m_state
+    let friend = m_state
         .state()
         .friends
-        .get(&set_requests_status.friend_public_key)
+        .get(&set_friend_currency_requests_status.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    let friend_mutation = FriendMutation::SetWantedLocalRequestsStatus(set_requests_status.status);
+    // If the newly proposed rate is the same as the old one, we do nothing:
+    let mut new_currency_config = if let Some(currency_config) = friend
+        .currency_configs
+        .get(&set_friend_currency_requests_status.currency)
+    {
+        if currency_config.wanted_local_requests_status
+            == set_friend_currency_requests_status.status
+        {
+            return Ok(());
+        }
+        currency_config.clone()
+    } else {
+        CurrencyConfig::new()
+    };
+
+    new_currency_config.wanted_local_requests_status = set_friend_currency_requests_status.status;
+
+    let friend_mutation = FriendMutation::UpdateCurrencyConfig((
+        set_friend_currency_requests_status.currency,
+        new_currency_config,
+    ));
     let funder_mutation = FunderMutation::FriendMutation((
-        set_requests_status.friend_public_key.clone(),
+        set_friend_currency_requests_status
+            .friend_public_key
+            .clone(),
         friend_mutation,
     ));
     m_state.mutate(funder_mutation);
 
-    send_commands.set_try_send(&set_requests_status.friend_public_key);
+    send_commands.set_try_send(&set_friend_currency_requests_status.friend_public_key);
     Ok(())
 }
 
@@ -451,9 +484,10 @@ where
     Ok(())
 }
 
-fn control_set_friend_rate<B>(
+fn control_set_friend_currency_rate<B>(
     m_state: &mut MutableFunderState<B>,
-    set_friend_rate: SetFriendRate,
+    send_commands: &mut SendCommands,
+    set_friend_currency_rate: SetFriendCurrencyRate,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -462,20 +496,80 @@ where
     let friend = m_state
         .state()
         .friends
-        .get(&set_friend_rate.friend_public_key)
+        .get(&set_friend_currency_rate.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
     // If the newly proposed rate is the same as the old one, we do nothing:
-    if friend.rate == set_friend_rate.rate {
-        return Ok(());
-    }
+    let mut new_currency_config = if let Some(currency_config) = friend
+        .currency_configs
+        .get(&set_friend_currency_rate.currency)
+    {
+        if currency_config.rate == set_friend_currency_rate.rate {
+            return Ok(());
+        }
+        currency_config.clone()
+    } else {
+        // A new local currency was added, we need to report to remote side:
+        send_commands.set_try_send(&set_friend_currency_rate.friend_public_key);
+        CurrencyConfig::new()
+    };
 
-    let friend_mutation = FriendMutation::SetRate(set_friend_rate.rate);
+    new_currency_config.rate = set_friend_currency_rate.rate;
+
+    let friend_mutation = FriendMutation::UpdateCurrencyConfig((
+        set_friend_currency_rate.currency,
+        new_currency_config,
+    ));
     let funder_mutation = FunderMutation::FriendMutation((
-        set_friend_rate.friend_public_key.clone(),
+        set_friend_currency_rate.friend_public_key.clone(),
         friend_mutation,
     ));
     m_state.mutate(funder_mutation);
+
+    Ok(())
+}
+
+fn control_remove_friend_currency<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    remove_friend_currency: RemoveFriendCurrency,
+) -> Result<(), HandleControlError>
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // Make sure that friend exists:
+    let friend = m_state
+        .state()
+        .friends
+        .get(&remove_friend_currency.friend_public_key)
+        .ok_or(HandleControlError::FriendDoesNotExist)?;
+
+    if !friend
+        .currency_configs
+        .contains_key(&remove_friend_currency.currency)
+    {
+        return Err(HandleControlError::CurrencyNotConfigured);
+    }
+
+    if let ChannelStatus::Consistent(channel_consistent) = &friend.channel_status {
+        if channel_consistent
+            .token_channel
+            .get_active_currencies()
+            .calc_active()
+            .contains(&remove_friend_currency.currency)
+        {
+            return Err(HandleControlError::CanNotRemoveActiveCurrency);
+        }
+    }
+
+    let friend_mutation =
+        FriendMutation::RemoveCurrencyConfig(remove_friend_currency.currency.clone());
+    let funder_mutation = FunderMutation::FriendMutation((
+        remove_friend_currency.friend_public_key.clone(),
+        friend_mutation,
+    ));
+    m_state.mutate(funder_mutation);
+    send_commands.set_try_send(&remove_friend_currency.friend_public_key);
 
     Ok(())
 }
@@ -496,9 +590,14 @@ where
         return Err(HandleControlError::PaymentAlreadyOpen);
     }
 
+    // TODO: Possibly check:
+    // - det_public_key exists
+    // - currency is active for this friend
+
     let payment = Payment::NewTransactions(NewTransactions {
         num_transactions: 0,
         invoice_id: create_payment.invoice_id.clone(),
+        currency: create_payment.currency.clone(),
         total_dest_payment: create_payment.total_dest_payment,
         dest_public_key: create_payment.dest_public_key.clone(),
     });
@@ -560,7 +659,9 @@ where
         None => Err(HandleControlError::FriendDoesNotExist),
     }?;
 
-    if !is_friend_ready(m_state.state(), ephemeral, &friend_public_key) {
+    let currency = new_transactions.currency.clone();
+
+    if !is_friend_ready(m_state.state(), ephemeral, &friend_public_key, &currency) {
         return Err(HandleControlError::FriendNotReady);
     }
 
@@ -573,10 +674,13 @@ where
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
 
-    // If payment is already in progress, we do nothing:
-    // Check if there is already a pending user payment with the same payment_id:
-    for user_request in &channel_consistent.pending_user_requests {
-        if create_transaction.request_id == user_request.request_id {
+    // TODO: Do we actually need to check it here? Maybe it should be checked later, inside
+    // MutualCredit?
+    //
+    // If this transaction is already in progress, we do nothing:
+    // Check if there is already a pending user transaction with the same request_id:
+    for (currency0, user_request) in &channel_consistent.pending_user_requests {
+        if (*currency0 == currency) && (create_transaction.request_id == user_request.request_id) {
             return Err(HandleControlError::RequestAlreadyInProgress);
         }
     }
@@ -584,7 +688,9 @@ where
     // Check if there is an ongoing request with the same request_id with this specific friend:
     if channel_consistent
         .token_channel
-        .get_mutual_credit()
+        .get_mutual_credits()
+        .get(&currency)
+        .ok_or(HandleControlError::FriendCurrencyDoesNotExist)?
         .state()
         .pending_transactions
         .local
@@ -637,7 +743,8 @@ where
         left_fees: create_transaction.fees,
     };
 
-    let friend_mutation = FriendMutation::PushBackPendingUserRequest(request_send_funds);
+    let friend_mutation =
+        FriendMutation::PushBackPendingUserRequest((currency.clone(), request_send_funds));
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -660,6 +767,19 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
     R: CryptoRandom,
 {
+    // Find the corresponding payment:
+    let payment = m_state
+        .state()
+        .payments
+        .get(&create_transaction.payment_id)
+        .ok_or(HandleControlError::OpenPaymentNotFound)?;
+
+    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+        new_transactions.clone()
+    } else {
+        return Err(HandleControlError::NewTransactionsNotAllowed);
+    };
+
     // If we already have this transaction:
     // - If we have a ready response, we return a Commit message.
     // - Else, we do nothing.
@@ -673,7 +793,11 @@ where
     {
         if let (Some(response_send_funds), Some(pending_transaction)) = (
             &open_transaction.opt_response,
-            find_local_pending_transaction(m_state.state(), &create_transaction.request_id),
+            find_local_pending_transaction(
+                m_state.state(),
+                &new_transactions.currency,
+                &create_transaction.request_id,
+            ),
         ) {
             let commit = prepare_commit(
                 response_send_funds,
@@ -883,8 +1007,11 @@ where
     }
 
     // Add new invoice:
-    let funder_mutation =
-        FunderMutation::AddInvoice((add_invoice.invoice_id, add_invoice.total_dest_payment));
+    let funder_mutation = FunderMutation::AddInvoice((
+        add_invoice.invoice_id,
+        add_invoice.currency,
+        add_invoice.total_dest_payment,
+    ));
     m_state.mutate(funder_mutation);
 
     Ok(())
@@ -911,10 +1038,17 @@ where
         // Explaining the unwrap() below:
         // We expect that the origin of this request must be from an existing friend.
         // We can not be the originator of this request.
-        let friend_public_key = find_request_origin(m_state.state(), &request_id)
-            .unwrap()
-            .clone();
-        reply_with_cancel(m_state, send_commands, &friend_public_key, &request_id);
+        let friend_public_key =
+            find_request_origin(m_state.state(), &open_invoice.currency, &request_id)
+                .unwrap()
+                .clone();
+        reply_with_cancel(
+            m_state,
+            send_commands,
+            &friend_public_key,
+            &open_invoice.currency,
+            &request_id,
+        );
     }
 
     // Remove invoice:
@@ -956,9 +1090,11 @@ where
             continue;
         };
 
-        let friend_public_key = if let Some(friend_public_key) =
-            find_request_origin(m_state.state(), &incoming_transaction.request_id)
-        {
+        let friend_public_key = if let Some(friend_public_key) = find_request_origin(
+            m_state.state(),
+            &open_invoice.currency,
+            &incoming_transaction.request_id,
+        ) {
             friend_public_key.clone()
         } else {
             warn!("control_commit_invoice(): Failed to find request origin");
@@ -971,8 +1107,10 @@ where
             dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
         };
 
-        let friend_mutation =
-            FriendMutation::PushBackPendingBackwardsOp(BackwardsOp::Collect(collect_send_funds));
+        let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((
+            open_invoice.currency.clone(),
+            BackwardsOp::Collect(collect_send_funds),
+        ));
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
@@ -1004,8 +1142,12 @@ where
     R: CryptoRandom,
 {
     match incoming_control {
-        FunderControl::SetFriendRemoteMaxDebt(set_friend_remote_max_debt) => {
-            control_set_friend_remote_max_debt(m_state, send_commands, set_friend_remote_max_debt)
+        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt) => {
+            control_set_friend_currency_max_debt(
+                m_state,
+                send_commands,
+                set_friend_currency_max_debt,
+            )
         }
 
         FunderControl::ResetFriendChannel(reset_friend_channel) => {
@@ -1053,8 +1195,12 @@ where
             set_friend_status,
         ),
 
-        FunderControl::SetRequestsStatus(set_requests_status) => {
-            control_set_requests_status(m_state, send_commands, set_requests_status)
+        FunderControl::SetFriendCurrencyRequestsStatus(set_friend_currency_requests_status) => {
+            control_set_friend_currency_requests_status(
+                m_state,
+                send_commands,
+                set_friend_currency_requests_status,
+            )
         }
 
         FunderControl::SetFriendRelays(set_friend_relays) => {
@@ -1064,8 +1210,12 @@ where
         FunderControl::SetFriendName(set_friend_name) => {
             control_set_friend_name(m_state, set_friend_name)
         }
-        FunderControl::SetFriendRate(set_friend_rate) => {
-            control_set_friend_rate(m_state, set_friend_rate)
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate) => {
+            control_set_friend_currency_rate(m_state, send_commands, set_friend_currency_rate)
+        }
+
+        FunderControl::RemoveFriendCurrency(remove_friend_currency) => {
+            control_remove_friend_currency(m_state, send_commands, remove_friend_currency)
         }
 
         // Buyer API:

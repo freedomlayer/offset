@@ -7,6 +7,9 @@ pub const MAX_OPERATIONS_IN_BATCH: usize = 16;
 /// Maximum length of route used to pass credit.
 pub const MAX_ROUTE_LEN: usize = 32;
 
+/// Maximum length for a name of a currency.
+pub const MAX_CURRENCY_LEN: usize = 16;
+
 /// Amount of milliseconds in one tick:
 pub const TICK_MS: usize = 1000;
 

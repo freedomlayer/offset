@@ -1,8 +1,8 @@
 use std::collections::{HashMap, VecDeque};
 
 /// A basic map that allows to iterate over all its pairs in a consistent manner.
-/// This means that calling SeqMap::next() should iterate over all elements of the map, even if
-/// elements are inserted or removed between SeqMap::next() calls.
+/// This means that calling SeqMap::next() repeatedly should iterate over all elements of the map,
+/// even if elements are inserted or removed between SeqMap::next() calls.
 pub struct SeqMap<K, V> {
     map: HashMap<K, V>,
     queue: VecDeque<K>,

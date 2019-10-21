@@ -3,7 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{PendingTransaction, RequestsStatus, TransactionStage};
+use proto::funder::messages::{Currency, PendingTransaction, RequestsStatus, TransactionStage};
 
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
@@ -87,6 +87,8 @@ impl McRequestsStatus {
 pub struct MutualCreditState {
     /// Public identities of local and remote side
     pub idents: McIdents,
+    /// Currency in use (How much is one credit worth?)
+    pub currency: Currency,
     /// Current credit balance with respect to remote side
     pub balance: McBalance,
     /// Requests in progress
@@ -121,8 +123,10 @@ pub enum McMutation {
 
 impl MutualCredit {
     pub fn new(
+        // TODO: Should we move instead of take a reference here?
         local_public_key: &PublicKey,
         remote_public_key: &PublicKey,
+        currency: &Currency,
         balance: i128,
     ) -> MutualCredit {
         MutualCredit {
@@ -131,6 +135,7 @@ impl MutualCredit {
                     local_public_key: local_public_key.clone(),
                     remote_public_key: remote_public_key.clone(),
                 },
+                currency: currency.clone(),
                 balance: McBalance::new(balance),
                 pending_transactions: McPendingTransactions::new(),
                 requests_status: McRequestsStatus::new(),

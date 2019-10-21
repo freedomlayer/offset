@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
+use im::hashmap::HashMap as ImHashMap;
+use im::hashset::HashSet as ImHashSet;
+
 use signature::canonical::CanonicalSerialize;
 
 use crypto::hash::sha_512_256;
@@ -9,7 +12,10 @@ use crypto::identity::compare_public_key;
 use proto::crypto::{PublicKey, RandValue, Signature};
 
 use proto::app_server::messages::RelayAddress;
-use proto::funder::messages::{FriendTcOp, MoveToken, TokenInfo};
+use proto::funder::messages::{
+    BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McInfo,
+    MoveToken, TokenInfo,
+};
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
 
@@ -30,13 +36,38 @@ pub enum SetDirection<B> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<B> {
-    McMutation(McMutation),
+    McMutation((Currency, McMutation)),
+    SetLocalActiveCurrencies(Vec<Currency>),
+    SetRemoteActiveCurrencies(Vec<Currency>),
+    AddMutualCredit(Currency),
     SetDirection(SetDirection<B>),
+}
+
+/// The currencies set to be active by two sides of the token channel.
+/// Only currencies that are active on both sides (Intersection) can be used for trading.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ActiveCurrencies {
+    /// Currencies set to be active by local side
+    pub local: ImHashSet<Currency>,
+    /// Currencies set to be active by remote side
+    pub remote: ImHashSet<Currency>,
+}
+
+impl ActiveCurrencies {
+    fn new() -> Self {
+        Self {
+            local: ImHashSet::new(),
+            remote: ImHashSet::new(),
+        }
+    }
+
+    pub fn calc_active(&self) -> ImHashSet<Currency> {
+        self.local.clone().intersection(self.remote.clone())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcOutgoing<B> {
-    pub mutual_credit: MutualCredit,
     pub move_token_out: MoveToken<B>,
     pub token_info: TokenInfo,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
@@ -44,7 +75,6 @@ pub struct TcOutgoing<B> {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcIncoming {
-    pub mutual_credit: MutualCredit,
     pub move_token_in: MoveTokenHashed,
 }
 
@@ -55,9 +85,31 @@ pub enum TcDirection<B> {
     Outgoing(TcOutgoing<B>),
 }
 
+#[derive(Clone, Debug)]
+pub struct TcInBorrow<'a> {
+    pub tc_incoming: &'a TcIncoming,
+    mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a ActiveCurrencies,
+}
+
+#[derive(Clone, Debug)]
+pub struct TcOutBorrow<'a, B> {
+    pub tc_outgoing: &'a TcOutgoing<B>,
+    mutual_credits: &'a ImHashMap<Currency, MutualCredit>,
+    active_currencies: &'a ActiveCurrencies,
+}
+
+#[derive(Clone, Debug)]
+pub enum TcDirectionBorrow<'a, B> {
+    In(TcInBorrow<'a>),
+    Out(TcOutBorrow<'a, B>),
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
+    mutual_credits: ImHashMap<Currency, MutualCredit>,
+    active_currencies: ActiveCurrencies,
 }
 
 #[derive(Debug)]
@@ -65,18 +117,27 @@ pub enum ReceiveMoveTokenError {
     ChainInconsistency,
     InvalidTransaction(ProcessTransListError),
     InvalidSignature,
-    InvalidStatedBalance,
+    InvalidTokenInfo,
     InvalidInconsistencyCounter,
     MoveTokenCounterOverflow,
     InvalidMoveTokenCounter,
     TooManyOperations,
+    InvalidCurrency,
+    InvalidAddActiveCurrencies,
+    CanNotRemoveCurrencyInUse,
+}
+
+#[derive(Debug)]
+pub struct MoveTokenReceivedCurrency {
+    pub currency: Currency,
+    pub incoming_messages: Vec<IncomingMessage>,
+    pub remote_requests_closed: bool,
 }
 
 #[derive(Debug)]
 pub struct MoveTokenReceived<B> {
-    pub incoming_messages: Vec<IncomingMessage>,
     pub mutations: Vec<TcMutation<B>>,
-    pub remote_requests_closed: bool,
+    pub currencies: Vec<MoveTokenReceivedCurrency>,
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
 }
 
@@ -87,6 +148,19 @@ pub enum ReceiveMoveTokenOutput<B> {
     RetransmitOutgoing(MoveToken<B>),
     Received(MoveTokenReceived<B>),
     // In case of a reset, all the local pending requests will be canceled.
+}
+
+#[derive(Debug)]
+pub struct SendMoveTokenOutput<B> {
+    pub unsigned_move_token: UnsignedMoveToken<B>,
+    pub mutations: Vec<TcMutation<B>>,
+    pub token_info: TokenInfo,
+}
+
+#[derive(Debug)]
+pub enum SendMoveTokenError {
+    LocalCurrencyAlreadyExists,
+    CanNotRemoveCurrencyInUse,
 }
 
 /// Create a token from a public key
@@ -117,16 +191,17 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
 fn initial_move_token<B>(
     low_public_key: &PublicKey,
     high_public_key: &PublicKey,
-    balance: i128,
 ) -> (MoveToken<B>, TokenInfo) {
     let token_info = TokenInfo {
-        local_public_key: low_public_key.clone(),
-        remote_public_key: high_public_key.clone(),
-        inconsistency_counter: 0,
-        move_token_counter: 0,
-        balance,
-        local_pending_debt: 0,
-        remote_pending_debt: 0,
+        mc: McInfo {
+            local_public_key: low_public_key.clone(),
+            remote_public_key: high_public_key.clone(),
+            balances: Vec::new(),
+        },
+        counters: CountersInfo {
+            inconsistency_counter: 0,
+            move_token_counter: 0,
+        },
     };
 
     // This is a special initialization case.
@@ -135,9 +210,10 @@ fn initial_move_token<B>(
     // channel, however, the remote side has no means of generating the signature (Because he
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     let move_token = MoveToken {
-        operations: Vec::new(),
-        opt_local_relays: None,
         old_token: token_from_public_key(&low_public_key),
+        currencies_operations: Vec::new(),
+        opt_local_relays: None,
+        opt_active_currencies: None,
         info_hash: hash_token_info(&token_info),
         rand_nonce: rand_nonce_from_public_key(&high_public_key),
         new_token: token_from_public_key(&high_public_key),
@@ -150,56 +226,82 @@ impl<B> TokenChannel<B>
 where
     B: Clone + CanonicalSerialize,
 {
-    pub fn new(local_public_key: &PublicKey, remote_public_key: &PublicKey, balance: i128) -> Self {
-        let mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
-
+    pub fn new(local_public_key: &PublicKey, remote_public_key: &PublicKey) -> Self {
         if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
             // We are the first sender
             let (move_token_out, token_info) =
-                initial_move_token(local_public_key, remote_public_key, balance);
+                initial_move_token(local_public_key, remote_public_key);
             let tc_outgoing = TcOutgoing {
-                mutual_credit,
                 move_token_out,
                 token_info,
                 opt_prev_move_token_in: None,
             };
             TokenChannel {
                 direction: TcDirection::Outgoing(tc_outgoing),
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             }
         } else {
             // We are the second sender
-            let (move_token_in_full, token_info) = initial_move_token(
-                remote_public_key,
-                local_public_key,
-                balance.checked_neg().unwrap(),
-            );
+            let (move_token_in_full, token_info) =
+                initial_move_token(remote_public_key, local_public_key);
             let move_token_in = create_hashed::<B>(&move_token_in_full, &token_info);
 
-            let tc_incoming = TcIncoming {
-                mutual_credit,
-                move_token_in,
-            };
+            let tc_incoming = TcIncoming { move_token_in };
             TokenChannel {
                 direction: TcDirection::Incoming(tc_incoming),
+                mutual_credits: ImHashMap::new(),
+                active_currencies: ActiveCurrencies::new(),
             }
         }
+    }
+
+    pub fn get_mutual_credits(&self) -> &ImHashMap<Currency, MutualCredit> {
+        &self.mutual_credits
+    }
+
+    pub fn get_active_currencies(&self) -> &ActiveCurrencies {
+        &self.active_currencies
     }
 
     pub fn new_from_remote_reset(
         reset_move_token: &MoveToken<B>,
         remote_token_info: &TokenInfo,
     ) -> TokenChannel<B> {
+        let mutual_credits: ImHashMap<Currency, MutualCredit> = remote_token_info
+            .mc
+            .balances
+            .iter()
+            .map(|currency_balance_info| {
+                (
+                    currency_balance_info.currency.clone(),
+                    MutualCredit::new(
+                        &remote_token_info.mc.remote_public_key,
+                        &remote_token_info.mc.local_public_key,
+                        &currency_balance_info.currency,
+                        currency_balance_info
+                            .balance_info
+                            .balance
+                            .checked_neg()
+                            .unwrap(),
+                    ),
+                )
+            })
+            .collect();
+
+        let active_currencies: ImHashSet<_> = mutual_credits.keys().cloned().collect();
+
         let tc_incoming = TcIncoming {
-            mutual_credit: MutualCredit::new(
-                &remote_token_info.remote_public_key,
-                &remote_token_info.local_public_key,
-                remote_token_info.balance.checked_neg().unwrap(),
-            ),
             move_token_in: create_hashed(&reset_move_token, remote_token_info),
         };
 
         TokenChannel {
             direction: TcDirection::Incoming(tc_incoming),
+            mutual_credits,
+            active_currencies: ActiveCurrencies {
+                local: active_currencies.clone(),
+                remote: active_currencies,
+            },
         }
     }
 
@@ -208,35 +310,62 @@ where
         token_info: &TokenInfo,
         opt_last_incoming_move_token: Option<MoveTokenHashed>,
     ) -> TokenChannel<B> {
+        let mutual_credits: ImHashMap<Currency, MutualCredit> = token_info
+            .mc
+            .balances
+            .iter()
+            .map(|currency_balance_info| {
+                (
+                    currency_balance_info.currency.clone(),
+                    MutualCredit::new(
+                        &token_info.mc.local_public_key,
+                        &token_info.mc.remote_public_key,
+                        &currency_balance_info.currency,
+                        currency_balance_info.balance_info.balance,
+                    ),
+                )
+            })
+            .collect();
+
+        let active_currencies: ImHashSet<_> = mutual_credits.keys().cloned().collect();
         let tc_outgoing = TcOutgoing {
-            mutual_credit: MutualCredit::new(
-                &token_info.local_public_key,
-                &token_info.remote_public_key,
-                token_info.balance,
-            ),
             move_token_out: reset_move_token.clone(),
             token_info: token_info.clone(),
             opt_prev_move_token_in: opt_last_incoming_move_token,
         };
+
         TokenChannel {
             direction: TcDirection::Outgoing(tc_outgoing),
+            mutual_credits,
+            active_currencies: ActiveCurrencies {
+                local: active_currencies.clone(),
+                remote: active_currencies,
+            },
         }
     }
 
-    /// Get a reference to internal mutual_credit.
-    pub fn get_mutual_credit(&self) -> &MutualCredit {
+    pub fn get_remote_max_debt(&self, currency: &Currency) -> u128 {
+        self.mutual_credits
+            .get(currency)
+            .unwrap()
+            .state()
+            .balance
+            .remote_max_debt
+    }
+
+    pub fn get_direction(&self) -> TcDirectionBorrow<'_, B> {
         match &self.direction {
-            TcDirection::Incoming(tc_incoming) => &tc_incoming.mutual_credit,
-            TcDirection::Outgoing(tc_outgoing) => &tc_outgoing.mutual_credit,
+            TcDirection::Incoming(tc_incoming) => TcDirectionBorrow::In(TcInBorrow {
+                tc_incoming: &tc_incoming,
+                mutual_credits: &self.mutual_credits,
+                active_currencies: &self.active_currencies,
+            }),
+            TcDirection::Outgoing(tc_outgoing) => TcDirectionBorrow::Out(TcOutBorrow {
+                tc_outgoing: &tc_outgoing,
+                mutual_credits: &self.mutual_credits,
+                active_currencies: &self.active_currencies,
+            }),
         }
-    }
-
-    pub fn get_remote_max_debt(&self) -> u128 {
-        self.get_mutual_credit().state().balance.remote_max_debt
-    }
-
-    pub fn get_direction(&self) -> &TcDirection<B> {
-        &self.direction
     }
 
     /// Get the last incoming move token
@@ -254,25 +383,20 @@ where
 
     pub fn mutate(&mut self, d_mutation: &TcMutation<B>) {
         match d_mutation {
-            TcMutation::McMutation(mc_mutation) => {
-                let mutual_credit = match &mut self.direction {
-                    TcDirection::Incoming(tc_incoming) => &mut tc_incoming.mutual_credit,
-                    TcDirection::Outgoing(tc_outgoing) => &mut tc_outgoing.mutual_credit,
-                };
+            TcMutation::McMutation((currency, mc_mutation)) => {
+                let mutual_credit = self.mutual_credits.get_mut(currency).unwrap();
                 mutual_credit.mutate(mc_mutation);
             }
             TcMutation::SetDirection(ref set_direction) => {
                 self.direction = match set_direction {
                     SetDirection::Incoming(friend_move_token_hashed) => {
                         let tc_incoming = TcIncoming {
-                            mutual_credit: self.get_mutual_credit().clone(), // TODO: Remove this clone()
                             move_token_in: friend_move_token_hashed.clone(),
                         };
                         TcDirection::Incoming(tc_incoming)
                     }
                     SetDirection::Outgoing((friend_move_token, token_info)) => {
                         let tc_outgoing = TcOutgoing {
-                            mutual_credit: self.get_mutual_credit().clone(), // TODO: Remove this clone()
                             move_token_out: friend_move_token.clone(),
                             token_info: token_info.clone(),
                             opt_prev_move_token_in: self
@@ -283,33 +407,65 @@ where
                     }
                 };
             }
+            TcMutation::SetLocalActiveCurrencies(ref currencies) => {
+                self.active_currencies.local = currencies.iter().cloned().collect();
+            }
+            TcMutation::SetRemoteActiveCurrencies(ref currencies) => {
+                self.active_currencies.remote = currencies.iter().cloned().collect();
+            }
+            TcMutation::AddMutualCredit(ref currency) => {
+                assert!(self.active_currencies.local.contains(currency));
+                assert!(self.active_currencies.remote.contains(currency));
+
+                let token_info = match &self.direction {
+                    TcDirection::Incoming(tc_incoming) => {
+                        tc_incoming.move_token_in.token_info.clone().flip()
+                    }
+                    TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.clone(),
+                };
+
+                let balance = 0;
+                let new_mutual_credit = MutualCredit::new(
+                    &token_info.mc.local_public_key,
+                    &token_info.mc.remote_public_key,
+                    currency,
+                    balance,
+                );
+                let res = self
+                    .mutual_credits
+                    .insert(currency.clone(), new_mutual_credit);
+                // Make sure that this currency was not already present:
+                assert!(res.is_none());
+            }
         }
     }
 
     pub fn get_inconsistency_counter(&self) -> u64 {
         match &self.direction {
             TcDirection::Incoming(tc_incoming) => {
-                tc_incoming.move_token_in.token_info.inconsistency_counter
+                tc_incoming
+                    .move_token_in
+                    .token_info
+                    .counters
+                    .inconsistency_counter
             }
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.inconsistency_counter,
+            TcDirection::Outgoing(tc_outgoing) => {
+                tc_outgoing.token_info.counters.inconsistency_counter
+            }
         }
     }
 
-    /*
-    pub fn get_move_token_counter(&self) -> u128 {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => {
-                tc_incoming.move_token_in.token_info.move_token_counter
-            }
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.token_info.move_token_counter,
+    pub fn get_outgoing(&self) -> Option<TcOutBorrow<'_, B>> {
+        match self.get_direction() {
+            TcDirectionBorrow::In(_) => None,
+            TcDirectionBorrow::Out(tc_out_borrow) => Some(tc_out_borrow),
         }
     }
-    */
 
-    pub fn is_outgoing(&self) -> bool {
-        match self.direction {
-            TcDirection::Incoming(_) => false,
-            TcDirection::Outgoing(_) => true,
+    pub fn get_incoming(&self) -> Option<TcInBorrow<'_>> {
+        match self.get_direction() {
+            TcDirectionBorrow::In(tc_in_borrow) => Some(tc_in_borrow),
+            TcDirectionBorrow::Out(_) => None,
         }
     }
 
@@ -317,14 +473,23 @@ where
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
-        match &self.direction {
-            TcDirection::Incoming(tc_incoming) => tc_incoming.handle_incoming(new_move_token),
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing.handle_incoming(new_move_token),
+        match &self.get_direction() {
+            TcDirectionBorrow::In(tc_in_borrow) => tc_in_borrow.handle_incoming(new_move_token),
+            TcDirectionBorrow::Out(tc_out_borrow) => tc_out_borrow.handle_incoming(new_move_token),
         }
     }
 }
 
-impl TcIncoming {
+impl<'a> TcInBorrow<'a> {
+    /// Create a full TokenChannel (Incoming direction)
+    fn create_token_channel<B>(&self) -> TokenChannel<B> {
+        TokenChannel {
+            direction: TcDirection::Incoming(self.tc_incoming.clone()),
+            mutual_credits: self.mutual_credits.clone(),
+            active_currencies: self.active_currencies.clone(),
+        }
+    }
+
     /// Handle an incoming move token during Incoming direction:
     fn handle_incoming<B>(
         &self,
@@ -335,7 +500,9 @@ impl TcIncoming {
     {
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
-        if self.move_token_in == create_hashed(&new_move_token, &self.move_token_in.token_info) {
+        if self.tc_incoming.move_token_in
+            == create_hashed(&new_move_token, &self.tc_incoming.move_token_in.token_info)
+        {
             // Duplicate
             Ok(ReceiveMoveTokenOutput::Duplicate)
         } else {
@@ -344,43 +511,135 @@ impl TcIncoming {
         }
     }
 
-    pub fn create_unsigned_move_token<B>(
+    pub fn simulate_send_move_token<B>(
         &self,
-        operations: Vec<FriendTcOp>,
+        currencies_operations: Vec<CurrencyOperations>,
         opt_local_relays: Option<Vec<RelayAddress<B>>>,
+        opt_active_currencies: Option<Vec<Currency>>,
         rand_nonce: RandValue,
-    ) -> (UnsignedMoveToken<B>, TokenInfo) {
+    ) -> Result<SendMoveTokenOutput<B>, SendMoveTokenError>
+    where
+        B: CanonicalSerialize + Clone,
+    {
+        // We create a clone `token_channel` on which we are going to apply all the mutations.
+        // Eventually this cloned TokenChannel is discarded, and we only output the applied mutations.
+        let mut token_channel = self.create_token_channel();
+        let tc_in_borrow = token_channel.get_incoming().unwrap();
+
+        let mut tc_mutations = Vec::new();
+
+        if let Some(active_currencies) = opt_active_currencies.as_ref() {
+            for mutual_credit_currency in tc_in_borrow.mutual_credits.keys() {
+                if !active_currencies.contains(&mutual_credit_currency) {
+                    return Err(SendMoveTokenError::CanNotRemoveCurrencyInUse);
+                }
+            }
+
+            let mutation = TcMutation::SetLocalActiveCurrencies(active_currencies.clone());
+            token_channel.mutate(&mutation);
+            tc_mutations.push(mutation);
+
+            let tc_in_borrow = token_channel.get_incoming().unwrap();
+            let active_currencies = &tc_in_borrow.active_currencies;
+
+            // Find the new currencies we need to initialize.
+            // Calculate:
+            // (local ^ remote) \ mutual_credit_currencies:
+            let intersection = active_currencies
+                .remote
+                .clone()
+                .intersection(active_currencies.local.clone());
+
+            let mutual_credit_currencies: ImHashSet<_> =
+                tc_in_borrow.mutual_credits.keys().cloned().collect();
+
+            let new_currencies = intersection.relative_complement(mutual_credit_currencies);
+
+            for new_currency in new_currencies {
+                let mutation = TcMutation::AddMutualCredit(new_currency.clone());
+                token_channel.mutate(&mutation);
+                tc_mutations.push(mutation);
+            }
+        }
+
+        // Update mutual credits:
+        for currency_operations in &currencies_operations {
+            let tc_in_borrow = token_channel.get_incoming().unwrap();
+            let mutual_credit = tc_in_borrow
+                .mutual_credits
+                .get(&currency_operations.currency)
+                .unwrap()
+                .clone();
+
+            let mut outgoing_mc = OutgoingMc::new(&mutual_credit);
+            for op in &currency_operations.operations {
+                let mc_mutations = outgoing_mc.queue_operation(op).unwrap();
+                for mc_mutation in mc_mutations {
+                    let mutation = TcMutation::McMutation((
+                        currency_operations.currency.clone(),
+                        mc_mutation.clone(),
+                    ));
+                    token_channel.mutate(&mutation);
+                    tc_mutations.push(mutation);
+                }
+            }
+        }
+
+        let tc_in_borrow = token_channel.get_incoming().unwrap();
+
+        let mut balances: Vec<_> = tc_in_borrow
+            .mutual_credits
+            .iter()
+            .map(|(currency, mutual_credit)| CurrencyBalanceInfo {
+                currency: currency.clone(),
+                balance_info: BalanceInfo {
+                    balance: mutual_credit.state().balance.balance,
+                    local_pending_debt: mutual_credit.state().balance.local_pending_debt,
+                    remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
+                },
+            })
+            .collect();
+
+        // Canonicalize balances:
+        balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
+
+        let tc_in_borrow = token_channel.get_incoming().unwrap();
+        let cur_token_info = &tc_in_borrow.tc_incoming.move_token_in.token_info;
+
         let token_info = TokenInfo {
-            local_public_key: self.move_token_in.token_info.remote_public_key.clone(),
-            remote_public_key: self.move_token_in.token_info.local_public_key.clone(),
-            inconsistency_counter: self.move_token_in.token_info.inconsistency_counter,
-            move_token_counter: self
-                .move_token_in
-                .token_info
-                .move_token_counter
-                .wrapping_add(1),
-            balance: self.mutual_credit.state().balance.balance,
-            local_pending_debt: self.mutual_credit.state().balance.local_pending_debt,
-            remote_pending_debt: self.mutual_credit.state().balance.remote_pending_debt,
+            mc: McInfo {
+                local_public_key: cur_token_info.mc.remote_public_key.clone(),
+                remote_public_key: cur_token_info.mc.local_public_key.clone(),
+                balances,
+            },
+            counters: CountersInfo {
+                move_token_counter: cur_token_info.counters.move_token_counter.wrapping_add(1),
+                inconsistency_counter: cur_token_info.counters.inconsistency_counter,
+            },
         };
 
         let unsigned_move_token = create_unsigned_move_token(
-            operations,
+            currencies_operations,
             opt_local_relays,
+            opt_active_currencies,
             &token_info,
-            self.move_token_in.new_token.clone(),
+            tc_in_borrow.tc_incoming.move_token_in.new_token.clone(),
             rand_nonce,
         );
 
-        (unsigned_move_token, token_info)
+        Ok(SendMoveTokenOutput {
+            unsigned_move_token,
+            mutations: tc_mutations,
+            token_info,
+        })
     }
 
-    pub fn begin_outgoing_move_token(&self) -> OutgoingMc {
-        OutgoingMc::new(&self.mutual_credit)
+    pub fn create_outgoing_mc(&self, currency: &Currency) -> Option<OutgoingMc> {
+        Some(OutgoingMc::new(self.mutual_credits.get(currency)?))
     }
 }
 
-impl<B> TcOutgoing<B>
+impl<'a, B> TcOutBorrow<'a, B>
 where
     B: Clone + CanonicalSerialize,
 {
@@ -389,114 +648,222 @@ where
         &self,
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
-        if new_move_token.old_token == self.move_token_out.new_token {
-            self.handle_incoming_token_match(new_move_token)
+        if new_move_token.old_token == self.tc_outgoing.move_token_out.new_token {
+            Ok(ReceiveMoveTokenOutput::Received(
+                self.handle_incoming_token_match(new_move_token)?,
+            ))
         // self.outgoing_to_incoming(friend_move_token, new_move_token)
-        } else if self.move_token_out.old_token == new_move_token.new_token {
+        } else if self.tc_outgoing.move_token_out.old_token == new_move_token.new_token {
             // We should retransmit our move token message to the remote side.
             Ok(ReceiveMoveTokenOutput::RetransmitOutgoing(
-                self.move_token_out.clone(),
+                self.tc_outgoing.move_token_out.clone(),
             ))
         } else {
             Err(ReceiveMoveTokenError::ChainInconsistency)
         }
     }
 
+    /// Create a full TokenChannel (Outgoing direction)
+    fn create_token_channel(&self) -> TokenChannel<B> {
+        TokenChannel {
+            direction: TcDirection::Outgoing(self.tc_outgoing.clone()),
+            mutual_credits: self.mutual_credits.clone(),
+            active_currencies: self.active_currencies.clone(),
+        }
+    }
+
     fn handle_incoming_token_match(
         &self,
         new_move_token: MoveToken<B>,
-    ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
+    ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError> {
+        // We create a clone `token_channel` on which we are going to apply all the mutations.
+        // Eventually this cloned TokenChannel is discarded, and we only output the applied mutations.
+        let mut token_channel = self.create_token_channel();
+        let tc_out_borrow = token_channel.get_outgoing().unwrap();
+
         // Verify signature:
         // Note that we only verify the signature here, and not at the Incoming part.
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
-        let remote_public_key = &self.mutual_credit.state().idents.remote_public_key;
+        let remote_public_key = &tc_out_borrow.tc_outgoing.token_info.mc.remote_public_key;
         if !verify_move_token(&new_move_token, remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
 
-        let mut mutual_credit = self.mutual_credit.clone();
-        let res = process_operations_list(&mut mutual_credit, new_move_token.operations.clone());
+        // Aggregate results for every currency:
+        let mut move_token_received = MoveTokenReceived {
+            mutations: Vec::new(),
+            currencies: Vec::new(),
+            opt_local_relays: new_move_token.opt_local_relays.clone(),
+        };
 
-        match res {
-            Ok(outputs) => {
-                let expected_move_token_counter = self
+        // Handle active_currencies:
+        if let Some(active_currencies) = new_move_token.opt_active_currencies.as_ref() {
+            for mutual_credit_currency in tc_out_borrow.mutual_credits.keys() {
+                if !active_currencies.contains(&mutual_credit_currency) {
+                    return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
+                }
+            }
+
+            let mutation = TcMutation::SetRemoteActiveCurrencies(active_currencies.clone());
+            token_channel.mutate(&mutation);
+            move_token_received.mutations.push(mutation);
+
+            let tc_out_borrow = token_channel.get_outgoing().unwrap();
+            let active_currencies = &tc_out_borrow.active_currencies;
+
+            // Find the new currencies we need to initialize.
+            // Calculate:
+            // (local ^ remote) \ mutual_credit_currencies:
+            let intersection = active_currencies
+                .remote
+                .clone()
+                .intersection(active_currencies.local.clone());
+
+            let mutual_credit_currencies: ImHashSet<_> =
+                tc_out_borrow.mutual_credits.keys().cloned().collect();
+
+            let new_currencies = intersection.relative_complement(mutual_credit_currencies);
+
+            for new_currency in new_currencies {
+                let mutation = TcMutation::AddMutualCredit(new_currency.clone());
+                token_channel.mutate(&mutation);
+                move_token_received.mutations.push(mutation);
+            }
+        }
+
+        // Attempt to apply operations for every currency:
+        for currency_operations in &new_move_token.currencies_operations {
+            let tc_out_borrow = token_channel.get_outgoing().unwrap();
+            let mut mutual_credit = tc_out_borrow
+                .mutual_credits
+                .get(&currency_operations.currency)
+                .ok_or(ReceiveMoveTokenError::InvalidCurrency)?
+                .clone();
+
+            let outputs =
+                process_operations_list(&mut mutual_credit, currency_operations.operations.clone())
+                    .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
+
+            let initial_remote_requests = mutual_credit.state().requests_status.remote.is_open();
+
+            let mut incoming_messages = Vec::new();
+
+            // We apply mutations on this token channel, to verify stated balance values
+            // let mut check_mutual_credit = mutual_credit.clone();
+
+            let mut final_remote_requests: bool = initial_remote_requests;
+            for output in outputs {
+                let ProcessOperationOutput {
+                    incoming_message,
+                    mc_mutations,
+                } = output;
+
+                if let Some(funds) = incoming_message {
+                    incoming_messages.push(funds);
+                }
+                for mc_mutation in mc_mutations {
+                    let mutation = TcMutation::McMutation((
+                        currency_operations.currency.clone(),
+                        mc_mutation.clone(),
+                    ));
+                    token_channel.mutate(&mutation);
+                    move_token_received.mutations.push(mutation);
+                    if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
+                        final_remote_requests = requests_status.is_open();
+                    }
+                }
+            }
+
+            let move_token_received_currency = MoveTokenReceivedCurrency {
+                currency: currency_operations.currency.clone(),
+                incoming_messages,
+                // Were the remote requests initially open and now it is closed?
+                remote_requests_closed: final_remote_requests && !initial_remote_requests,
+            };
+
+            move_token_received
+                .currencies
+                .push(move_token_received_currency);
+        }
+
+        // Create what we expect to be TokenInfo (From the point of view of remote side):
+        let tc_out_borrow = token_channel.get_outgoing().unwrap();
+        let mut expected_balances: Vec<_> = tc_out_borrow
+            .mutual_credits
+            .iter()
+            .map(|(currency, mc)| CurrencyBalanceInfo {
+                currency: currency.clone(),
+                balance_info: BalanceInfo {
+                    balance: mc.state().balance.balance,
+                    local_pending_debt: mc.state().balance.local_pending_debt,
+                    remote_pending_debt: mc.state().balance.remote_pending_debt,
+                },
+            })
+            .collect();
+
+        // Canonicalize:
+        expected_balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
+
+        let expected_token_info = TokenInfo {
+            mc: McInfo {
+                local_public_key: tc_out_borrow
+                    .tc_outgoing
                     .token_info
+                    .mc
+                    .local_public_key
+                    .clone(),
+                remote_public_key: tc_out_borrow
+                    .tc_outgoing
+                    .token_info
+                    .mc
+                    .remote_public_key
+                    .clone(),
+                balances: expected_balances,
+            },
+            counters: CountersInfo {
+                inconsistency_counter: tc_out_borrow
+                    .tc_outgoing
+                    .token_info
+                    .counters
+                    .inconsistency_counter,
+                move_token_counter: tc_out_borrow
+                    .tc_outgoing
+                    .token_info
+                    .counters
                     .move_token_counter
                     .checked_add(1)
-                    .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?;
-
-                let token_info = TokenInfo {
-                    local_public_key: remote_public_key.clone(),
-                    remote_public_key: mutual_credit.state().idents.local_public_key.clone(),
-                    inconsistency_counter: self.token_info.inconsistency_counter,
-                    move_token_counter: expected_move_token_counter,
-                    balance: mutual_credit.state().balance.balance.checked_neg().unwrap(),
-                    local_pending_debt: mutual_credit.state().balance.remote_pending_debt,
-                    remote_pending_debt: mutual_credit.state().balance.local_pending_debt,
-                };
-
-                let initial_remote_requests =
-                    self.mutual_credit.state().requests_status.remote.is_open();
-
-                let mut incoming_messages = Vec::new();
-                let mut mutations = Vec::new();
-
-                // We apply mutations on this token channel, to verify stated balance values
-                let mut check_mutual_credit = self.mutual_credit.clone();
-
-                let mut final_remote_requests: bool = initial_remote_requests;
-                for output in outputs {
-                    let ProcessOperationOutput {
-                        incoming_message,
-                        mc_mutations,
-                    } = output;
-
-                    if let Some(funds) = incoming_message {
-                        incoming_messages.push(funds);
-                    }
-                    for mc_mutation in mc_mutations {
-                        check_mutual_credit.mutate(&mc_mutation);
-                        if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
-                            final_remote_requests = requests_status.is_open();
-                        }
-                        mutations.push(TcMutation::McMutation(mc_mutation));
-                    }
-                }
-
-                // Verify stated balances:
-                let info_hash = hash_token_info(&token_info);
-                if new_move_token.info_hash != info_hash {
-                    return Err(ReceiveMoveTokenError::InvalidStatedBalance);
-                }
-
-                mutations.push(TcMutation::SetDirection(SetDirection::Incoming(
-                    create_hashed(&new_move_token, &token_info),
-                )));
-
-                let move_token_received = MoveTokenReceived {
-                    incoming_messages,
-                    mutations,
-                    // Were the remote requests initially open and now it is closed?
-                    remote_requests_closed: final_remote_requests && !initial_remote_requests,
-                    opt_local_relays: new_move_token.opt_local_relays.clone(),
-                };
-
-                Ok(ReceiveMoveTokenOutput::Received(move_token_received))
-            }
-            Err(e) => Err(ReceiveMoveTokenError::InvalidTransaction(e)),
+                    .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?,
+            },
         }
+        .flip();
+
+        // Verify stated balances:
+        let info_hash = hash_token_info(&expected_token_info);
+        if new_move_token.info_hash != info_hash {
+            return Err(ReceiveMoveTokenError::InvalidTokenInfo);
+        }
+
+        move_token_received
+            .mutations
+            .push(TcMutation::SetDirection(SetDirection::Incoming(
+                create_hashed(&new_move_token, &expected_token_info),
+            )));
+
+        Ok(move_token_received)
     }
 
     /// Get the current outgoing move token
     pub fn create_outgoing_move_token(&self) -> MoveToken<B> {
-        self.move_token_out.clone()
+        self.tc_outgoing.move_token_out.clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use proto::funder::messages::FriendTcOp;
 
     use crypto::identity::Identity;
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
@@ -516,10 +883,11 @@ mod tests {
         let signature_buff = move_token_signature_buff(&unsigned_move_token);
 
         MoveToken {
-            operations: unsigned_move_token.operations,
-            opt_local_relays: unsigned_move_token.opt_local_relays,
-            info_hash: unsigned_move_token.info_hash,
             old_token: unsigned_move_token.old_token,
+            currencies_operations: unsigned_move_token.currencies_operations,
+            opt_local_relays: unsigned_move_token.opt_local_relays,
+            opt_active_currencies: unsigned_move_token.opt_active_currencies,
+            info_hash: unsigned_move_token.info_hash,
             rand_nonce: unsigned_move_token.rand_nonce,
             new_token: identity.sign(&signature_buff),
         }
@@ -529,12 +897,12 @@ mod tests {
     fn test_initial_direction() {
         let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
         let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
-        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b, 0i128);
-        let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a, 0i128);
+        let token_channel_a_b = TokenChannel::<u32>::new(&pk_a, &pk_b);
+        let token_channel_b_a = TokenChannel::<u32>::new(&pk_b, &pk_a);
 
         // Only one of those token channels is outgoing:
-        let is_a_b_outgoing = token_channel_a_b.is_outgoing();
-        let is_b_a_outgoing = token_channel_b_a.is_outgoing();
+        let is_a_b_outgoing = token_channel_a_b.get_outgoing().is_some();
+        let is_b_a_outgoing = token_channel_b_a.get_outgoing().is_some();
         assert!(is_a_b_outgoing ^ is_b_a_outgoing);
 
         let (out_tc, in_tc) = if is_a_b_outgoing {
@@ -560,8 +928,8 @@ mod tests {
         // assert_eq!(create_hashed(&out_tc.move_token_out), in_tc.move_token_in);
         // assert_eq!(out_tc.get_cur_move_token_hashed(), in_tc.get_cur_move_token_hashed());
         let tc_outgoing = match out_tc.get_direction() {
-            TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
-            TcDirection::Incoming(_) => unreachable!(),
+            TcDirectionBorrow::Out(tc_out_borrow) => tc_out_borrow.tc_outgoing,
+            TcDirectionBorrow::In(_) => unreachable!(),
         };
         assert!(tc_outgoing.opt_prev_move_token_in.is_none());
     }
@@ -575,11 +943,95 @@ mod tests {
     {
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
-        let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2, 0i128); // (local, remote)
-        if token_channel12.is_outgoing() {
+        let token_channel12 = TokenChannel::<u32>::new(&pk1, &pk2); // (local, remote)
+        if token_channel12.get_outgoing().is_some() {
             (identity1, identity2)
         } else {
             (identity2, identity1)
+        }
+    }
+    /// Before: tc1: outgoing, tc2: incoming
+    /// Send AddCurrency: tc2 -> tc1
+    /// After: tc1: incoming, tc2: outgoing
+    fn add_currencies<I>(
+        _identity1: &I,
+        identity2: &I,
+        tc1: &mut TokenChannel<u32>,
+        tc2: &mut TokenChannel<u32>,
+        currencies: &[Currency],
+    ) where
+        I: Identity,
+    {
+        assert!(tc1.get_outgoing().is_some());
+        assert!(!tc2.get_outgoing().is_some());
+
+        let tc2_in_borrow = tc2.get_incoming().unwrap();
+        let currencies_operations = vec![];
+
+        let rand_nonce = RandValue::from(&[7; RandValue::len()]);
+        let opt_local_relays = None;
+        let opt_active_currencies = Some(currencies.to_vec());
+
+        let SendMoveTokenOutput {
+            unsigned_move_token,
+            mutations,
+            token_info,
+        } = tc2_in_borrow
+            .simulate_send_move_token(
+                currencies_operations,
+                opt_local_relays,
+                opt_active_currencies,
+                rand_nonce,
+            )
+            .unwrap();
+
+        for tc_mutation in mutations {
+            tc2.mutate(&tc_mutation);
+        }
+
+        // This is the only mutation we can not produce from inside TokenChannel, because it
+        // requires a signature:
+        let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
+        let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
+            friend_move_token.clone(),
+            token_info.clone(),
+        )));
+        tc2.mutate(&tc_mutation);
+
+        assert!(tc2.get_outgoing().is_some());
+
+        let receive_move_token_output = tc1
+            .simulate_receive_move_token(friend_move_token.clone())
+            .unwrap();
+
+        let move_token_received = match receive_move_token_output {
+            ReceiveMoveTokenOutput::Received(move_token_received) => move_token_received,
+            _ => unreachable!(),
+        };
+
+        assert!(move_token_received.currencies.is_empty());
+
+        // let mut seen_mc_mutation = false;
+        // let mut seen_set_direction = false;
+
+        for tc_mutation in &move_token_received.mutations {
+            tc1.mutate(tc_mutation);
+        }
+
+        assert!(!tc1.get_outgoing().is_some());
+        match &tc1.direction {
+            TcDirection::Outgoing(_) => unreachable!(),
+            TcDirection::Incoming(tc_incoming) => {
+                assert_eq!(
+                    tc_incoming.move_token_in,
+                    create_hashed(&friend_move_token, &token_info)
+                );
+            }
+        };
+
+        for currency in currencies {
+            assert!(tc2.active_currencies.local.contains(currency));
+            assert!(tc1.active_currencies.remote.contains(currency));
         }
     }
 
@@ -591,38 +1043,52 @@ mod tests {
         identity2: &I,
         tc1: &mut TokenChannel<u32>,
         tc2: &mut TokenChannel<u32>,
+        currency: &Currency,
     ) where
         I: Identity,
     {
-        assert!(tc1.is_outgoing());
-        assert!(!tc2.is_outgoing());
+        assert!(tc1.get_outgoing().is_some());
+        assert!(tc2.get_incoming().is_some());
 
-        let tc2_incoming = match tc2.get_direction() {
-            TcDirection::Incoming(tc2_incoming) => tc2_incoming,
-            TcDirection::Outgoing(_) => unreachable!(),
-        };
-        let mut outgoing_mc = tc2_incoming.begin_outgoing_move_token();
+        let tc2_in_borrow = tc2.get_incoming().unwrap();
+        // let mut outgoing_mc = tc2_in_borrow.create_outgoing_mc(&currency).unwrap();
         let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
-        let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
-        let operations = vec![friend_tc_op];
+        // let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
+        let currency_operations = CurrencyOperations {
+            currency: currency.clone(),
+            operations: vec![friend_tc_op],
+        };
+        let currencies_operations = vec![currency_operations];
 
         let rand_nonce = RandValue::from(&[5; RandValue::len()]);
         let opt_local_relays = None;
-        let (unsigned_move_token, token_info) =
-            tc2_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
+        let opt_active_currencies = None;
+
+        let SendMoveTokenOutput {
+            unsigned_move_token,
+            mutations,
+            token_info,
+        } = tc2_in_borrow
+            .simulate_send_move_token(
+                currencies_operations,
+                opt_local_relays,
+                opt_active_currencies,
+                rand_nonce,
+            )
+            .unwrap();
+
+        for tc_mutation in mutations {
+            tc2.mutate(&tc_mutation);
+        }
 
         let friend_move_token = dummy_sign_move_token(unsigned_move_token, identity2);
-
-        for mc_mutation in mc_mutations {
-            tc2.mutate(&TcMutation::McMutation(mc_mutation));
-        }
         let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((
             friend_move_token.clone(),
             token_info.clone(),
         )));
         tc2.mutate(&tc_mutation);
 
-        assert!(tc2.is_outgoing());
+        assert!(tc2.get_outgoing().is_some());
 
         let receive_move_token_output = tc1
             .simulate_receive_move_token(friend_move_token.clone())
@@ -633,7 +1099,9 @@ mod tests {
             _ => unreachable!(),
         };
 
-        assert!(move_token_received.incoming_messages.is_empty());
+        assert!(move_token_received.currencies[0]
+            .incoming_messages
+            .is_empty());
         assert_eq!(move_token_received.mutations.len(), 2);
 
         let mut seen_mc_mutation = false;
@@ -643,7 +1111,10 @@ mod tests {
             match &move_token_received.mutations[i] {
                 TcMutation::McMutation(mc_mutation) => {
                     seen_mc_mutation = true;
-                    assert_eq!(mc_mutation, &McMutation::SetLocalMaxDebt(100));
+                    assert_eq!(
+                        mc_mutation,
+                        &(currency.clone(), McMutation::SetLocalMaxDebt(100))
+                    );
                 }
                 TcMutation::SetDirection(set_direction) => {
                     seen_set_direction = true;
@@ -655,6 +1126,7 @@ mod tests {
                         _ => unreachable!(),
                     }
                 }
+                _ => unreachable!(),
             }
         }
         assert!(seen_mc_mutation && seen_set_direction);
@@ -663,7 +1135,7 @@ mod tests {
             tc1.mutate(tc_mutation);
         }
 
-        assert!(!tc1.is_outgoing());
+        assert!(!tc1.get_outgoing().is_some());
         match &tc1.direction {
             TcDirection::Outgoing(_) => unreachable!(),
             TcDirection::Incoming(tc_incoming) => {
@@ -673,13 +1145,23 @@ mod tests {
                 );
             }
         };
-        // assert_eq!(&tc1.get_cur_move_token_hashed(), &create_hashed(&friend_move_token));
-        assert_eq!(tc1.get_mutual_credit().state().balance.local_max_debt, 100);
+
+        assert_eq!(
+            tc1.mutual_credits
+                .get(&currency)
+                .unwrap()
+                .state()
+                .balance
+                .local_max_debt,
+            100
+        );
     }
 
     /// This tests sends a SetRemoteMaxDebt(100) in both ways.
     #[test]
     fn test_simulate_receive_move_token_basic() {
+        let currency = Currency::try_from("FST".to_owned()).unwrap();
+
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = generate_private_key(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
@@ -692,18 +1174,40 @@ mod tests {
 
         let pk1 = identity1.get_public_key();
         let pk2 = identity2.get_public_key();
-        let mut tc1 = TokenChannel::new(&pk1, &pk2, 0i128); // (local, remote)
-        let mut tc2 = TokenChannel::new(&pk2, &pk1, 0i128); // (local, remote)
+        let mut tc1 = TokenChannel::<u32>::new(&pk1, &pk2); // (local, remote)
+        let mut tc2 = TokenChannel::<u32>::new(&pk2, &pk1); // (local, remote)
 
         // Current state:  tc1 --> tc2
         // tc1: outgoing
         // tc2: incoming
-        set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2);
+        add_currencies(
+            &identity1,
+            &identity2,
+            &mut tc1,
+            &mut tc2,
+            &[currency.clone()],
+        );
 
         // Current state:  tc2 --> tc1
         // tc1: incoming
         // tc2: outgoing
-        set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1);
+        add_currencies(
+            &identity2,
+            &identity1,
+            &mut tc2,
+            &mut tc1,
+            &[currency.clone()],
+        );
+
+        // Current state:  tc1 --> tc2
+        // tc1: outgoing
+        // tc2: incoming
+        set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2, &currency);
+
+        // Current state:  tc2 --> tc1
+        // tc1: incoming
+        // tc2: outgoing
+        set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1, &currency);
     }
 
     // TODO: Add more tests.

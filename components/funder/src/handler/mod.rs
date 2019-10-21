@@ -7,6 +7,7 @@ mod handler;
 mod prepare;
 mod sender;
 mod state_wrap;
+mod types;
 mod utils;
 
 #[cfg(test)]

@@ -4,8 +4,8 @@ use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, FriendMessage, FriendTcOp,
-    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
+    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, Currency, CurrencyOperations,
+    FriendMessage, FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
     RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
 };
 
@@ -32,9 +32,10 @@ where
         .unwrap();
 
     MoveToken {
-        operations: unsigned_move_token.operations,
-        opt_local_relays: unsigned_move_token.opt_local_relays,
         old_token: unsigned_move_token.old_token,
+        currencies_operations: unsigned_move_token.currencies_operations,
+        opt_local_relays: unsigned_move_token.opt_local_relays,
+        opt_active_currencies: unsigned_move_token.opt_active_currencies,
         info_hash: unsigned_move_token.info_hash,
         rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
@@ -42,6 +43,7 @@ where
 }
 
 pub async fn create_response_send_funds<'a>(
+    currency: &Currency,
     pending_transaction: &'a PendingTransaction,
     dest_hashed_lock: HashedLock,
     rand_nonce: RandValue,
@@ -55,7 +57,7 @@ pub async fn create_response_send_funds<'a>(
     };
 
     let signature_buff =
-        create_response_signature_buffer(&u_response_send_funds, pending_transaction);
+        create_response_signature_buffer(currency, &u_response_send_funds, pending_transaction);
     let signature = identity_client
         .request_signature(signature_buff)
         .await
@@ -108,17 +110,19 @@ pub struct MoveTokenHashed {
 }
 
 pub fn create_unsigned_move_token<B>(
-    operations: Vec<FriendTcOp>,
+    currencies_operations: Vec<CurrencyOperations>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    opt_active_currencies: Option<Vec<Currency>>,
     token_info: &TokenInfo,
     old_token: Signature,
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     MoveToken {
-        operations,
-        opt_local_relays,
-        info_hash: hash_token_info(token_info),
         old_token,
+        currencies_operations,
+        opt_local_relays,
+        opt_active_currencies,
+        info_hash: hash_token_info(token_info),
         rand_nonce,
         new_token: (),
     }

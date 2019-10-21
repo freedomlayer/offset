@@ -1,14 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::hash::Hash;
+
+use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::app_server::messages::RelayAddress;
+use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
-    ChannelerUpdateFriend, FriendMessage, FriendTcOp, FunderOutgoingControl, MoveTokenRequest,
+    BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
+    CurrencyOperations, FriendMessage, FriendTcOp, FunderOutgoingControl, McInfo, MoveTokenRequest,
     RequestResult, RequestsStatus, TokenInfo, TransactionResult,
 };
 
@@ -21,85 +25,19 @@ use crate::types::{
 };
 
 use crate::friend::{
-    BackwardsOp, ChannelInconsistent, ChannelStatus, FriendMutation, SentLocalRelays,
+    BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
+    SentLocalRelays,
 };
-use crate::token_channel::{SetDirection, TcDirection, TcMutation, TokenChannel};
+use crate::token_channel::{SendMoveTokenOutput, SetDirection, TcMutation, TokenChannel};
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::remove_transaction;
 use crate::handler::state_wrap::MutableFunderState;
+use crate::handler::types::{FriendSendCommands, SendCommands};
 use crate::handler::utils::find_request_origin;
 use crate::state::{FunderMutation, FunderState};
 
-#[derive(Debug, Clone)]
-pub struct FriendSendCommands {
-    /// Try to send whatever possible through this friend.
-    pub try_send: bool,
-    /// Resend the outgoing move token message
-    pub resend_outgoing: bool,
-    /// Remote friend wants the token.
-    pub remote_wants_token: bool,
-    /// We want to perform a local reset
-    pub local_reset: bool,
-}
-
-impl FriendSendCommands {
-    fn new() -> Self {
-        FriendSendCommands {
-            try_send: false,
-            resend_outgoing: false,
-            remote_wants_token: false,
-            local_reset: false,
-        }
-    }
-}
-
 pub type OutgoingMessage<B> = (PublicKey, FriendMessage<B>);
-
-#[derive(Clone)]
-pub struct SendCommands {
-    pub send_commands: HashMap<PublicKey, FriendSendCommands>,
-}
-
-impl SendCommands {
-    pub fn new() -> Self {
-        SendCommands {
-            send_commands: HashMap::new(),
-        }
-    }
-
-    pub fn set_try_send(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.try_send = true;
-    }
-
-    pub fn set_resend_outgoing(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.resend_outgoing = true;
-    }
-
-    pub fn set_remote_wants_token(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.remote_wants_token = true;
-    }
-
-    pub fn set_local_reset(&mut self, friend_public_key: &PublicKey) {
-        let friend_send_commands = self
-            .send_commands
-            .entry(friend_public_key.clone())
-            .or_insert_with(FriendSendCommands::new);
-        friend_send_commands.local_reset = true;
-    }
-}
 
 #[derive(Debug)]
 enum PendingQueueError {
@@ -112,11 +50,22 @@ enum CollectOutgoingError {
     MaxOperationsReached,
 }
 
+#[derive(Debug)]
+/// Pending messages we want to send through a single currency
+/// in the next MoveToken.
+struct PendingCurrency {
+    /// Mutual credit state for this currency, allowing us to simulate sending operations
+    /// through this channel.
+    outgoing_mc: OutgoingMc,
+    /// Pending outgoing operations
+    operations: Vec<FriendTcOp>,
+}
+
 struct PendingMoveToken<B> {
     friend_public_key: PublicKey,
-    outgoing_mc: OutgoingMc,
-    operations: Vec<FriendTcOp>,
+    pending_currencies: HashMap<Currency, PendingCurrency>,
     opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    opt_active_currencies: Option<Vec<Currency>>,
     token_wanted: bool,
     max_operations_in_batch: usize,
     /// Can we send this move token with empty operations list
@@ -130,15 +79,14 @@ where
 {
     fn new(
         friend_public_key: PublicKey,
-        outgoing_mc: OutgoingMc,
         max_operations_in_batch: usize,
         may_send_empty: bool,
     ) -> Self {
         PendingMoveToken {
             friend_public_key,
-            outgoing_mc,
-            operations: Vec::new(),
+            pending_currencies: HashMap::new(),
             opt_local_relays: None,
+            opt_active_currencies: None,
             token_wanted: false,
             max_operations_in_batch,
             may_send_empty,
@@ -150,14 +98,44 @@ where
     /// Otherwise, an error is returned.
     fn queue_operation(
         &mut self,
+        currency: &Currency,
         operation: &FriendTcOp,
         m_state: &mut MutableFunderState<B>,
     ) -> Result<(), PendingQueueError> {
-        if self.operations.len() >= self.max_operations_in_batch {
+        // Make sure we do not have too many operations queued:
+        let num_operations: usize = self
+            .pending_currencies
+            .values()
+            .map(|pending_currency| pending_currency.operations.len())
+            .sum();
+        if num_operations >= self.max_operations_in_batch {
             return Err(PendingQueueError::MaxOperationsReached);
         }
 
-        let mc_mutations = match self.outgoing_mc.queue_operation(operation) {
+        let friend = m_state
+            .state()
+            .friends
+            .get(&self.friend_public_key)
+            .unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+
+        let outgoing_mc = token_channel
+            .get_incoming()
+            .unwrap()
+            .create_outgoing_mc(currency)
+            .unwrap();
+        let pending_currency =
+            self.pending_currencies
+                .entry(currency.clone())
+                .or_insert(PendingCurrency {
+                    outgoing_mc,
+                    operations: Vec::new(),
+                });
+
+        let _mc_mutations = match pending_currency.outgoing_mc.queue_operation(operation) {
             Ok(mc_mutations) => Ok(mc_mutations),
             Err(QueueOperationError::RequestAlreadyExists) => {
                 warn!("Request already exists: {:?}", operation);
@@ -170,23 +148,28 @@ where
         }?;
 
         // Add operation:
-        self.operations.push(operation.clone());
+        pending_currency.operations.push(operation.clone());
 
+        /*
         // Apply mutations:
         for mc_mutation in mc_mutations {
-            let tc_mutation = TcMutation::McMutation(mc_mutation);
+            let tc_mutation = TcMutation::McMutation((currency.clone(), mc_mutation));
             let friend_mutation = FriendMutation::TcMutation(tc_mutation);
             let funder_mutation =
                 FunderMutation::FriendMutation((self.friend_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
         }
+        */
 
         Ok(())
     }
 
-    /// Set local address inside pending move token.
     fn set_local_relays(&mut self, local_relays: Vec<RelayAddress<B>>) {
         self.opt_local_relays = Some(local_relays);
+    }
+
+    fn set_active_currencies(&mut self, active_currencies: Vec<Currency>) {
+        self.opt_active_currencies = Some(active_currencies);
     }
 }
 
@@ -204,10 +187,10 @@ fn transmit_outgoing<B>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let move_token = match &token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => tc_outgoing.create_outgoing_move_token(),
-        TcDirection::Incoming(_) => unreachable!(),
-    };
+    let move_token = token_channel
+        .get_outgoing()
+        .unwrap()
+        .create_outgoing_move_token();
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -227,33 +210,92 @@ pub async fn apply_local_reset<'a, B, R>(
     identity_client: &'a mut IdentityClient,
     rng: &'a R,
 ) where
-    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug + Hash,
     R: CryptoRandom,
 {
     // TODO: How to do this without unwrap?:
     let remote_reset_terms = channel_inconsistent.opt_remote_reset_terms.clone().unwrap();
 
-    let rand_nonce = RandValue::rand_gen(rng);
-    let move_token_counter = 0;
-
-    let local_pending_debt = 0;
-    let remote_pending_debt = 0;
-    let opt_local_relays = None;
-
-    let token_info = TokenInfo {
-        local_public_key: m_state.state().local_public_key.clone(),
-        remote_public_key: friend_public_key.clone(),
-        inconsistency_counter: remote_reset_terms.inconsistency_counter,
-        move_token_counter,
-        balance: remote_reset_terms.balance_for_reset.checked_neg().unwrap(),
-        local_pending_debt,
-        remote_pending_debt,
+    // Update last_sent_relays:
+    let sent_local_relays = &m_state
+        .state()
+        .friends
+        .get(friend_public_key)
+        .unwrap()
+        .sent_local_relays;
+    let new_sent_local_relays = match sent_local_relays {
+        SentLocalRelays::NeverSent => SentLocalRelays::LastSent(m_state.state().relays.clone()),
+        SentLocalRelays::Transition((last_sent, before_last_sent)) => {
+            // We fear that the remote side might lose our relays (After the reset)
+            // To be on the safe side, we take all the relays the remote side might know about us,
+            // and set them as the old relays.
+            let last_sent_set: HashSet<NamedRelayAddress<B>> =
+                last_sent.clone().into_iter().collect();
+            let before_last_sent_set: HashSet<NamedRelayAddress<B>> =
+                before_last_sent.clone().into_iter().collect();
+            let old_local_relays = last_sent_set
+                .union(&before_last_sent_set)
+                .cloned()
+                .collect();
+            SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
+        }
+        SentLocalRelays::LastSent(last_sent) => {
+            SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone()))
+        }
     };
 
+    let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
+
+    // Prepare our current relays:
+    let opt_local_relays = Some(
+        m_state
+            .state()
+            .relays
+            .clone()
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
+    );
+
+    let move_token_counter = 0;
+    let local_pending_debt = 0;
+    let remote_pending_debt = 0;
+    let opt_active_currencies = None;
+
+    let balances = remote_reset_terms
+        .balance_for_reset
+        .iter()
+        .map(|currency_balance| CurrencyBalanceInfo {
+            currency: currency_balance.currency.clone(),
+            balance_info: BalanceInfo {
+                balance: currency_balance.balance.checked_neg().unwrap(),
+                local_pending_debt,
+                remote_pending_debt,
+            },
+        })
+        .collect();
+
+    let token_info = TokenInfo {
+        mc: McInfo {
+            local_public_key: m_state.state().local_public_key.clone(),
+            remote_public_key: friend_public_key.clone(),
+            balances,
+        },
+        counters: CountersInfo {
+            inconsistency_counter: remote_reset_terms.inconsistency_counter,
+            move_token_counter,
+        },
+    };
+
+    let rand_nonce = RandValue::rand_gen(rng);
     let u_reset_move_token = create_unsigned_move_token(
         // No operations are required for a reset move token
         Vec::new(),
         opt_local_relays,
+        opt_active_currencies,
         &token_info,
         remote_reset_terms.reset_token.clone(),
         rand_nonce,
@@ -271,6 +313,27 @@ pub async fn apply_local_reset<'a, B, R>(
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
+
+    // Add possibly missing currency configurations:
+    let currency_configs = m_state
+        .state()
+        .friends
+        .get(friend_public_key)
+        .unwrap()
+        .currency_configs
+        .clone();
+    for currency_balance in &remote_reset_terms.balance_for_reset {
+        if !currency_configs.contains_key(&currency_balance.currency) {
+            // This is a reset message. We reset the token channel:
+            let friend_mutation = FriendMutation::UpdateCurrencyConfig((
+                currency_balance.currency.clone(),
+                CurrencyConfig::new(),
+            ));
+            let funder_mutation =
+                FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+            m_state.mutate(funder_mutation);
+        }
+    }
 }
 
 async fn send_friend_iter1<'a, B, R>(
@@ -286,16 +349,17 @@ async fn send_friend_iter1<'a, B, R>(
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
 ) where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
-    if !friend_send_commands.try_send
-        && !friend_send_commands.resend_outgoing
-        && !friend_send_commands.remote_wants_token
-        && !friend_send_commands.local_reset
-    {
-        return;
-    }
+    // If we got here, it must be because some send_commands attribute was set:
+    assert!(
+        friend_send_commands.try_send
+            || friend_send_commands.resend_relays
+            || friend_send_commands.resend_outgoing
+            || friend_send_commands.remote_wants_token
+            || friend_send_commands.local_reset
+    );
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
@@ -311,6 +375,18 @@ async fn send_friend_iter1<'a, B, R>(
                 rng,
             )
             .await;
+
+            // TODO: Is the token wanted after reset?
+            let is_token_wanted = true;
+            transmit_outgoing(
+                m_state,
+                friend_public_key,
+                is_token_wanted,
+                &mut outgoing_messages,
+            );
+            return;
+        } else {
+            unreachable!();
         }
     }
 
@@ -333,49 +409,49 @@ async fn send_friend_iter1<'a, B, R>(
 
     let token_channel = &channel_consistent.token_channel;
 
-    let tc_incoming = match &token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => {
-            if estimate_should_send(m_state.state(), friend_public_key) {
-                let is_token_wanted = true;
-                transmit_outgoing(
-                    m_state,
-                    &friend_public_key,
-                    is_token_wanted,
-                    &mut outgoing_messages,
-                );
-            } else if friend_send_commands.resend_outgoing {
-                let is_token_wanted = tc_outgoing.move_token_out.opt_local_relays.is_some();
-                transmit_outgoing(
-                    m_state,
-                    &friend_public_key,
-                    is_token_wanted,
-                    &mut outgoing_messages,
-                );
-            }
+    if let Some(tc_out_borrow) = &token_channel.get_outgoing() {
+        // Remote side has the token:
 
-            return;
+        let tc_outgoing = &tc_out_borrow.tc_outgoing;
+        // Do we have anything that we want to send?
+        // (Currently the token is at the remote side)
+        let is_pending = estimate_should_send(m_state.state(), friend_public_key);
+        if is_pending || friend_send_commands.resend_outgoing {
+            let is_token_wanted =
+                is_pending || tc_outgoing.move_token_out.opt_local_relays.is_some();
+            transmit_outgoing(
+                m_state,
+                &friend_public_key,
+                is_token_wanted,
+                &mut outgoing_messages,
+            );
         }
-        TcDirection::Incoming(tc_incoming) => tc_incoming,
-    };
+
+        return;
+    }
 
     // If we are here, the token channel is incoming:
 
+    // TODO: Make sure resend_outgoing is set smartly in handle_liveness
+    // (Only in case of inconsistency?, or outgoing direction)
+    //
     // It will be strange if we need to resend outgoing, because the channel
     // is in incoming mode.
     // -- This could happen in handle_liveness.
     // assert!(!friend_send_commands.resend_outgoing);
 
-    let outgoing_mc = tc_incoming.begin_outgoing_move_token();
     let may_send_empty =
         friend_send_commands.resend_outgoing || friend_send_commands.remote_wants_token;
     let pending_move_token = PendingMoveToken::new(
         friend_public_key.clone(),
-        outgoing_mc,
         max_operations_in_batch,
         may_send_empty,
     );
+
+    // TODO: Find a more elegant way to insert and get_mut() right after it?
     pending_move_tokens.insert(friend_public_key.clone(), pending_move_token);
     let pending_move_token = pending_move_tokens.get_mut(friend_public_key).unwrap();
+
     let _ = collect_outgoing_move_token(
         m_state,
         rng,
@@ -384,6 +460,7 @@ async fn send_friend_iter1<'a, B, R>(
         cancel_public_keys,
         friend_public_key,
         pending_move_token,
+        friend_send_commands.resend_relays,
     );
 }
 
@@ -408,22 +485,38 @@ where
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            if friend.wanted_remote_max_debt
-                != channel_consistent.token_channel.get_remote_max_debt()
+            // Check if we need to tell remote side about our local active currencies:
+            let wanted_local_currencies: ImHashSet<_> =
+                friend.currency_configs.keys().cloned().collect();
+            if wanted_local_currencies
+                != channel_consistent
+                    .token_channel
+                    .get_active_currencies()
+                    .local
             {
                 return true;
             }
 
-            // Open or close requests is needed:
-            let local_requests_status = &channel_consistent
-                .token_channel
-                .get_mutual_credit()
-                .state()
-                .requests_status
-                .local;
+            for (currency, currency_config) in &friend.currency_configs {
+                if let Some(mutual_credit) = channel_consistent
+                    .token_channel
+                    .get_mutual_credits()
+                    .get(currency)
+                {
+                    // We need to change remote_max_debt:
+                    if currency_config.wanted_remote_max_debt
+                        != mutual_credit.state().balance.remote_max_debt
+                    {
+                        return true;
+                    }
 
-            if friend.wanted_local_requests_status != *local_requests_status {
-                return true;
+                    // We need to change local requests status:
+                    if currency_config.wanted_local_requests_status
+                        != mutual_credit.state().requests_status.local
+                    {
+                        return true;
+                    }
+                }
             }
 
             if !channel_consistent.pending_backwards_ops.is_empty()
@@ -448,13 +541,14 @@ fn queue_operation_or_cancel<'a, B, R>(
     pending_move_token: &'a mut PendingMoveToken<B>,
     cancel_public_keys: &'a mut HashSet<PublicKey>,
     outgoing_control: &'a mut Vec<FunderOutgoingControl<B>>,
+    currency: &Currency,
     operation: &'a FriendTcOp,
 ) -> Result<(), CollectOutgoingError>
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
 {
-    match pending_move_token.queue_operation(operation, m_state) {
+    match pending_move_token.queue_operation(currency, operation, m_state) {
         Ok(()) => return Ok(()),
         Err(PendingQueueError::MaxOperationsReached) => {
             pending_move_token.token_wanted = true;
@@ -472,7 +566,7 @@ where
 
     // We are here if an error occurred.
     // We cancel the request:
-    match find_request_origin(m_state.state(), &request_send_funds.request_id).cloned() {
+    match find_request_origin(m_state.state(), currency, &request_send_funds.request_id).cloned() {
         Some(origin_public_key) => {
             // The friend with public key `origin_public_key` is the origin of this request.
             // We send him back a Cancel message:
@@ -480,7 +574,8 @@ where
             let pending_transaction = create_pending_transaction(request_send_funds);
             let cancel_send_funds =
                 BackwardsOp::Cancel(create_cancel_send_funds(pending_transaction.request_id));
-            let friend_mutation = FriendMutation::PushBackPendingBackwardsOp(cancel_send_funds);
+            let friend_mutation =
+                FriendMutation::PushBackPendingBackwardsOp((currency.clone(), cancel_send_funds));
             let funder_mutation =
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
@@ -525,9 +620,10 @@ fn collect_outgoing_move_token<'a, B, R>(
     cancel_public_keys: &'a mut HashSet<PublicKey>,
     friend_public_key: &'a PublicKey,
     pending_move_token: &'a mut PendingMoveToken<B>,
+    resend_relays: bool,
 ) -> Result<(), CollectOutgoingError>
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
     /*
@@ -545,33 +641,56 @@ where
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let local_named_relays = m_state.state().relays.clone();
 
-    let local_relays = local_named_relays
+    let local_relays: Vec<_> = local_named_relays
         .iter()
         .cloned()
         .map(RelayAddress::from)
         .collect();
 
-    let opt_new_sent_local_relays = match &friend.sent_local_relays {
-        SentLocalRelays::NeverSent => {
-            pending_move_token.set_local_relays(local_relays);
-            Some(SentLocalRelays::LastSent(local_named_relays.clone()))
-        }
-        SentLocalRelays::Transition((last_sent_local_relays, _))
-        | SentLocalRelays::LastSent(last_sent_local_relays) => {
-            if &local_named_relays != last_sent_local_relays {
-                pending_move_token.set_local_relays(local_relays.clone());
-                Some(SentLocalRelays::Transition((
-                    local_named_relays.clone(),
-                    last_sent_local_relays.clone(),
-                )))
-            } else {
-                None
+    let opt_new_sent_local_relays = if resend_relays {
+        // We need to resend relays, due to a reset (that was initiated from remote side):
+        Some(match &friend.sent_local_relays {
+            SentLocalRelays::NeverSent => SentLocalRelays::LastSent(m_state.state().relays.clone()),
+            SentLocalRelays::Transition((last_sent, before_last_sent)) => {
+                // We fear that the remote side might lose our relays (After the reset)
+                // To be on the safe side, we take all the relays the remote side might know about us,
+                // and set them as the old relays.
+                let last_sent_set: HashSet<NamedRelayAddress<B>> =
+                    last_sent.clone().into_iter().collect();
+                let before_last_sent_set: HashSet<NamedRelayAddress<B>> =
+                    before_last_sent.clone().into_iter().collect();
+                let old_local_relays = last_sent_set
+                    .union(&before_last_sent_set)
+                    .cloned()
+                    .collect();
+                SentLocalRelays::Transition((m_state.state().relays.clone(), old_local_relays))
+            }
+            SentLocalRelays::LastSent(last_sent) => {
+                SentLocalRelays::Transition((m_state.state().relays.clone(), last_sent.clone()))
+            }
+        })
+    } else {
+        match &friend.sent_local_relays {
+            SentLocalRelays::NeverSent => {
+                Some(SentLocalRelays::LastSent(local_named_relays.clone()))
+            }
+            SentLocalRelays::Transition((last_sent_local_relays, _))
+            | SentLocalRelays::LastSent(last_sent_local_relays) => {
+                if &local_named_relays != last_sent_local_relays {
+                    Some(SentLocalRelays::Transition((
+                        local_named_relays.clone(),
+                        last_sent_local_relays.clone(),
+                    )))
+                } else {
+                    None
+                }
             }
         }
     };
 
     // Update friend.sent_local_relays accordingly:
     if let Some(new_sent_local_relays) = opt_new_sent_local_relays {
+        pending_move_token.set_local_relays(local_relays.clone());
         let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -589,25 +708,112 @@ where
         outgoing_channeler_config.push(channeler_config);
     }
 
+    // Deal with active currencies:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-
-    // Set remote_max_debt if needed:
-    let remote_max_debt = match &friend.channel_status {
+    let token_channel = match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
-    }
-    .get_remote_max_debt();
+    };
 
-    if friend.wanted_remote_max_debt != remote_max_debt {
-        let operation = FriendTcOp::SetRemoteMaxDebt(friend.wanted_remote_max_debt);
+    let wanted_local_currencies: ImHashSet<_> = friend.currency_configs.keys().cloned().collect();
+    if wanted_local_currencies != token_channel.get_active_currencies().local {
+        // Assert that all active currencies must be included inside the wanted_active_currencies:
+        assert!(token_channel
+            .get_active_currencies()
+            .calc_active()
+            .is_subset(&wanted_local_currencies));
+        pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
+    }
+
+    // Set remote_max_debt (if required):
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    for (currency, currency_config) in friend.currency_configs.clone() {
+        // Set remote_max_debt and local_requests_status (if required):
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
+            // We need to change remote_max_debt:
+            if currency_config.wanted_remote_max_debt
+                != mutual_credit.state().balance.remote_max_debt
+            {
+                let operation =
+                    FriendTcOp::SetRemoteMaxDebt(currency_config.wanted_remote_max_debt);
+                queue_operation_or_cancel(
+                    m_state,
+                    rng,
+                    pending_move_token,
+                    cancel_public_keys,
+                    outgoing_control,
+                    &currency,
+                    &operation,
+                )?;
+            }
+        }
+    }
+
+    // Set local_requests_status (if required):
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    for (currency, currency_config) in friend.currency_configs.clone() {
+        // Set remote_max_debt and local_requests_status (if required):
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
+            // We need to change local requests status:
+            if currency_config.wanted_local_requests_status
+                != mutual_credit.state().requests_status.local
+            {
+                let friend_op =
+                    if let RequestsStatus::Open = currency_config.wanted_local_requests_status {
+                        FriendTcOp::EnableRequests
+                    } else {
+                        FriendTcOp::DisableRequests
+                    };
+                queue_operation_or_cancel(
+                    m_state,
+                    rng,
+                    pending_move_token,
+                    cancel_public_keys,
+                    outgoing_control,
+                    &currency,
+                    &friend_op,
+                )?;
+            }
+        }
+    }
+
+    /*
+    // Set remote_max_debt if needed:
+    for (currency, wanted_remote_max_debt) in channel_consistent.wanted_remote_max_debt.clone() {
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let remote_max_debt = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        }
+        .get_remote_max_debt(&currency);
+
+        assert_ne!(remote_max_debt, wanted_remote_max_debt);
+
+        let operation = FriendTcOp::SetRemoteMaxDebt(wanted_remote_max_debt);
         queue_operation_or_cancel(
             m_state,
             rng,
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
+            &currency,
             &operation,
         )?;
+
+        let friend_mutation = FriendMutation::ClearWantedRemoteMaxDebt(currency.clone());
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -617,15 +823,25 @@ where
     };
 
     // Open or close requests is needed:
-    let local_requests_status = &channel_consistent
-        .token_channel
-        .get_mutual_credit()
-        .state()
-        .requests_status
-        .local;
+    for (currency, wanted_local_requests_status) in channel_consistent.wanted_local_requests_status.clone() {
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let channel_consistent = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
 
-    if friend.wanted_local_requests_status != *local_requests_status {
-        let friend_op = if let RequestsStatus::Open = friend.wanted_local_requests_status {
+        let local_requests_status = &channel_consistent
+            .token_channel
+            .get_mutual_credits()
+            .get(&currency)
+            .unwrap()
+            .state()
+            .requests_status
+            .local;
+
+        assert_ne!(&wanted_local_requests_status, local_requests_status);
+
+        let friend_op = if let RequestsStatus::Open = wanted_local_requests_status {
             FriendTcOp::EnableRequests
         } else {
             FriendTcOp::DisableRequests
@@ -636,9 +852,16 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
+            &currency,
             &friend_op,
         )?;
+
+        let friend_mutation = FriendMutation::ClearWantedLocalRequestsStatus(currency.clone());
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
     }
+    */
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let channel_consistent = match &friend.channel_status {
@@ -649,7 +872,7 @@ where
     // Send pending responses (Response, Cancel, Collect)
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
-    while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
+    while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         queue_operation_or_cancel(
             m_state,
@@ -658,6 +881,7 @@ where
             // Not required here, as no requests are being sent.
             cancel_public_keys,
             outgoing_control,
+            &currency,
             &pending_op,
         )?;
 
@@ -676,7 +900,7 @@ where
     // Send pending requests:
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_requests = channel_consistent.pending_requests.clone();
-    while let Some(pending_request) = pending_requests.pop_front() {
+    while let Some((currency, pending_request)) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
         queue_operation_or_cancel(
             m_state,
@@ -684,6 +908,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
+            &currency,
             &pending_op,
         )?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
@@ -700,7 +925,7 @@ where
 
     // Send as many pending user requests as possible:
     let mut pending_user_requests = channel_consistent.pending_user_requests.clone();
-    while let Some(request_send_funds) = pending_user_requests.pop_front() {
+    while let Some((currency, request_send_funds)) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
         queue_operation_or_cancel(
             m_state,
@@ -708,6 +933,7 @@ where
             pending_move_token,
             cancel_public_keys,
             outgoing_control,
+            &currency,
             &pending_op,
         )?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
@@ -737,7 +963,7 @@ where
     // Send pending responses (Response, Cancel, Collect):
     // TODO: Possibly replace this clone with something more efficient later:
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
-    while let Some(pending_backwards_op) = pending_backwards_ops.pop_front() {
+    while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
         // TODO: Find a more elegant way to do this:
         let mut dummy_cancel_public_keys = HashSet::new();
@@ -748,6 +974,7 @@ where
             pending_move_token,
             &mut dummy_cancel_public_keys,
             &mut dummy_outgoing_control,
+            &currency,
             &pending_op,
         )?;
 
@@ -771,14 +998,19 @@ async fn send_move_token<'a, B, R>(
     R: CryptoRandom,
 {
     let PendingMoveToken {
-        operations,
+        pending_currencies,
         opt_local_relays,
+        opt_active_currencies,
         token_wanted,
         may_send_empty,
         ..
     } = pending_move_token;
 
-    if operations.is_empty() && opt_local_relays.is_none() && !may_send_empty {
+    if pending_currencies.is_empty()
+        && opt_active_currencies.is_none()
+        && opt_local_relays.is_none()
+        && !may_send_empty
+    {
         return;
     }
 
@@ -794,16 +1026,41 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_incoming = match channel_consistent.token_channel.get_direction() {
-        TcDirection::Outgoing(_) => unreachable!(),
-        TcDirection::Incoming(tc_incoming) => tc_incoming,
-    };
+    let tc_in_borrow = &channel_consistent.token_channel.get_incoming().unwrap();
 
-    let (u_move_token, token_info) =
-        tc_incoming.create_unsigned_move_token(operations, opt_local_relays, rand_nonce);
+    let currencies_operations = pending_currencies
+        .into_iter()
+        .map(|(currency, pending_currency)| CurrencyOperations {
+            currency,
+            operations: pending_currency.operations,
+        })
+        .collect();
 
-    let move_token = sign_move_token(u_move_token, identity_client).await;
+    // let (u_move_token, token_info) =
+    let SendMoveTokenOutput {
+        unsigned_move_token,
+        mutations,
+        token_info,
+    } = tc_in_borrow
+        .simulate_send_move_token(
+            currencies_operations,
+            opt_local_relays,
+            opt_active_currencies,
+            rand_nonce,
+        )
+        .unwrap();
 
+    // Apply mutations:
+    for tc_mutation in mutations {
+        let friend_mutation = FriendMutation::TcMutation(tc_mutation);
+        let funder_mutation =
+            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+        m_state.mutate(funder_mutation);
+    }
+
+    // Apply final SetDirection mutation (Can not be created from inside of the TokenChannel
+    // because a signature is required.
+    let move_token = sign_move_token(unsigned_move_token, identity_client).await;
     let tc_mutation = TcMutation::SetDirection(SetDirection::Outgoing((move_token, token_info)));
     let friend_mutation = FriendMutation::TcMutation(tc_mutation);
     let funder_mutation =
@@ -816,12 +1073,9 @@ async fn send_move_token<'a, B, R>(
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
 
-    let tc_outgoing = match channel_consistent.token_channel.get_direction() {
-        TcDirection::Outgoing(tc_outgoing) => tc_outgoing,
-        TcDirection::Incoming(_) => unreachable!(),
-    };
+    let tc_out_borrow = &channel_consistent.token_channel.get_outgoing().unwrap();
 
-    let move_token = tc_outgoing.create_outgoing_move_token();
+    let move_token = tc_out_borrow.create_outgoing_move_token();
     let move_token_request = MoveTokenRequest {
         move_token,
         token_wanted,
@@ -834,7 +1088,6 @@ async fn send_move_token<'a, B, R>(
 }
 
 fn init_cancel_pending_move_token<B>(
-    m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     max_operations_in_batch: usize,
     cancel_public_keys: &HashSet<PublicKey>,
@@ -853,25 +1106,9 @@ fn init_cancel_pending_move_token<B>(
             continue;
         }
 
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-
-        // We expect that this friend has a consistent channel,
-        // because we just attempted to forward a request that originated from
-        // this friend.
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        let tc_incoming = match &token_channel.get_direction() {
-            TcDirection::Outgoing(_) => continue,
-            TcDirection::Incoming(tc_incoming) => tc_incoming,
-        };
-        let outgoing_mc = tc_incoming.begin_outgoing_move_token();
-
         let may_send_empty = false;
         let pending_move_token = PendingMoveToken::new(
             friend_public_key.clone(),
-            outgoing_mc,
             max_operations_in_batch,
             may_send_empty,
         );
@@ -893,7 +1130,7 @@ pub async fn create_friend_messages<'a, B, R>(
     Vec<ChannelerConfig<RelayAddress<B>>>,
 )
 where
-    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
     let mut outgoing_control = Vec::new();
@@ -926,7 +1163,6 @@ where
     // Create PendingMoveToken-s for all the friends that were queued
     // new pending messages during `send_friend_iter1`:
     init_cancel_pending_move_token(
-        m_state,
         ephemeral,
         max_operations_in_batch,
         &cancel_public_keys,

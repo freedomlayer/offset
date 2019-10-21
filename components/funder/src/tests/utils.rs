@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 
 use common::mutable_state::MutableState;
 use signature::canonical::CanonicalSerialize;
@@ -20,9 +21,10 @@ use proto::report::messages::{
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AddFriend, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, Rate,
-    RequestsStatus, ResponseClosePayment, SetFriendRate, SetFriendRemoteMaxDebt, SetFriendStatus,
-    SetRequestsStatus, TransactionResult,
+    AddFriend, Currency, FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl,
+    Rate, RemoveFriend, RemoveFriendCurrency, RequestsStatus, ResponseClosePayment,
+    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus,
+    SetFriendStatus, TransactionResult,
 };
 
 use database::DatabaseClient;
@@ -86,7 +88,9 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
     nodes: &'a mut HashMap<PublicKey, Node<B>>,
     src_public_key: PublicKey,
     outgoing_comm: FunderOutgoingComm<B>,
-) {
+) where
+    B: Debug,
+{
     match outgoing_comm {
         FunderOutgoingComm::FriendMessage((dest_public_key, friend_message)) => {
             let node = nodes.get_mut(&dest_public_key).unwrap();
@@ -99,8 +103,17 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
             match channeler_config {
                 ChannelerConfig::UpdateFriend(channeler_add_friend) => {
                     let node = nodes.get_mut(&src_public_key).unwrap();
+                    if node
+                        .friends
+                        .contains(&channeler_add_friend.friend_public_key)
+                    {
+                        // Nothing changed, we exit early.
+                        return;
+                    }
+
                     node.friends
                         .insert(channeler_add_friend.friend_public_key.clone());
+
                     let mut comm_out = node.comm_out.clone();
 
                     let remote_node = nodes.get(&channeler_add_friend.friend_public_key).unwrap();
@@ -149,7 +162,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
 /// Simulates the Channeler interface
 async fn router<B, S>(incoming_new_node: mpsc::Receiver<NewNode<B>>, mut spawner: S)
 where
-    B: Send + 'static,
+    B: Send + Debug + 'static,
     S: Spawn + Clone,
 {
     let mut nodes: HashMap<PublicKey, Node<B>> = HashMap::new();
@@ -311,15 +324,20 @@ where
         friend_public_key: &'a PublicKey,
         relays: Vec<RelayAddress<B>>,
         name: &'a str,
-        balance: i128,
     ) {
         let add_friend = AddFriend {
             friend_public_key: friend_public_key.clone(),
             relays,
             name: name.into(),
-            balance: balance.into(),
         };
         self.send(FunderControl::AddFriend(add_friend)).await;
+    }
+
+    pub async fn remove_friend<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
+        let remove_friend = RemoveFriend {
+            friend_public_key: friend_public_key.clone(),
+        };
+        self.send(FunderControl::RemoveFriend(remove_friend)).await;
     }
 
     pub async fn set_friend_status<'a>(
@@ -338,41 +356,84 @@ where
     pub async fn set_remote_max_debt<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
         remote_max_debt: u128,
     ) {
-        let set_remote_max_debt = SetFriendRemoteMaxDebt {
+        let set_remote_max_debt = SetFriendCurrencyMaxDebt {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             remote_max_debt: remote_max_debt.into(),
         };
-        self.send(FunderControl::SetFriendRemoteMaxDebt(set_remote_max_debt))
+        self.send(FunderControl::SetFriendCurrencyMaxDebt(set_remote_max_debt))
+            .await;
+    }
+
+    #[allow(unused)]
+    pub async fn remove_friend_currency<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+    ) {
+        let remove_friend_currency = RemoveFriendCurrency {
+            friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
+        };
+        self.send(FunderControl::RemoveFriendCurrency(remove_friend_currency))
             .await;
     }
 
     pub async fn set_requests_status<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
         requests_status: RequestsStatus,
     ) {
-        let set_requests_status = SetRequestsStatus {
+        let set_requests_status = SetFriendCurrencyRequestsStatus {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             status: requests_status.clone(),
         };
-        self.send(FunderControl::SetRequestsStatus(set_requests_status))
-            .await;
+        self.send(FunderControl::SetFriendCurrencyRequestsStatus(
+            set_requests_status,
+        ))
+        .await;
     }
 
-    pub async fn set_friend_rate<'a>(&'a mut self, friend_public_key: &'a PublicKey, rate: Rate) {
-        let set_friend_rate = SetFriendRate {
+    pub async fn set_friend_currency_rate<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+        rate: Rate,
+    ) {
+        let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key: friend_public_key.clone(),
+            currency: currency.clone(),
             rate,
         };
-        self.send(FunderControl::SetFriendRate(set_friend_rate))
-            .await;
+        self.send(FunderControl::SetFriendCurrencyRate(
+            set_friend_currency_rate,
+        ))
+        .await;
     }
 
-    pub async fn wait_until_ready<'a>(&'a mut self, friend_public_key: &'a PublicKey) {
+    /// A shim, allowing to easily enable multiple currencies at once
+    pub async fn set_friend_currencies<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currencies: Vec<Currency>,
+    ) {
+        for currency in currencies {
+            self.set_friend_currency_rate(friend_public_key, &currency, Rate::new())
+                .await;
+        }
+    }
+
+    pub async fn wait_until_currency_active<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+    ) {
         let pred = |report: &FunderReport<_>| {
-            // TODO: get_friend_report() is inefficient
             let friend = match report.friends.get(&friend_public_key) {
                 None => return false,
                 Some(friend) => friend,
@@ -380,19 +441,86 @@ where
             if friend.liveness != FriendLivenessReport::Online {
                 return false;
             }
-            let tc_report = match &friend.channel_status {
+            let currency_reports = match &friend.channel_status {
                 ChannelStatusReport::Consistent(channel_consistent) => {
-                    &channel_consistent.tc_report
+                    &channel_consistent.currency_reports
                 }
                 _ => return false,
             };
-            tc_report.requests_status.remote == RequestsStatusReport::from(&RequestsStatus::Open)
+
+            if let Some(_) = currency_reports
+                .iter()
+                .position(|currency_report| &currency_report.currency == currency)
+            {
+                true
+            } else {
+                false
+            }
+        };
+        self.recv_until(pred).await;
+    }
+
+    pub async fn wait_until_ready<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+    ) {
+        let pred = |report: &FunderReport<_>| {
+            let friend = match report.friends.get(&friend_public_key) {
+                None => return false,
+                Some(friend) => friend,
+            };
+            if friend.liveness != FriendLivenessReport::Online {
+                return false;
+            }
+            let currency_reports = match &friend.channel_status {
+                ChannelStatusReport::Consistent(channel_consistent) => {
+                    &channel_consistent.currency_reports
+                }
+                _ => return false,
+            };
+            if let Some(pos) = currency_reports
+                .iter()
+                .position(|currency_report| &currency_report.currency == currency)
+            {
+                let currency_report = &currency_reports[pos];
+                currency_report.requests_status.remote
+                    == RequestsStatusReport::from(&RequestsStatus::Open)
+            } else {
+                false
+            }
+        };
+        self.recv_until(pred).await;
+    }
+
+    pub async fn wait_friend_balance<'a>(
+        &'a mut self,
+        friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
+        balance: i128,
+    ) {
+        let pred = |report: &FunderReport<_>| {
+            let friend = report.friends.get(friend_public_key).unwrap();
+            let currency_reports = match &friend.channel_status {
+                ChannelStatusReport::Consistent(channel_consistent) => {
+                    &channel_consistent.currency_reports
+                }
+                _ => return false,
+            };
+
+            let opt_pos = currency_reports
+                .iter()
+                .position(|currency_report| &currency_report.currency == currency);
+            if let Some(pos) = opt_pos {
+                currency_reports[pos].balance.balance == balance
+            } else {
+                false
+            }
         };
         self.recv_until(pred).await;
     }
 }
 
-// TODO: Add this back later:
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
 /// We use A = u32:

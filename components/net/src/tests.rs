@@ -1,8 +1,6 @@
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use env_logger;
-
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
@@ -136,7 +134,7 @@ where
 
 #[test]
 fn test_net_connector_v4_drop_sender() {
-    env_logger::init();
+    // env_logger::init();
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }

@@ -6,7 +6,7 @@ use crypto::identity::verify_signature;
 
 use proto::crypto::{InvoiceId, PublicKey};
 
-use proto::funder::messages::{Commit, MoveToken, MultiCommit, Receipt};
+use proto::funder::messages::{Commit, Currency, MoveToken, MultiCommit, Receipt};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -28,6 +28,7 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.write_u128::<BigEndian>(receipt.total_dest_payment)
         .unwrap();
     data.extend(receipt.invoice_id.as_ref());
+    data.extend_from_slice(&receipt.currency.canonical_serialize());
     verify_signature(&data, public_key, &receipt.signature)
 }
 
@@ -35,6 +36,7 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 fn verify_commit(
     commit: &Commit,
     invoice_id: &InvoiceId,
+    currency: &Currency,
     total_dest_payment: u128,
     local_public_key: &PublicKey,
 ) -> bool {
@@ -47,6 +49,7 @@ fn verify_commit(
     data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
     data.write_u128::<BigEndian>(total_dest_payment).unwrap();
     data.extend(invoice_id.as_ref());
+    data.extend_from_slice(&currency.canonical_serialize());
     verify_signature(&data, local_public_key, &commit.signature)
 }
 
@@ -60,6 +63,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
         is_sig_valid &= verify_commit(
             commit,
             &multi_commit.invoice_id,
+            &multi_commit.currency,
             multi_commit.total_dest_payment,
             local_public_key,
         );

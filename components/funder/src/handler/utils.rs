@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
 
-use proto::funder::messages::PendingTransaction;
+use proto::funder::messages::{Currency, PendingTransaction};
 
 use proto::crypto::{PublicKey, Uid};
 
@@ -19,6 +19,7 @@ use crate::friend::ChannelStatus;
 /// between request_id and (friend_public_key, friend).
 pub fn find_request_origin<'a, B>(
     state: &'a FunderState<B>,
+    currency: &Currency,
     request_id: &Uid,
 ) -> Option<&'a PublicKey>
 where
@@ -28,9 +29,17 @@ where
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
             ChannelStatus::Consistent(channel_consistent) => {
-                if channel_consistent
+                let mutual_credit = if let Some(mutual_credit) = channel_consistent
                     .token_channel
-                    .get_mutual_credit()
+                    .get_mutual_credits()
+                    .get(currency)
+                {
+                    mutual_credit
+                } else {
+                    continue;
+                };
+
+                if mutual_credit
                     .state()
                     .pending_transactions
                     .remote
@@ -47,6 +56,7 @@ where
 /// Find an outgoing pending transaction
 pub fn find_local_pending_transaction<'a, B>(
     state: &'a FunderState<B>,
+    currency: &Currency,
     request_id: &Uid,
 ) -> Option<&'a PendingTransaction>
 where
@@ -56,9 +66,17 @@ where
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
             ChannelStatus::Consistent(channel_consistent) => {
-                if let Some(pending_transaction) = channel_consistent
+                let mutual_credit = if let Some(mutual_credit) = channel_consistent
                     .token_channel
-                    .get_mutual_credit()
+                    .get_mutual_credits()
+                    .get(currency)
+                {
+                    mutual_credit
+                } else {
+                    continue;
+                };
+
+                if let Some(pending_transaction) = mutual_credit
                     .state()
                     .pending_transactions
                     .local
@@ -76,6 +94,7 @@ pub fn is_friend_ready<B>(
     state: &FunderState<B>,
     ephemeral: &Ephemeral,
     friend_public_key: &PublicKey,
+    currency: &Currency,
 ) -> bool
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -91,11 +110,15 @@ where
         ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
     };
 
+    let mutual_credit =
+        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(currency) {
+            mutual_credit
+        } else {
+            // TODO: Possibly a different error message for this case? Maybe to be added externally at
+            // the call site? The currency does not exist!
+            return false;
+        };
+
     // Make sure that the remote side has open requests:
-    token_channel
-        .get_mutual_credit()
-        .state()
-        .requests_status
-        .remote
-        .is_open()
+    mutual_credit.state().requests_status.remote.is_open()
 }

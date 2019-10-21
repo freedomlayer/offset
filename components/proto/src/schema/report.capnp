@@ -7,26 +7,48 @@ using import "common.capnp".CustomInt128;
 using import "common.capnp".Signature;
 using import "common.capnp".RandValue;
 using import "common.capnp".Rate;
-
+using import "common.capnp".Currency;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NamedIndexServerAddress;
-using import "common.capnp".NetAddress;
+
+using import "funder.capnp".CurrencyBalance;
 
 ## Report related structs
 #########################
 
+struct CountersInfo {
+        inconsistencyCounter @0: UInt64;
+        moveTokenCounter @1: CustomUInt128;
+}
+
+struct BalanceInfo {
+        balance @0: CustomInt128;
+        localPendingDebt @1: CustomUInt128;
+        remotePendingDebt @2: CustomUInt128;
+}
+
+struct CurrencyBalanceInfo {
+        currency @0: Currency;
+        balanceInfo @1: BalanceInfo;
+}
+
+struct McInfo {
+        localPublicKey @0: PublicKey;
+        remotePublicKey @1: PublicKey;
+        balances @2: List(CurrencyBalanceInfo);
+}
+
+struct TokenInfo {
+        mc @0: McInfo;
+        counters @1: CountersInfo;
+}
+
 struct MoveTokenHashedReport {
         prefixHash @0: HashResult;
-        localPublicKey @1: PublicKey;
-        remotePublicKey @2: PublicKey;
-        inconsistencyCounter @3: UInt64;
-        moveTokenCounter @4: CustomUInt128;
-        balance @5: CustomInt128;
-        localPendingDebt @6: CustomUInt128;
-        remotePendingDebt @7: CustomUInt128;
-        randNonce @8: RandValue;
-        newToken @9: Signature;
+        tokenInfo @1: TokenInfo;
+        randNonce @2: RandValue;
+        newToken @3: Signature;
 }
 
 
@@ -51,13 +73,6 @@ struct FriendLivenessReport {
         }
 }
 
-struct DirectionReport {
-        union {
-                incoming @0: Void;
-                outgoing @1: Void;
-        }
-}
-
 struct McRequestsStatusReport {
         local @0: RequestsStatusReport;
         remote @1: RequestsStatusReport;
@@ -67,9 +82,9 @@ struct McBalanceReport {
     balance @0: CustomInt128;
     # Amount of credits this side has against the remote side.
     # The other side keeps the negation of this value.
-    localMaxDebt @2: CustomUInt128;
+    localMaxDebt @1: CustomUInt128;
     # Maximum possible local debt
-    remoteMaxDebt @1: CustomUInt128;
+    remoteMaxDebt @2: CustomUInt128;
     # Maximum possible remote debt
     localPendingDebt @3: CustomUInt128;
     # Frozen credits by our side
@@ -77,21 +92,22 @@ struct McBalanceReport {
     # Frozen credits by the remote side
 }
 
-struct TcReport {
-        direction @0: DirectionReport;
+struct CurrencyReport {
+        currency @0: Currency;
         balance @1: McBalanceReport;
         requestsStatus @2: McRequestsStatusReport;
-        numLocalPendingRequests @3: UInt64;
-        numRemotePendingRequests @4: UInt64;
 }
 
 struct ResetTermsReport {
         resetToken @0: Signature;
-        balanceForReset @1: CustomInt128;
+        # TODO: Possibly do not expose resetToken to the user? Instead, have
+        # here some random binary blob or a u64 number?
+        balanceForReset @1: List(CurrencyBalance);
+        # List of expected balance for each currency
 }
 
 struct ChannelInconsistentReport {
-        localResetTermsBalance @0: CustomInt128;
+        localResetTerms @0: List(CurrencyBalance);
         optRemoteResetTerms: union {
                 remoteResetTerms @1: ResetTermsReport;
                 empty @2: Void;
@@ -99,10 +115,7 @@ struct ChannelInconsistentReport {
 }
 
 struct ChannelConsistentReport {
-        tcReport @0: TcReport;
-        numPendingRequests @1: UInt64;
-        numPendingBackwardsOps @2: UInt64;
-        numPendingUserRequests @3: UInt64;
+        currencyReports @0: List(CurrencyReport);
 }
 
 
@@ -120,30 +133,28 @@ struct OptLastIncomingMoveToken {
         }
 }
 
-struct RelaysTransitionReport {
-        lastSent @0: List(NamedRelayAddress);
-        beforeLastSent @1: List(NamedRelayAddress);
+struct CurrencyRate {
+        currency @0: Currency;
+        rate @1: Rate;
 }
 
-struct SentLocalRelaysReport {
-        union {
-                neverSent @0: Void;
-                transition @1: RelaysTransitionReport;
-                lastSent @2: List(NamedRelayAddress);
-        }
+struct CurrencyConfigReport {
+        currency @0: Currency;
+        rate @1: Rate;
+        wantedRemoteMaxDebt @2: CustomUInt128;
+        wantedLocalRequestsStatus @3: RequestsStatusReport;
 }
 
 struct FriendReport {
         name @0: Text;
-        rate @1: Rate;
-        remoteRelays @2: List(RelayAddress);
-        sentLocalRelays @3: SentLocalRelaysReport;
-        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
-        liveness @5: FriendLivenessReport;
-        channelStatus @6: ChannelStatusReport;
-        wantedRemoteMaxDebt @7: CustomUInt128;
-        wantedLocalRequestsStatus @8: RequestsStatusReport;
-        status @9: FriendStatusReport;
+        remoteRelays @1: List(RelayAddress);
+        # TODO: Not sure if we should keep this field.
+        # Is the user actually going to use remoteRelays? Maybe to export a friend?
+        currencyConfigs @2: List(CurrencyConfigReport);
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        liveness @4: FriendLivenessReport;
+        channelStatus @5: ChannelStatusReport;
+        status @6: FriendStatusReport;
 }
 
 struct PkFriendReport {
@@ -160,9 +171,6 @@ struct FunderReport {
         localPublicKey @0: PublicKey;
         relays @1: List(NamedRelayAddress);
         friends @2: PkFriendReportList;
-        numOpenInvoices @3: UInt64;
-        numPayments @4: UInt64;
-        numOpenTransactions @5: UInt64;
 }
 
 
@@ -171,28 +179,22 @@ struct FunderReport {
 
 struct AddFriendReport {
         friendPublicKey @0: PublicKey;
-        name @2: Text;
-        relays @1: List(RelayAddress);
-        balance @3: CustomInt128;
-        optLastIncomingMoveToken @4: OptLastIncomingMoveToken;
-        channelStatus @5: ChannelStatusReport;
+        name @1: Text;
+        relays @2: List(RelayAddress);
+        optLastIncomingMoveToken @3: OptLastIncomingMoveToken;
+        channelStatus @4: ChannelStatusReport;
 }
 
 struct FriendReportMutation {
         union {
                 setRemoteRelays @0: List(RelayAddress);
                 setName @1: Text;
-                setRate @2: Rate;
-                setSentLocalRelays @3: SentLocalRelaysReport;
+                updateCurrencyConfig @2: CurrencyConfigReport;
+                removeCurrencyConfig @3: Currency;
                 setChannelStatus @4: ChannelStatusReport;
-                setWantedRemoteMaxDebt @5: CustomUInt128;
-                setWantedLocalRequestsStatus @6: RequestsStatusReport;
-                setNumPendingRequests @7: UInt64;
-                setNumPendingBackwardsOps @8: UInt64;
-                setStatus @9: FriendStatusReport;
-                setNumPendingUserRequests @10: UInt64;
-                setOptLastIncomingMoveToken @11: OptLastIncomingMoveToken;
-                setLiveness @12: FriendLivenessReport;
+                setStatus @5: FriendStatusReport;
+                setOptLastIncomingMoveToken @6: OptLastIncomingMoveToken;
+                setLiveness @7: FriendLivenessReport;
         }
 }
 
@@ -209,9 +211,6 @@ struct FunderReportMutation {
                 addFriend @2: AddFriendReport;
                 removeFriend @3: PublicKey;
                 pkFriendReportMutation @4: PkFriendReportMutation;
-                setNumOpenInvoices @5: UInt64;
-                setNumPayments @6: UInt64;
-                setNumOpenTransactions @7: UInt64;
         }
 }
 
@@ -243,6 +242,9 @@ struct IndexClientReportMutation {
 ############################################################################
 ##### Node report
 ############################################################################
+
+# TODO: Possibly add reports for the liveness of our relays (From the
+# Channeler?)
 
 struct NodeReport {
         funderReport @0: FunderReport;

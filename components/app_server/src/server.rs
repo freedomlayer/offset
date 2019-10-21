@@ -13,7 +13,7 @@ use proto::crypto::{PaymentId, Uid};
 
 use proto::funder::messages::{
     FriendStatus, FunderControl, FunderIncomingControl, FunderOutgoingControl, RequestsStatus,
-    SetFriendStatus, SetRequestsStatus,
+    SetFriendCurrencyRequestsStatus, SetFriendStatus,
 };
 use proto::report::convert::funder_report_mutation_to_index_mutation;
 
@@ -119,10 +119,11 @@ fn check_request_permissions<B>(
         AppRequest::RemoveFriend(_) => app_permissions.config,
         AppRequest::EnableFriend(_) => app_permissions.config,
         AppRequest::DisableFriend(_) => app_permissions.config,
-        AppRequest::OpenFriend(_) => app_permissions.config,
-        AppRequest::CloseFriend(_) => app_permissions.config,
-        AppRequest::SetFriendRemoteMaxDebt(_) => app_permissions.config,
-        AppRequest::SetFriendRate(_) => app_permissions.config,
+        AppRequest::OpenFriendCurrency(_) => app_permissions.config,
+        AppRequest::CloseFriendCurrency(_) => app_permissions.config,
+        AppRequest::SetFriendCurrencyMaxDebt(_) => app_permissions.config,
+        AppRequest::SetFriendCurrencyRate(_) => app_permissions.config,
+        AppRequest::RemoveFriendCurrency(_) => app_permissions.config,
         AppRequest::ResetFriendChannel(_) => app_permissions.config,
         AppRequest::RequestRoutes(_) => app_permissions.routes,
         AppRequest::AddIndexServer(_) => app_permissions.config,
@@ -257,14 +258,12 @@ where
                 for funder_report_mutation in &funder_report_mutations.mutations {
                     // Transform the funder report mutation to index mutations
                     // and send it to IndexClient
-                    let opt_index_mutation = funder_report_mutation_to_index_mutation(
+                    let res_index_mutations = funder_report_mutation_to_index_mutation(
                         &self.node_report.funder_report,
                         funder_report_mutation,
                     );
 
-                    if let Some(index_mutation) = opt_index_mutation {
-                        index_mutations.push(index_mutation);
-                    }
+                    index_mutations.extend(res_index_mutations);
                 }
 
                 // Send index mutations:
@@ -436,8 +435,9 @@ where
             AddFriend(x) => to_funder!(AddFriend(x)),
             SetFriendRelays(x) => to_funder!(SetFriendRelays(x)),
             SetFriendName(x) => to_funder!(SetFriendName(x)),
-            SetFriendRemoteMaxDebt(x) => to_funder!(SetFriendRemoteMaxDebt(x)),
-            SetFriendRate(x) => to_funder!(SetFriendRate(x)),
+            SetFriendCurrencyMaxDebt(x) => to_funder!(SetFriendCurrencyMaxDebt(x)),
+            SetFriendCurrencyRate(x) => to_funder!(SetFriendCurrencyRate(x)),
+            RemoveFriendCurrency(x) => to_funder!(RemoveFriendCurrency(x)),
             ResetFriendChannel(x) => to_funder!(ResetFriendChannel(x)),
             CreateTransaction(create_transaction) => {
                 // Keep track of which application issued this request:
@@ -463,19 +463,21 @@ where
                 };
                 to_funder!(SetFriendStatus(set_friend_status))
             }
-            OpenFriend(friend_public_key) => {
-                let set_requests_status = SetRequestsStatus {
-                    friend_public_key,
+            OpenFriendCurrency(open_friend_currency) => {
+                let set_requests_status = SetFriendCurrencyRequestsStatus {
+                    friend_public_key: open_friend_currency.friend_public_key,
+                    currency: open_friend_currency.currency,
                     status: RequestsStatus::Open,
                 };
-                to_funder!(SetRequestsStatus(set_requests_status))
+                to_funder!(SetFriendCurrencyRequestsStatus(set_requests_status))
             }
-            CloseFriend(friend_public_key) => {
-                let set_requests_status = SetRequestsStatus {
-                    friend_public_key,
+            CloseFriendCurrency(close_friend_currency) => {
+                let set_requests_status = SetFriendCurrencyRequestsStatus {
+                    friend_public_key: close_friend_currency.friend_public_key,
+                    currency: close_friend_currency.currency,
                     status: RequestsStatus::Closed,
                 };
-                to_funder!(SetRequestsStatus(set_requests_status))
+                to_funder!(SetFriendCurrencyRequestsStatus(set_requests_status))
             }
 
             // Requests that go to index client:

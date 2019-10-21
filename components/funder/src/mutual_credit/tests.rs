@@ -1,10 +1,12 @@
+use std::convert::TryFrom;
+
 use crypto::hash_lock::HashLock;
 use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{InvoiceId, PlainLock, PublicKey, RandValue, Signature, Uid};
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, FriendsRoute, RequestSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
     RequestsStatus, ResponseSendFundsOp,
 };
 use signature::signature_buff::create_response_signature_buffer;
@@ -41,10 +43,13 @@ fn apply_incoming(
 
 #[test]
 fn test_outgoing_open_close_requests() {
+    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
-    let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
+    let mut mutual_credit =
+        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
     assert_eq!(
         mutual_credit.state().requests_status.local,
@@ -78,10 +83,13 @@ fn test_outgoing_open_close_requests() {
 
 #[test]
 fn test_outgoing_set_remote_max_debt() {
+    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
-    let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
+    let mut mutual_credit =
+        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
     assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     apply_outgoing(&mut mutual_credit, &FriendTcOp::SetRemoteMaxDebt(20)).unwrap();
@@ -90,10 +98,13 @@ fn test_outgoing_set_remote_max_debt() {
 
 #[test]
 fn test_request_response_collect_send_funds() {
+    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
-    let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
+    let mut mutual_credit =
+        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
@@ -158,7 +169,8 @@ fn test_request_response_collect_send_funds() {
         signature: Signature::from(&[0; Signature::len()]),
     };
 
-    let sign_buffer = create_response_signature_buffer(&response_send_funds, &pending_transaction);
+    let sign_buffer =
+        create_response_signature_buffer(&currency, &response_send_funds, &pending_transaction);
     response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(
@@ -198,6 +210,8 @@ fn test_request_response_collect_send_funds() {
 
 #[test]
 fn test_request_cancel_send_funds() {
+    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+
     let rng = DummyRandom::new(&[1u8]);
     let private_key = generate_private_key(&rng);
     let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
@@ -206,7 +220,8 @@ fn test_request_cancel_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = public_key_b.clone();
     let balance = 0;
-    let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
+    let mut mutual_credit =
+        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
@@ -272,10 +287,13 @@ fn test_request_cancel_send_funds() {
 
 #[test]
 fn test_request_response_cancel_send_funds() {
+    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
-    let mut mutual_credit = MutualCredit::new(&local_public_key, &remote_public_key, balance);
+    let mut mutual_credit =
+        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
@@ -340,7 +358,8 @@ fn test_request_response_cancel_send_funds() {
         signature: Signature::from(&[0; Signature::len()]),
     };
 
-    let sign_buffer = create_response_signature_buffer(&response_send_funds, &pending_transaction);
+    let sign_buffer =
+        create_response_signature_buffer(&currency, &response_send_funds, &pending_transaction);
     response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(

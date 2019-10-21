@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -16,7 +17,7 @@ use crypto::rand::CryptoRandom;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
-use app::{AppBuyer, AppRoutes, AppSeller};
+use app::{AppBuyer, AppRoutes, AppSeller, Currency, Rate};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
@@ -33,6 +34,7 @@ async fn make_test_payment<'a, R>(
     app_routes: &'a mut AppRoutes<R>,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
+    currency: Currency,
     total_dest_payment: u128,
     fees: u128,
     mut tick_sender: mpsc::Sender<()>,
@@ -46,13 +48,14 @@ where
     let request_id = Uid::from(&[5u8; Uid::len()]);
 
     app_seller
-        .add_invoice(invoice_id.clone(), total_dest_payment)
+        .add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment)
         .await
         .unwrap();
 
     // Node0: Request routes:
     let mut routes = app_routes
         .request_routes(
+            currency.clone(),
             total_dest_payment.checked_add(fees).unwrap(),
             buyer_public_key.clone(),
             seller_public_key.clone(),
@@ -69,6 +72,7 @@ where
         .create_payment(
             payment_id.clone(),
             invoice_id.clone(),
+            currency.clone(),
             total_dest_payment,
             seller_public_key.clone(),
         )
@@ -96,6 +100,7 @@ where
     // Node0: Compose a MultiCommit:
     let multi_commit = MultiCommit {
         invoice_id: invoice_id.clone(),
+        currency: currency.clone(),
         total_dest_payment,
         commits: vec![commit],
     };
@@ -137,6 +142,10 @@ where
 }
 
 async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
+    let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+    let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
+    let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
+
     // Create timer_client:
     let (mut tick_sender, tick_receiver) = mpsc::channel(TIMER_CHANNEL_LEN);
     let timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
@@ -316,7 +325,6 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
             node_public_key(1),
             vec![relay_address(1)],
             String::from("node1"),
-            100,
         )
         .await
         .unwrap();
@@ -327,7 +335,6 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
             node_public_key(0),
             vec![relay_address(0)],
             String::from("node0"),
-            -100,
         )
         .await
         .unwrap();
@@ -383,18 +390,66 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     }
     drop(mutations_receiver);
 
-    config0.open_friend(node_public_key(1)).await.unwrap();
-    config1.open_friend(node_public_key(0)).await.unwrap();
+    // Set active currencies for both sides:
+    for currency in [&currency1, &currency2, &currency3].into_iter() {
+        config0
+            .set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new())
+            .await
+            .unwrap();
+    }
+    for currency in [&currency1, &currency2].into_iter() {
+        config1
+            .set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new())
+            .await
+            .unwrap();
+    }
+
+    // Wait some time, to let the two nodes negotiate currencies:
+    advance_time(40, &mut tick_sender, &test_executor).await;
+
+    config0
+        .open_friend_currency(node_public_key(1), currency1.clone())
+        .await
+        .unwrap();
+    config1
+        .open_friend_currency(node_public_key(0), currency1.clone())
+        .await
+        .unwrap();
+
+    config1
+        .open_friend_currency(node_public_key(0), currency2.clone())
+        .await
+        .unwrap();
+    config0
+        .open_friend_currency(node_public_key(1), currency2.clone())
+        .await
+        .unwrap();
 
     // Wait some time, to let the index servers exchange information:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
+    // Node1 allows node0 to have maximum debt of 10
+    config1
+        .set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10)
+        .await
+        .unwrap();
+
+    config1
+        .set_friend_currency_max_debt(node_public_key(0), currency2.clone(), 15)
+        .await
+        .unwrap();
+
+    // Wait until the max debt was set:
+    advance_time(40, &mut tick_sender, &test_executor).await;
+
+    // Send 10 currency1 credits from node0 to node1:
     let payment_status = make_test_payment(
         &mut buyer0,
         &mut seller1,
         &mut routes0,
         node_public_key(0),
         node_public_key(1),
+        currency1.clone(),
         8u128, // total_dest_payment
         2u128, // fees
         tick_sender.clone(),
@@ -407,12 +462,28 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         unreachable!();
     };
 
-    // Node0 allows node1 to have maximum debt of 100
-    // (This should allow to node1 to pay back).
-    config0
-        .set_friend_remote_max_debt(node_public_key(1), 100)
-        .await
-        .unwrap();
+    // Allow some time for the index servers to be updated about the new state:
+    advance_time(40, &mut tick_sender, &test_executor).await;
+
+    // Send 11 currency2 credits from node0 to node1:
+    let payment_status = make_test_payment(
+        &mut buyer0,
+        &mut seller1,
+        &mut routes0,
+        node_public_key(0),
+        node_public_key(1),
+        currency2.clone(),
+        9u128, // total_dest_payment
+        2u128, // fees
+        tick_sender.clone(),
+        test_executor.clone(),
+    )
+    .await;
+
+    if let PaymentStatus::Success(_) = payment_status {
+    } else {
+        unreachable!();
+    };
 
     // Allow some time for the index servers to be updated about the new state:
     advance_time(40, &mut tick_sender, &test_executor).await;
@@ -424,6 +495,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         &mut routes1,
         node_public_key(1),
         node_public_key(0),
+        currency1.clone(),
         3u128, // total_dest_payment
         2u128, // fees
         tick_sender.clone(),
@@ -445,7 +517,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let request_id = Uid::from(&[10u8; Uid::len()]);
 
     seller0
-        .add_invoice(invoice_id.clone(), total_dest_payment)
+        .add_invoice(invoice_id.clone(), currency1.clone(), total_dest_payment)
         .await
         .unwrap();
 
@@ -454,6 +526,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         .create_payment(
             payment_id.clone(),
             invoice_id.clone(),
+            currency1.clone(),
             total_dest_payment,
             node_public_key(0),
         )

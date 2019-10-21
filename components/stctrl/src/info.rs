@@ -8,7 +8,8 @@ use structopt::StructOpt;
 use derive_more::From;
 
 use app::report::{
-    ChannelStatusReport, FriendReport, FriendStatusReport, NodeReport, RequestsStatusReport,
+    ChannelStatusReport, CurrencyReport, FriendReport, FriendStatusReport, NodeReport,
+    RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
 use app::{AppConn, AppReport, RelayAddress};
@@ -78,9 +79,9 @@ pub enum InfoCmd {
     /// Export friend's last token
     #[structopt(name = "friend-last-token")]
     FriendLastToken(FriendLastTokenCmd),
-    /// Show current balance
-    #[structopt(name = "balance")]
-    Balance(BalanceCmd),
+    // /// Show current balance
+    // #[structopt(name = "balance")]
+    // Balance(BalanceCmd),
     /// Export ticket for this node
     #[structopt(name = "export-ticket")]
     ExportTicket(ExportTicketCmd),
@@ -211,41 +212,63 @@ fn is_consistent(friend_report: &FriendReport) -> bool {
 }
 */
 
+fn currency_report_str(currency_report: &CurrencyReport) -> String {
+    let mut res = String::new();
+
+    let local_requests_str = requests_status_str(&currency_report.requests_status.local);
+    let remote_requests_str = requests_status_str(&currency_report.requests_status.remote);
+
+    res += &format!("LR={}, RR={}\n", local_requests_str, remote_requests_str);
+
+    let balance = &currency_report.balance;
+    res += &format!(
+        "B  ={}\nLMD={}\nRMD={}\nLPD={}\nRPD={}\n",
+        balance.balance,
+        balance.local_max_debt,
+        balance.remote_max_debt,
+        balance.local_pending_debt,
+        balance.remote_pending_debt
+    );
+
+    res
+}
+
 /// A user friendly string explaining the current channel status
 fn friend_channel_status(friend_report: &FriendReport) -> String {
     let mut res = String::new();
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(channel_consistent_report) => {
-            let tc_report = &channel_consistent_report.tc_report;
-            res += "C: ";
-            let local_requests_str = requests_status_str(&tc_report.requests_status.local);
-            let remote_requests_str = requests_status_str(&tc_report.requests_status.remote);
+            res += "Consistent:\n";
 
-            res += &format!("LR={}, RR={}\n", local_requests_str, remote_requests_str);
-
-            let balance = &tc_report.balance;
-            res += &format!(
-                "B  ={}\nLMD={}\nRMD={}\nLPD={}\nRPD={}\n",
-                balance.balance,
-                balance.local_max_debt,
-                balance.remote_max_debt,
-                balance.local_pending_debt,
-                balance.remote_pending_debt
-            );
+            for currency_report in &channel_consistent_report.currency_reports {
+                res += &format!(
+                    "- {}: {}\n",
+                    currency_report.currency,
+                    currency_report_str(&currency_report)
+                );
+            }
         }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
-            res += "I:\n";
-            res += &format!(
-                "LT={}\n",
-                channel_inconsistent_report.local_reset_terms_balance
-            );
+            res += "Inconsistent:\n";
+            res += "Local Reset Terms:\n";
+            for currency_balance in &channel_inconsistent_report.local_reset_terms {
+                res += &format!(
+                    "- {}: {}\n",
+                    currency_balance.currency, currency_balance.balance
+                );
+            }
             match &channel_inconsistent_report.opt_remote_reset_terms {
                 Some(remote_reset_terms) => {
-                    // TODO: Possibly negate this value? Maybe we should do it at the funder?
-                    res += &format!("RT={}", remote_reset_terms.balance_for_reset);
+                    res += "Remote Reset Terms:\n";
+                    for currency_balance in &remote_reset_terms.balance_for_reset {
+                        res += &format!(
+                            "- {}: {}\n",
+                            currency_balance.currency, currency_balance.balance
+                        );
+                    }
                 }
                 None => {
-                    res += "RT=?";
+                    res += "Remote Reset Terms: Unknown\n";
                 }
             }
         }
@@ -341,15 +364,16 @@ pub async fn info_friend_last_token(
     Ok(())
 }
 
+/*
 /// Get an approximate value for mutual balance with a friend.
 /// In case of an inconsistency we take the local reset terms to represent the balance.
-fn friend_balance(friend_report: &FriendReport) -> i128 {
+fn friend_balances(friend_report: &FriendReport) -> i128 {
     match &friend_report.channel_status {
         ChannelStatusReport::Consistent(channel_consistent_report) => {
             channel_consistent_report.tc_report.balance.balance
         }
         ChannelStatusReport::Inconsistent(channel_inconsistent_report) => {
-            channel_inconsistent_report.local_reset_terms_balance
+            channel_inconsistent_report.local_reset_terms
         }
     }
 }
@@ -370,6 +394,7 @@ pub async fn info_balance(
     writeln!(writer, "{}", total_balance).map_err(|_| InfoError::WriteError)?;
     Ok(())
 }
+*/
 
 pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
@@ -415,7 +440,7 @@ pub async fn info(
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
             info_friend_last_token(friend_last_token_cmd, app_report).await?
         }
-        InfoCmd::Balance(_balance_cmd) => info_balance(app_report, writer).await?,
+        // InfoCmd::Balance(_balance_cmd) => info_balance(app_report, writer).await?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
             info_export_ticket(export_ticket_cmd, app_report).await?
         }

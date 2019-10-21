@@ -15,6 +15,7 @@
 
 #[macro_use]
 extern crate log;
+
 #[macro_use]
 extern crate serde;
 
@@ -26,10 +27,11 @@ mod liveness;
 mod mutual_credit;
 pub mod report;
 mod state;
-#[cfg(test)]
-mod tests;
 mod token_channel;
 pub mod types;
+
+#[cfg(test)]
+mod tests;
 
 pub use self::funder::{funder_loop, FunderError};
 pub use self::state::{FunderMutation, FunderState};

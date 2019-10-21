@@ -1,3 +1,4 @@
+use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 use std::fmt::Debug;
 
@@ -6,8 +7,8 @@ use signature::canonical::CanonicalSerialize;
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, CollectSendFundsOp, FriendStatus, Rate, RequestSendFundsOp, RequestsStatus,
-    ResetTerms, ResponseSendFundsOp,
+    CancelSendFundsOp, CollectSendFundsOp, Currency, FriendStatus, Rate, RequestSendFundsOp,
+    RequestsStatus, ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};
@@ -72,15 +73,15 @@ pub struct ChannelConsistent<B> {
     /// Our mutual state with the remote side
     pub token_channel: TokenChannel<B>,
     /// A queue of requests that need to be sent to the remote friend
-    pub pending_requests: ImVec<RequestSendFundsOp>,
+    pub pending_requests: ImVec<(Currency, RequestSendFundsOp)>,
     /// A queue of backwards operations (Response, Cancel, Commit) that need to be sent to the remote side
     /// We keep backwards op on a separate queue because those operations are not supposed to fail
     /// (While requests may fail due to lack of trust for example)
-    pub pending_backwards_ops: ImVec<BackwardsOp>,
+    pub pending_backwards_ops: ImVec<(Currency, BackwardsOp)>,
     /// Pending requests originating from the user.
     /// We care more about these requests, because those are payments that our user wants to make.
-    /// This queue is bounded in size (TODO: Check this)
-    pub pending_user_requests: ImVec<RequestSendFundsOp>,
+    /// This queue should be bounded in size (TODO: Check this)
+    pub pending_user_requests: ImVec<(Currency, RequestSendFundsOp)>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -108,6 +109,21 @@ where
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct CurrencyConfig {
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
+    pub rate: Rate,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatus,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
     pub local_public_key: PublicKey,
@@ -121,21 +137,13 @@ pub struct FriendState<B: Clone> {
     pub sent_local_relays: SentLocalRelays<B>,
     /// Locally maintained name of the remote friend node.
     pub name: String,
-    /// Rate of forwarding transactions that arrived from this friend to any other friend.
-    pub rate: Rate,
+    /// Local configurations for currencies relationship with this friend
+    pub currency_configs: ImHashMap<Currency, CurrencyConfig>,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).
     pub status: FriendStatus,
     /// Mutual credit channel information
     pub channel_status: ChannelStatus<B>,
-    /// Wanted credit frame for the remote side (Set by the user of this node)
-    /// It might take a while until this value is applied, as it needs to be communicated to the
-    /// remote side.
-    pub wanted_remote_max_debt: u128,
-    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
-    /// might take some time until it is applied (As it should be communicated to the remote
-    /// friend).
-    pub wanted_local_requests_status: RequestsStatus,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -144,19 +152,30 @@ pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),
     SetConsistent(TokenChannel<B>),
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatus),
-    PushBackPendingRequest(RequestSendFundsOp),
+    UpdateCurrencyConfig((Currency, CurrencyConfig)),
+    RemoveCurrencyConfig(Currency),
+    PushBackPendingRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingRequest,
-    PushBackPendingBackwardsOp(BackwardsOp),
+    PushBackPendingBackwardsOp((Currency, BackwardsOp)),
     PopFrontPendingBackwardsOp,
-    PushBackPendingUserRequest(RequestSendFundsOp),
+    PushBackPendingUserRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingUserRequest,
+    RemovePendingRequestsCurrency(Currency),
+    RemovePendingRequests,
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate(Rate),
     SetSentLocalRelays(SentLocalRelays<B>),
+}
+
+impl CurrencyConfig {
+    pub fn new() -> Self {
+        Self {
+            rate: Rate::new(),
+            wanted_remote_max_debt: 0,
+            wanted_local_requests_status: RequestsStatus::Closed,
+        }
+    }
 }
 
 impl<B> FriendState<B>
@@ -168,10 +187,9 @@ where
         remote_public_key: &PublicKey,
         remote_relays: Vec<RelayAddress<B>>,
         name: String,
-        balance: i128,
     ) -> Self {
         let channel_consistent = ChannelConsistent {
-            token_channel: TokenChannel::new(local_public_key, remote_public_key, balance),
+            token_channel: TokenChannel::new(local_public_key, remote_public_key),
             pending_requests: ImVec::new(),
             pending_backwards_ops: ImVec::new(),
             pending_user_requests: ImVec::new(),
@@ -183,15 +201,9 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
-            // Initial rate is 0 for a new friend:
-            rate: Rate::new(),
+            currency_configs: ImHashMap::new(),
             status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(channel_consistent),
-
-            // The remote_max_debt we want to have. When possible, this will be sent to the remote
-            // side.
-            wanted_remote_max_debt: 0,
-            wanted_local_requests_status: RequestsStatus::Closed,
         }
     }
 
@@ -244,56 +256,93 @@ where
                 };
                 self.channel_status = ChannelStatus::Consistent(channel_consistent);
             }
-            FriendMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-                self.wanted_remote_max_debt = *wanted_remote_max_debt;
+            FriendMutation::UpdateCurrencyConfig((currency, currency_config)) => {
+                let _ = self
+                    .currency_configs
+                    .insert(currency.clone(), currency_config.clone());
             }
-            FriendMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
-                self.wanted_local_requests_status = wanted_local_requests_status.clone();
+            FriendMutation::RemoveCurrencyConfig(currency) => {
+                let channel_consistent = match &mut self.channel_status {
+                    ChannelStatus::Consistent(ref mut channel_consistent) => channel_consistent,
+                    ChannelStatus::Inconsistent(_) => unreachable!(),
+                };
+                // We can not remove configuration for a currency that is currency in use.
+                if channel_consistent
+                    .token_channel
+                    .get_active_currencies()
+                    .calc_active()
+                    .contains(currency)
+                {
+                    unreachable!();
+                }
+                let _ = self.currency_configs.remove(currency);
             }
-            FriendMutation::PushBackPendingRequest(request_send_funds) => {
+            FriendMutation::PushBackPendingRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     channel_consistent
                         .pending_requests
-                        .push_back(request_send_funds.clone());
+                        .push_back((currency.clone(), request_send_funds.clone()));
                 } else {
                     unreachable!();
                 }
             }
             FriendMutation::PopFrontPendingRequest => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent.pending_requests.pop_front();
+                    channel_consistent.pending_requests.pop_front();
                 } else {
                     unreachable!();
                 }
             }
-            FriendMutation::PushBackPendingBackwardsOp(backwards_op) => {
+            FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     channel_consistent
                         .pending_backwards_ops
-                        .push_back(backwards_op.clone());
+                        .push_back((currency.clone(), backwards_op.clone()));
                 } else {
                     unreachable!();
                 }
             }
             FriendMutation::PopFrontPendingBackwardsOp => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent.pending_backwards_ops.pop_front();
+                    channel_consistent.pending_backwards_ops.pop_front();
                 } else {
                     unreachable!();
                 }
             }
-            FriendMutation::PushBackPendingUserRequest(request_send_funds) => {
+            FriendMutation::PushBackPendingUserRequest((currency, request_send_funds)) => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     channel_consistent
                         .pending_user_requests
-                        .push_back(request_send_funds.clone());
+                        .push_back((currency.clone(), request_send_funds.clone()));
                 } else {
                     unreachable!();
                 }
             }
             FriendMutation::PopFrontPendingUserRequest => {
                 if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
-                    let _ = channel_consistent.pending_user_requests.pop_front();
+                    channel_consistent.pending_user_requests.pop_front();
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendMutation::RemovePendingRequestsCurrency(currency) => {
+                // Remove all pending outgoing messages for a certain currency.
+                if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
+                    channel_consistent
+                        .pending_requests
+                        .retain(|(currency0, _)| currency0 != currency);
+
+                    channel_consistent
+                        .pending_user_requests
+                        .retain(|(currency0, _)| currency0 != currency);
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendMutation::RemovePendingRequests => {
+                if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
+                    channel_consistent.pending_requests = ImVec::new();
+                    channel_consistent.pending_user_requests = ImVec::new();
                 } else {
                     unreachable!();
                 }
@@ -306,9 +355,6 @@ where
             }
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
-            }
-            FriendMutation::SetRate(friend_rate) => {
-                self.rate = friend_rate.clone();
             }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();

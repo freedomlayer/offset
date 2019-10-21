@@ -7,9 +7,10 @@ use common::mutable_state::MutableState;
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, MultiCommit,
-    ResetFriendChannel, ResponseClosePayment, SetFriendName, SetFriendRate, SetFriendRelays,
-    SetFriendRemoteMaxDebt, TransactionResult,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
+    MultiCommit, RemoveFriendCurrency, ResetFriendChannel, ResponseClosePayment,
+    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendName, SetFriendRelays,
+    TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -119,6 +120,20 @@ pub enum NamedRelaysMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
 }
 
+#[capnp_conv(crate::app_server_capnp::open_friend_currency)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OpenFriendCurrency {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+}
+
+#[capnp_conv(crate::app_server_capnp::close_friend_currency)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct CloseFriendCurrency {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+}
+
 #[capnp_conv(crate::app_server_capnp::app_request)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {
@@ -132,10 +147,11 @@ pub enum AppRequest<B = NetAddress> {
     RemoveFriend(PublicKey),
     EnableFriend(PublicKey),
     DisableFriend(PublicKey),
-    OpenFriend(PublicKey),
-    CloseFriend(PublicKey),
-    SetFriendRemoteMaxDebt(SetFriendRemoteMaxDebt),
-    SetFriendRate(SetFriendRate),
+    OpenFriendCurrency(OpenFriendCurrency),
+    CloseFriendCurrency(CloseFriendCurrency),
+    SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebt),
+    SetFriendCurrencyRate(SetFriendCurrencyRate),
+    RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
     /// Buyer:
     CreatePayment(CreatePayment),

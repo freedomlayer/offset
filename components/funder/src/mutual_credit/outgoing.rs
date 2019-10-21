@@ -15,6 +15,7 @@ use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
+#[derive(Debug)]
 pub struct OutgoingMc {
     mutual_credit: MutualCredit,
 }
@@ -37,8 +38,9 @@ pub enum QueueOperationError {
     DestPaymentExceedsTotal,
 }
 
-/// A wrapper over a token channel, accumulating funds to be sent as one transaction.
+/// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 impl OutgoingMc {
+    // TODO: Take MutualCredit instead of &MutualCredit?
     pub fn new(mutual_credit: &MutualCredit) -> OutgoingMc {
         OutgoingMc {
             mutual_credit: mutual_credit.clone(),
@@ -189,8 +191,11 @@ impl OutgoingMc {
         // TODO: Possibly get rid of clone() here for optimization later
 
         // verify signature:
-        let response_signature_buffer =
-            create_response_signature_buffer(&response_send_funds, &pending_transaction);
+        let response_signature_buffer = create_response_signature_buffer(
+            &self.mutual_credit.state().currency,
+            &response_send_funds,
+            &pending_transaction,
+        );
         // The response was signed by the destination node:
         let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
             &self.mutual_credit.state().idents.local_public_key

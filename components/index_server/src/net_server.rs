@@ -75,9 +75,11 @@ where
 {
     let verifier = SimpleVerifier::new(ticks_to_live, rng);
 
-    let capacity_graph = SimpleCapacityGraph::new();
-    let graph_client = create_graph_service(capacity_graph, graph_service_spawner, spawner.clone())
-        .map_err(|_| IndexServerError::CreateGraphServiceError)?;
+    let graph_client = create_graph_service::<_, _, _, _, SimpleCapacityGraph<_, _>, _, _>(
+        graph_service_spawner,
+        spawner.clone(),
+    )
+    .map_err(|_| IndexServerError::CreateGraphServiceError)?;
 
     let timer_stream = timer_client
         .request_timer_stream()

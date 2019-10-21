@@ -11,7 +11,9 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::funder::messages::{FriendStatus, Rate, RequestsStatus};
+use crate::funder::messages::{
+    Currency, CurrencyBalance, FriendStatus, Rate, RequestsStatus, TokenInfo,
+};
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
@@ -19,34 +21,9 @@ use crate::wrapper::Wrapper;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
     pub prefix_hash: HashResult,
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
-    pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub move_token_counter: u128,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub local_pending_debt: u128,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub remote_pending_debt: u128,
+    pub token_info: TokenInfo,
     pub rand_nonce: RandValue,
     pub new_token: Signature,
-}
-
-#[capnp_conv(crate::report_capnp::relays_transition_report)]
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct RelaysTransitionReport<B = NetAddress> {
-    pub last_sent: Vec<NamedRelayAddress<B>>,
-    pub before_last_sent: Vec<NamedRelayAddress<B>>,
-}
-
-#[capnp_conv(crate::report_capnp::sent_local_relays_report)]
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum SentLocalRelaysReport<B = NetAddress> {
-    NeverSent,
-    Transition(RelaysTransitionReport<B>),
-    LastSent(Vec<NamedRelayAddress<B>>),
 }
 
 #[capnp_conv(crate::report_capnp::friend_status_report)]
@@ -93,31 +70,6 @@ pub struct McBalanceReport {
     pub remote_pending_debt: u128,
 }
 
-#[capnp_conv(crate::report_capnp::direction_report)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DirectionReport {
-    Incoming,
-    Outgoing,
-}
-
-impl DirectionReport {
-    pub fn is_incoming(&self) -> bool {
-        if let DirectionReport::Incoming = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_outgoing(&self) -> bool {
-        if let DirectionReport::Outgoing = self {
-            true
-        } else {
-            false
-        }
-    }
-}
-
 #[capnp_conv(crate::report_capnp::friend_liveness_report)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
@@ -135,22 +87,19 @@ impl FriendLivenessReport {
     }
 }
 
-#[capnp_conv(crate::report_capnp::tc_report)]
+#[capnp_conv(crate::report_capnp::currency_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TcReport {
-    pub direction: DirectionReport,
+pub struct CurrencyReport {
+    pub currency: Currency,
     pub balance: McBalanceReport,
     pub requests_status: McRequestsStatusReport,
-    pub num_local_pending_requests: u64,
-    pub num_remote_pending_requests: u64,
 }
 
 #[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance_for_reset: i128,
+    pub balance_for_reset: Vec<CurrencyBalance>,
 }
 
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report::opt_remote_reset_terms)]
@@ -182,8 +131,7 @@ impl From<OptRemoteResetTerms> for Option<ResetTermsReport> {
 #[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub local_reset_terms_balance: i128,
+    pub local_reset_terms: Vec<CurrencyBalance>,
     #[capnp_conv(with = OptRemoteResetTerms)]
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
@@ -191,10 +139,7 @@ pub struct ChannelInconsistentReport {
 #[capnp_conv(crate::report_capnp::channel_consistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelConsistentReport {
-    pub tc_report: TcReport,
-    pub num_pending_requests: u64,
-    pub num_pending_backwards_ops: u64,
-    pub num_pending_user_requests: u64,
+    pub currency_reports: Vec<CurrencyReport>,
 }
 
 #[capnp_conv(crate::report_capnp::channel_status_report)]
@@ -235,13 +180,30 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
     }
 }
 
+#[capnp_conv(crate::report_capnp::currency_config_report)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct CurrencyConfigReport {
+    pub currency: Currency,
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
+    pub rate: Rate,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatusReport,
+}
+
 #[capnp_conv(crate::report_capnp::friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
     pub name: String,
-    pub rate: Rate,
     pub remote_relays: Vec<RelayAddress<B>>,
-    pub sent_local_relays: SentLocalRelaysReport<B>,
+    pub currency_configs: Vec<CurrencyConfigReport>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
     #[capnp_conv(with = OptLastIncomingMoveToken)]
@@ -250,9 +212,6 @@ pub struct FriendReport<B = NetAddress> {
     // Can we somehow express this in the type system?
     pub liveness: FriendLivenessReport, // is the friend online/offline?
     pub channel_status: ChannelStatusReport,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub wanted_remote_max_debt: u128,
-    pub wanted_local_requests_status: RequestsStatusReport,
     pub status: FriendStatusReport,
 }
 
@@ -310,9 +269,6 @@ pub struct FunderReport<B = NetAddress> {
     pub relays: Vec<NamedRelayAddress<B>>,
     #[capnp_conv(with = PkFriendReportList)]
     pub friends: HashMap<PublicKey, FriendReport<B>>,
-    pub num_open_invoices: u64,
-    pub num_payments: u64,
-    pub num_open_transactions: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -321,15 +277,9 @@ pub struct FunderReport<B = NetAddress> {
 pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate(Rate),
-    SetSentLocalRelays(SentLocalRelaysReport<B>),
+    UpdateCurrencyConfig(CurrencyConfigReport),
+    RemoveCurrencyConfig(Currency),
     SetChannelStatus(ChannelStatusReport),
-    #[capnp_conv(with = Wrapper<u128>)]
-    SetWantedRemoteMaxDebt(u128),
-    SetWantedLocalRequestsStatus(RequestsStatusReport),
-    SetNumPendingRequests(u64),
-    SetNumPendingBackwardsOps(u64),
-    SetNumPendingUserRequests(u64),
     SetStatus(FriendStatusReport),
     #[capnp_conv(with = OptLastIncomingMoveToken)]
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
@@ -342,8 +292,6 @@ pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
-    #[capnp_conv(with = Wrapper<i128>)]
-    pub balance: i128, // Initial balance
     #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
@@ -383,9 +331,6 @@ pub enum FunderReportMutation<B = NetAddress> {
     RemoveFriend(PublicKey),
     #[capnp_conv(with = PkFriendReportMutation<NetAddress>)]
     PkFriendReportMutation((PublicKey, FriendReportMutation<B>)),
-    SetNumOpenInvoices(u64),
-    SetNumPayments(u64),
-    SetNumOpenTransactions(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -430,52 +375,31 @@ where
             FriendReportMutation::SetName(name) => {
                 self.name = name.clone();
             }
-            FriendReportMutation::SetRate(rate) => {
-                self.rate = rate.clone();
+            FriendReportMutation::UpdateCurrencyConfig(currency_config_report) => {
+                if let Some(pos) = self
+                    .currency_configs
+                    .iter()
+                    .position(|c_c| c_c.currency == currency_config_report.currency)
+                {
+                    self.currency_configs[pos] = currency_config_report.clone();
+                } else {
+                    // Not found:
+                    self.currency_configs.push(currency_config_report.clone());
+                    // Canonicalize:
+                    self.currency_configs
+                        .sort_by(|c_c1, c_c2| c_c1.currency.cmp(&c_c2.currency));
+                }
             }
+            FriendReportMutation::RemoveCurrencyConfig(currency) => {
+                self.currency_configs
+                    .retain(|c_c| c_c.currency != *currency);
+            }
+
             FriendReportMutation::SetRemoteRelays(remote_relays) => {
                 self.remote_relays = remote_relays.clone();
             }
-            FriendReportMutation::SetSentLocalRelays(sent_local_relays_report) => {
-                self.sent_local_relays = sent_local_relays_report.clone();
-            }
             FriendReportMutation::SetChannelStatus(channel_status_report) => {
                 self.channel_status = channel_status_report.clone();
-            }
-            FriendReportMutation::SetWantedRemoteMaxDebt(wanted_remote_max_debt) => {
-                self.wanted_remote_max_debt = *wanted_remote_max_debt;
-            }
-            FriendReportMutation::SetWantedLocalRequestsStatus(wanted_local_requests_status) => {
-                self.wanted_local_requests_status = wanted_local_requests_status.clone();
-            }
-            FriendReportMutation::SetNumPendingBackwardsOps(num_pending_backwards_ops) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_backwards_ops =
-                        *num_pending_backwards_ops;
-                } else {
-                    unreachable!();
-                }
-            }
-            FriendReportMutation::SetNumPendingRequests(num_pending_requests) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_requests = *num_pending_requests;
-                } else {
-                    unreachable!();
-                }
-            }
-            FriendReportMutation::SetNumPendingUserRequests(num_pending_user_requests) => {
-                if let ChannelStatusReport::Consistent(channel_consistent_report) =
-                    &mut self.channel_status
-                {
-                    channel_consistent_report.num_pending_user_requests =
-                        *num_pending_user_requests;
-                } else {
-                    unreachable!();
-                }
             }
             FriendReportMutation::SetStatus(friend_status) => {
                 self.status = friend_status.clone();
@@ -518,18 +442,13 @@ where
             FunderReportMutation::AddFriend(add_friend_report) => {
                 let friend_report = FriendReport {
                     name: add_friend_report.name.clone(),
-                    rate: Rate::new(),
+                    currency_configs: Vec::new(),
                     remote_relays: add_friend_report.relays.clone(),
-                    sent_local_relays: SentLocalRelaysReport::NeverSent,
                     opt_last_incoming_move_token: add_friend_report
                         .opt_last_incoming_move_token
                         .clone(),
                     liveness: FriendLivenessReport::Offline,
                     channel_status: add_friend_report.channel_status.clone(),
-                    wanted_remote_max_debt: 0,
-                    wanted_local_requests_status: RequestsStatusReport::from(
-                        &RequestsStatus::Closed,
-                    ),
                     status: FriendStatusReport::from(&FriendStatus::Disabled),
                 };
                 if self
@@ -558,18 +477,6 @@ where
                     .get_mut(friend_public_key)
                     .ok_or(FunderReportMutateError::FriendDoesNotExist)?;
                 friend.mutate(friend_report_mutation)?;
-                Ok(())
-            }
-            FunderReportMutation::SetNumOpenInvoices(num_open_invoices) => {
-                self.num_open_invoices = *num_open_invoices;
-                Ok(())
-            }
-            FunderReportMutation::SetNumPayments(num_payments) => {
-                self.num_payments = *num_payments;
-                Ok(())
-            }
-            FunderReportMutation::SetNumOpenTransactions(num_open_transactions) => {
-                self.num_open_transactions = *num_open_transactions;
                 Ok(())
             }
         }

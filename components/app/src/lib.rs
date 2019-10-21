@@ -24,7 +24,8 @@ pub use proto::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::funder::messages::{
-    Commit, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
+    BalanceInfo, Commit, CountersInfo, Currency, CurrencyBalanceInfo, McInfo, MultiCommit,
+    PaymentStatus, PaymentStatusSuccess, Rate, Receipt, TokenInfo,
 };
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -38,11 +39,10 @@ pub use self::identity::{identity_from_file, IdentityFromFileError};
 // TODO: Possibly reduce what we export from report in the future?
 pub mod report {
     pub use proto::report::messages::{
-        AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, DirectionReport,
+        AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, CurrencyReport,
         FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
         FunderReportMutateError, FunderReportMutation, FunderReportMutations, McBalanceReport,
         McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
-        SentLocalRelaysReport, TcReport,
     };
 
     pub use proto::app_server::messages::{NodeReport, NodeReportMutation};
