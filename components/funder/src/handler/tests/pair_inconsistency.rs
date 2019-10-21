@@ -753,7 +753,8 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.currencies_operations.is_empty());
+                // Should contain SetRemoteMaxDebt:
+                assert_eq!(friend_move_token.currencies_operations.len(), 1);
                 assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
@@ -785,7 +786,8 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
-                assert!(friend_move_token.currencies_operations.is_empty());
+                // Should contain SetRemoteMaxDebt:
+                assert_eq!(friend_move_token.currencies_operations.len(), 1);
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();
