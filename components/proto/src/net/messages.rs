@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 
@@ -33,5 +34,18 @@ impl TryFrom<String> for NetAddress {
             return Err(NetAddressError::AddressTooLong);
         }
         Ok(NetAddress { address })
+    }
+}
+
+impl FromStr for NetAddress {
+    type Err = NetAddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() > MAX_NET_ADDRESS_LENGTH {
+            return Err(NetAddressError::AddressTooLong);
+        }
+        Ok(NetAddress {
+            address: s.to_owned(),
+        })
     }
 }
