@@ -422,6 +422,61 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
     }
 }
 
+/// Close requests and disable friends
+fn add_remove_currency(stctrl_setup: &StCtrlSetup) {
+    // Set rate (To add a currency)
+    // ----------------------------
+    for j in 0..1 {
+        let set_friend_currency_rate_cmd = SetFriendCurrencyRateCmd {
+            friend_name: format!("node{}", 1 - j),
+            currency_name: "FST2".to_owned(),
+            mul: 0,
+            add: 1,
+        };
+        let config_cmd = ConfigCmd::SetFriendCurrencyRate(set_friend_currency_rate_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+
+    thread::sleep(time::Duration::from_millis(100));
+
+    // Remove the currency we have just added
+    // --------------------------------------
+    for j in 0..1 {
+        let remove_friend_currency_cmd = RemoveFriendCurrencyCmd {
+            friend_name: format!("node{}", 1 - j),
+            currency_name: "FST2".to_owned(),
+        };
+        let config_cmd = ConfigCmd::RemoveFriendCurrency(remove_friend_currency_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
+    }
+}
+
 /// Set max_debt for node1
 fn set_max_debt(stctrl_setup: &StCtrlSetup) {
     // node0 sets remote max debt for node1:
@@ -793,8 +848,7 @@ fn close_disable(stctrl_setup: &StCtrlSetup) {
     }
 
     // Remove currencies:
-    // Doesn't have much effect here, except for checking that this
-    // command can run
+    // This should not work, because the currency is already in use.
     // ------------------
     for j in 0..2 {
         let remove_friend_currency_cmd = RemoveFriendCurrencyCmd {
@@ -873,7 +927,7 @@ fn close_disable(stctrl_setup: &StCtrlSetup) {
 
 #[test]
 fn basic_cli() {
-    let _ = env_logger::init();
+    // let _ = env_logger::init();
 
     // Create a temporary directory.
     // Should be deleted when gets out of scope:
@@ -883,6 +937,7 @@ fn basic_cli() {
 
     spawn_entities(&stctrl_setup);
     configure_mutual_credit(&stctrl_setup);
+    add_remove_currency(&stctrl_setup);
     set_max_debt(&stctrl_setup);
     create_cancel_invoice(&stctrl_setup);
     pay_invoice(&stctrl_setup);
