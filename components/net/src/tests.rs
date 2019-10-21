@@ -136,7 +136,7 @@ where
 
 #[test]
 fn test_net_connector_v4_drop_sender() {
-    env_logger::init();
+    // env_logger::init();
     let mut thread_pool = ThreadPool::new().unwrap();
     thread_pool.run(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
