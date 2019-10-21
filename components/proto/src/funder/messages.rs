@@ -544,7 +544,7 @@ pub struct RemoveFriend {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SetRequestsStatus {
+pub struct SetFriendCurrencyRequestsStatus {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
     pub status: RequestsStatus,
@@ -586,9 +586,9 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
-#[capnp_conv(crate::app_server_capnp::update_friend_currency)]
+#[capnp_conv(crate::app_server_capnp::set_friend_currency_rate)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UpdateFriendCurrency {
+pub struct SetFriendCurrencyRate {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
     pub rate: Rate,
@@ -672,12 +672,12 @@ pub enum FunderControl<B> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(RemoveFriend),
-    SetRequestsStatus(SetRequestsStatus),
     SetFriendStatus(SetFriendStatus),
     SetFriendCurrencyMaxDebt(SetFriendCurrencyMaxDebt),
     SetFriendRelays(SetFriendRelays<B>),
     SetFriendName(SetFriendName),
-    UpdateFriendCurrency(UpdateFriendCurrency),
+    SetFriendCurrencyRate(SetFriendCurrencyRate),
+    SetFriendCurrencyRequestsStatus(SetFriendCurrencyRequestsStatus),
     RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
     // Buyer API:

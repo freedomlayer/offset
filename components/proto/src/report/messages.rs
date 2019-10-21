@@ -95,14 +95,6 @@ pub struct CurrencyReport {
     pub requests_status: McRequestsStatusReport,
 }
 
-/*
-#[capnp_conv(crate::report_capnp::tc_report)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TcReport {
-    pub currency_reports: Vec<CurrencyReport>,
-}
-*/
-
 #[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {

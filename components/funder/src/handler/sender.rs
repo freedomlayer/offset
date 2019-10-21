@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-// use im::vector::Vector as ImVec;
+
+use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -423,16 +424,25 @@ where
     // Check if update to remote_max_debt is required:
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
-            if !channel_consistent.wanted_remote_max_debt.is_empty() {
+            // Check if we need to tell remote side about our local active currencies:
+            let wanted_local_currencies: ImHashSet<_> = friend.currency_configs.keys().cloned().collect();
+            if wanted_local_currencies != channel_consistent.token_channel.get_active_currencies().local {
                 return true;
             }
 
-            if channel_consistent.wanted_active_currencies.is_some() {
-                return true;
-            }
+            for (currency, currency_config) in &friend.currency_configs {
+                if let Some(mutual_credit) = channel_consistent.token_channel.get_mutual_credits().get(currency) {
 
-            if !channel_consistent.wanted_local_requests_status.is_empty() {
-                return true;
+                    // We need to change remote_max_debt:
+                    if currency_config.wanted_remote_max_debt != mutual_credit.state().balance.remote_max_debt {
+                        return true;
+                    }
+
+                    // We need to change local requests status:
+                    if currency_config.wanted_local_requests_status != mutual_credit.state().requests_status.local {
+                        return true;
+                    }
+                }
             }
 
             if !channel_consistent.pending_backwards_ops.is_empty()
@@ -618,35 +628,76 @@ where
 
     // Deal with active currencies:
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let channel_consistent = match &friend.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+    let token_channel = match &friend.channel_status {
+        ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
         ChannelStatus::Inconsistent(_) => unreachable!(),
     };
-    if let Some(wanted_active_currencies) = channel_consistent.wanted_active_currencies.clone() {
+
+    let wanted_local_currencies: ImHashSet<_> = friend.currency_configs.keys().cloned().collect();
+    if wanted_local_currencies != token_channel.get_active_currencies().local {
+        // Assert that all active currencies must be included inside the wanted_active_currencies:
+        assert!(token_channel.get_active_currencies().calc_active().is_subset(&wanted_local_currencies));
+        pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
+    }
+
+    // Set remote_max_debt (if required):
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    for (currency, currency_config) in friend.currency_configs.clone() {
+        // Set remote_max_debt and local_requests_status (if required):
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
         let token_channel = match &friend.channel_status {
             ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
             ChannelStatus::Inconsistent(_) => unreachable!(),
         };
+        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
 
-        // Assert that all active currencies must be included inside the wanted_active_currencies:
-        for currency in token_channel.get_active_currencies().calc_active() {
-            assert!(wanted_active_currencies.contains(&currency));
+            // We need to change remote_max_debt:
+            if currency_config.wanted_remote_max_debt != mutual_credit.state().balance.remote_max_debt {
+                let operation = FriendTcOp::SetRemoteMaxDebt(currency_config.wanted_remote_max_debt);
+                queue_operation_or_cancel(
+                    m_state,
+                    rng,
+                    pending_move_token,
+                    cancel_public_keys,
+                    outgoing_control,
+                    &currency,
+                    &operation,
+                )?;
+            }
         }
-        pending_move_token.set_active_currencies(wanted_active_currencies);
-        let friend_mutation = FriendMutation::ClearWantedActiveCurrencies;
-        let funder_mutation =
-            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        m_state.mutate(funder_mutation);
     }
 
-
+    // Set local_requests_status (if required):
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let channel_consistent = match &friend.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
-        ChannelStatus::Inconsistent(_) => unreachable!(),
-    };
+    for (currency, currency_config) in friend.currency_configs.clone() {
+        // Set remote_max_debt and local_requests_status (if required):
+        let friend = m_state.state().friends.get(friend_public_key).unwrap();
+        let token_channel = match &friend.channel_status {
+            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
+            ChannelStatus::Inconsistent(_) => unreachable!(),
+        };
+        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
+            // We need to change local requests status:
+            if currency_config.wanted_local_requests_status != mutual_credit.state().requests_status.local {
+                let friend_op = if let RequestsStatus::Open = currency_config.wanted_local_requests_status {
+                    FriendTcOp::EnableRequests
+                } else {
+                    FriendTcOp::DisableRequests
+                };
+                queue_operation_or_cancel(
+                    m_state,
+                    rng,
+                    pending_move_token,
+                    cancel_public_keys,
+                    outgoing_control,
+                    &currency,
+                    &friend_op,
+                )?;
+            }
+        }
+    }
 
+    /*
     // Set remote_max_debt if needed:
     for (currency, wanted_remote_max_debt) in channel_consistent.wanted_remote_max_debt.clone() {
         let friend = m_state.state().friends.get(friend_public_key).unwrap();
@@ -720,8 +771,7 @@ where
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
         m_state.mutate(funder_mutation);
     }
-
-
+    */
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let channel_consistent = match &friend.channel_status {

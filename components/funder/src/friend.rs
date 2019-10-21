@@ -165,8 +165,17 @@ pub enum FriendMutation<B: Clone> {
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
     SetName(String),
-    SetRate((Currency, Rate)),
     SetSentLocalRelays(SentLocalRelays<B>),
+}
+
+impl CurrencyConfig {
+    pub fn new() -> Self {
+        Self {
+            rate: Rate::new(),
+            wanted_remote_max_debt: 0,
+            wanted_local_requests_status: RequestsStatus::Closed,
+        }
+    }
 }
 
 impl<B> FriendState<B>
@@ -184,11 +193,6 @@ where
             pending_requests: ImVec::new(),
             pending_backwards_ops: ImVec::new(),
             pending_user_requests: ImVec::new(),
-            // The remote_max_debt we want to have. When possible, this will be sent to the remote
-            // side.
-            wanted_remote_max_debt: ImHashMap::new(),
-            wanted_local_requests_status: ImHashMap::new(),
-            wanted_active_currencies: None,
         };
 
         FriendState {
@@ -197,7 +201,7 @@ where
             remote_relays,
             sent_local_relays: SentLocalRelays::NeverSent,
             name,
-            rates: ImHashMap::new(),
+            currency_configs: ImHashMap::new(),
             status: FriendStatus::Disabled,
             channel_status: ChannelStatus::Consistent(channel_consistent),
         }
@@ -249,9 +253,6 @@ where
                     pending_requests: ImVec::new(),
                     pending_backwards_ops: ImVec::new(),
                     pending_user_requests: ImVec::new(),
-                    wanted_remote_max_debt: ImHashMap::new(),
-                    wanted_local_requests_status: ImHashMap::new(),
-                    wanted_active_currencies: None,
                 };
                 self.channel_status = ChannelStatus::Consistent(channel_consistent);
             }
@@ -268,7 +269,7 @@ where
                 // We can not remove configuration for a currency that is currency in use.
                 if channel_consistent
                     .token_channel
-                    .active_currencies
+                    .get_active_currencies()
                     .calc_active()
                     .contains(currency)
                 {
@@ -354,9 +355,6 @@ where
             }
             FriendMutation::SetName(friend_name) => {
                 self.name = friend_name.clone();
-            }
-            FriendMutation::SetRate((currency, friend_rate)) => {
-                let _ = self.rates.insert(currency.clone(), friend_rate.clone());
             }
             FriendMutation::SetSentLocalRelays(sent_local_relays) => {
                 self.sent_local_relays = sent_local_relays.clone();

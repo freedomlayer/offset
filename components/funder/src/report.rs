@@ -4,9 +4,9 @@ use signature::canonical::CanonicalSerialize;
 
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
-    CurrencyRate, CurrencyReport, FriendLivenessReport, FriendReport, FriendReportMutation,
+    CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport, FriendReportMutation,
     FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
-    McRequestsStatusReport, MoveTokenHashedReport, ResetTermsReport,
+    McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -107,11 +107,18 @@ where
 
     FriendReport {
         name: friend_state.name.clone(),
-        rates: friend_state
-            .rates
+        currency_configs: friend_state
+            .currency_configs
             .iter()
             .cloned()
-            .map(|(currency, rate)| CurrencyRate { currency, rate })
+            .map(|(currency, currency_config)| CurrencyConfigReport {
+                currency,
+                rate: currency_config.rate,
+                wanted_remote_max_debt: currency_config.wanted_remote_max_debt,
+                wanted_local_requests_status: RequestsStatusReport::from(
+                    &currency_config.wanted_local_requests_status,
+                ),
+            })
             .collect(),
         remote_relays: friend_state.remote_relays.clone(),
         opt_last_incoming_move_token: friend_state
@@ -175,13 +182,7 @@ where
             );
             vec![set_channel_status, set_last_incoming_move_token]
         }
-        FriendMutation::SetWantedRemoteMaxDebt(_)
-        | FriendMutation::ClearWantedRemoteMaxDebt(_)
-        | FriendMutation::SetWantedLocalRequestsStatus(_)
-        | FriendMutation::ClearWantedLocalRequestsStatus(_)
-        | FriendMutation::SetWantedActiveCurrencies(_)
-        | FriendMutation::ClearWantedActiveCurrencies
-        | FriendMutation::PushBackPendingRequest(_)
+        FriendMutation::PushBackPendingRequest(_)
         | FriendMutation::PopFrontPendingRequest
         | FriendMutation::PushBackPendingBackwardsOp(_)
         | FriendMutation::PopFrontPendingBackwardsOp
@@ -196,11 +197,20 @@ where
             vec![FriendReportMutation::SetRemoteRelays(remote_relays.clone())]
         }
         FriendMutation::SetName(name) => vec![FriendReportMutation::SetName(name.clone())],
-        FriendMutation::SetRate((currency, rate)) => {
-            vec![FriendReportMutation::SetRate(CurrencyRate {
-                currency: currency.clone(),
-                rate: rate.clone(),
-            })]
+        FriendMutation::UpdateCurrencyConfig((currency, currency_config)) => {
+            vec![FriendReportMutation::UpdateCurrencyConfig(
+                CurrencyConfigReport {
+                    currency: currency.clone(),
+                    rate: currency_config.rate.clone(),
+                    wanted_remote_max_debt: currency_config.wanted_remote_max_debt.clone(),
+                    wanted_local_requests_status: RequestsStatusReport::from(
+                        &currency_config.wanted_local_requests_status,
+                    ),
+                },
+            )]
+        }
+        FriendMutation::RemoveCurrencyConfig(currency) => {
+            vec![FriendReportMutation::RemoveCurrencyConfig(currency.clone())]
         }
         FriendMutation::SetSentLocalRelays(_) => vec![],
         FriendMutation::SetInconsistent(_) | FriendMutation::SetConsistent(_) => {
