@@ -8,7 +8,8 @@ use bin::strelaylib::{strelay, StRelayCmd};
 
 use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCurrencyCmd, ConfigCmd, DisableFriendCmd,
-    EnableFriendCmd, OpenFriendCurrencyCmd, SetFriendCurrencyMaxDebtCmd, SetFriendCurrencyRateCmd,
+    EnableFriendCmd, OpenFriendCurrencyCmd, RemoveFriendCurrencyCmd, SetFriendCurrencyMaxDebtCmd,
+    SetFriendCurrencyRateCmd,
 };
 
 use stctrl::buyer::{BuyerCmd, BuyerError, PayInvoiceCmd, PaymentStatusCmd};
@@ -364,30 +365,6 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
             }
             thread::sleep(time::Duration::from_millis(100));
         }
-    }
-
-    // Setup active currencies:
-    // -------------------------
-    for j in 0..2 {
-        let open_friend_cmd = OpenFriendCurrencyCmd {
-            friend_name: format!("node{}", 1 - j),
-            currency_name: "FST".to_owned(),
-        };
-        let config_cmd = ConfigCmd::OpenFriendCurrency(open_friend_cmd);
-        let subcommand = StCtrlSubcommand::Config(config_cmd);
-
-        let st_ctrl_cmd = StCtrlCmd {
-            idfile: stctrl_setup
-                .temp_dir_path
-                .join(format!("app{}", j))
-                .join(format!("app{}.ident", j)),
-            node_ticket: stctrl_setup
-                .temp_dir_path
-                .join(format!("node{}", j))
-                .join(format!("node{}.ticket", j)),
-            subcommand,
-        };
-        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
 
     // Open friends
@@ -756,7 +733,7 @@ fn export_token(stctrl_setup: &StCtrlSetup) {
     stverify(stverify_cmd, &mut output).unwrap();
     let output_str = str::from_utf8(&output).unwrap();
     assert!(output_str.contains("is valid!"));
-    assert!(output_str.contains("balance: 70"));
+    assert!(output_str.contains("balance=50"));
 }
 
 /// Close requests and disable friends
@@ -813,6 +790,32 @@ fn close_disable(stctrl_setup: &StCtrlSetup) {
             }
             thread::sleep(time::Duration::from_millis(100));
         }
+    }
+
+    // Remove currencies:
+    // Doesn't have much effect here, except for checking that this
+    // command can run
+    // ------------------
+    for j in 0..2 {
+        let remove_friend_currency_cmd = RemoveFriendCurrencyCmd {
+            friend_name: format!("node{}", 1 - j),
+            currency_name: "FST".to_owned(),
+        };
+        let config_cmd = ConfigCmd::RemoveFriendCurrency(remove_friend_currency_cmd);
+        let subcommand = StCtrlSubcommand::Config(config_cmd);
+
+        let st_ctrl_cmd = StCtrlCmd {
+            idfile: stctrl_setup
+                .temp_dir_path
+                .join(format!("app{}", j))
+                .join(format!("app{}.ident", j)),
+            node_ticket: stctrl_setup
+                .temp_dir_path
+                .join(format!("node{}", j))
+                .join(format!("node{}.ticket", j)),
+            subcommand,
+        };
+        stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
 
     // Nodes disable each other (as friends):
