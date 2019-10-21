@@ -79,7 +79,7 @@ pub struct ReceiptFile {
 
 /// A helper structure for serialize and deserializing Token.
 #[mutual_from(MoveTokenHashedReport)]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TokenFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub prefix_hash: HashResult,
@@ -118,6 +118,8 @@ mod test {
 
     use std::convert::TryFrom;
 
+    use app::{BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo};
+
     #[test]
     fn test_serialize_invoice_file() {
         let invoice_file = InvoiceFile {
@@ -140,5 +142,34 @@ mod test {
         };
 
         let _ = toml::to_string(&multi_commit_file).unwrap();
+    }
+
+    /// Check if we can serialize TokenFile into TOML without crasing
+    #[test]
+    fn test_serialize_token_file() {
+        let token_info = TokenInfo {
+            mc: McInfo {
+                local_public_key: PublicKey::from(&[1; PublicKey::len()]),
+                remote_public_key: PublicKey::from(&[2; PublicKey::len()]),
+                balances: vec![CurrencyBalanceInfo {
+                    currency: "FST".parse().unwrap(),
+                    balance_info: BalanceInfo {
+                        balance: -5i128,
+                        local_pending_debt: 16u128,
+                        remote_pending_debt: 32u128,
+                    },
+                }],
+            },
+            counters: CountersInfo {
+                inconsistency_counter: 3u64,
+                move_token_counter: 4u128,
+            },
+        };
+        let token_file = TokenFile {
+            prefix_hash: HashResult::from(&[0; HashResult::len()]),
+            token_info,
+            rand_nonce: RandValue::from(&[1; RandValue::len()]),
+            new_token: Signature::from(&[2; Signature::len()]),
+        };
     }
 }
