@@ -582,7 +582,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
 #[test]
 fn test_nodes_chain() {
-    env_logger::init();
     let test_executor = TestExecutor::new();
     let res = test_executor.run(task_nodes_chain(test_executor.clone()));
     assert!(res.is_output());
