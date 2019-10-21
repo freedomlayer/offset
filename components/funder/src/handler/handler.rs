@@ -85,7 +85,7 @@ where
                 max_pending_user_requests,
                 funder_incoming_control.funder_control,
             ) {
-                error!("handle_control_error(): {:?}", e);
+                warn!("handle_control_error(): {:?}", e);
             }
             Some(funder_incoming_control.app_request_id)
         }
