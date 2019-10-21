@@ -8,7 +8,7 @@ use app::{Commit, Currency, MultiCommit, Receipt, TokenInfo};
 
 use mutual_from::mutual_from;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct InvoiceFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
