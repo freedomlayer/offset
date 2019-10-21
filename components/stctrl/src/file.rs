@@ -12,6 +12,7 @@ use mutual_from::mutual_from;
 pub struct InvoiceFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_public_key: PublicKey,
@@ -40,6 +41,7 @@ pub struct CommitFile {
 pub struct MultiCommitFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub total_dest_payment: u128,
@@ -61,6 +63,7 @@ pub struct ReceiptFile {
     pub response_hash: HashResult,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub src_plain_lock: PlainLock,
@@ -106,5 +109,36 @@ impl std::convert::From<MultiCommitFile> for MultiCommit {
             total_dest_payment: input.total_dest_payment,
             commits: input.commits.into_iter().map(Commit::from).collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use std::convert::TryFrom;
+
+    #[test]
+    fn test_serialize_invoice_file() {
+        let invoice_file = InvoiceFile {
+            invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+            currency: Currency::try_from("FST".to_owned()).unwrap(),
+            dest_public_key: PublicKey::from(&[0xbb; PublicKey::len()]),
+            dest_payment: 10u128,
+        };
+
+        let _ = toml::to_string(&invoice_file).unwrap();
+    }
+
+    #[test]
+    fn test_serialize_multi_commit_file() {
+        let multi_commit_file = MultiCommitFile {
+            invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+            currency: Currency::try_from("FST".to_owned()).unwrap(),
+            total_dest_payment: 5u128,
+            commits: Vec::new(),
+        };
+
+        let _ = toml::to_string(&multi_commit_file).unwrap();
     }
 }
