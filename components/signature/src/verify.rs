@@ -16,6 +16,7 @@ use crate::signature_buff::{
     move_token_signature_buff, FUNDS_RESPONSE_PREFIX,
 };
 
+// TODO: Add a local test that makes sure verify_receipt is in sync with verify_commit_signature
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
@@ -24,6 +25,8 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.extend(receipt.response_hash.as_ref());
     data.extend_from_slice(&receipt.src_plain_lock.hash_lock());
     data.extend_from_slice(&receipt.dest_plain_lock.hash_lock());
+    let is_complete = true;
+    data.extend_from_slice(&is_complete.canonical_serialize());
     data.write_u128::<BigEndian>(receipt.dest_payment).unwrap();
     data.write_u128::<BigEndian>(receipt.total_dest_payment)
         .unwrap();
