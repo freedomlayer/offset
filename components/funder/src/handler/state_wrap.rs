@@ -111,12 +111,6 @@ where
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             self.mutate(funder_mutation);
 
-            // Mutation to add the destination plain lock:
-            let funder_mutation = FunderMutation::AddIncomingTransaction((
-                pending_transaction.invoice_id,
-                pending_transaction.request_id,
-            ));
-            self.mutate(funder_mutation);
         }
     }
 

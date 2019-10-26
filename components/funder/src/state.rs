@@ -31,6 +31,8 @@ pub struct FunderState<B: Clone> {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct NewTransactions {
     pub num_transactions: u64,
+    /// We have one src_plain_lock that we are going to use for every Transaction we create through
+    /// this payment.
     pub invoice_id: InvoiceId,
     pub currency: Currency,
     pub total_dest_payment: u128,
@@ -39,7 +41,7 @@ pub struct NewTransactions {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum Payment {
+pub enum PaymentStage {
     /// User can add new transactions
     // TODO: Think about a better name for this?
     NewTransactions(NewTransactions),
@@ -51,6 +53,12 @@ pub enum Payment {
     Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.
     AfterSuccessAck(u64), // num_transactions
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct Payment {
+    pub src_plain_lock: PlainLock,
+    pub stage: PaymentStage,
 }
 
 /*
@@ -73,7 +81,7 @@ pub struct OpenInvoice {
     /// Lock created by the originator of the transactions used to fulfill this invoice.
     /// We expect all transactions to have the same lock. This allows the buyer to unlock all the
     /// transactions at once by sending a commit message.
-    pub src_hashed_lock: Option<HashedLock>,
+    pub opt_src_hashed_lock: Option<HashedLock>,
     /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
     pub incoming_transactions: ImHashSet<Uid>,
 }
@@ -84,7 +92,7 @@ impl OpenInvoice {
             currency,
             total_dest_payment,
             dest_plain_lock,
-            src_hashed_lock: None,
+            opt_src_hashed_lock: None,
             incoming_transactions: ImHashSet::new(),
         }
     }
@@ -94,8 +102,6 @@ impl OpenInvoice {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct OpenTransaction {
     pub payment_id: PaymentId,
-    /// The plain part of a hash lock for the generated transaction.
-    pub src_plain_lock: PlainLock,
     /// A response (if we got one):
     pub opt_response: Option<ResponseSendFundsOp>,
 }
@@ -108,12 +114,13 @@ pub enum FunderMutation<B: Clone> {
     RemoveRelay(PublicKey),
     AddFriend(AddFriend<B>),
     RemoveFriend(PublicKey),
-    AddInvoice((InvoiceId, Currency, u128, PlainLock)), // (InvoiceId, currency, total_dest_payment, dest_plain_lock)
+    AddInvoice((InvoiceId, Currency, u128, PlainLock)), // (invoice_id, currency, total_dest_payment, dest_plain_lock)
     AddIncomingTransaction((InvoiceId, Uid)),           // (invoice_id, request_id)
+    SetInvoiceSrcHashedLock((InvoiceId, HashedLock)),   // (invoice_id, src_hashed_lock)
     RemoveInvoice(InvoiceId),
-    AddTransaction((Uid, PaymentId, PlainLock)), // (request_id, payment_id,src_plain_lock)
+    AddTransaction((Uid, PaymentId)), // (request_id, payment_id)
     SetTransactionResponse(ResponseSendFundsOp), // (request_id, response_send_funds)
-    RemoveTransaction(Uid),                      // request_id
+    RemoveTransaction(Uid),           // request_id
     UpdatePayment((PaymentId, Payment)),
     RemovePayment(PaymentId),
 }
@@ -194,13 +201,17 @@ where
                     .incoming_transactions
                     .insert(request_id.clone());
             }
+            FunderMutation::SetInvoiceSrcHashedLock((invoice_id, src_hashed_lock)) => {
+                let open_invoice = self.open_invoices.get_mut(invoice_id).unwrap();
+                assert!(open_invoice.opt_src_hashed_lock.is_none());
+                open_invoice.opt_src_hashed_lock = Some(src_hashed_lock.clone());
+            }
             FunderMutation::RemoveInvoice(invoice_id) => {
                 let _ = self.open_invoices.remove(invoice_id);
             }
-            FunderMutation::AddTransaction((request_id, payment_id, src_plain_lock)) => {
+            FunderMutation::AddTransaction((request_id, payment_id)) => {
                 let open_transaction = OpenTransaction {
                     payment_id: payment_id.clone(),
-                    src_plain_lock: src_plain_lock.clone(),
                     opt_response: None,
                 };
                 let _ = self

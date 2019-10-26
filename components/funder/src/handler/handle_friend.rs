@@ -27,7 +27,7 @@ use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
     SentLocalRelays,
 };
-use crate::state::{FunderMutation, FunderState, Payment};
+use crate::state::{FunderMutation, FunderState, Payment, PaymentStage};
 
 use crate::ephemeral::Ephemeral;
 
@@ -230,6 +230,12 @@ where
             return CheckRequest::Failure;
         };
 
+    if let Some(src_hashed_lock) = &open_invoice.opt_src_hashed_lock {
+        if src_hashed_lock != &request_send_funds.src_hashed_lock {
+            return CheckRequest::Failure;
+        }
+    }
+
     if open_invoice.total_dest_payment != request_send_funds.total_dest_payment {
         return CheckRequest::Failure;
     }
@@ -304,6 +310,31 @@ fn handle_request_send_funds<B>(
             CheckRequest::Success => false,
             CheckRequest::Complete => true,
         };
+
+        // Set the src_hashed_lock for the OpenInvoice if required.
+        // (Happens only when the first transaction for this invoice is received):
+        if m_state
+            .state()
+            .open_invoices
+            .get(&request_send_funds.invoice_id)
+            .unwrap()
+            .opt_src_hashed_lock
+            .is_none()
+        {
+            // Set the src_hashed_lock accordingly:
+            let funder_mutation = FunderMutation::SetInvoiceSrcHashedLock((
+                request_send_funds.invoice_id.clone(),
+                request_send_funds.src_hashed_lock.clone(),
+            ));
+            m_state.mutate(funder_mutation);
+        }
+
+        // Add the incoming transaction:
+        let funder_mutation = FunderMutation::AddIncomingTransaction((
+            request_send_funds.invoice_id.clone(),
+            request_send_funds.request_id.clone(),
+        ));
+        m_state.mutate(funder_mutation);
 
         // We return a response:
         let pending_transaction = create_pending_transaction(&request_send_funds);
@@ -401,26 +432,29 @@ fn handle_response_send_funds<B>(
 {
     match find_request_origin(m_state.state(), currency, &response_send_funds.request_id).cloned() {
         None => {
+            // We couldn't find any external origin.
+            // It means that we are the origin of this request
+
             // Keep the response:
             let funder_mutation =
                 FunderMutation::SetTransactionResponse(response_send_funds.clone());
             m_state.mutate(funder_mutation);
 
-            // Send transaction result to user:
-            let src_plain_lock = m_state
+            let payment_id = m_state
                 .state()
                 .open_transactions
                 .get(&response_send_funds.request_id)
                 .unwrap()
-                .src_plain_lock
+                .payment_id
                 .clone();
 
+            let payment = m_state.state().payments.get(&payment_id).unwrap();
             let transaction_result = if response_send_funds.is_complete {
                 let commit = prepare_commit(
                     currency.clone(),
                     &response_send_funds,
                     &pending_transaction,
-                    src_plain_lock,
+                    payment.src_plain_lock.clone(),
                 );
 
                 TransactionResult {
@@ -519,8 +553,8 @@ fn handle_collect_send_funds<B, R>(
                 .unwrap();
 
             // Update payment status:
-            let opt_new_payment = match payment {
-                Payment::NewTransactions(new_transactions) => {
+            let opt_new_payment_stage = match &payment.stage {
+                PaymentStage::NewTransactions(new_transactions) => {
                     // Create a Receipt:
                     let receipt = prepare_receipt(
                         currency,
@@ -529,13 +563,13 @@ fn handle_collect_send_funds<B, R>(
                         &pending_transaction,
                     );
                     let ack_uid = Uid::rand_gen(rng);
-                    Some(Payment::Success((
+                    Some(PaymentStage::Success((
                         new_transactions.num_transactions.checked_sub(1).unwrap(),
                         receipt,
                         ack_uid,
                     )))
                 }
-                Payment::InProgress(num_transactions) => {
+                PaymentStage::InProgress(num_transactions) => {
                     // Create a Receipt:
                     let receipt = prepare_receipt(
                         currency,
@@ -544,30 +578,36 @@ fn handle_collect_send_funds<B, R>(
                         &pending_transaction,
                     );
                     let ack_uid = Uid::rand_gen(rng);
-                    Some(Payment::Success((
+                    Some(PaymentStage::Success((
                         num_transactions.checked_sub(1).unwrap(),
                         receipt,
                         ack_uid,
                     )))
                 }
-                Payment::Success((num_transactions, receipt, ack_uid)) => Some(Payment::Success((
-                    num_transactions.checked_sub(1).unwrap(),
-                    receipt.clone(),
-                    ack_uid.clone(),
-                ))),
-                Payment::Canceled(_) => unreachable!(),
-                Payment::AfterSuccessAck(num_transactions) => {
+                PaymentStage::Success((num_transactions, receipt, ack_uid)) => {
+                    Some(PaymentStage::Success((
+                        num_transactions.checked_sub(1).unwrap(),
+                        receipt.clone(),
+                        ack_uid.clone(),
+                    )))
+                }
+                PaymentStage::Canceled(_) => unreachable!(),
+                PaymentStage::AfterSuccessAck(num_transactions) => {
                     let new_num_transactions = num_transactions.checked_sub(1).unwrap();
                     if new_num_transactions > 0 {
-                        Some(Payment::AfterSuccessAck(new_num_transactions))
+                        Some(PaymentStage::AfterSuccessAck(new_num_transactions))
                     } else {
                         None
                     }
                 }
             };
 
-            let funder_mutation = if let Some(new_payment) = opt_new_payment {
+            let funder_mutation = if let Some(new_payment_stage) = opt_new_payment_stage {
                 // Update payment:
+                let new_payment = Payment {
+                    src_plain_lock: payment.src_plain_lock.clone(),
+                    stage: new_payment_stage,
+                };
                 FunderMutation::UpdatePayment((open_transaction.payment_id.clone(), new_payment))
             } else {
                 FunderMutation::RemovePayment(open_transaction.payment_id.clone())
