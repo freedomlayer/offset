@@ -8,7 +8,10 @@ use proto::funder::messages::{
     FriendsRoute, FunderControl, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
 
+use signature::verify::verify_receipt;
+
 use super::utils::{create_node_controls, dummy_relay_address};
+
 
 async fn task_funder_basic(test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -189,6 +192,9 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     node_controls[1]
         .wait_friend_balance(&public_keys[0], &currency1, 5)
         .await;
+
+    // Verify receipt:
+    assert!(verify_receipt(&receipt, &public_keys[1]));
 }
 
 #[test]
