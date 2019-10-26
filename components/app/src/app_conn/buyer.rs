@@ -107,7 +107,8 @@ where
         route: FriendsRoute,
         dest_payment: u128,
         fees: u128,
-    ) -> Result<Commit, BuyerError> {
+        // TODO: Possibly use a new type instead of `Option<Commit>` ?
+    ) -> Result<Option<Commit>, BuyerError> {
         let create_transaction = CreateTransaction {
             payment_id,
             request_id: request_id.clone(),
@@ -138,7 +139,8 @@ where
                 continue;
             }
             match transaction_result.result {
-                RequestResult::Success(commit) => return Ok(commit),
+                RequestResult::Complete(commit) => return Ok(Some(commit)),
+                RequestResult::Success => return Ok(None),
                 RequestResult::Failure => return Err(BuyerError::NodeError),
             }
         }

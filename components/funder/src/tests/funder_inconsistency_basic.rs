@@ -5,8 +5,7 @@ use common::test_executor::TestExecutor;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
-    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, RequestResult, RequestsStatus,
-    ResetFriendChannel,
+    FriendsRoute, FunderControl, PaymentStatus, RequestResult, RequestsStatus, ResetFriendChannel,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 
@@ -124,23 +123,15 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
         .unwrap();
 
     let commit = match transaction_result.result {
-        RequestResult::Success(commit) => commit,
+        RequestResult::Complete(commit) => commit,
         _ => unreachable!(),
     };
 
-    // 0: Create multi commit:
-    let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
-        currency: currency1.clone(),
-        total_dest_payment: 4,
-        commits: vec![commit],
-    };
+    // Commit: 0 ==> 1  (Out of band)
 
-    // MultiCommit: 0 ==> 1  (Out of band)
-
-    // 1: Apply MultiCommit:
+    // 1: Apply Commit:
     node_controls[1]
-        .send(FunderControl::CommitInvoice(multi_commit))
+        .send(FunderControl::CommitInvoice(commit))
         .await;
 
     // Wait until no more progress can be made

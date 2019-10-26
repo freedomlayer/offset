@@ -8,18 +8,18 @@ use crypto::rand::{CryptoRandom, RandGen};
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
 
 use crate::friend::{BackwardsOp, ChannelStatus, CurrencyConfig, FriendMutation};
-use crate::state::{FunderMutation, NewTransactions, Payment};
+use crate::state::{FunderMutation, NewTransactions, Payment, PaymentStage};
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp,
+    AckClosePayment, AddFriend, AddInvoice, ChannelerUpdateFriend, CollectSendFundsOp, Commit,
     CreatePayment, CreateTransaction, FriendStatus, FunderControl, FunderOutgoingControl,
-    MultiCommit, PaymentStatus, PaymentStatusSuccess, RemoveFriend, RemoveFriendCurrency,
-    RequestResult, RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment,
-    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus,
-    SetFriendName, SetFriendRelays, SetFriendStatus, TransactionResult,
+    PaymentStatus, PaymentStatusSuccess, RemoveFriend, RemoveFriendCurrency, RequestResult,
+    RequestSendFundsOp, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus, SetFriendName, SetFriendRelays,
+    SetFriendStatus, TransactionResult,
 };
-use signature::verify::verify_multi_commit;
+use signature::verify::verify_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
@@ -52,7 +52,7 @@ pub enum HandleControlError {
     AckMismatch,
     InvoiceAlreadyExists,
     InvoiceDoesNotExist,
-    InvalidMultiCommit,
+    InvalidCommit,
     FriendCurrencyDoesNotExist,
     CanNotRemoveActiveCurrency,
     CurrencyNotConfigured,
@@ -574,12 +574,14 @@ where
     Ok(())
 }
 
-fn control_create_payment<B>(
+fn control_create_payment<B, R>(
     m_state: &mut MutableFunderState<B>,
+    rng: &R,
     create_payment: CreatePayment,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that a payment with the same payment_id doesn't exist:
     if m_state
@@ -591,16 +593,21 @@ where
     }
 
     // TODO: Possibly check:
-    // - det_public_key exists
+    // - dest_public_key exists
     // - currency is active for this friend
 
-    let payment = Payment::NewTransactions(NewTransactions {
+    let stage = PaymentStage::NewTransactions(NewTransactions {
         num_transactions: 0,
         invoice_id: create_payment.invoice_id.clone(),
         currency: create_payment.currency.clone(),
         total_dest_payment: create_payment.total_dest_payment,
         dest_public_key: create_payment.dest_public_key.clone(),
     });
+
+    let payment = Payment {
+        src_plain_lock: PlainLock::rand_gen(rng),
+        stage,
+    };
 
     // Add a new payment entry:
     let m_mutation = FunderMutation::UpdatePayment((create_payment.payment_id, payment));
@@ -609,17 +616,15 @@ where
     Ok(())
 }
 
-fn control_create_transaction_inner<B, R>(
+fn control_create_transaction_inner<B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     send_commands: &mut SendCommands,
-    rng: &R,
     max_pending_user_requests: usize,
     create_transaction: CreateTransaction,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
-    R: CryptoRandom,
 {
     // Make sure that a corresponding payment is open
     let payment = m_state
@@ -628,7 +633,9 @@ where
         .get(&create_transaction.payment_id)
         .ok_or(HandleControlError::OpenPaymentNotFound)?;
 
-    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+    let src_plain_lock = payment.src_plain_lock.clone();
+
+    let new_transactions = if let PaymentStage::NewTransactions(new_transactions) = &payment.stage {
         new_transactions.clone()
     } else {
         return Err(HandleControlError::NewTransactionsNotAllowed);
@@ -704,14 +711,10 @@ where
         return Err(HandleControlError::PendingUserRequestsFull);
     }
 
-    // Randomly generate a new PlainLock:
-    let src_plain_lock = PlainLock::rand_gen(rng);
-
     // Keep PlainLock:
     let funder_mutation = FunderMutation::AddTransaction((
         create_transaction.request_id.clone(),
         create_transaction.payment_id.clone(),
-        src_plain_lock.clone(),
     ));
     m_state.mutate(funder_mutation);
 
@@ -720,10 +723,12 @@ where
     updated_new_transactions.num_transactions =
         new_transactions.num_transactions.checked_add(1).unwrap();
 
-    let funder_mutation = FunderMutation::UpdatePayment((
-        create_transaction.payment_id,
-        Payment::NewTransactions(updated_new_transactions),
-    ));
+    let payment = Payment {
+        src_plain_lock: src_plain_lock.clone(),
+        stage: PaymentStage::NewTransactions(updated_new_transactions),
+    };
+
+    let funder_mutation = FunderMutation::UpdatePayment((create_transaction.payment_id, payment));
     m_state.mutate(funder_mutation);
 
     let mut route_tail = create_transaction.route;
@@ -754,18 +759,16 @@ where
     Ok(())
 }
 
-fn control_create_transaction<B, R>(
+fn control_create_transaction<B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     send_commands: &mut SendCommands,
-    rng: &R,
     max_pending_user_requests: usize,
     create_transaction: CreateTransaction,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
-    R: CryptoRandom,
 {
     // Find the corresponding payment:
     let payment = m_state
@@ -774,7 +777,7 @@ where
         .get(&create_transaction.payment_id)
         .ok_or(HandleControlError::OpenPaymentNotFound)?;
 
-    let new_transactions = if let Payment::NewTransactions(new_transactions) = payment {
+    let new_transactions = if let PaymentStage::NewTransactions(new_transactions) = &payment.stage {
         new_transactions.clone()
     } else {
         return Err(HandleControlError::NewTransactionsNotAllowed);
@@ -799,15 +802,23 @@ where
                 &create_transaction.request_id,
             ),
         ) {
-            let commit = prepare_commit(
-                response_send_funds,
-                pending_transaction,
-                open_transaction.src_plain_lock.clone(),
-            );
+            let transaction_result = if response_send_funds.is_complete {
+                let commit = prepare_commit(
+                    new_transactions.currency.clone(),
+                    response_send_funds,
+                    pending_transaction,
+                    payment.src_plain_lock.clone(),
+                );
 
-            let transaction_result = TransactionResult {
-                request_id: response_send_funds.request_id.clone(),
-                result: RequestResult::Success(commit),
+                TransactionResult {
+                    request_id: response_send_funds.request_id.clone(),
+                    result: RequestResult::Complete(commit),
+                }
+            } else {
+                TransactionResult {
+                    request_id: response_send_funds.request_id.clone(),
+                    result: RequestResult::Success,
+                }
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }
@@ -820,7 +831,6 @@ where
         m_state,
         ephemeral,
         send_commands,
-        rng,
         max_pending_user_requests,
         create_transaction.clone(),
     ) {
@@ -862,37 +872,37 @@ where
         return Ok(());
     };
 
-    let (opt_new_payment, payment_status) = match payment {
-        Payment::NewTransactions(new_transactions) => {
+    let (opt_new_payment_stage, payment_status) = match &payment.stage {
+        PaymentStage::NewTransactions(new_transactions) => {
             if new_transactions.num_transactions > 0 {
                 (
-                    Some(Payment::InProgress(new_transactions.num_transactions)),
+                    Some(PaymentStage::InProgress(new_transactions.num_transactions)),
                     PaymentStatus::InProgress,
                 )
             } else {
                 let ack_uid = Uid::rand_gen(rng);
                 (
-                    Some(Payment::Canceled(ack_uid.clone())),
+                    Some(PaymentStage::Canceled(ack_uid.clone())),
                     PaymentStatus::Canceled(ack_uid),
                 )
             }
         }
-        Payment::InProgress(num_transactions) => {
+        PaymentStage::InProgress(num_transactions) => {
             (if *num_transactions == 0 {
                 let ack_uid = Uid::rand_gen(rng);
                 (
-                    Some(Payment::Canceled(ack_uid.clone())),
+                    Some(PaymentStage::Canceled(ack_uid.clone())),
                     PaymentStatus::Canceled(ack_uid),
                 )
             } else {
                 (
-                    Some(Payment::InProgress(*num_transactions)),
+                    Some(PaymentStage::InProgress(*num_transactions)),
                     PaymentStatus::InProgress,
                 )
             })
         }
-        Payment::Success((num_transactions, receipt, ack_uid)) => (
-            Some(Payment::Success((
+        PaymentStage::Success((num_transactions, receipt, ack_uid)) => (
+            Some(PaymentStage::Success((
                 *num_transactions,
                 receipt.clone(),
                 ack_uid.clone(),
@@ -902,12 +912,12 @@ where
                 ack_uid: ack_uid.clone(),
             }),
         ),
-        Payment::Canceled(ack_uid) => (
-            Some(Payment::Canceled(ack_uid.clone())),
+        PaymentStage::Canceled(ack_uid) => (
+            Some(PaymentStage::Canceled(ack_uid.clone())),
             PaymentStatus::Canceled(ack_uid.clone()),
         ),
-        Payment::AfterSuccessAck(num_transactions) => (
-            Some(Payment::AfterSuccessAck(*num_transactions)),
+        PaymentStage::AfterSuccessAck(num_transactions) => (
+            Some(PaymentStage::AfterSuccessAck(*num_transactions)),
             PaymentStatus::PaymentNotFound,
         ),
     };
@@ -922,8 +932,8 @@ where
     ));
 
     // Update or remove payment record:
-    let new_payment = if let Some(new_payment) = opt_new_payment {
-        new_payment
+    let new_payment_stage = if let Some(new_payment_stage) = opt_new_payment_stage {
+        new_payment_stage
     } else {
         let funder_mutation = FunderMutation::RemovePayment(payment_id);
         m_state.mutate(funder_mutation);
@@ -931,9 +941,14 @@ where
     };
 
     // We perform no mutations if no changes happened:
-    if new_payment == *payment {
+    if new_payment_stage == payment.stage {
         return Ok(());
     }
+
+    let new_payment = Payment {
+        src_plain_lock: payment.src_plain_lock.clone(),
+        stage: new_payment_stage,
+    };
 
     let funder_mutation = FunderMutation::UpdatePayment((payment_id, new_payment));
     m_state.mutate(funder_mutation);
@@ -954,11 +969,13 @@ where
         .ok_or(HandleControlError::PaymentDoesNotExist)?
         .clone();
 
-    match payment {
-        Payment::NewTransactions(_) | Payment::InProgress(_) | Payment::AfterSuccessAck(_) => {
-            return Err(HandleControlError::AckStateInvalid)
-        }
-        Payment::Success((num_transactions, _receipt, ack_uid)) => {
+    let Payment { stage, .. } = payment;
+
+    match stage {
+        PaymentStage::NewTransactions(_)
+        | PaymentStage::InProgress(_)
+        | PaymentStage::AfterSuccessAck(_) => return Err(HandleControlError::AckStateInvalid),
+        PaymentStage::Success((num_transactions, _receipt, ack_uid)) => {
             // Make sure that ack matches:
             if ack_close_payment.ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
@@ -966,7 +983,10 @@ where
 
             if num_transactions > 0 {
                 // Update payment to be `AfterSuccessAck`:
-                let new_payment = Payment::AfterSuccessAck(num_transactions);
+                let new_payment = Payment {
+                    src_plain_lock: payment.src_plain_lock.clone(),
+                    stage: PaymentStage::AfterSuccessAck(num_transactions),
+                };
                 let funder_mutation =
                     FunderMutation::UpdatePayment((ack_close_payment.payment_id, new_payment));
                 m_state.mutate(funder_mutation);
@@ -976,7 +996,7 @@ where
                 m_state.mutate(funder_mutation);
             }
         }
-        Payment::Canceled(ack_uid) => {
+        PaymentStage::Canceled(ack_uid) => {
             // Make sure that ack matches:
             if ack_close_payment.ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
@@ -991,12 +1011,14 @@ where
     Ok(())
 }
 
-fn control_add_invoice<B>(
+fn control_add_invoice<B, R>(
     m_state: &mut MutableFunderState<B>,
+    rng: &R,
     add_invoice: AddInvoice,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     if m_state
         .state()
@@ -1006,11 +1028,15 @@ where
         return Err(HandleControlError::InvoiceAlreadyExists);
     }
 
+    // Randomly generate a lock. We only reveal this lock when sending the Collect message.
+    let dest_plain_lock = PlainLock::rand_gen(rng);
+
     // Add new invoice:
     let funder_mutation = FunderMutation::AddInvoice((
         add_invoice.invoice_id,
         add_invoice.currency,
         add_invoice.total_dest_payment,
+        dest_plain_lock,
     ));
     m_state.mutate(funder_mutation);
 
@@ -1033,8 +1059,7 @@ where
         .clone();
 
     // Cancel all pending transactions related to this invoice
-    for (_, incoming_transaction) in open_invoice.incoming_transactions {
-        let request_id = &incoming_transaction.request_id;
+    for request_id in &open_invoice.incoming_transactions {
         // Explaining the unwrap() below:
         // We expect that the origin of this request must be from an existing friend.
         // We can not be the originator of this request.
@@ -1061,7 +1086,7 @@ where
 fn control_commit_invoice<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
-    multi_commit: &MultiCommit,
+    commit: &Commit,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -1070,31 +1095,24 @@ where
     let open_invoice = m_state
         .state()
         .open_invoices
-        .get(&multi_commit.invoice_id)
+        .get(&commit.invoice_id)
         .ok_or(HandleControlError::InvoiceDoesNotExist)?
         .clone();
 
-    if !verify_multi_commit(multi_commit, &m_state.state().local_public_key) {
-        return Err(HandleControlError::InvalidMultiCommit);
+    if !verify_commit(commit, &m_state.state().local_public_key) {
+        return Err(HandleControlError::InvalidCommit);
+    }
+
+    // The src_plain_lock must match:
+    if Some(commit.src_plain_lock.hash_lock()) != open_invoice.opt_src_hashed_lock {
+        return Err(HandleControlError::InvalidCommit);
     }
 
     // Push collect messages for all pending requests
-    for commit in &multi_commit.commits {
-        let incoming_transaction = if let Some(incoming_transaction) = open_invoice
-            .incoming_transactions
-            .get(&commit.dest_hashed_lock)
+    for request_id in &open_invoice.incoming_transactions {
+        let friend_public_key = if let Some(friend_public_key) =
+            find_request_origin(m_state.state(), &open_invoice.currency, request_id)
         {
-            incoming_transaction
-        } else {
-            warn!("control_commit_invoice(): Failed to find matching incoming transaction.");
-            continue;
-        };
-
-        let friend_public_key = if let Some(friend_public_key) = find_request_origin(
-            m_state.state(),
-            &open_invoice.currency,
-            &incoming_transaction.request_id,
-        ) {
             friend_public_key.clone()
         } else {
             warn!("control_commit_invoice(): Failed to find request origin");
@@ -1102,9 +1120,9 @@ where
         };
 
         let collect_send_funds = CollectSendFundsOp {
-            request_id: incoming_transaction.request_id.clone(),
+            request_id: request_id.clone(),
             src_plain_lock: commit.src_plain_lock.clone(),
-            dest_plain_lock: incoming_transaction.dest_plain_lock.clone(),
+            dest_plain_lock: open_invoice.dest_plain_lock.clone(),
         };
 
         let friend_mutation = FriendMutation::PushBackPendingBackwardsOp((
@@ -1120,7 +1138,7 @@ where
     }
 
     // Remove invoice:
-    let funder_mutation = FunderMutation::RemoveInvoice(multi_commit.invoice_id.clone());
+    let funder_mutation = FunderMutation::RemoveInvoice(commit.invoice_id.clone());
     m_state.mutate(funder_mutation);
 
     Ok(())
@@ -1220,14 +1238,13 @@ where
 
         // Buyer API:
         FunderControl::CreatePayment(create_payment) => {
-            control_create_payment(m_state, create_payment)
+            control_create_payment(m_state, rng, create_payment)
         }
         FunderControl::CreateTransaction(create_transaction) => control_create_transaction(
             m_state,
             m_ephemeral.ephemeral(),
             outgoing_control,
             send_commands,
-            rng,
             max_pending_user_requests,
             create_transaction,
         ),
@@ -1239,12 +1256,12 @@ where
         }
 
         // Seller API:
-        FunderControl::AddInvoice(add_invoice) => control_add_invoice(m_state, add_invoice),
+        FunderControl::AddInvoice(add_invoice) => control_add_invoice(m_state, rng, add_invoice),
         FunderControl::CancelInvoice(invoice_id) => {
             control_cancel_invoice(m_state, send_commands, invoice_id)
         }
-        FunderControl::CommitInvoice(multi_commit) => {
-            control_commit_invoice(m_state, send_commands, &multi_commit)
+        FunderControl::CommitInvoice(commit) => {
+            control_commit_invoice(m_state, send_commands, &commit)
         }
     }
 }

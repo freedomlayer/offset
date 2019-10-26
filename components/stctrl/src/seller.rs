@@ -8,10 +8,10 @@ use derive_more::From;
 use app::crypto::PublicKey;
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, Currency, MultiCommit};
+use app::{AppConn, AppSeller, Commit, Currency};
 
+use crate::file::CommitFile;
 use crate::file::InvoiceFile;
-use crate::file::MultiCommitFile;
 
 use structopt::StructOpt;
 
@@ -152,18 +152,17 @@ async fn seller_commit_invoice(
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    let multi_commit_file: MultiCommitFile =
-        deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
-    let multi_commit = MultiCommit::from(multi_commit_file);
+    let commit_file: CommitFile = deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
+    let commit = Commit::from(commit_file);
 
-    if multi_commit.invoice_id != invoice_file.invoice_id {
+    if commit.invoice_id != invoice_file.invoice_id {
         return Err(SellerError::InvoiceCommitMismatch);
     }
 
     // HACK:
     #[allow(clippy::let_and_return)]
     let res = app_seller
-        .commit_invoice(multi_commit)
+        .commit_invoice(commit)
         .await
         .map_err(|_| SellerError::CommitInvoiceError);
     res

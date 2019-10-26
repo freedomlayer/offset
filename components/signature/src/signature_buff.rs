@@ -35,6 +35,7 @@ pub fn create_response_signature_buffer<S>(
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
     sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
     sbuffer.extend_from_slice(&response_send_funds.dest_hashed_lock);
+    sbuffer.extend_from_slice(&response_send_funds.is_complete.canonical_serialize());
     sbuffer
         .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();

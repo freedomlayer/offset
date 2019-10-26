@@ -285,8 +285,9 @@ where
             )]
         }
         FunderMutation::AddInvoice(_)
-        | FunderMutation::RemoveInvoice(_)
         | FunderMutation::AddIncomingTransaction(_)
+        | FunderMutation::SetInvoiceSrcHashedLock(_)
+        | FunderMutation::RemoveInvoice(_)
         | FunderMutation::AddTransaction(_)
         | FunderMutation::RemoveTransaction(_)
         | FunderMutation::SetTransactionResponse(_)

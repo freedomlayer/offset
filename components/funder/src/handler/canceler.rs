@@ -14,7 +14,7 @@ use crate::handler::types::SendCommands;
 use crate::handler::utils::find_request_origin;
 
 use crate::friend::{BackwardsOp, ChannelStatus, FriendMutation};
-use crate::state::{FunderMutation, Payment};
+use crate::state::{FunderMutation, Payment, PaymentStage};
 use crate::types::{create_cancel_send_funds, create_pending_transaction};
 
 #[derive(Debug)]
@@ -72,47 +72,56 @@ where
     let funder_mutation = FunderMutation::RemoveTransaction(request_id.clone());
     m_state.mutate(funder_mutation);
 
+    let Payment {
+        src_plain_lock,
+        stage,
+    } = payment;
+
     // Update payment:
     // - Decrease num_transactions
     // - Possibly remove payment
-    let opt_new_payment = match payment {
-        Payment::NewTransactions(new_transactions) => {
+    let opt_new_stage = match stage {
+        PaymentStage::NewTransactions(new_transactions) => {
             let mut new_new_transactions = new_transactions.clone();
             new_new_transactions.num_transactions =
                 new_transactions.num_transactions.checked_sub(1).unwrap();
-            Some(Payment::NewTransactions(new_new_transactions))
+            Some(PaymentStage::NewTransactions(new_new_transactions))
         }
-        Payment::InProgress(num_transactions) => {
+        PaymentStage::InProgress(num_transactions) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
             if new_num_transactions > 0 {
-                Some(Payment::InProgress(new_num_transactions))
+                Some(PaymentStage::InProgress(new_num_transactions))
             } else {
                 let ack_uid = Uid::rand_gen(rng);
-                Some(Payment::Canceled(ack_uid))
+                Some(PaymentStage::Canceled(ack_uid))
             }
         }
-        Payment::Success((num_transactions, receipt, request_id)) => {
+        PaymentStage::Success((num_transactions, receipt, request_id)) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
-            Some(Payment::Success((
+            Some(PaymentStage::Success((
                 new_num_transactions,
                 receipt.clone(),
                 request_id,
             )))
         }
-        Payment::Canceled(_) => {
+        PaymentStage::Canceled(_) => {
             unreachable!();
         }
-        Payment::AfterSuccessAck(num_transactions) => {
+        PaymentStage::AfterSuccessAck(num_transactions) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
             if new_num_transactions > 0 {
-                Some(Payment::AfterSuccessAck(new_num_transactions))
+                Some(PaymentStage::AfterSuccessAck(new_num_transactions))
             } else {
                 None
             }
         }
     };
 
-    let funder_mutation = if let Some(new_payment) = opt_new_payment {
+    let funder_mutation = if let Some(new_stage) = opt_new_stage {
+        let new_payment = Payment {
+            src_plain_lock,
+            stage: new_stage,
+        };
         FunderMutation::UpdatePayment((open_transaction.payment_id, new_payment))
     } else {
         FunderMutation::RemovePayment(open_transaction.payment_id)

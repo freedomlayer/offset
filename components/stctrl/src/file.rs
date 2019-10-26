@@ -4,7 +4,7 @@ use app::crypto::{
     HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
 };
 use app::report::MoveTokenHashedReport;
-use app::{Commit, Currency, MultiCommit, Receipt, TokenInfo};
+use app::{Commit, Currency, Receipt, TokenInfo};
 
 use mutual_from::mutual_from;
 
@@ -26,26 +26,20 @@ pub struct InvoiceFile {
 pub struct CommitFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub response_hash: HashResult,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub dest_payment: u128,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub src_plain_lock: PlainLock,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    pub signature: Signature,
-}
-
-/// A helper structure for serialize and deserializing MultiCommit.
-#[derive(Serialize, Deserialize)]
-pub struct MultiCommitFile {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub total_dest_payment: u128,
-    pub commits: Vec<CommitFile>,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub signature: Signature,
 }
 
 /// A helper structure for serialize and deserializing Payment.
@@ -69,6 +63,7 @@ pub struct ReceiptFile {
     pub src_plain_lock: PlainLock,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_plain_lock: PlainLock,
+    pub is_complete: bool,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
@@ -88,28 +83,6 @@ pub struct TokenFile {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub new_token: Signature,
     pub token_info: TokenInfo,
-}
-
-impl std::convert::From<MultiCommit> for MultiCommitFile {
-    fn from(input: MultiCommit) -> Self {
-        MultiCommitFile {
-            invoice_id: input.invoice_id,
-            currency: input.currency,
-            total_dest_payment: input.total_dest_payment,
-            commits: input.commits.into_iter().map(CommitFile::from).collect(),
-        }
-    }
-}
-
-impl std::convert::From<MultiCommitFile> for MultiCommit {
-    fn from(input: MultiCommitFile) -> Self {
-        MultiCommit {
-            invoice_id: input.invoice_id,
-            currency: input.currency,
-            total_dest_payment: input.total_dest_payment,
-            commits: input.commits.into_iter().map(Commit::from).collect(),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -134,14 +107,18 @@ mod test {
 
     #[test]
     fn test_serialize_multi_commit_file() {
-        let multi_commit_file = MultiCommitFile {
-            invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
-            currency: Currency::try_from("FST".to_owned()).unwrap(),
+        let commit_file = CommitFile {
+            response_hash: HashResult::from(&[0u8; HashResult::len()]),
+            src_plain_lock: PlainLock::from(&[1u8; PlainLock::len()]),
+            dest_hashed_lock: HashedLock::from(&[3u8; HashedLock::len()]),
+            dest_payment: 4u128,
             total_dest_payment: 5u128,
-            commits: Vec::new(),
+            invoice_id: InvoiceId::from(&[6u8; InvoiceId::len()]),
+            currency: Currency::try_from("FST".to_owned()).unwrap(),
+            signature: Signature::from(&[7u8; Signature::len()]),
         };
 
-        let _ = toml::to_string(&multi_commit_file).unwrap();
+        let _ = toml::to_string(&commit_file).unwrap();
     }
 
     /// Check if we can serialize TokenFile into TOML without crasing

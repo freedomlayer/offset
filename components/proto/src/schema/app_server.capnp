@@ -11,7 +11,6 @@ using import "common.capnp".PaymentId;
 using import "common.capnp".Rate;
 using import "common.capnp".Receipt;
 using import "common.capnp".Commit;
-using import "common.capnp".MultiCommit;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
@@ -170,8 +169,9 @@ struct ReportMutations {
 
 struct RequestResult {
         union {
-                success @0: Commit;
-                failure @1: Void;
+                complete @0: Commit;
+                success @1: Void;
+                failure @2: Void;
         }
 }
 
@@ -231,7 +231,7 @@ struct AppRequest {
         # Seller (Receiving funds):
         addInvoice @6: AddInvoice;
         cancelInvoice @7: InvoiceId;
-        commitInvoice @8: MultiCommit;
+        commitInvoice @8: Commit;
 
         # Friends management
         addFriend @9: AddFriend;

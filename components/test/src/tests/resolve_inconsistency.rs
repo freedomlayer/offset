@@ -14,7 +14,7 @@ use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::report::messages::ChannelStatusReport;
 
 use app::route::FriendsRoute;
-use app::{AppBuyer, AppSeller, Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate};
+use app::{AppBuyer, AppSeller, Currency, PaymentStatus, PaymentStatusSuccess, Rate};
 
 use timer::create_timer_incoming;
 
@@ -79,6 +79,7 @@ where
             fees,
         )
         .await
+        .unwrap()
         .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
@@ -87,18 +88,10 @@ where
         .await
         .unwrap();
 
-    // Node0: Compose a MultiCommit:
-    let multi_commit = MultiCommit {
-        invoice_id: invoice_id.clone(),
-        currency: currency.clone(),
-        total_dest_payment,
-        commits: vec![commit],
-    };
+    // Node0 now passes the Commit to Node1 out of band.
 
-    // Node0 now passes the MultiCommit to Node1 out of band.
-
-    // Node1: Apply the MultiCommit
-    app_seller.commit_invoice(multi_commit).await.unwrap();
+    // Node1: Apply the Commit
+    app_seller.commit_invoice(commit).await.unwrap();
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;

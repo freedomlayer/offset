@@ -5,7 +5,7 @@ use common::test_executor::TestExecutor;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
-    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
+    FriendsRoute, FunderControl, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
 
 use super::utils::{create_node_controls, dummy_relay_address};
@@ -190,23 +190,15 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         .unwrap();
 
     let commit = match transaction_result.result {
-        RequestResult::Success(commit) => commit,
+        RequestResult::Complete(commit) => commit,
         _ => unreachable!(),
     };
 
-    // 0: Create multi commit:
-    let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
-        currency: currency1.clone(),
-        total_dest_payment: 15,
-        commits: vec![commit],
-    };
+    // Commit: 0 ==> 2  (Out of band)
 
-    // MultiCommit: 0 ==> 2  (Out of band)
-
-    // 2: Apply MultiCommit:
+    // 2: Apply Commit:
     node_controls[2]
-        .send(FunderControl::CommitInvoice(multi_commit))
+        .send(FunderControl::CommitInvoice(commit))
         .await;
 
     // Wait until no more progress can be made (We should get a receipt)

@@ -91,6 +91,7 @@ pub struct RequestSendFundsOp {
 pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub dest_hashed_lock: HashedLock,
+    pub is_complete: bool,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
@@ -101,25 +102,20 @@ pub struct CancelSendFundsOp {
     pub request_id: Uid,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::common_capnp::commit)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub response_hash: HashResult,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub dest_payment: u128,
     pub src_plain_lock: PlainLock,
     pub dest_hashed_lock: HashedLock,
-    pub signature: Signature,
-}
-
-#[capnp_conv(crate::common_capnp::multi_commit)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct MultiCommit {
-    pub invoice_id: InvoiceId,
-    pub currency: Currency,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
-    pub commits: Vec<Commit>,
+    pub invoice_id: InvoiceId,
+    pub currency: Currency,
+    pub signature: Signature,
 }
 
 #[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
@@ -330,6 +326,7 @@ pub struct Receipt {
     pub currency: Currency,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
+    pub is_complete: bool,
     #[capnp_conv(with = Wrapper<u128>)]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -341,6 +338,7 @@ pub struct Receipt {
     #   sha512/256(requestId || sha512/256(route) || randNonce) ||
     #   srcHashedLock ||
     #   dstHashedLock ||
+    #   isComplete ||       (Assumed to be True)
     #   destPayment ||
     #   totalDestPayment ||
     #   invoiceId ||
@@ -352,7 +350,7 @@ pub struct Receipt {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
-    Response(HashedLock), // inner: dest_hashed_lock.
+    Response((HashedLock, bool)), // inner: (dest_hashed_lock, is_complete)
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -675,6 +673,7 @@ pub struct AckClosePayment {
     pub ack_uid: Uid,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderControl<B> {
     AddRelay(NamedRelayAddress<B>),
@@ -697,7 +696,7 @@ pub enum FunderControl<B> {
     // Seller API:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
-    CommitInvoice(MultiCommit),
+    CommitInvoice(Commit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -715,10 +714,12 @@ impl<B> FunderIncomingControl<B> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestResult {
-    Success(Commit),
+    Complete(Commit),
+    Success,
     // TODO: Should we add more information to the failure here?
     Failure,
 }

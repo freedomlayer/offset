@@ -18,7 +18,7 @@ use proto::crypto::{InvoiceId, PaymentId, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
     FriendMessage, FriendStatus, FriendsRoute, FunderControl, FunderIncomingControl,
-    FunderOutgoingControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
+    FunderOutgoingControl, PaymentStatus, Rate, RequestResult, RequestsStatus,
     SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendCurrencyRequestsStatus,
     SetFriendStatus,
 };
@@ -858,22 +858,14 @@ async fn task_handler_pair_basic<'a>(
     // We expect success:
     assert_eq!(transaction_result.request_id, Uid::from(&[1; Uid::len()]));
     let commit = match &transaction_result.result {
-        RequestResult::Success(commit) => commit.clone(),
+        RequestResult::Complete(commit) => commit.clone(),
         _ => unreachable!(),
     };
 
-    // Node2: Compose a MultiCommit message:
-    let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
-        currency: currency.clone(),
-        total_dest_payment: 16u128,
-        commits: vec![commit],
-    };
-
-    // Node1: Apply MultiCommit message received from Node2 (Received out of band):
+    // Node1: Apply Commit message received from Node2 (Received out of band):
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[21; Uid::len()]),
-        FunderControl::CommitInvoice(multi_commit),
+        FunderControl::CommitInvoice(commit),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(

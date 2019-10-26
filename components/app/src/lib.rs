@@ -24,8 +24,8 @@ pub use proto::ser_string;
 
 pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 pub use proto::funder::messages::{
-    BalanceInfo, Commit, CountersInfo, Currency, CurrencyBalanceInfo, McInfo, MultiCommit,
-    PaymentStatus, PaymentStatusSuccess, Rate, Receipt, TokenInfo,
+    BalanceInfo, Commit, CountersInfo, Currency, CurrencyBalanceInfo, McInfo, PaymentStatus,
+    PaymentStatusSuccess, Rate, Receipt, TokenInfo,
 };
 pub use proto::index_server::messages::NamedIndexServerAddress;
 

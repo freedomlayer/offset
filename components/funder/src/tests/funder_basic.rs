@@ -5,8 +5,10 @@ use common::test_executor::TestExecutor;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
-    FriendsRoute, FunderControl, MultiCommit, PaymentStatus, Rate, RequestResult, RequestsStatus,
+    FriendsRoute, FunderControl, PaymentStatus, Rate, RequestResult, RequestsStatus,
 };
+
+use signature::verify::verify_receipt;
 
 use super::utils::{create_node_controls, dummy_relay_address};
 
@@ -113,14 +115,16 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .send(FunderControl::CreatePayment(create_payment))
         .await;
 
-    // Create transaction 0 --> 1:
+    // We split the payment over two transactions:
+
+    // Create first transaction 0 --> 1: (Pay 3 credits)
     let create_transaction = CreateTransaction {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
         request_id: Uid::from(&[5u8; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![public_keys[0].clone(), public_keys[1].clone()],
         },
-        dest_payment: 4,
+        dest_payment: 3,
         fees: 1,
     };
 
@@ -132,24 +136,43 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    let commit = match transaction_result.result {
-        RequestResult::Success(commit) => commit,
+    // First transaction should be successful, but we don't get a produced
+    // commit yet, because we still have 1 more credit to pay:
+    match transaction_result.result {
+        RequestResult::Success => {}
         _ => unreachable!(),
     };
 
-    // 0: Create multi commit:
-    let multi_commit = MultiCommit {
-        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
-        currency: currency1.clone(),
-        total_dest_payment: 4,
-        commits: vec![commit],
+    // Create second transaction 0 --> 1: (Pay 1 credit)
+    let create_transaction = CreateTransaction {
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        request_id: Uid::from(&[6u8; Uid::len()]),
+        route: FriendsRoute {
+            public_keys: vec![public_keys[0].clone(), public_keys[1].clone()],
+        },
+        dest_payment: 1,
+        fees: 1,
     };
 
-    // MultiCommit: 0 ==> 1  (Out of band)
+    node_controls[0]
+        .send(FunderControl::CreateTransaction(create_transaction))
+        .await;
+    let transaction_result = node_controls[0]
+        .recv_until_transaction_result()
+        .await
+        .unwrap();
 
-    // 1: Apply MultiCommit:
+    // Invoice was fully paid. We get a commit message that we can send out of band:
+    let commit = match transaction_result.result {
+        RequestResult::Complete(commit) => commit,
+        _ => unreachable!(),
+    };
+
+    // Commit: 0 ==> 1  (Out of band)
+
+    // 1: Apply Commit:
     node_controls[1]
-        .send(FunderControl::CommitInvoice(multi_commit))
+        .send(FunderControl::CommitInvoice(commit))
         .await;
 
     // Wait until no more progress can be made
@@ -187,16 +210,22 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         receipt.invoice_id,
         InvoiceId::from(&[1u8; InvoiceId::len()])
     );
-    assert_eq!(receipt.dest_payment, 4);
+
+    // We don't know which of the two transactions will be the completed one,
+    // because we don't know which one will arrive first.
+    vec![1u128, 3u128].contains(&receipt.dest_payment);
     assert_eq!(receipt.total_dest_payment, 4);
 
     // Verify expected balances:
     node_controls[0]
-        .wait_friend_balance(&public_keys[1], &currency1, -5)
+        .wait_friend_balance(&public_keys[1], &currency1, -6)
         .await;
     node_controls[1]
-        .wait_friend_balance(&public_keys[0], &currency1, 5)
+        .wait_friend_balance(&public_keys[0], &currency1, 6)
         .await;
+
+    // Verify receipt:
+    assert!(verify_receipt(&receipt, &public_keys[1]));
 }
 
 #[test]

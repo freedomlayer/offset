@@ -5,7 +5,7 @@ use signature::canonical::CanonicalSerialize;
 use crypto::hash_lock::HashLock;
 use crypto::rand::{CryptoRandom, RandGen};
 
-use proto::crypto::{PlainLock, PublicKey, RandValue};
+use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{Currency, PendingTransaction};
 
 use identity::IdentityClient;
@@ -21,6 +21,7 @@ pub struct SemiResponse {
     friend_public_key: PublicKey,
     currency: Currency,
     pending_transaction: PendingTransaction,
+    is_complete: bool,
 }
 
 pub struct MutableFunderState<B: Clone> {
@@ -51,11 +52,13 @@ where
         friend_public_key: PublicKey,
         currency: Currency,
         pending_transaction: PendingTransaction,
+        is_complete: bool,
     ) {
         self.unsigned_responses.push(SemiResponse {
             friend_public_key,
             currency,
             pending_transaction,
+            is_complete,
         });
     }
 
@@ -81,10 +84,17 @@ where
                 friend_public_key,
                 currency,
                 pending_transaction,
+                is_complete,
             } = semi_response;
 
-            // Randomly generate a dest plain lock:
-            let dest_plain_lock = PlainLock::rand_gen(rng);
+            // Get corresponding dest_plain_lock:
+            let dest_plain_lock = self
+                .state()
+                .open_invoices
+                .get(&pending_transaction.invoice_id)
+                .unwrap()
+                .dest_plain_lock
+                .clone();
 
             // Mutation to push the new response:
             let rand_nonce = RandValue::rand_gen(rng);
@@ -93,6 +103,7 @@ where
                 &currency,
                 &pending_transaction,
                 dest_plain_lock.hash_lock(),
+                is_complete,
                 rand_nonce,
                 identity_client,
             )
@@ -103,14 +114,6 @@ where
                 FriendMutation::PushBackPendingBackwardsOp((currency, backwards_op));
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-            self.mutate(funder_mutation);
-
-            // Mutation to add the destination plain lock:
-            let funder_mutation = FunderMutation::AddIncomingTransaction((
-                pending_transaction.invoice_id,
-                pending_transaction.request_id,
-                dest_plain_lock,
-            ));
             self.mutate(funder_mutation);
         }
     }
