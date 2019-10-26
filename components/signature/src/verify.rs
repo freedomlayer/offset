@@ -64,42 +64,6 @@ pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
     verify_commit_signature(commit, local_public_key)
 }
 
-/*
-
-// TODO: Possibly split nicely into two functions?
-/// Verify that all the Commit-s inside a MultiCommit are valid
-pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &PublicKey) -> bool {
-    let mut is_sig_valid = true;
-    for commit in &multi_commit.commits {
-        // We don't exit immediately on verification failure to get a constant time verification.
-        // (Not sure if this is really important here)
-        is_sig_valid &= verify_commit(
-            commit,
-            &multi_commit.invoice_id,
-            &multi_commit.currency,
-            multi_commit.total_dest_payment,
-            local_public_key,
-        );
-    }
-    if !is_sig_valid {
-        return false;
-    }
-
-    // Check if the credits add up:
-    let mut sum_credits = 0u128;
-    for commit in &multi_commit.commits {
-        sum_credits = if let Some(sum_credits) = sum_credits.checked_add(commit.dest_payment) {
-            sum_credits
-        } else {
-            return false;
-        }
-    }
-
-    // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
-    sum_credits == multi_commit.total_dest_payment
-}
-*/
-
 /// Verify that new_token is a valid signature over the rest of the fields.
 pub fn verify_move_token<B>(move_token: &MoveToken<B>, public_key: &PublicKey) -> bool
 where
