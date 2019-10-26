@@ -2,6 +2,7 @@ use crypto::hash;
 use proto::crypto::PlainLock;
 use proto::funder::messages::{
     CollectSendFundsOp, Commit, Currency, PendingTransaction, Receipt, ResponseSendFundsOp,
+    TransactionStage,
 };
 
 pub fn prepare_receipt(
@@ -16,12 +17,18 @@ pub fn prepare_receipt(
     let response_hash = hash::sha_512_256(&hash_buff);
     // = sha512/256(requestId || randNonce)
 
+    let is_complete = match &pending_transaction.stage {
+        TransactionStage::Response((_dest_hashed_lock, is_complete)) => *is_complete,
+        _ => unreachable!(),
+    };
+
     Receipt {
         response_hash,
         invoice_id: pending_transaction.invoice_id.clone(),
         currency: currency.clone(),
         src_plain_lock: collect_send_funds.src_plain_lock.clone(),
         dest_plain_lock: collect_send_funds.dest_plain_lock.clone(),
+        is_complete,
         dest_payment: pending_transaction.dest_payment,
         total_dest_payment: pending_transaction.total_dest_payment,
         signature: response_send_funds.signature.clone(),

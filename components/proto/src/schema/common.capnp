@@ -154,9 +154,10 @@ struct Receipt {
         currency @2: Currency;
         srcPlainLock @3: PlainLock;
         destPlainLock @4: PlainLock;
-        destPayment @5: CustomUInt128;
-        totalDestPayment @6: CustomUInt128;
-        signature @7: Signature;
+        isComplete @5: Bool;
+        destPayment @6: CustomUInt128;
+        totalDestPayment @7: CustomUInt128;
+        signature @8: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || sha512/256(route) || randNonce) ||

@@ -326,6 +326,7 @@ pub struct Receipt {
     pub currency: Currency,
     pub src_plain_lock: PlainLock,
     pub dest_plain_lock: PlainLock,
+    pub is_complete: bool,
     #[capnp_conv(with = Wrapper<u128>)]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -337,6 +338,7 @@ pub struct Receipt {
     #   sha512/256(requestId || sha512/256(route) || randNonce) ||
     #   srcHashedLock ||
     #   dstHashedLock ||
+    #   isComplete ||       (Assumed to be True)
     #   destPayment ||
     #   totalDestPayment ||
     #   invoiceId ||
@@ -348,7 +350,7 @@ pub struct Receipt {
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
-    Response(HashedLock), // inner: dest_hashed_lock.
+    Response((HashedLock, bool)), // inner: (dest_hashed_lock, is_complete)
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
