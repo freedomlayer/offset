@@ -164,7 +164,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // Invoice was fully paid. We get a commit message that we can send out of band:
     match transaction_result.result {
-        RequestResult::Failure => {},
+        RequestResult::Failure => {}
         _ => unreachable!(),
     };
 
