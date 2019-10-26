@@ -63,6 +63,7 @@ pub struct ReceiptFile {
     pub src_plain_lock: PlainLock,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_plain_lock: PlainLock,
+    pub is_complete: bool,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
