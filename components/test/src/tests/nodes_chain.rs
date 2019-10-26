@@ -8,7 +8,7 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{Currency, MultiCommit, PaymentStatus, PaymentStatusSuccess, Rate};
+use proto::funder::messages::{Currency, PaymentStatus, PaymentStatusSuccess, Rate};
 
 use timer::create_timer_incoming;
 
@@ -434,7 +434,9 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             fees,
         )
         .await
+        .unwrap()
         .unwrap();
+
 
     // Node0: Close payment (No more transactions will be sent through this payment)
     let _ = apps[0]
@@ -444,21 +446,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    // Node0: Compose a MultiCommit:
-    let multi_commit = MultiCommit {
-        invoice_id: invoice_id.clone(),
-        currency: currency1.clone(),
-        total_dest_payment,
-        commits: vec![commit],
-    };
+    // Node0 now passes the Commit to Node4 out of band.
 
-    // Node0 now passes the MultiCommit to Node4 out of band.
-
-    // Node4: Apply the MultiCommit
+    // Node4: Apply the Commit
     apps[4]
         .seller()
         .unwrap()
-        .commit_invoice(multi_commit)
+        .commit_invoice(commit)
         .await
         .unwrap();
 
@@ -552,7 +546,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             fees,
         )
         .await
-        .unwrap();
+        .unwrap().unwrap();
 
     // Node5: Close payment (No more transactions will be sent through this payment)
     let _ = apps[5]
@@ -562,21 +556,13 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    // Node5: Compose a MultiCommit:
-    let multi_commit = MultiCommit {
-        invoice_id: invoice_id.clone(),
-        currency: currency1.clone(),
-        total_dest_payment,
-        commits: vec![commit],
-    };
+    // Node5 now passes the Commit to Node3 out of band.
 
-    // Node5 now passes the MultiCommit to Node3 out of band.
-
-    // Node3: Apply the MultiCommit
+    // Node3: Apply the Commit
     apps[3]
         .seller()
         .unwrap()
-        .commit_invoice(multi_commit)
+        .commit_invoice(commit)
         .await
         .unwrap();
 
