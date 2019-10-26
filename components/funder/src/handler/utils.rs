@@ -90,6 +90,43 @@ where
     None
 }
 
+/// Find an incoming pending transaction
+pub fn find_remote_pending_transaction<'a, B>(
+    state: &'a FunderState<B>,
+    currency: &Currency,
+    request_id: &Uid,
+) -> Option<&'a PendingTransaction>
+where
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+{
+    for (_friend_public_key, friend) in &state.friends {
+        match &friend.channel_status {
+            ChannelStatus::Inconsistent(_) => continue,
+            ChannelStatus::Consistent(channel_consistent) => {
+                let mutual_credit = if let Some(mutual_credit) = channel_consistent
+                    .token_channel
+                    .get_mutual_credits()
+                    .get(currency)
+                {
+                    mutual_credit
+                } else {
+                    continue;
+                };
+
+                if let Some(pending_transaction) = mutual_credit
+                    .state()
+                    .pending_transactions
+                    .remote
+                    .get(request_id)
+                {
+                    return Some(pending_transaction);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn is_friend_ready<B>(
     state: &FunderState<B>,
     ephemeral: &Ephemeral,

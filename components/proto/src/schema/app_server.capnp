@@ -169,8 +169,9 @@ struct ReportMutations {
 
 struct RequestResult {
         union {
-                success @0: Commit;
-                failure @1: Void;
+                complete @0: Commit;
+                success @1: Void;
+                failure @2: Void;
         }
 }
 

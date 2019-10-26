@@ -27,7 +27,7 @@ use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
     SentLocalRelays,
 };
-use crate::state::{FunderMutation, Payment};
+use crate::state::{FunderMutation, FunderState, Payment};
 
 use crate::ephemeral::Ephemeral;
 
@@ -38,7 +38,9 @@ use crate::handler::canceler::{
 use crate::handler::prepare::{prepare_commit, prepare_receipt};
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
 use crate::handler::types::SendCommands;
-use crate::handler::utils::{find_request_origin, is_friend_ready};
+use crate::handler::utils::{
+    find_remote_pending_transaction, find_request_origin, is_friend_ready,
+};
 
 #[derive(Debug)]
 pub enum HandleFriendError {
@@ -208,6 +210,73 @@ fn forward_request<B>(
     send_commands.set_try_send(next_pk);
 }
 
+#[derive(Debug)]
+enum CheckRequest {
+    Complete,
+    Success,
+    Failure,
+}
+
+/// Check if we can add a request into a local OpenInvoice
+fn check_request<B>(state: &FunderState<B>, request_send_funds: &RequestSendFundsOp) -> CheckRequest
+where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    // First make sure that we have a matching open invoice for this transaction:
+    let open_invoice =
+        if let Some(open_invoice) = state.open_invoices.get(&request_send_funds.invoice_id) {
+            open_invoice
+        } else {
+            return CheckRequest::Failure;
+        };
+
+    if open_invoice.total_dest_payment != request_send_funds.total_dest_payment {
+        return CheckRequest::Failure;
+    }
+    if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
+        return CheckRequest::Failure;
+    }
+
+    // Calculate the amounts of funds already paid for this OpenInvoice:
+    let mut total_paid = 0u128;
+    for request_id in &open_invoice.incoming_transactions {
+        let pending_transaction =
+            find_remote_pending_transaction(state, &open_invoice.currency, request_id).unwrap();
+        assert_eq!(
+            pending_transaction.total_dest_payment,
+            open_invoice.total_dest_payment
+        );
+        total_paid = total_paid
+            .checked_add(pending_transaction.dest_payment)
+            .unwrap();
+    }
+
+    // Check if we have room to pay more with the new transaction:
+    let new_total_paid =
+        if let Some(new_total_paid) = total_paid.checked_add(request_send_funds.dest_payment) {
+            new_total_paid
+        } else {
+            // Overflow occured:
+            return CheckRequest::Failure;
+        };
+
+    // TODO: Should we allow paying more than total_dest_payment?
+    /*
+    if new_total_paid > open_invoice.total_dest_payment {
+        // We do not allow to pay more than what the invoice requests for:
+        return CheckRequest::Failure;
+    }
+    */
+
+    if new_total_paid < open_invoice.total_dest_payment {
+        // Request is allowed, the invoice is not fully paid:
+        CheckRequest::Success
+    } else {
+        // Request is allowed, and the invoice is fully paid:
+        CheckRequest::Complete
+    }
+}
+
 fn handle_request_send_funds<B>(
     m_state: &mut MutableFunderState<B>,
     ephemeral: &Ephemeral,
@@ -221,27 +290,19 @@ fn handle_request_send_funds<B>(
     if request_send_funds.route.is_empty() {
         // We are the destination of this request.
 
-        // First make sure that we have a matching open invoice for this transaction:
-        let is_invoice_match = if let Some(open_invoice) = m_state
-            .state()
-            .open_invoices
-            .get(&request_send_funds.invoice_id)
-        {
-            open_invoice.total_dest_payment == request_send_funds.total_dest_payment
-                && request_send_funds.dest_payment <= request_send_funds.total_dest_payment
-        } else {
-            false
-        };
-
-        if !is_invoice_match {
-            reply_with_cancel(
-                m_state,
-                send_commands,
-                remote_public_key,
-                currency,
-                &request_send_funds.request_id,
-            );
-            return;
+        let is_complete = match check_request(m_state.state(), &request_send_funds) {
+            CheckRequest::Failure => {
+                reply_with_cancel(
+                    m_state,
+                    send_commands,
+                    remote_public_key,
+                    currency,
+                    &request_send_funds.request_id,
+                );
+                return;
+            }
+            CheckRequest::Success => false,
+            CheckRequest::Complete => true,
         };
 
         // We return a response:
@@ -250,6 +311,7 @@ fn handle_request_send_funds<B>(
             remote_public_key.clone(),
             currency.clone(),
             pending_transaction,
+            is_complete,
         );
         send_commands.set_try_send(&remote_public_key);
         return;
@@ -353,11 +415,23 @@ fn handle_response_send_funds<B>(
                 .src_plain_lock
                 .clone();
 
-            let commit = prepare_commit(&response_send_funds, &pending_transaction, src_plain_lock);
+            let transaction_result = if response_send_funds.is_complete {
+                let commit = prepare_commit(
+                    currency.clone(),
+                    &response_send_funds,
+                    &pending_transaction,
+                    src_plain_lock,
+                );
 
-            let transaction_result = TransactionResult {
-                request_id: response_send_funds.request_id,
-                result: RequestResult::Success(commit),
+                TransactionResult {
+                    request_id: response_send_funds.request_id.clone(),
+                    result: RequestResult::Complete(commit),
+                }
+            } else {
+                TransactionResult {
+                    request_id: response_send_funds.request_id.clone(),
+                    result: RequestResult::Success,
+                }
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
         }

@@ -46,12 +46,14 @@ pub async fn create_response_send_funds<'a>(
     currency: &Currency,
     pending_transaction: &'a PendingTransaction,
     dest_hashed_lock: HashedLock,
+    is_complete: bool,
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
     let u_response_send_funds = ResponseSendFundsOp {
         request_id: pending_transaction.request_id.clone(),
         dest_hashed_lock,
+        is_complete,
         rand_nonce,
         signature: (),
     };
@@ -66,6 +68,7 @@ pub async fn create_response_send_funds<'a>(
     ResponseSendFundsOp {
         request_id: u_response_send_funds.request_id,
         dest_hashed_lock: u_response_send_funds.dest_hashed_lock,
+        is_complete: u_response_send_funds.is_complete,
         rand_nonce: u_response_send_funds.rand_nonce,
         signature,
     }

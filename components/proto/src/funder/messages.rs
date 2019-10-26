@@ -91,6 +91,7 @@ pub struct RequestSendFundsOp {
 pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub dest_hashed_lock: HashedLock,
+    pub is_complete: bool,
     pub rand_nonce: RandValue,
     pub signature: S,
 }
@@ -712,7 +713,8 @@ impl<B> FunderIncomingControl<B> {
 #[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestResult {
-    Success(Commit),
+    Complete(Commit),
+    Success,
     // TODO: Should we add more information to the failure here?
     Failure,
 }

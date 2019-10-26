@@ -4,9 +4,9 @@ use crypto::hash;
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
-use proto::crypto::{InvoiceId, PublicKey};
+use proto::crypto::PublicKey;
 
-use proto::funder::messages::{Commit, Currency, MoveToken, MultiCommit, Receipt};
+use proto::funder::messages::{Commit, MoveToken, Receipt};
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
 
@@ -33,25 +33,35 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 }
 
 /// Verify that a given Commit signature is valid
-fn verify_commit(
-    commit: &Commit,
-    invoice_id: &InvoiceId,
-    currency: &Currency,
-    total_dest_payment: u128,
-    local_public_key: &PublicKey,
-) -> bool {
+fn verify_commit_signature(commit: &Commit, local_public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
 
     data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
     data.extend(commit.response_hash.as_ref());
     data.extend_from_slice(&commit.src_plain_lock.hash_lock());
     data.extend_from_slice(&commit.dest_hashed_lock);
+    let is_complete = true;
+    data.extend_from_slice(&is_complete.canonical_serialize());
     data.write_u128::<BigEndian>(commit.dest_payment).unwrap();
-    data.write_u128::<BigEndian>(total_dest_payment).unwrap();
-    data.extend(invoice_id.as_ref());
-    data.extend_from_slice(&currency.canonical_serialize());
+    data.write_u128::<BigEndian>(commit.total_dest_payment)
+        .unwrap();
+    data.extend(commit.invoice_id.as_ref());
+    data.extend_from_slice(&commit.currency.canonical_serialize());
     verify_signature(&data, local_public_key, &commit.signature)
 }
+
+/// Verify a Commit message
+pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
+    // Make sure that the relationship between dest_payment and total_dest_payment makes sense:
+    if commit.total_dest_payment < commit.dest_payment {
+        return false;
+    }
+
+    // Verify signature:
+    verify_commit_signature(commit, local_public_key)
+}
+
+/*
 
 // TODO: Possibly split nicely into two functions?
 /// Verify that all the Commit-s inside a MultiCommit are valid
@@ -85,6 +95,7 @@ pub fn verify_multi_commit(multi_commit: &MultiCommit, local_public_key: &Public
     // Require that the multi_commit.total_dest_payment matches the sum of all commit.dest_payment:
     sum_credits == multi_commit.total_dest_payment
 }
+*/
 
 /// Verify that new_token is a valid signature over the rest of the fields.
 pub fn verify_move_token<B>(move_token: &MoveToken<B>, public_key: &PublicKey) -> bool

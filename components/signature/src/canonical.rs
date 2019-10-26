@@ -68,7 +68,18 @@ impl CanonicalSerialize for &str {
     }
 }
 
-// Used mostly for testing:
+impl CanonicalSerialize for bool {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        if *self == false {
+            // false:
+            vec![0]
+        } else {
+            // true:
+            vec![1]
+        }
+    }
+}
+
 impl CanonicalSerialize for u32 {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_data = Vec::new();
@@ -153,6 +164,9 @@ impl CanonicalSerialize for RequestSendFundsOp {
         res_bytes
             .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.total_dest_payment)
+            .unwrap();
         res_bytes.extend_from_slice(&self.invoice_id);
         // We do not sign over`left_fees`, because this field changes as the request message is
         // forwarded.
@@ -166,6 +180,7 @@ impl CanonicalSerialize for ResponseSendFundsOp {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.request_id);
         res_bytes.extend_from_slice(&self.dest_hashed_lock);
+        res_bytes.extend_from_slice(&self.is_complete.canonical_serialize());
         res_bytes.extend_from_slice(&self.rand_nonce);
         res_bytes.extend_from_slice(&self.signature);
         res_bytes

@@ -30,10 +30,13 @@ pub fn prepare_receipt(
 
 /// Create a Commit (out of band) message given a ResponseSendFunds
 pub fn prepare_commit(
+    currency: Currency,
     response_send_funds: &ResponseSendFundsOp,
     pending_transaction: &PendingTransaction,
     src_plain_lock: PlainLock,
 ) -> Commit {
+    assert!(response_send_funds.is_complete);
+
     let mut hash_buff = Vec::new();
     hash_buff.extend_from_slice(&pending_transaction.request_id);
     hash_buff.extend_from_slice(&response_send_funds.rand_nonce);
@@ -42,9 +45,12 @@ pub fn prepare_commit(
 
     Commit {
         response_hash,
-        dest_payment: pending_transaction.dest_payment,
         src_plain_lock,
         dest_hashed_lock: response_send_funds.dest_hashed_lock.clone(),
+        dest_payment: pending_transaction.dest_payment,
+        total_dest_payment: pending_transaction.total_dest_payment,
+        invoice_id: pending_transaction.invoice_id.clone(),
+        currency,
         signature: response_send_funds.signature.clone(),
     }
 }
