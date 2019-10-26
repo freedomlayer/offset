@@ -266,20 +266,15 @@ where
             return CheckRequest::Failure;
         };
 
-    // TODO: Should we allow paying more than total_dest_payment?
-    /*
-    if new_total_paid > open_invoice.total_dest_payment {
-        // We do not allow to pay more than what the invoice requests for:
-        return CheckRequest::Failure;
-    }
-    */
-
     if new_total_paid < open_invoice.total_dest_payment {
         // Request is allowed, the invoice is not fully paid:
         CheckRequest::Success
-    } else {
+    } else if new_total_paid == open_invoice.total_dest_payment {
         // Request is allowed, and the invoice is fully paid:
         CheckRequest::Complete
+    } else {
+        // We do not allow paying more than total_dest_payment
+        CheckRequest::Failure
     }
 }
 
