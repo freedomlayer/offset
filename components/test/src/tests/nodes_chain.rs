@@ -437,7 +437,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .unwrap();
 
-
     // Node0: Close payment (No more transactions will be sent through this payment)
     let _ = apps[0]
         .buyer()
@@ -546,7 +545,8 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
             fees,
         )
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
 
     // Node5: Close payment (No more transactions will be sent through this payment)
     let _ = apps[5]

@@ -12,7 +12,6 @@ use signature::verify::verify_receipt;
 
 use super::utils::{create_node_controls, dummy_relay_address};
 
-
 async fn task_funder_basic(test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
     let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
@@ -117,7 +116,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         .await;
 
     // We split the payment over two transactions:
-    
+
     // Create first transaction 0 --> 1: (Pay 3 credits)
     let create_transaction = CreateTransaction {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
@@ -140,7 +139,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
     // First transaction should be successful, but we don't get a produced
     // commit yet, because we still have 1 more credit to pay:
     match transaction_result.result {
-        RequestResult::Success => {},
+        RequestResult::Success => {}
         _ => unreachable!(),
     };
 
@@ -214,7 +213,7 @@ async fn task_funder_basic(test_executor: TestExecutor) {
 
     // We don't know which of the two transactions will be the completed one,
     // because we don't know which one will arrive first.
-    vec![1u128,3u128].contains(&receipt.dest_payment);
+    vec![1u128, 3u128].contains(&receipt.dest_payment);
     assert_eq!(receipt.total_dest_payment, 4);
 
     // Verify expected balances:

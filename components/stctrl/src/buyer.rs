@@ -13,7 +13,7 @@ use app::gen::{gen_payment_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::{AppBuyer, AppConn, AppRoutes, Commit, PaymentStatus, PaymentStatusSuccess};
 
-use crate::file::{InvoiceFile, CommitFile, PaymentFile, ReceiptFile};
+use crate::file::{CommitFile, InvoiceFile, PaymentFile, ReceiptFile};
 
 use crate::multi_route_util::choose_multi_route;
 
@@ -195,7 +195,7 @@ async fn buyer_pay_invoice(
         let (output, _fut_index, new_fut_list) = select_all(fut_list).await;
         match output {
             Ok(Some(commit)) => opt_commit = Some(commit),
-            Ok(None) => {},
+            Ok(None) => {}
             Err(_) => {
                 let _ = app_buyer.request_close_payment(payment_id.clone()).await;
                 return Err(BuyerError::CreateTransactionFailed);

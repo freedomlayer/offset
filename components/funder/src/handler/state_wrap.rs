@@ -88,8 +88,13 @@ where
             } = semi_response;
 
             // Get corresponding dest_plain_lock:
-            let dest_plain_lock =
-                self.state().open_invoices.get(&pending_transaction.invoice_id).unwrap().dest_plain_lock.clone();
+            let dest_plain_lock = self
+                .state()
+                .open_invoices
+                .get(&pending_transaction.invoice_id)
+                .unwrap()
+                .dest_plain_lock
+                .clone();
 
             // Mutation to push the new response:
             let rand_nonce = RandValue::rand_gen(rng);
@@ -110,7 +115,6 @@ where
             let funder_mutation =
                 FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
             self.mutate(funder_mutation);
-
         }
     }
 

@@ -8,10 +8,10 @@ use derive_more::From;
 use app::crypto::PublicKey;
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, Currency, Commit};
+use app::{AppConn, AppSeller, Commit, Currency};
 
-use crate::file::InvoiceFile;
 use crate::file::CommitFile;
+use crate::file::InvoiceFile;
 
 use structopt::StructOpt;
 
@@ -152,8 +152,7 @@ async fn seller_commit_invoice(
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    let commit_file: CommitFile =
-        deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
+    let commit_file: CommitFile = deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
     let commit = Commit::from(commit_file);
 
     if commit.invoice_id != invoice_file.invoice_id {

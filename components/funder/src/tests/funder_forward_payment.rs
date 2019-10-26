@@ -194,7 +194,6 @@ async fn task_funder_forward_payment(test_executor: TestExecutor) {
         _ => unreachable!(),
     };
 
-
     // Commit: 0 ==> 2  (Out of band)
 
     // 2: Apply Commit:

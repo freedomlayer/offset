@@ -5,8 +5,7 @@ use common::test_executor::TestExecutor;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{
     AckClosePayment, AddInvoice, CreatePayment, CreateTransaction, Currency, FriendStatus,
-    FriendsRoute, FunderControl, PaymentStatus, RequestResult, RequestsStatus,
-    ResetFriendChannel,
+    FriendsRoute, FunderControl, PaymentStatus, RequestResult, RequestsStatus, ResetFriendChannel,
 };
 use proto::report::messages::{ChannelStatusReport, FunderReport};
 

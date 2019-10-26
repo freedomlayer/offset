@@ -79,7 +79,8 @@ where
             fees,
         )
         .await
-        .unwrap().unwrap();
+        .unwrap()
+        .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
     let _ = app_buyer
