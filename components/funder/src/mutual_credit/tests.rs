@@ -165,6 +165,7 @@ fn test_request_response_collect_send_funds() {
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
         dest_hashed_lock: dest_plain_lock.hash_lock(),
+        is_complete: false,
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; Signature::len()]),
     };
@@ -354,6 +355,7 @@ fn test_request_response_cancel_send_funds() {
     let mut response_send_funds = ResponseSendFundsOp {
         request_id: request_id.clone(),
         dest_hashed_lock: dest_plain_lock.hash_lock(),
+        is_complete: true,
         rand_nonce: rand_nonce.clone(),
         signature: Signature::from(&[0; Signature::len()]),
     };
