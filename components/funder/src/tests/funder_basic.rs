@@ -143,6 +143,31 @@ async fn task_funder_basic(test_executor: TestExecutor) {
         _ => unreachable!(),
     };
 
+    // Attempt a second transaction 0 --> 1 with too many credits (It should fail)
+    let create_transaction = CreateTransaction {
+        payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
+        request_id: Uid::from(&[6u8; Uid::len()]),
+        route: FriendsRoute {
+            public_keys: vec![public_keys[0].clone(), public_keys[1].clone()],
+        },
+        dest_payment: 4,
+        fees: 1,
+    };
+
+    node_controls[0]
+        .send(FunderControl::CreateTransaction(create_transaction))
+        .await;
+    let transaction_result = node_controls[0]
+        .recv_until_transaction_result()
+        .await
+        .unwrap();
+
+    // Invoice was fully paid. We get a commit message that we can send out of band:
+    match transaction_result.result {
+        RequestResult::Failure => {}
+        _ => unreachable!(),
+    };
+
     // Create second transaction 0 --> 1: (Pay 1 credit)
     let create_transaction = CreateTransaction {
         payment_id: PaymentId::from(&[2u8; PaymentId::len()]),
