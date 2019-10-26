@@ -49,8 +49,9 @@ matrix:
     os: osx
     rust: none
     osx_image: xcode9.4.1
+    # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
     before_script:
-    - brew install capnp
+    - HOMEBREW_NO_AUTO_UPDATE=1 brew install capnp
     script:
     - cargo test
 
