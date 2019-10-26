@@ -969,10 +969,7 @@ where
         .ok_or(HandleControlError::PaymentDoesNotExist)?
         .clone();
 
-    let Payment {
-        src_plain_lock: _,
-        stage,
-    } = payment;
+    let Payment { stage, .. } = payment;
 
     match stage {
         PaymentStage::NewTransactions(_)
