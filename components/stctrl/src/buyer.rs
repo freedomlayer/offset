@@ -11,9 +11,9 @@ use structopt::StructOpt;
 use app::crypto::PublicKey;
 use app::gen::{gen_payment_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppBuyer, AppConn, AppRoutes, MultiCommit, PaymentStatus, PaymentStatusSuccess};
+use app::{AppBuyer, AppConn, AppRoutes, Commit, PaymentStatus, PaymentStatusSuccess};
 
-use crate::file::{InvoiceFile, MultiCommitFile, PaymentFile, ReceiptFile};
+use crate::file::{InvoiceFile, CommitFile, PaymentFile, ReceiptFile};
 
 use crate::multi_route_util::choose_multi_route;
 
@@ -78,6 +78,7 @@ pub enum BuyerError {
     StorePaymentError,
     LoadPaymentError,
     RemovePaymentError,
+    PaymentIncomplete,
     IoError(std::io::Error),
     StringSerdeError(StringSerdeError),
 }
@@ -102,7 +103,7 @@ async fn buyer_pay_invoice(
         return Err(BuyerError::PaymentFileAlreadyExists);
     }
 
-    // Make sure that we will be able to write the MultiCommit
+    // Make sure that we will be able to write the Commit
     // before we do the actual payment:
     if commit_path.exists() {
         return Err(BuyerError::CommitFileAlreadyExists);
@@ -189,11 +190,12 @@ async fn buyer_pay_invoice(
         );
     }
 
-    let mut commits = Vec::new();
+    let mut opt_commit = None;
     for _ in 0..multi_route_choice.len() {
         let (output, _fut_index, new_fut_list) = select_all(fut_list).await;
         match output {
-            Ok(commit) => commits.push(commit),
+            Ok(Some(commit)) => opt_commit = Some(commit),
+            Ok(None) => {},
             Err(_) => {
                 let _ = app_buyer.request_close_payment(payment_id.clone()).await;
                 return Err(BuyerError::CreateTransactionFailed);
@@ -202,22 +204,23 @@ async fn buyer_pay_invoice(
         fut_list = new_fut_list;
     }
 
+    // We are not going to send anything more through this payment, so we close it:
     let _ = app_buyer.request_close_payment(payment_id).await;
 
-    let multi_commit = MultiCommit {
-        invoice_id: invoice_file.invoice_id.clone(),
-        currency: invoice_file.currency.clone(),
-        total_dest_payment: invoice_file.dest_payment,
-        commits,
+    let commit = if let Some(commit) = opt_commit {
+        commit
+    } else {
+        // For some reason we never got back a "is_complete=true" signal.
+        return Err(BuyerError::PaymentIncomplete);
     };
 
     writeln!(writer, "Payment successful!").map_err(|_| BuyerError::WriteError)?;
 
-    let multi_commit_file = MultiCommitFile::from(multi_commit);
+    let commit_file = CommitFile::from(commit);
 
-    // Store MultiCommit to file:
+    // Store Commit to file:
     let mut file = File::create(commit_path)?;
-    file.write_all(&serialize_to_string(&multi_commit_file)?.as_bytes())?;
+    file.write_all(&serialize_to_string(&commit_file)?.as_bytes())?;
 
     Ok(())
 }
