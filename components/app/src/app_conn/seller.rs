@@ -7,7 +7,7 @@ use proto::crypto::{InvoiceId, Uid};
 use crypto::rand::{CryptoRandom, OffstSystemRandom, RandGen};
 
 use proto::app_server::messages::{AppRequest, AppToAppServer};
-use proto::funder::messages::{AddInvoice, Currency, MultiCommit};
+use proto::funder::messages::{AddInvoice, Currency, Commit};
 
 // TODO: Different in naming convention from AppConfigError and AppRoutesError:
 #[derive(Debug)]
@@ -114,11 +114,11 @@ where
         Err(SellerError::NoResponse)
     }
 
-    pub async fn commit_invoice(&mut self, multi_commit: MultiCommit) -> Result<(), SellerError> {
+    pub async fn commit_invoice(&mut self, commit: Commit) -> Result<(), SellerError> {
         let app_request_id = Uid::rand_gen(&self.rng);
         let to_app_server = AppToAppServer::new(
             app_request_id.clone(),
-            AppRequest::CommitInvoice(multi_commit),
+            AppRequest::CommitInvoice(commit),
         );
 
         // Start listening to done requests:
