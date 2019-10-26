@@ -133,6 +133,7 @@ pub struct CloseFriendCurrency {
     pub currency: Currency,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::app_server_capnp::app_request)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {

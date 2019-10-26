@@ -70,12 +70,10 @@ impl CanonicalSerialize for &str {
 
 impl CanonicalSerialize for bool {
     fn canonical_serialize(&self) -> Vec<u8> {
-        if *self == false {
-            // false:
-            vec![0]
-        } else {
-            // true:
+        if *self {
             vec![1]
+        } else {
+            vec![0]
         }
     }
 }

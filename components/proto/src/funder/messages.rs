@@ -102,6 +102,7 @@ pub struct CancelSendFundsOp {
     pub request_id: Uid,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::common_capnp::commit)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
@@ -670,6 +671,7 @@ pub struct AckClosePayment {
     pub ack_uid: Uid,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderControl<B> {
     AddRelay(NamedRelayAddress<B>),
@@ -710,6 +712,7 @@ impl<B> FunderIncomingControl<B> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::app_server_capnp::request_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestResult {
