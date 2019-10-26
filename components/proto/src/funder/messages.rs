@@ -105,21 +105,15 @@ pub struct CancelSendFundsOp {
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub response_hash: HashResult,
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub dest_payment: u128,
     pub src_plain_lock: PlainLock,
     pub dest_hashed_lock: HashedLock,
-    pub signature: Signature,
-}
-
-#[capnp_conv(crate::common_capnp::multi_commit)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct MultiCommit {
-    pub invoice_id: InvoiceId,
-    pub currency: Currency,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
     pub total_dest_payment: u128,
-    pub commits: Vec<Commit>,
+    pub invoice_id: InvoiceId,
+    pub currency: Currency,
+    pub signature: Signature,
 }
 
 #[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
@@ -697,7 +691,7 @@ pub enum FunderControl<B> {
     // Seller API:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
-    CommitInvoice(MultiCommit),
+    CommitInvoice(Commit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

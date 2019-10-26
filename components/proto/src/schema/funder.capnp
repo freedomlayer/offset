@@ -134,13 +134,19 @@ struct RequestSendFundsOp {
 struct ResponseSendFundsOp {
         requestId @0: Uid;
         destHashedLock @1: HashedLock;
-        randNonce @2: RandValue;
-        signature @3: Signature;
+        isComplete @2: Bool;
+        # Has the destination received all the funds he asked for at the invoice?
+        # Mostly meaningful in the case of multi-path payments.
+        # isComplete == True means that no more requests should be sent.
+        # The isComplete field is crucial for the construction of a Commit message.
+        randNonce @3: RandValue;
+        signature @4: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
         #   sha512/256(requestId || randNonce) ||
         #   srcHashedLock ||
         #   destHashedLock ||
+        #   isComplete ||
         #   destPayment ||
         #   totalDestPayment ||
         #   invoiceId ||

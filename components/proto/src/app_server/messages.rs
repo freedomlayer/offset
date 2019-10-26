@@ -7,10 +7,9 @@ use common::mutable_state::MutableState;
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
-    MultiCommit, RemoveFriendCurrency, ResetFriendChannel, ResponseClosePayment,
-    SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, SetFriendName, SetFriendRelays,
-    TransactionResult,
+    AckClosePayment, AddFriend, AddInvoice, Commit, CreatePayment, CreateTransaction, Currency,
+    RemoveFriendCurrency, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, SetFriendName, SetFriendRelays, TransactionResult,
 };
 use crate::index_client::messages::{
     ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
@@ -161,7 +160,7 @@ pub enum AppRequest<B = NetAddress> {
     /// Seller:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
-    CommitInvoice(MultiCommit),
+    CommitInvoice(Commit),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
