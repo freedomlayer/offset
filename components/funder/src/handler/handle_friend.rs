@@ -594,8 +594,8 @@ fn handle_collect_send_funds<B, R>(
                             ack_uid.clone(),
                         ))),
                         Some(PaymentStatus::Success(PaymentStatusSuccess {
-                            receipt: receipt,
-                            ack_uid: ack_uid,
+                            receipt,
+                            ack_uid,
                         })),
                     )
                 }
