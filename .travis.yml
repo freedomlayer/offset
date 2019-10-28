@@ -68,6 +68,7 @@ matrix:
     - curl -o $HOME/install/yasm/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
     - export PATH=$HOME/install/yasm:$PATH
     - echo $PATH
+    - rustup target add x86_64-pc-windows-msvc
     script:
         - cargo test
 
