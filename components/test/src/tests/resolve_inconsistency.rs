@@ -93,7 +93,6 @@ where
         .await
         .unwrap();
 
-
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;
 

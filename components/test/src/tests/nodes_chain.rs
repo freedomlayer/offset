@@ -437,7 +437,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .unwrap();
 
-
     // Node0 now passes the Commit to Node4 out of band.
 
     // Node4: Apply the Commit

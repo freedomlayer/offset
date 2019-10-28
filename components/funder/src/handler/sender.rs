@@ -584,7 +584,12 @@ where
         }
         None => {
             // We are the origin of this request
-            remove_transaction(m_state, outgoing_control, rng, &request_send_funds.request_id);
+            remove_transaction(
+                m_state,
+                outgoing_control,
+                rng,
+                &request_send_funds.request_id,
+            );
 
             let transaction_result = TransactionResult {
                 request_id: request_send_funds.request_id.clone(),
