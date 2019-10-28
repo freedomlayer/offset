@@ -437,14 +437,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .unwrap();
 
-    // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = apps[0]
-        .buyer()
-        .unwrap()
-        .request_close_payment(payment_id.clone())
-        .await
-        .unwrap();
-
     // Node0 now passes the Commit to Node4 out of band.
 
     // Node4: Apply the Commit
@@ -452,6 +444,14 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .seller()
         .unwrap()
         .commit_invoice(commit)
+        .await
+        .unwrap();
+
+    // Node0: Close payment (No more transactions will be sent through this payment)
+    let _ = apps[0]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone())
         .await
         .unwrap();
 
@@ -548,14 +548,6 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .unwrap()
         .unwrap();
 
-    // Node5: Close payment (No more transactions will be sent through this payment)
-    let _ = apps[5]
-        .buyer()
-        .unwrap()
-        .request_close_payment(payment_id.clone())
-        .await
-        .unwrap();
-
     // Node5 now passes the Commit to Node3 out of band.
 
     // Node3: Apply the Commit
@@ -563,6 +555,14 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
         .seller()
         .unwrap()
         .commit_invoice(commit)
+        .await
+        .unwrap();
+
+    // Node5: Close payment (No more transactions will be sent through this payment)
+    let _ = apps[5]
+        .buyer()
+        .unwrap()
+        .request_close_payment(payment_id.clone())
         .await
         .unwrap();
 

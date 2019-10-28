@@ -9,8 +9,9 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     BalanceInfo, CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, CountersInfo,
     Currency, CurrencyBalance, CurrencyBalanceInfo, FriendMessage, FunderOutgoingControl, McInfo,
-    MoveTokenRequest, PendingTransaction, RequestResult, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp, TokenInfo, TransactionResult,
+    MoveTokenRequest, PaymentStatus, PaymentStatusSuccess, PendingTransaction, RequestResult,
+    RequestSendFundsOp, ResetTerms, ResponseClosePayment, ResponseSendFundsOp, TokenInfo,
+    TransactionResult,
 };
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
@@ -495,7 +496,12 @@ fn handle_cancel_send_funds<B, R>(
             // We are the origin of this request, and we got a cancellation.
 
             // Update buyer transactions (requests that were originated by us):
-            remove_transaction(m_state, rng, &cancel_send_funds.request_id);
+            remove_transaction(
+                m_state,
+                outgoing_control,
+                rng,
+                &cancel_send_funds.request_id,
+            );
 
             // Inform user about the transaction failure:
             outgoing_control.push(FunderOutgoingControl::TransactionResult(
@@ -522,6 +528,7 @@ fn handle_cancel_send_funds<B, R>(
 fn handle_collect_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     rng: &R,
     currency: &Currency,
     collect_send_funds: CollectSendFundsOp,
@@ -548,7 +555,7 @@ fn handle_collect_send_funds<B, R>(
                 .unwrap();
 
             // Update payment status:
-            let opt_new_payment_stage = match &payment.stage {
+            let (opt_new_payment_stage, opt_payment_status) = match &payment.stage {
                 PaymentStage::NewTransactions(new_transactions) => {
                     // Create a Receipt:
                     let receipt = prepare_receipt(
@@ -558,13 +565,20 @@ fn handle_collect_send_funds<B, R>(
                         &pending_transaction,
                     );
                     let ack_uid = Uid::rand_gen(rng);
-                    Some(PaymentStage::Success((
-                        new_transactions.num_transactions.checked_sub(1).unwrap(),
-                        receipt,
-                        ack_uid,
-                    )))
+                    (
+                        Some(PaymentStage::Success((
+                            new_transactions.num_transactions.checked_sub(1).unwrap(),
+                            receipt.clone(),
+                            ack_uid.clone(),
+                        ))),
+                        Some(PaymentStatus::Success(PaymentStatusSuccess {
+                            receipt,
+                            ack_uid,
+                        })),
+                    )
                 }
                 PaymentStage::InProgress(num_transactions) => {
+                    assert!(*num_transactions > 0);
                     // Create a Receipt:
                     let receipt = prepare_receipt(
                         currency,
@@ -573,29 +587,53 @@ fn handle_collect_send_funds<B, R>(
                         &pending_transaction,
                     );
                     let ack_uid = Uid::rand_gen(rng);
-                    Some(PaymentStage::Success((
-                        num_transactions.checked_sub(1).unwrap(),
-                        receipt,
-                        ack_uid,
-                    )))
+                    (
+                        Some(PaymentStage::Success((
+                            num_transactions.checked_sub(1).unwrap(),
+                            receipt.clone(),
+                            ack_uid.clone(),
+                        ))),
+                        Some(PaymentStatus::Success(PaymentStatusSuccess {
+                            receipt,
+                            ack_uid,
+                        })),
+                    )
                 }
-                PaymentStage::Success((num_transactions, receipt, ack_uid)) => {
+                PaymentStage::Success((num_transactions, receipt, ack_uid)) => (
                     Some(PaymentStage::Success((
                         num_transactions.checked_sub(1).unwrap(),
                         receipt.clone(),
                         ack_uid.clone(),
-                    )))
-                }
+                    ))),
+                    Some(PaymentStatus::Success(PaymentStatusSuccess {
+                        receipt: receipt.clone(),
+                        ack_uid: ack_uid.clone(),
+                    })),
+                ),
                 PaymentStage::Canceled(_) => unreachable!(),
                 PaymentStage::AfterSuccessAck(num_transactions) => {
                     let new_num_transactions = num_transactions.checked_sub(1).unwrap();
-                    if new_num_transactions > 0 {
-                        Some(PaymentStage::AfterSuccessAck(new_num_transactions))
-                    } else {
-                        None
-                    }
+                    (
+                        if new_num_transactions > 0 {
+                            Some(PaymentStage::AfterSuccessAck(new_num_transactions))
+                        } else {
+                            None
+                        },
+                        None,
+                    )
                 }
             };
+
+            // Possibly send back a ResponseClosePayment:
+            if let Some(payment_status) = opt_payment_status {
+                let response_close_payment = ResponseClosePayment {
+                    payment_id: open_transaction.payment_id.clone(),
+                    status: payment_status,
+                };
+                outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+                    response_close_payment,
+                ));
+            }
 
             let funder_mutation = if let Some(new_payment_stage) = opt_new_payment_stage {
                 // Update payment:
@@ -689,6 +727,7 @@ fn handle_move_token_output<B, R>(
                 handle_collect_send_funds(
                     m_state,
                     send_commands,
+                    outgoing_control,
                     rng,
                     currency,
                     incoming_collect,

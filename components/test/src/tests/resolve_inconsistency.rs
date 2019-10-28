@@ -82,16 +82,16 @@ where
         .unwrap()
         .unwrap();
 
+    // Node0 now passes the Commit to Node1 out of band.
+
+    // Node1: Apply the Commit
+    app_seller.commit_invoice(commit).await.unwrap();
+
     // Node0: Close payment (No more transactions will be sent through this payment)
     let _ = app_buyer
         .request_close_payment(payment_id.clone())
         .await
         .unwrap();
-
-    // Node0 now passes the Commit to Node1 out of band.
-
-    // Node1: Apply the Commit
-    app_seller.commit_invoice(commit).await.unwrap();
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;

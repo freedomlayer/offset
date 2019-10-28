@@ -188,9 +188,8 @@ struct PaymentStatusSuccess {
 struct PaymentStatus {
         union {
                 paymentNotFound @0: Void;
-                inProgress @1: Void;
-                success @2: PaymentStatusSuccess;
-                canceled @3: Uid;
+                success @1: PaymentStatusSuccess;
+                canceled @2: Uid;
         }
 }
 
