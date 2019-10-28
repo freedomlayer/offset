@@ -204,8 +204,12 @@ async fn buyer_pay_invoice(
         fut_list = new_fut_list;
     }
 
-    // We are not going to send anything more through this payment, so we close it:
-    let _ = app_buyer.request_close_payment(payment_id).await;
+    // TODO: We are not attempting to close the payment here, because this is going to wait
+    // until a receipt is received, but a receipt will never be received because we haven't
+    // yet produced a commit message.
+    //
+    // Possibly add some kind of nonblocking-close-payment method to app_buyer in the future?
+    // let _ = app_buyer.request_close_payment(payment_id).await;
 
     let commit = if let Some(commit) = opt_commit {
         commit
@@ -255,10 +259,6 @@ async fn buyer_payment_status(
             writeln!(writer, "Payment could not be found").map_err(|_| BuyerError::WriteError)?;
             // Remove payment file:
             fs::remove_file(&payment_path).map_err(|_| BuyerError::RemovePaymentError)?;
-            None
-        }
-        PaymentStatus::InProgress => {
-            writeln!(writer, "Payment is in progress").map_err(|_| BuyerError::WriteError)?;
             None
         }
         PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {

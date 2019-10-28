@@ -6,7 +6,8 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{
-    Currency, FunderOutgoingControl, RequestResult, RequestSendFundsOp, TransactionResult,
+    Currency, FunderOutgoingControl, PaymentStatus, PaymentStatusSuccess, RequestResult,
+    RequestSendFundsOp, ResponseClosePayment, TransactionResult,
 };
 
 use crate::handler::state_wrap::MutableFunderState;
@@ -47,8 +48,12 @@ pub fn reply_with_cancel<B>(
 }
 
 /// Remove a local transaction (Where this node is the buyer side)
-pub fn remove_transaction<B, R>(m_state: &mut MutableFunderState<B>, rng: &R, request_id: &Uid)
-where
+pub fn remove_transaction<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
+    request_id: &Uid,
+) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
     R: CryptoRandom,
 {
@@ -80,42 +85,69 @@ where
     // Update payment:
     // - Decrease num_transactions
     // - Possibly remove payment
-    let opt_new_stage = match stage {
+    let (opt_new_stage, opt_payment_status) = match stage {
         PaymentStage::NewTransactions(new_transactions) => {
             let mut new_new_transactions = new_transactions.clone();
             new_new_transactions.num_transactions =
                 new_transactions.num_transactions.checked_sub(1).unwrap();
-            Some(PaymentStage::NewTransactions(new_new_transactions))
+            (
+                Some(PaymentStage::NewTransactions(new_new_transactions)),
+                None,
+            )
         }
         PaymentStage::InProgress(num_transactions) => {
+            assert!(num_transactions > 0);
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
             if new_num_transactions > 0 {
-                Some(PaymentStage::InProgress(new_num_transactions))
+                (Some(PaymentStage::InProgress(new_num_transactions)), None)
             } else {
                 let ack_uid = Uid::rand_gen(rng);
-                Some(PaymentStage::Canceled(ack_uid))
+                (
+                    Some(PaymentStage::Canceled(ack_uid.clone())),
+                    Some(PaymentStatus::Canceled(ack_uid)),
+                )
             }
         }
-        PaymentStage::Success((num_transactions, receipt, request_id)) => {
+        PaymentStage::Success((num_transactions, receipt, ack_uid)) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
-            Some(PaymentStage::Success((
-                new_num_transactions,
-                receipt.clone(),
-                request_id,
-            )))
+            (
+                Some(PaymentStage::Success((
+                    new_num_transactions,
+                    receipt.clone(),
+                    ack_uid.clone(),
+                ))),
+                Some(PaymentStatus::Success(PaymentStatusSuccess {
+                    receipt,
+                    ack_uid,
+                })),
+            )
         }
         PaymentStage::Canceled(_) => {
             unreachable!();
         }
         PaymentStage::AfterSuccessAck(num_transactions) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
-            if new_num_transactions > 0 {
-                Some(PaymentStage::AfterSuccessAck(new_num_transactions))
-            } else {
-                None
-            }
+            (
+                if new_num_transactions > 0 {
+                    Some(PaymentStage::AfterSuccessAck(new_num_transactions))
+                } else {
+                    None
+                },
+                None,
+            )
         }
     };
+
+    // Possibly send back a ResponseClosePayment:
+    if let Some(payment_status) = opt_payment_status {
+        let response_close_payment = ResponseClosePayment {
+            payment_id: open_transaction.payment_id.clone(),
+            status: payment_status,
+        };
+        outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+            response_close_payment,
+        ));
+    }
 
     let funder_mutation = if let Some(new_stage) = opt_new_stage {
         let new_payment = Payment {
@@ -186,7 +218,12 @@ pub fn cancel_local_pending_transactions<B, R>(
                     };
                     outgoing_control
                         .push(FunderOutgoingControl::TransactionResult(transaction_result));
-                    remove_transaction(m_state, rng, &pending_local_transaction.request_id);
+                    remove_transaction(
+                        m_state,
+                        outgoing_control,
+                        rng,
+                        &pending_local_transaction.request_id,
+                    );
                 }
             };
         }
@@ -227,7 +264,7 @@ pub fn cancel_request<B, R>(
                 result: RequestResult::Failure,
             };
             outgoing_control.push(FunderOutgoingControl::TransactionResult(transaction_result));
-            remove_transaction(m_state, rng, &pending_request.request_id);
+            remove_transaction(m_state, outgoing_control, rng, &pending_request.request_id);
         }
     };
 }

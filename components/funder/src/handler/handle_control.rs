@@ -872,73 +872,52 @@ where
         return Ok(());
     };
 
-    let (opt_new_payment_stage, payment_status) = match &payment.stage {
+    let (new_payment_stage, opt_payment_status) = match &payment.stage {
         PaymentStage::NewTransactions(new_transactions) => {
             if new_transactions.num_transactions > 0 {
                 (
-                    Some(PaymentStage::InProgress(new_transactions.num_transactions)),
-                    PaymentStatus::InProgress,
+                    PaymentStage::InProgress(new_transactions.num_transactions),
+                    None,
                 )
             } else {
                 let ack_uid = Uid::rand_gen(rng);
                 (
-                    Some(PaymentStage::Canceled(ack_uid.clone())),
-                    PaymentStatus::Canceled(ack_uid),
+                    PaymentStage::Canceled(ack_uid.clone()),
+                    Some(PaymentStatus::Canceled(ack_uid)),
                 )
             }
         }
         PaymentStage::InProgress(num_transactions) => {
-            (if *num_transactions == 0 {
-                let ack_uid = Uid::rand_gen(rng);
-                (
-                    Some(PaymentStage::Canceled(ack_uid.clone())),
-                    PaymentStatus::Canceled(ack_uid),
-                )
-            } else {
-                (
-                    Some(PaymentStage::InProgress(*num_transactions)),
-                    PaymentStatus::InProgress,
-                )
-            })
+            assert!(*num_transactions > 0);
+            (PaymentStage::InProgress(*num_transactions), None)
         }
         PaymentStage::Success((num_transactions, receipt, ack_uid)) => (
-            Some(PaymentStage::Success((
-                *num_transactions,
-                receipt.clone(),
-                ack_uid.clone(),
-            ))),
-            PaymentStatus::Success(PaymentStatusSuccess {
+            PaymentStage::Success((*num_transactions, receipt.clone(), ack_uid.clone())),
+            Some(PaymentStatus::Success(PaymentStatusSuccess {
                 receipt: receipt.clone(),
                 ack_uid: ack_uid.clone(),
-            }),
+            })),
         ),
         PaymentStage::Canceled(ack_uid) => (
-            Some(PaymentStage::Canceled(ack_uid.clone())),
-            PaymentStatus::Canceled(ack_uid.clone()),
+            PaymentStage::Canceled(ack_uid.clone()),
+            Some(PaymentStatus::Canceled(ack_uid.clone())),
         ),
         PaymentStage::AfterSuccessAck(num_transactions) => (
-            Some(PaymentStage::AfterSuccessAck(*num_transactions)),
-            PaymentStatus::PaymentNotFound,
+            PaymentStage::AfterSuccessAck(*num_transactions),
+            Some(PaymentStatus::PaymentNotFound),
         ),
     };
 
-    // Send back a ResponseClosePayment:
-    let response_close_payment = ResponseClosePayment {
-        payment_id: payment_id.clone(),
-        status: payment_status,
-    };
-    outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
-        response_close_payment,
-    ));
-
-    // Update or remove payment record:
-    let new_payment_stage = if let Some(new_payment_stage) = opt_new_payment_stage {
-        new_payment_stage
-    } else {
-        let funder_mutation = FunderMutation::RemovePayment(payment_id);
-        m_state.mutate(funder_mutation);
-        return Ok(());
-    };
+    // Possibly send back a ResponseClosePayment:
+    if let Some(payment_status) = opt_payment_status {
+        let response_close_payment = ResponseClosePayment {
+            payment_id: payment_id.clone(),
+            status: payment_status,
+        };
+        outgoing_control.push(FunderOutgoingControl::ResponseClosePayment(
+            response_close_payment,
+        ));
+    }
 
     // We perform no mutations if no changes happened:
     if new_payment_stage == payment.stage {

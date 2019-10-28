@@ -743,7 +743,6 @@ pub struct PaymentStatusSuccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaymentStatus {
     PaymentNotFound,
-    InProgress,                    // Can not be acked
     Success(PaymentStatusSuccess), // (Receipt, ack_id)
     Canceled(Uid),                 // ack_id
 }
