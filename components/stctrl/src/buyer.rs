@@ -8,10 +8,10 @@ use futures::future::select_all;
 
 use structopt::StructOpt;
 
-use app::common::{PublicKey, Commit, PaymentStatus, PaymentStatusSuccess};
+use app::common::{Commit, PaymentStatus, PaymentStatusSuccess, PublicKey};
+use app::conn::{AppBuyer, AppConn, AppRoutes};
 use app::gen::{gen_payment_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::conn::{AppBuyer, AppConn, AppRoutes};
 
 use crate::file::{CommitFile, InvoiceFile, PaymentFile, ReceiptFile};
 

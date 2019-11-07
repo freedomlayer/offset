@@ -5,10 +5,10 @@ use std::path::PathBuf;
 
 use derive_more::From;
 
-use app::common::{PublicKey, Commit, Currency};
+use app::common::{Commit, Currency, PublicKey};
+use app::conn::{AppConn, AppSeller};
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::conn::{AppConn, AppSeller};
 use app::verify::verify_commit;
 
 use crate::file::{CommitFile, InvoiceFile};
@@ -163,7 +163,6 @@ async fn seller_commit_invoice(
     if commit.invoice_id != invoice_file.invoice_id {
         return Err(SellerError::InvoiceCommitMismatch);
     }
-
 
     // HACK:
     #[allow(clippy::let_and_return)]
