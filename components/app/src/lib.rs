@@ -29,7 +29,7 @@ pub use proto::funder::messages::{
 };
 pub use proto::index_server::messages::NamedIndexServerAddress;
 
-pub use signature::verify::{verify_move_token_hashed_report, verify_receipt};
+pub use signature::verify::{verify_commit, verify_move_token_hashed_report, verify_receipt};
 
 pub use self::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
 
