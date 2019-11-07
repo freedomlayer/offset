@@ -16,59 +16,57 @@ extern crate log;
 
 mod app_conn;
 mod connect;
-pub mod gen;
 mod identity;
 
+/// Utils for random generation of types
+pub mod gen;
+
+/// Common types
+pub mod common {
+    pub use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
+    pub use proto::crypto::{
+        HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
+        Uid,
+    };
+    pub use proto::funder::messages::{
+        Commit, Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
+    };
+    pub use proto::index_server::messages::{
+        MultiRoute, NamedIndexServerAddress, RouteCapacityRate,
+    };
+}
+
+/// Common Offst files:
 pub use proto::file;
+
+/// Utils for serializing and deserializing
 pub use proto::ser_string;
 
-pub use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
-pub use proto::funder::messages::{
-    BalanceInfo, Commit, CountersInfo, Currency, CurrencyBalanceInfo, McInfo, PaymentStatus,
-    PaymentStatusSuccess, Rate, Receipt, TokenInfo,
-};
-pub use proto::index_server::messages::NamedIndexServerAddress;
-
-pub use signature::verify::{verify_commit, verify_move_token_hashed_report, verify_receipt};
-
-pub use self::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
-
-pub use self::connect::{connect, node_connect, ConnectError};
-pub use self::identity::{identity_from_file, IdentityFromFileError};
+/// Offst connection
+pub mod conn {
+    pub use super::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
+    pub use super::connect::{connect, node_connect, ConnectError};
+    pub use super::identity::{identity_from_file, IdentityFromFileError};
+}
 
 // TODO: Possibly reduce what we export from report in the future?
+/// Report related types
 pub mod report {
     pub use proto::report::messages::{
         AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, CurrencyReport,
-        FriendLivenessReport, FriendReport, FriendReportMutation, FriendStatusReport, FunderReport,
-        FunderReportMutateError, FunderReportMutation, FunderReportMutations, McBalanceReport,
+        FriendLivenessReport, FriendReport, FriendStatusReport, FunderReport, McBalanceReport,
         McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
     };
 
-    pub use proto::app_server::messages::{NodeReport, NodeReportMutation};
-    pub use proto::index_client::messages::{
-        AddIndexServer, IndexClientReport, IndexClientReportMutation,
+    pub use proto::funder::messages::{
+        BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo, TokenInfo,
     };
+
+    pub use proto::app_server::messages::NodeReport;
+    pub use proto::index_client::messages::{AddIndexServer, IndexClientReport};
 }
 
-pub use proto::crypto;
-pub mod route {
-    pub use proto::funder::messages::FriendsRoute;
-    pub use proto::index_server::messages::{MultiRoute, RouteCapacityRate};
+/// Verification functions
+pub mod verify {
+    pub use signature::verify::{verify_commit, verify_move_token_hashed_report, verify_receipt};
 }
-
-/*
-pub mod invoice {
-    pub use crypto::invoice_id::{InvoiceId, InvoiceId::len()};
-}
-
-pub mod payment {
-    pub use crypto::payment_id::{PaymentId, PaymentId::len()};
-}
-
-
-pub use crypto::hash::{HashResult, HASH_RESULT_LEN};
-pub use crypto::hash_lock::{HashedLock, PlainLock, HASHED_LOCK_LEN, PlainLock::len()};
-pub use crypto::identity::{PublicKey, Signature, PublicKey::len(), Signature::len()};
-pub use crypto::rand::{RandValue, RandValue::len()};
-*/

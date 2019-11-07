@@ -1,4 +1,4 @@
-use app::crypto::PublicKey;
+use app::common::PublicKey;
 use app::report::NodeReport;
 
 /// Find a friend's public key given his name

@@ -1,10 +1,10 @@
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
-use app::crypto::{
-    HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
+use app::common::{
+    Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,
+    RandValue, Receipt, Signature,
 };
-use app::report::MoveTokenHashedReport;
-use app::{Commit, Currency, Receipt, TokenInfo};
+use app::report::{MoveTokenHashedReport, TokenInfo};
 
 use mutual_from::mutual_from;
 
@@ -91,7 +91,7 @@ mod test {
 
     use std::convert::TryFrom;
 
-    use app::{BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo};
+    use app::report::{BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo};
 
     #[test]
     fn test_serialize_invoice_file() {

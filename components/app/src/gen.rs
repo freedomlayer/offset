@@ -2,6 +2,8 @@ use crypto::rand::{system_random, RandGen};
 
 use proto::crypto::{InvoiceId, PaymentId, Uid};
 
+// TODO: Use Gen trait here instead?
+
 /// Generate a random uid
 pub fn gen_uid() -> Uid {
     // Obtain secure cryptographic random:

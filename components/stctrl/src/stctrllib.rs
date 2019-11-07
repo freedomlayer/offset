@@ -15,7 +15,7 @@ use crate::seller::{seller, SellerCmd, SellerError};
 
 use app::file::NodeAddressFile;
 use app::ser_string::{deserialize_from_string, StringSerdeError};
-use app::{connect, identity_from_file};
+use app::conn::{connect, identity_from_file};
 
 #[derive(Debug, From)]
 pub enum StCtrlError {

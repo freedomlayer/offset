@@ -12,10 +12,11 @@ use app::report::{
     RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{AppConn, AppReport, RelayAddress};
+use app::common::RelayAddress;
 
 use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
 use app::ser_string::{serialize_to_string, StringSerdeError};
+use app::conn::{AppConn, AppReport};
 
 use crate::file::TokenFile;
 

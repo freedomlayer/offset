@@ -14,7 +14,7 @@ use crate::utils::{
     relay_address, relay_public_key, SimDb,
 };
 
-use app::AppReport;
+use app::conn::AppReport;
 
 use crate::sim_network::create_sim_network;
 

@@ -7,9 +7,8 @@ use structopt::StructOpt;
 use derive_more::From;
 
 use app::report::{ChannelStatusReport, NodeReport};
-use app::{
-    AppConfig, AppConn, Currency, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress,
-};
+use app::conn::{AppConn, AppConfig};
+use app::common::{Currency, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress};
 
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
 use app::ser_string::{deserialize_from_string, StringSerdeError};

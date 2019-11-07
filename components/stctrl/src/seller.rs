@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 use derive_more::From;
 
-use app::crypto::PublicKey;
+use app::common::{PublicKey, Commit, Currency};
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, Commit, Currency, verify_commit};
+use app::conn::{AppConn, AppSeller};
+use app::verify::verify_commit;
 
-use crate::file::CommitFile;
-use crate::file::InvoiceFile;
+use crate::file::{CommitFile, InvoiceFile};
 
 use structopt::StructOpt;
 
