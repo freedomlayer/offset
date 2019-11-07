@@ -245,16 +245,6 @@ pub struct TokenInfo {
     pub counters: CountersInfo,
 }
 
-/// Information about an old move token.
-/// Saved together with the corresponding information
-/// (Equivalent to the state that was obtained right after the MoveToken message was applied).
-/// Those values are also signed as part of the prefix hash.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct OldMoveToken<B = NetAddress, S = Signature> {
-    pub move_token: MoveToken<B, S>,
-    pub token_info: TokenInfo,
-}
-
 #[capnp_conv(crate::funder_capnp::currency_operations)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyOperations {

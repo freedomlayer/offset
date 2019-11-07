@@ -1,9 +1,8 @@
 use num_bigint::BigUint;
-// use num_traits::identities::Zero;
 use num_traits::cast::ToPrimitive;
 use num_traits::ops::checked::CheckedSub;
 
-use app::route::MultiRoute;
+use app::common::MultiRoute;
 
 pub type MultiRouteChoice = Vec<(usize, u128)>;
 
@@ -102,9 +101,7 @@ pub fn choose_multi_route(
 mod tests {
     use super::*;
 
-    use app::crypto::PublicKey;
-    use app::route::{FriendsRoute, RouteCapacityRate};
-    use app::Rate;
+    use app::common::{FriendsRoute, PublicKey, Rate, RouteCapacityRate};
 
     /// A helper function to create a test public key
     fn pk(i: u8) -> PublicKey {

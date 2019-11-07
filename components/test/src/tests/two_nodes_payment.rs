@@ -9,7 +9,7 @@ use tempfile::tempdir;
 use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
-use proto::funder::messages::{FriendsRoute, PaymentStatus, PaymentStatusSuccess};
+use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
 
 use timer::create_timer_incoming;
 
@@ -17,7 +17,7 @@ use crypto::rand::CryptoRandom;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
-use app::{AppBuyer, AppRoutes, AppSeller, Currency, Rate};
+use app::conn::{AppBuyer, AppRoutes, AppSeller};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{

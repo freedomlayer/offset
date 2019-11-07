@@ -5,13 +5,13 @@ use std::path::PathBuf;
 
 use derive_more::From;
 
-use app::crypto::PublicKey;
+use app::common::{Commit, Currency, PublicKey};
+use app::conn::{AppConn, AppSeller};
 use app::gen::gen_invoice_id;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
-use app::{AppConn, AppSeller, Commit, Currency};
+use app::verify::verify_commit;
 
-use crate::file::CommitFile;
-use crate::file::InvoiceFile;
+use crate::file::{CommitFile, InvoiceFile};
 
 use structopt::StructOpt;
 
@@ -79,6 +79,7 @@ pub enum SellerError {
     IoError(std::io::Error),
     StringSerdeError(StringSerdeError),
     InvalidCurrencyName,
+    InvalidCommit,
 }
 
 async fn seller_create_invoice(
@@ -154,6 +155,10 @@ async fn seller_commit_invoice(
 
     let commit_file: CommitFile = deserialize_from_string(&fs::read_to_string(&commit_path)?)?;
     let commit = Commit::from(commit_file);
+
+    if !verify_commit(&commit, &invoice_file.dest_public_key) {
+        return Err(SellerError::InvalidCommit);
+    }
 
     if commit.invoice_id != invoice_file.invoice_id {
         return Err(SellerError::InvoiceCommitMismatch);

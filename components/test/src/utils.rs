@@ -22,7 +22,7 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::{node_connect, AppConn};
+use app::conn::{node_connect, AppConn};
 use node::{net_node, NodeConfig, NodeState};
 
 use database::file_db::FileDb;

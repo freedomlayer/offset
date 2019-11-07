@@ -8,11 +8,10 @@ use structopt::StructOpt;
 
 use crate::file::{InvoiceFile, ReceiptFile, TokenFile};
 
+use app::common::Receipt;
 use app::report::MoveTokenHashedReport;
-use app::ser_string::public_key_to_string;
-use app::{verify_move_token_hashed_report, verify_receipt, Receipt};
-
-use app::ser_string::{deserialize_from_string, StringSerdeError};
+use app::ser_string::{deserialize_from_string, public_key_to_string, StringSerdeError};
+use app::verify::{verify_move_token_hashed_report, verify_receipt};
 
 #[derive(Debug, From)]
 pub enum StVerifyError {

@@ -7,13 +7,14 @@ use structopt::StructOpt;
 
 use derive_more::From;
 
+use app::common::RelayAddress;
 use app::report::{
     ChannelStatusReport, CurrencyReport, FriendReport, FriendStatusReport, NodeReport,
     RequestsStatusReport,
 };
 use app::ser_string::public_key_to_string;
-use app::{AppConn, AppReport, RelayAddress};
 
+use app::conn::{AppConn, AppReport};
 use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
 use app::ser_string::{serialize_to_string, StringSerdeError};
 

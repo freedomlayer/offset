@@ -11,10 +11,10 @@ use crypto::rand::CryptoRandom;
 
 use proto::app_server::messages::AppPermissions;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
+use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
 use proto::report::messages::ChannelStatusReport;
 
-use app::route::FriendsRoute;
-use app::{AppBuyer, AppSeller, Currency, PaymentStatus, PaymentStatusSuccess, Rate};
+use app::conn::{AppBuyer, AppSeller};
 
 use timer::create_timer_incoming;
 
