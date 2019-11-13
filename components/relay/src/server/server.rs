@@ -95,7 +95,7 @@ fn handle_accept<MT, KT, MA, KA, TCL>(
     incoming_accept: IncomingAccept<MA, KA>,
     // TODO: This should be a oneshot:
     tunnel_closed_sender: TCL,
-    mut spawner: impl Spawn,
+    spawner: impl Spawn,
 ) -> Result<(), RelayServerError>
 where
     MT: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
@@ -109,7 +109,7 @@ where
         None => return Err(RelayServerError::ListeningNotInProgress),
     };
     let IncomingAccept {
-        mut receiver,
+        receiver,
         mut sender,
         accept_public_key,
     } = incoming_accept;
@@ -121,19 +121,19 @@ where
 
     let ConnPair {
         sender: mut remote_sender,
-        receiver: mut remote_receiver,
+        receiver: remote_receiver,
     } = conn_pair;
 
     let send_fut1 = async move {
         remote_sender
-            .send_all(&mut receiver)
+            .send_all(&mut receiver.map(Ok))
             .map_err(|e| error!("send_fut1 error: {:?}", e))
             .then(|_| future::ready(()))
             .await
     };
     let send_fut2 = async move {
         sender
-            .send_all(&mut remote_receiver)
+            .send_all(&mut remote_receiver.map(Ok))
             .map_err(|e| error!("send_fut2 error: {:?}", e))
             .then(move |_| {
                 let tunnel_closed = TunnelClosed {
@@ -155,7 +155,7 @@ pub async fn relay_server_loop<ML, KL, MA, KA, MC, KC, S>(
     mut timer_client: TimerClient,
     incoming_conns: S,
     half_tunnel_ticks: usize,
-    mut spawner: impl Spawn + Clone,
+    spawner: impl Spawn + Clone,
 ) -> Result<(), RelayServerError>
 where
     ML: Stream<Item = RejectConnection> + Unpin + Send + 'static,
@@ -203,13 +203,13 @@ where
 
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
-                        let (mpsc_sender, mut mpsc_receiver) =
+                        let (mpsc_sender, mpsc_receiver) =
                             mpsc::channel::<IncomingConnection>(0);
                         spawner
                             .spawn(async move {
                                 let mut sender = sender.sink_map_err(|_| ());
                                 sender
-                                    .send_all(&mut mpsc_receiver)
+                                    .send_all(&mut mpsc_receiver.map(Ok))
                                     .then(|_| future::ready(()))
                                     .await
                             })
@@ -217,7 +217,7 @@ where
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
                         let c_public_key = public_key.clone();
-                        let mut receiver = receiver
+                        let receiver = receiver
                             .map(move |reject_connection| {
                                 RelayServerEvent::ListenerMessage((
                                     c_public_key.clone(),
@@ -231,7 +231,7 @@ where
                             .spawn(async move {
                                 let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
                                 c_event_sender
-                                    .send_all(&mut receiver)
+                                    .send_all(&mut receiver.map(Ok))
                                     .then(|_| future::ready(()))
                                     .await
                             })
@@ -341,7 +341,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::{Spawn, SpawnExt};
 
     use super::super::types::{IncomingAccept, IncomingConnect, IncomingListen};
@@ -349,7 +349,7 @@ mod tests {
     use timer::create_timer_incoming;
 
     async fn task_relay_server_connect(
-        mut spawner: impl Spawn + Clone + Send + 'static,
+        spawner: impl Spawn + Clone + Send + 'static,
     ) -> Result<(), ()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -459,14 +459,14 @@ mod tests {
 
     #[test]
     fn test_relay_server_connect() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool
-            .run(task_relay_server_connect(thread_pool.clone()))
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new()
+            .run_until(task_relay_server_connect(thread_pool.clone()))
             .unwrap();
     }
 
     async fn task_relay_server_reject(
-        mut spawner: impl Spawn + Clone + Send + 'static,
+        spawner: impl Spawn + Clone + Send + 'static,
     ) -> Result<(), ()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -578,9 +578,9 @@ mod tests {
 
     #[test]
     fn test_relay_server_reject() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool
-            .run(task_relay_server_reject(thread_pool.clone()))
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new()
+            .run_until(task_relay_server_reject(thread_pool.clone()))
             .unwrap();
     }
 

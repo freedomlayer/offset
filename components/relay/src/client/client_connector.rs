@@ -88,7 +88,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{future, StreamExt};
 
@@ -97,7 +97,7 @@ mod tests {
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
 
-    async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
+    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send + 'static) {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
 
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_client_connector_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_client_connector_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_client_connector_basic(thread_pool.clone()));
     }
 }

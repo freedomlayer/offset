@@ -5,7 +5,6 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener};
-use common::int_convert::usize_to_u64;
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
@@ -50,7 +49,7 @@ enum AcceptConnectionError {
 /*
 /// Convert a Sink to an mpsc::Sender<T>
 /// This is done to overcome some compiler type limitations.
-fn to_mpsc_sender<T,SI,SE>(mut sink: SI, mut spawner: impl Spawn) -> mpsc::Sender<T>
+fn to_mpsc_sender<T,SI,SE>(mut sink: SI, spawner: impl Spawn) -> mpsc::Sender<T>
 where
     SI: Sink<T, Error=SE> + Unpin + Send + 'static,
     T: Send + 'static,
@@ -65,7 +64,7 @@ where
 
 /// Convert a Stream to an mpsc::Receiver<T>
 /// This is done to overcome some compiler type limitations.
-fn to_mpsc_receiver<T,ST,SE>(mut stream: ST, mut spawner: impl Spawn) -> mpsc::Receiver<T>
+fn to_mpsc_receiver<T,ST,SE>(mut stream: ST, spawner: impl Spawn) -> mpsc::Receiver<T>
 where
     ST: Stream<Item=T> + Unpin + Send + 'static,
     T: Send + 'static,
@@ -88,7 +87,6 @@ where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send,
     TS: Stream<Item = TimerTick> + Unpin,
 {
-    let conn_timeout_ticks = usize_to_u64(conn_timeout_ticks).unwrap();
     let mut fut_timeout = timer_stream
         .take(conn_timeout_ticks)
         .for_each(|_| future::ready(()))
@@ -172,7 +170,7 @@ async fn inner_client_listener<'a, C, IAC, CS, CSE, FT>(
     mut keepalive_transform: FT,
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
-    mut spawner: impl Spawn + Clone + Send + 'static,
+    spawner: impl Spawn + Clone + Send + 'static,
     mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>,
 ) -> Result<(), ClientListenerError>
 where
@@ -340,7 +338,7 @@ where
     ) {
         let (relay_address, mut access_control) = arg;
 
-        let mut c_spawner = self.spawner.clone();
+        let c_spawner = self.spawner.clone();
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
 
@@ -373,13 +371,13 @@ where
 mod tests {
     use super::*;
     use futures::channel::oneshot;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use timer::create_timer_incoming;
 
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
 
-    async fn task_connect_with_timeout_basic(mut spawner: impl Spawn) {
+    async fn task_connect_with_timeout_basic(spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
         let (_timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
@@ -398,11 +396,11 @@ mod tests {
 
     #[test]
     fn test_connect_with_timeout_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_connect_with_timeout_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_connect_with_timeout_basic(thread_pool.clone()));
     }
 
-    async fn task_connect_with_timeout_timeout(mut spawner: impl Spawn) {
+    async fn task_connect_with_timeout_timeout(spawner: impl Spawn) {
         let conn_timeout_ticks = 8;
         let (mut timer_sender, timer_stream) = mpsc::channel::<TimerTick>(0);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
@@ -429,11 +427,11 @@ mod tests {
 
     #[test]
     fn test_connect_with_timeout_timeout() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_connect_with_timeout_timeout(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_connect_with_timeout_timeout(thread_pool.clone()));
     }
 
-    async fn task_accept_connection_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
+    async fn task_accept_connection_basic(spawner: impl Spawn + Clone + Send + 'static) {
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
@@ -496,11 +494,11 @@ mod tests {
 
     #[test]
     fn test_accept_connection_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_accept_connection_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_accept_connection_basic(thread_pool.clone()));
     }
 
-    async fn task_client_listener_basic(mut spawner: impl Spawn + Clone + Send + 'static) {
+    async fn task_client_listener_basic(spawner: impl Spawn + Clone + Send + 'static) {
         let (req_sender, mut req_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(req_sender);
         let (connections_sender, _connections_receiver) = mpsc::channel(0);
@@ -602,8 +600,8 @@ mod tests {
 
     #[test]
     fn test_client_listener_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_client_listener_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_client_listener_basic(thread_pool.clone()));
     }
 
     // TODO: Add a test for ClientListener.

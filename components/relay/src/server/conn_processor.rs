@@ -146,7 +146,7 @@ mod tests {
     use super::*;
 
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{stream, FutureExt};
 
@@ -232,8 +232,8 @@ mod tests {
 
     #[test]
     fn test_dispatch_conn_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_dispatch_conn_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_dispatch_conn_basic(thread_pool.clone()));
     }
 
     async fn task_dispatch_conn_invalid_first_msg(spawner: impl Spawn + Clone) {
@@ -258,13 +258,13 @@ mod tests {
 
     #[test]
     fn test_dispatch_conn_invalid_first_msg() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_dispatch_conn_invalid_first_msg(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_dispatch_conn_invalid_first_msg(thread_pool.clone()));
     }
 
     #[test]
     fn test_conn_processor_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -303,13 +303,13 @@ mod tests {
             })
             .unwrap();
 
-        let (conn, processed_conns) = thread_pool.run(receive(processed_conns)).unwrap();
+        let (conn, processed_conns) = LocalPool::new().run_until(receive(processed_conns)).unwrap();
         assert_eq!(conn.public_key, public_key);
         match conn.inner {
             IncomingConnInner::Listen(_incoming_listen) => {}
             _ => panic!("Incorrect processed conn"),
         };
 
-        assert!(thread_pool.run(receive(processed_conns)).is_none());
+        assert!(LocalPool::new().run_until(receive(processed_conns)).is_none());
     }
 }
