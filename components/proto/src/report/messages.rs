@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
+use common::never::Never;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
@@ -368,7 +369,7 @@ where
     B: Clone,
 {
     type Mutation = FriendReportMutation<B>;
-    type MutateError = !;
+    type MutateError = Never;
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
@@ -476,7 +477,9 @@ where
                     .friends
                     .get_mut(friend_public_key)
                     .ok_or(FunderReportMutateError::FriendDoesNotExist)?;
-                friend.mutate(friend_report_mutation)?;
+                friend
+                    .mutate(friend_report_mutation)
+                    .map_err(|_| unreachable!())?;
                 Ok(())
             }
         }
