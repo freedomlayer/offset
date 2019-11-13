@@ -27,7 +27,7 @@ pub mod caller_info;
 pub mod conn;
 pub mod dummy_connector;
 pub mod dummy_listener;
-// pub mod futures_compat;
+pub mod futures_compat;
 pub mod multi_consumer;
 pub mod mutable_state;
 pub mod select_streams;
