@@ -101,7 +101,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::{Spawn, SpawnExt};
 
     /// A dummy state (used for testing)
@@ -199,6 +199,6 @@ mod tests {
     #[test]
     fn test_database_loop_basic() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_database_loop_basic(thread_pool.clone()));
+        LocalPool::new().run_until(task_database_loop_basic(thread_pool.clone()));
     }
 }
