@@ -1,6 +1,3 @@
-#![feature(arbitrary_self_types)]
-#![feature(generators)]
-#![feature(nll)]
 #![crate_type = "lib"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
