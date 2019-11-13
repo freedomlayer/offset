@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use futures::future::{self, FutureObj};
-use futures::task::{waker, ArcWake, Context, Spawn, SpawnError, Waker};
-use futures::{Future, Poll};
+use futures::task::{Poll, waker, ArcWake, Context, Spawn, SpawnError, Waker};
+use futures::{Future};
 
 // use crate::caller_info::{get_caller_info, CallerInfo};
 
@@ -320,7 +320,7 @@ impl TestExecutor {
 
 impl Spawn for TestExecutor {
     /// Spawn a new future
-    fn spawn_obj(&mut self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
+    fn spawn_obj(&self, future: FutureObj<'static, ()>) -> Result<(), SpawnError> {
         let mut inner = self.arc_mutex_inner.lock().unwrap();
 
         // Obtain an id for the future:

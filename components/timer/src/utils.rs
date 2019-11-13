@@ -1,7 +1,6 @@
 use std::marker::Unpin;
 
 use crate::timer::{TimerClient, TimerTick};
-use common::int_convert::usize_to_u64;
 use futures::select;
 use futures::{future, Future, FutureExt, Stream, StreamExt};
 
@@ -19,8 +18,7 @@ pub async fn sleep_ticks(
         .request_timer_stream()
         .await
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
-    let ticks_u64 = usize_to_u64(ticks).unwrap();
-    let fut = timer_stream.take(ticks_u64).for_each(|_| future::ready(()));
+    let fut = timer_stream.take(ticks).for_each(|_| future::ready(()));
     fut.await;
     Ok(())
 }
@@ -33,9 +31,8 @@ where
     TS: Stream<Item = TimerTick> + Unpin + Send + 'static,
     F: Future<Output = T> + Unpin,
 {
-    let time_ticks_u64 = usize_to_u64(time_ticks).unwrap();
     let mut fut_time = timer_stream
-        .take(time_ticks_u64)
+        .take(time_ticks)
         .for_each(|_| future::ready(()))
         .map(|_| None);
 

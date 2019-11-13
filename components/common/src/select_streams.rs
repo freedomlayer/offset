@@ -1,5 +1,5 @@
-use futures::task::Context;
-use futures::{Poll, Stream, StreamExt};
+use futures::task::{Context, Poll};
+use futures::{Stream, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
 

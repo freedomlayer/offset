@@ -71,7 +71,7 @@ where
         };
 
         let DummyListener {
-            mut spawner,
+            spawner,
             mut req_sender,
         } = self;
 
