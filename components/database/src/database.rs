@@ -61,7 +61,7 @@ where
 pub async fn database_loop<AD, S>(
     mut atomic_db: AD,
     mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>,
-    mut database_spawner: S,
+    database_spawner: S,
 ) -> Result<AD, DatabaseError<AD::Error>>
 where
     AD: AtomicDb + Send + 'static,
