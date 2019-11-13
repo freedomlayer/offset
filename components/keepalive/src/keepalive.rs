@@ -222,7 +222,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::FutureExt;
     use timer::create_timer_incoming;
@@ -234,7 +234,7 @@ mod tests {
         from_remote: FR,
         timer_stream: TS,
         keepalive_ticks: usize,
-        mut spawner: S,
+        spawner: S,
     ) -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
     where
         TR: Sink<Vec<u8>> + Unpin + Send + 'static,
@@ -262,7 +262,7 @@ mod tests {
         (user_sender, user_receiver)
     }
 
-    async fn task_keepalive_loop_basic(mut spawner: impl Spawn + Clone) {
+    async fn task_keepalive_loop_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -338,8 +338,8 @@ mod tests {
 
     #[test]
     fn test_keepalive_loop_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_keepalive_loop_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_keepalive_loop_basic(thread_pool.clone()));
     }
 
     async fn task_keepalive_channel_basic(spawner: impl Spawn + Clone) {
@@ -396,7 +396,7 @@ mod tests {
 
     #[test]
     fn test_keepalive_channel_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_keepalive_channel_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_keepalive_channel_basic(thread_pool.clone()));
     }
 }
