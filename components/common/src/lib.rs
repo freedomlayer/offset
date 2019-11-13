@@ -12,6 +12,7 @@
 extern crate log;
 
 pub mod int_convert;
+pub mod never;
 pub mod safe_arithmetic;
 #[macro_use]
 pub mod big_array;
