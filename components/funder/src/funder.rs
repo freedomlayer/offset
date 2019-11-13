@@ -129,14 +129,14 @@ where
         }
 
         // Send outgoing communication messages:
-        let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms);
+        let mut comm_stream = stream::iter::<_>(handler_output.outgoing_comms).map(Ok);
         comm_sender
             .send_all(&mut comm_stream)
             .await
             .map_err(|_| FunderError::SendCommError)?;
 
         // Send outgoing control messages:
-        let mut control_stream = stream::iter::<_>(handler_output.outgoing_control);
+        let mut control_stream = stream::iter::<_>(handler_output.outgoing_control).map(Ok);
         control_sender
             .send_all(&mut control_stream)
             .await

@@ -2,7 +2,7 @@ use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
 
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, LocalPool};
 use futures::task::SpawnExt;
 use futures::{future, FutureExt};
 
@@ -454,7 +454,7 @@ async fn task_handler_change_address(
 
 #[test]
 fn test_handler_change_address() {
-    let mut thread_pool = ThreadPool::new().unwrap();
+    let thread_pool = ThreadPool::new().unwrap();
 
     let rng1 = DummyRandom::new(&[1u8]);
     let pkcs8 = generate_private_key(&rng1);
@@ -474,7 +474,7 @@ fn test_handler_change_address() {
         .spawn(identity_server2.then(|_| future::ready(())))
         .unwrap();
 
-    thread_pool.run(task_handler_change_address(
+    LocalPool::new().run_until(task_handler_change_address(
         identity_client1,
         identity_client2,
     ));

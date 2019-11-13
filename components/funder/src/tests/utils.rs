@@ -160,7 +160,7 @@ async fn router_handle_outgoing_comm<'a, B: 'a>(
 
 /// A future that forwards communication between nodes. Used for testing.
 /// Simulates the Channeler interface
-async fn router<B, S>(incoming_new_node: mpsc::Receiver<NewNode<B>>, mut spawner: S)
+async fn router<B, S>(incoming_new_node: mpsc::Receiver<NewNode<B>>, spawner: S)
 where
     B: Send + Debug + 'static,
     S: Spawn + Clone,
@@ -192,7 +192,8 @@ where
                 let c_public_key = public_key.clone();
                 let mut c_comm_sender = comm_sender.clone();
                 let mut mapped_comm_in = comm_in
-                    .map(move |funder_outgoing_comm| (c_public_key.clone(), funder_outgoing_comm));
+                    .map(move |funder_outgoing_comm| (c_public_key.clone(), funder_outgoing_comm))
+                    .map(Ok);
                 let fut = async move { c_comm_sender.send_all(&mut mapped_comm_in).await.unwrap() };
                 spawner.spawn(fut.then(|_| future::ready(()))).unwrap();
             }
@@ -524,7 +525,7 @@ where
 /// Create a few node_controls, together with a router connecting them all.
 /// This allows having a conversation between any two nodes.
 /// We use A = u32:
-pub async fn create_node_controls<S>(num_nodes: usize, mut spawner: S) -> Vec<NodeControl<u32>>
+pub async fn create_node_controls<S>(num_nodes: usize, spawner: S) -> Vec<NodeControl<u32>>
 where
     S: Spawn + Clone + Send + 'static,
 {

@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 
 use super::utils::apply_funder_incoming;
 
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, LocalPool};
 use futures::task::SpawnExt;
 use futures::{future, FutureExt};
 
@@ -825,7 +825,7 @@ async fn task_handler_pair_inconsistency<'a>(
 
 #[test]
 fn test_handler_pair_inconsistency() {
-    let mut thread_pool = ThreadPool::new().unwrap();
+    let thread_pool = ThreadPool::new().unwrap();
 
     let rng1 = DummyRandom::new(&[1u8]);
     let pkcs8 = generate_private_key(&rng1);
@@ -845,7 +845,7 @@ fn test_handler_pair_inconsistency() {
         .spawn(identity_server2.then(|_| future::ready(())))
         .unwrap();
 
-    thread_pool.run(task_handler_pair_inconsistency(
+    LocalPool::new().run_until(task_handler_pair_inconsistency(
         &mut identity_client1,
         &mut identity_client2,
     ));
