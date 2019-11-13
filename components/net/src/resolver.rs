@@ -42,17 +42,18 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+
     use std::convert::TryInto;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+    use futures::executor::{LocalPool, ThreadPool};
+
     #[test]
     fn test_resolver_numeric_v4() {
-        let mut thread_pool = ThreadPool::new().unwrap();
         let net_thread_pool = ThreadPool::new().unwrap();
         let mut resolver = Resolver::new(net_thread_pool);
-        let res_vec =
-            thread_pool.run(resolver.transform("127.0.0.1:1337".to_owned().try_into().unwrap()));
+        let res_vec = LocalPool::new()
+            .run_until(resolver.transform("127.0.0.1:1337".to_owned().try_into().unwrap()));
 
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), 1337);
@@ -61,11 +62,10 @@ mod tests {
 
     #[test]
     fn test_resolver_numeric_v6() {
-        let mut thread_pool = ThreadPool::new().unwrap();
         let net_thread_pool = ThreadPool::new().unwrap();
         let mut resolver = Resolver::new(net_thread_pool);
-        let res_vec =
-            thread_pool.run(resolver.transform("::1:1338".to_owned().try_into().unwrap()));
+        let res_vec = LocalPool::new()
+            .run_until(resolver.transform("::1:1338".to_owned().try_into().unwrap()));
 
         let loopback = Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V6(loopback), 1338);
@@ -74,11 +74,10 @@ mod tests {
 
     #[test]
     fn test_resolver_localhost_v4() {
-        let mut thread_pool = ThreadPool::new().unwrap();
         let net_thread_pool = ThreadPool::new().unwrap();
         let mut resolver = Resolver::new(net_thread_pool);
-        let res_vec =
-            thread_pool.run(resolver.transform("localhost:1339".to_owned().try_into().unwrap()));
+        let res_vec = LocalPool::new()
+            .run_until(resolver.transform("localhost:1339".to_owned().try_into().unwrap()));
 
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), 1339);

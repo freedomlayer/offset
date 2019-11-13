@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, LocalPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
@@ -12,16 +12,16 @@ use crate::net_connector::NetConnector;
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
-use tokio::net::TcpListener as TokioTcpListener;
+use async_std::net::TcpListener as AsyncStdTcpListener;
 
 /// Get an available port we can listen on
-fn get_available_port_v4() -> u16 {
+async fn get_available_port_v4() -> u16 {
     // Idea based on code at:
     // https://github.com/rust-lang-nursery/rust-cookbook/pull/137/files
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     // Assigning port 0 requests the OS to assign a free port
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), 0);
-    let listener = TokioTcpListener::bind(&socket_addr).unwrap();
+    let listener = AsyncStdTcpListener::bind(&socket_addr).await.unwrap();
     listener.local_addr().unwrap().port()
 }
 
@@ -31,7 +31,7 @@ async fn task_tcp_client_server_v4<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let available_port = get_available_port_v4();
+    let available_port = get_available_port_v4().await;
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
@@ -67,15 +67,15 @@ where
 
 #[test]
 fn test_tcp_client_server_v4() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_tcp_client_server_v4(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    LocalPool::new().run_until(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
 async fn task_net_connector_v4_basic<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let available_port = get_available_port_v4();
+    let available_port = get_available_port_v4().await;
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
@@ -101,15 +101,15 @@ where
 
 #[test]
 fn test_net_connector_v4_basic() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_net_connector_v4_basic(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    LocalPool::new().run_until(task_net_connector_v4_basic(thread_pool.clone()));
 }
 
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let available_port = get_available_port_v4();
+    let available_port = get_available_port_v4().await;
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
@@ -135,6 +135,6 @@ where
 #[test]
 fn test_net_connector_v4_drop_sender() {
     // env_logger::init();
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_net_connector_v4_drop_sender(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    LocalPool::new().run_until(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }

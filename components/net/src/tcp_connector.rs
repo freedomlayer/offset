@@ -1,10 +1,9 @@
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
-use futures::compat::Future01CompatExt;
 use futures::task::Spawn;
 
 use std::net::SocketAddr;
-use tokio::net::TcpStream;
+use async_std::net::TcpStream;
 
 use crate::utils::tcp_stream_to_conn_pair;
 
@@ -32,7 +31,7 @@ where
 
     fn transform(&mut self, socket_addr: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let tcp_stream = TcpStream::connect(&socket_addr).compat().await.ok()?;
+            let tcp_stream = TcpStream::connect(&socket_addr).await.ok()?;
 
             Some(tcp_stream_to_conn_pair(
                 tcp_stream,
