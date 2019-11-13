@@ -214,7 +214,7 @@ async fn create_secure_channel<EK, M, K, R, S>(
     rng: R,
     timer_client: TimerClient,
     ticks_to_rekey: usize,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(PublicKey, ConnPairVec), SecureChannelError>
 where
     EK: 'static,
@@ -333,7 +333,7 @@ mod tests {
     use futures::Future;
     use timer::create_timer_incoming;
 
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::SpawnExt;
 
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn test_secure_channel_basic() {
         // Start the Identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -450,7 +450,7 @@ mod tests {
             ))
             .unwrap();
 
-        assert_eq!(true, thread_pool.run(output_receiver1).unwrap());
-        assert_eq!(true, thread_pool.run(output_receiver2).unwrap());
+        assert_eq!(true, LocalPool::new().run_until(output_receiver1).unwrap());
+        assert_eq!(true, LocalPool::new().run_until(output_receiver2).unwrap());
     }
 }

@@ -348,7 +348,7 @@ mod tests {
     // use tokio_core::reactor::Core;
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
     use futures::task::SpawnExt;
     use futures::{future, FutureExt};
     use identity::create_identity;
@@ -469,7 +469,7 @@ mod tests {
         let identity_client2 = IdentityClient::new(requests_sender2);
 
         // Start the Identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         thread_pool
             .spawn(identity_server1.then(|_| future::ready(())))
             .unwrap();
@@ -477,8 +477,8 @@ mod tests {
             .spawn(identity_server2.then(|_| future::ready(())))
             .unwrap();
 
-        let (sc_state1, sc_state2) = thread_pool
-            .run(run_basic_sc_state(identity_client1, identity_client2))
+        let (sc_state1, sc_state2) = LocalPool::new()
+            .run_until(run_basic_sc_state(identity_client1, identity_client2))
             .unwrap();
 
         (sc_state1, sc_state2, rng1, rng2)
