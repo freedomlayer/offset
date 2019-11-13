@@ -27,7 +27,7 @@ where
     pub fn spawn_prefix(&mut self, conn_pair: ConnPairVec) -> ConnPairVec {
         let (mut sender, mut receiver) = conn_pair;
 
-        let (user_sender, mut from_user_sender) = mpsc::channel(0);
+        let (user_sender, from_user_sender) = mpsc::channel(0);
         let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
         let local_version = self.local_version;
@@ -40,6 +40,7 @@ where
                 return;
             }
             // Next send any other message from the user:
+            let mut from_user_sender = from_user_sender.map(Ok);
             let _ = sender.send_all(&mut from_user_sender).await;
         };
         // If spawning fails, the user will find out when he tries to send
@@ -67,6 +68,7 @@ where
                 return;
             }
 
+            let mut receiver = receiver.map(Ok);
             let _ = to_user_receiver.send_all(&mut receiver).await;
         };
         // If spawning fails, the user will find out when he tries to read
@@ -94,7 +96,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, LocalPool};
 
     async fn task_version_prefix_match<S>(spawner: S)
     where
@@ -119,8 +121,8 @@ mod tests {
 
     #[test]
     fn test_version_prefix_match() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_version_prefix_match(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_version_prefix_match(thread_pool.clone()));
     }
 
     async fn task_version_prefix_mismatch<S>(spawner: S)
@@ -147,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_version_prefix_mismatch() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_version_prefix_mismatch(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_version_prefix_mismatch(thread_pool.clone()));
     }
 }
