@@ -161,7 +161,7 @@ mod tests {
         }
     }
 
-    async fn task_database_loop_basic<S>(mut spawner: S)
+    async fn task_database_loop_basic<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_database_loop_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         LocalPool::new().run_until(task_database_loop_basic(thread_pool.clone()));
     }
 }
