@@ -8,8 +8,8 @@ use derive_more::From;
 
 use timer::{TimerClient, TimerTick};
 
-use common::conn::{BoxFuture, ConnPair, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxFuture, ConnPair, FutTransform, ConnPairVec, BoxStream};
+use common::select_streams::{select_streams};
 
 use proto::keepalive::messages::KaMessage;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
@@ -169,9 +169,9 @@ where
     /// it also maintains keepalives.
     fn transform_keepalive(
         &mut self,
-        conn_pair: ConnPair<Vec<u8>, Vec<u8>>,
-    ) -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
-        let (to_remote, from_remote) = conn_pair;
+        conn_pair: ConnPairVec,
+    ) -> BoxFuture<'_, ConnPairVec> {
+        let (to_remote, from_remote) = conn_pair.split();
 
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
@@ -202,7 +202,7 @@ where
                 warn!("transform_keepalive(): Error requesting timer stream");
             }
 
-            (user_sender, user_receiver)
+            ConnPair::from_raw(user_sender, user_receiver)
         })
     }
 }
