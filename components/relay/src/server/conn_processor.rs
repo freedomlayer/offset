@@ -1,7 +1,6 @@
 use std::marker::Unpin;
 
-// use futures::channel::mpsc;
-use futures::{future, SinkExt, Stream, StreamExt};
+use futures::{future, SinkExt, Stream, StreamExt, FutureExt};
 
 use common::conn::{ConnPairVec, ConnPair, FutTransform, SinkError};
 
@@ -24,7 +23,7 @@ async fn dispatch_conn<FT>(
 ) -> Option<IncomingConn>
 
 where
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
+    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send + 'static,
 {
     let (sender, receiver) = keepalive_transform.transform(conn_pair_vec).await.split();
 
@@ -63,12 +62,15 @@ async fn process_conn<FT>(
     conn_timeout_ticks: usize,
 ) -> Option<IncomingConn>
 where
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
+    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send + 'static,
 {
     let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = conn_pair_vec.receiver.next().await {
+
+            // Added boxed because of issue: https://github.com/rust-lang/rust/issues/64496#issuecomment-546874018
+            // We might be able to remove this later
             let dispatch_res =
-                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform).await;
+                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform).boxed().await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -97,8 +99,8 @@ pub fn conn_processor<T, FT>(
     conn_timeout_ticks: usize,
 ) -> impl Stream<Item = IncomingConn>
 where
-    T: Stream<Item = (PublicKey, ConnPairVec)> + Unpin,
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone,
+    T: Stream<Item = (PublicKey, ConnPairVec)> + Unpin + Send + 'static,
+    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {
     incoming_conns
         .map(move |(public_key, conn_pair_vec)| {
@@ -111,6 +113,9 @@ where
             )
         })
         .filter_map(|opt_conn| opt_conn)
+        // Added boxed because of issue: https://github.com/rust-lang/rust/issues/64496#issuecomment-546874018
+        // We might be able to remove this later
+        .boxed()
 }
 
 #[cfg(test)]
@@ -253,7 +258,7 @@ mod tests {
             keepalive_transform,
             timer_client,
             conn_timeout_ticks,
-        );
+        ).boxed();
 
         let processed_conns = Box::pin(processed_conns);
 
