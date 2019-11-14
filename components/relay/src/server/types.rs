@@ -1,29 +1,29 @@
+use common::conn::{ConnPair, ConnPairVec};
+
 use proto::crypto::PublicKey;
+use proto::relay::messages::{IncomingConnection, RejectConnection};
 
-pub struct IncomingListen<M, K> {
-    pub receiver: M,
-    pub sender: K,
+pub struct IncomingListen {
+    pub conn_pair: ConnPair<IncomingConnection, RejectConnection>,
 }
 
-pub struct IncomingAccept<M, K> {
-    pub receiver: M,
-    pub sender: K,
+pub struct IncomingAccept {
     pub accept_public_key: PublicKey,
+    pub conn_pair: ConnPairVec,
 }
 
-pub struct IncomingConnect<M, K> {
-    pub receiver: M,
-    pub sender: K,
+pub struct IncomingConnect {
     pub connect_public_key: PublicKey,
+    pub conn_pair: ConnPairVec,
 }
 
-pub enum IncomingConnInner<ML, KL, MA, KA, MC, KC> {
-    Listen(IncomingListen<ML, KL>),
-    Accept(IncomingAccept<MA, KA>),
-    Connect(IncomingConnect<MC, KC>),
+pub enum IncomingConnInner {
+    Listen(IncomingListen),
+    Accept(IncomingAccept),
+    Connect(IncomingConnect),
 }
 
-pub struct IncomingConn<ML, KL, MA, KA, MC, KC> {
+pub struct IncomingConn {
     pub public_key: PublicKey,
-    pub inner: IncomingConnInner<ML, KL, MA, KA, MC, KC>,
+    pub inner: IncomingConnInner,
 }

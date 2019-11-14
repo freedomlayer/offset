@@ -1,9 +1,9 @@
 use std::marker::Unpin;
 
 // use futures::channel::mpsc;
-use futures::{future, Sink, SinkExt, Stream, StreamExt};
+use futures::{future, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPairVec, FutTransform};
+use common::conn::{ConnPairVec, ConnPair, FutTransform, SinkError};
 
 use timer::utils::future_timeout;
 use timer::TimerClient;
@@ -21,16 +21,8 @@ async fn dispatch_conn<FT>(
     public_key: PublicKey,
     first_msg: Vec<u8>,
     mut keepalive_transform: FT,
-) -> Option<
-    IncomingConn<
-        impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<IncomingConnection, Error = ()> + Unpin,
-        impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, Error = ()> + Unpin,
-        impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, Error = ()> + Unpin,
-    >,
->
+) -> Option<IncomingConn>
+
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
@@ -38,23 +30,24 @@ where
 
     let sender = sender.sink_map_err(|_| ());
     let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
-        InitConnection::Listen => IncomingConnInner::Listen(IncomingListen {
-            receiver: receiver
-                .map(|data| RejectConnection::proto_deserialize(&data))
-                .take_while(|res| future::ready(res.is_ok()))
-                .map(Result::unwrap),
-            sender: sender.with(|msg: IncomingConnection| future::ready(Ok(msg.proto_serialize()))),
-        }),
+        InitConnection::Listen => {
+            let conn_pair = ConnPair::from_raw(
+                sender.sink_map_err(|_| SinkError).with(|msg: IncomingConnection| future::ready::<Result<_, SinkError>>(Ok(msg.proto_serialize()))),
+                receiver
+                    .map(|data| RejectConnection::proto_deserialize(&data))
+                    .take_while(|res| future::ready(res.is_ok()))
+                    .map(Result::unwrap),
+            );
+            IncomingConnInner::Listen(IncomingListen {conn_pair})
+        },
         InitConnection::Accept(accept_public_key) => IncomingConnInner::Accept(IncomingAccept {
-            receiver,
-            sender,
             accept_public_key,
+            conn_pair: ConnPairVec::from_raw(sender, receiver),
         }),
         InitConnection::Connect(connect_public_key) => {
             IncomingConnInner::Connect(IncomingConnect {
-                receiver,
-                sender,
                 connect_public_key,
+                conn_pair: ConnPairVec::from_raw(sender, receiver),
             })
         }
     };
@@ -68,16 +61,7 @@ async fn process_conn<FT>(
     keepalive_transform: FT,
     mut timer_client: TimerClient,
     conn_timeout_ticks: usize,
-) -> Option<
-    IncomingConn<
-        impl Stream<Item = RejectConnection> + Unpin,
-        impl Sink<IncomingConnection, Error = ()> + Unpin,
-        impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, Error = ()> + Unpin,
-        impl Stream<Item = Vec<u8>> + Unpin,
-        impl Sink<Vec<u8>, Error = ()> + Unpin,
-    >,
->
+) -> Option<IncomingConn>
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
@@ -111,16 +95,7 @@ pub fn conn_processor<T, FT>(
     keepalive_transform: FT,
     timer_client: TimerClient,
     conn_timeout_ticks: usize,
-) -> impl Stream<
-    Item = IncomingConn<
-        impl Stream<Item = RejectConnection>,
-        impl Sink<IncomingConnection, Error = ()>,
-        impl Stream<Item = Vec<u8>>,
-        impl Sink<Vec<u8>, Error = ()>,
-        impl Stream<Item = Vec<u8>>,
-        impl Sink<Vec<u8>, Error = ()>,
-    >,
->
+) -> impl Stream<Item = IncomingConn>
 where
     T: Stream<Item = (PublicKey, ConnPairVec)> + Unpin,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone,
