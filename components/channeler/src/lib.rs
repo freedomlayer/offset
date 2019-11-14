@@ -1,8 +1,4 @@
 #![crate_type = "lib"]
-#![feature(arbitrary_self_types)]
-#![feature(nll)]
-#![feature(generators)]
-#![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
@@ -11,6 +7,7 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
+#![allow(unused)]
 
 #[macro_use]
 extern crate log;
@@ -18,14 +15,14 @@ extern crate log;
 #[macro_use]
 extern crate common;
 
-mod channeler;
+// mod channeler;
 mod connect_pool;
-mod connector_utils;
+// mod connector_utils;
 mod listen_pool;
 mod listen_pool_state;
 mod overwrite_channel;
-mod spawn;
+// mod spawn;
 mod types;
 
-pub use self::channeler::ChannelerError;
-pub use self::spawn::{spawn_channeler, SpawnChannelerError};
+// pub use self::channeler::ChannelerError;
+// pub use self::spawn::{spawn_channeler, SpawnChannelerError};

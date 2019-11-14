@@ -8,11 +8,10 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxFuture, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxFuture, FutTransform, BoxStream, ConnPairVec};
+use common::select_streams::{select_streams};
 use timer::TimerClient;
 
-use crate::types::RawConn;
 use proto::crypto::PublicKey;
 
 #[derive(Debug)]
@@ -20,7 +19,7 @@ pub struct ConnectPoolClientError;
 
 #[derive(Debug)]
 pub struct CpConnectRequest {
-    pub response_sender: oneshot::Sender<RawConn>,
+    pub response_sender: oneshot::Sender<ConnPairVec>,
 }
 
 #[derive(Clone)]
@@ -51,7 +50,7 @@ impl CpConnectClient {
         CpConnectClient { request_sender }
     }
 
-    pub async fn connect(&mut self) -> Result<RawConn, ConnectPoolClientError> {
+    pub async fn connect(&mut self) -> Result<ConnPairVec, ConnectPoolClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
         let connect_request = CpConnectRequest { response_sender };
         self.request_sender
@@ -75,22 +74,22 @@ enum CpEvent<RA> {
     ConnectRequestClosed,
     ConfigRequest(Vec<RA>),
     ConfigRequestClosed,
-    ConnectAttemptDone(Option<RawConn>),
+    ConnectAttemptDone(Option<ConnPairVec>),
     TimerTick,
     TimerClosed,
 }
 
 enum CpStatus<RA> {
     NoRequest,
-    Waiting((usize, oneshot::Sender<RawConn>)),
-    Connecting((RA, oneshot::Sender<()>, oneshot::Sender<RawConn>)),
+    Waiting((usize, oneshot::Sender<ConnPairVec>)),
+    Connecting((RA, oneshot::Sender<()>, oneshot::Sender<ConnPairVec>)),
 }
 
 struct ConnectPool<RA, C, ET, S> {
     friend_public_key: PublicKey,
     addresses: VecDeque<RA>,
     status: CpStatus<RA>,
-    conn_done_sender: mpsc::Sender<Option<RawConn>>,
+    conn_done_sender: mpsc::Sender<Option<ConnPairVec>>,
     backoff_ticks: usize,
     client_connector: C,
     encrypt_transform: ET,
@@ -103,11 +102,11 @@ async fn conn_attempt<RA, C, ET>(
     mut client_connector: C,
     mut encrypt_transform: ET,
     canceler: oneshot::Receiver<()>,
-) -> Option<RawConn>
+) -> Option<ConnPairVec>
 where
     RA: Eq,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>> + Clone,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone,
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>> + Clone,
 {
     // TODO: How to remove this Box::pin?
     let connect_fut = Box::pin(async move {
@@ -130,20 +129,18 @@ impl<RA, C, ET, S> ConnectPool<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
     S: Spawn,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
 {
     pub fn new(
         friend_public_key: PublicKey,
-        conn_done_sender: mpsc::Sender<Option<RawConn>>,
+        conn_done_sender: mpsc::Sender<Option<ConnPairVec>>,
         backoff_ticks: usize,
         client_connector: C,
         encrypt_transform: ET,
@@ -175,10 +172,10 @@ where
         let mut c_conn_done_sender = self.conn_done_sender.clone();
         let conn_fut = async move {
             let opt_conn = conn_attempt(
-                c_friend_public_key.clone(),
+                c_friend_public_key,
                 address,
-                c_client_connector.clone(),
-                c_encrypt_transform.clone(),
+                c_client_connector,
+                c_encrypt_transform,
                 cancel_receiver,
             )
             .await;
@@ -299,7 +296,7 @@ where
         Ok(())
     }
 
-    pub fn handle_connect_attempt_done(&mut self, opt_conn: Option<RawConn>) {
+    pub fn handle_connect_attempt_done(&mut self, opt_conn: Option<ConnPairVec>) {
         let connecting = match mem::replace(&mut self.status, CpStatus::NoRequest) {
             CpStatus::NoRequest | CpStatus::Waiting(_) => unreachable!(),
             CpStatus::Connecting(connecting) => connecting,
@@ -335,16 +332,14 @@ async fn connect_pool_loop<RA, ET, TS, C, S>(
 ) -> Result<(), ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     TS: Stream + Unpin + Send,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     S: Spawn + Clone,
 {
@@ -422,16 +417,14 @@ pub fn create_connect_pool<RA, ET, TS, C, S>(
 ) -> Result<ConnectPoolControl<RA>, ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     TS: Stream + Unpin + Send + 'static,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -475,8 +468,8 @@ pub struct PoolConnector<RA, C, ET, S> {
 impl<RA, C, ET, S> PoolConnector<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>> + Clone + Send + 'static,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
         + 'static,
@@ -503,15 +496,13 @@ where
 impl<RA, C, ET, S> FutTransform for PoolConnector<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<RawConn>>
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<RawConn>>
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -538,7 +529,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, block_on};
     use futures::future::join;
 
     use common::conn::FuncFutTransform;
@@ -592,7 +583,7 @@ mod tests {
             observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
-            conn_request.reply(Some((local_sender, local_receiver)));
+            conn_request.reply(Some(ConnPairVec::from_raw(local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
@@ -613,7 +604,7 @@ mod tests {
             observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
-            conn_request.reply(Some((local_sender, local_receiver)));
+            conn_request.reply(Some(ConnPairVec::from_raw(local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
@@ -634,7 +625,7 @@ mod tests {
             observed_addresses.push(address.clone());
             assert_eq!(pk, &pk_b);
 
-            conn_request.reply(Some((local_sender, local_receiver)));
+            conn_request.reply(Some(ConnPairVec::from_raw(local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (local_conn, (new_conn_request_receiver, _remote_conn)) =
@@ -661,7 +652,7 @@ mod tests {
             assert_eq!(pk, &pk_b);
             assert_eq!(address, &observed_addresses[0]);
 
-            conn_request.reply(Some((local_sender, local_receiver)));
+            conn_request.reply(Some(ConnPairVec::from_raw(local_sender, local_receiver)));
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
         let (_local_conn, (new_conn_request_receiver, _remote_conn)) =
@@ -672,7 +663,7 @@ mod tests {
     #[test]
     fn test_pool_connector_cyclic_connect() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_pool_connector_cyclic_connect(thread_pool.clone()));
+        block_on(task_pool_connector_cyclic_connect(thread_pool.clone()));
     }
 
     async fn task_pool_connector_backoff_ticks<S>(mut spawner: S)
@@ -770,7 +761,7 @@ mod tests {
             assert_eq!(pk, &pk_b);
             assert_eq!(address, &observed_addresses[0]);
 
-            conn_request.reply(Some((local_sender, local_receiver)));
+            conn_request.reply(Some(ConnPairVec::from_raw(local_sender, local_receiver)));
             event_receiver.next().await.unwrap(); // connection attempt done event
             (conn_request_receiver, (remote_sender, remote_receiver))
         };
@@ -785,6 +776,6 @@ mod tests {
     #[test]
     fn test_pool_connector_backoff_ticks() {
         let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_pool_connector_backoff_ticks(thread_pool.clone()));
+        block_on(task_pool_connector_backoff_ticks(thread_pool.clone()));
     }
 }
