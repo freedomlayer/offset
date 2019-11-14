@@ -42,8 +42,8 @@ impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
         ConnPair { sender, receiver }
     }
 
-    pub fn from_raw<E>(
-        sender: impl Sink<SendItem, Error = E> + Send + 'static,
+    pub fn from_raw(
+        sender: impl Sink<SendItem> + Send + 'static,
         receiver: impl Stream<Item = RecvItem> + Send + 'static,
     ) -> Self {
         let sender = sender.sink_map_err(|_| SinkError);
