@@ -1,10 +1,12 @@
 use core::pin::Pin;
 
+use std::fmt;
+use std::marker::PhantomData;
+
 use futures::channel::mpsc;
 use futures::sink::{Sink, SinkExt};
 use futures::stream::Stream;
 use futures::Future;
-use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub struct SinkError;
@@ -22,8 +24,14 @@ pub type ConnPair<SendItem, RecvItem> = (
 */
 
 pub struct ConnPair<SendItem, RecvItem> {
-    sender: BoxSink<'static, SendItem, SinkError>,
-    receiver: BoxStream<'static, RecvItem>,
+    pub sender: BoxSink<'static, SendItem, SinkError>,
+    pub receiver: BoxStream<'static, RecvItem>,
+}
+
+impl<SendItem, RecvItem> fmt::Debug for ConnPair<SendItem, RecvItem> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[ConnPair]")
+    }
 }
 
 impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
