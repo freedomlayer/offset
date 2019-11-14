@@ -1,6 +1,7 @@
+use std::marker::Unpin;
+
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt};
-use std::marker::Unpin;
 
 use futures::channel::mpsc;
 
