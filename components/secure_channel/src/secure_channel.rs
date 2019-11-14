@@ -6,7 +6,7 @@ use futures::channel::mpsc;
 
 use derive_more::From;
 
-use common::conn::{BoxFuture, ConnPairVec, ConnPair, FutTransform, BoxStream};
+use common::conn::{BoxFuture, ConnPairVec, FutTransform, BoxStream};
 use common::select_streams::{select_streams};
 
 use crypto::rand::CryptoRandom;
@@ -257,7 +257,7 @@ where
         .spawn(sc_loop_report_error)
         .map_err(|_| SecureChannelError::SpawnError)?;
 
-    Ok((remote_public_key, ConnPair::from_raw(user_sender, user_receiver)))
+    Ok((remote_public_key, ConnPairVec::from_raw(user_sender, user_receiver)))
 }
 
 #[derive(Clone)]
