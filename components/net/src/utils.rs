@@ -53,7 +53,7 @@ where
     spawner.spawn(async move {
         vec_sender
             .send_all(&mut local_receiver.map(Ok))
-            .map_err(|e| warn!("Failure to send to vec_senderr: {:?}", e))
+            .map_err(|e| warn!("Failure to send to vec_sender: {:?}", e))
             .await;
     });
 
