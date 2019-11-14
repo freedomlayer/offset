@@ -120,7 +120,7 @@ where
             access_control.apply_op(AccessControlOp::Add(friend_public_key.clone()));
         }
 
-        let (access_control_sender, mut connections_receiver) = self
+        let (access_control_sender, connections_receiver) = self
             .listener
             .clone()
             .listen((address.clone(), access_control));
@@ -364,7 +364,7 @@ where
     type Arg = ();
 
     fn listen(
-        mut self,
+        self,
         _arg: Self::Arg,
     ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
         let (config_sender, incoming_config) = mpsc::channel(0);
@@ -375,7 +375,7 @@ where
         let c_encrypt_transform = self.encrypt_transform.clone();
         let c_max_concurrent_encrypt = self.max_concurrent_encrypt;
         let c_backoff_ticks = self.backoff_ticks;
-        let mut c_spawner = self.spawner.clone();
+        let c_spawner = self.spawner.clone();
 
         // Connections encryptor:
         let (plain_conn_sender, incoming_plain_conn) = mpsc::channel(0);
@@ -436,7 +436,7 @@ mod tests {
     use common::dummy_listener::DummyListener;
     use timer::{dummy_timer_multi_sender, TimerTick};
 
-    async fn task_listen_pool_loop_set_local_addresses<S>(mut spawner: S)
+    async fn task_listen_pool_loop_set_local_addresses<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -523,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_set_local_addresses() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         block_on(task_listen_pool_loop_set_local_addresses(
             thread_pool.clone(),
         ));
@@ -532,7 +532,7 @@ mod tests {
     // ----------------------------------------------------------------
     // ----------------------------------------------------------------
 
-    async fn task_listen_pool_loop_backoff_ticks<S>(mut spawner: S)
+    async fn task_listen_pool_loop_backoff_ticks<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -594,14 +594,14 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_backoff_ticks() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         block_on(task_listen_pool_loop_backoff_ticks(thread_pool.clone()));
     }
 
     // ------------------------------------------------------
     // ------------------------------------------------------
 
-    async fn task_listen_pool_loop_update_remove_friend<S>(mut spawner: S)
+    async fn task_listen_pool_loop_update_remove_friend<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -719,7 +719,7 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_update_remove_friend() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         block_on(task_listen_pool_loop_update_remove_friend(
             thread_pool.clone(),
         ));

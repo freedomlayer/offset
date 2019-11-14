@@ -413,7 +413,7 @@ pub fn create_connect_pool<RA, ET, TS, C, S>(
     friend_public_key: PublicKey,
     backoff_ticks: usize,
     client_connector: C,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<ConnectPoolControl<RA>, ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
@@ -662,11 +662,11 @@ mod tests {
 
     #[test]
     fn test_pool_connector_cyclic_connect() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         block_on(task_pool_connector_cyclic_connect(thread_pool.clone()));
     }
 
-    async fn task_pool_connector_backoff_ticks<S>(mut spawner: S)
+    async fn task_pool_connector_backoff_ticks<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -775,7 +775,7 @@ mod tests {
 
     #[test]
     fn test_pool_connector_backoff_ticks() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
         block_on(task_pool_connector_backoff_ticks(thread_pool.clone()));
     }
 }
