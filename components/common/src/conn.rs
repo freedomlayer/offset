@@ -1,11 +1,60 @@
 use core::pin::Pin;
+
 use futures::channel::mpsc;
+use futures::sink::{Sink, SinkExt};
+use futures::stream::Stream;
 use futures::Future;
 use std::marker::PhantomData;
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+#[derive(Debug)]
+pub struct SinkError;
 
-pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>, mpsc::Receiver<RecvItem>);
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
+pub type BoxSink<'a, T, E> = Pin<Box<dyn Sink<T, Error = E> + Send + 'a>>;
+
+// pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>, mpsc::Receiver<RecvItem>);
+/*
+pub type ConnPair<SendItem, RecvItem> = (
+    BoxSink<'static, SendItem, SinkError>,
+    BoxStream<'static, RecvItem>,
+);
+*/
+
+pub struct ConnPair<SendItem, RecvItem> {
+    sender: BoxSink<'static, SendItem, SinkError>,
+    receiver: BoxStream<'static, RecvItem>,
+}
+
+impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
+    pub fn from_box(
+        sender: BoxSink<'static, SendItem, SinkError>,
+        receiver: BoxStream<'static, RecvItem>,
+    ) -> Self {
+        ConnPair { sender, receiver }
+    }
+
+    pub fn from_raw<E>(
+        sender: impl Sink<SendItem, Error = E> + Send + 'static,
+        receiver: impl Stream<Item = RecvItem> + Send + 'static,
+    ) -> Self {
+        let sender = sender.sink_map_err(|_| SinkError);
+        ConnPair {
+            sender: Box::pin(sender),
+            receiver: Box::pin(receiver),
+        }
+    }
+
+    pub fn split(
+        self,
+    ) -> (
+        BoxSink<'static, SendItem, SinkError>,
+        BoxStream<'static, RecvItem>,
+    ) {
+        (self.sender, self.receiver)
+    }
+}
+
 pub type ConnPairVec = ConnPair<Vec<u8>, Vec<u8>>;
 
 /*
