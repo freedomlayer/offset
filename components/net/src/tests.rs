@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::convert::{TryInto, TryFrom};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use futures::executor::{ThreadPool, LocalPool};
@@ -8,7 +8,7 @@ use futures::{SinkExt, StreamExt};
 use common::conn::{FutTransform, Listener};
 use proto::net::messages::NetAddress;
 
-use crate::net_connector::NetConnector;
+// use crate::net_connector::NetConnector;
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
@@ -34,16 +34,17 @@ where
     let available_port = get_available_port_v4().await;
     let loopback = Ipv4Addr::new(127, 0, 0, 1);
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
+    let net_address = NetAddress::try_from(format!("127.0.0.1:{}", available_port)).unwrap();
 
     let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
     let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
-    for _ in 0..5 {
+    for _ in 0..5usize {
         let (mut client_sender, mut client_receiver) =
-            tcp_connector.transform(socket_addr.clone()).await.unwrap();
-        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
+            tcp_connector.transform(net_address.clone()).await.unwrap().split();
+        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
 
         client_sender.send(vec![1, 2, 3]).await.unwrap();
         assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
@@ -80,16 +81,16 @@ where
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
     let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
-    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone(), spawner.clone());
+    let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
-    for _ in 0..5 {
+    for _ in 0..5usize {
         let (mut client_sender, mut client_receiver) =
-            net_connector.transform(net_address.clone()).await.unwrap();
-        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
+            tcp_connector.transform(net_address.clone()).await.unwrap().split();
+        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
 
         client_sender.send(vec![1, 2, 3]).await.unwrap();
         assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
@@ -114,15 +115,15 @@ where
     let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
 
     let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
-    let mut net_connector = NetConnector::new(TEST_MAX_FRAME_LEN, spawner.clone(), spawner.clone());
+    let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
     let (client_sender, _client_receiver) =
-        net_connector.transform(net_address.clone()).await.unwrap();
-    let (_server_sender, mut server_receiver) = incoming_connections.next().await.unwrap();
+        tcp_connector.transform(net_address.clone()).await.unwrap().split();
+    let (_server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
 
     // Drop the client's sender:
     drop(client_sender);
@@ -130,6 +131,7 @@ where
     // Wait until the server understands the connection is closed.
     // This should happen quickly.
     while let Some(_) = server_receiver.next().await {}
+
 }
 
 #[test]

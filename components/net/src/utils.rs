@@ -35,27 +35,23 @@ where
                 future::ready(Ok(Bytes::from(vec)))
             });
 
-    let mut vec_receiver = receiver.map_ok(|bytes| bytes.to_vec())
-                                .map_err(|_| ());
+    let mut vec_receiver = receiver
+        .take_while(|res| future::ready(res.is_ok()))
+        .map(|res| res.unwrap().to_vec());
 
-    let (user_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
-    let (local_sender, user_receiver) = mpsc::channel::<Vec<u8>>(1);
+    // Add a mechanism to make sure that the connection is dropped when we drop the sender.
+    // Not fully sure why this doesn't happen automatically.
+    let (user_sender, mut user_sender_receiver) = mpsc::channel(0);
+    let (mut user_receiver_sender, user_receiver) = mpsc::channel(0);
 
-
-    spawner.spawn(async move {
-        local_sender
-            .sink_map_err(|_| ())
-            .send_all(&mut vec_receiver)
-            .map_err(|e| warn!("Failure to send to local_sender: {:?}", e))
-            .await;
+    let receiver_task = spawner.spawn_with_handle(async move {
+        user_receiver_sender.send_all(&mut vec_receiver.map(Ok)).await;
     });
 
     spawner.spawn(async move {
-        vec_sender
-            .send_all(&mut local_receiver.map(Ok))
-            .map_err(|e| warn!("Failure to send to vec_sender: {:?}", e))
-            .await;
+        vec_sender.send_all(&mut user_sender_receiver.map(Ok)).await;
+        drop(receiver_task);
     });
 
-    (user_sender, user_receiver)
+    ConnPairVec::from_raw(user_sender, user_receiver)
 }

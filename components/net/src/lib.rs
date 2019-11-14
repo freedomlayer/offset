@@ -11,8 +11,8 @@
 #[macro_use]
 extern crate log;
 
-mod net_connector;
-mod resolver;
+// mod net_connector;
+// mod resolver;
 mod tcp_connector;
 mod tcp_listener;
 #[cfg(test)]
@@ -20,5 +20,5 @@ mod tests;
 mod types;
 mod utils;
 
-pub use self::net_connector::NetConnector;
+pub use self::tcp_connector::TcpConnector;
 pub use self::tcp_listener::TcpListener;

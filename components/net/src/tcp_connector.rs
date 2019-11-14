@@ -2,8 +2,10 @@ use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
 use futures::task::Spawn;
 
-use std::net::SocketAddr;
+// use std::net::SocketAddr;
 use async_std::net::TcpStream;
+
+use proto::net::messages::NetAddress;
 
 use crate::utils::tcp_stream_to_conn_pair;
 
@@ -26,12 +28,12 @@ impl<S> FutTransform for TcpConnector<S>
 where
     S: Spawn + Send,
 {
-    type Input = SocketAddr;
+    type Input = NetAddress;
     type Output = Option<ConnPairVec>;
 
-    fn transform(&mut self, socket_addr: Self::Input) -> BoxFuture<'_, Self::Output> {
+    fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let tcp_stream = TcpStream::connect(&socket_addr).await.ok()?;
+            let tcp_stream = TcpStream::connect(net_address.as_str()).await.ok()?;
 
             Some(tcp_stream_to_conn_pair(
                 tcp_stream,
