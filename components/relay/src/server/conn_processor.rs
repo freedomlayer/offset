@@ -1,6 +1,6 @@
 use std::marker::Unpin;
 
-use futures::channel::mpsc;
+// use futures::channel::mpsc;
 use futures::{future, Sink, SinkExt, Stream, StreamExt};
 
 use common::conn::{ConnPairVec, FutTransform};
@@ -17,8 +17,7 @@ use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
 
 async fn dispatch_conn<FT>(
-    sender: mpsc::Sender<Vec<u8>>,
-    receiver: mpsc::Receiver<Vec<u8>>,
+    conn_pair_vec: ConnPairVec,
     public_key: PublicKey,
     first_msg: Vec<u8>,
     mut keepalive_transform: FT,
@@ -35,7 +34,7 @@ async fn dispatch_conn<FT>(
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    let (sender, receiver) = keepalive_transform.transform((sender, receiver)).await;
+    let (sender, receiver) = keepalive_transform.transform(conn_pair_vec).await.split();
 
     let sender = sender.sink_map_err(|_| ());
     let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
@@ -64,8 +63,7 @@ where
 }
 
 async fn process_conn<FT>(
-    sender: mpsc::Sender<Vec<u8>>,
-    mut receiver: mpsc::Receiver<Vec<u8>>,
+    mut conn_pair_vec: ConnPairVec,
     public_key: PublicKey,
     keepalive_transform: FT,
     mut timer_client: TimerClient,
@@ -84,9 +82,9 @@ where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
     let fut_receiver = Box::pin(async move {
-        if let Some(first_msg) = receiver.next().await {
+        if let Some(first_msg) = conn_pair_vec.receiver.next().await {
             let dispatch_res =
-                dispatch_conn(sender, receiver, public_key, first_msg, keepalive_transform).await;
+                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform).await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -128,10 +126,9 @@ where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone,
 {
     incoming_conns
-        .map(move |(public_key, (sender, receiver))| {
+        .map(move |(public_key, conn_pair_vec)| {
             process_conn(
-                sender,
-                receiver,
+                conn_pair_vec,
                 public_key,
                 keepalive_transform.clone(),
                 timer_client.clone(),
@@ -166,8 +163,7 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
-            sender,
-            receiver,
+            ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
             keepalive_transform,
@@ -188,8 +184,7 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
-            sender,
-            receiver,
+            ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
             keepalive_transform,
@@ -212,8 +207,7 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
-            sender,
-            receiver,
+            ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
             keepalive_transform,
@@ -246,8 +240,7 @@ mod tests {
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let res = dispatch_conn(
-            sender,
-            receiver,
+            ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
             keepalive_transform,
@@ -275,7 +268,7 @@ mod tests {
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_conns =
-            stream::iter::<_>(vec![(public_key.clone(), (local_sender, local_receiver))]);
+            stream::iter::<_>(vec![(public_key.clone(), ConnPairVec::from_raw(local_sender, local_receiver))]);
 
         let conn_timeout_ticks = 16;
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));

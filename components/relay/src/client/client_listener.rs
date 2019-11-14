@@ -4,14 +4,14 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener};
+use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener, BoxStream};
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
 
 use common::access_control::{AccessControl, AccessControlOp};
-use common::select_streams::{select_streams, BoxStream};
+use common::select_streams::{select_streams};
 
 use timer::{TimerClient, TimerTick};
 
@@ -132,7 +132,7 @@ where
         }
     }?;
 
-    let (mut sender, receiver) = conn_pair;
+    let (mut sender, receiver) = conn_pair.split();
 
     // Send first message:
     let ser_init_connection = InitConnection::Accept(public_key.clone()).proto_serialize();
@@ -149,13 +149,13 @@ where
     let from_tunnel_receiver = receiver;
 
     let (user_to_tunnel_sender, user_from_tunnel_receiver) = keepalive_transform
-        .transform((to_tunnel_sender, from_tunnel_receiver))
-        .await;
+        .transform(ConnPairVec::from_raw(to_tunnel_sender, from_tunnel_receiver))
+        .await.split();
 
     connections_sender
         .send((
             public_key,
-            (user_to_tunnel_sender, user_from_tunnel_receiver),
+            ConnPairVec::from_raw(user_to_tunnel_sender, user_from_tunnel_receiver),
         ))
         .await
         .map_err(|_| AcceptConnectionError::SendConnPairError)?;
@@ -190,7 +190,7 @@ where
     // be received at pending_reject_receiver
     let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
 
-    let (mut sender, receiver) = conn_pair;
+    let (mut sender, receiver) = conn_pair.split();
     let ser_init_connection = InitConnection::Listen.proto_serialize();
 
     sender
@@ -198,8 +198,8 @@ where
         .await
         .map_err(|_| ClientListenerError::SendInitConnectionError)?;
 
-    let conn_pair = (sender, receiver);
-    let (sender, receiver) = keepalive_transform.transform(conn_pair).await;
+    let conn_pair = ConnPairVec::from_raw(sender, receiver);
+    let (sender, receiver) = keepalive_transform.transform(conn_pair).await.split();
 
     // Add serialization for sender:
     let mut sender =
@@ -388,7 +388,7 @@ mod tests {
 
         let req = req_receiver.next().await.unwrap();
         let (dummy_sender, dummy_receiver) = mpsc::channel::<Vec<u8>>(0);
-        let conn_pair = (dummy_sender, dummy_receiver);
+        let conn_pair = ConnPairVec::from_raw(dummy_sender, dummy_receiver);
         req.reply(Some(conn_pair));
 
         assert!(fut_conn.await.is_some());
@@ -461,7 +461,7 @@ mod tests {
         let (local_sender, mut remote_receiver) = mpsc::channel(1);
         let (remote_sender, local_receiver) = mpsc::channel(1);
 
-        let conn_pair = (local_sender, local_receiver);
+        let conn_pair = ConnPairVec::from_raw(local_sender, local_receiver);
 
         // accept_connection() will try to connect. We prepare a connection:
         let req = req_receiver.next().await.unwrap();
@@ -481,7 +481,7 @@ mod tests {
         let (accepted_public_key, conn_pair) = connections_receiver.next().await.unwrap();
         assert_eq!(accepted_public_key, public_key);
 
-        let (mut sender, mut receiver) = conn_pair;
+        let (mut sender, mut receiver) = conn_pair.split();
 
         sender.send(vec![1, 2, 3]).await.unwrap();
         let res = ser_remote_receiver.next().await.unwrap();
@@ -536,7 +536,7 @@ mod tests {
         // listener will attempt to start a main connection to the relay:
         let (mut relay_sender, local_receiver) = mpsc::channel(1);
         let (local_sender, mut relay_receiver) = mpsc::channel(1);
-        let conn_pair = (local_sender, local_receiver);
+        let conn_pair = ConnPairVec::from_raw(local_sender, local_receiver);
         let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));
 
@@ -584,7 +584,7 @@ mod tests {
         // Listener will open a connection to the relay:
         let (_remote_sender, local_receiver) = mpsc::channel(0);
         let (local_sender, mut remote_receiver) = mpsc::channel(0);
-        let conn_pair = (local_sender, local_receiver);
+        let conn_pair = ConnPairVec::from_raw(local_sender, local_receiver);
 
         let req = req_receiver.next().await.unwrap();
         req.reply(Some(conn_pair));

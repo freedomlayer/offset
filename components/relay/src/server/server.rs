@@ -6,7 +6,9 @@ use std::fmt;
 use std::marker::Unpin;
 
 use common::futures_compat::send_to_sink;
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::BoxStream;
+use common::select_streams::{select_streams};
+
 use timer::TimerClient;
 
 use proto::crypto::PublicKey;

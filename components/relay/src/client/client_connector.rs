@@ -42,7 +42,7 @@ where
             .connector
             .transform(relay_address)
             .await
-            .ok_or(ClientConnectorError::InnerConnectorError)?;
+            .ok_or(ClientConnectorError::InnerConnectorError)?.split();
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
@@ -59,10 +59,10 @@ where
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = self
             .keepalive_transform
-            .transform((to_tunnel_sender, from_tunnel_receiver))
-            .await;
+            .transform(ConnPairVec::from_raw(to_tunnel_sender, from_tunnel_receiver))
+            .await.split();
 
-        Ok((user_to_tunnel, user_from_tunnel))
+        Ok(ConnPairVec::from_raw(user_to_tunnel, user_from_tunnel))
     }
 }
 
@@ -101,7 +101,7 @@ mod tests {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
 
-        let conn_pair = (local_sender, local_receiver);
+        let conn_pair = ConnPairVec::from_raw(local_sender, local_receiver);
         let (req_sender, mut req_receiver) = mpsc::channel(1);
         // conn_sender.send(conn_pair).await.unwrap();
         let connector = DummyConnector::new(req_sender);
@@ -127,7 +127,7 @@ mod tests {
         let req = req_receiver.next().await.unwrap();
         // Reply with a connection:
         req.reply(Some(conn_pair));
-        let mut conn_pair = fut_conn_pair.await;
+        let conn_pair = fut_conn_pair.await;
 
         let vec = relay_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec).unwrap();
@@ -137,7 +137,7 @@ mod tests {
         };
 
         relay_sender.send(vec![1, 2, 3]).await.unwrap();
-        let (ref _sender, ref mut receiver) = conn_pair;
+        let (ref _sender, ref mut receiver) = conn_pair.split();
         let vec = receiver.next().await.unwrap();
         assert_eq!(vec, vec![1, 2, 3]);
     }
