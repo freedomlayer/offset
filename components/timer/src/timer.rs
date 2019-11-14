@@ -26,7 +26,8 @@
 // TODO: disallow clippy::too_many_arguments
 
 // use common::futures_compat::create_interval;
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::BoxStream;
+use common::select_streams::{select_streams};
 
 use async_std::stream::interval;
 
