@@ -6,8 +6,8 @@ use futures::channel::mpsc;
 
 use derive_more::From;
 
-use common::conn::{BoxFuture, ConnPairVec, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxFuture, ConnPairVec, ConnPair, FutTransform, BoxStream};
+use common::select_streams::{select_streams};
 
 use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
@@ -257,7 +257,7 @@ where
         .spawn(sc_loop_report_error)
         .map_err(|_| SecureChannelError::SpawnError)?;
 
-    Ok((remote_public_key, (user_sender, user_receiver)))
+    Ok((remote_public_key, ConnPair::from_raw(user_sender, user_receiver)))
 }
 
 #[derive(Clone)]
@@ -307,7 +307,7 @@ where
         input: (Option<PublicKey>, ConnPairVec),
     ) -> BoxFuture<'_, Option<(PublicKey, ConnPairVec)>> {
         let (opt_expected_remote, conn_pair) = input;
-        let (sender, receiver) = conn_pair;
+        let (sender, receiver) = conn_pair.split();
 
         Box::pin(async move {
             create_secure_channel(
@@ -345,7 +345,8 @@ mod tests {
         mut tick_sender: mpsc::Sender<()>,
         output_sender: oneshot::Sender<bool>,
     ) {
-        let (_public_key, (mut sender, mut receiver)) = fut_sc.await.unwrap();
+        let (_public_key, conn_pair_vec) = fut_sc.await.unwrap();
+        let (mut sender, mut receiver) = conn_pair_vec.split();
         sender.send(vec![0, 1, 2, 3, 4, 5]).await.unwrap();
         let data = receiver.next().await.unwrap();
         assert_eq!(data, vec![5, 4, 3]);
@@ -364,7 +365,8 @@ mod tests {
         _tick_sender: mpsc::Sender<()>,
         output_sender: oneshot::Sender<bool>,
     ) {
-        let (_public_key, (mut sender, mut receiver)) = fut_sc.await.unwrap();
+        let (_public_key, conn_pair_vec) = fut_sc.await.unwrap();
+        let (mut sender, mut receiver) = conn_pair_vec.split();
         let data = receiver.next().await.unwrap();
         assert_eq!(data, vec![0, 1, 2, 3, 4, 5]);
         sender.send(vec![5, 4, 3]).await.unwrap();
