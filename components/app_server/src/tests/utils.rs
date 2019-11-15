@@ -36,7 +36,7 @@ pub fn dummy_relay_address(index: u8) -> RelayAddress<u32> {
 /// Spawns an app server loop and returns all relevant channels
 /// used for control or communication.
 pub fn spawn_dummy_app_server<S>(
-    mut spawner: S,
+    spawner: S,
 ) -> (
     mpsc::Sender<FunderOutgoingControl<u32>>,
     mpsc::Receiver<FunderIncomingControl<u32>>,

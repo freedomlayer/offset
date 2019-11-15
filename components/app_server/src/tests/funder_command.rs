@@ -1,7 +1,9 @@
 use futures::channel::mpsc;
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, block_on};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
+
+use common::conn::ConnPair;
 
 use proto::crypto::Uid;
 
@@ -28,7 +30,7 @@ where
 
     let (mut app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
-    let app_server_conn_pair = (app_server_sender, app_server_receiver);
+    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
 
     let app_permissions = AppPermissions {
         routes: true,
@@ -102,6 +104,6 @@ where
 
 #[test]
 fn test_app_server_loop_funder_command() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_app_server_loop_funder_command(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_app_server_loop_funder_command(thread_pool.clone()));
 }

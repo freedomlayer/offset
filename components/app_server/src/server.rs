@@ -6,8 +6,8 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::ConnPair;
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{ConnPair, BoxStream, BoxSink, SinkError};
+use common::select_streams::{select_streams};
 // use common::mutable_state::MutableState;
 use proto::crypto::{PaymentId, Uid};
 
@@ -54,14 +54,14 @@ pub enum AppServerEvent<B: Clone> {
 
 pub struct App<B: Clone> {
     permissions: AppPermissions,
-    opt_sender: Option<mpsc::Sender<AppServerToApp<B>>>,
+    opt_sender: Option<BoxSink<'static, AppServerToApp<B>, SinkError>>, 
 }
 
 impl<B> App<B>
 where
     B: Clone,
 {
-    pub fn new(permissions: AppPermissions, sender: mpsc::Sender<AppServerToApp<B>>) -> Self {
+    pub fn new(permissions: AppPermissions, sender: BoxSink<'static, AppServerToApp<B>, SinkError>) -> Self {
         App {
             permissions,
             opt_sender: Some(sender),
@@ -165,16 +165,17 @@ where
         &mut self,
         incoming_app_connection: IncomingAppConnection<B>,
     ) -> Result<(), AppServerError> {
-        let (permissions, (sender, receiver)) = incoming_app_connection;
+        let (permissions, conn_pair) = incoming_app_connection;
+        let (sender, receiver) = conn_pair.split();
 
         let app_counter = self.app_counter;
-        let mut receiver =
+        let receiver =
             receiver.map(move |app_to_app_server| (app_counter, Some(app_to_app_server)));
 
         let mut from_app_sender = self.from_app_sender.clone();
         let send_all_fut = async move {
             // Forward all messages:
-            let _ = from_app_sender.send_all(&mut receiver).await;
+            let _ = from_app_sender.send_all(&mut receiver.map(Ok)).await;
             // Notify that the connection to the app was closed:
             let _ = from_app_sender.send((app_counter, None)).await;
         };
