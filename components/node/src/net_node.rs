@@ -158,14 +158,13 @@ pub async fn net_node<IAC, C, R, GT, AD, DS, TS, S>(
     atomic_db: AD,
     trusted_apps_spawner: TS,
     database_spawner: DS,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), NetNodeError>
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     R: CryptoRandom + Clone + 'static,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
@@ -173,9 +172,9 @@ where
         + Send
         + 'static,
     AD::Error: Send + Debug,
-    DS: Spawn + Clone + Send + Sync + 'static,
-    TS: Spawn + Clone + Send + Sync + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    DS: Spawn + Clone + Send + 'static,
+    TS: Spawn + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     // Wrap net connector with a version prefix:
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
