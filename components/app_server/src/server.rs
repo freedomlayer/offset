@@ -6,7 +6,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPair, BoxStream, BoxSink, SinkError};
+use common::conn::{ConnPair, BoxStream, sink_to_sender};
 use common::select_streams::{select_streams};
 // use common::mutable_state::MutableState;
 use proto::crypto::{PaymentId, Uid};
@@ -54,14 +54,14 @@ pub enum AppServerEvent<B: Clone> {
 
 pub struct App<B: Clone> {
     permissions: AppPermissions,
-    opt_sender: Option<BoxSink<'static, AppServerToApp<B>, SinkError>>, 
+    opt_sender: Option<mpsc::Sender<AppServerToApp<B>>>,
 }
 
 impl<B> App<B>
 where
     B: Clone,
 {
-    pub fn new(permissions: AppPermissions, sender: BoxSink<'static, AppServerToApp<B>, SinkError>) -> Self {
+    pub fn new(permissions: AppPermissions, sender: mpsc::Sender<AppServerToApp<B>>) -> Self {
         App {
             permissions,
             opt_sender: Some(sender),
@@ -184,6 +184,7 @@ where
             .spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
+        let sender = sink_to_sender(sender, &self.spawner);
         let mut app = App::new(permissions, sender);
         // Send the initial node report:
         app.send(AppServerToApp::Report(self.node_report.clone()))
