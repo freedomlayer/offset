@@ -174,7 +174,7 @@ async fn inner_client_listener<'a, C, IAC, CS, CSE, FT>(
     mut opt_event_sender: Option<mpsc::Sender<ClientListenerEvent>>,
 ) -> Result<(), ClientListenerError>
 where
-    C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send + Sync + Clone + 'static,
+    C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send + Clone + 'static,
     IAC: Stream<Item = AccessControlOp<PublicKey>> + Unpin + Send + 'static,
     CS: Sink<(PublicKey, ConnPairVec), Error = CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
@@ -320,8 +320,8 @@ impl<C, FT, S> ClientListener<C, FT, S> {
 
 impl<A, C, FT, S> Listener for ClientListener<C, FT, S>
 where
-    A: Clone + Send + Sync + 'static,
-    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    A: Clone + Send + 'static,
+    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {

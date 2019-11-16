@@ -68,8 +68,8 @@ where
 
 impl<A, C, FT> FutTransform for ClientConnector<C, FT>
 where
-    A: Sync + Send + 'static,
-    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Send + Sync,
+    A: Send + 'static,
+    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Send,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send,
 {
     type Input = (A, PublicKey);
@@ -97,7 +97,7 @@ mod tests {
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
 
-    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Sync + Send + 'static) {
+    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Send + 'static) {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
 
