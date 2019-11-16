@@ -6,7 +6,7 @@ use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer
 
 use crypto::rand::{CryptoRandom, OffstSystemRandom};
 
-use common::conn::ConnPair;
+use common::conn::{ConnPair, sink_to_sender};
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 use common::mutable_state::BatchMutable;
 use common::state_service::{state_service, StateClient};
@@ -44,11 +44,14 @@ impl<R> AppConn<R>
 where
     R: CryptoRandom + Clone,
 {
-    pub fn new<S>(conn_tuple: AppConnTuple, rng: R, spawner: &mut S) -> Result<Self, AppConnError>
+    pub fn new<S>(conn_tuple: AppConnTuple, rng: R, spawner: &S) -> Result<Self, AppConnError>
     where
         S: Spawn,
     {
-        let (app_permissions, node_report, (sender, mut receiver)) = conn_tuple;
+        let (app_permissions, node_report, conn_pair) = conn_tuple;
+        let (sender, mut receiver) = conn_pair.split();
+
+        let sender = sink_to_sender(sender, spawner);
 
         let (mut incoming_mutations_sender, incoming_mutations) = mpsc::channel(0);
         let (requests_sender, incoming_requests) = mpsc::channel(0);

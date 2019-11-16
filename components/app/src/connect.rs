@@ -1,11 +1,10 @@
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use futures::executor::ThreadPool;
 use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPairVec, FutTransform};
+use common::conn::{ConnPairVec, ConnPair, FutTransform};
 use common::int_convert::usize_to_u64;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
@@ -24,7 +23,7 @@ use proto::crypto::PublicKey;
 use crypto::rand::{system_random, CryptoRandom};
 
 use identity::IdentityClient;
-use net::NetConnector;
+use net::TcpConnector;
 use timer::create_timer;
 
 use timer::TimerClient;
@@ -53,7 +52,7 @@ pub async fn setup_connection<R, S>(
     rng: R,
     node_public_key: PublicKey,
     app_identity_client: IdentityClient,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<AppConnTuple, SetupConnectionError>
 where
     R: Clone + CryptoRandom + 'static,
@@ -83,7 +82,7 @@ where
     assert_eq!(public_key, node_public_key);
 
     // Keepalive wrapper:
-    let (mut sender, mut receiver) = keepalive_transform.transform(enc_conn).await;
+    let (mut sender, mut receiver) = keepalive_transform.transform(enc_conn).await.split();
 
     // Get AppPermissions:
     let app_permissions_data = receiver
@@ -135,36 +134,36 @@ where
         }
     });
 
-    Ok((app_permissions, node_report, (user_sender, user_receiver)))
+    Ok((app_permissions, node_report, ConnPair::from_raw(user_sender, user_receiver)))
 }
 
 #[derive(Debug)]
 pub enum NodeConnectError {
     /// Could not open network connection
-    NetConnectorError,
+    TcpConnectorError,
     SetupConnectionError(SetupConnectionError),
     CreateNodeConnectionError,
 }
 
 /// Connect to an offst node
 pub async fn node_connect<C, R, S>(
-    mut net_connector: C,
+    mut tcp_connector: C,
     node_public_key: PublicKey,
     node_net_address: NetAddress,
     timer_client: TimerClient,
     app_identity_client: IdentityClient,
     rng: R,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<AppConn<R>, NodeConnectError>
 where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Send + Sync + Clone + 'static,
 {
-    let conn_pair = net_connector
+    let conn_pair = tcp_connector
         .transform(node_net_address)
         .await
-        .ok_or(NodeConnectError::NetConnectorError)?;
+        .ok_or(NodeConnectError::TcpConnectorError)?;
 
     let conn_tuple = setup_connection(
         conn_pair,
@@ -177,7 +176,7 @@ where
     .await
     .map_err(NodeConnectError::SetupConnectionError)?;
 
-    AppConn::new(conn_tuple, rng, &mut spawner)
+    AppConn::new(conn_tuple, rng, &spawner)
         .map_err(|_| NodeConnectError::CreateNodeConnectionError)
 }
 
@@ -194,10 +193,8 @@ pub async fn connect<S>(
 where
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let resolve_thread_pool = ThreadPool::new().map_err(|_| ConnectError)?;
-
     // A tcp connector, Used to connect to remote servers:
-    let net_connector = NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, spawner.clone());
+    let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, spawner.clone());
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
@@ -207,7 +204,7 @@ where
     let rng = system_random();
 
     node_connect(
-        net_connector,
+        tcp_connector,
         node_public_key,
         node_net_address,
         timer_client,
