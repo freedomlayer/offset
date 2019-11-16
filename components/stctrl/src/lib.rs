@@ -1,7 +1,3 @@
-#![feature(arbitrary_self_types)]
-#![feature(nll)]
-#![feature(generators)]
-#![feature(never_type)]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(
@@ -10,6 +6,7 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
+// TODO; Remove this hint:
 #![allow(unused)]
 
 #[macro_use]

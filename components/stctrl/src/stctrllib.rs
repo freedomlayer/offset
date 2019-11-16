@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use futures::executor::ThreadPool;
+use futures::executor::{ThreadPool, block_on};
 
 use derive_more::From;
 
@@ -94,7 +94,7 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         .map_err(|_| StCtrlError::SpawnIdentityServiceError)?;
 
     let c_thread_pool = thread_pool.clone();
-    thread_pool.run(async move {
+    block_on(async move {
         // Connect to node:
         let node_connection = connect(
             node_address_file.public_key,
