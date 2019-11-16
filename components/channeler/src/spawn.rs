@@ -150,14 +150,15 @@ where
         spawner.clone(),
     );
 
-    // TODO: Maybe use .await here?
+    // A hack to explain to the compiler that spawner (S) doesn't need to be Sync.
+    let c_spawner = spawner.clone();
     channeler_loop(
         local_public_key,
         from_funder,
         to_funder,
         pool_connector,
         pool_listener,
-        spawner.clone(),
+        c_spawner,
     )
     .await
 }
