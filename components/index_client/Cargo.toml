@@ -18,7 +18,10 @@ database = { path = "../database", version = "0.1.0", package = "offst-database"
 log = "0.4"
 # TODO: How to make sure this is only imported in tests?
 env_logger = "0.6.0"
-futures-preview = "0.3.0-alpha.16"
-
+futures = "0.3.1"
 
 serde = {version = "1.0.87", features = ["derive"]}
+
+[dev-dependencies]
+
+futures = {version = "0.3.1", features = ["thread-pool"]}

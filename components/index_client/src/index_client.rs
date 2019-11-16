@@ -6,9 +6,10 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::FutTransform;
+use common::never::Never;
+use common::conn::{FutTransform, BoxStream};
 use common::mutable_state::MutableState;
-use common::select_streams::{select_streams, BoxStream};
+use common::select_streams::{select_streams};
 
 use proto::crypto::{PublicKey, Uid};
 
@@ -49,7 +50,7 @@ where
     ISA: Clone + PartialEq + Eq,
 {
     type Mutation = IndexClientConfigMutation<ISA>;
-    type MutateError = !;
+    type MutateError = Never;
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         match mutation {
@@ -255,7 +256,7 @@ where
         self.conn_status = ConnStatus::Connecting(server_connecting);
 
         let c_seq_friends_client = self.seq_friends_client.clone();
-        let mut c_spawner = self.spawner.clone();
+        let c_spawner = self.spawner.clone();
 
         // Canceller for the send_full_state() task:
         let (sfs_cancel_sender, sfs_cancel_receiver) = oneshot::channel::<()>();

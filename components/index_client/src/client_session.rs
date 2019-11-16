@@ -8,7 +8,7 @@ use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;
 
-use common::conn::{BoxFuture, FutTransform};
+use common::conn::{BoxFuture, FutTransform, ConnPair};
 
 use crate::single_client::{
     first_server_time_hash, single_client_loop, ServerConn, SingleClientControl, SingleClientError,
@@ -52,7 +52,7 @@ where
     }
 
     async fn connect(&mut self, index_server_address: ISA) -> Option<SessionHandle> {
-        let (to_server, mut from_server) = self.connector.transform(index_server_address).await?;
+        let (to_server, mut from_server) = self.connector.transform(index_server_address).await?.split();
 
         let first_time_hash = first_server_time_hash(&mut from_server).await.ok()?;
         let (control_sender, incoming_control) = mpsc::channel(0);
@@ -60,7 +60,7 @@ where
         let (close_sender, close_receiver) = oneshot::channel();
 
         let single_client_fut = single_client_loop(
-            (to_server, from_server),
+            ConnPair::from_raw(to_server, from_server),
             incoming_control,
             self.local_public_key.clone(),
             self.identity_client.clone(),
@@ -99,7 +99,7 @@ where
 mod tests {
     use super::*;
 
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, block_on};
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
@@ -113,7 +113,7 @@ mod tests {
     use common::dummy_connector::DummyConnector;
     use proto::index_server::messages::IndexServerToClient;
 
-    async fn task_index_client_session_basic<S>(mut spawner: S)
+    async fn task_index_client_session_basic<S>(spawner: S)
     where
         S: Spawn + Clone + Send,
     {
@@ -144,7 +144,7 @@ mod tests {
 
         let handle_conn_request_fut = async move {
             let conn_request = connector_receiver.next().await.unwrap();
-            conn_request.reply(Some((client_sender, client_receiver)));
+            conn_request.reply(Some(ConnPair::from_raw(client_sender, client_receiver)));
 
             // Send a first time hash (Required for connection):
             let time_hash = HashResult::from(&[0xaa; HashResult::len()]);
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_index_client_session_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_index_client_session_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_index_client_session_basic(thread_pool.clone()));
     }
 }

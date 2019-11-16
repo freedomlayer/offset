@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::marker::Unpin;
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::{oneshot};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::ConnPair;
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{ConnPair, BoxStream};
+use common::select_streams::{select_streams};
 
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
@@ -176,7 +176,7 @@ where
 
 /// Wait for the first time hash sent from the server.
 pub async fn first_server_time_hash(
-    from_server: &mut mpsc::Receiver<IndexServerToClient>,
+    from_server: &mut BoxStream<'static, IndexServerToClient>,
 ) -> Result<HashResult, SingleClientError> {
     loop {
         match from_server.next().await {
@@ -202,7 +202,7 @@ where
     IC: Stream<Item = SingleClientControl> + Send + Unpin,
     R: CryptoRandom,
 {
-    let (to_server, from_server) = server_conn;
+    let (to_server, from_server) = server_conn.split();
 
     let session_id = Uid::rand_gen(&rng);
     let mut single_client = SingleClient::new(
@@ -251,10 +251,11 @@ mod tests {
 
     use std::convert::TryFrom;
 
-    use futures::executor::ThreadPool;
+    use futures::executor::{ThreadPool, block_on};
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
+    use futures::channel::{mpsc, oneshot};
 
     use proto::funder::messages::Currency;
 
@@ -266,11 +267,12 @@ mod tests {
     use identity::create_identity;
 
     async fn task_first_server_time_hash() {
-        let (mut to_server, mut from_server) = mpsc::channel(0);
+        let (mut to_server, from_server) = mpsc::channel(0);
         let time_hash = HashResult::from(&[1; HashResult::len()]);
 
         let fut_send = to_server.send(IndexServerToClient::TimeHash(time_hash.clone()));
-        let fut_time_hash = first_server_time_hash(&mut from_server);
+        let mut from_server_boxed = from_server.boxed();
+        let fut_time_hash = first_server_time_hash(&mut from_server_boxed);
 
         let (_, res_time_hash) = join(fut_send, fut_time_hash).await;
         assert_eq!(res_time_hash.unwrap(), time_hash);
@@ -278,16 +280,16 @@ mod tests {
 
     #[test]
     fn test_first_server_time_hash() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_first_server_time_hash());
+        block_on(task_first_server_time_hash());
     }
 
     async fn task_first_server_time_hash_server_closed() {
-        let (to_server, mut from_server) = mpsc::channel(0);
+        let (to_server, from_server) = mpsc::channel(0);
         // Simulate closing the connection to the server:
         drop(to_server);
 
-        let fut_time_hash = first_server_time_hash(&mut from_server);
+        let mut from_server_boxed = from_server.boxed();
+        let fut_time_hash = first_server_time_hash(&mut from_server_boxed);
 
         let res_time_hash = fut_time_hash.await;
         assert_eq!(res_time_hash, Err(SingleClientError::ServerClosed));
@@ -295,11 +297,10 @@ mod tests {
 
     #[test]
     fn test_first_server_time_hash_server_closed() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_first_server_time_hash_server_closed());
+        block_on(task_first_server_time_hash_server_closed());
     }
 
-    async fn task_single_client_loop_basic<S>(mut spawner: S)
+    async fn task_single_client_loop_basic<S>(spawner: S)
     where
         S: Spawn,
     {
@@ -317,7 +318,7 @@ mod tests {
         spawner.spawn(identity_server.map(|_| ())).unwrap();
         let identity_client = IdentityClient::new(requests_sender);
 
-        let server_conn = (client_sender, client_receiver);
+        let server_conn = ConnPair::from_raw(client_sender, client_receiver);
         let rng = DummyRandom::new(&[2u8]);
         let first_server_time_hash = HashResult::from(&[1; HashResult::len()]);
 
@@ -413,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_single_client_loop_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_single_client_loop_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_single_client_loop_basic(thread_pool.clone()));
     }
 }
