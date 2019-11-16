@@ -291,7 +291,7 @@ impl<R, S> SecureChannel<R, S> {
 impl<R, S> FutTransform for SecureChannel<R, S>
 where
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync,
+    S: Spawn + Clone + Send,
 {
     /// Input:
     /// - Expected public key of the remote side.
@@ -310,6 +310,7 @@ where
         let (opt_expected_remote, conn_pair) = input;
         let (sender, receiver) = conn_pair.split();
 
+        let c_spawner = self.spawner.clone();
         Box::pin(async move {
             create_secure_channel(
                 sender,
@@ -319,7 +320,7 @@ where
                 self.rng.clone(),
                 self.timer_client.clone(),
                 self.ticks_to_rekey,
-                self.spawner.clone(),
+                c_spawner,
             )
             .await
             .ok()
