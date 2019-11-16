@@ -5,8 +5,9 @@ use std::marker::PhantomData;
 
 use futures::channel::mpsc;
 use futures::sink::{Sink, SinkExt};
-use futures::stream::Stream;
+use futures::stream::{Stream, StreamExt};
 use futures::Future;
+use futures::task::{Spawn, SpawnExt};
 
 #[derive(Debug)]
 pub struct SinkError;
@@ -64,6 +65,21 @@ impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
 }
 
 pub type ConnPairVec = ConnPair<Vec<u8>, Vec<u8>>;
+
+/// A hack to convert any sink into an mpsc::Sender. 
+/// This is useful because mpsc::Sender is cloneable.
+pub fn sink_to_sender<T>(mut sink: BoxSink<'static, T, SinkError>, spawner: &impl Spawn) -> mpsc::Sender<T> 
+where
+    T: Send + 'static
+{
+    let (sender, receiver) = mpsc::channel(0);
+    spawner.spawn(async move {
+        let _ = sink.send_all(&mut receiver.map(Ok)).await;
+    }).unwrap();
+
+    sender
+}
+
 
 /*
 /// connect to a remote entity

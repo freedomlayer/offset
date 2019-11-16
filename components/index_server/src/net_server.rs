@@ -172,10 +172,12 @@ where
             ConnPair<IndexServerToClient, IndexClientToServer>,
         )>,
     > {
-        let mut c_self = self.clone();
+        let c_self = self.clone();
         Box::pin(async move {
-            let (public_key, (mut sender, mut receiver)) =
+            let (public_key, conn_pair) =
                 c_self.version_enc_keepalive(None, conn_pair).await?;
+            
+            let (mut sender, mut receiver) = conn_pair.split();
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToClient>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
@@ -207,7 +209,7 @@ where
                 }
             });
 
-            Some((public_key, (user_sender, user_receiver)))
+            Some((public_key, ConnPair::from_raw(user_sender, user_receiver)))
         })
     }
 
@@ -221,10 +223,12 @@ where
             ConnPair<IndexServerToServer, IndexServerToServer>,
         )>,
     > {
-        let mut c_self = self.clone();
+        let c_self = self.clone();
         Box::pin(async move {
-            let (public_key, (mut sender, mut receiver)) =
+            let (public_key, conn_pair) =
                 c_self.version_enc_keepalive(None, conn_pair).await?;
+
+            let (mut sender, mut receiver) = conn_pair.split();
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
@@ -256,7 +260,7 @@ where
                 }
             });
 
-            Some((public_key, (user_sender, user_receiver)))
+            Some((public_key, ConnPair::from_raw(user_sender, user_receiver)))
         })
     }
 
@@ -265,11 +269,13 @@ where
         public_key: PublicKey,
         conn_pair: ConnPairVec,
     ) -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> {
-        let mut c_self = self.clone();
+        let c_self = self.clone();
         Box::pin(async move {
-            let (_public_key, (mut sender, mut receiver)) = c_self
+            let (_public_key, conn_pair) = c_self
                 .version_enc_keepalive(Some(public_key), conn_pair)
                 .await?;
+
+            let (mut sender, mut receiver) = conn_pair.split();
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToServer>(0);
             let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
@@ -301,7 +307,7 @@ where
                 }
             });
 
-            Some((user_sender, user_receiver))
+            Some(ConnPair::from_raw(user_sender, user_receiver))
         })
     }
 }
@@ -324,7 +330,7 @@ pub async fn net_index_server<A, ICC, ISC, SC, R, GS, S>(
     max_concurrent_encrypt: usize,
     backoff_ticks: usize,
     graph_service_spawner: GS,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), NetIndexServerError>
 where
     A: Clone + Send + Sync + Debug + 'static,

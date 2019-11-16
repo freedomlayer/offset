@@ -21,5 +21,8 @@ log = "0.4"
 # TODO: How to make sure this is only imported in tests?
 env_logger = "0.6.0"
 
-futures-preview = "0.3.0-alpha.16"
+futures = "0.3.1"
 
+[dev-dependencies]
+
+futures = {version = "0.3.1", features = ["thread-pool"]}
