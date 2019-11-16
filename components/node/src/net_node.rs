@@ -5,7 +5,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform};
+use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform, ConnPair};
 use common::transform_pool::transform_pool_loop;
 
 use crypto::rand::CryptoRandom;
@@ -108,7 +108,7 @@ where
             let app_permissions = trusted_apps.get(&public_key)?;
 
             // Keepalive wrapper:
-            let (mut sender, mut receiver) = self.keepalive_transform.transform(enc_conn).await;
+            let (mut sender, mut receiver) = self.keepalive_transform.transform(enc_conn).await.split();
 
             // Tell app about its permissions: (TODO: Is this required?)
             // sender.send(serialize_app_permissions(&app_permissions)).await.ok()?;
@@ -142,7 +142,7 @@ where
                 }
             });
 
-            Some((app_permissions.clone(), (user_sender, user_receiver)))
+            Some((app_permissions.clone(), ConnPair::from_raw(user_sender, user_receiver)))
         })
     }
 }
