@@ -68,7 +68,8 @@ pub type ConnPairVec = ConnPair<Vec<u8>, Vec<u8>>;
 
 /// A hack to convert any sink into an mpsc::Sender. 
 /// This is useful because mpsc::Sender is cloneable.
-pub fn sink_to_sender<T>(mut sink: BoxSink<'static, T, SinkError>, spawner: &impl Spawn) -> mpsc::Sender<T> 
+pub fn sink_to_sender<T>(mut sink: impl Sink<T> + Unpin + Send + 'static, 
+    spawner: &impl Spawn) -> mpsc::Sender<T> 
 where
     T: Send + 'static
 {
