@@ -292,7 +292,9 @@ where
         .map(|_| LpEvent::<RA>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
+
     let mut incoming_events = select_streams![incoming_relay_closed, incoming_config, timer_stream];
+
 
     while let Some(event) = incoming_events.next().await {
         match event {
@@ -413,6 +415,7 @@ where
                 None,
             )
             .await;
+
 
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);

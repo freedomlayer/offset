@@ -152,9 +152,8 @@ where
     C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
         + Clone
         + Send
-        + Sync
         + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
     TF: Sink<ChannelerToFunder> + Send + Unpin,
 {
     fn new(
@@ -477,10 +476,9 @@ where
     C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
         + Clone
         + Send
-        + Sync
         + 'static,
     L: Listener<Connection = (PublicKey, ConnPairVec), Config = LpConfig<RA>, Arg = ()> + Clone + Send,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
 
@@ -544,7 +542,7 @@ mod tests {
     /// Test the case of a friend the channeler initiates connection to.
     async fn task_channeler_loop_connect_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -750,7 +748,7 @@ mod tests {
     /// Test the case of the channeler waiting for a connection from a friend.
     async fn task_channeler_loop_listen_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -885,7 +883,7 @@ mod tests {
     /// forcefully closed.
     async fn task_channeler_loop_update_remove_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -995,7 +993,7 @@ mod tests {
     /// removed
     async fn task_channeler_loop_connect_friend_removed<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(1);
         let (to_funder, _funder_receiver) = mpsc::channel(1);
