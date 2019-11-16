@@ -133,7 +133,6 @@ where
     C: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
