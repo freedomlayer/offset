@@ -134,8 +134,8 @@ where
         }
 
         for hash in ex_expansion_chain.last().unwrap().iter() {
-            // TODO: Inefficient shim, until get_key_value() hits stable:
-            for (cur_hash, _) in &self.last_ticks_map {
+            // TODO: Inefficient shim, until `get_key_value()` hits stable:
+            for cur_hash in self.last_ticks_map.keys() {
                 if cur_hash == hash {
                     return Some(cur_hash);
                 }

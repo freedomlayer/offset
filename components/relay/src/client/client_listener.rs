@@ -87,18 +87,17 @@ where
     C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send,
     TS: Stream<Item = TimerTick> + Unpin,
 {
-    let mut fut_timeout = timer_stream
+    let fut_timeout = timer_stream
         .take(conn_timeout_ticks)
-        .for_each(|_| future::ready(()))
-        .fuse();
-    let mut fut_connect = connector.transform(()).fuse();
+        .for_each(|_| future::ready(()));
+    let fut_connect = connector.transform(());
 
     select! {
-        _fut_timeout = fut_timeout => {
+        _fut_timeout = fut_timeout.fuse() => {
             warn!("connection_with_timeout(): Timeout occurred during connection attempt");
             None
         },
-        fut_connect = fut_connect => fut_connect,
+        fut_connect = fut_connect.fuse() => fut_connect,
     }
 }
 

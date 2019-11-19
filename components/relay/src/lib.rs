@@ -1,5 +1,5 @@
 #![crate_type = "lib"]
-#![type_length_limit = "268251"]
+#![type_length_limit = "291239"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(

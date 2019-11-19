@@ -1,4 +1,3 @@
-#![type_length_limit = "4194304"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(

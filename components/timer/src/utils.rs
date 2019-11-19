@@ -31,14 +31,14 @@ where
     TS: Stream<Item = TimerTick> + Unpin + Send + 'static,
     F: Future<Output = T> + Unpin,
 {
-    let mut fut_time = timer_stream
+    let fut_time = timer_stream
         .take(time_ticks)
         .for_each(|_| future::ready(()))
         .map(|_| None);
 
     select! {
         fut = fut.fuse() => Some(fut),
-        fut_time = fut_time => fut_time,
+        fut_time = fut_time.fuse() => fut_time,
     }
 }
 
