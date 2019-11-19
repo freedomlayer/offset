@@ -174,9 +174,8 @@ where
     > {
         let c_self = self.clone();
         Box::pin(async move {
-            let (public_key, conn_pair) =
-                c_self.version_enc_keepalive(None, conn_pair).await?;
-            
+            let (public_key, conn_pair) = c_self.version_enc_keepalive(None, conn_pair).await?;
+
             let (mut sender, mut receiver) = conn_pair.split();
 
             let (user_sender, mut from_user_sender) = mpsc::channel::<IndexServerToClient>(0);
@@ -225,8 +224,7 @@ where
     > {
         let c_self = self.clone();
         Box::pin(async move {
-            let (public_key, conn_pair) =
-                c_self.version_enc_keepalive(None, conn_pair).await?;
+            let (public_key, conn_pair) = c_self.version_enc_keepalive(None, conn_pair).await?;
 
             let (mut sender, mut receiver) = conn_pair.split();
 

@@ -55,7 +55,10 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
                     let (connect_sender, listen_receiver) = mpsc::channel(CHANNEL_SIZE);
                     let (listen_sender, connect_receiver) = mpsc::channel(CHANNEL_SIZE);
 
-                    if let Err(_) = conn_sender.send(ConnPairVec::from_raw(listen_sender, listen_receiver)).await {
+                    if let Err(_) = conn_sender
+                        .send(ConnPairVec::from_raw(listen_sender, listen_receiver))
+                        .await
+                    {
                         // Note that we dropped the listener's sender.
                         warn!("SimNetworkRequest::Connect: Connection request failed");
                         continue;
@@ -63,7 +66,9 @@ pub async fn sim_network_loop(mut incoming_requests: mpsc::Receiver<SimNetworkRe
 
                     // Put the listener sender back in to the map:
                     listeners.insert(connect_address, conn_sender);
-                    if let Err(_) = oneshot_sender.send(ConnPairVec::from_raw(connect_sender, connect_receiver)) {
+                    if let Err(_) =
+                        oneshot_sender.send(ConnPairVec::from_raw(connect_sender, connect_receiver))
+                    {
                         warn!("SimNetworkRequest::Connect: Failure sending pair!");
                     }
                 } else {
@@ -140,7 +145,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
 
     async fn task_sim_network_basic<S>(mut spawner: S)
     where

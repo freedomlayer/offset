@@ -2,7 +2,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use futures::executor::{ThreadPool, block_on};
+use futures::executor::{block_on, ThreadPool};
 
 use derive_more::From;
 

@@ -1,5 +1,5 @@
 use futures::channel::mpsc;
-use futures::executor::{ThreadPool, block_on};
+use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 

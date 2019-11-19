@@ -6,8 +6,8 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPair, BoxStream, sink_to_sender};
-use common::select_streams::{select_streams};
+use common::conn::{sink_to_sender, BoxStream, ConnPair};
+use common::select_streams::select_streams;
 // use common::mutable_state::MutableState;
 use proto::crypto::{PaymentId, Uid};
 

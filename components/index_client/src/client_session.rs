@@ -8,7 +8,7 @@ use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;
 
-use common::conn::{BoxFuture, FutTransform, ConnPair};
+use common::conn::{BoxFuture, ConnPair, FutTransform};
 
 use crate::single_client::{
     first_server_time_hash, single_client_loop, ServerConn, SingleClientControl, SingleClientError,
@@ -52,7 +52,11 @@ where
     }
 
     async fn connect(&mut self, index_server_address: ISA) -> Option<SessionHandle> {
-        let (to_server, mut from_server) = self.connector.transform(index_server_address).await?.split();
+        let (to_server, mut from_server) = self
+            .connector
+            .transform(index_server_address)
+            .await?
+            .split();
 
         let first_time_hash = first_server_time_hash(&mut from_server).await.ok()?;
         let (control_sender, incoming_control) = mpsc::channel(0);
@@ -99,7 +103,7 @@ where
 mod tests {
     use super::*;
 
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};

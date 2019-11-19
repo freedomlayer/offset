@@ -6,9 +6,9 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::futures_compat::send_to_sink;
 use common::conn::{BoxStream, ConnPairVec};
-use common::select_streams::{select_streams};
+use common::futures_compat::send_to_sink;
+use common::select_streams::select_streams;
 
 use timer::TimerClient;
 
@@ -181,8 +181,7 @@ where
 
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
-                        let (mpsc_sender, mpsc_receiver) =
-                            mpsc::channel::<IncomingConnection>(0);
+                        let (mpsc_sender, mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
                         spawner
                             .spawn(async move {
                                 let mut sender = sender.sink_map_err(|_| ());
@@ -317,12 +316,12 @@ mod tests {
     use super::*;
 
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
 
     use crate::server::types::{IncomingAccept, IncomingConnect, IncomingListen};
 
-    use common::conn::{ConnPair};
+    use common::conn::ConnPair;
 
     use proto::crypto::PublicKey;
     use timer::create_timer_incoming;
@@ -485,7 +484,7 @@ mod tests {
         let b_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let incoming_listen_a = IncomingListen {
-            conn_pair: ConnPair::from_raw(c_ca , c_ac)
+            conn_pair: ConnPair::from_raw(c_ca, c_ac),
         };
         let incoming_conn_a = IncomingConn {
             public_key: a_public_key.clone(),
@@ -496,7 +495,7 @@ mod tests {
 
         let incoming_connect_b = IncomingConnect {
             connect_public_key: a_public_key.clone(),
-            conn_pair: ConnPairVec::from_raw(c_cb , c_bc),
+            conn_pair: ConnPairVec::from_raw(c_cb, c_bc),
         };
         let incoming_conn_b = IncomingConn {
             public_key: b_public_key.clone(),

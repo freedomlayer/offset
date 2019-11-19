@@ -4,14 +4,14 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{ConnPairVec, ConstFutTransform, FutTransform, Listener, BoxStream};
+use common::conn::{BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener};
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
 
 use common::access_control::{AccessControl, AccessControlOp};
-use common::select_streams::{select_streams};
+use common::select_streams::select_streams;
 
 use timer::{TimerClient, TimerTick};
 
@@ -148,8 +148,12 @@ where
     let from_tunnel_receiver = receiver;
 
     let (user_to_tunnel_sender, user_from_tunnel_receiver) = keepalive_transform
-        .transform(ConnPairVec::from_raw(to_tunnel_sender, from_tunnel_receiver))
-        .await.split();
+        .transform(ConnPairVec::from_raw(
+            to_tunnel_sender,
+            from_tunnel_receiver,
+        ))
+        .await
+        .split();
 
     connections_sender
         .send((
@@ -370,7 +374,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::oneshot;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use timer::create_timer_incoming;
 
     use common::conn::FuncFutTransform;

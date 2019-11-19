@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::marker::Unpin;
 
-use futures::channel::{oneshot};
+use futures::channel::oneshot;
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPair, BoxStream};
-use common::select_streams::{select_streams};
+use common::conn::{BoxStream, ConnPair};
+use common::select_streams::select_streams;
 
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
@@ -251,11 +251,11 @@ mod tests {
 
     use std::convert::TryFrom;
 
-    use futures::executor::{ThreadPool, block_on};
+    use futures::channel::{mpsc, oneshot};
+    use futures::executor::{block_on, ThreadPool};
     use futures::future::join;
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
-    use futures::channel::{mpsc, oneshot};
 
     use proto::funder::messages::Currency;
 

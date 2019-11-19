@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use futures::channel::{mpsc, oneshot};
-use futures::executor::{ThreadPool, block_on};
+use futures::executor::{block_on, ThreadPool};
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 

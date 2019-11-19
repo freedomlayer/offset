@@ -27,7 +27,7 @@
 
 // use common::futures_compat::create_interval;
 use common::conn::BoxStream;
-use common::select_streams::{select_streams};
+use common::select_streams::select_streams;
 
 use async_std::stream::interval;
 
@@ -150,10 +150,7 @@ where
 
 /// Create a timer service that broadcasts everything from the incoming Stream.
 /// Useful for testing, as this function allows full control on the rate of incoming signals.
-pub fn create_timer_incoming<M>(
-    incoming: M,
-    spawner: impl Spawn,
-) -> Result<TimerClient, TimerError>
+pub fn create_timer_incoming<M>(incoming: M, spawner: impl Spawn) -> Result<TimerClient, TimerError>
 where
     M: Stream<Item = ()> + std::marker::Unpin + Send + 'static,
 {
@@ -198,7 +195,7 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 mod tests {
     use super::*;
     use core::pin::Pin;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::future::join;
     use std::time::{Duration, Instant};
 
@@ -289,9 +286,7 @@ mod tests {
             let new_client = LocalPool::new()
                 .run_until(timer_client.clone().request_timer_stream())
                 .unwrap();
-            let client_wait = new_client
-                .take(TICKS as usize)
-                .collect::<Vec<TimerTick>>();
+            let client_wait = new_client.take(TICKS as usize).collect::<Vec<TimerTick>>();
             let client_fut = client_wait.map(move |_| {
                 let elapsed = start.elapsed();
                 assert!(elapsed >= dur * TICKS * 2 / 3);

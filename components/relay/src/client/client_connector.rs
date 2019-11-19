@@ -42,7 +42,8 @@ where
             .connector
             .transform(relay_address)
             .await
-            .ok_or(ClientConnectorError::InnerConnectorError)?.split();
+            .ok_or(ClientConnectorError::InnerConnectorError)?
+            .split();
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
@@ -59,8 +60,12 @@ where
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = self
             .keepalive_transform
-            .transform(ConnPairVec::from_raw(to_tunnel_sender, from_tunnel_receiver))
-            .await.split();
+            .transform(ConnPairVec::from_raw(
+                to_tunnel_sender,
+                from_tunnel_receiver,
+            ))
+            .await
+            .split();
 
         Ok(ConnPairVec::from_raw(user_to_tunnel, user_from_tunnel))
     }
@@ -88,7 +93,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{future, StreamExt};
 

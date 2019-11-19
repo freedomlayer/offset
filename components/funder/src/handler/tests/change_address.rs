@@ -2,7 +2,7 @@ use super::utils::apply_funder_incoming;
 
 use std::cmp::Ordering;
 
-use futures::executor::{ThreadPool, LocalPool};
+use futures::executor::{LocalPool, ThreadPool};
 use futures::task::SpawnExt;
 use futures::{future, FutureExt};
 

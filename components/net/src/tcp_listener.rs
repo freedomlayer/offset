@@ -9,7 +9,6 @@ use futures::{SinkExt, StreamExt};
 use crate::utils::tcp_stream_to_conn_pair;
 use common::conn::{ConnPairVec, Listener};
 
-
 /// Listen for incoming TCP connections
 pub struct TcpListener<S> {
     max_frame_length: usize,
@@ -40,11 +39,9 @@ where
         let (config_sender, _config_sender_receiver) = mpsc::channel(0);
         let (mut conn_receiver_sender, conn_receiver) = mpsc::channel(0);
 
-
         let mut c_spawner = self.spawner.clone();
         let c_max_frame_length = self.max_frame_length;
         let _ = self.spawner.spawn(async move {
-
             let listener = match AsyncStdTcpListener::bind(&socket_addr).await {
                 Ok(listener) => listener,
                 Err(e) => {

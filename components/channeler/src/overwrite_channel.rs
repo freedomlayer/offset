@@ -91,7 +91,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{stream, SinkExt, StreamExt};
     use futures::{FutureExt, TryFutureExt};

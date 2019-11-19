@@ -6,8 +6,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{ConnPair, FutTransform, BoxStream, sink_to_sender};
-use common::select_streams::{select_streams};
+use common::conn::{sink_to_sender, BoxStream, ConnPair, FutTransform};
+use common::select_streams::select_streams;
 
 use proto::crypto::{PublicKey, Uid};
 
@@ -141,8 +141,6 @@ enum IndexServerEvent {
     ClientListenerClosed,
     ServerListenerClosed,
 }
-
-
 
 /*
 /// We divide servers into two types:
@@ -699,7 +697,7 @@ mod tests {
 
     use std::convert::TryFrom;
 
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
     use futures::task::Spawn;
 
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
@@ -788,7 +786,10 @@ mod tests {
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         client_connections_sender
-            .send((client_public_key.clone(), ConnPair::from_raw(server_sender, server_receiver)))
+            .send((
+                client_public_key.clone(),
+                ConnPair::from_raw(server_sender, server_receiver),
+            ))
             .await
             .unwrap();
 
@@ -1080,7 +1081,10 @@ mod tests {
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         test_servers[0]
             .client_connections_sender
-            .send((client_public_key.clone(), ConnPair::from_raw(server_sender, server_receiver)))
+            .send((
+                client_public_key.clone(),
+                ConnPair::from_raw(server_sender, server_receiver),
+            ))
             .await
             .unwrap();
         test_servers[0].debug_event_receiver.next().await.unwrap();

@@ -6,10 +6,10 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::never::Never;
-use common::conn::{FutTransform, BoxStream};
+use common::conn::{BoxStream, FutTransform};
 use common::mutable_state::MutableState;
-use common::select_streams::{select_streams};
+use common::never::Never;
+use common::select_streams::select_streams;
 
 use proto::crypto::{PublicKey, Uid};
 

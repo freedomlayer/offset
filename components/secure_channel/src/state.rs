@@ -348,7 +348,7 @@ mod tests {
     // use tokio_core::reactor::Core;
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
     use futures::{future, FutureExt};
     use identity::create_identity;

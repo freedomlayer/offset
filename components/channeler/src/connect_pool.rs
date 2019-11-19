@@ -8,8 +8,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxFuture, FutTransform, BoxStream, ConnPairVec};
-use common::select_streams::{select_streams};
+use common::conn::{BoxFuture, BoxStream, ConnPairVec, FutTransform};
+use common::select_streams::select_streams;
 use timer::TimerClient;
 
 use proto::crypto::PublicKey;
@@ -133,10 +133,7 @@ where
         + Clone
         + Send
         + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     pub fn new(
         friend_public_key: PublicKey,
@@ -332,10 +329,7 @@ async fn connect_pool_loop<RA, ET, TS, C, S>(
 ) -> Result<(), ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send,
     ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
@@ -417,10 +411,7 @@ pub fn create_connect_pool<RA, ET, TS, C, S>(
 ) -> Result<ConnectPoolControl<RA>, ConnectPoolError>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     TS: Stream + Unpin + Send + 'static,
     ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
@@ -496,10 +487,7 @@ where
 impl<RA, C, ET, S> FutTransform for PoolConnector<RA, C, ET, S>
 where
     RA: Hash + Clone + Eq + Send + Debug + 'static,
-    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = (RA, PublicKey), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<ConnPairVec>>
         + Clone
         + Send
@@ -529,7 +517,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
     use futures::future::join;
 
     use common::conn::FuncFutTransform;

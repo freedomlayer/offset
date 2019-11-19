@@ -8,8 +8,8 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::access_control::AccessControlOp;
-use common::conn::{FutTransform, Listener, ConnPairVec, BoxStream};
-use common::select_streams::{select_streams};
+use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::select_streams::select_streams;
 use common::transform_pool::transform_pool_loop;
 
 use timer::TimerClient;
@@ -292,9 +292,7 @@ where
         .map(|_| LpEvent::<RA>::TimerTick)
         .chain(stream::once(future::ready(LpEvent::TimerClosed)));
 
-
     let mut incoming_events = select_streams![incoming_relay_closed, incoming_config, timer_stream];
-
 
     while let Some(event) = incoming_events.next().await {
         match event {
@@ -416,7 +414,6 @@ where
             )
             .await;
 
-
             if let Err(e) = res {
                 error!("listen_pool_loop() error: {:?}", e);
             }
@@ -434,7 +431,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
 
     use common::dummy_listener::DummyListener;
     use timer::{dummy_timer_multi_sender, TimerTick};
@@ -494,7 +491,10 @@ mod tests {
             let (remote_sender, _local_receiver) = mpsc::channel(0);
             listen_req0
                 .conn_sender
-                .send((pk_b.clone(), ConnPairVec::from_raw(remote_sender, remote_receiver)))
+                .send((
+                    pk_b.clone(),
+                    ConnPairVec::from_raw(remote_sender, remote_receiver),
+                ))
                 .await
                 .unwrap();
 

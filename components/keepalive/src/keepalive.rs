@@ -8,8 +8,8 @@ use derive_more::From;
 
 use timer::{TimerClient, TimerTick};
 
-use common::conn::{BoxFuture, ConnPair, FutTransform, ConnPairVec, BoxStream};
-use common::select_streams::{select_streams};
+use common::conn::{BoxFuture, BoxStream, ConnPair, ConnPairVec, FutTransform};
+use common::select_streams::select_streams;
 
 use proto::keepalive::messages::KaMessage;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
@@ -167,10 +167,7 @@ where
     /// Transform a usual `Vec<u8>` connection end into a connection end that performs
     /// keepalives automatically. The output `conn_pair` looks exactly like the input pair, however
     /// it also maintains keepalives.
-    fn transform_keepalive(
-        &mut self,
-        conn_pair: ConnPairVec,
-    ) -> BoxFuture<'_, ConnPairVec> {
+    fn transform_keepalive(&mut self, conn_pair: ConnPairVec) -> BoxFuture<'_, ConnPairVec> {
         let (to_remote, from_remote) = conn_pair.split();
 
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
@@ -222,7 +219,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::FutureExt;
     use timer::create_timer_incoming;

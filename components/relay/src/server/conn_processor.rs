@@ -1,8 +1,8 @@
 use std::marker::Unpin;
 
-use futures::{future, SinkExt, Stream, StreamExt, FutureExt};
+use futures::{future, FutureExt, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPairVec, ConnPair, FutTransform, SinkError};
+use common::conn::{ConnPair, ConnPairVec, FutTransform, SinkError};
 
 use timer::utils::future_timeout;
 use timer::TimerClient;
@@ -21,7 +21,6 @@ async fn dispatch_conn<FT>(
     first_msg: Vec<u8>,
     mut keepalive_transform: FT,
 ) -> Option<IncomingConn>
-
 where
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send + 'static,
 {
@@ -31,14 +30,18 @@ where
     let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
         InitConnection::Listen => {
             let conn_pair = ConnPair::from_raw(
-                sender.sink_map_err(|_| SinkError).with(|msg: IncomingConnection| future::ready::<Result<_, SinkError>>(Ok(msg.proto_serialize()))),
+                sender
+                    .sink_map_err(|_| SinkError)
+                    .with(|msg: IncomingConnection| {
+                        future::ready::<Result<_, SinkError>>(Ok(msg.proto_serialize()))
+                    }),
                 receiver
                     .map(|data| RejectConnection::proto_deserialize(&data))
                     .take_while(|res| future::ready(res.is_ok()))
                     .map(Result::unwrap),
             );
-            IncomingConnInner::Listen(IncomingListen {conn_pair})
-        },
+            IncomingConnInner::Listen(IncomingListen { conn_pair })
+        }
         InitConnection::Accept(accept_public_key) => IncomingConnInner::Accept(IncomingAccept {
             accept_public_key,
             conn_pair: ConnPairVec::from_raw(sender, receiver),
@@ -66,11 +69,12 @@ where
 {
     let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = conn_pair_vec.receiver.next().await {
-
             // Added boxed because of issue: https://github.com/rust-lang/rust/issues/64496#issuecomment-546874018
             // We might be able to remove this later
             let dispatch_res =
-                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform).boxed().await;
+                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform)
+                    .boxed()
+                    .await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -123,7 +127,7 @@ mod tests {
     use super::*;
 
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{stream, FutureExt};
 
@@ -247,8 +251,10 @@ mod tests {
         let (local_sender, _remote_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut remote_sender, local_receiver) = mpsc::channel::<Vec<u8>>(0);
 
-        let incoming_conns =
-            stream::iter::<_>(vec![(public_key.clone(), ConnPairVec::from_raw(local_sender, local_receiver))]);
+        let incoming_conns = stream::iter::<_>(vec![(
+            public_key.clone(),
+            ConnPairVec::from_raw(local_sender, local_receiver),
+        )]);
 
         let conn_timeout_ticks = 16;
         let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
@@ -258,7 +264,8 @@ mod tests {
             keepalive_transform,
             timer_client,
             conn_timeout_ticks,
-        ).boxed();
+        )
+        .boxed();
 
         let processed_conns = Box::pin(processed_conns);
 
@@ -276,13 +283,17 @@ mod tests {
             })
             .unwrap();
 
-        let (conn, processed_conns) = LocalPool::new().run_until(receive(processed_conns)).unwrap();
+        let (conn, processed_conns) = LocalPool::new()
+            .run_until(receive(processed_conns))
+            .unwrap();
         assert_eq!(conn.public_key, public_key);
         match conn.inner {
             IncomingConnInner::Listen(_incoming_listen) => {}
             _ => panic!("Incorrect processed conn"),
         };
 
-        assert!(LocalPool::new().run_until(receive(processed_conns)).is_none());
+        assert!(LocalPool::new()
+            .run_until(receive(processed_conns))
+            .is_none());
     }
 }

@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{Future, SinkExt, StreamExt};
 
-use common::conn::{BoxFuture, ConnPairVec, ConnPair, FutTransform};
+use common::conn::{BoxFuture, ConnPair, ConnPairVec, FutTransform};
 use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;

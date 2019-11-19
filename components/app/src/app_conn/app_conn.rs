@@ -6,7 +6,7 @@ use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer
 
 use crypto::rand::{CryptoRandom, OffstSystemRandom};
 
-use common::conn::{ConnPair, sink_to_sender};
+use common::conn::{sink_to_sender, ConnPair};
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
 use common::mutable_state::BatchMutable;
 use common::state_service::{state_service, StateClient};

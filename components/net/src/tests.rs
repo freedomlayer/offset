@@ -1,7 +1,7 @@
-use std::convert::{TryInto, TryFrom};
+use std::convert::{TryFrom, TryInto};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use futures::executor::{ThreadPool, LocalPool};
+use futures::executor::{LocalPool, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
@@ -42,9 +42,13 @@ where
     let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
     for _ in 0..5usize {
-        let (mut client_sender, mut client_receiver) =
-            tcp_connector.transform(net_address.clone()).await.unwrap().split();
-        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
+        let (mut client_sender, mut client_receiver) = tcp_connector
+            .transform(net_address.clone())
+            .await
+            .unwrap()
+            .split();
+        let (mut server_sender, mut server_receiver) =
+            incoming_connections.next().await.unwrap().split();
 
         client_sender.send(vec![1, 2, 3]).await.unwrap();
         assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
@@ -88,9 +92,13 @@ where
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
     for _ in 0..5usize {
-        let (mut client_sender, mut client_receiver) =
-            tcp_connector.transform(net_address.clone()).await.unwrap().split();
-        let (mut server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
+        let (mut client_sender, mut client_receiver) = tcp_connector
+            .transform(net_address.clone())
+            .await
+            .unwrap()
+            .split();
+        let (mut server_sender, mut server_receiver) =
+            incoming_connections.next().await.unwrap().split();
 
         client_sender.send(vec![1, 2, 3]).await.unwrap();
         assert_eq!(server_receiver.next().await.unwrap(), vec![1, 2, 3]);
@@ -121,8 +129,11 @@ where
 
     let net_address: NetAddress = format!("127.0.0.1:{}", available_port).try_into().unwrap();
 
-    let (client_sender, _client_receiver) =
-        tcp_connector.transform(net_address.clone()).await.unwrap().split();
+    let (client_sender, _client_receiver) = tcp_connector
+        .transform(net_address.clone())
+        .await
+        .unwrap()
+        .split();
     let (_server_sender, mut server_receiver) = incoming_connections.next().await.unwrap().split();
 
     // Drop the client's sender:
@@ -131,7 +142,6 @@ where
     // Wait until the server understands the connection is closed.
     // This should happen quickly.
     while let Some(_) = server_receiver.next().await {}
-
 }
 
 #[test]

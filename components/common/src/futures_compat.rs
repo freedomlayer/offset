@@ -2,7 +2,6 @@ use futures::sink::{Sink, SinkExt};
 use futures::{stream, Future, FutureExt, StreamExt};
 use std::marker::Unpin;
 
-
 // TODO; Is there a better way to do this with the new Futures libraries?
 /// A helper function to allow sending into a sink while consuming the sink.
 /// Futures 3.0's Sink::send function takes a mutable reference to the sink instead of consuming

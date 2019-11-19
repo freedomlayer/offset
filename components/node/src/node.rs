@@ -62,10 +62,7 @@ fn node_spawn_channeler<C, R, S>(
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), ChannelerError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -242,10 +239,7 @@ async fn node_spawn_index_client<'a, C, R, S>(
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -333,10 +327,7 @@ pub async fn node<C, IA, R, S>(
     spawner: S,
 ) -> Result<(), NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     IA: Stream<Item = IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,

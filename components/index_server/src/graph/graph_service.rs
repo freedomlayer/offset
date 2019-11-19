@@ -260,7 +260,7 @@ mod tests {
     use super::super::simple_capacity_graph::SimpleCapacityGraph;
     use super::super::test_utils::ConstRate;
 
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
 
     async fn task_create_graph_service_basic<S>(spawner: S)
     where

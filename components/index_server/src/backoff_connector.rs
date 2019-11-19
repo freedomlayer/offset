@@ -75,12 +75,12 @@ mod tests {
     use super::*;
 
     use futures::channel::mpsc;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
     use futures::future::join;
     use futures::task::Spawn;
     use futures::{SinkExt, StreamExt};
 
-    use common::conn::{ConnPairVec, ConnPair};
+    use common::conn::{ConnPair, ConnPairVec};
     use common::dummy_connector::DummyConnector;
     use timer::{dummy_timer_multi_sender, TimerTick};
 

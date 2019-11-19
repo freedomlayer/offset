@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPairVec, ConnPair, FutTransform};
+use common::conn::{ConnPair, ConnPairVec, FutTransform};
 use common::int_convert::usize_to_u64;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
@@ -134,7 +134,11 @@ where
         }
     });
 
-    Ok((app_permissions, node_report, ConnPair::from_raw(user_sender, user_receiver)))
+    Ok((
+        app_permissions,
+        node_report,
+        ConnPair::from_raw(user_sender, user_receiver),
+    ))
 }
 
 #[derive(Debug)]
@@ -176,8 +180,7 @@ where
     .await
     .map_err(NodeConnectError::SetupConnectionError)?;
 
-    AppConn::new(conn_tuple, rng, &spawner)
-        .map_err(|_| NodeConnectError::CreateNodeConnectionError)
+    AppConn::new(conn_tuple, rng, &spawner).map_err(|_| NodeConnectError::CreateNodeConnectionError)
 }
 
 #[derive(Debug)]

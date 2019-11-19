@@ -7,8 +7,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{FutTransform, Listener, ConnPairVec, BoxStream};
-use common::select_streams::{select_streams};
+use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::select_streams::select_streams;
 use crypto::identity::compare_public_key;
 
 use proto::crypto::PublicKey;
@@ -149,10 +149,7 @@ struct Channeler<RA, C, S, TF> {
 impl<RA, C, S, TF> Channeler<RA, C, S, TF>
 where
     RA: Clone + Send + Sync + 'static,
-    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
     TF: Sink<ChannelerToFunder> + Send + Unpin,
 {
@@ -380,12 +377,14 @@ where
 
         let mut c_event_sender = self.event_sender.clone();
         let c_friend_public_key = friend_public_key.clone();
-        let mut receiver = receiver.map(move |data| {
-            ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((
-                c_friend_public_key.clone(),
-                data,
-            )))
-        }).map(Ok);
+        let mut receiver = receiver
+            .map(move |data| {
+                ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((
+                    c_friend_public_key.clone(),
+                    data,
+                )))
+            })
+            .map(Ok);
         let c_friend_public_key = friend_public_key.clone();
         let fut_recv = async move {
             select! {
@@ -473,11 +472,10 @@ where
     FF: Stream<Item = FunderToChanneler<RA>> + Send + Unpin,
     TF: Sink<ChannelerToFunder> + Send + Unpin,
     RA: Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
+    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>> + Clone + Send + 'static,
+    L: Listener<Connection = (PublicKey, ConnPairVec), Config = LpConfig<RA>, Arg = ()>
         + Clone
-        + Send
-        + 'static,
-    L: Listener<Connection = (PublicKey, ConnPairVec), Config = LpConfig<RA>, Arg = ()> + Clone + Send,
+        + Send,
     S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
@@ -497,7 +495,9 @@ where
     let mut c_event_sender = channeler.event_sender.clone();
     let incoming_listen_conns = incoming_listen_conns.map(ChannelerEvent::Connection);
     let send_listen_conns_fut = async move {
-        let _ = c_event_sender.send_all(&mut incoming_listen_conns.map(Ok)).await;
+        let _ = c_event_sender
+            .send_all(&mut incoming_listen_conns.map(Ok))
+            .await;
         // If we reach here it means an error occurred.
         let _ = c_event_sender.send(ChannelerEvent::ListenerClosed).await;
     };
@@ -533,7 +533,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::{ThreadPool, block_on};
+    use futures::executor::{block_on, ThreadPool};
 
     use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;

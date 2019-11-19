@@ -7,8 +7,8 @@ use futures::channel::mpsc;
 
 use derive_more::From;
 
-use common::conn::{BoxFuture, ConnPairVec, FutTransform, BoxStream};
-use common::select_streams::{select_streams};
+use common::conn::{BoxFuture, BoxStream, ConnPairVec, FutTransform};
+use common::select_streams::select_streams;
 
 use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
@@ -258,7 +258,10 @@ where
         .spawn(sc_loop_report_error)
         .map_err(|_| SecureChannelError::SpawnError)?;
 
-    Ok((remote_public_key, ConnPairVec::from_raw(user_sender, user_receiver)))
+    Ok((
+        remote_public_key,
+        ConnPairVec::from_raw(user_sender, user_receiver),
+    ))
 }
 
 #[derive(Clone)]
@@ -335,7 +338,7 @@ mod tests {
     use futures::Future;
     use timer::create_timer_incoming;
 
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
 
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};

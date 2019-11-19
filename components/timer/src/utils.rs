@@ -49,7 +49,7 @@ mod tests {
     use super::*;
     use crate::timer::create_timer_incoming;
     use futures::channel::{mpsc, oneshot};
-    use futures::executor::{ThreadPool, LocalPool};
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::SinkExt;
 
