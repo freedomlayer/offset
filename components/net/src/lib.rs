@@ -11,8 +11,6 @@
 #[macro_use]
 extern crate log;
 
-// mod net_connector;
-// mod resolver;
 mod tcp_connector;
 mod tcp_listener;
 #[cfg(test)]
