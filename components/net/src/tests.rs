@@ -45,11 +45,17 @@ where
         let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
         let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
-        let _client_conn = tcp_connector
+
+        // Try to connect:
+        if let Some(_client_conn) = tcp_connector
             .transform(net_address.clone())
-            .await
-            .unwrap()
-            .split();
+            .await {
+
+            // Free connection from the other side:
+            let _ = incoming_connections.next().await.unwrap();
+            return (tcp_connector, incoming_connections, net_address);
+        } 
+
         if let Some(_) = incoming_connections.next().await {
             return (tcp_connector, incoming_connections, net_address);
         }
