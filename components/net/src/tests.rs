@@ -35,7 +35,7 @@ where
     // Keep looping until we manage to listen successfuly.
     // This is done to make tests more stable. It seems like sometimes listening will not work,
     // possibly because timing issues with vacant local ports.
-    loop {
+    for _ in 0..100usize {
         let available_port = get_available_port_v4().await;
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
@@ -56,6 +56,8 @@ where
             // In that case we need to close the connection iterate again.
         }
     }
+    // Give up after a certain amount of attempts:
+    unreachable!();
 }
 
 async fn task_tcp_client_server_v4<S>(spawner: S)
