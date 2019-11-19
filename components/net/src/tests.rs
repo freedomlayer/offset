@@ -32,6 +32,9 @@ async fn get_conn<S>(spawner: S) -> (TcpConnector<S>, mpsc::Receiver<ConnPairVec
 where
     S: Spawn + Clone + Send + 'static
 {
+    // Keep looping until we manage to listen successfuly.
+    // This is done to make tests more stable. It seems like sometimes listening will not work,
+    // possibly because timing issues with vacant local ports.
     loop {
         let available_port = get_available_port_v4().await;
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
@@ -58,7 +61,6 @@ async fn task_tcp_client_server_v4<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-    // Keep looping until we manage to listen successfuly:
     let (mut tcp_connector, mut incoming_connections, net_address) = get_conn(spawner.clone()).await;
     for _ in 0..5usize {
         let (mut client_sender, mut client_receiver) = tcp_connector
