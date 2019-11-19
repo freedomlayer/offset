@@ -1,12 +1,12 @@
 use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
+use futures::channel::mpsc;
 use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
-use futures::channel::mpsc;
 
-use common::conn::{FutTransform, Listener, ConnPairVec};
+use common::conn::{ConnPairVec, FutTransform, Listener};
 use proto::net::messages::NetAddress;
 
 // use crate::net_connector::NetConnector;
@@ -28,9 +28,9 @@ async fn get_available_port_v4() -> u16 {
 
 const TEST_MAX_FRAME_LEN: usize = 0x100;
 
-async fn get_conn<S>(spawner: S) -> (TcpConnector<S>, mpsc::Receiver<ConnPairVec>, NetAddress) 
+async fn get_conn<S>(spawner: S) -> (TcpConnector<S>, mpsc::Receiver<ConnPairVec>, NetAddress)
 where
-    S: Spawn + Clone + Send + 'static
+    S: Spawn + Clone + Send + 'static,
 {
     // Keep looping until we manage to listen successfuly.
     // This is done to make tests more stable. It seems like sometimes listening will not work,
@@ -45,23 +45,23 @@ where
         let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
         let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
-            let _client_conn = tcp_connector
-                .transform(net_address.clone())
-                .await
-                .unwrap()
-                .split();
-            if let Some(_) = incoming_connections.next().await {
-                return (tcp_connector, incoming_connections, net_address);
-            }
-    };
-
+        let _client_conn = tcp_connector
+            .transform(net_address.clone())
+            .await
+            .unwrap()
+            .split();
+        if let Some(_) = incoming_connections.next().await {
+            return (tcp_connector, incoming_connections, net_address);
+        }
+    }
 }
 
 async fn task_tcp_client_server_v4<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-    let (mut tcp_connector, mut incoming_connections, net_address) = get_conn(spawner.clone()).await;
+    let (mut tcp_connector, mut incoming_connections, net_address) =
+        get_conn(spawner.clone()).await;
     for _ in 0..5usize {
         let (mut client_sender, mut client_receiver) = tcp_connector
             .transform(net_address.clone())
@@ -97,13 +97,12 @@ fn test_tcp_client_server_v4() {
     block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
-
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
-
-    let (mut tcp_connector, mut incoming_connections, net_address) = get_conn(spawner.clone()).await;
+    let (mut tcp_connector, mut incoming_connections, net_address) =
+        get_conn(spawner.clone()).await;
 
     let (client_sender, _client_receiver) = tcp_connector
         .transform(net_address.clone())
