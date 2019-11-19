@@ -49,12 +49,11 @@ where
         // Try to connect:
         if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
             // Free connection from the other side:
-            let _ = incoming_connections.next().await.unwrap();
-            return (tcp_connector, incoming_connections, net_address);
-        }
-
-        if let Some(_) = incoming_connections.next().await {
-            return (tcp_connector, incoming_connections, net_address);
+            if let Some(_incoming_conn) = incoming_connections.next().await {
+                return (tcp_connector, incoming_connections, net_address);
+            }
+            // If we get here, it probably means that we connected to some other server.
+            // In that case we need to close the connection iterate again.
         }
     }
 }
@@ -80,18 +79,6 @@ where
         server_sender.send(vec![3, 2, 1]).await.unwrap();
         assert_eq!(client_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
-
-    /*
-    // Dropping incoming_connections should close the listener after a while
-    drop(incoming_connections);
-
-    // TODO: Do we want the tcp_listener to be closed immediately when incoming_connections is
-    // dropped? Is this possible?
-    for _ in 0 .. 5 {
-        tcp_connector.transform(socket_addr.clone()).await;
-    }
-    assert!(tcp_connector.transform(socket_addr.clone()).await.is_none());
-    */
 }
 
 #[test]
