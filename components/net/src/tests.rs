@@ -80,25 +80,15 @@ where
         server_sender.send(vec![3, 2, 1]).await.unwrap();
         assert_eq!(client_receiver.next().await.unwrap(), vec![3, 2, 1]);
     }
-
-    /*
-    // Dropping incoming_connections should close the listener after a while
-    drop(incoming_connections);
-
-    // TODO: Do we want the tcp_listener to be closed immediately when incoming_connections is
-    // dropped? Is this possible?
-    for _ in 0 .. 5 {
-        tcp_connector.transform(socket_addr.clone()).await;
-    }
-    assert!(tcp_connector.transform(socket_addr.clone()).await.is_none());
-    */
 }
 
+/*
 #[test]
 fn test_tcp_client_server_v4() {
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
+*/
 
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
 where
@@ -123,8 +113,11 @@ where
 }
 
 #[test]
-fn test_net_connector_v4_drop_sender() {
-    // env_logger::init();
+fn test_net_tests() {
+    // We run the two net tests at the same test, to make sure they don't run at the same time and
+    // fight over open ports.
+    env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
+    block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
