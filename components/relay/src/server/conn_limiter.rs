@@ -1,8 +1,8 @@
 #![allow(unused)]
 use core::pin::Pin;
 use futures::channel::oneshot;
-use futures::task::Context;
-use futures::{Poll, Sink, Stream, StreamExt};
+use futures::task::{Context, Poll};
+use futures::{Sink, Stream, StreamExt};
 use std::marker::Unpin;
 
 use proto::crypto::PublicKey;

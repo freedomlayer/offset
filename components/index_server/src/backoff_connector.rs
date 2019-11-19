@@ -75,12 +75,12 @@ mod tests {
     use super::*;
 
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{block_on, ThreadPool};
     use futures::future::join;
     use futures::task::Spawn;
     use futures::{SinkExt, StreamExt};
 
-    use common::conn::ConnPairVec;
+    use common::conn::{ConnPair, ConnPairVec};
     use common::dummy_connector::DummyConnector;
     use timer::{dummy_timer_multi_sender, TimerTick};
 
@@ -115,18 +115,18 @@ mod tests {
             // Finally we let the connection attempt succeed.
             // Return a dummy channel:
             let (sender, receiver) = mpsc::channel(1);
-            req.reply(Some((sender, receiver)));
+            req.reply(Some(ConnPair::from_raw(sender, receiver)));
         })
         .await;
 
-        let (mut sender, mut receiver) = opt_conn.unwrap();
+        let (mut sender, mut receiver) = opt_conn.unwrap().split();
         sender.send(vec![1, 2, 3]).await.unwrap();
         assert_eq!(receiver.next().await.unwrap(), vec![1, 2, 3]);
     }
 
     #[test]
     fn test_backoff_connector_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_backoff_connector_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_backoff_connector_basic(thread_pool.clone()));
     }
 }

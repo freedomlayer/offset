@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use futures::channel::{mpsc, oneshot};
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, SinkExt, StreamExt, TryFutureExt};
 
@@ -40,7 +40,7 @@ struct IndexClientControl<ISA> {
 }
 
 /// Create a basic IndexClientControl, used for testing
-fn basic_index_client<S>(mut spawner: S) -> IndexClientControl<u32>
+fn basic_index_client<S>(spawner: S) -> IndexClientControl<u32>
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -318,8 +318,8 @@ where
 
 #[test]
 fn test_index_client_loop_add_remove_index_server() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_index_client_loop_add_remove_index_server(
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_index_client_loop_add_remove_index_server(
         thread_pool.clone(),
     ));
 }
@@ -391,8 +391,8 @@ where
 
 #[test]
 fn test_index_client_loop_apply_mutations() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_index_client_loop_apply_mutations(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_index_client_loop_apply_mutations(thread_pool.clone()));
 }
 
 async fn task_index_client_loop_request_routes_basic<S>(spawner: S)
@@ -467,8 +467,8 @@ where
 
 #[test]
 fn test_index_client_loop_request_routes_basic() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_index_client_loop_request_routes_basic(
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_index_client_loop_request_routes_basic(
         thread_pool.clone(),
     ));
 }
@@ -579,8 +579,8 @@ where
 
 #[test]
 fn test_index_client_loop_connecting_state() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_index_client_loop_connecting_state(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_index_client_loop_connecting_state(thread_pool.clone()));
 }
 
 // TODO: Add more tests.

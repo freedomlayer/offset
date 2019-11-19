@@ -1,12 +1,89 @@
 use core::pin::Pin;
-use futures::channel::mpsc;
-use futures::Future;
+
+use std::fmt;
 use std::marker::PhantomData;
 
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+use futures::channel::mpsc;
+use futures::sink::{Sink, SinkExt};
+use futures::stream::{Stream, StreamExt};
+use futures::task::{Spawn, SpawnExt};
+use futures::Future;
 
-pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>, mpsc::Receiver<RecvItem>);
+#[derive(Debug)]
+pub struct SinkError;
+
+pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
+pub type BoxSink<'a, T, E> = Pin<Box<dyn Sink<T, Error = E> + Send + 'a>>;
+
+// pub type ConnPair<SendItem, RecvItem> = (mpsc::Sender<SendItem>, mpsc::Receiver<RecvItem>);
+/*
+pub type ConnPair<SendItem, RecvItem> = (
+    BoxSink<'static, SendItem, SinkError>,
+    BoxStream<'static, RecvItem>,
+);
+*/
+
+pub struct ConnPair<SendItem, RecvItem> {
+    pub sender: BoxSink<'static, SendItem, SinkError>,
+    pub receiver: BoxStream<'static, RecvItem>,
+}
+
+impl<SendItem, RecvItem> fmt::Debug for ConnPair<SendItem, RecvItem> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[ConnPair]")
+    }
+}
+
+impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
+    pub fn from_box(
+        sender: BoxSink<'static, SendItem, SinkError>,
+        receiver: BoxStream<'static, RecvItem>,
+    ) -> Self {
+        ConnPair { sender, receiver }
+    }
+
+    pub fn from_raw(
+        sender: impl Sink<SendItem> + Send + 'static,
+        receiver: impl Stream<Item = RecvItem> + Send + 'static,
+    ) -> Self {
+        let sender = sender.sink_map_err(|_| SinkError);
+        ConnPair {
+            sender: Box::pin(sender),
+            receiver: Box::pin(receiver),
+        }
+    }
+
+    pub fn split(
+        self,
+    ) -> (
+        BoxSink<'static, SendItem, SinkError>,
+        BoxStream<'static, RecvItem>,
+    ) {
+        (self.sender, self.receiver)
+    }
+}
+
 pub type ConnPairVec = ConnPair<Vec<u8>, Vec<u8>>;
+
+/// A hack to convert any sink into an mpsc::Sender.
+/// This is useful because mpsc::Sender is cloneable.
+pub fn sink_to_sender<T>(
+    mut sink: impl Sink<T> + Unpin + Send + 'static,
+    spawner: &impl Spawn,
+) -> mpsc::Sender<T>
+where
+    T: Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel(0);
+    spawner
+        .spawn(async move {
+            let _ = sink.send_all(&mut receiver.map(Ok)).await;
+        })
+        .unwrap();
+
+    sender
+}
 
 /*
 /// connect to a remote entity

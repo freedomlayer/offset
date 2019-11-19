@@ -26,7 +26,7 @@ pub async fn transform_pool_loop<IN, OUT, I, O, T, S>(
     outgoing: O,
     transform: T,
     max_concurrent: usize,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), TransformPoolLoopError>
 where
     IN: Send + 'static,

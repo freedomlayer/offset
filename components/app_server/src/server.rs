@@ -6,8 +6,8 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
-use common::conn::ConnPair;
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{sink_to_sender, BoxStream, ConnPair};
+use common::select_streams::select_streams;
 // use common::mutable_state::MutableState;
 use proto::crypto::{PaymentId, Uid};
 
@@ -165,16 +165,17 @@ where
         &mut self,
         incoming_app_connection: IncomingAppConnection<B>,
     ) -> Result<(), AppServerError> {
-        let (permissions, (sender, receiver)) = incoming_app_connection;
+        let (permissions, conn_pair) = incoming_app_connection;
+        let (sender, receiver) = conn_pair.split();
 
         let app_counter = self.app_counter;
-        let mut receiver =
+        let receiver =
             receiver.map(move |app_to_app_server| (app_counter, Some(app_to_app_server)));
 
         let mut from_app_sender = self.from_app_sender.clone();
         let send_all_fut = async move {
             // Forward all messages:
-            let _ = from_app_sender.send_all(&mut receiver).await;
+            let _ = from_app_sender.send_all(&mut receiver.map(Ok)).await;
             // Notify that the connection to the app was closed:
             let _ = from_app_sender.send((app_counter, None)).await;
         };
@@ -183,6 +184,7 @@ where
             .spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
+        let sender = sink_to_sender(sender, &self.spawner);
         let mut app = App::new(permissions, sender);
         // Send the initial node report:
         app.send(AppServerToApp::Report(self.node_report.clone()))

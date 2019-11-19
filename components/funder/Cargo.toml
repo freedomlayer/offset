@@ -22,7 +22,7 @@ untrusted = "0.6"
 
 bytes = "0.4"
 futures-cpupool = "0.1.8"
-futures-preview = "0.3.0-alpha.16"
+futures = "0.3.1"
 
 
 serde = {version = "1", features = ["derive"]}
@@ -32,9 +32,8 @@ base64 = "0.9"
 atomicwrites = "0.2.2"
 
 im = {version = "13.0.0", features = ["serde"]}
-
-[dependencies.byteorder]
-version = "1.1"
-features = ["i128"]
+byteorder = {version = "1.1", features = ["i128"]}
 
 [dev-dependencies]
+
+futures = {version = "0.3.1", features = ["thread-pool"]}

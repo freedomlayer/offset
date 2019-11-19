@@ -23,7 +23,7 @@ pub enum IdentityFromFileError {
 
 pub fn identity_from_file<S>(
     idfile_path: &Path,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<IdentityClient, IdentityFromFileError>
 where
     S: Spawn,

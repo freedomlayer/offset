@@ -15,4 +15,8 @@ proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
 
 log = "0.4"
-futures-preview = "0.3.0-alpha.16"
+futures = "0.3.1"
+
+[dev-dependencies]
+
+futures = {version = "0.3.1", features = ["thread-pool"]}

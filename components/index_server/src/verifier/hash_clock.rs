@@ -134,9 +134,19 @@ where
         }
 
         for hash in ex_expansion_chain.last().unwrap().iter() {
+            // TODO: Inefficient shim, until `get_key_value()` hits stable:
+            for cur_hash in self.last_ticks_map.keys() {
+                if cur_hash == hash {
+                    return Some(cur_hash);
+                }
+            }
+
+            /*
+            // TODO: This code currenty only works on nightly:
             if let Some((hash, _)) = self.last_ticks_map.get_key_value(hash) {
                 return Some(hash);
             }
+            */
         }
         None
     }

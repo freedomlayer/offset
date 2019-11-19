@@ -6,8 +6,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{ConnPair, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{sink_to_sender, BoxStream, ConnPair, FutTransform};
+use common::select_streams::select_streams;
 
 use proto::crypto::{PublicKey, Uid};
 
@@ -418,7 +418,7 @@ async fn client_handler(
     client_conn: ClientConn,
     mut event_sender: mpsc::Sender<IndexServerEvent>,
 ) -> Result<(), ServerLoopError> {
-    let (mut sender, mut receiver) = client_conn;
+    let (mut sender, mut receiver) = client_conn.split();
 
     while let Some(client_msg) = receiver.next().await {
         match client_msg {
@@ -496,7 +496,7 @@ where
     V: Verifier<Node = PublicKey, Neighbor = PublicKey, SessionId = Uid>,
     CMP: Clone + Fn(&PublicKey, &PublicKey) -> Ordering + Sync,
     TS: Stream + Unpin + Send,
-    S: Spawn + Send,
+    S: Spawn + Clone + Send,
 {
     // TODO: Create translation between incoming ticks (Which might happen pretty often)
     // to hash ticks, which should be a bit slower. (For every hash tick we have to send the hash
@@ -513,7 +513,7 @@ where
         compare_public_key,
         verifier,
         event_sender,
-        spawner,
+        spawner.clone(),
     )?;
 
     // We filter the incoming server connections, accepting connections only from servers
@@ -571,12 +571,13 @@ where
                     RemoteServerState::Initiating(_) | RemoteServerState::Listening => {}
                 };
 
-                let (sender, receiver) = server_conn;
+                let (sender, receiver) = server_conn.split();
+                let sender = sink_to_sender(sender, &spawner);
 
                 remote_server.state = RemoteServerState::Connected(Connected::new(sender));
 
                 let c_public_key = public_key.clone();
-                let mut receiver = receiver
+                let receiver = receiver
                     .map(move |msg| IndexServerEvent::FromServer((c_public_key.clone(), Some(msg))))
                     .chain(stream::once(future::ready(IndexServerEvent::FromServer((
                         public_key.clone(),
@@ -588,7 +589,7 @@ where
                 index_server
                     .spawner
                     .spawn(async move {
-                        let _ = c_event_sender.send_all(&mut receiver).await;
+                        let _ = c_event_sender.send_all(&mut receiver.map(Ok)).await;
                     })
                     .map_err(|_| ServerLoopError::SpawnError)?;
 
@@ -624,7 +625,9 @@ where
                 }
 
                 // Duplicate the client sender:
-                let (ref sender, _) = client_conn;
+                let (sender, receiver) = client_conn.split();
+                let sender = sink_to_sender(sender, &spawner);
+                // TODO: Possibly use channel redirection here:
                 let c_sender = sender.clone();
 
                 let mut c_event_sender = index_server.event_sender.clone();
@@ -632,7 +635,7 @@ where
                 let client_handler_fut = client_handler(
                     index_server.graph_client.clone(),
                     public_key.clone(),
-                    client_conn,
+                    ClientConn::from_raw(sender, receiver),
                     index_server.event_sender.clone(),
                 )
                 .map_err(|e| error!("client_handler() error: {:?}", e))
@@ -694,7 +697,7 @@ mod tests {
 
     use std::convert::TryFrom;
 
-    use futures::executor::ThreadPool;
+    use futures::executor::{block_on, ThreadPool};
     use futures::task::Spawn;
 
     use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
@@ -716,7 +719,7 @@ mod tests {
     /// forwarding or when sending time hash ticks.
     const CHANNEL_SIZE: usize = 16;
 
-    fn create_identity_client<S>(mut spawner: S, seed: &[u8]) -> IdentityClient
+    fn create_identity_client<S>(spawner: S, seed: &[u8]) -> IdentityClient
     where
         S: Spawn,
     {
@@ -731,7 +734,7 @@ mod tests {
         identity_client
     }
 
-    async fn task_index_server_loop_single_server<S>(mut spawner: S)
+    async fn task_index_server_loop_single_server<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -783,7 +786,10 @@ mod tests {
         let (mut client_sender, server_receiver) = mpsc::channel(CHANNEL_SIZE);
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .send((
+                client_public_key.clone(),
+                ConnPair::from_raw(server_sender, server_receiver),
+            ))
             .await
             .unwrap();
 
@@ -888,8 +894,8 @@ mod tests {
 
     #[test]
     fn test_index_server_loop_single_server() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_index_server_loop_single_server(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_index_server_loop_single_server(thread_pool.clone()));
     }
 
     // ###########################################################
@@ -906,7 +912,7 @@ mod tests {
         debug_event_receiver: mpsc::Receiver<()>,
     }
 
-    fn create_test_server<S>(index: u8, trusted_servers: &[u8], mut spawner: S) -> TestServer
+    fn create_test_server<S>(index: u8, trusted_servers: &[u8], spawner: S) -> TestServer
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -986,7 +992,7 @@ mod tests {
             .server_connections_sender
             .send((
                 test_servers[from_index].public_key.clone(),
-                (b_sender, b_receiver),
+                ConnPair::from_raw(b_sender, b_receiver),
             ))
             .await
             .unwrap();
@@ -997,7 +1003,7 @@ mod tests {
             .await
             .unwrap();
 
-        conn_request.reply(Some((a_sender, a_receiver)));
+        conn_request.reply(Some(ConnPair::from_raw(a_sender, a_receiver)));
         test_servers[from_index]
             .debug_event_receiver
             .next()
@@ -1075,7 +1081,10 @@ mod tests {
         let (server_sender, mut client_receiver) = mpsc::channel(CHANNEL_SIZE);
         test_servers[0]
             .client_connections_sender
-            .send((client_public_key.clone(), (server_sender, server_receiver)))
+            .send((
+                client_public_key.clone(),
+                ConnPair::from_raw(server_sender, server_receiver),
+            ))
             .await
             .unwrap();
         test_servers[0].debug_event_receiver.next().await.unwrap();
@@ -1228,8 +1237,8 @@ mod tests {
         // Example of how to run with logs:
         // RUST_LOG=offst_index_server=info cargo test -p offst-index-server multi  -- --nocapture
         let _ = env_logger::init();
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_index_server_loop_multi_server(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_index_server_loop_multi_server(thread_pool.clone()));
     }
 
     // TODO: Add tests.

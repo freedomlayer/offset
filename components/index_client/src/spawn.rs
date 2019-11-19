@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{Future, SinkExt, StreamExt};
 
-use common::conn::{BoxFuture, ConnPairVec, FutTransform};
+use common::conn::{BoxFuture, ConnPair, ConnPairVec, FutTransform};
 use database::DatabaseClient;
 use identity::IdentityClient;
 use timer::TimerClient;
@@ -62,7 +62,7 @@ where
         Box::pin(async move {
             // This line performs connection and then handshake:
             let (mut data_sender, mut data_receiver) =
-                self.net_connector.transform(index_server).await?;
+                self.net_connector.transform(index_server).await?.split();
 
             let (user_sender, mut local_receiver) = mpsc::channel::<IndexClientToServer>(0);
             let (mut local_sender, user_receiver) = mpsc::channel::<IndexServerToClient>(0);
@@ -101,7 +101,7 @@ where
             // he tries to send through `user_sender`
             let _ = self.spawner.spawn(ser_fut);
 
-            Some((user_sender, user_receiver))
+            Some(ConnPair::from_raw(user_sender, user_receiver))
         })
     }
 }
@@ -126,17 +126,16 @@ pub async fn spawn_index_client<ISA, C, R, S>(
     backoff_ticks: usize,
     net_connector: C,
     rng: R,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, SpawnIndexClientError>
 where
     ISA: Debug + Eq + Clone + Send + Sync + 'static,
     C: FutTransform<Input = IndexServerAddress<ISA>, Output = Option<ConnPairVec>>
         + Clone
         + Send
-        + Sync
         + 'static,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let timer_stream = timer_client
         .request_timer_stream()

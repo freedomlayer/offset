@@ -91,12 +91,12 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{block_on, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{stream, SinkExt, StreamExt};
     use futures::{FutureExt, TryFutureExt};
 
-    fn overwrite_channel<T, S>(mut spawner: S) -> (mpsc::Sender<T>, mpsc::Receiver<T>)
+    fn overwrite_channel<T, S>(spawner: S) -> (mpsc::Sender<T>, mpsc::Receiver<T>)
     where
         S: Spawn,
         T: Send + 'static + Unpin,
@@ -120,8 +120,8 @@ mod tests {
         // let mut overwrite_sender = OverwriteSink::new(sender);
         let (mut sender, mut receiver) = overwrite_channel::<u32, _>(spawner);
 
-        let mut st = stream::iter(3u32..=7);
-        sender.send_all(&mut st).await.unwrap();
+        let st = stream::iter(3u32..=7);
+        sender.send_all(&mut st.map(Ok)).await.unwrap();
         drop(sender);
         let mut last_item = None;
         while let Some(item) = receiver.next().await {
@@ -132,8 +132,8 @@ mod tests {
 
     #[test]
     fn test_overwrite_sink_send_all() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_overwrite_sink_send_all(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_overwrite_sink_send_all(thread_pool.clone()));
     }
 
     async fn task_overwrite_sink_single_send(spawner: impl Spawn) {
@@ -156,8 +156,8 @@ mod tests {
 
     #[test]
     fn test_overwrite_sink_single_send() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_overwrite_sink_single_send(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_overwrite_sink_single_send(thread_pool.clone()));
     }
 }
 

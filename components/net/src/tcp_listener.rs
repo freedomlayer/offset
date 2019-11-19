@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use tokio::net::TcpListener as TokioTcpListener;
+use async_std::net::TcpListener as AsyncStdTcpListener;
 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
@@ -8,8 +8,6 @@ use futures::{SinkExt, StreamExt};
 
 use crate::utils::tcp_stream_to_conn_pair;
 use common::conn::{ConnPairVec, Listener};
-
-use futures::compat::Stream01CompatExt;
 
 /// Listen for incoming TCP connections
 pub struct TcpListener<S> {
@@ -35,25 +33,24 @@ where
     type Arg = SocketAddr;
 
     fn listen(
-        mut self,
+        self,
         socket_addr: Self::Arg,
     ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
         let (config_sender, _config_sender_receiver) = mpsc::channel(0);
         let (mut conn_receiver_sender, conn_receiver) = mpsc::channel(0);
 
-        let listener = match TokioTcpListener::bind(&socket_addr) {
-            Ok(listener) => listener,
-            Err(e) => {
-                warn!("Failed listening on {:?}: {:?}", socket_addr, e);
-                // Return empty channels:
-                return (config_sender, conn_receiver);
-            }
-        };
-
-        let mut incoming_conns = listener.incoming().compat();
         let mut c_spawner = self.spawner.clone();
         let c_max_frame_length = self.max_frame_length;
         let _ = self.spawner.spawn(async move {
+            let listener = match AsyncStdTcpListener::bind(&socket_addr).await {
+                Ok(listener) => listener,
+                Err(e) => {
+                    warn!("Failed listening on {:?}: {:?}", socket_addr, e);
+                    return;
+                }
+            };
+            let mut incoming_conns = listener.incoming();
+
             while let Some(Ok(tcp_stream)) = incoming_conns.next().await {
                 let conn_pair =
                     tcp_stream_to_conn_pair(tcp_stream, c_max_frame_length, &mut c_spawner);

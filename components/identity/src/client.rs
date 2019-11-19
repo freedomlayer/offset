@@ -88,7 +88,7 @@ mod tests {
 
         // Start the Identity service:
         let mut local_pool = LocalPool::new();
-        let mut spawner = local_pool.spawner();
+        let spawner = local_pool.spawner();
         spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         let public_key1 = local_pool.run_until(smc.request_public_key()).unwrap();
@@ -113,7 +113,7 @@ mod tests {
 
         // Start the Identity service:
         let mut local_pool = LocalPool::new();
-        let mut spawner = local_pool.spawner();
+        let spawner = local_pool.spawner();
         spawner.spawn(sm.then(|_| future::ready(()))).unwrap();
 
         let public_key = local_pool.run_until(smc.request_public_key()).unwrap();

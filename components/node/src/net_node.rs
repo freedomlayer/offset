@@ -5,7 +5,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxFuture, ConnPairVec, FuncFutTransform, FutTransform};
+use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
 use crypto::rand::CryptoRandom;
@@ -108,7 +108,8 @@ where
             let app_permissions = trusted_apps.get(&public_key)?;
 
             // Keepalive wrapper:
-            let (mut sender, mut receiver) = self.keepalive_transform.transform(enc_conn).await;
+            let (mut sender, mut receiver) =
+                self.keepalive_transform.transform(enc_conn).await.split();
 
             // Tell app about its permissions: (TODO: Is this required?)
             // sender.send(serialize_app_permissions(&app_permissions)).await.ok()?;
@@ -142,7 +143,10 @@ where
                 }
             });
 
-            Some((app_permissions.clone(), (user_sender, user_receiver)))
+            Some((
+                app_permissions.clone(),
+                ConnPair::from_raw(user_sender, user_receiver),
+            ))
         })
     }
 }
@@ -158,24 +162,20 @@ pub async fn net_node<IAC, C, R, GT, AD, DS, TS, S>(
     atomic_db: AD,
     trusted_apps_spawner: TS,
     database_spawner: DS,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), NetNodeError>
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
     AD: AtomicDb<State = NodeState<NetAddress>, Mutation = NodeMutation<NetAddress>>
         + Send
         + 'static,
     AD::Error: Send + Debug,
-    DS: Spawn + Clone + Send + Sync + 'static,
-    TS: Spawn + Clone + Send + Sync + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    DS: Spawn + Clone + Send + 'static,
+    TS: Spawn + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     // Wrap net connector with a version prefix:
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());

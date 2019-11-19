@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use derive_more::From;
 
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
@@ -66,8 +66,7 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         .map_err(|_| RelayServerBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
-    let mut thread_pool =
-        ThreadPool::new().map_err(|_| RelayServerBinError::CreateThreadPoolError)?;
+    let thread_pool = ThreadPool::new().map_err(|_| RelayServerBinError::CreateThreadPoolError)?;
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
@@ -94,7 +93,5 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         thread_pool.clone(),
     );
 
-    thread_pool
-        .run(relay_server_fut)
-        .map_err(RelayServerBinError::NetRelayServerError)
+    block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)
 }

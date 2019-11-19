@@ -59,16 +59,12 @@ fn node_spawn_channeler<C, R, S>(
     rng: R,
     from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
     to_funder: mpsc::Sender<ChannelerToFunder>,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<impl Future<Output = Result<(), ChannelerError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
@@ -113,11 +109,11 @@ fn node_spawn_funder<R, S>(
     from_app_server: mpsc::Receiver<FunderIncomingControl<NetAddress>>,
     to_app_server: mpsc::Sender<FunderOutgoingControl<NetAddress>>,
     rng: R,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<impl Future<Output = Result<(), FunderError>>, NodeError>
 where
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     // TODO: Should we give a length > 0 for this adapter's channel?
     let (request_sender, mut request_receiver) = mpsc::channel(0);
@@ -240,16 +236,12 @@ async fn node_spawn_index_client<'a, C, R, S>(
     to_app_server: mpsc::Sender<IndexClientToAppServer<NetAddress>>,
     net_connector: C,
     rng: R,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let initial_node_report = create_node_report(&node_state);
 
@@ -332,17 +324,13 @@ pub async fn node<C, IA, R, S>(
     version_connector: C,
     incoming_apps: IA,
     rng: R,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     IA: Stream<Item = IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     // Get local public key:
     let local_public_key = identity_client

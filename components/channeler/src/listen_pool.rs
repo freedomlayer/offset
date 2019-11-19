@@ -8,8 +8,8 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::access_control::AccessControlOp;
-use common::conn::{FutTransform, Listener};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::select_streams::select_streams;
 use common::transform_pool::transform_pool_loop;
 
 use timer::TimerClient;
@@ -17,7 +17,7 @@ use timer::TimerClient;
 use proto::crypto::PublicKey;
 
 use crate::listen_pool_state::{ListenPoolState, Relay};
-use crate::types::{AccessControlOpPk, AccessControlPk, RawConn};
+use crate::types::{AccessControlOpPk, AccessControlPk};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LpConfig<RA> {
@@ -73,7 +73,7 @@ enum RelayStatus {
 
 struct ListenPool<RA, L, S> {
     state: ListenPoolState<RA, PublicKey, RelayStatus>,
-    plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
+    plain_conn_sender: mpsc::Sender<(PublicKey, ConnPairVec)>,
     relay_closed_sender: mpsc::Sender<RA>,
     listener: L,
     backoff_ticks: usize,
@@ -84,7 +84,7 @@ impl<RA, L, S> ListenPool<RA, L, S>
 where
     RA: Hash + Eq + Clone + Send + Debug + 'static,
     L: Listener<
-            Connection = (PublicKey, RawConn),
+            Connection = (PublicKey, ConnPairVec),
             Config = AccessControlOpPk,
             Arg = (RA, AccessControlPk),
         > + Clone
@@ -92,7 +92,7 @@ where
     S: Spawn + Clone,
 {
     pub fn new(
-        plain_conn_sender: mpsc::Sender<(PublicKey, RawConn)>,
+        plain_conn_sender: mpsc::Sender<(PublicKey, ConnPairVec)>,
         relay_closed_sender: mpsc::Sender<RA>,
         listener: L,
         backoff_ticks: usize,
@@ -120,7 +120,7 @@ where
             access_control.apply_op(AccessControlOp::Add(friend_public_key.clone()));
         }
 
-        let (access_control_sender, mut connections_receiver) = self
+        let (access_control_sender, connections_receiver) = self
             .listener
             .clone()
             .listen((address.clone(), access_control));
@@ -131,7 +131,7 @@ where
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
         let send_fut = async move {
             let _ = c_plain_conn_sender
-                .send_all(&mut connections_receiver)
+                .send_all(&mut connections_receiver.map(Ok))
                 .await;
             // Notify that this listener was closed:
             let _ = c_relay_closed_sender.send(address).await;
@@ -254,7 +254,7 @@ where
 
 async fn listen_pool_loop<RA, L, TS, S>(
     incoming_config: mpsc::Receiver<LpConfig<RA>>,
-    outgoing_plain_conns: mpsc::Sender<(PublicKey, RawConn)>,
+    outgoing_plain_conns: mpsc::Sender<(PublicKey, ConnPairVec)>,
     listener: L,
     backoff_ticks: usize,
     timer_stream: TS,
@@ -264,7 +264,7 @@ async fn listen_pool_loop<RA, L, TS, S>(
 where
     RA: Clone + Eq + Hash + Send + Debug + 'static,
     L: Listener<
-            Connection = (PublicKey, RawConn),
+            Connection = (PublicKey, ConnPairVec),
             Config = AccessControlOpPk,
             Arg = (RA, AccessControlPk),
         > + Clone
@@ -347,24 +347,24 @@ impl<RA, L, ET, S> Listener for PoolListener<RA, L, ET, S>
 where
     RA: Clone + Eq + Hash + Send + Sync + Debug + 'static,
     L: Listener<
-            Connection = (PublicKey, RawConn),
+            Connection = (PublicKey, ConnPairVec),
             Config = AccessControlOpPk,
             Arg = (RA, AccessControlPk),
         > + Clone
         + Send
         + 'static,
-    ET: FutTransform<Input = (PublicKey, RawConn), Output = Option<(PublicKey, RawConn)>>
+    ET: FutTransform<Input = (PublicKey, ConnPairVec), Output = Option<(PublicKey, ConnPairVec)>>
         + Clone
         + Send
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    type Connection = (PublicKey, RawConn);
+    type Connection = (PublicKey, ConnPairVec);
     type Config = LpConfig<RA>;
     type Arg = ();
 
     fn listen(
-        mut self,
+        self,
         _arg: Self::Arg,
     ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
         let (config_sender, incoming_config) = mpsc::channel(0);
@@ -375,7 +375,7 @@ where
         let c_encrypt_transform = self.encrypt_transform.clone();
         let c_max_concurrent_encrypt = self.max_concurrent_encrypt;
         let c_backoff_ticks = self.backoff_ticks;
-        let mut c_spawner = self.spawner.clone();
+        let c_spawner = self.spawner.clone();
 
         // Connections encryptor:
         let (plain_conn_sender, incoming_plain_conn) = mpsc::channel(0);
@@ -431,12 +431,12 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{block_on, ThreadPool};
 
     use common::dummy_listener::DummyListener;
     use timer::{dummy_timer_multi_sender, TimerTick};
 
-    async fn task_listen_pool_loop_set_local_addresses<S>(mut spawner: S)
+    async fn task_listen_pool_loop_set_local_addresses<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -491,7 +491,10 @@ mod tests {
             let (remote_sender, _local_receiver) = mpsc::channel(0);
             listen_req0
                 .conn_sender
-                .send((pk_b.clone(), (remote_sender, remote_receiver)))
+                .send((
+                    pk_b.clone(),
+                    ConnPairVec::from_raw(remote_sender, remote_receiver),
+                ))
                 .await
                 .unwrap();
 
@@ -523,8 +526,8 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_set_local_addresses() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_set_local_addresses(
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_listen_pool_loop_set_local_addresses(
             thread_pool.clone(),
         ));
     }
@@ -532,7 +535,7 @@ mod tests {
     // ----------------------------------------------------------------
     // ----------------------------------------------------------------
 
-    async fn task_listen_pool_loop_backoff_ticks<S>(mut spawner: S)
+    async fn task_listen_pool_loop_backoff_ticks<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -594,14 +597,14 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_backoff_ticks() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_backoff_ticks(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_listen_pool_loop_backoff_ticks(thread_pool.clone()));
     }
 
     // ------------------------------------------------------
     // ------------------------------------------------------
 
-    async fn task_listen_pool_loop_update_remove_friend<S>(mut spawner: S)
+    async fn task_listen_pool_loop_update_remove_friend<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -719,8 +722,8 @@ mod tests {
 
     #[test]
     fn test_listen_pool_loop_update_remove_friend() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_listen_pool_loop_update_remove_friend(
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_listen_pool_loop_update_remove_friend(
             thread_pool.clone(),
         ));
     }

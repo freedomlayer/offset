@@ -26,7 +26,7 @@ mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mut
 log = "0.4"
 # simple_logger = "1.0.1"
 env_logger = "0.6.0"
-futures-preview = "0.3.0-alpha.16"
+futures = {version = "0.3.1", features = ["thread-pool"]}
 prettytable-rs = "0.8.0"
 
 serde = {version = "1", features = ["derive"]}
@@ -43,3 +43,4 @@ num-traits = "0.2.6"
 [dev_dependencies]
 
 tempfile = "3.0.5"
+

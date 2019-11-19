@@ -105,7 +105,7 @@ pub async fn net_relay_server<IRC, R, S>(
     timer_client: TimerClient,
     rng: R,
     max_concurrent_encrypt: usize,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(), NetRelayServerError>
 where
     IRC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,

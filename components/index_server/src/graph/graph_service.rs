@@ -90,7 +90,7 @@ fn process_request<G, N, C, T, CG>(
 async fn graph_service_loop<G, N, C, T, CG, GS>(
     mut capacity_graphs: HashMap<G, CG>,
     mut incoming_requests: mpsc::Receiver<GraphRequest<G, N, C, T>>,
-    mut graph_service_spawner: GS,
+    graph_service_spawner: GS,
 ) -> Result<(), GraphServiceError>
 where
     G: Send + Hash + Eq + 'static,
@@ -228,7 +228,7 @@ impl<G, N, C, T> GraphClient<G, N, C, T> {
 /// GraphClient can be cloned to allow multiple clients.
 pub fn create_graph_service<G, N, C, T, CG, GS, S>(
     graph_service_spawner: GS,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<GraphClient<G, N, C, T>, SpawnError>
 where
     G: Hash + Eq + Send + 'static,
@@ -254,11 +254,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use super::super::capacity_graph::CapacityRoute;
     use super::super::simple_capacity_graph::SimpleCapacityGraph;
     use super::super::test_utils::ConstRate;
-    use super::*;
-    use futures::executor::ThreadPool;
+
+    use futures::executor::{block_on, ThreadPool};
 
     async fn task_create_graph_service_basic<S>(spawner: S)
     where
@@ -339,9 +341,9 @@ mod tests {
 
     #[test]
     fn test_create_graph_service_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
-        thread_pool.run(task_create_graph_service_basic(thread_pool.clone()));
+        block_on(task_create_graph_service_basic(thread_pool.clone()));
     }
 }
 

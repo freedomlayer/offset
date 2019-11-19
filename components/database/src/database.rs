@@ -61,7 +61,7 @@ where
 pub async fn database_loop<AD, S>(
     mut atomic_db: AD,
     mut incoming_requests: mpsc::Receiver<DatabaseRequest<AD::Mutation>>,
-    mut database_spawner: S,
+    database_spawner: S,
 ) -> Result<AD, DatabaseError<AD::Error>>
 where
     AD: AtomicDb + Send + 'static,
@@ -101,7 +101,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
 
     /// A dummy state (used for testing)
@@ -161,7 +161,7 @@ mod tests {
         }
     }
 
-    async fn task_database_loop_basic<S>(mut spawner: S)
+    async fn task_database_loop_basic<S>(spawner: S)
     where
         S: Spawn + Clone + Send + 'static,
     {
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_database_loop_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_database_loop_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_database_loop_basic(thread_pool.clone()));
     }
 }

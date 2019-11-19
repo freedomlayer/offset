@@ -1,9 +1,5 @@
 #![crate_type = "lib"]
-#![feature(arbitrary_self_types)]
-#![feature(nll)]
-#![feature(generators)]
-#![feature(never_type)]
-#![type_length_limit = "3993773"]
+#![type_length_limit = "291239"]
 #![deny(trivial_numeric_casts, warnings)]
 #![allow(intra_doc_link_resolution_failure)]
 #![allow(

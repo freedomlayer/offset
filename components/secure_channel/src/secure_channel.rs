@@ -1,13 +1,14 @@
+use std::marker::Unpin;
+
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt};
-use std::marker::Unpin;
 
 use futures::channel::mpsc;
 
 use derive_more::From;
 
-use common::conn::{BoxFuture, ConnPairVec, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxFuture, BoxStream, ConnPairVec, FutTransform};
+use common::select_streams::select_streams;
 
 use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
@@ -214,7 +215,7 @@ async fn create_secure_channel<EK, M, K, R, S>(
     rng: R,
     timer_client: TimerClient,
     ticks_to_rekey: usize,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<(PublicKey, ConnPairVec), SecureChannelError>
 where
     EK: 'static,
@@ -257,7 +258,10 @@ where
         .spawn(sc_loop_report_error)
         .map_err(|_| SecureChannelError::SpawnError)?;
 
-    Ok((remote_public_key, (user_sender, user_receiver)))
+    Ok((
+        remote_public_key,
+        ConnPairVec::from_raw(user_sender, user_receiver),
+    ))
 }
 
 #[derive(Clone)]
@@ -290,7 +294,7 @@ impl<R, S> SecureChannel<R, S> {
 impl<R, S> FutTransform for SecureChannel<R, S>
 where
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + Sync,
+    S: Spawn + Clone + Send,
 {
     /// Input:
     /// - Expected public key of the remote side.
@@ -307,8 +311,9 @@ where
         input: (Option<PublicKey>, ConnPairVec),
     ) -> BoxFuture<'_, Option<(PublicKey, ConnPairVec)>> {
         let (opt_expected_remote, conn_pair) = input;
-        let (sender, receiver) = conn_pair;
+        let (sender, receiver) = conn_pair.split();
 
+        let c_spawner = self.spawner.clone();
         Box::pin(async move {
             create_secure_channel(
                 sender,
@@ -318,7 +323,7 @@ where
                 self.rng.clone(),
                 self.timer_client.clone(),
                 self.ticks_to_rekey,
-                self.spawner.clone(),
+                c_spawner,
             )
             .await
             .ok()
@@ -333,7 +338,7 @@ mod tests {
     use futures::Future;
     use timer::create_timer_incoming;
 
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
 
     use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
@@ -345,7 +350,8 @@ mod tests {
         mut tick_sender: mpsc::Sender<()>,
         output_sender: oneshot::Sender<bool>,
     ) {
-        let (_public_key, (mut sender, mut receiver)) = fut_sc.await.unwrap();
+        let (_public_key, conn_pair_vec) = fut_sc.await.unwrap();
+        let (mut sender, mut receiver) = conn_pair_vec.split();
         sender.send(vec![0, 1, 2, 3, 4, 5]).await.unwrap();
         let data = receiver.next().await.unwrap();
         assert_eq!(data, vec![5, 4, 3]);
@@ -364,7 +370,8 @@ mod tests {
         _tick_sender: mpsc::Sender<()>,
         output_sender: oneshot::Sender<bool>,
     ) {
-        let (_public_key, (mut sender, mut receiver)) = fut_sc.await.unwrap();
+        let (_public_key, conn_pair_vec) = fut_sc.await.unwrap();
+        let (mut sender, mut receiver) = conn_pair_vec.split();
         let data = receiver.next().await.unwrap();
         assert_eq!(data, vec![0, 1, 2, 3, 4, 5]);
         sender.send(vec![5, 4, 3]).await.unwrap();
@@ -378,7 +385,7 @@ mod tests {
     #[test]
     fn test_secure_channel_basic() {
         // Start the Identity service:
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -450,7 +457,7 @@ mod tests {
             ))
             .unwrap();
 
-        assert_eq!(true, thread_pool.run(output_receiver1).unwrap());
-        assert_eq!(true, thread_pool.run(output_receiver2).unwrap());
+        assert_eq!(true, LocalPool::new().run_until(output_receiver1).unwrap());
+        assert_eq!(true, LocalPool::new().run_until(output_receiver2).unwrap());
     }
 }

@@ -8,8 +8,8 @@ use derive_more::From;
 
 use timer::{TimerClient, TimerTick};
 
-use common::conn::{BoxFuture, ConnPair, FutTransform};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxFuture, BoxStream, ConnPair, ConnPairVec, FutTransform};
+use common::select_streams::select_streams;
 
 use proto::keepalive::messages::KaMessage;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
@@ -167,11 +167,8 @@ where
     /// Transform a usual `Vec<u8>` connection end into a connection end that performs
     /// keepalives automatically. The output `conn_pair` looks exactly like the input pair, however
     /// it also maintains keepalives.
-    fn transform_keepalive(
-        &mut self,
-        conn_pair: ConnPair<Vec<u8>, Vec<u8>>,
-    ) -> BoxFuture<'_, ConnPair<Vec<u8>, Vec<u8>>> {
-        let (to_remote, from_remote) = conn_pair;
+    fn transform_keepalive(&mut self, conn_pair: ConnPairVec) -> BoxFuture<'_, ConnPairVec> {
+        let (to_remote, from_remote) = conn_pair.split();
 
         let (to_user, user_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
@@ -202,7 +199,7 @@ where
                 warn!("transform_keepalive(): Error requesting timer stream");
             }
 
-            (user_sender, user_receiver)
+            ConnPair::from_raw(user_sender, user_receiver)
         })
     }
 }
@@ -222,7 +219,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::FutureExt;
     use timer::create_timer_incoming;
@@ -234,7 +231,7 @@ mod tests {
         from_remote: FR,
         timer_stream: TS,
         keepalive_ticks: usize,
-        mut spawner: S,
+        spawner: S,
     ) -> (mpsc::Sender<Vec<u8>>, mpsc::Receiver<Vec<u8>>)
     where
         TR: Sink<Vec<u8>> + Unpin + Send + 'static,
@@ -262,7 +259,7 @@ mod tests {
         (user_sender, user_receiver)
     }
 
-    async fn task_keepalive_loop_basic(mut spawner: impl Spawn + Clone) {
+    async fn task_keepalive_loop_basic(spawner: impl Spawn + Clone) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -338,8 +335,8 @@ mod tests {
 
     #[test]
     fn test_keepalive_loop_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_keepalive_loop_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_keepalive_loop_basic(thread_pool.clone()));
     }
 
     async fn task_keepalive_channel_basic(spawner: impl Spawn + Clone) {
@@ -396,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_keepalive_channel_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_keepalive_channel_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_keepalive_channel_basic(thread_pool.clone()));
     }
 }

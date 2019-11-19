@@ -1,9 +1,10 @@
-use futures::task::Context;
-use futures::{Poll, Stream, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
 
-pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
+use futures::task::{Context, Poll};
+use futures::{Stream, StreamExt};
+
+use crate::conn::BoxStream;
 
 struct StreamKeeper<'a, T> {
     stream: BoxStream<'a, T>,

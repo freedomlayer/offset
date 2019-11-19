@@ -139,7 +139,7 @@ impl SeqFriendsClient {
 
 pub fn create_seq_friends_service<S>(
     seq_friends: SeqFriends,
-    mut spawner: S,
+    spawner: S,
 ) -> Result<SeqFriendsClient, SpawnError>
 where
     S: Spawn,

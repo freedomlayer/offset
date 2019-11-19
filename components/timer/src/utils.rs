@@ -1,7 +1,6 @@
 use std::marker::Unpin;
 
 use crate::timer::{TimerClient, TimerTick};
-use common::int_convert::usize_to_u64;
 use futures::select;
 use futures::{future, Future, FutureExt, Stream, StreamExt};
 
@@ -19,8 +18,7 @@ pub async fn sleep_ticks(
         .request_timer_stream()
         .await
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
-    let ticks_u64 = usize_to_u64(ticks).unwrap();
-    let fut = timer_stream.take(ticks_u64).for_each(|_| future::ready(()));
+    let fut = timer_stream.take(ticks).for_each(|_| future::ready(()));
     fut.await;
     Ok(())
 }
@@ -33,15 +31,14 @@ where
     TS: Stream<Item = TimerTick> + Unpin + Send + 'static,
     F: Future<Output = T> + Unpin,
 {
-    let time_ticks_u64 = usize_to_u64(time_ticks).unwrap();
-    let mut fut_time = timer_stream
-        .take(time_ticks_u64)
+    let fut_time = timer_stream
+        .take(time_ticks)
         .for_each(|_| future::ready(()))
         .map(|_| None);
 
     select! {
         fut = fut.fuse() => Some(fut),
-        fut_time = fut_time => fut_time,
+        fut_time = fut_time.fuse() => fut_time,
     }
 }
 
@@ -52,11 +49,11 @@ mod tests {
     use super::*;
     use crate::timer::create_timer_incoming;
     use futures::channel::{mpsc, oneshot};
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::SinkExt;
 
-    async fn task_future_timeout_on_time(mut spawner: impl Spawn + Clone + Send + 'static) {
+    async fn task_future_timeout_on_time(spawner: impl Spawn + Clone + Send + 'static) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
@@ -78,11 +75,11 @@ mod tests {
 
     #[test]
     fn test_future_timeout_on_time() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_future_timeout_on_time(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_future_timeout_on_time(thread_pool.clone()));
     }
 
-    async fn task_future_timeout_late(mut spawner: impl Spawn + Clone + Send + 'static) {
+    async fn task_future_timeout_late(spawner: impl Spawn + Clone + Send + 'static) {
         let (sender, receiver) = oneshot::channel::<()>();
 
         let (mut tick_sender, timer_stream) = mpsc::channel(0);
@@ -102,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_future_timeout_late() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_future_timeout_late(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_future_timeout_late(thread_pool.clone()));
     }
 }

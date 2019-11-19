@@ -1,9 +1,11 @@
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
+
+use common::conn::ConnPair;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
@@ -31,7 +33,7 @@ where
     // Connect two apps:
     let (mut app_sender0, app_server_receiver) = mpsc::channel(1);
     let (app_server_sender, mut app_receiver0) = mpsc::channel(1);
-    let app_server_conn_pair = (app_server_sender, app_server_receiver);
+    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
         buyer: true,
@@ -45,7 +47,7 @@ where
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(1);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(1);
-    let app_server_conn_pair = (app_server_sender, app_server_receiver);
+    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
         buyer: true,
@@ -175,6 +177,6 @@ where
 
 #[test]
 fn test_app_server_loop_index_request_send_funds() {
-    let mut thread_pool = ThreadPool::new().unwrap();
-    thread_pool.run(task_app_server_loop_request_send_funds(thread_pool.clone()));
+    let thread_pool = ThreadPool::new().unwrap();
+    block_on(task_app_server_loop_request_send_funds(thread_pool.clone()));
 }

@@ -108,16 +108,15 @@ pub async fn spawn_channeler<RA, C, ET, KT, S>(
 ) -> Result<(), ChannelerError>
 where
     RA: Eq + Hash + Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input = RA, Output = Option<ConnPairVec>> + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = RA, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     ET: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
         + Send
-        + Sync
         + 'static,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let client_connector =
         ClientConnector::new(enc_relay_connector.clone(), keepalive_transform.clone());
@@ -151,14 +150,15 @@ where
         spawner.clone(),
     );
 
-    // TODO: Maybe use .await here?
+    // A hack to explain to the compiler that spawner (S) doesn't need to be Sync.
+    let c_spawner = spawner.clone();
     channeler_loop(
         local_public_key,
         from_funder,
         to_funder,
         pool_connector,
         pool_listener,
-        spawner.clone(),
+        c_spawner,
     )
     .await
 }

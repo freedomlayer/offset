@@ -10,10 +10,14 @@ edition = "2018"
 log = "0.4"
 
 bytes = "0.4"
-futures-preview = { version = "0.3.0-alpha.16", features = ["nightly", "async-await"] }
+
+futures = "0.3.1"
+
+async-std = {version = "1.0.1", features=["unstable"]}
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 
 [dev-dependencies]
 
+futures = {version = "0.3.1", features = ["thread-pool"]}
 

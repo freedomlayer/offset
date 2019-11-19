@@ -42,7 +42,8 @@ where
             .connector
             .transform(relay_address)
             .await
-            .ok_or(ClientConnectorError::InnerConnectorError)?;
+            .ok_or(ClientConnectorError::InnerConnectorError)?
+            .split();
 
         // Send an InitConnection::Connect(PublicKey) message to remote side:
         let init_connection = InitConnection::Connect(remote_public_key);
@@ -59,17 +60,21 @@ where
         // Maybe change ConnTransform trait to allow force returning something that is not None?
         let (user_to_tunnel, user_from_tunnel) = self
             .keepalive_transform
-            .transform((to_tunnel_sender, from_tunnel_receiver))
-            .await;
+            .transform(ConnPairVec::from_raw(
+                to_tunnel_sender,
+                from_tunnel_receiver,
+            ))
+            .await
+            .split();
 
-        Ok((user_to_tunnel, user_from_tunnel))
+        Ok(ConnPairVec::from_raw(user_to_tunnel, user_from_tunnel))
     }
 }
 
 impl<A, C, FT> FutTransform for ClientConnector<C, FT>
 where
-    A: Sync + Send + 'static,
-    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Send + Sync,
+    A: Send + 'static,
+    C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Send,
     FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send,
 {
     type Input = (A, PublicKey);
@@ -88,7 +93,7 @@ where
 mod tests {
     use super::*;
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::{future, StreamExt};
 
@@ -97,11 +102,11 @@ mod tests {
     use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
 
-    async fn task_client_connector_basic(mut spawner: impl Spawn + Clone + Sync + Send + 'static) {
+    async fn task_client_connector_basic(spawner: impl Spawn + Clone + Send + 'static) {
         let (local_sender, mut relay_receiver) = mpsc::channel::<Vec<u8>>(1);
         let (mut relay_sender, local_receiver) = mpsc::channel::<Vec<u8>>(1);
 
-        let conn_pair = (local_sender, local_receiver);
+        let conn_pair = ConnPairVec::from_raw(local_sender, local_receiver);
         let (req_sender, mut req_receiver) = mpsc::channel(1);
         // conn_sender.send(conn_pair).await.unwrap();
         let connector = DummyConnector::new(req_sender);
@@ -127,7 +132,7 @@ mod tests {
         let req = req_receiver.next().await.unwrap();
         // Reply with a connection:
         req.reply(Some(conn_pair));
-        let mut conn_pair = fut_conn_pair.await;
+        let conn_pair = fut_conn_pair.await;
 
         let vec = relay_receiver.next().await.unwrap();
         let init_connection = InitConnection::proto_deserialize(&vec).unwrap();
@@ -137,14 +142,14 @@ mod tests {
         };
 
         relay_sender.send(vec![1, 2, 3]).await.unwrap();
-        let (ref _sender, ref mut receiver) = conn_pair;
+        let (ref _sender, ref mut receiver) = conn_pair.split();
         let vec = receiver.next().await.unwrap();
         assert_eq!(vec, vec![1, 2, 3]);
     }
 
     #[test]
     fn test_client_connector_basic() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_client_connector_basic(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_client_connector_basic(thread_pool.clone()));
     }
 }

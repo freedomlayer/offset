@@ -25,9 +25,9 @@ where
     }
 
     pub fn spawn_prefix(&mut self, conn_pair: ConnPairVec) -> ConnPairVec {
-        let (mut sender, mut receiver) = conn_pair;
+        let (mut sender, mut receiver) = conn_pair.split();
 
-        let (user_sender, mut from_user_sender) = mpsc::channel(0);
+        let (user_sender, from_user_sender) = mpsc::channel(0);
         let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
         let local_version = self.local_version;
@@ -40,6 +40,7 @@ where
                 return;
             }
             // Next send any other message from the user:
+            let mut from_user_sender = from_user_sender.map(Ok);
             let _ = sender.send_all(&mut from_user_sender).await;
         };
         // If spawning fails, the user will find out when he tries to send
@@ -67,6 +68,7 @@ where
                 return;
             }
 
+            let mut receiver = receiver.map(Ok);
             let _ = to_user_receiver.send_all(&mut receiver).await;
         };
         // If spawning fails, the user will find out when he tries to read
@@ -75,7 +77,7 @@ where
             error!("VersionPrefix::spawn_prefix(): spawn() failed: {:?}", e);
         }
 
-        (user_sender, user_receiver)
+        ConnPairVec::from_raw(user_sender, user_receiver)
     }
 }
 
@@ -94,7 +96,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
 
     async fn task_version_prefix_match<S>(spawner: S)
     where
@@ -106,8 +108,12 @@ mod tests {
         // Both A and B use version 3:
         let mut version_prefix_3 = VersionPrefix::new(3u32, spawner);
 
-        let (mut a_sender, mut a_receiver) = version_prefix_3.spawn_prefix((a_sender, a_receiver));
-        let (mut b_sender, mut b_receiver) = version_prefix_3.spawn_prefix((b_sender, b_receiver));
+        let (mut a_sender, mut a_receiver) = version_prefix_3
+            .spawn_prefix(ConnPairVec::from_raw(a_sender, a_receiver))
+            .split();
+        let (mut b_sender, mut b_receiver) = version_prefix_3
+            .spawn_prefix(ConnPairVec::from_raw(b_sender, b_receiver))
+            .split();
 
         // We expect the connection to work correctly, as the versions match:
         a_sender.send(vec![1, 2, 3]).await.unwrap();
@@ -119,8 +125,8 @@ mod tests {
 
     #[test]
     fn test_version_prefix_match() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_version_prefix_match(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_version_prefix_match(thread_pool.clone()));
     }
 
     async fn task_version_prefix_mismatch<S>(spawner: S)
@@ -134,8 +140,12 @@ mod tests {
         let mut version_prefix_3 = VersionPrefix::new(3u32, spawner.clone());
         let mut version_prefix_4 = VersionPrefix::new(4u32, spawner);
 
-        let (mut a_sender, _a_receiver) = version_prefix_3.spawn_prefix((a_sender, a_receiver));
-        let (_b_sender, mut b_receiver) = version_prefix_4.spawn_prefix((b_sender, b_receiver));
+        let (mut a_sender, _a_receiver) = version_prefix_3
+            .spawn_prefix(ConnPairVec::from_raw(a_sender, a_receiver))
+            .split();
+        let (_b_sender, mut b_receiver) = version_prefix_4
+            .spawn_prefix(ConnPairVec::from_raw(b_sender, b_receiver))
+            .split();
 
         // We expect the connection to be closed because of version mismatch:
         let _ = a_sender.send(vec![1, 2, 3]).await;
@@ -147,7 +157,7 @@ mod tests {
 
     #[test]
     fn test_version_prefix_mismatch() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_version_prefix_mismatch(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_version_prefix_mismatch(thread_pool.clone()));
     }
 }

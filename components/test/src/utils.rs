@@ -87,7 +87,7 @@ where
     SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap()
 }
 
-fn create_identity_client<I, S>(identity: I, mut spawner: S) -> IdentityClient
+fn create_identity_client<I, S>(identity: I, spawner: S) -> IdentityClient
 where
     S: Spawn,
     I: Identity + Send + 'static,
@@ -262,7 +262,7 @@ pub async fn create_node<S>(
     timer_client: TimerClient,
     mut sim_network_client: SimNetworkClient,
     trusted_apps: HashMap<u8, AppPermissions>,
-    mut spawner: S,
+    spawner: S,
 ) -> RemoteHandle<()>
 where
     S: Spawn + Send + Sync + Clone + 'static,
@@ -306,7 +306,7 @@ pub async fn create_index_server<S>(
     timer_client: TimerClient,
     mut sim_network_client: SimNetworkClient,
     trusted_servers: Vec<u8>,
-    mut spawner: S,
+    spawner: S,
 ) where
     S: Spawn + Send + Sync + Clone + 'static,
 {
@@ -361,7 +361,7 @@ pub async fn create_relay<S>(
     index: u8,
     timer_client: TimerClient,
     mut sim_network_client: SimNetworkClient,
-    mut spawner: S,
+    spawner: S,
 ) where
     S: Spawn + Send + Sync + Clone + 'static,
 {

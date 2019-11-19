@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use derive_more::From;
 
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
@@ -25,7 +25,7 @@ use node::{net_node, NetNodeError, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
 
-use net::{NetConnector, TcpListener};
+use net::{TcpConnector, TcpListener};
 use proto::consts::{
     KEEPALIVE_TICKS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
     TICK_MS,
@@ -117,14 +117,11 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         .map_err(|_| NodeBinError::LoadIdentityError)?;
 
     // Create a ThreadPool:
-    let mut thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
+    let thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // Create thread pool for file system operations:
     let file_system_thread_pool =
         ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
-
-    // A thread pool for resolving network addresses:
-    let resolve_thread_pool = ThreadPool::new().map_err(|_| NodeBinError::CreateThreadPoolError)?;
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
@@ -167,8 +164,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     };
 
     // A tcp connector, Used to connect to remote servers:
-    let net_connector =
-        NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
+    let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
 
     // Obtain secure cryptographic random:
     let rng = system_random();
@@ -194,7 +190,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
 
     let node_fut = net_node(
         incoming_app_raw_conns,
-        net_connector,
+        tcp_connector,
         timer_client,
         identity_client,
         rng,
@@ -206,7 +202,5 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         thread_pool.clone(),
     );
 
-    thread_pool
-        .run(node_fut)
-        .map_err(NodeBinError::NetNodeError)
+    block_on(node_fut).map_err(NodeBinError::NetNodeError)
 }

@@ -7,8 +7,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{FutTransform, Listener};
-use common::select_streams::{select_streams, BoxStream};
+use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::select_streams::select_streams;
 use crypto::identity::compare_public_key;
 
 use proto::crypto::PublicKey;
@@ -17,12 +17,11 @@ use proto::funder::messages::{ChannelerToFunder, ChannelerUpdateFriend, FunderTo
 use crate::connect_pool::{ConnectPoolControl, CpConfigClient, CpConnectClient};
 use crate::listen_pool::LpConfig;
 use crate::overwrite_channel::overwrite_send_all;
-use crate::types::RawConn;
 
 #[derive(Debug)]
 pub enum ChannelerEvent<RA> {
     FromFunder(FunderToChanneler<RA>),
-    Connection((PublicKey, RawConn)),
+    Connection((PublicKey, ConnPairVec)),
     FriendEvent(FriendEvent),
     ListenerClosed,
     FunderClosed,
@@ -150,12 +149,8 @@ struct Channeler<RA, C, S, TF> {
 impl<RA, C, S, TF> Channeler<RA, C, S, TF>
 where
     RA: Clone + Send + Sync + 'static,
-    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>> + Clone + Send + 'static,
+    S: Spawn + Clone + Send + 'static,
     TF: Sink<ChannelerToFunder> + Send + Unpin,
 {
     fn new(
@@ -327,9 +322,9 @@ where
     async fn handle_connection(
         &mut self,
         friend_public_key: PublicKey,
-        raw_conn: RawConn,
+        conn_pair: ConnPairVec,
     ) -> Result<(), ChannelerError> {
-        let (sender, receiver) = raw_conn;
+        let (sender, receiver) = conn_pair.split();
 
         // Close fut_recv whenever closer is closed.
         let (closer, close_receiver) = oneshot::channel::<()>();
@@ -382,12 +377,14 @@ where
 
         let mut c_event_sender = self.event_sender.clone();
         let c_friend_public_key = friend_public_key.clone();
-        let mut receiver = receiver.map(move |data| {
-            ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((
-                c_friend_public_key.clone(),
-                data,
-            )))
-        });
+        let mut receiver = receiver
+            .map(move |data| {
+                ChannelerEvent::FriendEvent(FriendEvent::IncomingMessage((
+                    c_friend_public_key.clone(),
+                    data,
+                )))
+            })
+            .map(Ok);
         let c_friend_public_key = friend_public_key.clone();
         let fut_recv = async move {
             select! {
@@ -475,13 +472,11 @@ where
     FF: Stream<Item = FunderToChanneler<RA>> + Send + Unpin,
     TF: Sink<ChannelerToFunder> + Send + Unpin,
     RA: Clone + Send + Sync + Debug + 'static,
-    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>>
+    C: FutTransform<Input = PublicKey, Output = ConnectPoolControl<RA>> + Clone + Send + 'static,
+    L: Listener<Connection = (PublicKey, ConnPairVec), Config = LpConfig<RA>, Arg = ()>
         + Clone
-        + Send
-        + Sync
-        + 'static,
-    L: Listener<Connection = (PublicKey, RawConn), Config = LpConfig<RA>, Arg = ()> + Clone + Send,
-    S: Spawn + Clone + Send + Sync + 'static,
+        + Send,
+    S: Spawn + Clone + Send + 'static,
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
 
@@ -498,9 +493,11 @@ where
 
     // Forward incoming listen connections:
     let mut c_event_sender = channeler.event_sender.clone();
-    let mut incoming_listen_conns = incoming_listen_conns.map(ChannelerEvent::Connection);
+    let incoming_listen_conns = incoming_listen_conns.map(ChannelerEvent::Connection);
     let send_listen_conns_fut = async move {
-        let _ = c_event_sender.send_all(&mut incoming_listen_conns).await;
+        let _ = c_event_sender
+            .send_all(&mut incoming_listen_conns.map(Ok))
+            .await;
         // If we reach here it means an error occurred.
         let _ = c_event_sender.send(ChannelerEvent::ListenerClosed).await;
     };
@@ -536,16 +533,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::executor::ThreadPool;
+    use futures::executor::{block_on, ThreadPool};
 
     use common::dummy_connector::DummyConnector;
     use common::dummy_listener::DummyListener;
     use proto::crypto::PublicKey;
 
     /// Test the case of a friend the channeler initiates connection to.
-    async fn task_channeler_loop_connect_friend<S>(mut spawner: S)
+    async fn task_channeler_loop_connect_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -649,7 +646,7 @@ mod tests {
         let (local_sender, mut pk0_receiver) = mpsc::channel(0);
         connect_req0
             .response_sender
-            .send((local_sender, local_receiver))
+            .send(ConnPairVec::from_raw(local_sender, local_receiver))
             .unwrap();
 
         // Friend should be reported as online:
@@ -697,7 +694,7 @@ mod tests {
         let (local_sender, pk0_receiver) = mpsc::channel(0);
         connect_req0
             .response_sender
-            .send((local_sender, local_receiver))
+            .send(ConnPairVec::from_raw(local_sender, local_receiver))
             .unwrap();
 
         // Online report:
@@ -732,7 +729,7 @@ mod tests {
         drop(
             connect_req0
                 .response_sender
-                .send((local_sender, local_receiver)),
+                .send(ConnPairVec::from_raw(local_sender, local_receiver)),
         );
 
         // The connection requests receiver should be closed:
@@ -741,17 +738,17 @@ mod tests {
 
     #[test]
     fn test_channeler_loop_connect_friend() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_channeler_loop_connect_friend(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_channeler_loop_connect_friend(thread_pool.clone()));
     }
 
     // ------------------------------------------------------------
     // ------------------------------------------------------------
 
     /// Test the case of the channeler waiting for a connection from a friend.
-    async fn task_channeler_loop_listen_friend<S>(mut spawner: S)
+    async fn task_channeler_loop_listen_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -822,7 +819,7 @@ mod tests {
             let (sender, mut pk2_receiver) = mpsc::channel(0);
             listener_request
                 .conn_sender
-                .send((pks[2].clone(), (sender, receiver)))
+                .send((pks[2].clone(), ConnPairVec::from_raw(sender, receiver)))
                 .await
                 .unwrap();
 
@@ -874,8 +871,8 @@ mod tests {
 
     #[test]
     fn test_channeler_loop_listen_friend() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_channeler_loop_listen_friend(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_channeler_loop_listen_friend(thread_pool.clone()));
     }
 
     // ------------------------------------------------------------
@@ -884,9 +881,9 @@ mod tests {
     /// Test multiple updating and removing the same friend
     /// The friend is removed in the middle of a connection. We expect the connection to be
     /// forcefully closed.
-    async fn task_channeler_loop_update_remove_friend<S>(mut spawner: S)
+    async fn task_channeler_loop_update_remove_friend<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(0);
         let (to_funder, mut funder_receiver) = mpsc::channel(0);
@@ -955,7 +952,7 @@ mod tests {
             let (sender, _pk2_receiver) = mpsc::channel(0);
             listener_request
                 .conn_sender
-                .send((pks[2].clone(), (sender, receiver)))
+                .send((pks[2].clone(), ConnPairVec::from_raw(sender, receiver)))
                 .await
                 .unwrap();
 
@@ -986,17 +983,17 @@ mod tests {
 
     #[test]
     fn test_channeler_loop_update_remove_friend() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_channeler_loop_update_remove_friend(
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_channeler_loop_update_remove_friend(
             thread_pool.clone(),
         ));
     }
 
     /// Test the case of a friend the channeler initiates connection to, and suddenly the friend is
     /// removed
-    async fn task_channeler_loop_connect_friend_removed<S>(mut spawner: S)
+    async fn task_channeler_loop_connect_friend_removed<S>(spawner: S)
     where
-        S: Spawn + Clone + Send + Sync + 'static,
+        S: Spawn + Clone + Send + 'static,
     {
         let (mut funder_sender, from_funder) = mpsc::channel(1);
         let (to_funder, _funder_receiver) = mpsc::channel(1);
@@ -1096,8 +1093,8 @@ mod tests {
 
     #[test]
     fn test_channeler_loop_connect_friend_removed() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_channeler_loop_connect_friend_removed(
+        let thread_pool = ThreadPool::new().unwrap();
+        block_on(task_channeler_loop_connect_friend_removed(
             thread_pool.clone(),
         ));
     }

@@ -1,12 +1,15 @@
-use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::marker::Unpin;
 
+use futures::channel::mpsc;
+use futures::task::{Spawn, SpawnExt};
+use futures::{future, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
+
+use common::conn::{BoxStream, ConnPairVec};
 use common::futures_compat::send_to_sink;
-use common::select_streams::{select_streams, BoxStream};
+use common::select_streams::select_streams;
+
 use timer::TimerClient;
 
 use proto::crypto::PublicKey;
@@ -14,29 +17,18 @@ use proto::relay::messages::{IncomingConnection, RejectConnection};
 
 use super::types::{IncomingAccept, IncomingConn, IncomingConnInner};
 
-struct ConnPair<M, K> {
-    receiver: M,
-    sender: K,
-}
-
-impl<M, K> ConnPair<M, K> {
-    fn new(receiver: M, sender: K) -> Self {
-        ConnPair { receiver, sender }
-    }
-}
-
-struct HalfTunnel<MT, KT> {
-    conn_pair: ConnPair<MT, KT>,
+struct HalfTunnel {
+    conn_pair: ConnPairVec,
     ticks_to_close: usize,
 }
 
-struct Listener<MT, KT> {
-    half_tunnels: HashMap<PublicKey, HalfTunnel<MT, KT>>,
+struct Listener {
+    half_tunnels: HashMap<PublicKey, HalfTunnel>,
     tunnels: HashSet<PublicKey>,
     opt_sender: Option<mpsc::Sender<IncomingConnection>>,
 }
 
-impl<MT, KT> Listener<MT, KT> {
+impl Listener {
     fn new(sender: mpsc::Sender<IncomingConnection>) -> Self {
         Listener {
             half_tunnels: HashMap::new(),
@@ -51,8 +43,8 @@ struct TunnelClosed {
     listen_public_key: PublicKey,
 }
 
-enum RelayServerEvent<ML, KL, MA, KA, MC, KC> {
-    IncomingConn(IncomingConn<ML, KL, MA, KA, MC, KC>),
+enum RelayServerEvent {
+    IncomingConn(IncomingConn),
     IncomingConnsClosed,
     TunnelClosed(TunnelClosed),
     ListenerMessage((PublicKey, RejectConnection)),
@@ -61,7 +53,7 @@ enum RelayServerEvent<ML, KL, MA, KA, MC, KC> {
     TimerClosed,
 }
 
-impl<ML, KL, MA, KA, MC, KC> fmt::Debug for RelayServerEvent<ML, KL, MA, KA, MC, KC> {
+impl fmt::Debug for RelayServerEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RelayServerEvent::IncomingConn(_) => write!(f, "RelayServerEvent::IncomingConn"),
@@ -89,19 +81,15 @@ pub enum RelayServerError {
     EventReceiverError,
 }
 
-fn handle_accept<MT, KT, MA, KA, TCL>(
-    listeners: &mut HashMap<PublicKey, Listener<MT, KT>>,
+fn handle_accept<TCL>(
+    listeners: &mut HashMap<PublicKey, Listener>,
     acceptor_public_key: PublicKey,
-    incoming_accept: IncomingAccept<MA, KA>,
+    incoming_accept: IncomingAccept,
     // TODO: This should be a oneshot:
     tunnel_closed_sender: TCL,
-    mut spawner: impl Spawn,
+    spawner: impl Spawn,
 ) -> Result<(), RelayServerError>
 where
-    MT: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KT: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
-    MA: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KA: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
     TCL: Sink<TunnelClosed, Error = ()> + Unpin + Send + 'static,
 {
     let listener = match listeners.get_mut(&acceptor_public_key) {
@@ -109,31 +97,28 @@ where
         None => return Err(RelayServerError::ListeningNotInProgress),
     };
     let IncomingAccept {
-        mut receiver,
-        mut sender,
         accept_public_key,
+        conn_pair,
     } = incoming_accept;
+    let (mut sender, receiver) = conn_pair.split();
     let conn_pair = match listener.half_tunnels.remove(&accept_public_key) {
         Some(HalfTunnel { conn_pair, .. }) => conn_pair,
         None => return Err(RelayServerError::NoPendingHalfTunnel),
     };
     let c_accept_public_key = accept_public_key.clone();
 
-    let ConnPair {
-        sender: mut remote_sender,
-        receiver: mut remote_receiver,
-    } = conn_pair;
+    let (mut remote_sender, remote_receiver) = conn_pair.split();
 
     let send_fut1 = async move {
         remote_sender
-            .send_all(&mut receiver)
+            .send_all(&mut receiver.map(Ok))
             .map_err(|e| error!("send_fut1 error: {:?}", e))
             .then(|_| future::ready(()))
             .await
     };
     let send_fut2 = async move {
         sender
-            .send_all(&mut remote_receiver)
+            .send_all(&mut remote_receiver.map(Ok))
             .map_err(|e| error!("send_fut2 error: {:?}", e))
             .then(move |_| {
                 let tunnel_closed = TunnelClosed {
@@ -151,20 +136,14 @@ where
     Ok(())
 }
 
-pub async fn relay_server_loop<ML, KL, MA, KA, MC, KC, S>(
+pub async fn relay_server_loop<S>(
     mut timer_client: TimerClient,
     incoming_conns: S,
     half_tunnel_ticks: usize,
-    mut spawner: impl Spawn + Clone,
+    spawner: impl Spawn + Clone,
 ) -> Result<(), RelayServerError>
 where
-    ML: Stream<Item = RejectConnection> + Unpin + Send + 'static,
-    KL: Sink<IncomingConnection, Error = ()> + Unpin + Send + 'static,
-    MA: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KA: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
-    MC: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
-    KC: Sink<Vec<u8>, Error = ()> + Unpin + Send + 'static,
-    S: Stream<Item = IncomingConn<ML, KL, MA, KA, MC, KC>> + Unpin + Send,
+    S: Stream<Item = IncomingConn> + Unpin + Send,
 {
     let timer_stream = timer_client
         .request_timer_stream()
@@ -180,12 +159,12 @@ where
             RelayServerEvent::IncomingConnsClosed,
         )));
 
-    let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent<_, _, _, _, _, _>>(0);
+    let (event_sender, event_receiver) = mpsc::channel::<RelayServerEvent>(0);
 
     let mut relay_server_events = select_streams![timer_stream, incoming_conns, event_receiver];
 
     let mut incoming_conns_closed = false;
-    let mut listeners: HashMap<PublicKey, Listener<_, _>> = HashMap::new();
+    let mut listeners: HashMap<PublicKey, Listener> = HashMap::new();
 
     while let Some(relay_server_event) = relay_server_events.next().await {
         let c_event_sender = event_sender.clone().sink_map_err(|_| ());
@@ -198,18 +177,16 @@ where
                             continue; // Discard Listen connection
                         }
 
-                        let sender = incoming_listen.sender;
-                        let receiver = incoming_listen.receiver;
+                        let (sender, receiver) = incoming_listen.conn_pair.split();
 
                         // Change the sender to be an mpsc::Sender, so that we can use the
                         // try_send() function.
-                        let (mpsc_sender, mut mpsc_receiver) =
-                            mpsc::channel::<IncomingConnection>(0);
+                        let (mpsc_sender, mpsc_receiver) = mpsc::channel::<IncomingConnection>(0);
                         spawner
                             .spawn(async move {
                                 let mut sender = sender.sink_map_err(|_| ());
                                 sender
-                                    .send_all(&mut mpsc_receiver)
+                                    .send_all(&mut mpsc_receiver.map(Ok))
                                     .then(|_| future::ready(()))
                                     .await
                             })
@@ -217,7 +194,7 @@ where
                         let listener = Listener::new(mpsc_sender);
                         listeners.insert(public_key.clone(), listener);
                         let c_public_key = public_key.clone();
-                        let mut receiver = receiver
+                        let receiver = receiver
                             .map(move |reject_connection| {
                                 RelayServerEvent::ListenerMessage((
                                     c_public_key.clone(),
@@ -231,7 +208,7 @@ where
                             .spawn(async move {
                                 let mut c_event_sender = c_event_sender.sink_map_err(|_| ());
                                 c_event_sender
-                                    .send_all(&mut receiver)
+                                    .send_all(&mut receiver.map(Ok))
                                     .then(|_| future::ready(()))
                                     .await
                             })
@@ -263,10 +240,7 @@ where
                         }
 
                         let half_tunnel = HalfTunnel {
-                            conn_pair: ConnPair::new(
-                                incoming_connect.receiver,
-                                incoming_connect.sender,
-                            ),
+                            conn_pair: incoming_connect.conn_pair,
                             ticks_to_close: half_tunnel_ticks,
                         };
                         if let Some(sender) = &mut listener.opt_sender {
@@ -340,16 +314,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use futures::channel::mpsc;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
 
-    use super::super::types::{IncomingAccept, IncomingConnect, IncomingListen};
+    use crate::server::types::{IncomingAccept, IncomingConnect, IncomingListen};
+
+    use common::conn::ConnPair;
+
     use proto::crypto::PublicKey;
     use timer::create_timer_incoming;
 
     async fn task_relay_server_connect(
-        mut spawner: impl Spawn + Clone + Send + 'static,
+        spawner: impl Spawn + Clone + Send + 'static,
     ) -> Result<(), ()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -392,8 +370,7 @@ mod tests {
         let b_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let incoming_listen_a = IncomingListen {
-            receiver: c_ac,
-            sender: c_ca.sink_map_err(|_| ()),
+            conn_pair: ConnPair::from_raw(c_ca.sink_map_err(|_| ()), c_ac),
         };
         let incoming_conn_a = IncomingConn {
             public_key: a_public_key.clone(),
@@ -403,9 +380,8 @@ mod tests {
         outgoing_conns.send(incoming_conn_a).await.unwrap();
 
         let incoming_connect_b = IncomingConnect {
-            receiver: c_bc,
-            sender: c_cb.sink_map_err(|_| ()),
             connect_public_key: a_public_key.clone(),
+            conn_pair: ConnPairVec::from_raw(c_cb.sink_map_err(|_| ()), c_bc),
         };
         let incoming_conn_b = IncomingConn {
             public_key: b_public_key.clone(),
@@ -427,9 +403,8 @@ mod tests {
         let (c_ca1, mut a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
         let incoming_accept_a = IncomingAccept {
-            receiver: c_ac1,
-            sender: c_ca1.sink_map_err(|_| ()),
             accept_public_key: b_public_key.clone(),
+            conn_pair: ConnPairVec::from_raw(c_ca1.sink_map_err(|_| ()), c_ac1),
         };
         let incoming_conn_accept_a = IncomingConn {
             public_key: a_public_key.clone(),
@@ -459,14 +434,14 @@ mod tests {
 
     #[test]
     fn test_relay_server_connect() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool
-            .run(task_relay_server_connect(thread_pool.clone()))
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new()
+            .run_until(task_relay_server_connect(thread_pool.clone()))
             .unwrap();
     }
 
     async fn task_relay_server_reject(
-        mut spawner: impl Spawn + Clone + Send + 'static,
+        spawner: impl Spawn + Clone + Send + 'static,
     ) -> Result<(), ()> {
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -509,8 +484,7 @@ mod tests {
         let b_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
 
         let incoming_listen_a = IncomingListen {
-            receiver: c_ac,
-            sender: c_ca.sink_map_err(|_| ()),
+            conn_pair: ConnPair::from_raw(c_ca, c_ac),
         };
         let incoming_conn_a = IncomingConn {
             public_key: a_public_key.clone(),
@@ -520,9 +494,8 @@ mod tests {
         outgoing_conns.send(incoming_conn_a).await.unwrap();
 
         let incoming_connect_b = IncomingConnect {
-            receiver: c_bc,
-            sender: c_cb.sink_map_err(|_| ()),
             connect_public_key: a_public_key.clone(),
+            conn_pair: ConnPairVec::from_raw(c_cb, c_bc),
         };
         let incoming_conn_b = IncomingConn {
             public_key: b_public_key.clone(),
@@ -547,9 +520,8 @@ mod tests {
             let (c_ca1, _a_ca1) = mpsc::channel::<Vec<u8>>(0);
 
             let incoming_accept_a = IncomingAccept {
-                receiver: c_ac1,
-                sender: c_ca1.sink_map_err(|_| ()),
                 accept_public_key: b_public_key.clone(),
+                conn_pair: ConnPairVec::from_raw(c_ca1, c_ac1),
             };
             let incoming_conn_accept_a = IncomingConn {
                 public_key: a_public_key.clone(),
@@ -578,9 +550,9 @@ mod tests {
 
     #[test]
     fn test_relay_server_reject() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool
-            .run(task_relay_server_reject(thread_pool.clone()))
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new()
+            .run_until(task_relay_server_reject(thread_pool.clone()))
             .unwrap();
     }
 

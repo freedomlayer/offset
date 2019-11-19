@@ -25,8 +25,12 @@
 #![allow(clippy::too_many_arguments, clippy::implicit_hasher, clippy::module_inception)]
 // TODO: disallow clippy::too_many_arguments
 
-use common::futures_compat::create_interval;
-use common::select_streams::{select_streams, BoxStream};
+// use common::futures_compat::create_interval;
+use common::conn::BoxStream;
+use common::select_streams::select_streams;
+
+use async_std::stream::interval;
+
 use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
 use futures::stream;
@@ -146,10 +150,7 @@ where
 
 /// Create a timer service that broadcasts everything from the incoming Stream.
 /// Useful for testing, as this function allows full control on the rate of incoming signals.
-pub fn create_timer_incoming<M>(
-    incoming: M,
-    mut spawner: impl Spawn,
-) -> Result<TimerClient, TimerError>
+pub fn create_timer_incoming<M>(incoming: M, spawner: impl Spawn) -> Result<TimerClient, TimerError>
 where
     M: Stream<Item = ()> + std::marker::Unpin + Send + 'static,
 {
@@ -166,7 +167,7 @@ where
 /// a new mpsc::Sender<TimerTick> will be received through the receiver.
 /// This provides greater control over the sent timer ticks.
 pub fn dummy_timer_multi_sender(
-    mut spawner: impl Spawn,
+    spawner: impl Spawn,
 ) -> (mpsc::Receiver<mpsc::Sender<TimerTick>>, TimerClient) {
     let (request_sender, mut request_receiver) = mpsc::channel::<TimerRequest>(0);
     let (mut tick_sender_sender, tick_sender_receiver) = mpsc::channel(1);
@@ -186,7 +187,7 @@ pub fn dummy_timer_multi_sender(
 
 /// Create a timer service that ticks every `dur`.
 pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, TimerError> {
-    let interval = create_interval(dur);
+    let interval = interval(dur);
     create_timer_incoming(interval, spawner)
 }
 
@@ -194,47 +195,47 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 mod tests {
     use super::*;
     use core::pin::Pin;
-    use futures::executor::ThreadPool;
+    use futures::executor::{LocalPool, ThreadPool};
     use futures::future::join;
     use std::time::{Duration, Instant};
 
     #[test]
     fn test_timer_single() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(1);
         let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
-        let timer_stream = thread_pool
-            .run(timer_client.clone().request_timer_stream())
+        let timer_stream = LocalPool::new()
+            .run_until(timer_client.clone().request_timer_stream())
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        thread_pool.run(wait_fut);
+        LocalPool::new().run_until(wait_fut);
     }
 
     #[test]
     fn test_timer_twice() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(1);
         let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
-        let timer_stream = thread_pool
-            .run(timer_client.clone().request_timer_stream())
+        let timer_stream = LocalPool::new()
+            .run_until(timer_client.clone().request_timer_stream())
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        thread_pool.run(wait_fut);
+        LocalPool::new().run_until(wait_fut);
 
-        let timer_stream = thread_pool
-            .run(timer_client.clone().request_timer_stream())
+        let timer_stream = LocalPool::new()
+            .run_until(timer_client.clone().request_timer_stream())
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        thread_pool.run(wait_fut);
+        LocalPool::new().run_until(wait_fut);
     }
 
     #[test]
     fn test_timer_create_multiple_streams() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (_tick_sender, tick_receiver) = mpsc::channel::<()>(0);
@@ -242,8 +243,8 @@ mod tests {
 
         let mut timer_streams = Vec::new();
         for _ in 0..10 {
-            let timer_stream = thread_pool
-                .run(timer_client.clone().request_timer_stream())
+            let timer_stream = LocalPool::new()
+                .run_until(timer_client.clone().request_timer_stream())
                 .unwrap();
             timer_streams.push(timer_stream);
         }
@@ -251,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_timer_multiple() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         let dur = Duration::from_millis(10);
         let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
@@ -282,12 +283,10 @@ mod tests {
         let start = Instant::now();
         for _ in 0..TIMER_CLIENT_NUM {
             let sender = senders.pop().unwrap();
-            let new_client = thread_pool
-                .run(timer_client.clone().request_timer_stream())
+            let new_client = LocalPool::new()
+                .run_until(timer_client.clone().request_timer_stream())
                 .unwrap();
-            let client_wait = new_client
-                .take(u64::from(TICKS))
-                .collect::<Vec<TimerTick>>();
+            let client_wait = new_client.take(TICKS as usize).collect::<Vec<TimerTick>>();
             let client_fut = client_wait.map(move |_| {
                 let elapsed = start.elapsed();
                 assert!(elapsed >= dur * TICKS * 2 / 3);
@@ -299,7 +298,7 @@ mod tests {
             thread_pool.spawn(client_fut).unwrap();
         }
 
-        thread_pool.run(receiver_done).unwrap();
+        LocalPool::new().run_until(receiver_done).unwrap();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
@@ -348,15 +347,15 @@ mod tests {
 
     #[test]
     fn test_create_timer_incoming() {
-        let mut thread_pool = ThreadPool::new().unwrap();
+        let thread_pool = ThreadPool::new().unwrap();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let tick_sender = tick_sender.sink_map_err(|_| ());
-        thread_pool
-            .run(task_ticks_receiver(tick_sender, timer_client))
+        LocalPool::new()
+            .run_until(task_ticks_receiver(tick_sender, timer_client))
             .unwrap();
     }
 
@@ -382,7 +381,7 @@ mod tests {
 
     #[test]
     fn test_dummy_timer_multi_sender() {
-        let mut thread_pool = ThreadPool::new().unwrap();
-        thread_pool.run(task_dummy_timer_multi_sender(thread_pool.clone()));
+        let thread_pool = ThreadPool::new().unwrap();
+        LocalPool::new().run_until(task_dummy_timer_multi_sender(thread_pool.clone()));
     }
 }
