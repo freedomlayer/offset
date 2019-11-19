@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::time::Duration;
 
 use futures::channel::mpsc;
 use futures::executor::{block_on, ThreadPool};
@@ -14,6 +15,7 @@ use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
 use async_std::net::TcpListener as AsyncStdTcpListener;
+use async_std::task::sleep;
 
 /// Get an available port we can listen on
 async fn get_available_port_v4() -> u16 {
@@ -35,7 +37,7 @@ where
     // Keep looping until we manage to listen successfuly.
     // This is done to make tests more stable. It seems like sometimes listening will not work,
     // possibly because timing issues with vacant local ports.
-    for _ in 0..100usize {
+    for _ in 0..10usize {
         let available_port = get_available_port_v4().await;
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
@@ -55,6 +57,7 @@ where
             // If we get here, it probably means that we connected to some other server.
             // In that case we need to close the connection iterate again.
         }
+        sleep(Duration::from_millis(100)).await;
     }
     // Give up after a certain amount of attempts:
     unreachable!();
