@@ -34,7 +34,6 @@ use async_std::stream::interval;
 use futures::channel::{mpsc, oneshot};
 use futures::prelude::*;
 use futures::stream;
-use futures::stream::StreamExt;
 use futures::task::{Spawn, SpawnExt};
 use std::time::Duration;
 
