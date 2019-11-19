@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use futures::executor::{LocalPool, ThreadPool};
+use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
@@ -73,10 +73,10 @@ where
 #[test]
 fn test_tcp_client_server_v4() {
     let thread_pool = ThreadPool::new().unwrap();
-    LocalPool::new().run_until(task_tcp_client_server_v4(thread_pool.clone()));
+    block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
-async fn task_net_connector_v4_basic<S>(spawner: S)
+async fn task_tcp_connector_v4_basic<S>(spawner: S)
 where
     S: Spawn + Clone + Send + 'static,
 {
@@ -109,9 +109,9 @@ where
 }
 
 #[test]
-fn test_net_connector_v4_basic() {
+fn test_tcp_connector_v4_basic() {
     let thread_pool = ThreadPool::new().unwrap();
-    LocalPool::new().run_until(task_net_connector_v4_basic(thread_pool.clone()));
+    block_on(task_tcp_connector_v4_basic(thread_pool.clone()));
 }
 
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
@@ -148,5 +148,5 @@ where
 fn test_net_connector_v4_drop_sender() {
     // env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
-    LocalPool::new().run_until(task_net_connector_v4_drop_sender(thread_pool.clone()));
+    block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
