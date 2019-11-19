@@ -21,8 +21,9 @@ bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
 stctrl = { path = "../stctrl", version = "0.1.0" , package = "offst-stctrl" }
 app = { path = "../app", version = "0.1.0" , package = "offst-app" }
 
-futures-preview = {version = "0.3.0-alpha.16", features = ["compat"] }
-futures-test-preview = {version = "0.3.0-alpha.16"}
+# futures-preview = {version = "0.3.0-alpha.16", features = ["compat"] }
+# futures-test-preview = {version = "0.3.0-alpha.16"}
+futures = "0.3.1"
 
 log = "0.4"
 
@@ -30,3 +31,5 @@ log = "0.4"
 
 tempfile = "3.0.5"
 env_logger = "0.6.0"
+
+futures = {version = "0.3.1", features = ["thread-pool"]}
