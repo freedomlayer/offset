@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
@@ -24,7 +24,7 @@ use index_server::{net_index_server, NetIndexServerError};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use timer::create_timer;
 
-use net::{NetConnector, TcpListener};
+use net::{TcpConnector, TcpListener};
 
 // use proto::file::identity::load_identity_from_file;
 // use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
@@ -104,12 +104,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         .collect::<HashMap<_, _>>();
 
     // Create a ThreadPool:
-    let mut thread_pool =
-        ThreadPool::new().map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
-
-    // A thread pool for blocking computations:
-    let resolve_thread_pool =
-        ThreadPool::new().map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
+    let thread_pool = ThreadPool::new().map_err(|_| IndexServerBinError::CreateThreadPoolError)?;
 
     // A thread pool for graph computations:
     let graph_service_thread_pool =
@@ -136,8 +131,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
     let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(lserver);
 
     // A tcp connector, Used to connect to remote servers:
-    let raw_server_net_connector =
-        NetConnector::new(MAX_FRAME_LENGTH, resolve_thread_pool, thread_pool.clone());
+    let raw_server_net_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
 
     let rng = system_random();
 
@@ -155,9 +149,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         thread_pool.clone(),
     );
 
-    thread_pool
-        .run(index_server_fut)
-        .map_err(IndexServerBinError::NetIndexServerError)?;
+    block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;
 
     Ok(())
 }
