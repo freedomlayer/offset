@@ -8,8 +8,9 @@ use crypto::rand::{CryptoRandom, OffstSystemRandom};
 
 use common::conn::{sink_to_sender, ConnPair};
 use common::multi_consumer::{multi_consumer_service, MultiConsumerClient};
-use common::mutable_state::BatchMutable;
 use common::state_service::{state_service, StateClient};
+
+use crate::types::BatchNodeReport;
 
 use super::buyer::AppBuyer;
 use super::config::AppConfig;
@@ -40,6 +41,7 @@ pub struct AppConn<R = OffstSystemRandom> {
     rng: R,
 }
 
+
 impl<R> AppConn<R>
 where
     R: CryptoRandom + Clone,
@@ -58,7 +60,7 @@ where
         let report_client = StateClient::new(requests_sender);
         let state_service_fut = state_service(
             incoming_requests,
-            BatchMutable(node_report),
+            BatchNodeReport(node_report),
             incoming_mutations,
         )
         .map_err(|e| error!("state_service() error: {:?}", e))
@@ -133,10 +135,11 @@ where
                             return;
                         }
                         AppServerToApp::ReportMutations(node_report_mutations) => {
+                            let opt_app_request_id = node_report_mutations.opt_app_request_id.clone();
                             let _ = incoming_mutations_sender
-                                .send(node_report_mutations.mutations)
+                                .send(node_report_mutations)
                                 .await;
-                            if let Some(app_request_id) = node_report_mutations.opt_app_request_id {
+                            if let Some(app_request_id) = opt_app_request_id {
                                 let _ =
                                     incoming_done_app_requests_sender.send(app_request_id).await;
                             }

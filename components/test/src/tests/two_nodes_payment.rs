@@ -357,8 +357,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         }
 
         // Apply mutations:
-        let mutations = mutations_receiver.next().await.unwrap();
-        for mutation in mutations {
+        let report_mutations = mutations_receiver.next().await.unwrap();
+        for mutation in &report_mutations.mutations {
             node_report.mutate(&mutation).unwrap();
         }
     }
@@ -376,8 +376,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         }
 
         // Apply mutations:
-        let mutations = mutations_receiver.next().await.unwrap();
-        for mutation in mutations {
+        let report_mutations = mutations_receiver.next().await.unwrap();
+        for mutation in &report_mutations.mutations {
             node_report.mutate(&mutation).unwrap();
         }
     }

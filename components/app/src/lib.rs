@@ -13,6 +13,7 @@ extern crate log;
 mod app_conn;
 mod connect;
 mod identity;
+mod types;
 
 /// Utils for random generation of types
 pub mod gen;
