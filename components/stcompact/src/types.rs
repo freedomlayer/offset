@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use app::common::{
@@ -8,6 +10,7 @@ use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     inner: Vec<u8>,
 }
 
@@ -91,17 +94,6 @@ pub struct PayInvoiceResult {
     pub invoice_id: InvoiceId,
 }
 
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UserResponse {
-    /// Funds:
-    ResponsePayInvoice(ResponsePayInvoice),
-    PayInvoiceResult(PayInvoiceResult),
-    PayInvoiceDone(PayInvoiceDone),
-    // /// Reports about current state:
-    // Report(NodeReport),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyMaxDebt {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -150,21 +142,156 @@ pub struct AddInvoice {
     pub total_dest_payment: u128,
 }
 
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+pub enum RequestsStatusReport {
+    Open,
+    Closed,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct MoveTokenHashedReport {
+    inner: Vec<u8>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct CurrencyConfigReport {
+    /// Rate of forwarding transactions that arrived from this friend to any other friend
+    /// for a certain currency.
+    pub rate: Rate,
+    /// Wanted credit frame for the remote side (Set by the user of this node)
+    /// It might take a while until this value is applied, as it needs to be communicated to the
+    /// remote side.
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub wanted_remote_max_debt: u128,
+    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
+    /// might take some time until it is applied (As it should be communicated to the remote
+    /// friend).
+    pub wanted_local_requests_status: RequestsStatusReport,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum FriendLivenessReport {
+    Online,
+    Offline,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResetTermsReport {
+    pub reset_token: Signature,
+    pub balance_for_reset: HashMap<Currency, i128>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelInconsistentReport {
+    pub local_reset_terms: HashMap<Currency, u128>,
+    pub opt_remote_reset_terms: Option<ResetTermsReport>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct McBalanceReport {
+    /// Amount of credits this side has against the remote side.
+    /// The other side keeps the negation of this value.
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub balance: i128,
+    /// Maximum possible local debt
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub local_max_debt: u128,
+    /// Maximum possible remote debt
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub remote_max_debt: u128,
+    /// Frozen credits by our side
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub local_pending_debt: u128,
+    /// Frozen credits by the remote side
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub remote_pending_debt: u128,
+}
+
+#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
+pub struct McRequestsStatusReport {
+    /// Local is open/closed for incoming requests:
+    pub local: RequestsStatusReport,
+    /// Remote is open/closed for incoming requests:
+    pub remote: RequestsStatusReport,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrencyReport {
+    pub balance: McBalanceReport,
+    pub requests_status: McRequestsStatusReport,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChannelConsistentReport {
+    pub currency_reports: HashMap<Currency, CurrencyReport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChannelStatusReport {
+    Inconsistent(ChannelInconsistentReport),
+    Consistent(ChannelConsistentReport),
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+pub enum FriendStatusReport {
+    Enabled,
+    Disabled,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FriendReport {
+    pub name: String,
+    pub currency_configs: HashMap<Currency, CurrencyConfigReport>,
+    /// Last message signed by the remote side.
+    /// Can be used as a proof for the last known balance.
+    pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
+    // TODO: The state of liveness = true with status = disabled should never happen.
+    // Can we somehow express this in the type system?
+    pub liveness: FriendLivenessReport, // is the friend online/offline?
+    pub channel_status: ChannelStatusReport,
+    pub status: FriendStatusReport,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeReport {
+    pub local_public_key: PublicKey,
+    pub index_servers: Vec<NamedIndexServerAddress>,
+    pub opt_connected_index_server: Option<NamedIndexServerAddress>,
+    pub relays: Vec<NamedRelayAddress>,
+    pub friends: HashMap<PublicKey, FriendReport>,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ToUser {
+    /// Funds:
+    ResponsePayInvoice(ResponsePayInvoice),
+    PayInvoiceResult(PayInvoiceResult),
+    PayInvoiceDone(PayInvoiceDone),
+    /// Reports about current state:
+    Report(NodeReport),
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum UserRequest {
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveRelay(PublicKey),
     /// Manage index servers:
     AddIndexServer(NamedIndexServerAddress),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveIndexServer(PublicKey),
     /// Friend management:
     AddFriend(AddFriend),
     SetFriendRelays(SetFriendRelays),
     SetFriendName(SetFriendName),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveFriend(PublicKey),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     EnableFriend(PublicKey),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     DisableFriend(PublicKey),
     OpenFriendCurrency(OpenFriendCurrency),
     CloseFriendCurrency(CloseFriendCurrency),
@@ -175,9 +302,11 @@ pub enum UserRequest {
     /// Buyer:
     RequestPayInvoice(RequestPayInvoice),
     // ConfirmPayInvoice(ConfirmPayInvoice),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelPayInvoice(InvoiceId),
     /// Seller:
     AddInvoice(AddInvoice),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
     CommitInvoice(Commit),
 }
