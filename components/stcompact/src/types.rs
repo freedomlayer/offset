@@ -184,6 +184,7 @@ pub enum UserRequest {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FromUser {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub user_request_id: Uid,
     pub user_request: UserRequest,
 }
