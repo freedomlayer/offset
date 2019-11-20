@@ -7,7 +7,6 @@
     clippy::new_without_default
 )]
 
-#[macro_use]
 extern crate log;
 
 mod app_conn;
@@ -41,8 +40,8 @@ pub use proto::ser_string;
 
 /// Offst connection
 pub mod conn {
-    pub use super::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
-    pub use super::connect::{connect, node_connect, ConnectError};
+    pub use super::app_conn::{buyer, config, routes, seller};
+    pub use super::connect::{connect, ConnectError};
     pub use super::identity::{identity_from_file, IdentityFromFileError};
 }
 

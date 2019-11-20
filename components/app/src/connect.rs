@@ -7,33 +7,28 @@ use futures::{SinkExt, StreamExt};
 use common::conn::{ConnPair, ConnPairVec, FutTransform};
 use common::int_convert::usize_to_u64;
 
-use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
-/*
-use proto::app_server::serialize::{
-    deserialize_app_permissions, deserialize_app_server_to_app, serialize_app_to_app_server,
-};
-*/
-use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
-use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
+use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY, MAX_FRAME_LENGTH, TICK_MS};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
-
 use proto::crypto::PublicKey;
 
 use crypto::rand::{system_random, CryptoRandom};
 
 use identity::IdentityClient;
 use net::TcpConnector;
-use timer::create_timer;
-
-use timer::TimerClient;
-
-pub use super::app_conn::AppConn;
-use super::app_conn::AppConnTuple;
+use timer::{create_timer, TimerClient};
 
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
+
+
+pub type AppConnTuple = (
+    AppPermissions,
+    NodeReport,
+    ConnPair<AppToAppServer, AppServerToApp>,
+);
 
 #[derive(Debug)]
 pub enum SetupConnectionError {
@@ -56,7 +51,7 @@ pub async fn setup_connection<R, S>(
 ) -> Result<AppConnTuple, SetupConnectionError>
 where
     R: Clone + CryptoRandom + 'static,
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
 
@@ -142,15 +137,14 @@ where
 }
 
 #[derive(Debug)]
-pub enum NodeConnectError {
+pub enum InnerConnectError {
     /// Could not open network connection
     TcpConnectorError,
     SetupConnectionError(SetupConnectionError),
-    CreateNodeConnectionError,
 }
 
 /// Connect to an offst node
-pub async fn node_connect<C, R, S>(
+pub async fn inner_connect<C, R, S>(
     mut tcp_connector: C,
     node_public_key: PublicKey,
     node_net_address: NetAddress,
@@ -158,18 +152,18 @@ pub async fn node_connect<C, R, S>(
     app_identity_client: IdentityClient,
     rng: R,
     spawner: S,
-) -> Result<AppConn<R>, NodeConnectError>
+) -> Result<AppConnTuple, InnerConnectError>
 where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Send + Sync + Clone + 'static,
+    S: Spawn + Send + Clone + 'static,
 {
     let conn_pair = tcp_connector
         .transform(node_net_address)
         .await
-        .ok_or(NodeConnectError::TcpConnectorError)?;
+        .ok_or(InnerConnectError::TcpConnectorError)?;
 
-    let conn_tuple = setup_connection(
+    setup_connection(
         conn_pair,
         timer_client,
         rng.clone(),
@@ -178,10 +172,9 @@ where
         spawner.clone(),
     )
     .await
-    .map_err(NodeConnectError::SetupConnectionError)?;
-
-    AppConn::new(conn_tuple, rng, &spawner).map_err(|_| NodeConnectError::CreateNodeConnectionError)
+    .map_err(InnerConnectError::SetupConnectionError)
 }
+
 
 #[derive(Debug)]
 pub struct ConnectError;
@@ -192,9 +185,9 @@ pub async fn connect<S>(
     node_net_address: NetAddress,
     app_identity_client: IdentityClient,
     spawner: S,
-) -> Result<AppConn, ConnectError>
+) -> Result<AppConnTuple, ConnectError>
 where
-    S: Spawn + Clone + Send + Sync + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     // A tcp connector, Used to connect to remote servers:
     let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, spawner.clone());
@@ -206,7 +199,7 @@ where
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-    node_connect(
+    inner_connect(
         tcp_connector,
         node_public_key,
         node_net_address,
