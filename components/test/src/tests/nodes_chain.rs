@@ -12,6 +12,8 @@ use proto::funder::messages::{Currency, PaymentStatus, PaymentStatusSuccess, Rat
 
 use timer::create_timer_incoming;
 
+use app::conn::{self};
+
 use proto::crypto::{InvoiceId, PaymentId, Uid};
 
 use crate::sim_network::create_sim_network;
@@ -19,6 +21,7 @@ use crate::utils::{
     advance_time, create_app, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address, SimDb,
 };
+use crate::app_wrapper::send_request;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -143,74 +146,14 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
     for (node, relays) in node_relays.iter().enumerate() {
         for relay in relays {
-            apps[node]
-                .config()
-                .unwrap()
-                .add_relay(named_relay_address(*relay))
-                .await
-                .unwrap();
+            send_request(&mut apps[node].2, conn::config::add_relay(named_relay_address(*relay))).await.unwrap();
         }
     }
 
     // Configure index servers:
-    apps[0]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(0))
-        .await
-        .unwrap();
-    apps[0]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(2))
-        .await
-        .unwrap();
-
-    apps[1]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(1))
-        .await
-        .unwrap();
-    apps[2]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(2))
-        .await
-        .unwrap();
-
-    apps[3]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(0))
-        .await
-        .unwrap();
-
-    apps[4]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(1))
-        .await
-        .unwrap();
-    apps[4]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(0))
-        .await
-        .unwrap();
-
-    apps[5]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(2))
-        .await
-        .unwrap();
-    apps[5]
-        .config()
-        .unwrap()
-        .add_index_server(named_index_server_address(1))
-        .await
-        .unwrap();
+    for (app_index, index_server_index) in &[(0usize, 0u8), (0,2), (1,1), (2,2), (3,0), (4,1), (4,0), (5,2), (5,1)] {
+        send_request(&mut apps[*app_index].2, conn::config::add_index_server(named_index_server_address(*index_server_index))).await.unwrap();
+    }
 
     // Wait some time:
     // advance_time(40, &mut tick_sender, &test_executor).await;
@@ -226,31 +169,19 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // 0 -- 1
     for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
         for (&a, &b) in &[(i, j), (j, i)] {
-            apps[a as usize]
-                .config()
-                .unwrap()
-                .add_friend(
+            send_request(&mut apps[a as usize].2, conn::config::add_friend(
                     node_public_key(b),
-                    vec![relay_address(node_relays[b as usize][0])], // Pick one relay
-                    format!("node{}", b),
-                )
-                .await
-                .unwrap();
-            apps[a as usize]
-                .config()
-                .unwrap()
-                .enable_friend(node_public_key(b))
-                .await
-                .unwrap();
+                    vec![relay_address(node_relays[b as usize][0])],
+                    format!("node{}", b))).await.unwrap();
+
+            send_request(&mut apps[a as usize].2, conn::config::enable_friend(
+                    node_public_key(b))).await.unwrap();
 
             for currency in [&currency1, &currency2].iter() {
-                apps[a as usize]
-                    .config()
-                    .unwrap()
-                    .set_friend_currency_rate(node_public_key(b), (*currency).clone(), Rate::new())
-                    // .set_friend_currencies(node_public_key(b), vec![currency1.clone(), currency2.clone()])
-                    .await
-                    .unwrap();
+                send_request(&mut apps[a as usize].2, conn::config::set_friend_currency_rate(
+                        node_public_key(b),
+                        (*currency).clone(), 
+                        Rate::new())).await.unwrap();
             }
         }
     }
@@ -261,22 +192,18 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
     // Open channels:
     for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
         for (&a, &b) in &[(i, j), (j, i)] {
-            apps[a as usize]
-                .config()
-                .unwrap()
-                .set_friend_currency_max_debt(node_public_key(b), currency1.clone(), 100)
-                .await
-                .unwrap();
+            send_request(&mut apps[a as usize].2, conn::config::set_friend_currency_max_debt(
+                    node_public_key(b),
+                    currency1.clone(), 
+                    100)).await.unwrap();
         }
     }
     for (i, j) in &[(0u8, 1u8), (1, 3), (1, 2), (2, 5), (2, 4)] {
         for (&a, &b) in &[(i, j), (j, i)] {
-            apps[a as usize]
-                .config()
-                .unwrap()
-                .open_friend_currency(node_public_key(b), currency1.clone())
-                .await
-                .unwrap();
+
+            send_request(&mut apps[a as usize].2, conn::config::open_friend_currency(
+                    node_public_key(b),
+                    currency1.clone())).await.unwrap();
         }
     }
 
