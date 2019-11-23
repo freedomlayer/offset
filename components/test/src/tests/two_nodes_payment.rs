@@ -31,9 +31,10 @@ const TIMER_CHANNEL_LEN: usize = 0;
 
 
 /// Perform a basic payment between a buyer and a seller.
-async fn make_test_payment<'a>(
-    mut conn_pair0: &'a mut ConnPairApp,
-    mut conn_pair1: &'a mut ConnPairApp,
+/// Node0 sends credits to Node1
+async fn make_test_payment(
+    mut conn_pair0: &mut ConnPairApp,
+    mut conn_pair1: &mut ConnPairApp,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
