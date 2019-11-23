@@ -402,6 +402,9 @@ pub async fn advance_time<'a>(
 
 const REPORTS_CHANNEL_LEN: usize = 0x200;
 
+// TODO: Enhance this service to allow getting the last value of NodeReport.
+// Should be done similarly to how AppConn used to be implemented (Sending a oneshot and waiting
+// for a response)
 
 /// A service for maintaining knowledge of the current report
 pub fn report_service<S: Spawn>(mut node_report: NodeReport, mut from_server: impl Stream<Item=AppServerToApp> + Unpin + Send + 'static, spawner: &S) 
