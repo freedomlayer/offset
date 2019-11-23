@@ -401,6 +401,7 @@ pub async fn info_export_ticket(
     let relays: Vec<RelayAddress> = node_report
         .funder_report
         .relays
+        .clone()
         .into_iter()
         .map(Into::into)
         .collect();

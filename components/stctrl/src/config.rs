@@ -260,20 +260,21 @@ pub enum ConfigError {
     InvalidCurrencyName,
 }
 
-async fn config_request(conn_pair: ConnPairApp, app_request: AppRequest) -> Result<(), ConfigError> {
-    let (sender, receiver) = conn_pair.split();
+async fn config_request(conn_pair: &mut ConnPairApp, app_request: AppRequest) -> Result<(), ConfigError> {
     let app_request_id = gen_uid();
     let app_to_app_server = AppToAppServer {
         app_request_id: app_request_id.clone(),
         app_request,
     };
-    sender.send(app_to_app_server).await.map_err(|_| ConfigError::AppConfigError);
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| ConfigError::AppConfigError);
 
     // Wait until we get an ack for our request:
-    while let Some(app_server_to_app) = receiver.next().await {
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            if report_mutations.opt_app_request_id == Some(app_request_id) {
-                return Ok(())
+            if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
+                if cur_app_request_id == app_request_id {
+                    return Ok(())
+                }
             }
         }
     }
@@ -283,10 +284,10 @@ async fn config_request(conn_pair: ConnPairApp, app_request: AppRequest) -> Resu
 
 async fn config_add_relay(
     add_relay_cmd: AddRelayCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
-    for named_relay_address in node_report.funder_report.relays {
+    for named_relay_address in &node_report.funder_report.relays {
         if named_relay_address.name == add_relay_cmd.relay_name {
             return Err(ConfigError::RelayNameAlreadyExists);
         }
@@ -306,16 +307,16 @@ async fn config_add_relay(
     };
 
     let app_request = conn::config::add_relay(named_relay_address);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_remove_relay(
     remove_relay_cmd: RemoveRelayCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let mut opt_relay_public_key = None;
-    for named_relay_address in node_report.funder_report.relays {
+    for named_relay_address in &node_report.funder_report.relays {
         if named_relay_address.name == remove_relay_cmd.relay_name {
             opt_relay_public_key = Some(named_relay_address.public_key.clone());
         }
@@ -324,12 +325,12 @@ async fn config_remove_relay(
     let relay_public_key = opt_relay_public_key.ok_or(ConfigError::RelayNameNotFound)?;
 
     let app_request = conn::config::remove_relay(relay_public_key);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_add_index(
     add_index_cmd: AddIndexCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let AddIndexCmd {
@@ -337,7 +338,7 @@ async fn config_add_index(
         index_name,
     } = add_index_cmd;
 
-    for named_index_server_address in node_report.index_client_report.index_servers {
+    for named_index_server_address in &node_report.index_client_report.index_servers {
         if named_index_server_address.name == index_name {
             return Err(ConfigError::IndexNameAlreadyExists);
         }
@@ -357,16 +358,16 @@ async fn config_add_index(
     };
 
     let app_request = conn::config::add_index_server(named_index_server_address);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_remove_index(
     remove_index_cmd: RemoveIndexCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let mut opt_index_public_key = None;
-    for named_index_server_address in node_report.index_client_report.index_servers {
+    for named_index_server_address in &node_report.index_client_report.index_servers {
         if named_index_server_address.name == remove_index_cmd.index_name {
             opt_index_public_key = Some(named_index_server_address.public_key.clone());
         }
@@ -375,12 +376,12 @@ async fn config_remove_index(
     let index_public_key = opt_index_public_key.ok_or(ConfigError::RelayNameNotFound)?;
 
     let app_request = conn::config::remove_index_server(index_public_key);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_add_friend(
     add_friend_cmd: AddFriendCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let AddFriendCmd {
@@ -388,7 +389,7 @@ async fn config_add_friend(
         friend_name,
     } = add_friend_cmd;
 
-    for (_friend_public_key, friend_report) in node_report.funder_report.friends {
+    for (_friend_public_key, friend_report) in &node_report.funder_report.friends {
         if friend_report.name == friend_name {
             return Err(ConfigError::FriendNameAlreadyExists);
         }
@@ -408,12 +409,12 @@ async fn config_add_friend(
                 .map(RelayAddress::from)
                 .collect(),
             friend_name.to_owned());
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_set_friend_relays(
     set_friend_relays_cmd: SetFriendRelaysCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let SetFriendRelaysCmd {
@@ -444,12 +445,12 @@ async fn config_set_friend_relays(
                 .into_iter()
                 .map(RelayAddress::from)
                 .collect());
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_remove_friend(
     remove_friend_cmd: RemoveFriendCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let friend_public_key = friend_public_key_by_name(&node_report, &remove_friend_cmd.friend_name)
@@ -457,12 +458,12 @@ async fn config_remove_friend(
         .clone();
 
     let app_request = conn::config::remove_friend(friend_public_key);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_enable_friend(
     enable_friend_cmd: EnableFriendCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let friend_public_key = friend_public_key_by_name(&node_report, &enable_friend_cmd.friend_name)
@@ -470,12 +471,12 @@ async fn config_enable_friend(
         .clone();
 
     let app_request = conn::config::enable_friend(friend_public_key);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_disable_friend(
     disable_friend_cmd: DisableFriendCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let friend_public_key =
@@ -484,12 +485,12 @@ async fn config_disable_friend(
             .clone();
 
     let app_request = conn::config::disable_friend(friend_public_key);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_open_friend_currency(
     open_friend_currency_cmd: OpenFriendCurrencyCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let friend_public_key =
@@ -501,12 +502,12 @@ async fn config_open_friend_currency(
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     let app_request = conn::config::open_friend_currency(friend_public_key, currency);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_close_friend_currency(
     close_friend_currency_cmd: CloseFriendCurrencyCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let friend_public_key =
@@ -518,12 +519,12 @@ async fn config_close_friend_currency(
         .map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     let app_request = conn::config::close_friend_currency(friend_public_key, currency);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_set_friend_currency_max_debt(
     set_friend_currency_max_debt_cmd: SetFriendCurrencyMaxDebtCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let SetFriendCurrencyMaxDebtCmd {
@@ -540,12 +541,12 @@ async fn config_set_friend_currency_max_debt(
         Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     let app_request = conn::config::set_friend_currency_max_debt(friend_public_key, currency, max_debt);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_set_friend_currency_rate(
     set_friend_currency_rate_cmd: SetFriendCurrencyRateCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let SetFriendCurrencyRateCmd {
@@ -565,12 +566,12 @@ async fn config_set_friend_currency_rate(
     let rate = Rate { mul, add };
 
     let app_request = conn::config::set_friend_currency_rate(friend_public_key, currency, rate);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_remove_friend_currency(
     remove_friend_currency_cmd: RemoveFriendCurrencyCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let RemoveFriendCurrencyCmd {
@@ -586,12 +587,12 @@ async fn config_remove_friend_currency(
         Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
     let app_request = conn::config::remove_friend_currency(friend_public_key, currency);
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 async fn config_reset_friend(
     reset_friend_cmd: ResetFriendCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     node_report: &NodeReport,
 ) -> Result<(), ConfigError> {
     let mut opt_friend_pk_report = None;
@@ -618,7 +619,7 @@ async fn config_reset_friend(
     };
 
     let app_request = conn::config::reset_friend_channel(friend_public_key.clone(), reset_token.clone());
-    config_request(conn_pair, app_request).await
+    config_request(&mut conn_pair, app_request).await
 }
 
 pub async fn config(config_cmd: ConfigCmd, node_report: &NodeReport, conn_pair: ConnPairApp) -> Result<(), ConfigError> {

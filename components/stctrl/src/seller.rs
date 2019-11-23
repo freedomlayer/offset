@@ -3,13 +3,17 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
+use futures::sink::SinkExt;
+use futures::stream::StreamExt;
+
 use derive_more::From;
 
 use app::common::{Commit, Currency, PublicKey};
-use app::conn::{AppConn, AppSeller};
-use app::gen::gen_invoice_id;
+use app::conn::{self, ConnPairApp, AppServerToApp, AppRequest, AppToAppServer};
+use app::gen::{gen_invoice_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::verify::verify_commit;
+use app::report::NodeReport;
 
 use crate::file::{CommitFile, InvoiceFile};
 
@@ -80,12 +84,35 @@ pub enum SellerError {
     StringSerdeError(StringSerdeError),
     InvalidCurrencyName,
     InvalidCommit,
+    SellerRequestError,
+}
+
+async fn seller_request(conn_pair: &mut ConnPairApp, app_request: AppRequest) -> Result<(), SellerError> {
+    let app_request_id = gen_uid();
+    let app_to_app_server = AppToAppServer {
+        app_request_id: app_request_id.clone(),
+        app_request,
+    };
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| SellerError::SellerRequestError);
+
+    // Wait until we get an ack for our request:
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
+                if cur_app_request_id == app_request_id {
+                    return Ok(())
+                }
+            }
+        }
+    }
+
+    return Err(SellerError::SellerRequestError);
 }
 
 async fn seller_create_invoice(
     create_invoice_cmd: CreateInvoiceCmd,
     local_public_key: PublicKey,
-    mut app_seller: AppSeller,
+    mut conn_pair: ConnPairApp,
 ) -> Result<(), SellerError> {
     let CreateInvoiceCmd {
         currency_name,
@@ -112,8 +139,7 @@ async fn seller_create_invoice(
         dest_payment: amount,
     };
 
-    app_seller
-        .add_invoice(invoice_id.clone(), currency, amount)
+    seller_request(&mut conn_pair, conn::seller::add_invoice(invoice_id.clone(), currency, amount))
         .await
         .map_err(|_| SellerError::AddInvoiceError)?;
 
@@ -124,14 +150,13 @@ async fn seller_create_invoice(
 
 async fn seller_cancel_invoice(
     cancel_invoice_cmd: CancelInvoiceCmd,
-    mut app_seller: AppSeller,
+    mut conn_pair: ConnPairApp,
 ) -> Result<(), SellerError> {
     let CancelInvoiceCmd { invoice_path } = cancel_invoice_cmd;
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    app_seller
-        .cancel_invoice(invoice_file.invoice_id)
+    seller_request(&mut conn_pair, conn::seller::cancel_invoice(invoice_file.invoice_id))
         .await
         .map_err(|_| SellerError::CancelInvoiceError)?;
 
@@ -140,7 +165,7 @@ async fn seller_cancel_invoice(
 
 async fn seller_commit_invoice(
     commit_invoice_cmd: CommitInvoiceCmd,
-    mut app_seller: AppSeller,
+    mut conn_pair: ConnPairApp,
 ) -> Result<(), SellerError> {
     let CommitInvoiceCmd {
         invoice_path,
@@ -164,42 +189,32 @@ async fn seller_commit_invoice(
         return Err(SellerError::InvoiceCommitMismatch);
     }
 
-    // HACK:
-    #[allow(clippy::let_and_return)]
-    let res = app_seller
-        .commit_invoice(commit)
+    seller_request(&mut conn_pair, conn::seller::commit_invoice(commit))
         .await
-        .map_err(|_| SellerError::CommitInvoiceError);
-    res
+        .map_err(|_| SellerError::CommitInvoiceError)
 }
 
-pub async fn seller(seller_cmd: SellerCmd, mut app_conn: AppConn) -> Result<(), SellerError> {
+pub async fn seller(seller_cmd: SellerCmd, node_report: &NodeReport, conn_pair: ConnPairApp) -> Result<(), SellerError> {
     // Get our local public key:
-    let mut app_report = app_conn.report().clone();
-    let (node_report, incoming_mutations) = app_report
-        .incoming_reports()
-        .await
-        .map_err(|_| SellerError::GetReportError)?;
-    // We currently don't need live updates about report mutations:
-    drop(incoming_mutations);
-
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
+    /*
+    // TODO; Check permissions at caller site.
     let app_seller = app_conn
         .seller()
         .ok_or(SellerError::NoSellerPermissions)?
         .clone();
+    */
 
     match seller_cmd {
         SellerCmd::CreateInvoice(create_invoice_cmd) => {
-            seller_create_invoice(create_invoice_cmd, local_public_key, app_seller).await?
+            seller_create_invoice(create_invoice_cmd, local_public_key, conn_pair).await?
         }
         SellerCmd::CancelInvoice(cancel_invoice_cmd) => {
-            seller_cancel_invoice(cancel_invoice_cmd, app_seller).await?
+            seller_cancel_invoice(cancel_invoice_cmd, conn_pair).await?
         }
-
         SellerCmd::CommitInvoice(commit_invoice_cmd) => {
-            seller_commit_invoice(commit_invoice_cmd, app_seller).await?
+            seller_commit_invoice(commit_invoice_cmd, conn_pair).await?
         }
     }
 

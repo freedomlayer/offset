@@ -145,8 +145,10 @@ async fn create_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId,
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            if Some(app_request_id) == report_mutations.opt_app_request_id {
-                return Ok(())
+            if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
+                if cur_app_request_id == app_request_id {
+                    return Ok(())
+                }
             }
         }
     }
@@ -170,8 +172,10 @@ async fn request_close_payment_nowait(conn_pair: &mut ConnPairApp, payment_id: P
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            if Some(app_request_id) == report_mutations.opt_app_request_id {
-                return Ok(())
+            if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
+                if cur_app_request_id == app_request_id {
+                    return Ok(())
+                }
             }
         }
     }
@@ -220,8 +224,10 @@ async fn ack_close_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId, a
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            if Some(app_request_id) == report_mutations.opt_app_request_id {
-                return Ok(())
+            if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
+                if cur_app_request_id == app_request_id {
+                    return Ok(())
+                }
             }
         }
     }
@@ -233,7 +239,7 @@ async fn ack_close_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId, a
 async fn buyer_pay_invoice(
     pay_invoice_cmd: PayInvoiceCmd,
     local_public_key: PublicKey,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PayInvoiceCmd {
@@ -375,7 +381,7 @@ async fn buyer_pay_invoice(
 /// Get the current status of a payment
 async fn buyer_payment_status(
     payment_status_cmd: PaymentStatusCmd,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PaymentStatusCmd {
@@ -432,7 +438,7 @@ async fn buyer_payment_status(
 pub async fn buyer(
     buyer_cmd: BuyerCmd,
     node_report: &NodeReport,
-    conn_pair: ConnPairApp,
+    mut conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     // Get our local public key:
