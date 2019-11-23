@@ -13,14 +13,16 @@
 #[macro_use]
 extern crate log;
 
+#[allow(unused)]
 #[cfg(test)]
 mod sim_network;
 
+#[allow(unused)]
 #[cfg(test)]
 mod utils;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
-#[cfg(test)]
-mod cli_tests;
+// #[cfg(test)]
+// mod cli_tests;

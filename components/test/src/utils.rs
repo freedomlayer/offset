@@ -22,7 +22,7 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::conn::{node_connect, AppConn};
+use app::conn::{inner_connect, AppConnTuple};
 use node::{net_node, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
@@ -233,7 +233,7 @@ pub async fn create_app<S>(
     timer_client: TimerClient,
     node_index: u8,
     spawner: S,
-) -> Option<AppConn<impl CryptoRandom + Clone>>
+) -> Option<AppConnTuple>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
@@ -243,7 +243,7 @@ where
     let node_public_key = get_node_identity(node_index).get_public_key();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
-    node_connect(
+    inner_connect(
         sim_network_client,
         node_public_key,
         listen_node_address(node_index),
