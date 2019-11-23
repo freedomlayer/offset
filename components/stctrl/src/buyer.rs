@@ -1,17 +1,21 @@
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::collections::HashSet;
 
 use derive_more::From;
 
 use futures::future::select_all;
+use futures::sink::SinkExt;
+use futures::stream::StreamExt;
 
 use structopt::StructOpt;
 
-use app::common::{Commit, PaymentStatus, PaymentStatusSuccess, PublicKey};
-use app::conn::{buyer, routes};
+use app::common::{Commit, PaymentStatus, PaymentStatusSuccess, PublicKey, MultiRoute, Currency, InvoiceId, PaymentId, Uid};
+use app::conn::{buyer, routes, ConnPairApp, AppToAppServer, AppServerToApp, self, ResponseRoutesResult, RequestResult};
 use app::gen::{gen_payment_id, gen_uid};
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
+use app::report::NodeReport;
 
 use crate::file::{CommitFile, InvoiceFile, PaymentFile, ReceiptFile};
 
@@ -83,12 +87,153 @@ pub enum BuyerError {
     StringSerdeError(StringSerdeError),
 }
 
+async fn request_routes(conn_pair: &mut ConnPairApp, currency: Currency, dest_payment: u128, src_public_key: PublicKey,
+    dest_public_key: PublicKey, opt_exclude: Option<(PublicKey, PublicKey)>) ->
+        Result<Vec<MultiRoute>, BuyerError> {
+
+    let request_routes_id = gen_uid();
+    let app_request = conn::routes::request_routes(
+            request_routes_id.clone(),
+            currency,
+            dest_payment,
+            src_public_key,
+            dest_public_key,
+            opt_exclude);
+
+    // Note: We never use the randomly generated `app_request_id` later. 
+    // Instead, we are waiting
+    // We generate it here just because we need to put some value into `app_request_id`.
+    let app_to_app_server = AppToAppServer {
+        app_request_id: gen_uid(),
+        app_request,
+    };
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::AppRoutesError);
+
+    // Wait until we get back response routes:
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ResponseRoutes(client_response_routes) = app_server_to_app {
+            if client_response_routes.request_id == request_routes_id {
+                if let ResponseRoutesResult::Success(multi_routes) = client_response_routes.result {
+                    return Ok(multi_routes);
+                }
+            }
+        }
+    }
+    return Err(BuyerError::AppRoutesError);
+}
+
+async fn create_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId,
+    invoice_id: InvoiceId,
+    currency: Currency,
+    total_dest_payment: u128,
+    dest_public_key: PublicKey) -> Result<(), BuyerError> {
+
+    let app_request = conn::buyer::create_payment(
+            payment_id,
+            invoice_id,
+            currency,
+            total_dest_payment,
+            dest_public_key);
+
+    let app_request_id = gen_uid();
+    let app_to_app_server = AppToAppServer {
+        app_request_id: app_request_id.clone(),
+        app_request,
+    };
+
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::CreatePaymentFailed);
+
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            if Some(app_request_id) == report_mutations.opt_app_request_id {
+                return Ok(())
+            }
+        }
+    }
+
+    return Err(BuyerError::CreatePaymentFailed);
+}
+
+/// Request to close payment, but do not wait for the payment to be closed.
+async fn request_close_payment_nowait(conn_pair: &mut ConnPairApp, payment_id: PaymentId) -> Result<(), BuyerError> {
+
+    let app_request = conn::buyer::request_close_payment(payment_id.clone());
+    let app_request_id = gen_uid();
+    let app_to_app_server = AppToAppServer {
+        // We don't really care about app_request_id here, as we can wait on `request_id`
+        // instead.
+        app_request_id: app_request_id.clone(),
+        app_request,
+    };
+
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::RequestClosePaymentError);
+
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            if Some(app_request_id) == report_mutations.opt_app_request_id {
+                return Ok(())
+            }
+        }
+    }
+
+    return Err(BuyerError::RequestClosePaymentError);
+}
+
+/// Request to close the payment, and wait for the payment to be closed.
+async fn request_close_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId) -> Result<PaymentStatus, BuyerError> {
+
+    let app_request = conn::buyer::request_close_payment(payment_id.clone());
+    let app_request_id = gen_uid();
+    let app_to_app_server = AppToAppServer {
+        // We don't really care about app_request_id here, as we can wait on `request_id`
+        // instead.
+        app_request_id: app_request_id.clone(),
+        app_request,
+    };
+
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::RequestClosePaymentError);
+
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ResponseClosePayment(response_close_payment) = app_server_to_app {
+            if payment_id == response_close_payment.payment_id {
+                return Ok(response_close_payment.status);
+            }
+        }
+    }
+
+    return Err(BuyerError::RequestClosePaymentError);
+}
+
+/// Request to close payment, but do not wait for the payment to be closed.
+async fn ack_close_payment(conn_pair: &mut ConnPairApp, payment_id: PaymentId, ack_uid: Uid) -> Result<(), BuyerError> {
+
+    let app_request = conn::buyer::ack_close_payment(payment_id.clone(), ack_uid.clone());
+    let app_request_id = gen_uid();
+    let app_to_app_server = AppToAppServer {
+        // We don't really care about app_request_id here, as we can wait on `request_id`
+        // instead.
+        app_request_id: app_request_id.clone(),
+        app_request,
+    };
+
+    conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::AckClosePaymentError);
+
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            if Some(app_request_id) == report_mutations.opt_app_request_id {
+                return Ok(())
+            }
+        }
+    }
+
+    return Err(BuyerError::AckClosePaymentError);
+}
+
 /// Pay an invoice
 async fn buyer_pay_invoice(
     pay_invoice_cmd: PayInvoiceCmd,
     local_public_key: PublicKey,
-    mut app_routes: AppRoutes,
-    mut app_buyer: AppBuyer,
+    conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PayInvoiceCmd {
@@ -116,8 +261,8 @@ async fn buyer_pay_invoice(
     // we also need to pay nodes on the way.
     // We might need to solve this issue at the index server side
     // (Should the Server take into account the extra credits that should be paid along the way?).
-    let multi_routes = app_routes
-        .request_routes(
+    let multi_routes = request_routes(
+            &mut conn_pair,
             invoice_file.currency.clone(),
             invoice_file.dest_payment,
             local_public_key, // source
@@ -154,67 +299,65 @@ async fn buyer_pay_invoice(
     let mut file = File::create(payment_path)?;
     file.write_all(&serialize_to_string(&payment_file)?.as_bytes())?;
 
-    app_buyer
-        .create_payment(
-            payment_id.clone(),
-            invoice_file.invoice_id.clone(),
-            invoice_file.currency.clone(),
-            invoice_file.dest_payment,
-            invoice_file.dest_public_key.clone(),
-        )
-        .await
-        .map_err(|_| BuyerError::CreatePaymentFailed)?;
+    create_payment(
+        &mut conn_pair,
+        payment_id.clone(),
+        invoice_file.invoice_id.clone(),
+        invoice_file.currency.clone(),
+        invoice_file.dest_payment,
+        invoice_file.dest_public_key.clone())
+        .await?;
 
+
+    let mut requests = HashSet::new();
     // Create new transactions (One for every route). On the first failure cancel all
     // transactions. Succeed only if all transactions succeed.
-
-    let mut fut_list = Vec::new();
     for (route_index, dest_payment) in &multi_route_choice {
         let route = &multi_route.routes[*route_index];
+
         let request_id = gen_uid();
-        let mut c_app_buyer = app_buyer.clone();
-        let c_payment_id = payment_id.clone();
-        fut_list.push(
-            // TODO: Possibly a more efficient way than Box::pin?
-            Box::pin(async move {
-                c_app_buyer
-                    .create_transaction(
-                        c_payment_id,
+        requests.insert(request_id.clone());
+        let app_request = conn::buyer::create_transaction(
+                        payment_id.clone(),
                         request_id,
                         route.route.clone(),
                         *dest_payment,
-                        route.rate.calc_fee(*dest_payment).unwrap(),
-                    )
-                    .await
-            }),
-        );
+                        route.rate.calc_fee(*dest_payment).unwrap());
+
+        let app_to_app_server = AppToAppServer {
+            // We don't really care about app_request_id here, as we can wait on `request_id`
+            // instead.
+            app_request_id: gen_uid(),
+            app_request,
+        };
+        conn_pair.sender.send(app_to_app_server).await.map_err(|_| BuyerError::CreateTransactionFailed);
     }
 
+    // Signal that no new transactions will be created:
+    request_close_payment_nowait(&mut conn_pair, payment_id.clone()).await?;
+
+    // Wait for all incoming transaction responses:
     let mut opt_commit = None;
-    for _ in 0..multi_route_choice.len() {
-        let (output, _fut_index, new_fut_list) = select_all(fut_list).await;
-        match output {
-            Ok(Some(commit)) => opt_commit = Some(commit),
-            Ok(None) => {}
-            Err(_) => {
-                let _ = app_buyer.request_close_payment(payment_id.clone()).await;
+    while let Some(app_server_to_app) = conn_pair.receiver.next().await {
+        if let AppServerToApp::TransactionResult(transaction_result) = app_server_to_app {
+            // Make sure that we only get transaction results of transactions we have sent,
+            // and that we get every transaction result only once.
+            if !requests.remove(&transaction_result.request_id) {
                 return Err(BuyerError::CreateTransactionFailed);
             }
+
+            match transaction_result.result {
+                RequestResult::Complete(commit) => opt_commit = Some(commit),
+                RequestResult::Success => {},
+                RequestResult::Failure => return Err(BuyerError::CreateTransactionFailed),
+            }
         }
-        fut_list = new_fut_list;
     }
 
-    // TODO: We are not attempting to close the payment here, because this is going to wait
-    // until a receipt is received, but a receipt will never be received because we haven't
-    // yet produced a commit message.
-    //
-    // Possibly add some kind of nonblocking-close-payment method to app_buyer in the future?
-    // let _ = app_buyer.request_close_payment(payment_id).await;
-
+    // We expect that some transaction returned with "Complete" signal:
     let commit = if let Some(commit) = opt_commit {
         commit
     } else {
-        // For some reason we never got back a "is_complete=true" signal.
         return Err(BuyerError::PaymentIncomplete);
     };
 
@@ -232,7 +375,7 @@ async fn buyer_pay_invoice(
 /// Get the current status of a payment
 async fn buyer_payment_status(
     payment_status_cmd: PaymentStatusCmd,
-    mut app_buyer: AppBuyer,
+    conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     let PaymentStatusCmd {
@@ -249,10 +392,7 @@ async fn buyer_payment_status(
     let payment_file: PaymentFile = deserialize_from_string(&fs::read_to_string(&payment_path)?)?;
     let payment_id = payment_file.payment_id;
 
-    let payment_status = app_buyer
-        .request_close_payment(payment_id.clone())
-        .await
-        .map_err(|_| BuyerError::RequestClosePaymentError)?;
+    let payment_status = request_close_payment(&mut conn_pair, payment_id.clone()).await?;
 
     let opt_ack_uid = match payment_status {
         PaymentStatus::PaymentNotFound => {
@@ -280,10 +420,7 @@ async fn buyer_payment_status(
     };
 
     if let Some(ack_uid) = opt_ack_uid {
-        app_buyer
-            .ack_close_payment(payment_id, ack_uid)
-            .await
-            .map_err(|_| BuyerError::AckClosePaymentError)?;
+        ack_close_payment(&mut conn_pair, payment_id, ack_uid).await?;
 
         // Remove payment file:
         fs::remove_file(&payment_path).map_err(|_| BuyerError::RemovePaymentError)?;
@@ -294,43 +431,33 @@ async fn buyer_payment_status(
 
 pub async fn buyer(
     buyer_cmd: BuyerCmd,
-    mut app_conn: AppConn,
+    node_report: &NodeReport,
+    conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     // Get our local public key:
-    let mut app_report = app_conn.report().clone();
-    let (node_report, incoming_mutations) = app_report
-        .incoming_reports()
-        .await
-        .map_err(|_| BuyerError::GetReportError)?;
-    // We currently don't need live updates about report mutations:
-    drop(incoming_mutations);
-
     let local_public_key = node_report.funder_report.local_public_key.clone();
 
-    let app_buyer = app_conn
-        .buyer()
-        .ok_or(BuyerError::NoBuyerPermissions)?
-        .clone();
-
+    /*
+    // TODO: Should be done outside?
     let app_routes = app_conn
         .routes()
         .ok_or(BuyerError::NoRoutesPermissions)?
         .clone();
+    */
 
     match buyer_cmd {
         BuyerCmd::PayInvoice(pay_invoice_cmd) => {
             buyer_pay_invoice(
                 pay_invoice_cmd,
                 local_public_key,
-                app_routes,
-                app_buyer,
+                conn_pair,
                 writer,
             )
             .await?
         }
         BuyerCmd::PaymentStatus(payment_status_cmd) => {
-            buyer_payment_status(payment_status_cmd, app_buyer, writer).await?
+            buyer_payment_status(payment_status_cmd, conn_pair, writer).await?
         }
     }
 

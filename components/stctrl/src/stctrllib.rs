@@ -105,6 +105,8 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         .await
         .map_err(|_| StCtrlError::ConnectionError)?;
 
+        // TODO: Check permissions?
+
         match subcommand {
             StCtrlSubcommand::Info(info_cmd) => info(info_cmd, &node_report, writer).await?,
             StCtrlSubcommand::Config(config_cmd) => config(config_cmd, &node_report, conn_pair).await?,
