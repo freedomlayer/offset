@@ -21,8 +21,12 @@ mod sim_network;
 #[cfg(test)]
 mod utils;
 
-// #[cfg(test)]
-// mod tests;
+#[allow(unused)]
+#[cfg(test)]
+mod app_wrapper;
+
+#[cfg(test)]
+mod tests;
 
 // #[cfg(test)]
 // mod cli_tests;

@@ -17,21 +17,22 @@ use crypto::rand::CryptoRandom;
 
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
-use app::conn::{AppBuyer, AppRoutes, AppSeller};
+use app::conn::{ConnPairApp, self, AppServerToApp, RequestResult};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_app, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address, SimDb,
 };
+use crate::app_wrapper::{request_routes, create_transaction, 
+    send_request, request_close_payment, ack_close_payment};
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
 /// Perform a basic payment between a buyer and a seller.
 async fn make_test_payment<'a, R>(
-    app_buyer: &'a mut AppBuyer<R>,
-    app_seller: &'a mut AppSeller<R>,
-    app_routes: &'a mut AppRoutes<R>,
+    conn_pair0: &'a mut ConnPairApp,
+    conn_pair1: &'a mut ConnPairApp,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
@@ -47,14 +48,13 @@ where
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
 
-    app_seller
-        .add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment)
+    send_request(&mut conn_pair1, conn::seller::add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment))
         .await
         .unwrap();
 
     // Node0: Request routes:
-    let mut routes = app_routes
-        .request_routes(
+    let mut routes = request_routes(
+            conn_pair0,
             currency.clone(),
             total_dest_payment.checked_add(fees).unwrap(),
             buyer_public_key.clone(),
@@ -68,20 +68,19 @@ where
     let route = multi_route.routes[0].clone();
 
     // Node0: Open a payment to pay the invoice issued by Node1:
-    app_buyer
-        .create_payment(
+    send_request(&mut conn_pair0, conn::buyer::create_payment( 
             payment_id.clone(),
             invoice_id.clone(),
             currency.clone(),
             total_dest_payment,
             seller_public_key.clone(),
-        )
+        ))
         .await
         .unwrap();
 
     // Node0: Create one transaction for the given route:
-    let commit = app_buyer
-        .create_transaction(
+    let request_result = create_transaction(
+            conn_pair0,
             payment_id.clone(),
             request_id.clone(),
             route.route.clone(),
@@ -89,15 +88,19 @@ where
             fees,
         )
         .await
-        .unwrap()
         .unwrap();
 
+    let commit = if let RequestResult::Complete(commit) = request_result {
+        commit
+    } else {
+        unreachable!();
+    };
+
     // Node1: Apply the Commit
-    app_seller.commit_invoice(commit).await.unwrap();
+    send_request(&mut conn_pair1, conn::seller::commit_invoice(commit)).await.unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = app_buyer
-        .request_close_payment(payment_id.clone())
+    let _ = request_close_payment(conn_pair0, payment_id.clone())
         .await
         .unwrap();
 
@@ -107,8 +110,7 @@ where
     advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node0: Check the payment's result:
-    let payment_status = app_buyer
-        .request_close_payment(payment_id.clone())
+    let payment_status = request_close_payment(conn_pair0, payment_id.clone())
         .await
         .unwrap();
 
@@ -117,14 +119,12 @@ where
         PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
             assert_eq!(receipt.total_dest_payment, total_dest_payment);
             assert_eq!(receipt.invoice_id, invoice_id);
-            app_buyer
-                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+            ack_close_payment(conn_pair0, payment_id.clone(), ack_uid.clone())
                 .await
                 .unwrap();
         }
         PaymentStatus::Canceled(ack_uid) => {
-            app_buyer
-                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+                ack_close_payment(conn_pair0, payment_id.clone(), ack_uid.clone())
                 .await
                 .unwrap();
         }
@@ -281,165 +281,112 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     )
     .await;
 
-    let mut config0 = app0.config().unwrap().clone();
-    let mut config1 = app1.config().unwrap().clone();
-
-    let mut routes0 = app0.routes().unwrap().clone();
-    let mut routes1 = app1.routes().unwrap().clone();
-
-    let mut buyer0 = app0.buyer().unwrap().clone();
-    let mut seller0 = app0.seller().unwrap().clone();
-    let mut buyer1 = app1.buyer().unwrap().clone();
-    let mut seller1 = app1.seller().unwrap().clone();
-
-    let mut report0 = app0.report().clone();
-    let mut report1 = app1.report().clone();
+    let (_permissions0, node_report0, conn_pair0) = app0;
+    let (_permissions1, node_report1, conn_pair1) = app1;
 
     // Configure relays:
-    config0.add_relay(named_relay_address(0)).await.unwrap();
-    config1.add_relay(named_relay_address(1)).await.unwrap();
+    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(0))).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(0))).await.unwrap();
 
     // Configure index servers:
-    config0
-        .add_index_server(named_index_server_address(0))
-        .await
-        .unwrap();
-    config1
-        .add_index_server(named_index_server_address(1))
-        .await
-        .unwrap();
+    send_request(&mut conn_pair0, conn::config::add_index_server(named_index_server_address(0))).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::add_index_server(named_index_server_address(1))).await.unwrap();
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    config0
-        .add_friend(
+    send_request(&mut conn_pair0, conn::config::add_friend(
             node_public_key(1),
             vec![relay_address(1)],
-            String::from("node1"),
-        )
-        .await
-        .unwrap();
+            String::from("node1"))).await.unwrap();
 
     // Node1: Add node0 as a friend:
-    config1
-        .add_friend(
+    send_request(&mut conn_pair1, conn::config::add_friend(
             node_public_key(0),
             vec![relay_address(0)],
-            String::from("node0"),
-        )
-        .await
-        .unwrap();
+            String::from("node0"))).await.unwrap();
 
     // Node0: Enable/Disable/Enable node1:
-    config0.enable_friend(node_public_key(1)).await.unwrap();
+    send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
     advance_time(10, &mut tick_sender, &test_executor).await;
-    config0.disable_friend(node_public_key(1)).await.unwrap();
+    send_request(&mut conn_pair0, conn::config::disable_friend(node_public_key(1))).await.unwrap();
     advance_time(10, &mut tick_sender, &test_executor).await;
-    config0.enable_friend(node_public_key(1)).await.unwrap();
+    send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
     advance_time(10, &mut tick_sender, &test_executor).await;
 
     // Node1: Enable node0:
-    config1.enable_friend(node_public_key(0)).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::enable_friend(node_public_key(0))).await.unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    // Node0: Wait until node1 is online:
-    let (mut node_report, mut mutations_receiver) = report0.incoming_reports().await.unwrap();
+    let node_report = node_report0.clone();
     loop {
-        let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
-            None => continue,
-            Some(friend_report) => friend_report,
-        };
-        if friend_report.liveness.is_online() {
-            break;
-        }
+        let app_server_to_app = conn_pair0.receiver.next().await.unwrap();
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            for mutation in &report_mutations.mutations {
+                node_report.mutate(&mutation).unwrap();
+            }
 
-        // Apply mutations:
-        let report_mutations = mutations_receiver.next().await.unwrap();
-        for mutation in &report_mutations.mutations {
-            node_report.mutate(&mutation).unwrap();
+            let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
+                None => continue,
+                Some(friend_report) => friend_report,
+            };
+            if friend_report.liveness.is_online() {
+                break;
+            }
         }
     }
-    drop(mutations_receiver);
 
-    // Node1: Wait until node0 is online:
-    let (mut node_report, mut mutations_receiver) = report1.incoming_reports().await.unwrap();
+    let node_report = node_report1.clone();
     loop {
-        let friend_report = match node_report.funder_report.friends.get(&node_public_key(0)) {
-            None => continue,
-            Some(friend_report) => friend_report,
-        };
-        if friend_report.liveness.is_online() {
-            break;
-        }
+        let app_server_to_app = conn_pair0.receiver.next().await.unwrap();
+        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
+            for mutation in &report_mutations.mutations {
+                node_report.mutate(&mutation).unwrap();
+            }
 
-        // Apply mutations:
-        let report_mutations = mutations_receiver.next().await.unwrap();
-        for mutation in &report_mutations.mutations {
-            node_report.mutate(&mutation).unwrap();
+            let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
+                None => continue,
+                Some(friend_report) => friend_report,
+            };
+            if friend_report.liveness.is_online() {
+                break;
+            }
         }
     }
-    drop(mutations_receiver);
 
     // Set active currencies for both sides:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
-        config0
-            .set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new())
-            .await
-            .unwrap();
+        send_request(&mut conn_pair0, conn::config::set_friend_currency_rate(node_public_key(1), (*currency).clone(), Rate::new())).await.unwrap();
     }
     for currency in [&currency1, &currency2].into_iter() {
-        config1
-            .set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new())
-            .await
-            .unwrap();
+        send_request(&mut conn_pair1, conn::config::set_friend_currency_rate(node_public_key(0), (*currency).clone(), Rate::new())).await.unwrap();
     }
 
     // Wait some time, to let the two nodes negotiate currencies:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    config0
-        .open_friend_currency(node_public_key(1), currency1.clone())
-        .await
-        .unwrap();
-    config1
-        .open_friend_currency(node_public_key(0), currency1.clone())
-        .await
-        .unwrap();
+    send_request(&mut conn_pair0, conn::config::open_friend_currency(node_public_key(1), currency1.clone())).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::open_friend_currency(node_public_key(0), currency1.clone())).await.unwrap();
 
-    config1
-        .open_friend_currency(node_public_key(0), currency2.clone())
-        .await
-        .unwrap();
-    config0
-        .open_friend_currency(node_public_key(1), currency2.clone())
-        .await
-        .unwrap();
+    send_request(&mut conn_pair1, conn::config::open_friend_currency(node_public_key(0), currency2.clone())).await.unwrap();
+    send_request(&mut conn_pair0, conn::config::open_friend_currency(node_public_key(1), currency2.clone())).await.unwrap();
 
     // Wait some time, to let the index servers exchange information:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node1 allows node0 to have maximum debt of 10
-    config1
-        .set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10)
-        .await
-        .unwrap();
-
-    config1
-        .set_friend_currency_max_debt(node_public_key(0), currency2.clone(), 15)
-        .await
-        .unwrap();
+    send_request(&mut conn_pair1, conn::config::set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10)).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::set_friend_currency_max_debt(node_public_key(0), currency2.clone(), 15)).await.unwrap();
 
     // Wait until the max debt was set:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Send 10 currency1 credits from node0 to node1:
     let payment_status = make_test_payment(
-        &mut buyer0,
-        &mut seller1,
-        &mut routes0,
+        &mut conn_pair0,
+        &mut conn_pair1,
         node_public_key(0),
         node_public_key(1),
         currency1.clone(),
@@ -460,9 +407,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Send 11 currency2 credits from node0 to node1:
     let payment_status = make_test_payment(
-        &mut buyer0,
-        &mut seller1,
-        &mut routes0,
+        &mut conn_pair0,
+        &mut conn_pair1,
         node_public_key(0),
         node_public_key(1),
         currency2.clone(),
@@ -483,9 +429,8 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Node1: Send 5 = 3 + 2 credits to Node0:
     let payment_status = make_test_payment(
-        &mut buyer1,
-        &mut seller0,
-        &mut routes1,
+        &mut conn_pair1,
+        &mut conn_pair0,
         node_public_key(1),
         node_public_key(0),
         currency1.clone(),
