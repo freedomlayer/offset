@@ -2,37 +2,38 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::StreamExt;
+use futures::{StreamExt};
 
 use tempfile::tempdir;
 
 use common::test_executor::TestExecutor;
 
-use proto::app_server::messages::AppPermissions;
+use proto::app_server::messages::{AppPermissions};
 use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
+use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
 use timer::create_timer_incoming;
 
-use crypto::rand::CryptoRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
-
-use app::conn::{ConnPairApp, self, AppServerToApp, RequestResult};
+use app::conn::{ConnPairApp, self, RequestResult};
 
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_app, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address, SimDb,
+    report_service,
 };
 use crate::app_wrapper::{request_routes, create_transaction, 
     send_request, request_close_payment, ack_close_payment};
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
+
+
 /// Perform a basic payment between a buyer and a seller.
-async fn make_test_payment<'a, R>(
-    conn_pair0: &'a mut ConnPairApp,
-    conn_pair1: &'a mut ConnPairApp,
+async fn make_test_payment<'a>(
+    mut conn_pair0: &'a mut ConnPairApp,
+    mut conn_pair1: &'a mut ConnPairApp,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
@@ -41,8 +42,6 @@ async fn make_test_payment<'a, R>(
     mut tick_sender: mpsc::Sender<()>,
     test_executor: TestExecutor,
 ) -> PaymentStatus
-where
-    R: CryptoRandom,
 {
     let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
@@ -189,7 +188,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     .await;
     assert!(opt_wrong_app.is_none());
 
-    let mut app0 = create_app(
+    let app0 = create_app(
         0,
         sim_net_client.clone(),
         timer_client.clone(),
@@ -223,7 +222,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let mut app1 = create_app(
+    let app1 = create_app(
         1,
         sim_net_client.clone(),
         timer_client.clone(),
@@ -284,9 +283,17 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let (_permissions0, node_report0, conn_pair0) = app0;
     let (_permissions1, node_report1, conn_pair1) = app1;
 
+    let (sender0, receiver0) = conn_pair0.split();
+    let (receiver0, mut reports0) = report_service(node_report0, receiver0, &test_executor);
+    let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
+
+    let (sender1, receiver1) = conn_pair1.split();
+    let (receiver1, mut reports1) = report_service(node_report1, receiver1, &test_executor);
+    let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
+
     // Configure relays:
     send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(0))).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(0))).await.unwrap();
+    send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(1))).await.unwrap();
 
     // Configure index servers:
     send_request(&mut conn_pair0, conn::config::add_index_server(named_index_server_address(0))).await.unwrap();
@@ -315,46 +322,34 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
     advance_time(10, &mut tick_sender, &test_executor).await;
 
+
     // Node1: Enable node0:
     send_request(&mut conn_pair1, conn::config::enable_friend(node_public_key(0))).await.unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    let node_report = node_report0.clone();
     loop {
-        let app_server_to_app = conn_pair0.receiver.next().await.unwrap();
-        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            for mutation in &report_mutations.mutations {
-                node_report.mutate(&mutation).unwrap();
-            }
-
-            let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
-                None => continue,
-                Some(friend_report) => friend_report,
-            };
-            if friend_report.liveness.is_online() {
-                break;
-            }
+        let node_report0 = reports0.next().await.unwrap();
+        let friend_report = match node_report0.funder_report.friends.get(&node_public_key(1)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
+        if friend_report.liveness.is_online() {
+            break;
         }
     }
 
-    let node_report = node_report1.clone();
     loop {
-        let app_server_to_app = conn_pair0.receiver.next().await.unwrap();
-        if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
-            for mutation in &report_mutations.mutations {
-                node_report.mutate(&mutation).unwrap();
-            }
-
-            let friend_report = match node_report.funder_report.friends.get(&node_public_key(1)) {
-                None => continue,
-                Some(friend_report) => friend_report,
-            };
-            if friend_report.liveness.is_online() {
-                break;
-            }
+        let node_report1 = reports1.next().await.unwrap();
+        let friend_report = match node_report1.funder_report.friends.get(&node_public_key(0)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
+        if friend_report.liveness.is_online() {
+            break;
         }
     }
+
 
     // Set active currencies for both sides:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
@@ -454,20 +449,18 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let invoice_id = InvoiceId::from(&[9u8; InvoiceId::len()]);
     let request_id = Uid::from(&[10u8; Uid::len()]);
 
-    seller0
-        .add_invoice(invoice_id.clone(), currency1.clone(), total_dest_payment)
+    send_request(&mut conn_pair0, conn::seller::add_invoice(invoice_id.clone(), currency1.clone(), total_dest_payment))
         .await
         .unwrap();
 
     // Node1: Open a payment to pay the invoice issued by Node1:
-    buyer1
-        .create_payment(
+    send_request(&mut conn_pair1, conn::buyer::create_payment( 
             payment_id.clone(),
             invoice_id.clone(),
             currency1.clone(),
             total_dest_payment,
             node_public_key(0),
-        )
+        ))
         .await
         .unwrap();
 
@@ -476,28 +469,28 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         public_keys: vec![node_public_key(1), node_public_key(0)],
     };
     // Node1: Create one transaction for the given route:
-    let res = buyer1
-        .create_transaction(
+    let res = create_transaction(
+            &mut conn_pair1,
             payment_id.clone(),
             request_id.clone(),
             route,
             total_dest_payment,
             fees,
         )
-        .await;
-    assert!(res.is_err());
+        .await
+        .unwrap();
+
+    assert_eq!(res, RequestResult::Failure);
 
     // Node0: Check the payment's result:
-    let payment_status = buyer1
-        .request_close_payment(payment_id.clone())
+    let payment_status = request_close_payment(&mut conn_pair1, payment_id.clone())
         .await
         .unwrap();
 
     // Acknowledge the payment closing result if required:
     match &payment_status {
         PaymentStatus::Canceled(ack_uid) => {
-            buyer1
-                .ack_close_payment(payment_id.clone(), ack_uid.clone())
+            ack_close_payment(&mut conn_pair1, payment_id.clone(), ack_uid.clone())
                 .await
                 .unwrap();
         }

@@ -105,7 +105,10 @@ where
 
     // serialization:
     let (user_sender, mut from_user_sender) = mpsc::channel::<AppToAppServer>(0);
-    let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+
+    // QUESTION: We have size of 1 to avoid deadlocks in tests. Not fully sure why a deadlock happens if we
+    // put 0 instead.
+    let (mut to_user_receiver, user_receiver) = mpsc::channel(1);
 
     // Deserialize data received from node:
     let _ = spawner.spawn(async move {

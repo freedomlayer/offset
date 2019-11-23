@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use futures::channel::mpsc;
 use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, FutureExt, SinkExt, TryFutureExt};
+use futures::{future, FutureExt, SinkExt, TryFutureExt, StreamExt, Stream};
 
 use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
 
@@ -22,7 +22,9 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::conn::{inner_connect, AppConnTuple};
+use app::conn::{inner_connect, AppConnTuple, AppServerToApp};
+use app::report::NodeReport;
+
 use node::{net_node, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
@@ -396,4 +398,29 @@ pub async fn advance_time<'a>(
         tick_sender.send(()).await.unwrap();
         test_executor.wait().await;
     }
+}
+
+const REPORTS_CHANNEL_LEN: usize = 0x200;
+
+
+/// A service for maintaining knowledge of the current report
+pub fn report_service<S: Spawn>(mut node_report: NodeReport, mut from_server: impl Stream<Item=AppServerToApp> + Unpin + Send + 'static, spawner: &S) 
+    -> (mpsc::Receiver<AppServerToApp>, mpsc::Receiver<NodeReport>) {
+
+    let (mut sender, receiver) = mpsc::channel(REPORTS_CHANNEL_LEN);
+    let (mut node_report_sender, node_report_receiver) = mpsc::channel(REPORTS_CHANNEL_LEN);
+
+    spawner.spawn(async move {
+        while let Some(app_server_to_app) = from_server.next().await {
+            if let AppServerToApp::ReportMutations(report_mutations) = &app_server_to_app {
+                for mutation in &report_mutations.mutations {
+                    node_report.mutate(&mutation).unwrap();
+                }
+                let _ = node_report_sender.send(node_report.clone()).await;
+            }
+            sender.send(app_server_to_app).await.unwrap();
+        }
+    }).unwrap();
+
+    (receiver, node_report_receiver)
 }

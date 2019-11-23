@@ -7,7 +7,7 @@ use app::conn::{ConnPairApp, AppToAppServer, AppServerToApp, AppRequest, self, R
 use app::gen::gen_uid;
 
 #[derive(Debug)]
-struct AppWrapperError;
+pub struct AppWrapperError;
 
 /// Send a request and wait until the request is acked
 pub async fn send_request(conn_pair: &mut ConnPairApp, app_request: AppRequest) -> Result<(), AppWrapperError> {
