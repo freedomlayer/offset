@@ -1,8 +1,7 @@
 use proto::crypto::{PublicKey, Signature};
 
 use proto::app_server::messages::{
-    AppRequest, CloseFriendCurrency, NamedRelayAddress, OpenFriendCurrency,
-    RelayAddress,
+    AppRequest, CloseFriendCurrency, NamedRelayAddress, OpenFriendCurrency, RelayAddress,
 };
 use proto::funder::messages::{
     AddFriend, Currency, Rate, RemoveFriendCurrency, ResetFriendChannel, SetFriendCurrencyMaxDebt,
@@ -10,16 +9,11 @@ use proto::funder::messages::{
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
-
-pub fn add_relay(
-    named_relay_address: NamedRelayAddress,
-) -> AppRequest {
+pub fn add_relay(named_relay_address: NamedRelayAddress) -> AppRequest {
     AppRequest::AddRelay(named_relay_address)
 }
 
-pub fn remove_relay(
-    relay_public_key: PublicKey,
-) -> AppRequest {
+pub fn remove_relay(relay_public_key: PublicKey) -> AppRequest {
     AppRequest::RemoveRelay(relay_public_key)
 }
 
@@ -36,10 +30,7 @@ pub fn add_friend(
     AppRequest::AddFriend(add_friend)
 }
 
-pub fn set_friend_relays(
-    friend_public_key: PublicKey,
-    relays: Vec<RelayAddress>,
-) -> AppRequest {
+pub fn set_friend_relays(friend_public_key: PublicKey, relays: Vec<RelayAddress>) -> AppRequest {
     let set_friend_relays = SetFriendRelays {
         friend_public_key,
         relays,
@@ -47,48 +38,33 @@ pub fn set_friend_relays(
     AppRequest::SetFriendRelays(set_friend_relays)
 }
 
-pub fn remove_friend(
-    friend_public_key: PublicKey,
-) -> AppRequest {
+pub fn remove_friend(friend_public_key: PublicKey) -> AppRequest {
     AppRequest::RemoveFriend(friend_public_key)
 }
 
-pub async fn enable_friend(
-    friend_public_key: PublicKey,
-) -> AppRequest {
+pub fn enable_friend(friend_public_key: PublicKey) -> AppRequest {
     AppRequest::EnableFriend(friend_public_key)
 }
 
-pub fn disable_friend(
-    friend_public_key: PublicKey,
-) -> AppRequest {
+pub fn disable_friend(friend_public_key: PublicKey) -> AppRequest {
     AppRequest::DisableFriend(friend_public_key)
 }
 
-pub fn remove_friend_currency(
-    friend_public_key: PublicKey,
-    currency: Currency,
-) -> AppRequest {
+pub fn remove_friend_currency(friend_public_key: PublicKey, currency: Currency) -> AppRequest {
     AppRequest::RemoveFriendCurrency(RemoveFriendCurrency {
         friend_public_key,
         currency,
     })
 }
 
-pub fn open_friend_currency(
-    friend_public_key: PublicKey,
-    currency: Currency,
-) -> AppRequest {
+pub fn open_friend_currency(friend_public_key: PublicKey, currency: Currency) -> AppRequest {
     AppRequest::OpenFriendCurrency(OpenFriendCurrency {
         friend_public_key,
         currency,
     })
 }
 
-pub fn close_friend_currency(
-    friend_public_key: PublicKey,
-    currency: Currency,
-) -> AppRequest {
+pub fn close_friend_currency(friend_public_key: PublicKey, currency: Currency) -> AppRequest {
     AppRequest::CloseFriendCurrency(CloseFriendCurrency {
         friend_public_key,
         currency,
@@ -121,10 +97,7 @@ pub fn set_friend_currency_rate(
     AppRequest::SetFriendCurrencyRate(set_friend_currency_rate)
 }
 
-pub fn reset_friend_channel(
-    friend_public_key: PublicKey,
-    reset_token: Signature,
-) -> AppRequest {
+pub fn reset_friend_channel(friend_public_key: PublicKey, reset_token: Signature) -> AppRequest {
     // TODO: Check if a reset confusion attack is possible here.
     // Maybe we (locally) should be the ones generating the reset token.
     // What happens if the remote side sends two consecutive reset requests with different
@@ -136,14 +109,10 @@ pub fn reset_friend_channel(
     AppRequest::ResetFriendChannel(reset_friend_channel)
 }
 
-pub fn add_index_server(
-    named_index_server: NamedIndexServerAddress,
-) -> AppRequest {
+pub fn add_index_server(named_index_server: NamedIndexServerAddress) -> AppRequest {
     AppRequest::AddIndexServer(named_index_server)
 }
 
-pub fn remove_index_server(
-    index_public_key: PublicKey,
-) -> AppRequest {
+pub fn remove_index_server(index_public_key: PublicKey) -> AppRequest {
     AppRequest::RemoveIndexServer(index_public_key)
 }

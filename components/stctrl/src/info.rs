@@ -136,7 +136,7 @@ pub async fn info_public_key(
 */
 
 pub async fn info_relays(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
     let report = get_report(&mut app_report).await?;
@@ -162,7 +162,7 @@ pub async fn info_relays(
 }
 
 pub async fn info_index(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
     let report = get_report(&mut app_report).await?;
@@ -278,7 +278,7 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
 }
 
 pub async fn info_friends(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
     let report = get_report(&mut app_report).await?;
@@ -324,7 +324,7 @@ pub async fn info_friends(
 /// This is the last signed commitment made by the friend to the mutual balance.
 pub async fn info_friend_last_token(
     friend_last_token_cmd: FriendLastTokenCmd,
-    mut app_report: AppReport,
+    node_report: &NodeReport,
 ) -> Result<(), InfoError> {
     let FriendLastTokenCmd {
         friend_name,
@@ -399,7 +399,7 @@ pub async fn info_balance(
 
 pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
-    mut app_report: AppReport,
+    node_report: &NodeReport,
 ) -> Result<(), InfoError> {
     let ExportTicketCmd { ticket_path } = export_ticket_cmd;
 
@@ -428,22 +428,21 @@ pub async fn info_export_ticket(
 
 pub async fn info(
     info_cmd: InfoCmd,
-    mut app_conn: AppConn,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let app_report = app_conn.report().clone();
 
     match info_cmd {
-        // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(app_report, writer).await?,
-        InfoCmd::Relays(_relays_cmd) => info_relays(app_report, writer).await?,
-        InfoCmd::Index(_index_cmd) => info_index(app_report, writer).await?,
-        InfoCmd::Friends(_friends_cmd) => info_friends(app_report, writer).await?,
+        // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(node_report, writer).await?,
+        InfoCmd::Relays(_relays_cmd) => info_relays(node_report, writer).await?,
+        InfoCmd::Index(_index_cmd) => info_index(node_report, writer).await?,
+        InfoCmd::Friends(_friends_cmd) => info_friends(node_report, writer).await?,
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
-            info_friend_last_token(friend_last_token_cmd, app_report).await?
+            info_friend_last_token(friend_last_token_cmd, node_report).await?
         }
-        // InfoCmd::Balance(_balance_cmd) => info_balance(app_report, writer).await?,
+        // InfoCmd::Balance(_balance_cmd) => info_balance(node_report, writer).await?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
-            info_export_ticket(export_ticket_cmd, app_report).await?
+            info_export_ticket(export_ticket_cmd, node_report).await?
         }
     }
     Ok(())

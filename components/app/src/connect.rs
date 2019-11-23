@@ -23,11 +23,13 @@ use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
 
+/// A connection of an App to a Node
+pub type ConnPairApp = ConnPair<AppToAppServer, AppServerToApp>;
 
 pub type AppConnTuple = (
     AppPermissions,
     NodeReport,
-    ConnPair<AppToAppServer, AppServerToApp>,
+    ConnPairApp,
 );
 
 #[derive(Debug)]
