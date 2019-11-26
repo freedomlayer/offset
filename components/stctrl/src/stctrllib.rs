@@ -27,6 +27,7 @@ pub enum StCtrlError {
     InvalidNodeTicketFile,
     SpawnIdentityServiceError,
     ConnectionError,
+    InsufficientPermissions,
     InfoError(InfoError),
     ConfigError(ConfigError),
     BuyerError(BuyerError),
@@ -105,18 +106,28 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
         .await
         .map_err(|_| StCtrlError::ConnectionError)?;
 
-        // TODO: Check permissions?
-
         match subcommand {
             StCtrlSubcommand::Info(info_cmd) => info(info_cmd, &node_report, writer).await?,
             StCtrlSubcommand::Config(config_cmd) => {
-                config(config_cmd, &node_report, conn_pair).await?
+                if app_permissions.config {
+                    config(config_cmd, &node_report, conn_pair).await?
+                } else {
+                    return Err(StCtrlError::InsufficientPermissions);
+                }
             }
             StCtrlSubcommand::Buyer(buyer_cmd) => {
-                buyer(buyer_cmd, &node_report, conn_pair, writer).await?
+                if app_permissions.buyer {
+                    buyer(buyer_cmd, &node_report, conn_pair, writer).await?
+                } else {
+                    return Err(StCtrlError::InsufficientPermissions);
+                }
             }
             StCtrlSubcommand::Seller(seller_cmd) => {
-                seller(seller_cmd, &node_report, conn_pair).await?
+                if app_permissions.seller {
+                    seller(seller_cmd, &node_report, conn_pair).await?
+                } else {
+                    return Err(StCtrlError::InsufficientPermissions);
+                }
             }
         }
         Ok(())
