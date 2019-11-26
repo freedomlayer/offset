@@ -21,6 +21,7 @@ members = [
   "components/version",
   "components/bin",
   "components/stctrl",
+  "components/stcompact",
   "components/app",
   "components/test",
   "components/mutual_from",

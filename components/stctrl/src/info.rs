@@ -14,7 +14,7 @@ use app::report::{
 };
 use app::ser_string::public_key_to_string;
 
-use app::conn::{AppConn, AppReport};
+use app::conn::ConnPairApp;
 use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
 use app::ser_string::{serialize_to_string, StringSerdeError};
 
@@ -109,6 +109,7 @@ pub enum InfoError {
     StringSerdeError(StringSerdeError),
 }
 
+/*
 /// Get a most recently known node report:
 async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError> {
     let (node_report, incoming_mutations) = app_report
@@ -120,6 +121,7 @@ async fn get_report(app_report: &mut AppReport) -> Result<NodeReport, InfoError>
 
     Ok(node_report)
 }
+*/
 
 /*
 /// Show local public key
@@ -136,16 +138,14 @@ pub async fn info_public_key(
 */
 
 pub async fn info_relays(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = get_report(&mut app_report).await?;
-
     let mut table = Table::new();
     // Add title:
     table.set_titles(row!["relay name", "public key", "address"]);
 
-    for named_relay_address in &report.funder_report.relays {
+    for named_relay_address in &node_report.funder_report.relays {
         let pk_string = public_key_to_string(&named_relay_address.public_key);
         table.add_row(row![
             named_relay_address.name,
@@ -162,17 +162,15 @@ pub async fn info_relays(
 }
 
 pub async fn info_index(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = get_report(&mut app_report).await?;
-
     let mut table = Table::new();
     // Add title:
     table.set_titles(row!["index server name", "public key", "address"]);
 
-    let opt_connected_server = &report.index_client_report.opt_connected_server;
-    for named_index_server_address in &report.index_client_report.index_servers {
+    let opt_connected_server = &node_report.index_client_report.opt_connected_server;
+    for named_index_server_address in &node_report.index_client_report.index_servers {
         // The currently used index will have (*) next to his name:
         let name = if opt_connected_server.as_ref() == Some(&named_index_server_address.public_key)
         {
@@ -278,16 +276,14 @@ fn friend_channel_status(friend_report: &FriendReport) -> String {
 }
 
 pub async fn info_friends(
-    mut app_report: AppReport,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let report = get_report(&mut app_report).await?;
-
     let mut table = Table::new();
     // Add titlek:
     table.set_titles(row!["st", "name", "balance"]);
 
-    for friend_report in report.funder_report.friends.values() {
+    for friend_report in node_report.funder_report.friends.values() {
         // Is the friend enabled?
         let status_str = if friend_report.status == FriendStatusReport::Enabled {
             "E"
@@ -324,7 +320,7 @@ pub async fn info_friends(
 /// This is the last signed commitment made by the friend to the mutual balance.
 pub async fn info_friend_last_token(
     friend_last_token_cmd: FriendLastTokenCmd,
-    mut app_report: AppReport,
+    node_report: &NodeReport,
 ) -> Result<(), InfoError> {
     let FriendLastTokenCmd {
         friend_name,
@@ -335,15 +331,7 @@ pub async fn info_friend_last_token(
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
-    // Get a recent report:
-    let (node_report, incoming_mutations) = app_report
-        .incoming_reports()
-        .await
-        .map_err(|_| InfoError::GetReportError)?;
-    // We don't want to listen on incoming mutations:
-    drop(incoming_mutations);
-
-    let friend_public_key = friend_public_key_by_name(&node_report, &friend_name)
+    let friend_public_key = friend_public_key_by_name(node_report, &friend_name)
         .ok_or(InfoError::FriendNameNotFound)?;
 
     let friend_report = node_report
@@ -399,7 +387,7 @@ pub async fn info_balance(
 
 pub async fn info_export_ticket(
     export_ticket_cmd: ExportTicketCmd,
-    mut app_report: AppReport,
+    node_report: &NodeReport,
 ) -> Result<(), InfoError> {
     let ExportTicketCmd { ticket_path } = export_ticket_cmd;
 
@@ -407,16 +395,16 @@ pub async fn info_export_ticket(
         return Err(InfoError::OutputFileAlreadyExists);
     }
 
-    let report = get_report(&mut app_report).await?;
-    let relays: Vec<RelayAddress> = report
+    let relays: Vec<RelayAddress> = node_report
         .funder_report
         .relays
+        .clone()
         .into_iter()
         .map(Into::into)
         .collect();
 
     let friend_address_file = FriendAddressFile {
-        public_key: report.funder_report.local_public_key.clone(),
+        public_key: node_report.funder_report.local_public_key.clone(),
         relays: relays.into_iter().map(RelayAddressFile::from).collect(),
     };
 
@@ -428,22 +416,20 @@ pub async fn info_export_ticket(
 
 pub async fn info(
     info_cmd: InfoCmd,
-    mut app_conn: AppConn,
+    node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-    let app_report = app_conn.report().clone();
-
     match info_cmd {
-        // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(app_report, writer).await?,
-        InfoCmd::Relays(_relays_cmd) => info_relays(app_report, writer).await?,
-        InfoCmd::Index(_index_cmd) => info_index(app_report, writer).await?,
-        InfoCmd::Friends(_friends_cmd) => info_friends(app_report, writer).await?,
+        // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(node_report, writer).await?,
+        InfoCmd::Relays(_relays_cmd) => info_relays(node_report, writer).await?,
+        InfoCmd::Index(_index_cmd) => info_index(node_report, writer).await?,
+        InfoCmd::Friends(_friends_cmd) => info_friends(node_report, writer).await?,
         InfoCmd::FriendLastToken(friend_last_token_cmd) => {
-            info_friend_last_token(friend_last_token_cmd, app_report).await?
+            info_friend_last_token(friend_last_token_cmd, node_report).await?
         }
-        // InfoCmd::Balance(_balance_cmd) => info_balance(app_report, writer).await?,
+        // InfoCmd::Balance(_balance_cmd) => info_balance(node_report, writer).await?,
         InfoCmd::ExportTicket(export_ticket_cmd) => {
-            info_export_ticket(export_ticket_cmd, app_report).await?
+            info_export_ticket(export_ticket_cmd, node_report).await?
         }
     }
     Ok(())

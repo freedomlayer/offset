@@ -14,10 +14,20 @@
 extern crate log;
 
 #[cfg(test)]
+#[macro_use]
+extern crate common;
+
+#[allow(unused)]
+#[cfg(test)]
 mod sim_network;
 
+#[allow(unused)]
 #[cfg(test)]
 mod utils;
+
+#[allow(unused)]
+#[cfg(test)]
+mod app_wrapper;
 
 #[cfg(test)]
 mod tests;

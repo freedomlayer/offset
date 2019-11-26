@@ -335,7 +335,7 @@ pub enum FunderReportMutation<B = NetAddress> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FunderReportMutations<B: Clone> {
+pub struct FunderReportMutations<B> {
     pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<FunderReportMutation<B>>,
 }

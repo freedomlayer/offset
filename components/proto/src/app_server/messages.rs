@@ -53,10 +53,7 @@ pub struct NodeReport<B = NetAddress> {
 
 #[capnp_conv(crate::report_capnp::node_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NodeReportMutation<B = NetAddress>
-where
-    B: Clone,
-{
+pub enum NodeReportMutation<B = NetAddress> {
     Funder(FunderReportMutation<B>),
     IndexClient(IndexClientReportMutation<B>),
 }
@@ -88,10 +85,7 @@ impl From<OptAppRequestId> for Option<Uid> {
 
 #[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReportMutations<B = NetAddress>
-where
-    B: Clone,
-{
+pub struct ReportMutations<B = NetAddress> {
     #[capnp_conv(with = OptAppRequestId)]
     pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<NodeReportMutation<B>>,
@@ -100,10 +94,7 @@ where
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::app_server_capnp::app_server_to_app)]
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<B = NetAddress>
-where
-    B: Clone,
-{
+pub enum AppServerToApp<B = NetAddress> {
     /// Funds:
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),

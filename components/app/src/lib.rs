@@ -7,12 +7,12 @@
     clippy::new_without_default
 )]
 
-#[macro_use]
 extern crate log;
 
 mod app_conn;
 mod connect;
 mod identity;
+mod types;
 
 /// Utils for random generation of types
 pub mod gen;
@@ -40,9 +40,12 @@ pub use proto::ser_string;
 
 /// Offst connection
 pub mod conn {
-    pub use super::app_conn::{AppBuyer, AppConfig, AppConn, AppReport, AppRoutes, AppSeller};
-    pub use super::connect::{connect, node_connect, ConnectError};
+    pub use super::app_conn::{buyer, config, routes, seller};
+    pub use super::connect::{connect, inner_connect, AppConnTuple, ConnPairApp, ConnectError};
     pub use super::identity::{identity_from_file, IdentityFromFileError};
+    pub use proto::app_server::messages::{AppRequest, AppServerToApp, AppToAppServer};
+    pub use proto::funder::messages::RequestResult;
+    pub use proto::index_client::messages::ResponseRoutesResult;
 }
 
 // TODO: Possibly reduce what we export from report in the future?
