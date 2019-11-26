@@ -375,6 +375,7 @@ pub enum UserRequest {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
     CommitInvoice(Commit),
+    // TODO: Add API for verification of receipt and last token?
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
