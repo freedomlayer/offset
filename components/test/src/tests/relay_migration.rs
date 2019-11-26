@@ -9,17 +9,16 @@ use common::test_executor::TestExecutor;
 use proto::app_server::messages::AppPermissions;
 use timer::create_timer_incoming;
 
-use app::conn::{ConnPairApp, self};
+use app::conn::{self, ConnPairApp};
 // use app::report::NodeReport;
 
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, relay_public_key, SimDb, report_service, ReportClient,
+    relay_address, relay_public_key, report_service, ReportClient, SimDb,
 };
 
 use crate::app_wrapper::send_request;
 use crate::sim_network::create_sim_network;
-
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -184,7 +183,6 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     )
     .await;
 
-
     let (_permissions0, node_report0, conn_pair0) = app0;
     let (_permissions1, node_report1, conn_pair1) = app1;
 
@@ -197,26 +195,58 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:
-    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(0))).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(1))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_relay(named_relay_address(0)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::add_relay(named_relay_address(1)),
+    )
+    .await
+    .unwrap();
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    send_request(&mut conn_pair0, conn::config::add_friend(
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_friend(
             node_public_key(1),
             vec![relay_address(1)],
-            String::from("node1"))).await.unwrap();
+            String::from("node1"),
+        ),
+    )
+    .await
+    .unwrap();
 
     // Node1: Add node0 as a friend:
-    send_request(&mut conn_pair1, conn::config::add_friend(
+    send_request(
+        &mut conn_pair1,
+        conn::config::add_friend(
             node_public_key(0),
             vec![relay_address(0)],
-            String::from("node0"))).await.unwrap();
+            String::from("node0"),
+        ),
+    )
+    .await
+    .unwrap();
 
-    send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::enable_friend(node_public_key(0))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::enable_friend(node_public_key(1)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::enable_friend(node_public_key(0)),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
@@ -224,8 +254,18 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     wait_friend_online(&mut report_client1, 0).await;
 
     // Change relays for node0:
-    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(2))).await.unwrap();
-    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(0))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_relay(named_relay_address(2)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_relay(named_relay_address(0)),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
@@ -238,12 +278,26 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     wait_friend_offline(&mut report_client0, 1).await;
 
     // App can not communicate with node1:
-    assert!(send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(2))).await.is_err());
+    assert!(send_request(
+        &mut conn_pair1,
+        conn::config::add_relay(named_relay_address(2))
+    )
+    .await
+    .is_err());
 
     // Change relays for node0 while node1 is offline:
-    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(4))).await.unwrap();
-    send_request(&mut conn_pair0, conn::config::remove_relay(relay_public_key(2))).await.unwrap();
-
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_relay(named_relay_address(4)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::remove_relay(relay_public_key(2)),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 

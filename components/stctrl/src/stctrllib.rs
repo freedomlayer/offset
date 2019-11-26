@@ -109,9 +109,15 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
 
         match subcommand {
             StCtrlSubcommand::Info(info_cmd) => info(info_cmd, &node_report, writer).await?,
-            StCtrlSubcommand::Config(config_cmd) => config(config_cmd, &node_report, conn_pair).await?,
-            StCtrlSubcommand::Buyer(buyer_cmd) => buyer(buyer_cmd, &node_report, conn_pair, writer).await?,
-            StCtrlSubcommand::Seller(seller_cmd) => seller(seller_cmd, &node_report, conn_pair).await?,
+            StCtrlSubcommand::Config(config_cmd) => {
+                config(config_cmd, &node_report, conn_pair).await?
+            }
+            StCtrlSubcommand::Buyer(buyer_cmd) => {
+                buyer(buyer_cmd, &node_report, conn_pair, writer).await?
+            }
+            StCtrlSubcommand::Seller(seller_cmd) => {
+                seller(seller_cmd, &node_report, conn_pair).await?
+            }
         }
         Ok(())
     })

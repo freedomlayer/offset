@@ -7,11 +7,11 @@ use futures::{SinkExt, StreamExt};
 use common::conn::{ConnPair, ConnPairVec, FutTransform};
 use common::int_convert::usize_to_u64;
 
-use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY, MAX_FRAME_LENGTH, TICK_MS};
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
+use proto::consts::{KEEPALIVE_TICKS, MAX_FRAME_LENGTH, PROTOCOL_VERSION, TICKS_TO_REKEY, TICK_MS};
+use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
-use proto::crypto::PublicKey;
 
 use crypto::rand::{system_random, CryptoRandom};
 
@@ -26,11 +26,7 @@ use version::VersionPrefix;
 /// A connection of an App to a Node
 pub type ConnPairApp = ConnPair<AppToAppServer, AppServerToApp>;
 
-pub type AppConnTuple = (
-    AppPermissions,
-    NodeReport,
-    ConnPairApp,
-);
+pub type AppConnTuple = (AppPermissions, NodeReport, ConnPairApp);
 
 #[derive(Debug)]
 pub enum SetupConnectionError {
@@ -179,7 +175,6 @@ where
     .await
     .map_err(InnerConnectError::SetupConnectionError)
 }
-
 
 #[derive(Debug)]
 pub struct ConnectError;

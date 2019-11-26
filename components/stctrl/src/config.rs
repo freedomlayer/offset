@@ -10,13 +10,12 @@ use structopt::StructOpt;
 use derive_more::From;
 
 use app::common::{Currency, NamedIndexServerAddress, NamedRelayAddress, Rate, RelayAddress};
-use app::conn::{ConnPairApp, self, AppToAppServer, AppServerToApp, AppRequest};
-use app::report::{ChannelStatusReport, NodeReport};
+use app::conn::{self, AppRequest, AppServerToApp, AppToAppServer, ConnPairApp};
 use app::gen::gen_uid;
+use app::report::{ChannelStatusReport, NodeReport};
 
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
 use app::ser_string::{deserialize_from_string, StringSerdeError};
-
 
 use crate::utils::friend_public_key_by_name;
 
@@ -260,26 +259,33 @@ pub enum ConfigError {
     InvalidCurrencyName,
 }
 
-async fn config_request(conn_pair: &mut ConnPairApp, app_request: AppRequest) -> Result<(), ConfigError> {
+async fn config_request(
+    conn_pair: &mut ConnPairApp,
+    app_request: AppRequest,
+) -> Result<(), ConfigError> {
     let app_request_id = gen_uid();
     let app_to_app_server = AppToAppServer {
         app_request_id: app_request_id.clone(),
         app_request,
     };
-    conn_pair.sender.send(app_to_app_server).await.map_err(|_| ConfigError::AppConfigError);
+    conn_pair
+        .sender
+        .send(app_to_app_server)
+        .await
+        .map_err(|_| ConfigError::AppConfigError);
 
     // Wait until we get an ack for our request:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
             if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
                 if cur_app_request_id == app_request_id {
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
     }
 
-    return Err(ConfigError::AppConfigError);
+    Err(ConfigError::AppConfigError)
 }
 
 async fn config_add_relay(
@@ -389,7 +395,7 @@ async fn config_add_friend(
         friend_name,
     } = add_friend_cmd;
 
-    for (_friend_public_key, friend_report) in &node_report.funder_report.friends {
+    for friend_report in node_report.funder_report.friends.values() {
         if friend_report.name == friend_name {
             return Err(ConfigError::FriendNameAlreadyExists);
         }
@@ -402,13 +408,14 @@ async fn config_add_friend(
     let friend_file: FriendFile = deserialize_from_string(&fs::read_to_string(&friend_path)?)?;
 
     let app_request = conn::config::add_friend(
-            friend_file.public_key,
-            friend_file
-                .relays
-                .into_iter()
-                .map(RelayAddress::from)
-                .collect(),
-            friend_name.to_owned());
+        friend_file.public_key,
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
+        friend_name.to_owned(),
+    );
     config_request(&mut conn_pair, app_request).await
 }
 
@@ -437,14 +444,15 @@ async fn config_set_friend_relays(
     if friend_file.public_key != friend_public_key {
         return Err(ConfigError::FriendPublicKeyMismatch);
     }
-    
+
     let app_request = conn::config::set_friend_relays(
-            friend_public_key,
-            friend_file
-                .relays
-                .into_iter()
-                .map(RelayAddress::from)
-                .collect());
+        friend_public_key,
+        friend_file
+            .relays
+            .into_iter()
+            .map(RelayAddress::from)
+            .collect(),
+    );
     config_request(&mut conn_pair, app_request).await
 }
 
@@ -540,7 +548,8 @@ async fn config_set_friend_currency_max_debt(
     let currency =
         Currency::try_from(currency_name).map_err(|_| ConfigError::InvalidCurrencyName)?;
 
-    let app_request = conn::config::set_friend_currency_max_debt(friend_public_key, currency, max_debt);
+    let app_request =
+        conn::config::set_friend_currency_max_debt(friend_public_key, currency, max_debt);
     config_request(&mut conn_pair, app_request).await
 }
 
@@ -618,11 +627,16 @@ async fn config_reset_friend(
         }
     };
 
-    let app_request = conn::config::reset_friend_channel(friend_public_key.clone(), reset_token.clone());
+    let app_request =
+        conn::config::reset_friend_channel(friend_public_key.clone(), reset_token.clone());
     config_request(&mut conn_pair, app_request).await
 }
 
-pub async fn config(config_cmd: ConfigCmd, node_report: &NodeReport, conn_pair: ConnPairApp) -> Result<(), ConfigError> {
+pub async fn config(
+    config_cmd: ConfigCmd,
+    node_report: &NodeReport,
+    conn_pair: ConnPairApp,
+) -> Result<(), ConfigError> {
     match config_cmd {
         ConfigCmd::AddRelay(add_relay_cmd) => {
             config_add_relay(add_relay_cmd, conn_pair, node_report).await?

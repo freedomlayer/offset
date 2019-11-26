@@ -12,19 +12,20 @@ use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
 use proto::report::messages::ChannelStatusReport;
 
-use app::conn::{ConnPairApp, self, RequestResult};
+use app::conn::{self, ConnPairApp, RequestResult};
 
 use timer::create_timer_incoming;
 
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, SimDb, report_service
+    relay_address, report_service, SimDb,
 };
 
 use crate::sim_network::create_sim_network;
 
-use crate::app_wrapper::{create_transaction, 
-    send_request, request_close_payment, ack_close_payment};
+use crate::app_wrapper::{
+    ack_close_payment, create_transaction, request_close_payment, send_request,
+};
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -41,15 +42,17 @@ pub async fn make_test_payment(
     fees: u128,
     mut tick_sender: mpsc::Sender<()>,
     test_executor: TestExecutor,
-) -> PaymentStatus
-{
+) -> PaymentStatus {
     let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
 
-    send_request(&mut conn_pair1, conn::seller::add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment))
-        .await
-        .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::seller::add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment),
+    )
+    .await
+    .unwrap();
 
     // Note: We build the route on our own, without using index servers:
     let route = FriendsRoute {
@@ -57,27 +60,30 @@ pub async fn make_test_payment(
     };
 
     // Node0: Open a payment to pay the invoice issued by Node1:
-    send_request(&mut conn_pair0, conn::buyer::create_payment( 
+    send_request(
+        &mut conn_pair0,
+        conn::buyer::create_payment(
             payment_id.clone(),
             invoice_id.clone(),
             currency.clone(),
             total_dest_payment,
             seller_public_key.clone(),
-        ))
-        .await
-        .unwrap();
+        ),
+    )
+    .await
+    .unwrap();
 
     // Node0: Create one transaction for the given route:
     let request_result = create_transaction(
-            conn_pair0,
-            payment_id.clone(),
-            request_id.clone(),
-            route.clone(),
-            total_dest_payment,
-            fees,
-        )
-        .await
-        .unwrap();
+        conn_pair0,
+        payment_id.clone(),
+        request_id.clone(),
+        route.clone(),
+        total_dest_payment,
+        fees,
+    )
+    .await
+    .unwrap();
 
     let commit = if let RequestResult::Complete(commit) = request_result {
         commit
@@ -88,7 +94,9 @@ pub async fn make_test_payment(
     // Node0 now passes the Commit to Node1 out of band.
 
     // Node1: Apply the Commit
-    send_request(&mut conn_pair1, conn::seller::commit_invoice(commit)).await.unwrap();
+    send_request(&mut conn_pair1, conn::seller::commit_invoice(commit))
+        .await
+        .unwrap();
 
     // Node0: Close payment (No more transactions will be sent through this payment)
     let _ = request_close_payment(conn_pair0, payment_id.clone())
@@ -114,8 +122,8 @@ pub async fn make_test_payment(
         }
         PaymentStatus::Canceled(ack_uid) => {
             ack_close_payment(conn_pair0, payment_id.clone(), ack_uid.clone())
-            .await
-            .unwrap();
+                .await
+                .unwrap();
         }
         _ => unreachable!(),
     }
@@ -249,39 +257,100 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:
-    send_request(&mut conn_pair0, conn::config::add_relay(named_relay_address(0))).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::add_relay(named_relay_address(1))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_relay(named_relay_address(0)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::add_relay(named_relay_address(1)),
+    )
+    .await
+    .unwrap();
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Add node1 as a friend:
-    send_request(&mut conn_pair0, conn::config::add_friend(
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_friend(
             node_public_key(1),
             vec![relay_address(1)],
-            String::from("node1"))).await.unwrap();
+            String::from("node1"),
+        ),
+    )
+    .await
+    .unwrap();
 
     // Node1: Add node0 as a friend:
-    send_request(&mut conn_pair1, conn::config::add_friend(
+    send_request(
+        &mut conn_pair1,
+        conn::config::add_friend(
             node_public_key(0),
             vec![relay_address(0)],
-            String::from("node0"))).await.unwrap();
+            String::from("node0"),
+        ),
+    )
+    .await
+    .unwrap();
 
-
-    send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::enable_friend(node_public_key(0))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::enable_friend(node_public_key(1)),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::enable_friend(node_public_key(0)),
+    )
+    .await
+    .unwrap();
 
     // Set active currencies for both sides:
-    send_request(&mut conn_pair0, conn::config::set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate::new())).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate::new())).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::set_friend_currency_rate(node_public_key(1), currency1.clone(), Rate::new()),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::set_friend_currency_rate(node_public_key(0), currency1.clone(), Rate::new()),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    send_request(&mut conn_pair0, conn::config::set_friend_currency_max_debt(node_public_key(1), currency1.clone(), 100)).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 200)).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::set_friend_currency_max_debt(node_public_key(1), currency1.clone(), 100),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 200),
+    )
+    .await
+    .unwrap();
 
-    send_request(&mut conn_pair0, conn::config::open_friend_currency(node_public_key(1), currency1.clone())).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::open_friend_currency(node_public_key(0), currency1.clone())).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::open_friend_currency(node_public_key(1), currency1.clone()),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::open_friend_currency(node_public_key(0), currency1.clone()),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
@@ -305,33 +374,46 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     };
 
     // Node0: remove the friend node1:
-    send_request(&mut conn_pair0, conn::config::remove_friend(node_public_key(1))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::remove_friend(node_public_key(1)),
+    )
+    .await
+    .unwrap();
 
     // Node0: Add node1 as a friend with a different balance
     // This should cause an inconsistency when the first token
     // message will be sent.
-    send_request(&mut conn_pair0, conn::config::add_friend(
+    send_request(
+        &mut conn_pair0,
+        conn::config::add_friend(
             node_public_key(1),
             vec![relay_address(1)],
-            String::from("node1"))).await.unwrap();
+            String::from("node1"),
+        ),
+    )
+    .await
+    .unwrap();
 
     // Node0 enables the friend node1. This is required to trigger the inconsistency error
-    send_request(&mut conn_pair0, conn::config::enable_friend(node_public_key(1))).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::enable_friend(node_public_key(1)),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node1 should now perceive the mutual channel with node0 to be inconsistent:
     let incon_report = loop {
         let node_report = report_client1.request_report().await;
-        let opt_friend_report = node_report
-            .funder_report
-            .friends
-            .get(&node_public_key(0));
+        let opt_friend_report = node_report.funder_report.friends.get(&node_public_key(0));
 
         let friend_report = if let Some(friend_report) = opt_friend_report {
             friend_report
         } else {
-            continue
+            continue;
         };
 
         match &friend_report.channel_status {
@@ -352,19 +434,15 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let remote_reset_terms = incon_report.opt_remote_reset_terms.clone().unwrap();
     assert_eq!(remote_reset_terms.balance_for_reset.len(), 0);
 
-
     // Node2 should perceive the mutual channel with node1 to be inconsistent:
     let incon_report = loop {
         let node_report = report_client0.request_report().await;
-        let opt_friend_report = node_report
-            .funder_report
-            .friends
-            .get(&node_public_key(1));
+        let opt_friend_report = node_report.funder_report.friends.get(&node_public_key(1));
 
         let friend_report = if let Some(friend_report) = opt_friend_report {
             friend_report
         } else {
-            continue
+            continue;
         };
 
         match &friend_report.channel_status {
@@ -387,53 +465,62 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let reset_token = remote_reset_terms.reset_token.clone();
 
     // Node0 agrees to the conditions of Node1:
-    send_request(&mut conn_pair0, conn::config::reset_friend_channel(node_public_key(1), reset_token)).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::reset_friend_channel(node_public_key(1), reset_token),
+    )
+    .await
+    .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     // Node0: Channel should be consistent now:
     loop {
         let node_report = report_client0.request_report().await;
-        let opt_friend_report = node_report
-            .funder_report
-            .friends
-            .get(&node_public_key(1));
+        let opt_friend_report = node_report.funder_report.friends.get(&node_public_key(1));
 
         let friend_report = if let Some(friend_report) = opt_friend_report {
             friend_report
         } else {
-            continue
+            continue;
         };
 
         match &friend_report.channel_status {
             ChannelStatusReport::Consistent(_) => break,
             ChannelStatusReport::Inconsistent(_) => continue,
         };
-    };
+    }
 
     // Node1: Channel should be consistent now:
     loop {
         let node_report = report_client1.request_report().await;
-        let opt_friend_report = node_report
-            .funder_report
-            .friends
-            .get(&node_public_key(0));
+        let opt_friend_report = node_report.funder_report.friends.get(&node_public_key(0));
 
         let friend_report = if let Some(friend_report) = opt_friend_report {
             friend_report
         } else {
-            continue
+            continue;
         };
 
         match &friend_report.channel_status {
             ChannelStatusReport::Consistent(_) => break,
             ChannelStatusReport::Inconsistent(_) => continue,
         };
-    };
+    }
 
     // Let both sides open the channel:
-    send_request(&mut conn_pair0, conn::config::open_friend_currency(node_public_key(1), currency1.clone())).await.unwrap();
-    send_request(&mut conn_pair1, conn::config::open_friend_currency(node_public_key(0), currency1.clone())).await.unwrap();
+    send_request(
+        &mut conn_pair0,
+        conn::config::open_friend_currency(node_public_key(1), currency1.clone()),
+    )
+    .await
+    .unwrap();
+    send_request(
+        &mut conn_pair1,
+        conn::config::open_friend_currency(node_public_key(0), currency1.clone()),
+    )
+    .await
+    .unwrap();
 
     advance_time(20, &mut tick_sender, &test_executor).await;
 

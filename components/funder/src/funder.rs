@@ -89,7 +89,6 @@ where
             FunderEvent::FunderIncoming(funder_incoming) => funder_incoming,
         };
 
-
         let res = funder_handle_message(
             &mut identity_client,
             &rng,

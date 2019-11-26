@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use futures::channel::{mpsc, oneshot};
 use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, FutureExt, SinkExt, TryFutureExt, StreamExt, Stream, stream};
+use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
 
@@ -419,9 +419,7 @@ pub struct ReportClient {
 
 impl ReportClient {
     fn new(requests_sender: mpsc::Sender<ReportRequest>) -> Self {
-        Self {
-            requests_sender,
-        }
+        Self { requests_sender }
     }
 
     pub async fn request_report(&mut self) -> NodeReport {
@@ -443,45 +441,51 @@ enum ReportServiceEvent {
 const APP_SERVER_TO_APP_CHANNEL_LEN: usize = 0x200;
 
 /// A service for maintaining knowledge of the current report
-pub fn report_service<S, FS>(mut node_report: NodeReport, mut from_server: FS, spawner: &S) 
-    -> (mpsc::Receiver<AppServerToApp>, ReportClient) 
+pub fn report_service<S, FS>(
+    mut node_report: NodeReport,
+    mut from_server: FS,
+    spawner: &S,
+) -> (mpsc::Receiver<AppServerToApp>, ReportClient)
 where
     S: Spawn,
-    FS: Stream<Item=AppServerToApp> + Unpin + Send + 'static,
+    FS: Stream<Item = AppServerToApp> + Unpin + Send + 'static,
 {
-
     let (requests_sender, requests_receiver) = mpsc::channel(1);
     let (mut app_sender, app_receiver) = mpsc::channel(APP_SERVER_TO_APP_CHANNEL_LEN);
 
     let requests_receiver = requests_receiver.map(ReportServiceEvent::Request);
-    let from_server = from_server.map(ReportServiceEvent::AppServerToApp)
-        .chain(stream::once(future::ready(ReportServiceEvent::ServerClosed)));
+    let from_server = from_server
+        .map(ReportServiceEvent::AppServerToApp)
+        .chain(stream::once(future::ready(
+            ReportServiceEvent::ServerClosed,
+        )));
 
-    let mut incoming_events = select_streams![
-        from_server,
-        requests_receiver
-    ];
+    let mut incoming_events = select_streams![from_server, requests_receiver];
 
-    spawner.spawn(async move {
-        while let Some(incoming_event) = incoming_events.next().await {
-            match incoming_event {
-                ReportServiceEvent::Request(report_request) => {
-                    report_request.response_sender.send(node_report.clone());
-                },
-                ReportServiceEvent::AppServerToApp(app_server_to_app) => {
-                    if let AppServerToApp::ReportMutations(report_mutations) = &app_server_to_app {
-                        for mutation in &report_mutations.mutations {
-                            node_report.mutate(&mutation).unwrap();
-                        }
+    spawner
+        .spawn(async move {
+            while let Some(incoming_event) = incoming_events.next().await {
+                match incoming_event {
+                    ReportServiceEvent::Request(report_request) => {
+                        report_request.response_sender.send(node_report.clone());
                     }
-                    let _ = app_sender.send(app_server_to_app).await;
-                },
-                ReportServiceEvent::ServerClosed => {
-                    return;
-                },
+                    ReportServiceEvent::AppServerToApp(app_server_to_app) => {
+                        if let AppServerToApp::ReportMutations(report_mutations) =
+                            &app_server_to_app
+                        {
+                            for mutation in &report_mutations.mutations {
+                                node_report.mutate(&mutation).unwrap();
+                            }
+                        }
+                        let _ = app_sender.send(app_server_to_app).await;
+                    }
+                    ReportServiceEvent::ServerClosed => {
+                        return;
+                    }
+                }
             }
-        }
-    }).unwrap();
+        })
+        .unwrap();
 
     (app_receiver, ReportClient { requests_sender })
 }

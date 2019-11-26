@@ -9,11 +9,11 @@ use futures::stream::StreamExt;
 use derive_more::From;
 
 use app::common::{Commit, Currency, PublicKey};
-use app::conn::{self, ConnPairApp, AppServerToApp, AppRequest, AppToAppServer};
+use app::conn::{self, AppRequest, AppServerToApp, AppToAppServer, ConnPairApp};
 use app::gen::{gen_invoice_id, gen_uid};
+use app::report::NodeReport;
 use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::verify::verify_commit;
-use app::report::NodeReport;
 
 use crate::file::{CommitFile, InvoiceFile};
 
@@ -87,26 +87,33 @@ pub enum SellerError {
     SellerRequestError,
 }
 
-async fn seller_request(conn_pair: &mut ConnPairApp, app_request: AppRequest) -> Result<(), SellerError> {
+async fn seller_request(
+    conn_pair: &mut ConnPairApp,
+    app_request: AppRequest,
+) -> Result<(), SellerError> {
     let app_request_id = gen_uid();
     let app_to_app_server = AppToAppServer {
         app_request_id: app_request_id.clone(),
         app_request,
     };
-    conn_pair.sender.send(app_to_app_server).await.map_err(|_| SellerError::SellerRequestError);
+    conn_pair
+        .sender
+        .send(app_to_app_server)
+        .await
+        .map_err(|_| SellerError::SellerRequestError);
 
     // Wait until we get an ack for our request:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
             if let Some(cur_app_request_id) = report_mutations.opt_app_request_id {
                 if cur_app_request_id == app_request_id {
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
     }
 
-    return Err(SellerError::SellerRequestError);
+    Err(SellerError::SellerRequestError)
 }
 
 async fn seller_create_invoice(
@@ -139,9 +146,12 @@ async fn seller_create_invoice(
         dest_payment: amount,
     };
 
-    seller_request(&mut conn_pair, conn::seller::add_invoice(invoice_id.clone(), currency, amount))
-        .await
-        .map_err(|_| SellerError::AddInvoiceError)?;
+    seller_request(
+        &mut conn_pair,
+        conn::seller::add_invoice(invoice_id.clone(), currency, amount),
+    )
+    .await
+    .map_err(|_| SellerError::AddInvoiceError)?;
 
     let mut file = File::create(invoice_path)?;
     file.write_all(&serialize_to_string(&invoice_file)?.as_bytes())?;
@@ -156,9 +166,12 @@ async fn seller_cancel_invoice(
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    seller_request(&mut conn_pair, conn::seller::cancel_invoice(invoice_file.invoice_id))
-        .await
-        .map_err(|_| SellerError::CancelInvoiceError)?;
+    seller_request(
+        &mut conn_pair,
+        conn::seller::cancel_invoice(invoice_file.invoice_id),
+    )
+    .await
+    .map_err(|_| SellerError::CancelInvoiceError)?;
 
     fs::remove_file(&invoice_path).map_err(|_| SellerError::RemoveInvoiceError)
 }
@@ -194,7 +207,11 @@ async fn seller_commit_invoice(
         .map_err(|_| SellerError::CommitInvoiceError)
 }
 
-pub async fn seller(seller_cmd: SellerCmd, node_report: &NodeReport, conn_pair: ConnPairApp) -> Result<(), SellerError> {
+pub async fn seller(
+    seller_cmd: SellerCmd,
+    node_report: &NodeReport,
+    conn_pair: ConnPairApp,
+) -> Result<(), SellerError> {
     // Get our local public key:
     let local_public_key = node_report.funder_report.local_public_key.clone();
 

@@ -14,7 +14,7 @@ use app::report::{
 };
 use app::ser_string::public_key_to_string;
 
-use app::conn::{ConnPairApp};
+use app::conn::ConnPairApp;
 use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
 use app::ser_string::{serialize_to_string, StringSerdeError};
 
@@ -141,7 +141,6 @@ pub async fn info_relays(
     node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-
     let mut table = Table::new();
     // Add title:
     table.set_titles(row!["relay name", "public key", "address"]);
@@ -166,7 +165,6 @@ pub async fn info_index(
     node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-
     let mut table = Table::new();
     // Add title:
     table.set_titles(row!["index server name", "public key", "address"]);
@@ -281,7 +279,6 @@ pub async fn info_friends(
     node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-
     let mut table = Table::new();
     // Add titlek:
     table.set_titles(row!["st", "name", "balance"]);
@@ -422,7 +419,6 @@ pub async fn info(
     node_report: &NodeReport,
     writer: &mut impl io::Write,
 ) -> Result<(), InfoError> {
-
     match info_cmd {
         // InfoCmd::PublicKey(_public_key_cmd) => info_public_key(node_report, writer).await?,
         InfoCmd::Relays(_relays_cmd) => info_relays(node_report, writer).await?,
