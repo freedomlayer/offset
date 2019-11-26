@@ -3,15 +3,29 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use app::common::{
-    Currency, InvoiceId, NamedIndexServerAddress, NamedRelayAddress, PublicKey, Rate, RelayAddress,
-    Signature, Uid,
+    Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
+    PlainLock, PublicKey, RandValue, Rate, RelayAddress, Signature, Uid,
 };
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    inner: Vec<u8>,
+    pub response_hash: HashResult,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub src_plain_lock: PlainLock,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub dest_hashed_lock: HashedLock,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub signature: Signature,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -149,11 +163,6 @@ pub enum RequestsStatusReport {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct MoveTokenHashedReport {
-    inner: Vec<u8>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
@@ -236,6 +245,53 @@ pub enum ChannelStatusReport {
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct BalanceInfo {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub balance: i128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub local_pending_debt: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub remote_pending_debt: u128,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CurrencyBalanceInfo {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    pub balance_info: BalanceInfo,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct McInfo {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub local_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub remote_public_key: PublicKey,
+    pub balances: Vec<CurrencyBalanceInfo>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CountersInfo {
+    pub inconsistency_counter: u64,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub move_token_counter: u128,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TokenInfo {
+    pub mc: McInfo,
+    pub counters: CountersInfo,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MoveTokenHashedReport {
+    pub prefix_hash: HashResult,
+    pub token_info: TokenInfo,
+    pub rand_nonce: RandValue,
+    pub new_token: Signature,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
