@@ -936,6 +936,9 @@ fn basic_cli() {
     let stctrl_setup = create_stctrl_setup(&temp_dir_path);
 
     spawn_entities(&stctrl_setup);
+    // Wait some time, letting the index servers exchange time hashes:
+    thread::sleep(time::Duration::from_millis(500));
+
     configure_mutual_credit(&stctrl_setup);
     add_remove_currency(&stctrl_setup);
     set_max_debt(&stctrl_setup);
