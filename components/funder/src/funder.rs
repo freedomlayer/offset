@@ -82,13 +82,13 @@ where
     .chain(select(incoming_control, incoming_comm));
 
     while let Some(funder_event) = incoming_messages.next().await {
-        // For testing:
         // Read one message from incoming messages:
         let funder_incoming = match funder_event.clone() {
             FunderEvent::IncomingControlClosed => return Err(FunderError::IncomingControlClosed),
             FunderEvent::IncomingCommClosed => return Err(FunderError::IncomingCommClosed),
             FunderEvent::FunderIncoming(funder_incoming) => funder_incoming,
         };
+
 
         let res = funder_handle_message(
             &mut identity_client,
