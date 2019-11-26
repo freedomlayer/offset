@@ -32,5 +32,5 @@ mod app_wrapper;
 #[cfg(test)]
 mod tests;
 
-// #[cfg(test)]
-// mod cli_tests;
+#[cfg(test)]
+mod cli_tests;
