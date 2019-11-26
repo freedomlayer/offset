@@ -81,7 +81,7 @@ pub struct RequestPayInvoice {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ResponsePayInvoiceInner {
     Unreachable,
-    Fees(u128),
+    Fees(u128, Uid), // (fees, confirm_id)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,21 +91,28 @@ pub struct ResponsePayInvoice {
     pub response: ResponsePayInvoiceInner,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PayInvoiceResultInner {
-    Failure,
-    Success(Commit),
-}
-
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PayInvoiceDone {
     Failure,
     Success,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum PayInvoiceResultInner {
+    Failure,
+    Success(Commit),
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PayInvoiceResult {
     pub invoice_id: InvoiceId,
+    pub result: PayInvoiceResultInner,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct ConfirmPayInvoice {
+    pub invoice_id: InvoiceId,
+    pub confirm_id: Uid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -321,6 +328,7 @@ pub struct NodeReport {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToUser {
     /// Funds:
+    // Response: Shows required fees, or states that the destination is unreachable:
     ResponsePayInvoice(ResponsePayInvoice),
     PayInvoiceResult(PayInvoiceResult),
     PayInvoiceDone(PayInvoiceDone),
@@ -356,8 +364,10 @@ pub enum UserRequest {
     RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
     /// Buyer:
+    // Request sending an amount to some desination:
     RequestPayInvoice(RequestPayInvoice),
-    // ConfirmPayInvoice(ConfirmPayInvoice),
+    // Confirm sending fees:
+    ConfirmPayInvoice(ConfirmPayInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelPayInvoice(InvoiceId),
     /// Seller:
