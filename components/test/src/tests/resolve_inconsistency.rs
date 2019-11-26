@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::StreamExt;
 
 use tempfile::tempdir;
 
@@ -242,11 +241,11 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut reports0) = report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut report_client0) = report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut reports1) = report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut report_client1) = report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:
@@ -323,7 +322,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
 
     // Node1 should now perceive the mutual channel with node0 to be inconsistent:
     let incon_report = loop {
-        let node_report = reports1.next().await.unwrap();
+        let node_report = report_client1.request_report().await;
         let opt_friend_report = node_report
             .funder_report
             .friends
@@ -356,7 +355,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
 
     // Node2 should perceive the mutual channel with node1 to be inconsistent:
     let incon_report = loop {
-        let node_report = reports0.next().await.unwrap();
+        let node_report = report_client0.request_report().await;
         let opt_friend_report = node_report
             .funder_report
             .friends
@@ -394,7 +393,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
 
     // Node0: Channel should be consistent now:
     loop {
-        let node_report = reports0.next().await.unwrap();
+        let node_report = report_client0.request_report().await;
         let opt_friend_report = node_report
             .funder_report
             .friends
@@ -414,7 +413,7 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
 
     // Node1: Channel should be consistent now:
     loop {
-        let node_report = reports1.next().await.unwrap();
+        let node_report = report_client1.request_report().await;
         let opt_friend_report = node_report
             .funder_report
             .friends
