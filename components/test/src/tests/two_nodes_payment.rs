@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::{StreamExt};
 
 use tempfile::tempdir;
 
@@ -285,11 +284,11 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut reports0) = report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut report_client0) = report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut reports1) = report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut report_client1) = report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:
@@ -330,7 +329,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     advance_time(40, &mut tick_sender, &test_executor).await;
 
     loop {
-        let node_report0 = reports0.next().await.unwrap();
+        let node_report0 = report_client0.request_report().await;
         let friend_report = match node_report0.funder_report.friends.get(&node_public_key(1)) {
             None => continue,
             Some(friend_report) => friend_report,
@@ -341,7 +340,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     }
 
     loop {
-        let node_report1 = reports1.next().await.unwrap();
+        let node_report1 = report_client1.request_report().await;
         let friend_report = match node_report1.funder_report.friends.get(&node_public_key(0)) {
             None => continue,
             Some(friend_report) => friend_report,
