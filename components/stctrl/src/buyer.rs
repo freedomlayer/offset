@@ -262,11 +262,6 @@ async fn buyer_pay_invoice(
 
     let invoice_file: InvoiceFile = deserialize_from_string(&fs::read_to_string(&invoice_path)?)?;
 
-    // TODO: We might get routes with the exact capacity,
-    // but this will not be enough for sending our amount because
-    // we also need to pay nodes on the way.
-    // We might need to solve this issue at the index server side
-    // (Should the Server take into account the extra credits that should be paid along the way?).
     let multi_routes = request_routes(
             &mut conn_pair,
             invoice_file.currency.clone(),
@@ -353,7 +348,10 @@ async fn buyer_pay_invoice(
             }
 
             match transaction_result.result {
-                RequestResult::Complete(commit) => opt_commit = Some(commit),
+                RequestResult::Complete(commit) => {
+                    opt_commit = Some(commit);
+                    break;
+                },
                 RequestResult::Success => {},
                 RequestResult::Failure => return Err(BuyerError::CreateTransactionFailed),
             }
