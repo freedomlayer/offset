@@ -327,13 +327,17 @@ pub struct NodeReport {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToUser {
-    /// Funds:
-    // Response: Shows required fees, or states that the destination is unreachable:
+    // ------------[Payments]------------------
+    /// Response: Shows required fees, or states that the destination is unreachable:
     ResponsePayInvoice(ResponsePayInvoice),
-    // Result: Possibly returns the Commit (Should be delivered out of band)
+    /// Result: Possibly returns the Commit (Should be delivered out of band)
     PayInvoiceResult(PayInvoiceResult),
-    // Done: Possibly returns a Receipt or failure
+    /// Done: Possibly returns a Receipt or failure
     PayInvoiceDone(PayInvoiceDone),
+    // ------------[Reports]-------------------
+    /// Acknowledge the receipt of `UserRequest`
+    /// Should be sent after `Report`, in case any changes occured.
+    Ack(Uid),
     /// Reports about current state:
     Report(NodeReport),
 }
@@ -341,6 +345,7 @@ pub enum ToUser {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum UserRequest {
+    // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -365,18 +370,19 @@ pub enum UserRequest {
     SetFriendCurrencyRate(SetFriendCurrencyRate),
     RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
-    /// Buyer:
+    // ---------------[Buyer]------------------------------
     // Request sending an amount to some desination:
     RequestPayInvoice(RequestPayInvoice),
     // Confirm sending fees:
     ConfirmPayInvoice(ConfirmPayInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelPayInvoice(InvoiceId),
-    /// Seller:
+    // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
     CommitInvoice(Commit),
+    // ---------------[Verification]------------------------
     // TODO: Add API for verification of receipt and last token?
 }
 

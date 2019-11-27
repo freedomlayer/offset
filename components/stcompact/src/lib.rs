@@ -7,4 +7,8 @@
     clippy::new_without_default
 )]
 
+#[macro_use]
+extern crate common;
+
+mod server;
 mod types;
