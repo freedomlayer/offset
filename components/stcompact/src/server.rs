@@ -19,7 +19,7 @@ enum CompactServerEvent {
     NodeClosed,
 }
 
-enum CompactServerError {
+pub enum CompactServerError {
     AppSenderError,
     UserSenderError,
     ProtocolError,
@@ -246,7 +246,6 @@ where
     unimplemented!();
 }
 
-#[allow(unused)]
 /// The compact server is mediating between the user and the node.
 async fn inner_server(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
@@ -283,4 +282,11 @@ async fn inner_server(app_conn_tuple: AppConnTuple,
         }
     }
     Ok(())
+}
+
+#[allow(unused)]
+pub async fn server(app_conn_tuple: AppConnTuple, 
+    conn_pair_compact: ConnPairCompact) -> Result<(), CompactServerError> {
+
+    inner_server(app_conn_tuple, conn_pair_compact, None).await
 }
