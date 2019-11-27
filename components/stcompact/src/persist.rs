@@ -15,9 +15,11 @@ pub struct OpenInvoice {
     pub desc: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute,
-    FoundRoute(Uid, u128), // (fees, confirm_id)
+    // TODO: Possibly add the found route into FoundRoute state?
+    FoundRoute(Uid, u128), // (confirm_id, fees)
     Sending(u128),         // fees
     Commit(Commit, u128),  // (commit, fees)
 
@@ -37,7 +39,8 @@ pub struct OpenPayment {
     pub dest_payment: u128,
     /// Payment description
     pub desc: String,
-    // TODO: Add payment state here:
+    /// Current status of open payment
+    pub status: OpenPaymentStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
