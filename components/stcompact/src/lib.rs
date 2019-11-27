@@ -11,5 +11,7 @@
 extern crate common;
 
 mod convert;
+#[allow(unused)]
+mod persist;
 mod server;
 mod types;

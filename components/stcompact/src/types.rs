@@ -98,6 +98,12 @@ pub enum PayInvoiceDone {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum ResponseCommitInvoice {
+    Failure,
+    Success,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PayInvoiceResultInner {
     Failure,
     Success(Commit),
@@ -320,13 +326,15 @@ pub struct NodeReport {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToUser {
-    // ------------[Payments]------------------
+    // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
     ResponsePayInvoice(ResponsePayInvoice),
     /// Result: Possibly returns the Commit (Should be delivered out of band)
     PayInvoiceResult(PayInvoiceResult),
     /// Done: Possibly returns a Receipt or failure
     PayInvoiceDone(PayInvoiceDone),
+    // ------------[Seller]-------------------
+    ResponseCommitInvoice(ResponseCommitInvoice),
     // ------------[Reports]-------------------
     /// Acknowledge the receipt of `UserRequest`
     /// Should be sent after `Report`, in case any changes occured.
@@ -374,7 +382,7 @@ pub enum UserRequest {
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
-    CommitInvoice(Commit),
+    RequestCommitInvoice(Commit),
     // ---------------[Verification]------------------------
     // TODO: Add API for verification of receipt and last token?
 }

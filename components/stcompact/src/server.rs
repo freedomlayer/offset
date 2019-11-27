@@ -207,7 +207,7 @@ where
         // =======================[Seller]=======================================
         UserRequest::AddInvoice(_add_invoice) => unimplemented!(),
         UserRequest::CancelInvoice(_invoice_id) => unimplemented!(),
-        UserRequest::CommitInvoice(_commit) => unimplemented!(),
+        UserRequest::RequestCommitInvoice(_commit) => unimplemented!(),
     }
     unimplemented!();
 }
