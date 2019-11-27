@@ -2,8 +2,9 @@ use app::common::Currency;
 
 use crate::types::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
-    ConfigReport, CountersInfo, FriendLivenessReport, FriendReport, FriendStatusReport, McInfo,
-    MoveTokenHashedReport, NodeReport, RequestsStatusReport, ResetTermsReport, TokenInfo,
+    ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
+    FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
+    NodeReport, RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
 
 /// A helper util struct, used to implement From for structures that are not from this crate,
@@ -11,9 +12,50 @@ use crate::types::{
 #[derive(Debug, Clone)]
 struct LocalWrapper<T>(pub T);
 
+impl From<app::report::McRequestsStatusReport> for McRequestsStatusReport {
+    fn from(from: app::report::McRequestsStatusReport) -> Self {
+        McRequestsStatusReport {
+            local: from.local.into(),
+            remote: from.remote.into(),
+        }
+    }
+}
+
+impl From<app::report::McBalanceReport> for McBalanceReport {
+    fn from(from: app::report::McBalanceReport) -> Self {
+        McBalanceReport {
+            balance: from.balance,
+            local_max_debt: from.local_max_debt,
+            remote_max_debt: from.remote_max_debt,
+            local_pending_debt: from.local_pending_debt,
+            remote_pending_debt: from.remote_pending_debt,
+        }
+    }
+}
+
+impl From<app::report::CurrencyReport> for LocalWrapper<(Currency, CurrencyReport)> {
+    fn from(from: app::report::CurrencyReport) -> Self {
+        LocalWrapper((
+            from.currency,
+            CurrencyReport {
+                balance: from.balance.into(),
+                requests_status: from.requests_status.into(),
+            },
+        ))
+    }
+}
+
 impl From<app::report::ChannelConsistentReport> for ChannelConsistentReport {
-    fn from(_from: app::report::ChannelConsistentReport) -> Self {
-        unimplemented!();
+    fn from(from: app::report::ChannelConsistentReport) -> Self {
+        ChannelConsistentReport {
+            currency_reports: from
+                .currency_reports
+                .into_iter()
+                .map(|currency_report| {
+                    LocalWrapper::<(Currency, CurrencyReport)>::from(currency_report).0
+                })
+                .collect(),
+        }
     }
 }
 
