@@ -10,5 +10,6 @@
 #[macro_use]
 extern crate common;
 
+mod convert;
 mod server;
 mod types;

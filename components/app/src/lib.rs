@@ -54,13 +54,14 @@ pub mod conn {
 /// Report related types
 pub mod report {
     pub use proto::report::messages::{
-        AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, CurrencyReport,
-        FriendLivenessReport, FriendReport, FriendStatusReport, FunderReport, McBalanceReport,
-        McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
+        AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
+        CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport,
+        FriendStatusReport, FunderReport, McBalanceReport, McRequestsStatusReport,
+        MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
     };
 
     pub use proto::funder::messages::{
-        BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo, TokenInfo,
+        BalanceInfo, CountersInfo, CurrencyBalance, CurrencyBalanceInfo, McInfo, TokenInfo,
     };
 
     pub use proto::app_server::messages::NodeReport;

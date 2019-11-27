@@ -170,7 +170,7 @@ pub enum RequestsStatusReport {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct CurrencyConfigReport {
+pub struct ConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
@@ -199,7 +199,7 @@ pub struct ResetTermsReport {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInconsistentReport {
-    pub local_reset_terms: HashMap<Currency, u128>,
+    pub local_reset_terms: HashMap<Currency, i128>,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
@@ -265,19 +265,12 @@ pub struct BalanceInfo {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct CurrencyBalanceInfo {
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub currency: Currency,
-    pub balance_info: BalanceInfo,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub local_public_key: PublicKey,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub remote_public_key: PublicKey,
-    pub balances: Vec<CurrencyBalanceInfo>,
+    pub balances: HashMap<Currency, BalanceInfo>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -304,7 +297,7 @@ pub struct MoveTokenHashedReport {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriendReport {
     pub name: String,
-    pub currency_configs: HashMap<Currency, CurrencyConfigReport>,
+    pub currency_configs: HashMap<Currency, ConfigReport>,
     /// Last message signed by the remote side.
     /// Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
@@ -319,7 +312,7 @@ pub struct FriendReport {
 pub struct NodeReport {
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
-    pub opt_connected_index_server: Option<NamedIndexServerAddress>,
+    pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
     pub friends: HashMap<PublicKey, FriendReport>,
 }
