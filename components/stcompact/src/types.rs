@@ -330,7 +330,9 @@ pub enum ToUser {
     /// Funds:
     // Response: Shows required fees, or states that the destination is unreachable:
     ResponsePayInvoice(ResponsePayInvoice),
+    // Result: Possibly returns the Commit (Should be delivered out of band)
     PayInvoiceResult(PayInvoiceResult),
+    // Done: Possibly returns a Receipt or failure
     PayInvoiceDone(PayInvoiceDone),
     /// Reports about current state:
     Report(NodeReport),
