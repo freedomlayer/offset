@@ -19,4 +19,4 @@ mod server;
 #[cfg(test)]
 mod tests;
 
-pub use self::server::{app_server_loop, AppServerError, IncomingAppConnection};
+pub use self::server::{app_server_loop, AppServerError, ConnPairServer, IncomingAppConnection};

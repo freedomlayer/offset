@@ -22,7 +22,6 @@ enum CompactServerEvent {
 pub enum CompactServerError {
     AppSenderError,
     UserSenderError,
-    ProtocolError,
     ReportMutationError,
 }
 
@@ -221,7 +220,6 @@ where
     match app_server_to_app {
         AppServerToApp::TransactionResult(_transaction_result) => unimplemented!(),
         AppServerToApp::ResponseClosePayment(_response_close_payment) => unimplemented!(),
-        AppServerToApp::Report(_node_report) => return Err(CompactServerError::ProtocolError),
         AppServerToApp::ReportMutations(report_mutations) => {
             // Save the original `node_report`:
             let orig_node_report = server_state.node_report.clone();

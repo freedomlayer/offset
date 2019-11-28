@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
@@ -11,7 +11,7 @@ use common::transform_pool::transform_pool_loop;
 use crypto::rand::CryptoRandom;
 use proto::crypto::PublicKey;
 
-use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer};
+use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
@@ -21,7 +21,7 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use app_server::IncomingAppConnection;
+use app_server::{IncomingAppConnection, ConnPairServer};
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
@@ -80,7 +80,7 @@ where
     KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
     TS: Spawn + Clone + Send,
-    S: Spawn + Clone + Send,
+    S: Spawn + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
     type Output = Option<IncomingAppConnection<NetAddress>>;
@@ -111,42 +111,56 @@ where
             let (mut sender, mut receiver) =
                 self.keepalive_transform.transform(enc_conn).await.split();
 
-            // Tell app about its permissions: (TODO: Is this required?)
-            // sender.send(serialize_app_permissions(&app_permissions)).await.ok()?;
+            // Tell app about its permissions:
             sender.send(app_permissions.proto_serialize()).await.ok()?;
 
-            // serialization:
-            let (user_sender, mut from_user_sender) = mpsc::channel::<AppServerToApp>(0);
-            let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+            let (report_sender, report_receiver) = 
+                oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
 
-            // Deserialize received data
-            let _ = self.spawner.spawn(async move {
-                while let Some(data) = receiver.next().await {
-                    let message = match AppToAppServer::proto_deserialize(&data) {
-                        Ok(message) => message,
-                        Err(_) => return,
-                    };
-                    if to_user_receiver.send(message).await.is_err() {
-                        return;
-                    }
-                }
-            });
+            let spawner = self.spawner.clone();
+            let c_spawner = self.spawner.clone();
 
-            // Serialize sent data:
-            let _ = self.spawner.spawn(async move {
-                while let Some(message) = from_user_sender.next().await {
-                    // let data = serialize_app_server_to_app(&message);
-                    let data = message.proto_serialize();
-                    if sender.send(data).await.is_err() {
-                        return;
-                    }
-                }
-            });
 
-            Some((
-                app_permissions.clone(),
-                ConnPair::from_raw(user_sender, user_receiver),
-            ))
+            spawner.spawn(async move {
+                let _ = async move {
+                    let (node_report, conn_sender) = report_receiver.await.ok()?;
+                    sender.send(node_report.proto_serialize()).await.ok()?;
+
+                    // serialization:
+                    let (user_sender, mut from_user_sender) = mpsc::channel::<AppServerToApp>(0);
+                    let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
+
+                    // Deserialize received data
+                    let _ = c_spawner.spawn(async move {
+                        let _ = async move {
+                            while let Some(data) = receiver.next().await {
+                                let message = AppToAppServer::proto_deserialize(&data).ok()?;
+                                to_user_receiver.send(message).await.ok()?;
+                            }
+                            Some(())
+                        }.await;
+                    });
+
+                    // Serialize sent data:
+                    let _ = c_spawner.spawn(async move {
+                        let _ = async move {
+                            while let Some(message) = from_user_sender.next().await {
+                                // let data = serialize_app_server_to_app(&message);
+                                let data = message.proto_serialize();
+                                sender.send(data).await.ok()?;
+                            }
+                            Some(())
+                        }.await;
+                    });
+
+                    conn_sender.send(ConnPair::from_raw(user_sender, user_receiver)).ok()
+                }.await;
+            }).ok()?;
+
+            Some(IncomingAppConnection {
+                app_permissions: app_permissions.clone(),
+                report_sender,
+            })
         })
     }
 }
