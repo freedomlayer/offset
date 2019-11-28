@@ -59,7 +59,7 @@ pub struct RequestRoutes {
 }
 
 #[capnp_conv(crate::index_capnp::route_capacity_rate)]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
@@ -72,7 +72,7 @@ pub struct RouteCapacityRate {
 /// Multiple routes that together allow to pass a certain amount of credits to a destination.
 /// All routes must have the same beginning and the same end.
 #[capnp_conv(crate::index_capnp::multi_route)]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MultiRoute {
     pub routes: Vec<RouteCapacityRate>,
 }
