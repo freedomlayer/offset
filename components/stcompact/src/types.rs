@@ -167,6 +167,8 @@ pub struct AddInvoice {
     /// Total amount of credits to be paid.
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub total_dest_payment: u128,
+    /// Short textual description for the invoice
+    pub description: String,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]

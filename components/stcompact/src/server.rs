@@ -3,11 +3,14 @@ use futures::{future, stream, StreamExt, channel::mpsc, Sink, SinkExt};
 use common::select_streams::select_streams;
 use common::conn::{ConnPair, BoxStream};
 
+use database::{DatabaseClient};
+
 #[allow(unused)]
 use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, buyer, config, routes, seller};
 use app::report::NodeReport;
 
 use crate::types::{FromUser, ToUser, UserRequest};
+use crate::persist::{CompactState, OpenInvoice};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
 
@@ -23,18 +26,47 @@ pub enum CompactServerError {
     AppSenderError,
     UserSenderError,
     ReportMutationError,
+    DatabaseMutateError,
 }
 
 #[allow(unused)]
 struct CompactServerState {
     node_report: NodeReport,
+    compact_state: CompactState,
+    database_client: DatabaseClient<CompactState>,
 }
 
+#[allow(unused)]
 impl CompactServerState {
-    fn new(node_report: NodeReport) -> Self {
+    pub fn new(node_report: NodeReport, compact_state: CompactState, database_client: DatabaseClient<CompactState>) -> Self {
         Self {
             node_report,
+            compact_state,
+            database_client,
         }
+    }
+
+    /// Get current `node_update`
+    pub fn node_report(&self) -> &NodeReport {
+        &self.node_report
+    }
+
+    pub fn update_node_report(&mut self, node_report: NodeReport) {
+        self.node_report = node_report;
+    }
+
+    /// Get current `compact_state`
+    pub fn compact_state(&self) -> &CompactState {
+        &self.compact_state
+    }
+
+    /// Persistent (and atomic) update to `compact_state`
+    pub async fn update_compact_state(&mut self, compact_state: CompactState) -> Result<(), CompactServerError> {
+        self.compact_state = compact_state.clone();
+        self.database_client.mutate(vec![compact_state])
+            .await
+            .map_err(|_| CompactServerError::DatabaseMutateError)?;
+        Ok(())
     }
 }
 
@@ -42,10 +74,11 @@ impl CompactServerState {
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
-async fn handle_user<AS>(from_user: FromUser, _app_permissions: &AppPermissions, 
-    server_state: &mut CompactServerState, app_sender: &mut AS) 
+async fn handle_user<AS, US>(from_user: FromUser, _app_permissions: &AppPermissions, 
+    server_state: &mut CompactServerState, user_sender: &mut US, app_sender: &mut AS) 
     -> Result<(), CompactServerError>
 where   
+    US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin
 {
     let FromUser {
@@ -204,8 +237,74 @@ where
         UserRequest::ConfirmPayInvoice(_confirm_pay_invoice) => unimplemented!(),
         UserRequest::CancelPayInvoice(_invoice_id) => unimplemented!(),
         // =======================[Seller]=======================================
-        UserRequest::AddInvoice(_add_invoice) => unimplemented!(),
-        UserRequest::CancelInvoice(_invoice_id) => unimplemented!(),
+        UserRequest::AddInvoice(add_invoice) => {
+            let mut compact_state = server_state.compact_state().clone();
+            if compact_state.open_invoices.contains_key(&add_invoice.invoice_id) {
+                // Invoice already Open:
+                warn!("AddInvoice: Invoice {:?} is already open!", add_invoice.invoice_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            }
+
+            let open_invoice = OpenInvoice {
+                currency: add_invoice.currency.clone(),
+                total_dest_payment: add_invoice.total_dest_payment.clone(),
+                description: add_invoice.description,
+            };
+            compact_state.open_invoices.insert(add_invoice.invoice_id.clone(), open_invoice);
+            // Order:
+            // - Update local database
+            // - Send a message to add invoice
+            //
+            // Note that we first update our local persistent database, and only then send a
+            // message to the node. The order here is crucial: If a crash happens, we will the open
+            // invoice in our persistent database, and we will be able to resend it.
+            server_state.update_compact_state(compact_state).await?;
+
+            let app_request = seller::add_invoice(
+                add_invoice.invoice_id, 
+                add_invoice.currency,
+                add_invoice.total_dest_payment);
+
+            let app_to_app_server = AppToAppServer {
+                app_request_id: user_request_id,
+                app_request,
+            };
+            app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+        },
+        UserRequest::CancelInvoice(invoice_id) => {
+            // If invoice is not listed as open, we return an ack and do nothing:
+            let mut compact_state = server_state.compact_state().clone();
+            if !compact_state.open_invoices.contains_key(&invoice_id) {
+                // Invoice is not open:
+                warn!("CancelInvoice: Invoice {:?} is not open!", invoice_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            }
+
+            // Order:
+            // - Send cancellation message
+            // - Update local database
+            //
+            // Note that here we send a cancellation message, and only then update our local
+            // persistent database (Reversed order with respect to AddInvoice).
+            // If a crash happens, our local database will still indicate that there is still an
+            // open invoice.
+
+            // Send cancellation message:
+            let app_request = seller::cancel_invoice(invoice_id.clone());
+
+            let app_to_app_server = AppToAppServer {
+                app_request_id: user_request_id,
+                app_request,
+            };
+            app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+
+            // Update local database:
+            compact_state.open_invoices.remove(&invoice_id);
+            // Note that we first update our local persistent database, and only then send a
+            // message to the node. The order here is crucial: If a crash happens, we will the open
+            // invoice in our persistent database, and we will be able to resend it.
+            server_state.update_compact_state(compact_state).await?;
+        },
         UserRequest::RequestCommitInvoice(_commit) => unimplemented!(),
     }
     unimplemented!();
@@ -247,6 +346,8 @@ where
 /// The compact server is mediating between the user and the node.
 async fn inner_server(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
+    compact_state: CompactState,
+    database_client: DatabaseClient<CompactState>,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> {
 
     // Interaction with the user:
@@ -266,11 +367,11 @@ async fn inner_server(app_conn_tuple: AppConnTuple,
         app_receiver
     ];
 
-    let mut server_state = CompactServerState::new(node_report);
+    let mut server_state = CompactServerState::new(node_report, compact_state, database_client);
 
     while let Some(event) = incoming_events.next().await {
         match event {
-            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut app_sender).await?,
+            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::UserClosed => return Ok(()),
             CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut user_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
@@ -284,7 +385,9 @@ async fn inner_server(app_conn_tuple: AppConnTuple,
 
 #[allow(unused)]
 pub async fn server(app_conn_tuple: AppConnTuple, 
-    conn_pair_compact: ConnPairCompact) -> Result<(), CompactServerError> {
+    conn_pair_compact: ConnPairCompact,
+    compact_state: CompactState,
+    database_client: DatabaseClient<CompactState>) -> Result<(), CompactServerError> {
 
-    inner_server(app_conn_tuple, conn_pair_compact, None).await
+    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, None).await
 }
