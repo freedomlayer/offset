@@ -6,11 +6,14 @@ use common::conn::{ConnPair, BoxStream};
 use database::{DatabaseClient};
 
 #[allow(unused)]
-use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, buyer, config, routes, seller};
-use app::common::{Uid, PaymentId};
+use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, 
+    buyer, config, routes, seller, ResponseRoutesResult, ClientResponseRoutes};
+use app::common::{Uid, PaymentId, MultiRoute};
 use app::verify::verify_commit;
 
-use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice};
+use route::choose_multi_route;
+
+use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, ResponsePayInvoice, ResponsePayInvoiceInner};
 use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
@@ -77,6 +80,29 @@ pub trait GenId {
 
     /// Generate a PaymentId
     fn gen_payment_id(&mut self) -> PaymentId;
+}
+
+fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_payment: u128) -> Option<(MultiRoute, u128)> {
+    let multi_routes = match &client_response_routes.result {
+        ResponseRoutesResult::Success(multi_routes) => multi_routes,
+        ResponseRoutesResult::Failure => return None,
+    };
+
+    let (route_index, multi_route_choice) = 
+        choose_multi_route(&multi_routes, dest_payment)?;
+    let multi_route = &multi_routes[route_index];
+
+    // Calcualte total fees
+    let mut total_fees = 0u128;
+    for (route_index, dest_payment) in &multi_route_choice {
+        let fee = multi_route.routes[*route_index]
+            .rate
+            .calc_fee(*dest_payment)?;
+        total_fees = total_fees.checked_add(fee)?;
+    }
+
+    Some((multi_route.clone(), total_fees))
+
 }
 
 #[allow(unused)]
@@ -408,10 +434,14 @@ where
 }
 
 #[allow(unused)]
-async fn handle_node<US>(app_server_to_app: AppServerToApp, server_state: &mut CompactServerState, user_sender: &mut US) 
+async fn handle_node<GI,US>(app_server_to_app: AppServerToApp, 
+    server_state: &mut CompactServerState, 
+    gen_id: &mut GI,
+    user_sender: &mut US) 
     -> Result<(), CompactServerError>
 where   
-    US: Sink<ToUser> + Unpin
+    US: Sink<ToUser> + Unpin,
+    GI: GenId,
 {
     match app_server_to_app {
         AppServerToApp::TransactionResult(_transaction_result) => unimplemented!(),
@@ -438,32 +468,54 @@ where
         AppServerToApp::ResponseRoutes(mut client_response_routes) => {
             // Search for the corresponding OpenPayment:
             let mut compact_state = server_state.compact_state().clone();
-            let mut opt_open_payment = None;
+            let mut opt_invoice_id_open_payment = None;
             for (invoice_id, open_payment) in &mut compact_state.open_payments {
                 if let OpenPaymentStatus::SearchingRoute(request_routes_id) = &mut open_payment.status {
                     if request_routes_id == &mut client_response_routes.request_id {
-                        opt_open_payment = Some(open_payment);
+                        opt_invoice_id_open_payment = Some((invoice_id.clone(), open_payment));
                     }
                 }
             }
 
-            let open_payment = if let Some(open_payment) = opt_open_payment {
-                open_payment
+            let (invoice_id, open_payment) = if let Some(invoice_id_open_payment) = opt_invoice_id_open_payment {
+                invoice_id_open_payment
             } else {
                 // We don't remember this request
                 warn!("ResponseRoutes: Unrecognized request_routes_id: {:?}", client_response_routes.request_id);
                 return Ok(());
             };
 
-            // TODO:
-            // - Choose the best multiroute. 
-            //      - If no suitable multiroute was found, close the payment and send failure back to the user.
-            // - Update compact state (keep the best multiroute)
-            // - Send confirmation request to the user about the payment fees.
-            unimplemented!();
+            let (multi_route, fees) = if let Some(multi_route_fees) = obtain_multi_route(&client_response_routes, open_payment.dest_payment) {
+                multi_route_fees
+            } else {
+                // A suitable route was not found.
+                
+                // Close the payment.
+                let open_payment = compact_state.open_payments.remove(&invoice_id).unwrap();
+                server_state.update_compact_state(compact_state).await?;
+
+                // Notify user that the payment has failed:
+                let response_pay_invoice = ResponsePayInvoice {
+                    invoice_id,
+                    response: ResponsePayInvoiceInner::Unreachable,
+                };
+                return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
+            };
+
+            // Update compact state (keep the best multiroute):
+            let confirm_id = gen_id.gen_uid();
+            open_payment.status = OpenPaymentStatus::FoundRoute(confirm_id.clone(), multi_route, fees);
+            server_state.update_compact_state(compact_state).await?;
+
+            // Notify user that a route was found (Send required fees):
+            let response_pay_invoice = ResponsePayInvoice {
+                invoice_id,
+                response: ResponsePayInvoiceInner::Fees(fees, confirm_id),
+            };
+            return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
         }
     }
-    unimplemented!();
+    Ok(())
 }
 
 /// The compact server is mediating between the user and the node.
@@ -500,7 +552,7 @@ where
         match event {
             CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::UserClosed => return Ok(()),
-            CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut user_sender).await?,
+            CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut gen_id, &mut user_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
         }
         if let Some(ref mut event_sender) = opt_event_sender {

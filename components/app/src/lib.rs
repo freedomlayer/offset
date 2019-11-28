@@ -47,7 +47,7 @@ pub mod conn {
         AppPermissions, AppRequest, AppServerToApp, AppToAppServer,
     };
     pub use proto::funder::messages::RequestResult;
-    pub use proto::index_client::messages::ResponseRoutesResult;
+    pub use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 }
 
 // TODO: Possibly reduce what we export from report in the future?

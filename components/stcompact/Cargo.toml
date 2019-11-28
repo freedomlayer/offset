@@ -17,9 +17,9 @@ path = "src/lib.rs"
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+route = { path = "../route", version = "0.1.0", package = "offst-route" }
 database = { path = "../database", version = "0.1.0", package = "offst-database" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
-
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 
 toml = "0.4.10"
