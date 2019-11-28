@@ -28,4 +28,5 @@ members = [
   "components/capnp_conv",
   "components/capnp_conv/capnp_conv_derive",
   "components/signature",
+  "components/route",
 ]

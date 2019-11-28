@@ -20,11 +20,12 @@ path = "src/bin/stverify.rs"
 
 [dependencies]
 
+route = { path = "../route", version = "0.1.0", package = "offst-route" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
 
 log = "0.4"
-# simple_logger = "1.0.1"
+
 env_logger = "0.6.0"
 futures = {version = "0.3.1", features = ["thread-pool"]}
 prettytable-rs = "0.8.0"
@@ -36,9 +37,6 @@ toml = "0.4.10"
 structopt = "0.2.15"
 
 derive_more = "0.14.0"
-
-num-bigint = "0.2.2"
-num-traits = "0.2.6"
 
 [dev_dependencies]
 
