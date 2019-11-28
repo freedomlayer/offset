@@ -72,7 +72,7 @@ where
     // We use an independent spawner (`database_spawner`) to make sure our synchronous interaction
     // with the database doesn't block the rest of the main thread loop.
     // TODO: Maybe there will be a better way to do this in the future (Possibly a future version
-    // of Tokio that has this feature)
+    // of async-std/Tokio that has this feature)
 
     while let Some(database_request) = incoming_requests.next().await {
         let DatabaseRequest {
