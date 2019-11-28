@@ -7,9 +7,9 @@ use database::{DatabaseClient};
 
 #[allow(unused)]
 use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, buyer, config, routes, seller};
-use app::report::NodeReport;
+use app::verify::verify_commit;
 
-use crate::types::{FromUser, ToUser, UserRequest};
+use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice};
 use crate::persist::{CompactState, OpenInvoice};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
@@ -31,14 +31,14 @@ pub enum CompactServerError {
 
 #[allow(unused)]
 struct CompactServerState {
-    node_report: NodeReport,
+    node_report: app::report::NodeReport,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
 }
 
 #[allow(unused)]
 impl CompactServerState {
-    pub fn new(node_report: NodeReport, compact_state: CompactState, database_client: DatabaseClient<CompactState>) -> Self {
+    pub fn new(node_report: app::report::NodeReport, compact_state: CompactState, database_client: DatabaseClient<CompactState>) -> Self {
         Self {
             node_report,
             compact_state,
@@ -47,11 +47,11 @@ impl CompactServerState {
     }
 
     /// Get current `node_update`
-    pub fn node_report(&self) -> &NodeReport {
+    pub fn node_report(&self) -> &app::report::NodeReport {
         &self.node_report
     }
 
-    pub fn update_node_report(&mut self, node_report: NodeReport) {
+    pub fn update_node_report(&mut self, node_report: app::report::NodeReport) {
         self.node_report = node_report;
     }
 
@@ -305,9 +305,47 @@ where
             // invoice in our persistent database, and we will be able to resend it.
             server_state.update_compact_state(compact_state).await?;
         },
-        UserRequest::RequestCommitInvoice(_commit) => unimplemented!(),
+        UserRequest::RequestCommitInvoice(commit) => {
+            // Make sure that the corresponding invoice is open:
+            let mut compact_state = server_state.compact_state().clone();
+            let open_invoice = if let Some(open_invoice) = compact_state.open_invoices.get(&commit.invoice_id) {
+                open_invoice
+            } else {
+                // Invoice is not open:
+                warn!("RequestCommitInvoice: Invoice {:?} is not open!", commit.invoice_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            };
+
+            let node_commit = commit.clone().into();
+
+            // Verify commitment
+            if !verify_commit(&node_commit, &server_state.node_report().funder_report.local_public_key) {
+                warn!("RequestCommitInvoice: Invoice: {:?}: Invalid commit", commit.invoice_id);
+                user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                return user_sender.send(ToUser::ResponseCommitInvoice(ResponseCommitInvoice::Failure)).await.map_err(|_| CompactServerError::UserSenderError);
+            }
+
+            // Send commitment to node:
+            let app_request = seller::commit_invoice(node_commit);
+
+            let app_to_app_server = AppToAppServer {
+                app_request_id: user_request_id,
+                app_request,
+            };
+            app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+
+            // Update local database:
+            compact_state.open_invoices.remove(&commit.invoice_id);
+            // Note that we first update our local persistent database, and only then send a
+            // message to the node. The order here is crucial: If a crash happens, we will the open
+            // invoice in our persistent database, and we will be able to resend it.
+            server_state.update_compact_state(compact_state).await?;
+
+            // Send indication to user that the commitment is successful:
+            return user_sender.send(ToUser::ResponseCommitInvoice(ResponseCommitInvoice::Success)).await.map_err(|_| CompactServerError::UserSenderError);
+        },
     }
-    unimplemented!();
+    Ok(())
 }
 
 #[allow(unused)]

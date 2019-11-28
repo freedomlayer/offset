@@ -1,7 +1,7 @@
 use app::common::Currency;
 
 use crate::types::{
-    BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
+    BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
     ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
     FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
     NodeReport, RequestsStatusReport, ResetTermsReport, TokenInfo,
@@ -11,6 +11,8 @@ use crate::types::{
 /// mostly for ad-hoc tuples used for type conversion.
 #[derive(Debug, Clone)]
 struct LocalWrapper<T>(pub T);
+
+// ====================[NodeReport]============================
 
 impl From<app::report::McRequestsStatusReport> for McRequestsStatusReport {
     fn from(from: app::report::McRequestsStatusReport) -> Self {
@@ -240,6 +242,40 @@ impl From<app::report::NodeReport> for NodeReport {
                 .into_iter()
                 .map(|(friend_public_key, friend_report)| (friend_public_key, friend_report.into()))
                 .collect(),
+        }
+    }
+}
+
+// ====================[Commit]==============================
+
+/*
+impl From<app::common::Commit> for Commit {
+    fn from(from: app::common::Commit) -> Self {
+        Commit {
+            response_hash: from.response_hash,
+            src_plain_lock: from.src_plain_lock,
+            dest_hashed_lock: from.dest_hashed_lock,
+            dest_payment: from.dest_payment,
+            total_dest_payment: from.total_dest_payment,
+            invoice_id: from.invoice_id,
+            currency: from.currency,
+            signature: from.signature,
+        }
+    }
+}
+*/
+
+impl From<Commit> for app::common::Commit {
+    fn from(from: Commit) -> Self {
+        app::common::Commit {
+            response_hash: from.response_hash,
+            src_plain_lock: from.src_plain_lock,
+            dest_hashed_lock: from.dest_hashed_lock,
+            dest_payment: from.dest_payment,
+            total_dest_payment: from.total_dest_payment,
+            invoice_id: from.invoice_id,
+            currency: from.currency,
+            signature: from.signature,
         }
     }
 }
