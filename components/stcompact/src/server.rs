@@ -7,6 +7,7 @@ use database::{DatabaseClient};
 
 #[allow(unused)]
 use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, buyer, config, routes, seller};
+use app::common::Uid;
 use app::verify::verify_commit;
 
 use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice};
@@ -70,16 +71,27 @@ impl CompactServerState {
     }
 }
 
+pub trait GenUid {
+    /// Generate a uid
+    fn gen_uid(&mut self) -> Uid;
+}
+
 #[allow(unused)]
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
-async fn handle_user<AS, US>(from_user: FromUser, _app_permissions: &AppPermissions, 
-    server_state: &mut CompactServerState, user_sender: &mut US, app_sender: &mut AS) 
+async fn handle_user<AS, US, GU>(
+    from_user: FromUser, 
+    _app_permissions: &AppPermissions, 
+    server_state: &mut CompactServerState, 
+    gen_uid: &mut GU,
+    user_sender: &mut US, 
+    app_sender: &mut AS) 
     -> Result<(), CompactServerError>
 where   
     US: Sink<ToUser> + Unpin,
-    AS: Sink<AppToAppServer> + Unpin
+    AS: Sink<AppToAppServer> + Unpin,
+    GU: GenUid,
 {
     let FromUser {
         user_request_id,
@@ -233,7 +245,20 @@ where
             app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
         },
         // =======================[Buyer]========================================
-        UserRequest::RequestPayInvoice(_request_pay_invoice) => unimplemented!(),
+        UserRequest::RequestPayInvoice(request_pay_invoice) => {
+
+            /*
+            let app_request = routes::request_routes(
+                reset_friend_channel.friend_public_key, 
+                reset_friend_channel.reset_token);
+            let app_to_app_server = AppToAppServer {
+                app_request_id: user_request_id,
+                app_request,
+            };
+            app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+            */
+            unimplemented!();
+        },
         UserRequest::ConfirmPayInvoice(_confirm_pay_invoice) => unimplemented!(),
         UserRequest::CancelPayInvoice(_invoice_id) => unimplemented!(),
         // =======================[Seller]=======================================
@@ -382,11 +407,15 @@ where
 }
 
 /// The compact server is mediating between the user and the node.
-async fn inner_server(app_conn_tuple: AppConnTuple, 
+async fn inner_server<GU>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> {
+    mut gen_uid: GU,
+    mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> 
+where
+    GU: GenUid,
+{
 
     // Interaction with the user:
     let (mut user_sender, user_receiver) = conn_pair_compact.split();
@@ -409,7 +438,7 @@ async fn inner_server(app_conn_tuple: AppConnTuple,
 
     while let Some(event) = incoming_events.next().await {
         match event {
-            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut user_sender, &mut app_sender).await?,
+            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut gen_uid, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::UserClosed => return Ok(()),
             CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut user_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
@@ -422,10 +451,13 @@ async fn inner_server(app_conn_tuple: AppConnTuple,
 }
 
 #[allow(unused)]
-pub async fn server(app_conn_tuple: AppConnTuple, 
+pub async fn server<GU>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
-    database_client: DatabaseClient<CompactState>) -> Result<(), CompactServerError> {
-
-    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, None).await
+    database_client: DatabaseClient<CompactState>,
+    gen_uid: GU) -> Result<(), CompactServerError> 
+where   
+    GU: GenUid,
+{
+    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_uid, None).await
 }
