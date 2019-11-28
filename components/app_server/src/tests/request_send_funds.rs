@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
@@ -15,6 +15,7 @@ use proto::funder::messages::{
     RequestResult, TransactionResult,
 };
 
+use crate::server::IncomingAppConnection;
 use super::utils::spawn_dummy_app_server;
 
 async fn task_app_server_loop_request_send_funds<S>(spawner: S)
@@ -27,41 +28,64 @@ where
         _index_client_sender,
         _index_client_receiver,
         mut connections_sender,
-        _initial_node_report,
+        initial_node_report,
     ) = spawn_dummy_app_server(spawner.clone());
 
     // Connect two apps:
     let (mut app_sender0, app_server_receiver) = mpsc::channel(1);
     let (app_server_sender, mut app_receiver0) = mpsc::channel(1);
-    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
+    let server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
         buyer: true,
         seller: true,
         config: true,
     };
+
+    let (report_sender, report_receiver) = oneshot::channel();
+    let incoming_app_connection = IncomingAppConnection {
+        app_permissions,
+        report_sender,
+    };
+
     connections_sender
-        .send((app_permissions, app_server_conn_pair))
+        .send(incoming_app_connection)
         .await
         .unwrap();
+
+    let (report, conn_sender) = report_receiver.await.unwrap();
+    conn_sender.send(server_conn_pair).unwrap();
+
+    // Verify the report:
+    assert_eq!(report, initial_node_report);
 
     let (_app_sender1, app_server_receiver) = mpsc::channel(1);
     let (app_server_sender, mut app_receiver1) = mpsc::channel(1);
-    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
+    let server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
     let app_permissions = AppPermissions {
         routes: true,
         buyer: true,
         seller: true,
         config: true,
     };
+
+    let (report_sender, report_receiver) = oneshot::channel();
+    let incoming_app_connection = IncomingAppConnection {
+        app_permissions,
+        report_sender,
+    };
+
     connections_sender
-        .send((app_permissions, app_server_conn_pair))
+        .send(incoming_app_connection)
         .await
         .unwrap();
 
-    // The apps should receive the current node report as the first message:
-    let _to_app_message = app_receiver0.next().await.unwrap();
-    let _to_app_message = app_receiver1.next().await.unwrap();
+    let (report, conn_sender) = report_receiver.await.unwrap();
+    conn_sender.send(server_conn_pair).unwrap();
+
+    // Verify the report:
+    assert_eq!(report, initial_node_report);
+
 
     let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
     let pk_f = PublicKey::from(&[0xff; PublicKey::len()]);

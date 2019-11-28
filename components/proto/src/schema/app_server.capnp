@@ -206,11 +206,11 @@ struct AppServerToApp {
         responseClosePayment @1: ResponseClosePayment;
 
         # Reports about current state:
-        report @2: NodeReport;
-        reportMutations @3: ReportMutations;
+        # report @2: NodeReport;
+        reportMutations @2: ReportMutations;
 
         # Routes:
-        responseRoutes @4: ClientResponseRoutes;
+        responseRoutes @3: ClientResponseRoutes;
 
     }
 }

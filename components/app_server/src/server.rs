@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::marker::Unpin;
 
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
 
@@ -25,10 +25,22 @@ use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientRequest, IndexClientToAppServer,
 };
 
+pub type ConnPairServer<B> = ConnPair<AppServerToApp<B>, AppToAppServer<B>>;
+
+/*
 pub type IncomingAppConnection<B> = (
     AppPermissions,
-    ConnPair<AppServerToApp<B>, AppToAppServer<B>>,
+    ConnPairServer
 );
+*/
+
+#[derive(Debug)]
+pub struct IncomingAppConnection<B> {
+    pub app_permissions: AppPermissions,
+    // The server has to send the `NodeReport` first. Only then communication with the App becomes
+    // possible.
+    pub report_sender: oneshot::Sender<(NodeReport<B>, oneshot::Sender<ConnPairServer<B>>)>
+}
 
 #[derive(Debug)]
 pub enum AppServerError {
@@ -38,8 +50,11 @@ pub enum AppServerError {
     SendToFunderError,
     SendToIndexClientError,
     AllAppsClosed,
+    ObtainConnPairError,
+    SendNodeReportError,
 }
 
+// TODO: Possibly remove Clone annotation here?
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum AppServerEvent<B: Clone> {
@@ -52,6 +67,7 @@ pub enum AppServerEvent<B: Clone> {
     FromApp((u128, Option<AppToAppServer<B>>)), // None means that app was closed
 }
 
+// TODO: Possibly remove Clone annotation here?
 pub struct App<B: Clone> {
     permissions: AppPermissions,
     opt_sender: Option<mpsc::Sender<AppServerToApp<B>>>,
@@ -165,7 +181,16 @@ where
         &mut self,
         incoming_app_connection: IncomingAppConnection<B>,
     ) -> Result<(), AppServerError> {
-        let (permissions, conn_pair) = incoming_app_connection;
+        let IncomingAppConnection {
+            app_permissions,
+            report_sender,
+        } = incoming_app_connection;
+
+        // Send the node report first:
+        let (conn_pair_sender, conn_pair_receiver) = oneshot::channel();
+        report_sender.send((self.node_report.clone(), conn_pair_sender)).map_err(|_| AppServerError::SendNodeReportError)?;
+
+        let conn_pair = conn_pair_receiver.await.map_err(|_| AppServerError::ObtainConnPairError)?;
         let (sender, receiver) = conn_pair.split();
 
         let app_counter = self.app_counter;
@@ -185,10 +210,7 @@ where
             .map_err(|_| AppServerError::SpawnError)?;
 
         let sender = sink_to_sender(sender, &self.spawner);
-        let mut app = App::new(permissions, sender);
-        // Send the initial node report:
-        app.send(AppServerToApp::Report(self.node_report.clone()))
-            .await;
+        let app = App::new(app_permissions, sender);
 
         self.apps.insert(self.app_counter, app);
         self.app_counter = self.app_counter.wrapping_add(1);
