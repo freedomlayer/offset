@@ -253,6 +253,10 @@ where
             let mut compact_state = server_state.compact_state().clone();
 
             if compact_state.open_payments.contains_key(&request_pay_invoice.invoice_id) {
+                // TODO: We need to resend to the user the current state of the payment.
+                // For example, possibly resend confirmation request if needed.
+                unimplemented!();
+
                 // Payment already in progress
                 warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", request_pay_invoice.invoice_id);
                 return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
@@ -431,7 +435,33 @@ where
                 user_sender.send(ToUser::Ack(app_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
             }
         },
-        AppServerToApp::ResponseRoutes(_client_response_routes) => unimplemented!(),
+        AppServerToApp::ResponseRoutes(mut client_response_routes) => {
+            // Search for the corresponding OpenPayment:
+            let mut compact_state = server_state.compact_state().clone();
+            let mut opt_open_payment = None;
+            for (invoice_id, open_payment) in &mut compact_state.open_payments {
+                if let OpenPaymentStatus::SearchingRoute(request_routes_id) = &mut open_payment.status {
+                    if request_routes_id == &mut client_response_routes.request_id {
+                        opt_open_payment = Some(open_payment);
+                    }
+                }
+            }
+
+            let open_payment = if let Some(open_payment) = opt_open_payment {
+                open_payment
+            } else {
+                // We don't remember this request
+                warn!("ResponseRoutes: Unrecognized request_routes_id: {:?}", client_response_routes.request_id);
+                return Ok(());
+            };
+
+            // TODO:
+            // - Choose the best multiroute. 
+            //      - If no suitable multiroute was found, close the payment and send failure back to the user.
+            // - Update compact state (keep the best multiroute)
+            // - Send confirmation request to the user about the payment fees.
+            unimplemented!();
+        }
     }
     unimplemented!();
 }

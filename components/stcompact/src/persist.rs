@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use common::mutable_state::MutableState;
 use common::never::Never;
 
-use app::common::{Commit, Currency, InvoiceId, PaymentId, PublicKey, Receipt, Uid};
+use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use database::AtomicDb;
@@ -24,12 +24,12 @@ pub struct OpenInvoice {
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid), // request_routes_id
     // TODO: Possibly add the found route into FoundRoute state?
-    FoundRoute(Uid, u128), // (confirm_id, fees)
-    Sending(u128),         // fees
-    Commit(Commit, u128),  // (commit, fees)
+    FoundRoute(Uid, MultiRoute, u128), // (confirm_id, chosen_multi_route, fees)
+    Sending(u128),                     // fees
+    Commit(Commit, u128),              // (commit, fees)
 
-                           // Done(Receipt, u128),   // (receipt, fees)
-                           // Failure,
+                                       // Done(Receipt, u128),   // (receipt, fees)
+                                       // Failure,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
