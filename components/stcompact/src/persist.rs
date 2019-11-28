@@ -22,7 +22,7 @@ pub struct OpenInvoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
-    SearchingRoute,
+    SearchingRoute(Uid), // request_routes_id
     // TODO: Possibly add the found route into FoundRoute state?
     FoundRoute(Uid, u128), // (confirm_id, fees)
     Sending(u128),         // fees
@@ -35,7 +35,7 @@ pub enum OpenPaymentStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    pub invoice_id: InvoiceId,
+    pub payment_id: PaymentId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -53,7 +53,7 @@ pub struct CompactState {
     /// Seller's open invoices:
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
-    pub open_payments: HashMap<PaymentId, OpenPayment>,
+    pub open_payments: HashMap<InvoiceId, OpenPayment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

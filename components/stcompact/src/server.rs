@@ -7,11 +7,11 @@ use database::{DatabaseClient};
 
 #[allow(unused)]
 use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, buyer, config, routes, seller};
-use app::common::Uid;
+use app::common::{Uid, PaymentId};
 use app::verify::verify_commit;
 
 use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice};
-use crate::persist::{CompactState, OpenInvoice};
+use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
 
@@ -71,27 +71,30 @@ impl CompactServerState {
     }
 }
 
-pub trait GenUid {
-    /// Generate a uid
+pub trait GenId {
+    /// Generate a Uid
     fn gen_uid(&mut self) -> Uid;
+
+    /// Generate a PaymentId
+    fn gen_payment_id(&mut self) -> PaymentId;
 }
 
 #[allow(unused)]
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
-async fn handle_user<AS, US, GU>(
+async fn handle_user<AS, US, GI>(
     from_user: FromUser, 
     _app_permissions: &AppPermissions, 
     server_state: &mut CompactServerState, 
-    gen_uid: &mut GU,
+    gen_id: &mut GI,
     user_sender: &mut US, 
     app_sender: &mut AS) 
     -> Result<(), CompactServerError>
 where   
     US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin,
-    GU: GenUid,
+    GI: GenId,
 {
     let FromUser {
         user_request_id,
@@ -247,17 +250,44 @@ where
         // =======================[Buyer]========================================
         UserRequest::RequestPayInvoice(request_pay_invoice) => {
 
-            /*
+            let mut compact_state = server_state.compact_state().clone();
+
+            if compact_state.open_payments.contains_key(&request_pay_invoice.invoice_id) {
+                // Payment already in progress
+                warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", request_pay_invoice.invoice_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            }
+
+            // Generate a request_routes_id:
+            let request_routes_id = gen_id.gen_uid();
+
+            // Request routes:
+            let opt_exclude = None;
             let app_request = routes::request_routes(
-                reset_friend_channel.friend_public_key, 
-                reset_friend_channel.reset_token);
+                request_routes_id.clone(),
+                request_pay_invoice.currency.clone(),
+                request_pay_invoice.dest_payment.clone(),
+                server_state.node_report().funder_report.local_public_key.clone(),
+                request_pay_invoice.dest_public_key.clone(),
+                opt_exclude);
+
             let app_to_app_server = AppToAppServer {
                 app_request_id: user_request_id,
                 app_request,
             };
             app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
-            */
-            unimplemented!();
+
+            let open_payment = OpenPayment {
+                payment_id: gen_id.gen_payment_id(),
+                currency: request_pay_invoice.currency,
+                dest_public_key: request_pay_invoice.dest_public_key,
+                dest_payment: request_pay_invoice.dest_payment,
+                description: request_pay_invoice.description,
+                status: OpenPaymentStatus::SearchingRoute(request_routes_id),
+            };
+            compact_state.open_payments.insert(request_pay_invoice.invoice_id.clone(), open_payment);
+
+            server_state.update_compact_state(compact_state).await?;
         },
         UserRequest::ConfirmPayInvoice(_confirm_pay_invoice) => unimplemented!(),
         UserRequest::CancelPayInvoice(_invoice_id) => unimplemented!(),
@@ -407,14 +437,14 @@ where
 }
 
 /// The compact server is mediating between the user and the node.
-async fn inner_server<GU>(app_conn_tuple: AppConnTuple, 
+async fn inner_server<GI>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    mut gen_uid: GU,
+    mut gen_id: GI,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> 
 where
-    GU: GenUid,
+    GI: GenId,
 {
 
     // Interaction with the user:
@@ -438,7 +468,7 @@ where
 
     while let Some(event) = incoming_events.next().await {
         match event {
-            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut gen_uid, &mut user_sender, &mut app_sender).await?,
+            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::UserClosed => return Ok(()),
             CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut user_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
@@ -451,13 +481,13 @@ where
 }
 
 #[allow(unused)]
-pub async fn server<GU>(app_conn_tuple: AppConnTuple, 
+pub async fn server<GI>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    gen_uid: GU) -> Result<(), CompactServerError> 
+    gen_id: GI) -> Result<(), CompactServerError> 
 where   
-    GU: GenUid,
+    GI: GenId,
 {
-    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_uid, None).await
+    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_id, None).await
 }

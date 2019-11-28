@@ -76,6 +76,8 @@ pub struct RequestPayInvoice {
     pub dest_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
+    /// Short textual invoice description
+    pub description: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
