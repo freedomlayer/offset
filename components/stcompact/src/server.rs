@@ -1,3 +1,6 @@
+#[allow(unused)]
+use std::collections::HashSet;
+
 use futures::{future, stream, StreamExt, channel::mpsc, Sink, SinkExt};
 
 use common::select_streams::select_streams;
@@ -14,7 +17,8 @@ use app::verify::verify_commit;
 use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, PaymentFees, PaymentFeesResponse};
-use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusFoundRoute};
+#[allow(unused)]
+use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusFoundRoute, OpenPaymentStatusSending};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
 
@@ -347,12 +351,12 @@ where
             user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
 
             let mut compact_state = server_state.compact_state().clone();
-            let (multi_route, multi_route_choice) = if let Some(open_payment) = compact_state.open_payments.get(&confirm_payment_fees.payment_id) {
+            let (multi_route, multi_route_choice, fees) = if let Some(open_payment) = compact_state.open_payments.get(&confirm_payment_fees.payment_id) {
                 match &open_payment.status {
                     OpenPaymentStatus::SearchingRoute(_) => return Ok(()),
                     OpenPaymentStatus::FoundRoute(found_route) => {
                         if confirm_payment_fees.confirm_id == found_route.confirm_id {
-                            (&found_route.multi_route, &found_route.multi_route_choice)
+                            (&found_route.multi_route, &found_route.multi_route_choice, found_route.fees)
                         } else {
                             // confirm_id doesn't match:
                             return Ok(());
@@ -366,38 +370,58 @@ where
                 return Ok(());
             };
 
-            unimplemented!();
+            // Order:
+            // - Update local database
+            // - Send requests along routes
 
             /*
-            
-            // Create outgoing payments along all routes in multi-route:
-            let mut open_transactions = HashSet::new();
+            // TODO: Fix code here:
 
-            let request_id = gen_id.gen_uid();
-            open_transactions.insert(request_id.clone());
-            let app_request = buyer::create_transaction(
-                payment_id.clone(),
-                request_id,
-                route.route.clone(),
-                *dest_payment,
-                route.rate.calc_fee(*dest_payment).unwrap(),
-            );
+            // Update compact_state:
+            let open_transactions: HashSet<Uid> = multi_route_choice
+                .map(|_| gen_id.gen_uid())
+                .collect();
 
-            let app_to_app_server = AppToAppServer {
-                // We don't really care about app_request_id here, as we can wait on `request_id`
-                // instead.
-                app_request_id: gen_uid(),
-                app_request,
+            let sending = OpenPaymentStatusSending {
+                fees,
+                open_transactions: open_transactions.clone(),
             };
-            conn_pair
-                .sender
-                .send(app_to_app_server)
-                .await
-                .map_err(|_| BuyerError::CreateTransactionFailed);
+
+            compact_state.open_invoices
+                .get_mut(&confirm_payment_fees.payment_id)
+                .unwarp()
+                .status = OpenPaymentStatus::Sending(sending);
+
+            server_state.update_compact_state(compact_state).await?;
+
+            // Initiate requests along all routes in the multi route, where credits
+            // are allocated according to the strategy in `multi_route_choice`:
+            for (route_index, dest_payment) in multi_route_choice {
+            
+                let route = &multi_route.routes[*route_index];
+                let request_id = gen_id.gen_uid();
+                open_transactions.insert(request_id.clone());
+
+                let app_request = buyer::create_transaction(
+                    confirm_payment_fees.payment_id.clone(),
+                    request_id,
+                    route.route.clone(),
+                    *dest_payment,
+                    route.rate.calc_fee(*dest_payment).unwrap(),
+                );
+
+                let app_to_app_server = AppToAppServer {
+                    // We don't really care about app_request_id here, as we can wait on `request_id`
+                    // instead.
+                    app_request_id: gen_id.gen_uid(),
+                    app_request,
+                };
+                app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+            }
+            */
 
 
             unimplemented!();
-            */
         },
         UserRequest::CancelPayment(_invoice_id) => unimplemented!(),
         UserRequest::AckReceipt(()) => unimplemented!(),
