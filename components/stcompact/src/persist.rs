@@ -43,7 +43,7 @@ pub enum OpenPaymentStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    pub payment_id: PaymentId,
+    pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -61,7 +61,7 @@ pub struct CompactState {
     /// Seller's open invoices:
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
-    pub open_payments: HashMap<InvoiceId, OpenPayment>,
+    pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

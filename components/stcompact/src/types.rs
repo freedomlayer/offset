@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
-    PlainLock, PublicKey, RandValue, Rate, RelayAddress, Signature, Uid,
+    PaymentId, PlainLock, PublicKey, RandValue, Rate, RelayAddress, Signature, Uid,
 };
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
@@ -69,6 +69,8 @@ pub struct SetFriendName {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct InitPayment {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub payment_id: PaymentId,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -89,7 +91,7 @@ pub enum PaymentFeesResponse {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaymentFees {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    pub invoice_id: InvoiceId,
+    pub payment_id: PaymentId,
     pub response: PaymentFeesResponse,
 }
 
@@ -113,13 +115,13 @@ pub enum PayInvoiceResultInner {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
-    pub invoice_id: InvoiceId,
+    pub payment_id: PaymentId,
     pub result: PayInvoiceResultInner,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct ConfirmPaymentFees {
-    pub invoice_id: InvoiceId,
+    pub payment_id: PaymentId,
     pub confirm_id: Uid,
 }
 
