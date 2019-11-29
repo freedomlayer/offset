@@ -82,6 +82,19 @@ pub trait GenId {
     fn gen_payment_id(&mut self) -> PaymentId;
 }
 
+/// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
+/// strategy
+fn calc_multi_route_fees(multi_route: &MultiRoute, multi_route_choice: &MultiRouteChoice) -> Option<u128> {
+    let mut total_fees = 0u128;
+    for (route_index, dest_payment) in multi_route_choice {
+        let fee = multi_route.routes[*route_index]
+            .rate
+            .calc_fee(*dest_payment)?;
+        total_fees = total_fees.checked_add(fee)?;
+    }
+    Some(total_fees)
+}
+
 fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_payment: u128) -> Option<(MultiRoute, MultiRouteChoice, u128)> {
     let multi_routes = match &client_response_routes.result {
         ResponseRoutesResult::Success(multi_routes) => multi_routes,
@@ -92,16 +105,10 @@ fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_paymen
         choose_multi_route(&multi_routes, dest_payment)?;
     let multi_route = &multi_routes[route_index];
 
-    // Calcualte total fees
-    let mut total_fees = 0u128;
-    for (route_index, dest_payment) in &multi_route_choice {
-        let fee = multi_route.routes[*route_index]
-            .rate
-            .calc_fee(*dest_payment)?;
-        total_fees = total_fees.checked_add(fee)?;
-    }
+    // Make sure that fees can be calculated correctly:
+    let fees = calc_multi_route_fees(multi_route, &multi_route_choice)?;
 
-    Some((multi_route.clone(), multi_route_choice, total_fees))
+    Some((multi_route.clone(), multi_route_choice, fees))
 
 }
 
