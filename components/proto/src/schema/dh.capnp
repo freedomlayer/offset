@@ -19,7 +19,7 @@ struct ExchangeRandNonce {
             publicKey @3: PublicKey;
             # Set this exact list to be the list of relays
     }
-    # PublicKey we expect the sender expects the remote side to have.
+    # PublicKey the sender expects the remote side to have.
     # Useful for multiplexing multiple entities behind one listening port.
     # A multiplexer can identify right at the first incoming message to which
     # entity should this connection be redirected.
