@@ -278,14 +278,31 @@ where
 
             let mut compact_state = server_state.compact_state().clone();
 
-            if compact_state.open_payments.contains_key(&request_pay_invoice.invoice_id) {
-                // TODO: We need to resend to the user the current state of the payment.
-                // For example, possibly resend confirmation request if needed.
-                unimplemented!();
+            if let Some(open_payment) = compact_state.open_payments.get(&request_pay_invoice.invoice_id) {
+                // We might need to resend to the user the current state of the payment.
+                match &open_payment.status {
+                    OpenPaymentStatus::SearchingRoute(_) => return Ok(()),
+                    OpenPaymentStatus::FoundRoute(confirm_id, _multi_route, fees) => {
+                        // We have already sent a ResponsePayInvoice, but the user might have not
+                        // received it, or forgotten that it did due to a crash.
+                        
+                        // Send Ack:
+                        user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
 
-                // Payment already in progress
-                warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", request_pay_invoice.invoice_id);
-                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                        // Resend ResponsePayInvoice message to the user:
+                        let response_pay_invoice = ResponsePayInvoice {
+                            invoice_id: request_pay_invoice.invoice_id.clone(),
+                            response: ResponsePayInvoiceInner::Fees(*fees, confirm_id.clone()),
+                        };
+                        return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
+                    },
+                    OpenPaymentStatus::Sending(_) | OpenPaymentStatus::Commit(_,_) => {
+                        // Payment already in progress, and the user should know it.
+                        warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", request_pay_invoice.invoice_id);
+                        return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                    },
+                }
+
             }
 
             // Generate a request_routes_id:
