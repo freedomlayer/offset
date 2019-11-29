@@ -4,7 +4,8 @@ use num_traits::ops::checked::CheckedSub;
 
 use proto::index_server::messages::MultiRoute;
 
-pub type MultiRouteChoice = Vec<(usize, u128)>;
+/// For every route in a multi route: How many credits to push through.
+pub type MultiRouteChoice = Vec<(usize, u128)>; // (route_index, credits_to_push)
 
 /// Attempt to fill the given amount as much as possible, trying not to saturate any route.
 /// Returns `Some((i, added_credits(i)))` if in index `i` we can already fill `amount_left`, or

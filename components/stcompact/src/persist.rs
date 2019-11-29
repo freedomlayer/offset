@@ -9,6 +9,7 @@ use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey,
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use database::AtomicDb;
+use route::MultiRouteChoice;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenInvoice {
@@ -22,15 +23,23 @@ pub struct OpenInvoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusSending {
-    fees: u128,
-    open_transactions: HashSet<Uid>,
+    pub fees: u128,
+    pub open_transactions: HashSet<Uid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenPaymentStatusFoundRoute {
+    pub confirm_id: Uid,
+    pub multi_route: MultiRoute,
+    pub multi_route_choice: MultiRouteChoice,
+    pub fees: u128,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid), // request_routes_id
     // TODO: Possibly add the found route into FoundRoute state?
-    FoundRoute(Uid, MultiRoute, u128), // (confirm_id, chosen_multi_route, fees)
+    FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
     Commit(Commit, u128), // (commit, fees)
 }

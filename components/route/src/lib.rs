@@ -10,4 +10,4 @@
 
 mod multi_route;
 
-pub use multi_route::choose_multi_route;
+pub use multi_route::{choose_multi_route, MultiRouteChoice};

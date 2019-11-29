@@ -11,10 +11,10 @@ use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions,
 use app::common::{Uid, PaymentId, MultiRoute};
 use app::verify::verify_commit;
 
-use route::choose_multi_route;
+use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, PaymentFees, PaymentFeesResponse};
-use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus};
+use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
 
@@ -82,7 +82,7 @@ pub trait GenId {
     fn gen_payment_id(&mut self) -> PaymentId;
 }
 
-fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_payment: u128) -> Option<(MultiRoute, u128)> {
+fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_payment: u128) -> Option<(MultiRoute, MultiRouteChoice, u128)> {
     let multi_routes = match &client_response_routes.result {
         ResponseRoutesResult::Success(multi_routes) => multi_routes,
         ResponseRoutesResult::Failure => return None,
@@ -101,7 +101,7 @@ fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_paymen
         total_fees = total_fees.checked_add(fee)?;
     }
 
-    Some((multi_route.clone(), total_fees))
+    Some((multi_route.clone(), multi_route_choice, total_fees))
 
 }
 
@@ -282,7 +282,7 @@ where
                 // We might need to resend to the user the current state of the payment.
                 match &open_payment.status {
                     OpenPaymentStatus::SearchingRoute(_) => return Ok(()),
-                    OpenPaymentStatus::FoundRoute(confirm_id, _multi_route, fees) => {
+                    OpenPaymentStatus::FoundRoute(found_route) => {
                         // We have already sent a ResponsePayInvoice, but the user might have not
                         // received it, or forgotten that it did due to a crash.
                         
@@ -292,7 +292,7 @@ where
                         // Resend PaymentFees message to the user:
                         let payment_fees = PaymentFees {
                             payment_id: init_payment.payment_id.clone(),
-                            response: PaymentFeesResponse::Fees(*fees, confirm_id.clone()),
+                            response: PaymentFeesResponse::Fees(found_route.fees, found_route.confirm_id.clone()),
                         };
                         return user_sender.send(ToUser::PaymentFees(payment_fees)).await.map_err(|_| CompactServerError::UserSenderError);
                     },
@@ -336,13 +336,61 @@ where
 
             server_state.update_compact_state(compact_state).await?;
         },
-        UserRequest::ConfirmPaymentFees(_confirm_payment_fees) => {
-            /*
+        UserRequest::ConfirmPaymentFees(confirm_payment_fees) => {
+            user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+
             let mut compact_state = server_state.compact_state().clone();
-            if compact_state.open_payments.get(&confirm_payment_fees.invoice_id) {
-            }
-            */
+            let (multi_route, multi_route_choice) = if let Some(open_payment) = compact_state.open_payments.get(&confirm_payment_fees.payment_id) {
+                match &open_payment.status {
+                    OpenPaymentStatus::SearchingRoute(_) => return Ok(()),
+                    OpenPaymentStatus::FoundRoute(found_route) => {
+                        if confirm_payment_fees.confirm_id == found_route.confirm_id {
+                            (&found_route.multi_route, &found_route.multi_route_choice)
+                        } else {
+                            // confirm_id doesn't match:
+                            return Ok(());
+                        }
+                    },
+                    OpenPaymentStatus::Sending(_) |
+                    OpenPaymentStatus::Commit(_,_) => return Ok(()),
+                }
+            } else {
+                // No such payment in progress.
+                return Ok(());
+            };
+
             unimplemented!();
+
+            /*
+            
+            // Create outgoing payments along all routes in multi-route:
+            let mut open_transactions = HashSet::new();
+
+            let request_id = gen_id.gen_uid();
+            open_transactions.insert(request_id.clone());
+            let app_request = buyer::create_transaction(
+                payment_id.clone(),
+                request_id,
+                route.route.clone(),
+                *dest_payment,
+                route.rate.calc_fee(*dest_payment).unwrap(),
+            );
+
+            let app_to_app_server = AppToAppServer {
+                // We don't really care about app_request_id here, as we can wait on `request_id`
+                // instead.
+                app_request_id: gen_uid(),
+                app_request,
+            };
+            conn_pair
+                .sender
+                .send(app_to_app_server)
+                .await
+                .map_err(|_| BuyerError::CreateTransactionFailed);
+
+
+            unimplemented!();
+            */
         },
         UserRequest::CancelPayment(_invoice_id) => unimplemented!(),
         UserRequest::AckReceipt(()) => unimplemented!(),
@@ -510,8 +558,8 @@ where
                 return Ok(());
             };
 
-            let (multi_route, fees) = if let Some(multi_route_fees) = obtain_multi_route(&client_response_routes, open_payment.dest_payment) {
-                multi_route_fees
+            let (multi_route, multi_route_choice, fees) = if let Some(inner) = obtain_multi_route(&client_response_routes, open_payment.dest_payment) {
+                inner
             } else {
                 // A suitable route was not found.
                 
@@ -529,7 +577,13 @@ where
 
             // Update compact state (keep the best multiroute):
             let confirm_id = gen_id.gen_uid();
-            open_payment.status = OpenPaymentStatus::FoundRoute(confirm_id.clone(), multi_route, fees);
+            let found_route = OpenPaymentStatusFoundRoute {
+                confirm_id: confirm_id.clone(),
+                multi_route,
+                multi_route_choice,
+                fees,
+            };
+            open_payment.status = OpenPaymentStatus::FoundRoute(found_route);
             server_state.update_compact_state(compact_state).await?;
 
             // Notify user that a route was found (Send required fees):
