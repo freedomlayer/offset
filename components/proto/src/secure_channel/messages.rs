@@ -2,12 +2,39 @@ use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{DhPublicKey, PublicKey, RandValue, Salt, Signature};
 
+#[capnp_conv(crate::dh_capnp::exchange_rand_nonce::opt_dest_public_key)]
+#[derive(Debug, PartialEq, Eq)]
+enum OptDestPublicKey {
+    Empty,
+    PublicKey(PublicKey),
+}
+
+impl From<Option<PublicKey>> for OptDestPublicKey {
+    fn from(from: Option<PublicKey>) -> Self {
+        match from {
+            Some(public_key) => Self::PublicKey(public_key),
+            None => Self::Empty,
+        }
+    }
+}
+
+impl From<OptDestPublicKey> for Option<PublicKey> {
+    fn from(from: OptDestPublicKey) -> Self {
+        match from {
+            OptDestPublicKey::PublicKey(public_key) => Some(public_key),
+            OptDestPublicKey::Empty => None,
+        }
+    }
+}
+
 /// First Diffie-Hellman message:
 #[capnp_conv(crate::dh_capnp::exchange_rand_nonce)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ExchangeRandNonce {
     pub rand_nonce: RandValue,
-    pub public_key: PublicKey,
+    pub src_public_key: PublicKey,
+    #[capnp_conv(with = OptDestPublicKey)]
+    pub opt_dest_public_key: Option<PublicKey>,
 }
 
 /// Second Diffie-Hellman message:

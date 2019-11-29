@@ -52,7 +52,7 @@ where
         .await
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
-    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(&local_public_key, &rng);
+    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(local_public_key, opt_expected_remote.clone(), &rng);
     let ser_exchange_rand_nonce = exchange_rand_nonce.proto_serialize();
     writer
         .send(ser_exchange_rand_nonce)
