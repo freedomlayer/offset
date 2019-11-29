@@ -13,7 +13,7 @@ use app::verify::verify_commit;
 
 use route::choose_multi_route;
 
-use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, ResponsePayInvoice, ResponsePayInvoiceInner};
+use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, PaymentFees, PaymentFeesResponse};
 use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus};
 
 type ConnPairCompact = ConnPair<ToUser, FromUser>;
@@ -274,11 +274,11 @@ where
             app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
         },
         // =======================[Buyer]========================================
-        UserRequest::RequestPayInvoice(request_pay_invoice) => {
+        UserRequest::InitPayment(init_payment) => {
 
             let mut compact_state = server_state.compact_state().clone();
 
-            if let Some(open_payment) = compact_state.open_payments.get(&request_pay_invoice.invoice_id) {
+            if let Some(open_payment) = compact_state.open_payments.get(&init_payment.invoice_id) {
                 // We might need to resend to the user the current state of the payment.
                 match &open_payment.status {
                     OpenPaymentStatus::SearchingRoute(_) => return Ok(()),
@@ -289,16 +289,16 @@ where
                         // Send Ack:
                         user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
 
-                        // Resend ResponsePayInvoice message to the user:
-                        let response_pay_invoice = ResponsePayInvoice {
-                            invoice_id: request_pay_invoice.invoice_id.clone(),
-                            response: ResponsePayInvoiceInner::Fees(*fees, confirm_id.clone()),
+                        // Resend PaymentFees message to the user:
+                        let payment_fees = PaymentFees {
+                            invoice_id: init_payment.invoice_id.clone(),
+                            response: PaymentFeesResponse::Fees(*fees, confirm_id.clone()),
                         };
-                        return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
+                        return user_sender.send(ToUser::PaymentFees(payment_fees)).await.map_err(|_| CompactServerError::UserSenderError);
                     },
                     OpenPaymentStatus::Sending(_) | OpenPaymentStatus::Commit(_,_) => {
                         // Payment already in progress, and the user should know it.
-                        warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", request_pay_invoice.invoice_id);
+                        warn!("RequestPayInvoice: Paymenet for invoice {:?} is already open!", init_payment.invoice_id);
                         return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
                     },
                 }
@@ -312,10 +312,10 @@ where
             let opt_exclude = None;
             let app_request = routes::request_routes(
                 request_routes_id.clone(),
-                request_pay_invoice.currency.clone(),
-                request_pay_invoice.dest_payment.clone(),
+                init_payment.currency.clone(),
+                init_payment.dest_payment.clone(),
                 server_state.node_report().funder_report.local_public_key.clone(),
-                request_pay_invoice.dest_public_key.clone(),
+                init_payment.dest_public_key.clone(),
                 opt_exclude);
 
             let app_to_app_server = AppToAppServer {
@@ -326,18 +326,19 @@ where
 
             let open_payment = OpenPayment {
                 payment_id: gen_id.gen_payment_id(),
-                currency: request_pay_invoice.currency,
-                dest_public_key: request_pay_invoice.dest_public_key,
-                dest_payment: request_pay_invoice.dest_payment,
-                description: request_pay_invoice.description,
+                currency: init_payment.currency,
+                dest_public_key: init_payment.dest_public_key,
+                dest_payment: init_payment.dest_payment,
+                description: init_payment.description,
                 status: OpenPaymentStatus::SearchingRoute(request_routes_id),
             };
-            compact_state.open_payments.insert(request_pay_invoice.invoice_id.clone(), open_payment);
+            compact_state.open_payments.insert(init_payment.invoice_id.clone(), open_payment);
 
             server_state.update_compact_state(compact_state).await?;
         },
-        UserRequest::ConfirmPayInvoice(_confirm_pay_invoice) => unimplemented!(),
-        UserRequest::CancelPayInvoice(_invoice_id) => unimplemented!(),
+        UserRequest::ConfirmPaymentFees(_confirm_payment_fees) => unimplemented!(),
+        UserRequest::CancelPayment(_invoice_id) => unimplemented!(),
+        UserRequest::AckReceipt(()) => unimplemented!(),
         // =======================[Seller]=======================================
         UserRequest::AddInvoice(add_invoice) => {
             let mut compact_state = server_state.compact_state().clone();
@@ -512,11 +513,11 @@ where
                 server_state.update_compact_state(compact_state).await?;
 
                 // Notify user that the payment has failed:
-                let response_pay_invoice = ResponsePayInvoice {
+                let payment_fees = PaymentFees {
                     invoice_id,
-                    response: ResponsePayInvoiceInner::Unreachable,
+                    response: PaymentFeesResponse::Unreachable,
                 };
-                return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
+                return user_sender.send(ToUser::PaymentFees(payment_fees)).await.map_err(|_| CompactServerError::UserSenderError);
             };
 
             // Update compact state (keep the best multiroute):
@@ -525,11 +526,11 @@ where
             server_state.update_compact_state(compact_state).await?;
 
             // Notify user that a route was found (Send required fees):
-            let response_pay_invoice = ResponsePayInvoice {
+            let payment_fees = PaymentFees {
                 invoice_id,
-                response: ResponsePayInvoiceInner::Fees(fees, confirm_id),
+                response: PaymentFeesResponse::Fees(fees, confirm_id),
             };
-            return user_sender.send(ToUser::ResponsePayInvoice(response_pay_invoice)).await.map_err(|_| CompactServerError::UserSenderError);
+            return user_sender.send(ToUser::PaymentFees(payment_fees)).await.map_err(|_| CompactServerError::UserSenderError);
         }
     }
     Ok(())

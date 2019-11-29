@@ -67,7 +67,7 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct RequestPayInvoice {
+pub struct InitPayment {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
@@ -81,22 +81,22 @@ pub struct RequestPayInvoice {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResponsePayInvoiceInner {
+pub enum PaymentFeesResponse {
     Unreachable,
     Fees(u128, Uid), // (fees, confirm_id)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResponsePayInvoice {
+pub struct PaymentFees {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
-    pub response: ResponsePayInvoiceInner,
+    pub response: PaymentFeesResponse,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum PayInvoiceDone {
+pub enum PaymentDone {
     Failure,
-    Success,
+    Success, // TODO: Should contain Receipt
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -112,13 +112,13 @@ pub enum PayInvoiceResultInner {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct PayInvoiceResult {
+pub struct PaymentCommit {
     pub invoice_id: InvoiceId,
     pub result: PayInvoiceResultInner,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct ConfirmPayInvoice {
+pub struct ConfirmPaymentFees {
     pub invoice_id: InvoiceId,
     pub confirm_id: Uid,
 }
@@ -332,11 +332,11 @@ pub struct NodeReport {
 pub enum ToUser {
     // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
-    ResponsePayInvoice(ResponsePayInvoice),
+    PaymentFees(PaymentFees),
     /// Result: Possibly returns the Commit (Should be delivered out of band)
-    PayInvoiceResult(PayInvoiceResult),
+    PaymentCommit(PaymentCommit),
     /// Done: Possibly returns a Receipt or failure
-    PayInvoiceDone(PayInvoiceDone),
+    PaymentDone(PaymentDone),
     // ------------[Seller]-------------------
     ResponseCommitInvoice(ResponseCommitInvoice),
     // ------------[Reports]-------------------
@@ -377,11 +377,12 @@ pub enum UserRequest {
     ResetFriendChannel(ResetFriendChannel),
     // ---------------[Buyer]------------------------------
     // Request sending an amount to some desination:
-    RequestPayInvoice(RequestPayInvoice),
+    InitPayment(InitPayment),
     // Confirm sending fees:
-    ConfirmPayInvoice(ConfirmPayInvoice),
+    ConfirmPaymentFees(ConfirmPaymentFees),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    CancelPayInvoice(InvoiceId),
+    CancelPayment(InvoiceId),
+    AckReceipt(()), // TODO
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
