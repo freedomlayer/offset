@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,16 +21,24 @@ pub struct OpenInvoice {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpenPaymentStatusSending {
+    fees: u128,
+    open_transactions: HashSet<Uid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid), // request_routes_id
     // TODO: Possibly add the found route into FoundRoute state?
     FoundRoute(Uid, MultiRoute, u128), // (confirm_id, chosen_multi_route, fees)
-    Sending(u128),                     // fees
-    Commit(Commit, u128),              // (commit, fees)
-
-                                       // Done(Receipt, u128),   // (receipt, fees)
-                                       // Failure,
+    Sending(OpenPaymentStatusSending),
+    Commit(Commit, u128), // (commit, fees)
 }
+
+/*
+// Done(Receipt, u128),   // (receipt, fees)
+// Failure,
+ */
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
