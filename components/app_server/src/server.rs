@@ -408,6 +408,8 @@ where
         app_message: AppToAppServer<B>,
     ) -> Result<(), AppServerError> {
         if !self.check_app_permissions(app_id, &app_message) {
+            // Eliminate application's connection:
+            self.apps.remove(&app_id);
             return Ok(());
         }
 
