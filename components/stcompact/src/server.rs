@@ -6,10 +6,8 @@ use common::conn::{ConnPair, BoxStream};
 
 use database::{DatabaseClient};
 
-#[allow(unused)]
 use app::conn::{AppConnTuple, AppServerToApp, AppToAppServer, AppPermissions, 
     buyer, config, routes, seller, ResponseRoutesResult, ClientResponseRoutes, RequestResult, ResponseClosePayment};
-#[allow(unused)]
 use app::common::{Uid, PaymentId, MultiRoute, PaymentStatus};
 use app::verify::verify_commit;
 
@@ -17,7 +15,6 @@ use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::types::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, 
     PaymentFees, PaymentFeesResponse, PaymentDone, PaymentCommit};
-#[allow(unused)]
 use crate::persist::{CompactState, OpenInvoice, OpenPayment, OpenPaymentStatus, 
     OpenPaymentStatusFoundRoute, OpenPaymentStatusSending};
 
@@ -38,14 +35,12 @@ pub enum CompactServerError {
     DatabaseMutateError,
 }
 
-#[allow(unused)]
 struct CompactServerState {
     node_report: app::report::NodeReport,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
 }
 
-#[allow(unused)]
 impl CompactServerState {
     pub fn new(node_report: app::report::NodeReport, compact_state: CompactState, database_client: DatabaseClient<CompactState>) -> Self {
         Self {
@@ -117,7 +112,6 @@ fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_paymen
 
 }
 
-#[allow(unused)]
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
@@ -513,10 +507,12 @@ where
                     warn!("AckPaymentDone: payment {:?} is not done!", payment_id);
                     return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
                 },
-                OpenPaymentStatus::Success(_, _, ack_uid)
-                | OpenPaymentStatus::Failure(ack_uid) => {
-                    let _ = compact_state.open_payments.remove(&payment_id).unwrap();
-                    server_state.update_compact_state(compact_state).await?;
+                OpenPaymentStatus::Success(_, _, stored_ack_uid)
+                | OpenPaymentStatus::Failure(stored_ack_uid) => {
+                    if stored_ack_uid == &ack_uid {
+                        let _ = compact_state.open_payments.remove(&payment_id).unwrap();
+                        server_state.update_compact_state(compact_state).await?;
+                    }
                     return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
                 },
             }
@@ -593,9 +589,7 @@ where
         UserRequest::RequestCommitInvoice(commit) => {
             // Make sure that the corresponding invoice is open:
             let mut compact_state = server_state.compact_state().clone();
-            let open_invoice = if let Some(open_invoice) = compact_state.open_invoices.get(&commit.invoice_id) {
-                open_invoice
-            } else {
+            if !compact_state.open_invoices.contains_key(&commit.invoice_id) {
                 // Invoice is not open:
                 warn!("RequestCommitInvoice: Invoice {:?} is not open!", commit.invoice_id);
                 return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
@@ -606,7 +600,7 @@ where
             // Verify commitment
             if !verify_commit(&node_commit, &server_state.node_report().funder_report.local_public_key) {
                 warn!("RequestCommitInvoice: Invoice: {:?}: Invalid commit", commit.invoice_id);
-                user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
                 return user_sender.send(ToUser::ResponseCommitInvoice(ResponseCommitInvoice::Failure)).await.map_err(|_| CompactServerError::UserSenderError);
             }
 
@@ -662,7 +656,6 @@ where
 }
 
 
-#[allow(unused)]
 async fn handle_node<GI,US,AS>(app_server_to_app: AppServerToApp, 
     server_state: &mut CompactServerState, 
     gen_id: &mut GI,
@@ -747,7 +740,7 @@ where
                 | OpenPaymentStatus::FoundRoute(_) => {
                     warn!("ResponseClosePayment: Node closed payment before we opened it! payment_id {:?}", response_close_payment.payment_id);
                 },
-                OpenPaymentStatus::Sending(sending) => {
+                OpenPaymentStatus::Sending(_sending) => {
                     // We expect failure here. It is not likely that the payment was successful if
                     // we never got a commit to hand to the seller.
                     let ack_uid = gen_id.gen_uid();
@@ -759,7 +752,7 @@ where
                     let payment_done = PaymentDone::Failure(ack_uid);
                     user_sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
                 },
-                OpenPaymentStatus::Commit(commit, fees) => {
+                OpenPaymentStatus::Commit(_commit, fees) => {
                     // This is the most common state to get a `ResponseClosePayment`.
                     // We will now be able to know whether the payment succeeded (and we get a receipt),
                     // or failed.
@@ -803,16 +796,17 @@ where
         },
         AppServerToApp::ReportMutations(report_mutations) => {
             // Save the original `node_report`:
-            let orig_node_report = server_state.node_report.clone();
+            let mut node_report = server_state.node_report().clone();
 
             // Apply mutations to `node_report`:
             for mutation in &report_mutations.mutations {
-                server_state.node_report.mutate(mutation).map_err(|_| CompactServerError::ReportMutationError)?;
+                node_report.mutate(mutation).map_err(|_| CompactServerError::ReportMutationError)?;
             }
 
             // If `node_report` has changed, send it to the user:
-            if server_state.node_report != orig_node_report {
-                user_sender.send(ToUser::Report(server_state.node_report.clone().into())).await.map_err(|_| CompactServerError::UserSenderError)?;
+            if &node_report != server_state.node_report() {
+                server_state.update_node_report(node_report.clone());
+                user_sender.send(ToUser::Report(node_report.clone().into())).await.map_err(|_| CompactServerError::UserSenderError)?;
             }
 
             // Possibly send acknowledgement for a completed command:
@@ -846,7 +840,7 @@ where
                 // A suitable route was not found.
                 
                 // Close the payment.
-                let open_payment = compact_state.open_payments.remove(&payment_id).unwrap();
+                let _ = compact_state.open_payments.remove(&payment_id).unwrap();
                 server_state.update_compact_state(compact_state).await?;
 
                 // Notify user that the payment has failed:
