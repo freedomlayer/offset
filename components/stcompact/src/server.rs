@@ -12,10 +12,11 @@ use crate::types::{CompactServerEvent, CompactServerState, CompactServerError, G
 
 use crate::handle_user::handle_user;
 use crate::handle_node::handle_node;
+use crate::permission::check_permission;
 
 
 /// The compact server is mediating between the user and the node.
-async fn inner_server<GI>(app_conn_tuple: AppConnTuple, 
+async fn inner_server_loop<GI>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
@@ -46,7 +47,14 @@ where
 
     while let Some(event) = incoming_events.next().await {
         match event {
-            CompactServerEvent::User(from_user) => handle_user(from_user, &app_permissions, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?,
+            CompactServerEvent::User(from_user) => {
+                if check_permission(&from_user.user_request, &app_permissions) {
+                    handle_user(from_user, &app_permissions, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?;
+                } else {
+                    // Operation not permitted, we close the connection
+                    return Ok(());
+                }
+            },
             CompactServerEvent::UserClosed => return Ok(()),
             CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
@@ -59,7 +67,7 @@ where
 }
 
 #[allow(unused)]
-pub async fn server<GI>(app_conn_tuple: AppConnTuple, 
+pub async fn server_loop<GI>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
@@ -67,5 +75,5 @@ pub async fn server<GI>(app_conn_tuple: AppConnTuple,
 where   
     GI: GenId,
 {
-    inner_server(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_id, None).await
+    inner_server_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_id, None).await
 }

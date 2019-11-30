@@ -11,6 +11,7 @@ use crate::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentSta
 use crate::types::{CompactServerState, CompactServerError, GenId};
 
 
+
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
