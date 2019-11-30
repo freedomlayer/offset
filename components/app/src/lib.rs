@@ -46,7 +46,7 @@ pub mod conn {
     pub use proto::app_server::messages::{
         AppPermissions, AppRequest, AppServerToApp, AppToAppServer,
     };
-    pub use proto::funder::messages::RequestResult;
+    pub use proto::funder::messages::{RequestResult, ResponseClosePayment};
     pub use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 }
 
