@@ -248,7 +248,6 @@ impl From<app::report::NodeReport> for NodeReport {
 
 // ====================[Commit]==============================
 
-/*
 impl From<app::common::Commit> for Commit {
     fn from(from: app::common::Commit) -> Self {
         Commit {
@@ -263,7 +262,6 @@ impl From<app::common::Commit> for Commit {
         }
     }
 }
-*/
 
 impl From<Commit> for app::common::Commit {
     fn from(from: Commit) -> Self {

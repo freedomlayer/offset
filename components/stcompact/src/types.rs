@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
-    PaymentId, PlainLock, PublicKey, RandValue, Rate, RelayAddress, Signature, Uid,
+    PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
@@ -97,8 +97,8 @@ pub struct PaymentFees {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
-    Failure,
-    Success, // TODO: Should contain Receipt
+    Failure(Uid),          // ack_uid
+    Success(Receipt, Uid), // ack_uid, TODO: Should also contain Receipt
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -107,16 +107,19 @@ pub enum ResponseCommitInvoice {
     Success,
 }
 
+/*
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum PayInvoiceResultInner {
+pub enum PaymentCommitResult {
     Failure,
     Success(Commit),
 }
+*/
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
     pub payment_id: PaymentId,
-    pub result: PayInvoiceResultInner,
+    pub commit: Commit,
+    // pub result: PaymentCommitResult,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -384,7 +387,7 @@ pub enum UserRequest {
     ConfirmPaymentFees(ConfirmPaymentFees),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelPayment(InvoiceId),
-    AckReceipt(()), // TODO
+    AckPaymentDone(()), // TODO
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]

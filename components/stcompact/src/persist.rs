@@ -38,16 +38,12 @@ pub struct OpenPaymentStatusFoundRoute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid), // request_routes_id
-    // TODO: Possibly add the found route into FoundRoute state?
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
-    Commit(Commit, u128), // (commit, fees)
+    Commit(Commit, u128),        // (commit, fees)
+    Success(Receipt, u128, Uid), // (Receipt, fees, ack_uid)
+    Failure(Uid),                // ack_uid
 }
-
-/*
-// Done(Receipt, u128),   // (receipt, fees)
-// Failure,
- */
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
