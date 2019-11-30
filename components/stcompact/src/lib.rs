@@ -14,6 +14,9 @@ extern crate common;
 extern crate log;
 
 mod convert;
+mod handle_node;
+mod handle_user;
+mod messages;
 #[allow(unused)]
 mod persist;
 mod server;

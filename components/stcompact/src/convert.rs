@@ -1,6 +1,6 @@
 use app::common::Currency;
 
-use crate::types::{
+use crate::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
     ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
     FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
