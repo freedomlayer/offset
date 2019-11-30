@@ -386,8 +386,8 @@ pub enum UserRequest {
     // Confirm sending fees:
     ConfirmPaymentFees(ConfirmPaymentFees),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    CancelPayment(InvoiceId),
-    AckPaymentDone(()), // TODO
+    CancelPayment(PaymentId),
+    AckPaymentDone(PaymentId, Uid), // (payment_id, ack_uid)
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]

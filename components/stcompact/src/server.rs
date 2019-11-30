@@ -454,8 +454,73 @@ where
             };
             app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
         },
-        UserRequest::CancelPayment(_invoice_id) => unimplemented!(),
-        UserRequest::AckPaymentDone(()) => unimplemented!(),
+        UserRequest::CancelPayment(payment_id) => {
+            let mut compact_state = server_state.compact_state().clone();
+            let open_payment = if let Some(open_payment) = compact_state.open_payments.get_mut(&payment_id) {
+                open_payment
+            } else {
+                warn!("CancelPayment: payment {:?} is not open!", payment_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            };
+
+            match open_payment.clone().status {
+                OpenPaymentStatus::SearchingRoute(_)
+                | OpenPaymentStatus::FoundRoute(_)
+                | OpenPaymentStatus::Sending(_) => {
+                    // Set failure status:
+                    let ack_uid = gen_id.gen_uid();
+                    open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
+                    server_state.update_compact_state(compact_state).await?;
+
+                    // Send ack:
+                    user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
+
+                    // Inform the user about failure.
+                    // Send a message about payment done:
+                    let payment_done = PaymentDone::Failure(ack_uid);
+                    user_sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                },
+                OpenPaymentStatus::Commit(_commit, _fees) => {
+                    // We do not know if the user has already provided the commit message to the
+                    // seller. If so, it might not be possible to cancel the payment.
+                    //
+                    // We ack the user that we received this request, but we have nothing to do
+                    // about it but wait.
+                    user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                },
+                OpenPaymentStatus::Success(_,_,_) 
+                | OpenPaymentStatus::Failure(_) => {
+                    warn!("CancelPayment: payment {:?} is already done!", payment_id);
+                    user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                },
+            }
+
+        },
+        UserRequest::AckPaymentDone(payment_id, ack_uid) => {
+            let mut compact_state = server_state.compact_state().clone();
+            let open_payment = if let Some(open_payment) = compact_state.open_payments.get(&payment_id) {
+                open_payment
+            } else {
+                warn!("AckPaymentDone: payment {:?} does not exist!", payment_id);
+                return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+            };
+
+            match &open_payment.status {
+                OpenPaymentStatus::SearchingRoute(_)
+                | OpenPaymentStatus::FoundRoute(_)
+                | OpenPaymentStatus::Sending(_)
+                | OpenPaymentStatus::Commit(_, _) => {
+                    warn!("AckPaymentDone: payment {:?} is not done!", payment_id);
+                    return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                },
+                OpenPaymentStatus::Success(_, _, ack_uid)
+                | OpenPaymentStatus::Failure(ack_uid) => {
+                    let _ = compact_state.open_payments.remove(&payment_id).unwrap();
+                    server_state.update_compact_state(compact_state).await?;
+                    return user_sender.send(ToUser::Ack(user_request_id)).await.map_err(|_| CompactServerError::UserSenderError);
+                },
+            }
+        },
         // =======================[Seller]=======================================
         UserRequest::AddInvoice(add_invoice) => {
             let mut compact_state = server_state.compact_state().clone();
