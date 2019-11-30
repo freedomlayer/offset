@@ -97,8 +97,8 @@ pub struct PaymentFees {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
-    Failure(Uid),          // ack_uid
-    Success(Receipt, Uid), // ack_uid, TODO: Should also contain Receipt
+    Failure(Uid),                // ack_uid
+    Success(Receipt, u128, Uid), // (receipt, fees, ack_uid)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]

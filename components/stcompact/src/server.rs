@@ -719,7 +719,7 @@ where
 
                             // Inform the user about success.
                             // Send a message about payment done: 
-                            let payment_done = PaymentDone::Success(success.receipt.clone(), ack_uid);
+                            let payment_done = PaymentDone::Success(success.receipt.clone(), fees, ack_uid);
                             user_sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
                         },
                     };
