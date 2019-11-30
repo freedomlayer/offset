@@ -733,8 +733,8 @@ pub struct PaymentStatusSuccess {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PaymentStatus {
     PaymentNotFound,
-    Success(PaymentStatusSuccess), // (Receipt, ack_id)
-    Canceled(Uid),                 // ack_id
+    Success(PaymentStatusSuccess),
+    Canceled(Uid), // ack_id
 }
 
 #[capnp_conv(crate::app_server_capnp::response_close_payment)]
