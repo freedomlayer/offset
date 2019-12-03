@@ -232,25 +232,6 @@ impl From<app::report::FriendReport> for FriendReport {
     }
 }
 
-/*
-impl From<app::report::NodeReport> for NodeReport {
-    fn from(node_report: app::report::NodeReport) -> Self {
-        NodeReport {
-            local_public_key: node_report.funder_report.local_public_key,
-            index_servers: node_report.index_client_report.index_servers,
-            opt_connected_index_server: node_report.index_client_report.opt_connected_server,
-            relays: node_report.funder_report.relays,
-            friends: node_report
-                .funder_report
-                .friends
-                .into_iter()
-                .map(|(friend_public_key, friend_report)| (friend_public_key, friend_report.into()))
-                .collect(),
-        }
-    }
-}
-*/
-
 // ====================[Commit]==============================
 
 impl From<app::common::Commit> for Commit {

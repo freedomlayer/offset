@@ -322,17 +322,6 @@ pub struct FriendReport {
     pub status: FriendStatusReport,
 }
 
-/*
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeReport {
-    pub local_public_key: PublicKey,
-    pub index_servers: Vec<NamedIndexServerAddress>,
-    pub opt_connected_index_server: Option<PublicKey>,
-    pub relays: Vec<NamedRelayAddress>,
-    pub friends: HashMap<PublicKey, FriendReport>,
-}
-*/
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
