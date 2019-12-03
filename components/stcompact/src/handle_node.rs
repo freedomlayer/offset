@@ -9,6 +9,7 @@ use route::{choose_multi_route, MultiRouteChoice};
 use crate::messages::{ToUser, PaymentFees, PaymentFeesResponse, PaymentDone, PaymentCommit};
 use crate::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::types::{CompactServerState, CompactServerError, GenId};
+use crate::convert::create_compact_report;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
@@ -218,7 +219,8 @@ where
             // If `node_report` has changed, send it to the user:
             if &node_report != server_state.node_report() {
                 server_state.update_node_report(node_report.clone());
-                user_sender.send(ToUser::Report(node_report.clone().into())).await.map_err(|_| CompactServerError::UserSenderError)?;
+                let compact_report = create_compact_report(server_state.compact_state().clone(), node_report.clone());
+                user_sender.send(ToUser::Report(compact_report)).await.map_err(|_| CompactServerError::UserSenderError)?;
             }
 
             // Possibly send acknowledgement for a completed command:

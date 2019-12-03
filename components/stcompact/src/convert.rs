@@ -2,10 +2,13 @@ use app::common::Currency;
 
 use crate::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
-    ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
+    CompactReport, ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
     FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
-    NodeReport, RequestsStatusReport, ResetTermsReport, TokenInfo,
+    OpenInvoice, OpenPayment, OpenPaymentStatus, RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
+
+use crate::persist;
+use crate::persist::CompactState;
 
 /// A helper util struct, used to implement From for structures that are not from this crate,
 /// mostly for ad-hoc tuples used for type conversion.
@@ -229,6 +232,7 @@ impl From<app::report::FriendReport> for FriendReport {
     }
 }
 
+/*
 impl From<app::report::NodeReport> for NodeReport {
     fn from(node_report: app::report::NodeReport) -> Self {
         NodeReport {
@@ -245,6 +249,7 @@ impl From<app::report::NodeReport> for NodeReport {
         }
     }
 }
+*/
 
 // ====================[Commit]==============================
 
@@ -275,5 +280,82 @@ impl From<Commit> for app::common::Commit {
             currency: from.currency,
             signature: from.signature,
         }
+    }
+}
+
+// ==================[CompactReport]==========================
+//
+
+impl From<persist::OpenPaymentStatus> for OpenPaymentStatus {
+    fn from(from: persist::OpenPaymentStatus) -> Self {
+        match from {
+            persist::OpenPaymentStatus::SearchingRoute(request_routes_id) => {
+                OpenPaymentStatus::SearchingRoute(request_routes_id)
+            }
+            persist::OpenPaymentStatus::FoundRoute(found_route) => {
+                OpenPaymentStatus::FoundRoute(found_route.confirm_id, found_route.fees)
+            }
+            persist::OpenPaymentStatus::Sending(sending) => {
+                OpenPaymentStatus::Sending(sending.fees)
+            }
+            persist::OpenPaymentStatus::Commit(commit, fees) => {
+                OpenPaymentStatus::Commit(commit.into(), fees)
+            }
+            persist::OpenPaymentStatus::Success(receipt, fees, ack_uid) => {
+                OpenPaymentStatus::Success(receipt, fees, ack_uid)
+            }
+            persist::OpenPaymentStatus::Failure(ack_uid) => OpenPaymentStatus::Failure(ack_uid),
+        }
+    }
+}
+
+impl From<persist::OpenPayment> for OpenPayment {
+    fn from(from: persist::OpenPayment) -> Self {
+        OpenPayment {
+            invoice_id: from.invoice_id,
+            currency: from.currency,
+            dest_public_key: from.dest_public_key,
+            dest_payment: from.dest_payment,
+            description: from.description,
+            status: from.status.into(),
+        }
+    }
+}
+
+impl From<persist::OpenInvoice> for OpenInvoice {
+    fn from(from: persist::OpenInvoice) -> Self {
+        OpenInvoice {
+            currency: from.currency,
+            total_dest_payment: from.total_dest_payment,
+            description: from.description,
+        }
+    }
+}
+
+pub fn create_compact_report(
+    compact_state: CompactState,
+    node_report: app::report::NodeReport,
+) -> CompactReport {
+    CompactReport {
+        local_public_key: node_report.funder_report.local_public_key,
+        index_servers: node_report.index_client_report.index_servers,
+        opt_connected_index_server: node_report.index_client_report.opt_connected_server,
+        relays: node_report.funder_report.relays,
+        friends: node_report
+            .funder_report
+            .friends
+            .into_iter()
+            .map(|(friend_public_key, friend_report)| (friend_public_key, friend_report.into()))
+            .collect(),
+        open_invoices: compact_state
+            .open_invoices
+            .into_iter()
+            .map(|(invoice_id, open_invoice)| (invoice_id, open_invoice.into()))
+            .collect(),
+        open_payments: compact_state
+            .open_payments
+            .into_iter()
+            .map(|(payment_id, open_payment)| (payment_id, open_payment.into()))
+            .collect(),
     }
 }

@@ -11,7 +11,7 @@ use app::ser_string::{from_base64, from_string, to_base64, to_string};
 use database::AtomicDb;
 use route::MultiRouteChoice;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
