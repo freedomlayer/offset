@@ -119,7 +119,6 @@ pub enum PaymentCommitResult {
 pub struct PaymentCommit {
     pub payment_id: PaymentId,
     pub commit: Commit,
-    // pub result: PaymentCommitResult,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
