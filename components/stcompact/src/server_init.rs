@@ -2,9 +2,9 @@ use futures::SinkExt;
 
 use database::DatabaseClient;
 
-use crate::persist::{CompactState, OpenPaymentStatus};
+use crate::persist::{CompactState};
 use crate::types::{ConnPairCompact, CompactServerError, GenId};
-use crate::messages::{PaymentDone, ToUser, PaymentCommit};
+use crate::messages::{PaymentDone, ToUser, PaymentCommit, OpenPaymentStatus};
 
 #[allow(unused)]
 pub async fn server_init<GI>(

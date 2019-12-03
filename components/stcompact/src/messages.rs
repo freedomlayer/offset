@@ -1,12 +1,15 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use app::common::{
-    Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
-    PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
+    Currency, HashResult, HashedLock, InvoiceId, MultiRoute, NamedIndexServerAddress,
+    NamedRelayAddress, PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress,
+    Signature, Uid,
 };
+
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
+use route::MultiRouteChoice;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
@@ -322,13 +325,67 @@ pub struct FriendReport {
     pub status: FriendStatusReport,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenInvoice {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
+    /// Invoice description
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenPaymentStatusSending {
+    pub fees: u128,
+    pub open_transactions: HashSet<Uid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenPaymentStatusFoundRoute {
+    pub confirm_id: Uid,
+    pub multi_route: MultiRoute,
+    pub multi_route_choice: MultiRouteChoice,
+    pub fees: u128,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum OpenPaymentStatus {
+    SearchingRoute(Uid), // request_routes_id
+    FoundRoute(OpenPaymentStatusFoundRoute),
+    Sending(OpenPaymentStatusSending),
+    Commit(app::common::Commit, u128), // (commit, fees)
+    Success(Receipt, u128, Uid),       // (Receipt, fees, ack_uid)
+    Failure(Uid),                      // ack_uid
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub dest_public_key: PublicKey,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    /// Invoice description (Obtained from the corresponding invoice)
+    pub description: String,
+    /// Current status of open payment
+    pub status: OpenPaymentStatus,
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeReport {
+pub struct CompactReport {
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
     pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
     pub friends: HashMap<PublicKey, FriendReport>,
+    /// Seller's open invoices:
+    pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
+    /// Buyer's open payments:
+    pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -348,7 +405,7 @@ pub enum ToUser {
     /// Should be sent after `Report`, in case any changes occured.
     Ack(Uid),
     /// Reports about current state:
-    Report(NodeReport),
+    Report(CompactReport),
 }
 
 #[allow(clippy::large_enum_variant)]

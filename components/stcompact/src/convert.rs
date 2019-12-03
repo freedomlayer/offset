@@ -2,17 +2,19 @@ use app::common::Currency;
 
 use crate::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
-    ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
+    CompactReport, ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
     FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
-    NodeReport, RequestsStatusReport, ResetTermsReport, TokenInfo,
+    RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
+
+use crate::persist::CompactState;
 
 /// A helper util struct, used to implement From for structures that are not from this crate,
 /// mostly for ad-hoc tuples used for type conversion.
 #[derive(Debug, Clone)]
 struct LocalWrapper<T>(pub T);
 
-// ====================[NodeReport]============================
+// ====================[CompactReport]============================
 
 impl From<app::report::McRequestsStatusReport> for McRequestsStatusReport {
     fn from(from: app::report::McRequestsStatusReport) -> Self {
@@ -229,6 +231,27 @@ impl From<app::report::FriendReport> for FriendReport {
     }
 }
 
+pub fn create_compact_report(
+    node_report: app::report::NodeReport,
+    compact_state: CompactState,
+) -> CompactReport {
+    CompactReport {
+        local_public_key: node_report.funder_report.local_public_key,
+        index_servers: node_report.index_client_report.index_servers,
+        opt_connected_index_server: node_report.index_client_report.opt_connected_server,
+        relays: node_report.funder_report.relays,
+        friends: node_report
+            .funder_report
+            .friends
+            .into_iter()
+            .map(|(friend_public_key, friend_report)| (friend_public_key, friend_report.into()))
+            .collect(),
+        open_invoices: compact_state.open_invoices,
+        open_payments: compact_state.open_payments,
+    }
+}
+
+/*
 impl From<app::report::NodeReport> for NodeReport {
     fn from(node_report: app::report::NodeReport) -> Self {
         NodeReport {
@@ -245,6 +268,7 @@ impl From<app::report::NodeReport> for NodeReport {
         }
     }
 }
+*/
 
 // ====================[Commit]==============================
 

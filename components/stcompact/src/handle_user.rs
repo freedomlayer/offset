@@ -6,8 +6,7 @@ use app::common::Uid;
 use app::verify::verify_commit;
 
 use crate::messages::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, 
-    PaymentFees, PaymentFeesResponse, PaymentDone};
-use crate::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
+    PaymentFees, PaymentFeesResponse, PaymentDone, OpenPayment, OpenInvoice, OpenPaymentStatus, OpenPaymentStatusSending};
 use crate::types::{CompactServerState, CompactServerError, GenId};
 
 
