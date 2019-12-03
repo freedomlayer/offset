@@ -1,6 +1,6 @@
 use app::conn::AppPermissions;
 
-use crate::messages::UserRequest;
+use crate::compact_node::messages::UserRequest;
 
 /// Check if an app is allowed to send a certain user request
 pub fn check_permission(user_request: &UserRequest, app_permissions: &AppPermissions) -> bool {

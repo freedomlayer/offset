@@ -5,10 +5,10 @@ use app::conn::{AppToAppServer, AppPermissions,
 use app::common::Uid;
 use app::verify::verify_commit;
 
-use crate::messages::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, 
+use crate::compact_node::messages::{FromUser, ToUser, UserRequest, ResponseCommitInvoice, 
     PaymentFees, PaymentFeesResponse, PaymentDone};
-use crate::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
-use crate::types::{CompactServerState, CompactServerError, GenId};
+use crate::compact_node::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
+use crate::compact_node::types::{CompactServerState, CompactServerError, GenId};
 
 
 

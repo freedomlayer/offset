@@ -4,8 +4,8 @@ use app::conn::AppServerToApp;
 use app::common::{Uid, PaymentId};
 use database::DatabaseClient;
 
-use crate::persist::CompactState;
-use crate::messages::{ToUser, FromUser};
+use crate::compact_node::persist::CompactState;
+use crate::compact_node::messages::{ToUser, FromUser};
 
 pub trait GenId {
     /// Generate a Uid

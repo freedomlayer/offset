@@ -1,14 +1,14 @@
 use app::common::Currency;
 
-use crate::messages::{
+use crate::compact_node::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
     CompactReport, ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
     FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
     OpenInvoice, OpenPayment, OpenPaymentStatus, RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
 
-use crate::persist;
-use crate::persist::CompactState;
+use crate::compact_node::persist;
+use crate::compact_node::persist::CompactState;
 
 /// A helper util struct, used to implement From for structures that are not from this crate,
 /// mostly for ad-hoc tuples used for type conversion.

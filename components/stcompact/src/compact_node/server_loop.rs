@@ -7,12 +7,12 @@ use database::{DatabaseClient};
 
 use app::conn::AppConnTuple;
 
-use crate::persist::CompactState;
-use crate::types::{CompactServerEvent, CompactServerState, CompactServerError, GenId, ConnPairCompact};
+use crate::compact_node::persist::CompactState;
+use crate::compact_node::types::{CompactServerEvent, CompactServerState, CompactServerError, GenId, ConnPairCompact};
 
-use crate::handle_user::handle_user;
-use crate::handle_node::handle_node;
-use crate::permission::check_permission;
+use crate::compact_node::handle_user::handle_user;
+use crate::compact_node::handle_node::handle_node;
+use crate::compact_node::permission::check_permission;
 
 
 /// The compact server is mediating between the user and the node.
