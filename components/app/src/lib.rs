@@ -21,8 +21,8 @@ pub mod gen;
 pub mod common {
     pub use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
     pub use proto::crypto::{
-        HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
-        Uid,
+        HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PrivateKey, PublicKey, RandValue,
+        Signature, Uid,
     };
     pub use proto::funder::messages::{
         Commit, Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
@@ -30,6 +30,7 @@ pub mod common {
     pub use proto::index_server::messages::{
         MultiRoute, NamedIndexServerAddress, RouteCapacityRate,
     };
+    pub use proto::net::messages::NetAddress;
 }
 
 /// Common Offst files:
