@@ -20,5 +20,6 @@ mod messages;
 mod permission;
 #[allow(unused)]
 mod persist;
-mod server;
+mod server_init;
+mod server_loop;
 mod types;
