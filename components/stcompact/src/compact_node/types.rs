@@ -1,19 +1,10 @@
 use common::conn::ConnPair;
 
 use app::conn::AppServerToApp;
-use app::common::{Uid, PaymentId};
 use database::DatabaseClient;
 
 use crate::compact_node::persist::CompactState;
 use crate::compact_node::messages::{ToUser, FromUser};
-
-pub trait GenId {
-    /// Generate a Uid
-    fn gen_uid(&mut self) -> Uid;
-
-    /// Generate a PaymentId
-    fn gen_payment_id(&mut self) -> PaymentId;
-}
 
 pub type ConnPairCompact = ConnPair<ToUser, FromUser>;
 

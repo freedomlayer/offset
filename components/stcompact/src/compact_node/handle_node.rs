@@ -8,8 +8,9 @@ use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::compact_node::messages::{ToUser, PaymentFees, PaymentFeesResponse, PaymentDone, PaymentCommit};
 use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
-use crate::compact_node::types::{CompactServerState, CompactServerError, GenId};
+use crate::compact_node::types::{CompactServerState, CompactServerError};
 use crate::compact_node::convert::create_compact_report;
+use crate::compact_node::gen_id::GenId;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy

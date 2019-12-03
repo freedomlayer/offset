@@ -8,11 +8,12 @@ use database::{DatabaseClient};
 use app::conn::AppConnTuple;
 
 use crate::compact_node::persist::CompactState;
-use crate::compact_node::types::{CompactServerEvent, CompactServerState, CompactServerError, GenId, ConnPairCompact};
+use crate::compact_node::types::{CompactServerEvent, CompactServerState, CompactServerError, ConnPairCompact};
 
 use crate::compact_node::handle_user::handle_user;
 use crate::compact_node::handle_node::handle_node;
 use crate::compact_node::permission::check_permission;
+use crate::compact_node::gen_id::GenId;
 
 
 /// The compact server is mediating between the user and the node.
@@ -66,7 +67,6 @@ where
     Ok(())
 }
 
-#[allow(unused)]
 pub async fn server_loop<GI>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
