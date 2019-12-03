@@ -52,7 +52,7 @@ pub enum ResponseOpenNode {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeList {
-    node_list: Vec<NodeInfo>,
+    pub node_list: Vec<NodeInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
