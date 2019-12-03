@@ -1,7 +1,5 @@
 use futures::SinkExt;
 
-use app::conn::AppConnTuple;
-
 use database::DatabaseClient;
 
 use crate::persist::{CompactState, OpenPaymentStatus};
@@ -9,7 +7,7 @@ use crate::types::{ConnPairCompact, CompactServerError, GenId};
 use crate::messages::{PaymentDone, ToUser, PaymentCommit};
 
 #[allow(unused)]
-pub async fn server_init<GI>(_app_conn_tuple: &mut AppConnTuple, 
+pub async fn server_init<GI>(
     conn_pair_compact: &mut ConnPairCompact,
     compact_state: &mut CompactState,
     database_client: &mut DatabaseClient<CompactState>,
