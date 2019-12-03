@@ -1,11 +1,16 @@
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
 
 use app::common::{NetAddress, PrivateKey, PublicKey};
 
 use crate::compact_node::{CompactReport, FromUser, ToUser};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct NodeName(String);
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct NodeId(pub u64);
 
 impl NodeName {
     #[allow(unused)]
@@ -46,7 +51,7 @@ pub struct CreateNodeRemote {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ResponseOpenNode {
-    Success(NodeName, CompactReport),
+    Success(NodeName, NodeId, CompactReport), // (node_name, node_id, compact_report)
     Failure(NodeName),
 }
 
@@ -66,9 +71,9 @@ pub enum ServerToUser {
     ResponseOpenNode(ResponseOpenNode),
     ResponseCreateNode(NodeName, CreateNodeResult),
     ResponseRemoveNode(NodeName),
-    ResponseCloseNode(NodeName),
+    ResponseCloseNode(NodeId), // node_id
     /// A message received from a specific node
-    Node(NodeName, ToUser),
+    Node(NodeId, ToUser), // (node_id, to_user)
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -76,7 +81,7 @@ pub enum UserToServer {
     RequestCreateNode(RequestCreateNode),
     RequestRemoveNode(NodeName),
     RequestOpenNode(NodeName),
-    RequestCloseNode(NodeName),
+    RequestCloseNode(NodeId), // node_id
     /// A message sent to a specific node
-    Node(NodeName, FromUser),
+    Node(NodeId, FromUser), // (node_id, to_user)
 }
