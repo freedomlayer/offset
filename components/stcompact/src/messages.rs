@@ -6,7 +6,7 @@ use app::common::{NetAddress, PrivateKey, PublicKey};
 
 use crate::compact_node::{CompactReport, FromUser, ToUser};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct NodeName(String);
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]

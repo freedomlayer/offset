@@ -18,3 +18,5 @@ mod compact_node;
 
 mod messages;
 mod server_loop;
+#[allow(unused)]
+mod store;
