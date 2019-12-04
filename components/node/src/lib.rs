@@ -20,5 +20,5 @@ mod node;
 mod types;
 
 pub use self::net_node::{net_node, NetNodeError};
-pub use self::types::{NodeConfig, NodeState};
+pub use self::types::{NodeConfig, NodeMutation, NodeState};
 pub use app_server::IncomingAppConnection;
