@@ -12,7 +12,7 @@ proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 
 futures = "0.3.1"
 futures_codec = "0.3.1"
-async-std = "1.0.1"
+async-std = "1.2.0"
 
 log = "0.4"
 
