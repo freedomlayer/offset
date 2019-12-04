@@ -8,12 +8,11 @@
     clippy::new_without_default
 )]
 
-#[macro_use]
-extern crate log;
+// #[macro_use]
+// extern crate log;
 
-#[macro_use]
-extern crate common;
+// #[macro_use]
+// extern crate common;
 
+#[allow(unused)]
 mod lockfile;
-
-pub use lockfile::lock_file;
