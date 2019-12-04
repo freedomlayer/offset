@@ -18,7 +18,7 @@ pub struct DatabaseRequest<M> {
     pub response_sender: oneshot::Sender<()>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DatabaseClient<M> {
     request_sender: mpsc::Sender<DatabaseRequest<M>>,
 }
