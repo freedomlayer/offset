@@ -36,7 +36,6 @@ fn wait_lock_file(lock_file_path: &Path) -> Result<LockFileHandle, LockFileError
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::io;
 
     use std::path::PathBuf;
     use std::sync::mpsc::channel;
@@ -51,12 +50,12 @@ mod test {
         sender: std::sync::mpsc::Sender<i32>,
     ) {
         thread::spawn(move || {
-            for _ in 0..6 {
-                let lock = wait_lock_file(&lock_file_path).unwrap();
+            for _ in 0..5 {
+                let _lock = wait_lock_file(&lock_file_path).unwrap();
 
-                sender.send(1);
+                sender.send(1).unwrap();
                 thread::sleep(Duration::from_millis(delay));
-                sender.send(-1);
+                sender.send(-1).unwrap();
             }
         });
     }
@@ -88,7 +87,7 @@ mod test {
     ) {
         thread::spawn(move || {
             for _ in 0..6 {
-                let lock = loop {
+                let _lock = loop {
                     if let Ok(lock) = try_lock_file(&lock_file_path) {
                         break lock;
                     } else {
@@ -96,9 +95,9 @@ mod test {
                     }
                 };
 
-                sender.send(1);
+                sender.send(1).unwrap();
                 thread::sleep(Duration::from_millis(delay));
-                sender.send(-1);
+                sender.send(-1).unwrap();
             }
         });
     }
