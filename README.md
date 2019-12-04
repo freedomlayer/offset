@@ -43,21 +43,23 @@ the crate's `Cargo.toml`.
   - On Ubuntu, run: `sudo apt install capnproto`
   - On MacOS, run: `brew install canpnp` 
 
-### Pinned toolchain version
+### Rust toolchain version
 
-Offst currently only compiles on Rust nightly (Required for async support).
-Things change quickly on nightly, therefore to avoid breakage we pin the version of the rust
-compiler to a specific version, and we bump it once in a while. The pinned
-version is specified in the `rust-toolchain` file, and will be used automatically
-when building the project.
+Offst builds on stable! 
+The toolchain is pinned using the `rust-toolchain` file.
 
-If you had a pinned rust toolchain with this project, as in the past, run:
+For testing, run:
 
-```bash
-rustup override unset
+```
+cargo test
 ```
 
-To switch to using the version specified in `rust-toolchain`.
+To build, run:
+
+```
+cargo build --release
+```
+
 
 ### Development tools
 
