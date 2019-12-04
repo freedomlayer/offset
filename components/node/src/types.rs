@@ -10,6 +10,7 @@ use proto::index_client::messages::IndexClientReport;
 
 use signature::canonical::CanonicalSerialize;
 
+// TODO: Can we remote the Clone bound here?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeMutation<B: Clone> {
     Funder(FunderMutation<B>),
