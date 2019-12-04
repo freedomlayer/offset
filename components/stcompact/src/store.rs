@@ -63,13 +63,11 @@ pub trait Store {
     /// List all existing nodes in store
     fn list_nodes(&self) -> BoxFuture<'static, Result<Vec<NodeInfo>, Self::Error>>;
 
-    /// Load (private) information of one node, and add a lock
+    /// Load (private) information of one node
     fn load_node(
         &mut self,
         node_name: &NodeName,
     ) -> BoxFuture<'static, Result<LoadedNode, Self::Error>>;
-
-    // fn unlock_node(&mut self, node_name: &NodeName);
 
     /// Remove a node from the store
     fn remove_node(&mut self, node_name: &NodeName) -> BoxFuture<'static, Result<(), Self::Error>>;
