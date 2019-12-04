@@ -11,6 +11,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate common;
+
 mod lockfile;
 
 pub use lockfile::lock_file;
