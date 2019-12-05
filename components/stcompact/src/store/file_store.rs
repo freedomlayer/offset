@@ -200,7 +200,21 @@ pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
 }
 
 
-async fn _create_local_node(_info_local: NodePrivateInfoLocal, _local_path: &Path) {
+async fn create_local_node(_info_local: NodePrivateInfoLocal, _local_path: &Path) -> Result<(), FileStoreError> {
+    // TODO:
+    // - Make sure directory does not exist
+    // - Create directory
+    // - Create (Randomly generate) `node.ident` file
+    // - Initialize database file
+    unimplemented!();
+}
+
+async fn create_remote_node(_info_remote: NodePrivateInfoRemote, _remote_path: &Path) -> Result<(), FileStoreError> {
+    // TODO:
+    // - Make sure directory does not exist
+    // - Create directory
+    // - Create `app.ident`
+    // - Create `node.info`
     unimplemented!();
 }
 
@@ -232,10 +246,15 @@ impl Store for FileStore {
         node_private_info: NodePrivateInfo,
     ) -> BoxFuture<'a, Result<(), Self::Error>> {
         Box::pin(async move {
-            let file_store_nodes = read_all_nodes(&self.store_path_buf).await?;
             match node_private_info {
-                NodePrivateInfo::Local(local) => unimplemented!(),
-                NodePrivateInfo::Remote(remote) => unimplemented!(),
+                NodePrivateInfo::Local(local) => {
+                    let local_path = self.store_path_buf.join(LOCAL);
+                    create_local_node(local, &local_path).await
+                },
+                NodePrivateInfo::Remote(remote) => {
+                    let remote_path = self.store_path_buf.join(REMOTE);
+                    create_remote_node(remote, &remote_path).await
+                }
             }
         })
     }
