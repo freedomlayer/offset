@@ -6,6 +6,8 @@ use async_std::fs;
 use async_std::path::{Path, PathBuf};
 
 use crate::messages::NodeName;
+use crate::store::consts::{NODE_IDENT, DATABASE, APP_IDENT, NODE_INFO, REMOTE, LOCAL};
+
 
 #[derive(Debug)]
 pub enum IntegrityError {
@@ -39,8 +41,8 @@ async fn verify_local_node(node_path: &Path) -> Result<(), IntegrityError> {
         let entry = res.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
         let filename = entry.file_name().to_string_lossy().to_string();
         match (filename.as_str(), node_ident_found, database_found) {
-            ("node.ident", false, _) => node_ident_found = true,
-            ("database", _, false) => database_found = true,
+            (NODE_IDENT, false, _) => node_ident_found = true,
+            (DATABASE, _, false) => database_found = true,
             _ => return Err(IntegrityError::InvalidNodeDir(node_path.to_owned())),
         }
     }
@@ -76,8 +78,8 @@ async fn verify_remote_node(node_path: &Path) -> Result<(), IntegrityError> {
         let entry = res.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
         let filename = entry.file_name().to_string_lossy().to_string();
         match (filename.as_str(), app_ident_found, node_info_found) {
-            ("app.ident", false, _) => app_ident_found = true,
-            ("node.info", _, false) => node_info_found = true,
+            (APP_IDENT, false, _) => app_ident_found = true,
+            (NODE_INFO, _, false) => node_info_found = true,
             _ => return Err(IntegrityError::InvalidNodeDir(node_path.to_owned())),
         }
     }
@@ -109,9 +111,9 @@ pub async fn verify_store(store_path: &Path) -> Result<(), IntegrityError> {
 
     // All nodes we have encountered so far:
     let mut visited_nodes = HashSet::new();
-    let local_path_buf = store_path.join("local");
+    let local_path_buf = store_path.join(LOCAL);
     verify_local_dir(&local_path_buf, &mut visited_nodes).await?;
-    let remote_path_buf = store_path.join("remote");
+    let remote_path_buf = store_path.join(REMOTE);
     verify_remote_dir(&remote_path_buf, &mut visited_nodes).await?;
 
     Ok(())
