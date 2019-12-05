@@ -173,7 +173,8 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
 
 /// Verify store's integrity
 pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
-    read_all_nodes(store_path).await?;
+    // We read all nodes, and make sure it works correctly. We discard the result.
+    let _ = read_all_nodes(store_path).await?;
     Ok(())
 }
 
