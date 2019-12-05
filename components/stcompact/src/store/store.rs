@@ -35,6 +35,7 @@ pub struct LoadedNodeRemote {
     pub node_db_client: DatabaseClient<NodeMutation<NetAddress>>,
 }
 
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum LoadedNodeType {
     Local,

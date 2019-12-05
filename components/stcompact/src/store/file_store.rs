@@ -1,40 +1,25 @@
-use std::collections::HashSet;
-
-use futures::StreamExt;
+// use futures::StreamExt;
 use futures::task::{Spawn, SpawnExt};
 
 use common::conn::BoxFuture;
 
-use async_std::fs::{self, create_dir_all};
-use async_std::path::{PathBuf, Path};
+use async_std::fs::{create_dir_all};
+use async_std::path::PathBuf;
 
 use lockfile::{try_lock_file, LockFileHandle};
 
 use crate::messages::{NodeInfo, NodeName};
-use crate::store::{LoadedNode, NodePrivateInfo, Store};
+use crate::store::store::{LoadedNode, NodePrivateInfo, Store};
+use crate::store::verify::{verify_store, IntegrityError};
 
 
 #[allow(unused)]
-struct FileStore {
+pub struct FileStore {
     store_path_buf: PathBuf,
     /// If dropped, the advisory lock file protecting the file store will be freed.
     lock_file_handle: LockFileHandle,
 }
 
-#[allow(unused)]
-#[derive(Debug)]
-pub enum IntegrityError {
-    DuplicateNodeName(NodeName),
-    LocalMissingNodeIdent(NodeName),
-    LocalMissingDb(NodeName),
-    RemoteMissingAppIdent(NodeName),
-    RemoteMissingNodeInfo(NodeName),
-    RootDirMissing,
-    InvalidLocalEntry,
-    InvalidRemoteEntry,
-    InvalidLocalDir,
-    InvalidRemoteDir,
-}
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -62,46 +47,7 @@ const LOCKFILE: &str = "lockfile";
 */
 
 
-async fn verify_local_node(_node_path_buf: &Path, _node_name: &NodeName) -> Result<(), IntegrityError> {
-    unimplemented!();
-}
-
-async fn verify_local_dir(local_path: &Path, visited_nodes: &mut HashSet<NodeName>) -> Result<(), IntegrityError> {
-    let mut dir = fs::read_dir(local_path).await.map_err(|_| IntegrityError::InvalidLocalDir)?;
-    while let Some(res) = dir.next().await {
-        let node_entry = res.map_err(|_| IntegrityError::InvalidLocalEntry)?;
-        let node_path_buf = node_entry.path();
-
-        let node_name = NodeName::new(node_entry.file_name().to_string_lossy().to_string());
-        if !visited_nodes.insert(node_name.clone()) {
-            // We already have this NodeName
-            return Err(IntegrityError::DuplicateNodeName(node_name));
-        }
-        verify_local_node(&node_path_buf, &node_name).await?;
-    }
-    Ok(())
-}
-
-async fn verify_remote_dir(_remote_path: &Path, _visited_nodes: &mut HashSet<NodeName>) -> Result<(), IntegrityError> {
-    unimplemented!();
-}
-
-/// Verify store's integrity
-#[allow(unused)]
-async fn verify_store(store_path: &Path) -> Result<(), IntegrityError> {
-
-    // All nodes we have encountered so far:
-    let mut visited_nodes = HashSet::new();
-    let local_path_buf = store_path.join("local");
-    let local_nodes = verify_local_dir(&local_path_buf, &mut visited_nodes).await?;
-    let remote_path_buf = store_path.join("remote");
-    let remote_nodes = verify_remote_dir(&remote_path_buf, &mut visited_nodes).await?;
-
-    Ok(())
-}
-
-#[allow(unused)]
-async fn open_file_store<S>(store_path_buf: PathBuf, file_spawner: &S) -> Result<FileStore, FileStoreError> 
+pub async fn open_file_store<S>(store_path_buf: PathBuf, file_spawner: &S) -> Result<FileStore, FileStoreError> 
 where   
     S: Spawn,
 {

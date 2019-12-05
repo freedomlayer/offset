@@ -16,8 +16,6 @@ extern crate log;
 #[allow(unused)]
 mod compact_node;
 
-mod file_store;
 mod messages;
 mod server_loop;
-#[allow(unused)]
 mod store;
