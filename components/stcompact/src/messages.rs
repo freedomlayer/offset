@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
@@ -24,14 +25,26 @@ impl NodeName {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeInfoLocal {
+    pub node_public_key: PublicKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeInfoRemote {
+    pub app_public_key: PublicKey,
+    pub node_public_key: PublicKey,
+    pub node_address: NetAddress,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum NodeInfo {
-    Local(NodeName),                         // node_name
-    Remote(NodeName, PublicKey, NetAddress), // (node_name, node_public_key, node_address)
+    Local(NodeInfoLocal),
+    Remote(NodeInfoRemote),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CreateNodeResult {
-    Success,
+    Success(NodeInfo),
     Failure,
 }
 
@@ -56,9 +69,7 @@ pub enum ResponseOpenNode {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NodeList {
-    pub node_list: Vec<NodeInfo>,
-}
+pub struct NodesInfo(pub HashMap<NodeName, NodeInfo>);
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RequestCreateNode {

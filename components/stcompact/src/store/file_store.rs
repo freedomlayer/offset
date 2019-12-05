@@ -14,7 +14,7 @@ use lockfile::{try_lock_file, LockFileHandle};
 use app::file::{NodeAddressFile, IdentityFile};
 use app::common::{NetAddress, PublicKey, PrivateKey};
 
-use crate::messages::{NodeInfo, NodeName};
+use crate::messages::{NodeName, NodesInfo};
 #[allow(unused)]
 use crate::store::store::{LoadedNode, NodePrivateInfo, Store, NodePrivateInfoLocal, NodePrivateInfoRemote};
 use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, DATABASE, NODE_IDENT, NODE_INFO, APP_IDENT};
@@ -39,6 +39,7 @@ pub enum FileStoreError {
     CreateDirFailed(PathBuf),
     ReadToStringError(PathBuf),
     SerdeError(serde_json::Error),
+    RemoveNodeError,
 }
 
 /*
@@ -171,9 +172,28 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
     Ok(file_store_nodes)
 }
 
+async fn remove_node(store_path: &Path, node_name: &NodeName) -> Result<(), FileStoreError> {
+    // Attempt to remove from local dir:
+    let node_path = store_path.join(LOCAL).join(node_name.as_str());
+    let is_local_removed = fs::remove_file(&node_path).await.is_ok();
+
+    // Attempt to remove from remote dir:
+    let remote_dir = store_path.join(REMOTE).join(node_name.as_str());
+    let is_remote_removed = fs::remove_file(&node_path).await.is_ok();
+
+    if !(is_local_removed || is_remote_removed) {
+        // No removal worked:
+        return Err(FileStoreError::RemoveNodeError);
+    }
+
+    return Ok(())
+}
+
+
 /// Verify store's integrity
 pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
     // We read all nodes, and make sure it works correctly. We discard the result.
+    // We might have a different implementation for this function in the future.
     let _ = read_all_nodes(store_path).await?;
     Ok(())
 }
@@ -198,7 +218,7 @@ impl Store for FileStore {
         })
     }
 
-    fn list_nodes(&self) -> BoxFuture<'static, Result<Vec<NodeInfo>, Self::Error>> {
+    fn list_nodes(&self) -> BoxFuture<'static, Result<NodesInfo, Self::Error>> {
         unimplemented!();
     }
 

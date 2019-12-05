@@ -7,7 +7,7 @@ use app::common::{NetAddress, PrivateKey, PublicKey};
 use node::{NodeMutation, NodeState};
 
 use crate::compact_node::CompactState;
-use crate::messages::{NodeInfo, NodeName};
+use crate::messages::{NodeName, NodesInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodePrivateInfoLocal {
@@ -61,7 +61,7 @@ pub trait Store {
     ) -> BoxFuture<'static, Result<(), Self::Error>>;
 
     /// List all existing nodes in store
-    fn list_nodes(&self) -> BoxFuture<'static, Result<Vec<NodeInfo>, Self::Error>>;
+    fn list_nodes(&self) -> BoxFuture<'static, Result<NodesInfo, Self::Error>>;
 
     /// Load (private) information of one node
     fn load_node(
