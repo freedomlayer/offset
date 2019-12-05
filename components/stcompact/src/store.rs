@@ -50,7 +50,6 @@ pub struct LoadedNode {
 }
 
 // TODO: Possibly implement encryption for nodes' private key here:
-// TODO: How to make sure two stcompact instances don't access the same data?
 /// Persistent storage manager for nodes' private information.
 pub trait Store {
     type Error;
@@ -69,6 +68,10 @@ pub trait Store {
         node_name: &NodeName,
     ) -> BoxFuture<'static, Result<LoadedNode, Self::Error>>;
 
+    /// Unload a node
+    fn unload_node(&mut self, node_name: &NodeName) -> BoxFuture<'static, Result<(), Self::Error>>;
+
     /// Remove a node from the store
+    /// A node must be in unloaded state to be removed.
     fn remove_node(&mut self, node_name: &NodeName) -> BoxFuture<'static, Result<(), Self::Error>>;
 }

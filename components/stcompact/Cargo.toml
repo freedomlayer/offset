@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
+lockfile = { path = "../lockfile", version = "0.1.0", package = "offst-lockfile" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 route = { path = "../route", version = "0.1.0", package = "offst-route" }
 database = { path = "../database", version = "0.1.0", package = "offst-database" }
@@ -29,6 +30,7 @@ base64 = "0.10.1"
 log = "0.4"
 env_logger = "0.6.0"
 futures = {version = "0.3.1", features = ["thread-pool"]}
+async-std = "1.2.0"
 
 structopt = "0.2.15"
 
