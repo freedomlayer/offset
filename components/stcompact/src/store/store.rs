@@ -56,23 +56,26 @@ pub trait Store {
     type Error;
 
     /// Create a new node
-    fn create_node(
+    fn create_node<'a>(
+        &'a mut self,
         node_private_info: NodePrivateInfo,
-    ) -> BoxFuture<'static, Result<(), Self::Error>>;
+    ) -> BoxFuture<'a, Result<(), Self::Error>>;
 
     /// List all existing nodes in store
-    fn list_nodes(&self) -> BoxFuture<'static, Result<NodesInfo, Self::Error>>;
+    fn list_nodes<'a>(&'a self) -> BoxFuture<'a, Result<NodesInfo, Self::Error>>;
 
     /// Load (private) information of one node
-    fn load_node(
-        &mut self,
-        node_name: &NodeName,
-    ) -> BoxFuture<'static, Result<LoadedNode, Self::Error>>;
+    fn load_node<'a>(
+        &'a mut self,
+        node_name: NodeName,
+    ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>>;
 
     /// Unload a node
-    fn unload_node(&mut self, node_name: &NodeName) -> BoxFuture<'static, Result<(), Self::Error>>;
+    fn unload_node<'a>(&'a mut self, node_name: NodeName)
+        -> BoxFuture<'a, Result<(), Self::Error>>;
 
     /// Remove a node from the store
     /// A node must be in unloaded state to be removed.
-    fn remove_node(&mut self, node_name: &NodeName) -> BoxFuture<'static, Result<(), Self::Error>>;
+    fn remove_node<'a>(&'a mut self, node_name: NodeName)
+        -> BoxFuture<'a, Result<(), Self::Error>>;
 }
