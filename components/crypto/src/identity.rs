@@ -35,6 +35,19 @@ pub struct SoftwareEd25519Identity {
     key_pair: signature::Ed25519KeyPair,
 }
 
+/// Derive a PublicKey from a PrivateKey
+pub fn derive_public_key(private_key: &PrivateKey) -> Result<PublicKey, CryptoError> {
+    let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(&private_key))?;
+
+    let mut public_key = PublicKey::default();
+    let public_key_array = &mut public_key;
+
+    let public_key_ref = key_pair.public_key_bytes();
+    public_key_array.clone_from_slice(public_key_ref);
+
+    Ok(public_key)
+}
+
 impl SoftwareEd25519Identity {
     pub fn from_private_key(private_key: &PrivateKey) -> Result<Self, CryptoError> {
         // TODO: Possibly use as_ref() for private_key later.
@@ -89,11 +102,13 @@ mod tests {
     fn test_get_public_key_sanity() {
         let secure_rand = FixedByteRandom { byte: 0x1 };
         let private_key = generate_private_key(&secure_rand);
+        let public_key0 = derive_public_key(&private_key).unwrap();
         let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let public_key1 = id.get_public_key();
         let public_key2 = id.get_public_key();
 
+        assert_eq!(public_key0, public_key2);
         assert_eq!(public_key1, public_key2);
     }
 
