@@ -19,6 +19,7 @@ pub mod gen;
 
 /// Common types
 pub mod common {
+    pub use crypto::identity::derive_public_key;
     pub use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
     pub use proto::crypto::{
         HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PrivateKey, PublicKey, RandValue,
