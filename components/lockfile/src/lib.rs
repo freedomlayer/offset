@@ -10,4 +10,4 @@
 
 mod lockfile;
 
-pub use lockfile::try_lock_file;
+pub use lockfile::{try_lock_file, LockFileError, LockFileHandle};
