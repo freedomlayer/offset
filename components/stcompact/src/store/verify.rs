@@ -3,28 +3,52 @@ use std::collections::HashSet;
 use futures::StreamExt;
 
 use async_std::fs;
-use async_std::path::{Path};
+use async_std::path::{Path, PathBuf};
 
 use crate::messages::NodeName;
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum IntegrityError {
     DuplicateNodeName(NodeName),
-    LocalMissingNodeIdent(NodeName),
-    LocalMissingDb(NodeName),
-    RemoteMissingAppIdent(NodeName),
-    RemoteMissingNodeInfo(NodeName),
-    RootDirMissing,
     InvalidLocalEntry,
     InvalidRemoteEntry,
     InvalidLocalDir,
     InvalidRemoteDir,
+    InvalidNodeDir(PathBuf),
 }
+/*
+ * File store structure:
+ *
+ * - lockfile
+ * - local [dir]
+ *      - node_name1
+ *          - node.ident
+ *          - database
+ * - remote [dir]
+ *      - node_name2
+ *          - app.ident
+ *          - node.info (public_key + address)
+*/
 
+async fn verify_local_node(node_path: &Path) -> Result<(), IntegrityError> {
+    let mut dir = fs::read_dir(node_path).await.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
+    let mut node_ident_found = false;
+    let mut database_found = false;
 
-async fn verify_local_node(_node_path_buf: &Path, _node_name: &NodeName) -> Result<(), IntegrityError> {
-    unimplemented!();
+    while let Some(res) = dir.next().await {
+        let entry = res.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
+        let filename = entry.file_name().to_string_lossy().to_string();
+        match (filename.as_str(), node_ident_found, database_found) {
+            ("node.ident", false, _) => node_ident_found = true,
+            ("database", _, false) => database_found = true,
+            _ => return Err(IntegrityError::InvalidNodeDir(node_path.to_owned())),
+        }
+    }
+
+    if !(node_ident_found && database_found) {
+        return Err(IntegrityError::InvalidNodeDir(node_path.to_owned()));
+    }
+    Ok(())
 }
 
 async fn verify_local_dir(local_path: &Path, visited_nodes: &mut HashSet<NodeName>) -> Result<(), IntegrityError> {
@@ -38,13 +62,46 @@ async fn verify_local_dir(local_path: &Path, visited_nodes: &mut HashSet<NodeNam
             // We already have this NodeName
             return Err(IntegrityError::DuplicateNodeName(node_name));
         }
-        verify_local_node(&node_path_buf, &node_name).await?;
+        verify_local_node(&node_path_buf).await?;
     }
     Ok(())
 }
 
-async fn verify_remote_dir(_remote_path: &Path, _visited_nodes: &mut HashSet<NodeName>) -> Result<(), IntegrityError> {
-    unimplemented!();
+async fn verify_remote_node(node_path: &Path) -> Result<(), IntegrityError> {
+    let mut dir = fs::read_dir(node_path).await.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
+    let mut app_ident_found = false;
+    let mut node_info_found = false;
+
+    while let Some(res) = dir.next().await {
+        let entry = res.map_err(|_| IntegrityError::InvalidNodeDir(node_path.to_owned()))?;
+        let filename = entry.file_name().to_string_lossy().to_string();
+        match (filename.as_str(), app_ident_found, node_info_found) {
+            ("app.ident", false, _) => app_ident_found = true,
+            ("node.info", _, false) => node_info_found = true,
+            _ => return Err(IntegrityError::InvalidNodeDir(node_path.to_owned())),
+        }
+    }
+
+    if !(app_ident_found && node_info_found) {
+        return Err(IntegrityError::InvalidNodeDir(node_path.to_owned()));
+    }
+    Ok(())
+}
+
+async fn verify_remote_dir(remote_path: &Path, visited_nodes: &mut HashSet<NodeName>) -> Result<(), IntegrityError> {
+    let mut dir = fs::read_dir(remote_path).await.map_err(|_| IntegrityError::InvalidRemoteDir)?;
+    while let Some(res) = dir.next().await {
+        let node_entry = res.map_err(|_| IntegrityError::InvalidRemoteEntry)?;
+        let node_path_buf = node_entry.path();
+
+        let node_name = NodeName::new(node_entry.file_name().to_string_lossy().to_string());
+        if !visited_nodes.insert(node_name.clone()) {
+            // We already have this NodeName
+            return Err(IntegrityError::DuplicateNodeName(node_name));
+        }
+        verify_remote_node(&node_path_buf).await?;
+    }
+    Ok(())
 }
 
 /// Verify store's integrity
