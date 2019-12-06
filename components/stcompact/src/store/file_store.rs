@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use futures::StreamExt;
 use futures::task::{Spawn, SpawnExt};
+use futures::future::RemoteHandle;
 
 use derive_more::From;
 
@@ -20,6 +21,9 @@ use app::common::{NetAddress, PublicKey, PrivateKey, derive_public_key};
 use node::NodeState;
 use database::file_db::FileDb;
 
+use crypto::identity::SoftwareEd25519Identity;
+use identity::{create_identity, IdentityClient};
+
 use crate::gen::CompactGen;
 use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesInfo};
 
@@ -31,7 +35,8 @@ struct LiveNode {
 }
 
 #[allow(unused)]
-pub struct FileStore {
+pub struct FileStore<S> {
+    spawner: S,
     store_path_buf: PathBuf,
     /// If dropped, the advisory lock file protecting the file store will be freed.
     lock_file_handle: LockFileHandle,
@@ -52,6 +57,7 @@ pub enum FileStoreError {
     NodeIsLoaded,
     NodeNotLoaded,
     NodeDoesNotExist,
+    LoadIdentityError,
 }
 
 
@@ -96,9 +102,10 @@ type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
 
 
 
-pub async fn open_file_store<S>(store_path_buf: PathBuf, file_spawner: &S) -> Result<FileStore, FileStoreError> 
+pub async fn open_file_store<FS,S>(store_path_buf: PathBuf, file_spawner: &FS, spawner: S) -> Result<FileStore<S>, FileStoreError> 
 where   
-    S: Spawn,
+    FS: Spawn,
+    S: Spawn + Sync,
 {
     // Create directory if missing:
     if !store_path_buf.is_dir().await {
@@ -117,6 +124,7 @@ where
     verify_store(&store_path_buf).await?;
 
     Ok(FileStore {
+        spawner,
         store_path_buf,
         lock_file_handle,
         live_nodes: HashMap::new(),
@@ -307,9 +315,32 @@ fn file_store_node_to_node_info(file_store_node: FileStoreNode) -> Result<NodeIn
     })
 }
 
-async fn load_local_node(_local: &FileStoreNodeLocal) -> Result<LoadedNodeLocal, FileStoreError> {
+fn create_identity_server<S>(private_key: &PrivateKey, spawner: &S) -> Result<(RemoteHandle<()>, IdentityClient), FileStoreError> 
+where
+    S: Spawn,
+{
+    let identity = SoftwareEd25519Identity::from_private_key(&private_key)
+        .map_err(|_| FileStoreError::LoadIdentityError)?;
+
+    // Spawn identity service:
+    let (sender, identity_loop) = create_identity(identity);
+    let server_handle = spawner
+        .spawn_with_handle(identity_loop)
+        .map_err(|_| FileStoreError::SpawnError)?;
+    let identity_client = IdentityClient::new(sender);
+
+    Ok((server_handle, identity_client))
+}
+
+
+async fn load_local_node<S>(local: &FileStoreNodeLocal, spawner: &S) -> Result<LoadedNodeLocal, FileStoreError> 
+where
+    S: Spawn,
+{
+    // Create identity server::
+    let (node_identity_server_handle, node_identity_client) = create_identity_server(&local.node_private_key, spawner)?;
+
     // TODO:
-    // - Create identity server
     // - Get compact state
     // - Create compact db server + client
     // - Get node's state
@@ -317,9 +348,15 @@ async fn load_local_node(_local: &FileStoreNodeLocal) -> Result<LoadedNodeLocal,
     unimplemented!();
 }
 
-async fn load_remote_node(_remote: &FileStoreNodeRemote) -> Result<LoadedNodeRemote, FileStoreError> {
+async fn load_remote_node<S>(remote: &FileStoreNodeRemote, spawner: &S) -> Result<LoadedNodeRemote, FileStoreError> 
+where
+    S: Spawn,
+{
+
+    // Create identity server:
+    let (app_identity_server_handle, app_identity_client) = create_identity_server(&remote.app_private_key, spawner)?;
+    
     // TODO:
-    // - Craete identity server + client
     // - Get compact state
     // - Create compact db server + client
     // - Copy node address and public key (Possibly need to derive?)
@@ -327,7 +364,10 @@ async fn load_remote_node(_remote: &FileStoreNodeRemote) -> Result<LoadedNodeRem
 }
 
 #[allow(unused)]
-impl Store for FileStore {
+impl<S> Store for FileStore<S> 
+where
+    S: Spawn + Send + Sync,
+{
     type Error = FileStoreError;
 
     fn create_local_node<'a>(
@@ -374,8 +414,8 @@ impl Store for FileStore {
             };
             
             Ok(match file_store_node {
-                FileStoreNode::Local(local) => LoadedNode::Local(load_local_node(local).await?),
-                FileStoreNode::Remote(remote) => LoadedNode::Remote(load_remote_node(remote).await?),
+                FileStoreNode::Local(local) => LoadedNode::Local(load_local_node(local, &self.spawner).await?),
+                FileStoreNode::Remote(remote) => LoadedNode::Remote(load_remote_node(remote, &self.spawner).await?),
             })
         })
     }
