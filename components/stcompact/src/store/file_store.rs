@@ -27,12 +27,15 @@ use crate::store::store::{LoadedNode, Store};
 use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, NODE_DB, NODE_IDENT, NODE_INFO, APP_IDENT, COMPACT_DB};
 use crate::compact_node::CompactStateDb;
 
+struct LiveNode {
+}
 
 #[allow(unused)]
 pub struct FileStore {
     store_path_buf: PathBuf,
     /// If dropped, the advisory lock file protecting the file store will be freed.
     lock_file_handle: LockFileHandle,
+    live_nodes: HashMap<NodeName, LiveNode>,
 }
 
 
@@ -46,6 +49,8 @@ pub enum FileStoreError {
     DerivePublicKeyError,
     FileDbError,
     AsyncStdIoError(async_std::io::Error),
+    NodeIsLoaded,
+    NodeNotLoaded,
 }
 
 
@@ -113,6 +118,7 @@ where
     Ok(FileStore {
         store_path_buf,
         lock_file_handle,
+        live_nodes: HashMap::new(),
     })
 }
 
@@ -346,17 +352,23 @@ impl Store for FileStore {
 
     /// Unload a node
     fn unload_node<'a>(&'a mut self, node_name: NodeName) -> BoxFuture<'a, Result<(), Self::Error>> {
-        unimplemented!();
+        Box::pin(async move {
+            if self.live_nodes.remove(&node_name).is_none() {
+                return Err(FileStoreError::NodeNotLoaded);
+            }
+            Ok(())
+        })
     }
 
     /// Remove a node from the store
     /// A node must be in unloaded state to be removed.
     fn remove_node<'a>(&'a mut self, node_name: NodeName) -> BoxFuture<'a, Result<(), Self::Error>> {
         Box::pin(async move {
-            // TODO: Check if node is not loaded already
-            //
-            remove_node(&self.store_path_buf, &node_name).await?;
-            unimplemented!();
+            // Do not remove node if it is currently loaded:
+            if self.live_nodes.contains_key(&node_name) {
+                return Err(FileStoreError::NodeIsLoaded);
+            }
+            remove_node(&self.store_path_buf, &node_name).await
         })
     }
 }
