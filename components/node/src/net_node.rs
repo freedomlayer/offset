@@ -176,6 +176,8 @@ pub async fn net_node<IAC, C, R, GT, TS, S>(
     get_trusted_apps: GT,
     node_state: NodeState<NetAddress>,
     database_client: DatabaseClient<NodeMutation<NetAddress>>,
+    // TODO: Might be possible to eliminate this spawner if GT returned a future instead.
+    // Might be possible if we use async-std's file operations.
     trusted_apps_spawner: TS,
     spawner: S,
 ) -> Result<(), NetNodeError>
