@@ -24,7 +24,8 @@ use crate::gen::CompactGen;
 use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesInfo};
 #[allow(unused)]
 use crate::store::store::{LoadedNode, Store};
-use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, DATABASE, NODE_IDENT, NODE_INFO, APP_IDENT};
+use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, NODE_DB, NODE_IDENT, NODE_INFO, APP_IDENT, COMPACT_DB};
+use crate::compact_node::CompactStateDb;
 
 
 #[allow(unused)]
@@ -47,6 +48,30 @@ pub enum FileStoreError {
     AsyncStdIoError(async_std::io::Error),
 }
 
+
+#[derive(Debug, Clone)]
+struct FileStoreNodeLocal {
+    node_private_key: PrivateKey,
+    node_db: PathBuf,
+    compact_db: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct FileStoreNodeRemote {
+    app_private_key: PrivateKey,
+    node_public_key: PublicKey,
+    node_address: NetAddress,
+    compact_db: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+enum FileStoreNode {
+    Local(FileStoreNodeLocal),
+    Remote(FileStoreNodeRemote),
+}
+
+type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
+
 /*
  * File store structure:
  *
@@ -54,11 +79,13 @@ pub enum FileStoreError {
  * - local [dir]
  *      - node_name1
  *          - node.ident
- *          - database
+ *          - node.db
+ *          - compact.db
  * - remote [dir]
  *      - node_name2
  *          - app.ident
  *          - node.info (public_key + address)
+ *          - compact.db
 */
 
 
@@ -89,45 +116,25 @@ where
     })
 }
 
-#[derive(Debug, Clone)]
-struct FileStoreNodeLocal {
-    node_private_key: PrivateKey,
-    node_database: PathBuf,
-}
 
-#[derive(Debug, Clone)]
-struct FileStoreNodeRemote {
-    app_private_key: PrivateKey,
-    node_public_key: PublicKey,
-    node_address: NetAddress,
-}
-
-#[derive(Debug, Clone)]
-enum FileStoreNode {
-    Local(FileStoreNodeLocal),
-    Remote(FileStoreNodeRemote),
-}
-
-type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
-
-
-async fn read_local_node(local_path: &Path) -> Result<FileStoreNodeLocal, FileStoreError> {
-    let node_ident_path = local_path.join(NODE_IDENT);
+async fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileStoreError> {
+    let node_ident_path = node_path.join(NODE_IDENT);
     let ident_data = fs::read_to_string(&node_ident_path).await?;
     let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
     Ok(FileStoreNodeLocal {
         node_private_key: identity_file.private_key,
-        node_database: local_path.join(DATABASE),
+        node_db: node_path.join(NODE_DB),
+        compact_db: node_path.join(COMPACT_DB),
     })
 }
 
-async fn read_remote_node(remote_path: &Path) -> Result<FileStoreNodeRemote, FileStoreError> {
-    let app_ident_path = remote_path.join(APP_IDENT);
+async fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileStoreError> {
+    let app_ident_path = node_path.join(APP_IDENT);
     let ident_data = fs::read_to_string(&app_ident_path).await?;
     let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
-    let node_info_path = remote_path.join(NODE_INFO);
+    let node_info_path = node_path.join(NODE_INFO);
     let node_info_data = fs::read_to_string(&node_info_path).await?;
     let node_address_file: NodeAddressFile = serde_json::from_str(&node_info_data)?;
 
@@ -135,6 +142,7 @@ async fn read_remote_node(remote_path: &Path) -> Result<FileStoreNodeRemote, Fil
         app_private_key: identity_file.private_key,
         node_public_key: node_address_file.public_key,
         node_address: node_address_file.address,
+        compact_db: node_path.join(COMPACT_DB),
     })
 }
 
@@ -208,11 +216,16 @@ async fn create_local_node(
     // Create node's dir. Should fail if the directory already exists: 
     fs::create_dir_all(&node_path).await?;
 
-    // Create database file:
-    let database_path = node_path.join(DATABASE);
+    // Create node database file:
+    let node_db_path = node_path.join(NODE_DB);
     let node_public_key = derive_public_key(&node_private_key).map_err(|_| FileStoreError::DerivePublicKeyError)?;
     let initial_state = NodeState::<NetAddress>::new(node_public_key);
-    let _ = FileDb::create(database_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
+    let _ = FileDb::create(node_db_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
+
+    // Create compact database file:
+    let compact_db_path = node_path.join(COMPACT_DB);
+    let initial_state = CompactStateDb::new();
+    let _ = FileDb::create(compact_db_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.ident file:
     let identity_file = IdentityFile {
@@ -254,6 +267,11 @@ async fn create_remote_node(
     let node_ident_path = node_path.join(APP_IDENT);
     let mut file = fs::File::create(node_ident_path).await?;
     file.write_all(identity_file_string.as_bytes()).await?;
+
+    // Create compact database file:
+    let compact_db_path = node_path.join(COMPACT_DB);
+    let initial_state = CompactStateDb::new();
+    let _ = FileDb::create(compact_db_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.info:
     let node_address_file = NodeAddressFile {

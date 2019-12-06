@@ -9,5 +9,5 @@ mod server_loop;
 mod types;
 
 pub use messages::{CompactReport, FromUser, ToUser};
-pub use persist::CompactState;
+pub use persist::{CompactState, CompactStateDb};
 pub use server_loop::server_loop;

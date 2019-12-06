@@ -68,9 +68,26 @@ pub struct CompactState {
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
+impl CompactState {
+    fn new() -> Self {
+        Self {
+            open_invoices: HashMap::new(),
+            open_payments: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct CompactStateDb {
+pub struct CompactStateDb {
     state: CompactState,
+}
+
+impl CompactStateDb {
+    pub fn new() -> Self {
+        Self {
+            state: CompactState::new(),
+        }
+    }
 }
 
 impl MutableState for CompactStateDb {
