@@ -14,6 +14,7 @@ use lockfile::{try_lock_file, LockFileHandle};
 use app::file::{NodeAddressFile, IdentityFile};
 use app::common::{NetAddress, PublicKey, PrivateKey, derive_public_key};
 
+use crate::gen::CompactGen;
 use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesInfo};
 #[allow(unused)]
 use crate::store::store::{LoadedNode, NodePrivateInfo, Store, NodePrivateInfoLocal, NodePrivateInfoRemote};
@@ -141,32 +142,28 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
 
     // Read local nodes:
     let local_dir = store_path.join(LOCAL);
-    let mut dir = fs::read_dir(local_dir)
-        .await
-        .map_err(|_| FileStoreError::InvalidLocalDir)?;
-
-    while let Some(res) = dir.next().await {
-        let local_node_entry = res.map_err(|_| FileStoreError::InvalidLocalDir)?;
-        let node_name = NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
-        read_local_node(&local_node_entry.path()).await?;
-        let local_node = FileStoreNode::Local(read_local_node(&local_node_entry.path()).await?);
-        if file_store_nodes.insert(node_name.clone(), local_node).is_some() {
-            return Err(FileStoreError::DuplicateNodeName(node_name));
+    if let Ok(mut dir) = fs::read_dir(local_dir).await {
+        while let Some(res) = dir.next().await {
+            let local_node_entry = res.map_err(|_| FileStoreError::InvalidLocalDir)?;
+            let node_name = NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
+            read_local_node(&local_node_entry.path()).await?;
+            let local_node = FileStoreNode::Local(read_local_node(&local_node_entry.path()).await?);
+            if file_store_nodes.insert(node_name.clone(), local_node).is_some() {
+                return Err(FileStoreError::DuplicateNodeName(node_name));
+            }
         }
     }
 
     // Read remote nodes:
     let remote_dir = store_path.join(REMOTE);
-    let mut dir = fs::read_dir(remote_dir)
-        .await
-        .map_err(|_| FileStoreError::InvalidRemoteDir)?;
-
-    while let Some(res) = dir.next().await {
-        let remote_node_entry = res.map_err(|_| FileStoreError::InvalidRemoteDir)?;
-        let node_name = NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
-        let remote_node = FileStoreNode::Remote(read_remote_node(&remote_node_entry.path()).await?);
-        if file_store_nodes.insert(node_name.clone(), remote_node).is_some() {
-            return Err(FileStoreError::DuplicateNodeName(node_name));
+    if let Ok(mut dir) = fs::read_dir(remote_dir).await {
+        while let Some(res) = dir.next().await {
+            let remote_node_entry = res.map_err(|_| FileStoreError::InvalidRemoteDir)?;
+            let node_name = NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
+            let remote_node = FileStoreNode::Remote(read_remote_node(&remote_node_entry.path()).await?);
+            if file_store_nodes.insert(node_name.clone(), remote_node).is_some() {
+                return Err(FileStoreError::DuplicateNodeName(node_name));
+            }
         }
     }
 
@@ -200,22 +197,30 @@ pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
 }
 
 
-async fn create_local_node(info_local: NodePrivateInfoLocal, local_path: &Path) -> Result<(), FileStoreError> {
+async fn create_local_node(
+    node_name: NodeName,
+    node_private_key: PrivateKey,
+    store_path: &Path) -> Result<(), FileStoreError> {
     // TODO:
     // - Make sure directory does not exist
     // - Create directory
     // - Create (Randomly generate) `node.ident` file
     // - Initialize database file
 
-    let node_path = local_path.join(&info_local.node_name.as_str());
+    let node_path = store_path.join(LOCAL).join(&node_name.as_str());
     // Create node's dir. Should fail if the directory already exists: 
     fs::create_dir_all(&node_path).await.map_err(|_| FileStoreError::CreateDirFailed(node_path))?;
-
 
     unimplemented!();
 }
 
-async fn create_remote_node(_info_remote: NodePrivateInfoRemote, _remote_path: &Path) -> Result<(), FileStoreError> {
+async fn create_remote_node(
+    _node_name: NodeName, 
+    _app_private_key: PrivateKey, 
+    _node_public_key: PublicKey, 
+    _node_address: NetAddress, 
+    _store_path: &Path) -> Result<(), FileStoreError> {
+
     // TODO:
     // - Make sure directory does not exist
     // - Create directory
@@ -247,21 +252,26 @@ fn file_store_node_to_node_info(file_store_node: FileStoreNode) -> Result<NodeIn
 impl Store for FileStore {
     type Error = FileStoreError;
 
-    fn create_node<'a>(
+    fn create_local_node<'a>(
         &'a mut self,
-        node_private_info: NodePrivateInfo,
+        node_name: NodeName,
+        node_private_key: PrivateKey,
     ) -> BoxFuture<'a, Result<(), Self::Error>> {
         Box::pin(async move {
-            match node_private_info {
-                NodePrivateInfo::Local(local) => {
-                    let local_path = self.store_path_buf.join(LOCAL);
-                    create_local_node(local, &local_path).await
-                },
-                NodePrivateInfo::Remote(remote) => {
-                    let remote_path = self.store_path_buf.join(REMOTE);
-                    create_remote_node(remote, &remote_path).await
-                }
-            }
+            create_local_node(node_name, node_private_key, &self.store_path_buf).await
+        })
+    }
+
+    fn create_remote_node<'a>(
+        &'a mut self,
+        node_name: NodeName,
+        app_private_key: PrivateKey,
+        node_public_key: PublicKey,
+        node_address: NetAddress,
+    ) -> BoxFuture<'a, Result<(), Self::Error>> {
+        unimplemented!();
+        Box::pin(async move {
+            create_remote_node(node_name, app_private_key, node_public_key, node_address, &self.store_path_buf).await
         })
     }
 

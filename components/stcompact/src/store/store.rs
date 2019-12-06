@@ -55,10 +55,18 @@ pub struct LoadedNode {
 pub trait Store {
     type Error;
 
-    /// Create a new node
-    fn create_node<'a>(
+    fn create_local_node<'a>(
         &'a mut self,
-        node_private_info: NodePrivateInfo,
+        node_name: NodeName,
+        node_private_key: PrivateKey,
+    ) -> BoxFuture<'a, Result<(), Self::Error>>;
+
+    fn create_remote_node<'a>(
+        &'a mut self,
+        node_name: NodeName,
+        app_private_key: PrivateKey,
+        node_public_key: PublicKey,
+        node_address: NetAddress,
     ) -> BoxFuture<'a, Result<(), Self::Error>>;
 
     /// List all existing nodes in store
