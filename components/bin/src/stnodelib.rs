@@ -7,8 +7,10 @@ use std::time::Duration;
 
 use derive_more::From;
 
+use futures::channel::mpsc;
 use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
+use futures::{FutureExt, TryFutureExt};
 
 use structopt::StructOpt;
 
@@ -24,6 +26,7 @@ use timer::create_timer;
 use node::{net_node, NetNodeError, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
+use database::{database_loop, AtomicDb, DatabaseClient};
 
 use net::{TcpConnector, TcpListener};
 use proto::consts::{
@@ -188,6 +191,25 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         )
     };
 
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(
+        atomic_db,
+        incoming_db_requests,
+        file_system_thread_pool.clone(),
+    )
+    .map_err(|e| error!("database_loop() error: {:?}", e))
+    .map(|_| ());
+    file_system_thread_pool
+        .spawn(loop_fut)
+        .map_err(|_| NetNodeError::SpawnError)?;
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
     let node_fut = net_node(
         incoming_app_raw_conns,
         tcp_connector,
@@ -196,8 +218,8 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         rng,
         node_config,
         get_trusted_apps,
-        atomic_db,
-        file_system_thread_pool.clone(),
+        node_state,
+        database_client,
         file_system_thread_pool.clone(),
         thread_pool.clone(),
     );

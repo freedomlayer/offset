@@ -31,6 +31,7 @@ use app::report::NodeReport;
 use node::{net_node, NodeConfig, NodeState};
 
 use database::file_db::FileDb;
+use database::{database_loop, AtomicDb, DatabaseClient};
 
 use index_server::net_index_server;
 use relay::net_relay_server;
@@ -285,6 +286,27 @@ where
     let get_trusted_apps = move || Some(trusted_apps.clone());
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
+
+    let atomic_db = sim_db.load_db(index);
+
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(
+        atomic_db,
+        incoming_db_requests,
+        spawner.clone(),
+    )
+    .map_err(|e| error!("database_loop() error: {:?}", e))
+    .map(|_| ());
+
+    spawner.spawn(loop_fut).unwrap();
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
     // Note: we use the same spawner for testing purposes.
     // Simulating the passage of time becomes more difficult if our code uses a few different executors.
     let net_node_fut = net_node(
@@ -295,10 +317,10 @@ where
         rng,
         default_node_config(),
         get_trusted_apps,
-        sim_db.load_db(index),
+        node_state,
+        database_client,
         spawner.clone(), // trusted_apps_spawner
         spawner.clone(), // database_spawner
-        spawner.clone(),
     )
     .map_err(|e| error!("net_node() error: {:?}", e))
     .map(|_| ());

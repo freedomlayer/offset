@@ -17,7 +17,8 @@ use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::net::messages::NetAddress;
 
-use database::{database_loop, AtomicDb, DatabaseClient};
+// use database::{database_loop, AtomicDb, DatabaseClient};
+use database::{DatabaseClient};
 use identity::IdentityClient;
 use timer::TimerClient;
 
@@ -165,7 +166,7 @@ where
     }
 }
 
-pub async fn net_node<IAC, C, R, GT, AD, DS, TS, S>(
+pub async fn net_node<IAC, C, R, GT, TS, S>(
     incoming_app_raw_conns: IAC,
     net_connector: C,
     timer_client: TimerClient,
@@ -173,9 +174,9 @@ pub async fn net_node<IAC, C, R, GT, AD, DS, TS, S>(
     rng: R,
     node_config: NodeConfig,
     get_trusted_apps: GT,
-    atomic_db: AD,
+    node_state: NodeState<NetAddress>,
+    database_client: DatabaseClient<NodeMutation<NetAddress>>,
     trusted_apps_spawner: TS,
-    database_spawner: DS,
     spawner: S,
 ) -> Result<(), NetNodeError>
 where
@@ -183,11 +184,13 @@ where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
+    /*
     AD: AtomicDb<State = NodeState<NetAddress>, Mutation = NodeMutation<NetAddress>>
         + Send
         + 'static,
     AD::Error: Send + Debug,
-    DS: Spawn + Clone + Send + 'static,
+    */
+    // DS: Spawn + Clone + Send + 'static,
     TS: Spawn + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -208,8 +211,10 @@ where
         .await
         .map_err(|_| NetNodeError::RequestPublicKeyError)?;
 
+    /*
     // Get initial node_state:
     let node_state = atomic_db.get_state().clone();
+    */
 
     // Make sure that the local public key in the database
     // matches the local public key from the provided identity file:
@@ -217,6 +222,7 @@ where
         return Err(NetNodeError::DatabaseIdentityMismatch);
     }
 
+    /*
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
     let loop_fut = database_loop(atomic_db, incoming_db_requests, database_spawner)
@@ -228,6 +234,7 @@ where
 
     // Obtain a client to the database service:
     let database_client = DatabaseClient::new(db_request_sender);
+    */
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),

@@ -7,6 +7,9 @@
     clippy::new_without_default
 )]
 
+#[macro_use]
+extern crate log;
+
 pub mod stindexlib;
 pub mod stmgrlib;
 pub mod stnodelib;
