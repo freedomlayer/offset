@@ -20,6 +20,7 @@ lockfile = { path = "../lockfile", version = "0.1.0", package = "offst-lockfile"
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 route = { path = "../route", version = "0.1.0", package = "offst-route" }
 database = { path = "../database", version = "0.1.0", package = "offst-database" }
+identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 
@@ -33,7 +34,7 @@ async-std = "1.2.0"
 
 structopt = "0.2.15"
 
-derive_more = "0.14.0"
+derive_more = "0.99.2"
 serde_json = "1.0.44"
 
 [dev-dependencies]

@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use futures::StreamExt;
 use futures::task::{Spawn, SpawnExt};
 
+use derive_more::From;
+
 use common::conn::BoxFuture;
 
+use async_std::io::prelude::WriteExt;
 use async_std::fs;
 use async_std::path::{PathBuf, Path};
 
@@ -14,10 +17,13 @@ use lockfile::{try_lock_file, LockFileHandle};
 use app::file::{NodeAddressFile, IdentityFile};
 use app::common::{NetAddress, PublicKey, PrivateKey, derive_public_key};
 
+use node::NodeState;
+use database::file_db::FileDb;
+
 use crate::gen::CompactGen;
 use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesInfo};
 #[allow(unused)]
-use crate::store::store::{LoadedNode, NodePrivateInfo, Store, NodePrivateInfoLocal, NodePrivateInfoRemote};
+use crate::store::store::{LoadedNode, Store};
 use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, DATABASE, NODE_IDENT, NODE_INFO, APP_IDENT};
 
 
@@ -29,19 +35,16 @@ pub struct FileStore {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum FileStoreError {
     DuplicateNodeName(NodeName),
-    InvalidLocalDir,
-    InvalidRemoteDir,
-    InvalidNodeDir(PathBuf),
     SpawnError,
     LockError,
-    CreateDirFailed(PathBuf),
-    ReadToStringError(PathBuf),
     SerdeError(serde_json::Error),
     RemoveNodeError,
     DerivePublicKeyError,
+    FileDbError,
+    AsyncStdIoError(async_std::io::Error),
 }
 
 /*
@@ -66,9 +69,7 @@ where
 {
     // Create directory if missing:
     if !store_path_buf.is_dir().await {
-        if fs::create_dir_all(&store_path_buf).await.is_err() {
-            return Err(FileStoreError::CreateDirFailed(store_path_buf.into()));
-        }
+        fs::create_dir_all(&store_path_buf).await?;
     }
 
     let store_path_buf_std: std::path::PathBuf = store_path_buf.clone().into();
@@ -112,8 +113,8 @@ type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
 
 async fn read_local_node(local_path: &Path) -> Result<FileStoreNodeLocal, FileStoreError> {
     let node_ident_path = local_path.join(NODE_IDENT);
-    let ident_data = fs::read_to_string(&node_ident_path).await.map_err(|_| FileStoreError::ReadToStringError(node_ident_path))?;
-    let identity_file: IdentityFile = serde_json::from_str(&ident_data).map_err(FileStoreError::SerdeError)?;
+    let ident_data = fs::read_to_string(&node_ident_path).await?;
+    let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
     Ok(FileStoreNodeLocal {
         node_private_key: identity_file.private_key,
@@ -123,12 +124,12 @@ async fn read_local_node(local_path: &Path) -> Result<FileStoreNodeLocal, FileSt
 
 async fn read_remote_node(remote_path: &Path) -> Result<FileStoreNodeRemote, FileStoreError> {
     let app_ident_path = remote_path.join(APP_IDENT);
-    let ident_data = fs::read_to_string(&app_ident_path).await.map_err(|_| FileStoreError::ReadToStringError(app_ident_path))?;
-    let identity_file: IdentityFile = serde_json::from_str(&ident_data).map_err(FileStoreError::SerdeError)?;
+    let ident_data = fs::read_to_string(&app_ident_path).await?;
+    let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
     let node_info_path = remote_path.join(NODE_INFO);
-    let node_info_data = fs::read_to_string(&node_info_path).await.map_err(|_| FileStoreError::ReadToStringError(node_info_path))?;
-    let node_address_file: NodeAddressFile = serde_json::from_str(&node_info_data).map_err(FileStoreError::SerdeError)?;
+    let node_info_data = fs::read_to_string(&node_info_path).await?;
+    let node_address_file: NodeAddressFile = serde_json::from_str(&node_info_data)?;
 
     Ok(FileStoreNodeRemote {
         app_private_key: identity_file.private_key,
@@ -144,7 +145,7 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
     let local_dir = store_path.join(LOCAL);
     if let Ok(mut dir) = fs::read_dir(local_dir).await {
         while let Some(res) = dir.next().await {
-            let local_node_entry = res.map_err(|_| FileStoreError::InvalidLocalDir)?;
+            let local_node_entry = res?;
             let node_name = NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
             read_local_node(&local_node_entry.path()).await?;
             let local_node = FileStoreNode::Local(read_local_node(&local_node_entry.path()).await?);
@@ -158,7 +159,7 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
     let remote_dir = store_path.join(REMOTE);
     if let Ok(mut dir) = fs::read_dir(remote_dir).await {
         while let Some(res) = dir.next().await {
-            let remote_node_entry = res.map_err(|_| FileStoreError::InvalidRemoteDir)?;
+            let remote_node_entry = res?;
             let node_name = NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
             let remote_node = FileStoreNode::Remote(read_remote_node(&remote_node_entry.path()).await?);
             if file_store_nodes.insert(node_name.clone(), remote_node).is_some() {
@@ -201,32 +202,71 @@ async fn create_local_node(
     node_name: NodeName,
     node_private_key: PrivateKey,
     store_path: &Path) -> Result<(), FileStoreError> {
-    // TODO:
-    // - Make sure directory does not exist
-    // - Create directory
-    // - Create (Randomly generate) `node.ident` file
-    // - Initialize database file
 
     let node_path = store_path.join(LOCAL).join(&node_name.as_str());
-    // Create node's dir. Should fail if the directory already exists: 
-    fs::create_dir_all(&node_path).await.map_err(|_| FileStoreError::CreateDirFailed(node_path))?;
 
-    unimplemented!();
+    // Create node's dir. Should fail if the directory already exists: 
+    fs::create_dir_all(&node_path).await?;
+
+    // Create database file:
+    let database_path = node_path.join(DATABASE);
+    let node_public_key = derive_public_key(&node_private_key).map_err(|_| FileStoreError::DerivePublicKeyError)?;
+    let initial_state = NodeState::<NetAddress>::new(node_public_key);
+    let _ = FileDb::create(database_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
+
+    // Create node.ident file:
+    let identity_file = IdentityFile {
+        private_key: node_private_key,
+    };
+    let identity_file_string = serde_json::to_string(&identity_file)?;
+
+    let node_ident_path = node_path.join(NODE_IDENT);
+    let mut file = fs::File::create(node_ident_path).await?;
+    file.write_all(identity_file_string.as_bytes()).await?;
+
+    Ok(())
 }
 
 async fn create_remote_node(
-    _node_name: NodeName, 
-    _app_private_key: PrivateKey, 
-    _node_public_key: PublicKey, 
-    _node_address: NetAddress, 
-    _store_path: &Path) -> Result<(), FileStoreError> {
+    node_name: NodeName, 
+    app_private_key: PrivateKey, 
+    node_public_key: PublicKey, 
+    node_address: NetAddress, 
+    store_path: &Path) -> Result<(), FileStoreError> {
 
     // TODO:
     // - Make sure directory does not exist
     // - Create directory
     // - Create `app.ident`
     // - Create `node.info`
-    unimplemented!();
+    
+    let node_path = store_path.join(REMOTE).join(&node_name.as_str());
+
+    // Create node's dir. Should fail if the directory already exists: 
+    fs::create_dir_all(&node_path).await?;
+
+    // Create app.ident file:
+    let identity_file = IdentityFile {
+        private_key: app_private_key,
+    };
+    let identity_file_string = serde_json::to_string(&identity_file)?;
+
+    let node_ident_path = node_path.join(APP_IDENT);
+    let mut file = fs::File::create(node_ident_path).await?;
+    file.write_all(identity_file_string.as_bytes()).await?;
+
+    // Create node.info:
+    let node_address_file = NodeAddressFile {
+        public_key: node_public_key,
+        address: node_address,
+    };
+    let node_address_string = serde_json::to_string(&node_address_file)?;
+
+    let node_info_path = node_path.join(NODE_INFO);
+    let mut file = fs::File::create(node_info_path).await?;
+    file.write_all(node_address_string.as_bytes()).await?;
+
+    Ok(())
 }
 
 fn file_store_node_to_node_info(file_store_node: FileStoreNode) -> Result<NodeInfo, FileStoreError> {
@@ -269,7 +309,6 @@ impl Store for FileStore {
         node_public_key: PublicKey,
         node_address: NetAddress,
     ) -> BoxFuture<'a, Result<(), Self::Error>> {
-        unimplemented!();
         Box::pin(async move {
             create_remote_node(node_name, app_private_key, node_public_key, node_address, &self.store_path_buf).await
         })

@@ -12,7 +12,7 @@ pub enum IdentityClientError {
     OneshotReceiverCanceled,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct IdentityClient {
     requests_sender: mpsc::Sender<ToIdentity>,
 }

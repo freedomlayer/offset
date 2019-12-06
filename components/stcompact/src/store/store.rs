@@ -1,50 +1,38 @@
-use serde::{Deserialize, Serialize};
-
 use common::conn::BoxFuture;
 use database::DatabaseClient;
 
 use app::common::{NetAddress, PrivateKey, PublicKey};
 use node::{NodeMutation, NodeState};
 
+use identity::IdentityClient;
+
 use crate::compact_node::CompactState;
 use crate::messages::{NodeName, NodesInfo};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodePrivateInfoLocal {
-    pub node_name: NodeName,
-    pub node_private_key: PrivateKey,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodePrivateInfoRemote {
-    pub node_name: NodeName,
-    pub app_private_key: PrivateKey,
-    pub node_public_key: PublicKey,
-    pub node_address: NetAddress,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum NodePrivateInfo {
-    Local(NodePrivateInfoLocal),
-    Remote(NodePrivateInfoRemote),
+#[derive(Debug, Clone)]
+pub struct LoadedNodeLocal {
+    pub node_identity: IdentityClient,
+    pub node_state: NodeState<NetAddress>,
+    pub node_db_client: DatabaseClient<NodeMutation<NetAddress>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeRemote {
-    pub node_state: NodeState<NetAddress>,
-    pub node_db_client: DatabaseClient<NodeMutation<NetAddress>>,
+    pub app_identity: IdentityClient,
+    pub node_public_key: PublicKey,
+    pub node_address: NetAddress,
 }
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum LoadedNodeType {
-    Local,
+    Local(LoadedNodeLocal),
     Remote(LoadedNodeRemote),
 }
 
 #[derive(Debug, Clone)]
 pub struct LoadedNode {
-    pub private_info: NodePrivateInfo,
+    pub node_name: NodeName,
     pub compact_state: CompactState,
     pub compact_db_client: DatabaseClient<CompactState>,
     pub node_type: LoadedNodeType,
