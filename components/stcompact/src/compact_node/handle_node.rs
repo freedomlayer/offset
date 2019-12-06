@@ -10,7 +10,7 @@ use crate::compact_node::messages::{ToUser, PaymentFees, PaymentFeesResponse, Pa
 use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::compact_node::types::{CompactServerState, CompactServerError};
 use crate::compact_node::convert::create_compact_report;
-use crate::compact_node::gen_id::GenId;
+use crate::gen::CompactGen;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
@@ -42,12 +42,12 @@ fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_paymen
 
 }
 
-async fn ack_close_payment<GI, AS>(
+async fn ack_close_payment<CG, AS>(
     response_close_payment: &ResponseClosePayment, 
-    gen_id: &mut GI,
+    compact_gen: &mut CG,
     app_sender: &mut AS) -> Result<(), CompactServerError>
 where 
-    GI: GenId,
+    CG: CompactGen,
     AS: Sink<AppToAppServer> + Unpin,
 {
     // Ack the payment closing if possible:
@@ -62,7 +62,7 @@ where
     if let Some(ack_uid) = opt_ack_uid {
         let app_request = buyer::ack_close_payment(response_close_payment.payment_id.clone(), ack_uid);
         let app_to_app_server = AppToAppServer {
-            app_request_id: gen_id.gen_uid(),
+            app_request_id: compact_gen.gen_uid(),
             app_request,
         };
         app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
@@ -70,14 +70,14 @@ where
     Ok(())
 }
 
-pub async fn handle_node<GI,US,AS>(app_server_to_app: AppServerToApp, 
+pub async fn handle_node<CG,US,AS>(app_server_to_app: AppServerToApp, 
     server_state: &mut CompactServerState, 
-    gen_id: &mut GI,
+    compact_gen: &mut CG,
     user_sender: &mut US,
     app_sender: &mut AS)
     -> Result<(), CompactServerError>
 where   
-    GI: GenId,
+    CG: CompactGen,
     US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin,
 {
@@ -124,7 +124,7 @@ where
                 (RequestResult::Failure, _)
                     | (RequestResult::Success, true) => {
                     // Set payment as failed:
-                    let ack_uid = gen_id.gen_uid();
+                    let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
                     server_state.update_compact_state(compact_state).await?;
 
@@ -145,7 +145,7 @@ where
                 open_payment
             } else {
                 warn!("ResponseClosePayment: Unrecognized payment_id: {:?}", response_close_payment.payment_id);
-                ack_close_payment(&response_close_payment, gen_id, app_sender).await?;
+                ack_close_payment(&response_close_payment, compact_gen, app_sender).await?;
                 return Ok(());
             };
 
@@ -157,7 +157,7 @@ where
                 OpenPaymentStatus::Sending(_sending) => {
                     // We expect failure here. It is not likely that the payment was successful if
                     // we never got a commit to hand to the seller.
-                    let ack_uid = gen_id.gen_uid();
+                    let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
                     server_state.update_compact_state(compact_state).await?;
 
@@ -174,7 +174,7 @@ where
                         PaymentStatus::PaymentNotFound 
                         | PaymentStatus::Canceled(_) => {
                             // Set payment to failure:
-                            let ack_uid = gen_id.gen_uid();
+                            let ack_uid = compact_gen.gen_uid();
                             open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
                             server_state.update_compact_state(compact_state).await?;
 
@@ -185,7 +185,7 @@ where
                         },
                         PaymentStatus::Success(success) => {
                             // Set payment to success:
-                            let ack_uid = gen_id.gen_uid();
+                            let ack_uid = compact_gen.gen_uid();
                             open_payment.status = OpenPaymentStatus::Success(success.receipt.clone(), fees, ack_uid.clone());
                             server_state.update_compact_state(compact_state).await?;
 
@@ -206,7 +206,7 @@ where
             }
             // In any case, we acknowledge the `ResponseClosePayment` message, to make sure the
             // done payment is not stuck forever inside the node:
-            ack_close_payment(&response_close_payment, gen_id, app_sender).await?;
+            ack_close_payment(&response_close_payment, compact_gen, app_sender).await?;
         },
         AppServerToApp::ReportMutations(report_mutations) => {
             // Save the original `node_report`:
@@ -267,7 +267,7 @@ where
             };
 
             // Update compact state (keep the best multiroute):
-            let confirm_id = gen_id.gen_uid();
+            let confirm_id = compact_gen.gen_uid();
             let found_route = OpenPaymentStatusFoundRoute {
                 confirm_id: confirm_id.clone(),
                 multi_route,

@@ -1,5 +1,4 @@
 mod convert;
-mod gen_id;
 mod handle_node;
 mod handle_user;
 mod messages;

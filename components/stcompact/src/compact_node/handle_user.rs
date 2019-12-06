@@ -9,25 +9,25 @@ use crate::compact_node::messages::{FromUser, ToUser, UserRequest, ResponseCommi
     PaymentFees, PaymentFeesResponse, PaymentDone};
 use crate::compact_node::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
 use crate::compact_node::types::{CompactServerState, CompactServerError};
-use crate::compact_node::gen_id::GenId;
+use crate::gen::CompactGen;
 
 
 
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
-pub async fn handle_user<GI,US,AS>(
+pub async fn handle_user<CG,US,AS>(
     from_user: FromUser, 
     _app_permissions: &AppPermissions, 
     server_state: &mut CompactServerState, 
-    gen_id: &mut GI,
+    compact_gen: &mut CG,
     user_sender: &mut US, 
     app_sender: &mut AS) 
     -> Result<(), CompactServerError>
 where   
     US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin,
-    GI: GenId,
+    CG: CompactGen,
 {
     let FromUser {
         user_request_id,
@@ -216,7 +216,7 @@ where
             }
 
             // Generate a request_routes_id:
-            let request_routes_id = gen_id.gen_uid();
+            let request_routes_id = compact_gen.gen_uid();
 
             // Request routes:
             let opt_exclude = None;
@@ -284,7 +284,7 @@ where
             // Update compact_state:
             let open_transactions: Vec<Uid> = multi_route_choice
                 .iter()
-                .map(|_| gen_id.gen_uid())
+                .map(|_| compact_gen.gen_uid())
                 .collect();
 
             let sending = OpenPaymentStatusSending {
@@ -311,7 +311,7 @@ where
 
             let app_to_app_server = AppToAppServer {
                 // This is an `app_request_id` we don't need to track:
-                app_request_id: gen_id.gen_uid(),
+                app_request_id: compact_gen.gen_uid(),
                 app_request,
             };
             app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
@@ -333,7 +333,7 @@ where
                 let app_to_app_server = AppToAppServer {
                     // We don't really care about app_request_id here, as we can wait on `request_id`
                     // instead.
-                    app_request_id: gen_id.gen_uid(),
+                    app_request_id: compact_gen.gen_uid(),
                     app_request,
                 };
                 app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
@@ -363,7 +363,7 @@ where
                 | OpenPaymentStatus::FoundRoute(_)
                 | OpenPaymentStatus::Sending(_) => {
                     // Set failure status:
-                    let ack_uid = gen_id.gen_uid();
+                    let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
                     server_state.update_compact_state(compact_state).await?;
 

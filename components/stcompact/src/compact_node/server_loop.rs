@@ -13,18 +13,18 @@ use crate::compact_node::types::{CompactServerEvent, CompactServerState, Compact
 use crate::compact_node::handle_user::handle_user;
 use crate::compact_node::handle_node::handle_node;
 use crate::compact_node::permission::check_permission;
-use crate::compact_node::gen_id::GenId;
+use crate::gen::CompactGen;
 
 
 /// The compact server is mediating between the user and the node.
-async fn inner_server_loop<GI>(app_conn_tuple: AppConnTuple, 
+async fn inner_server_loop<CG>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    mut gen_id: GI,
+    mut compact_gen: CG,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> 
 where
-    GI: GenId,
+    CG: CompactGen,
 {
 
     // Interaction with the user:
@@ -50,14 +50,14 @@ where
         match event {
             CompactServerEvent::User(from_user) => {
                 if check_permission(&from_user.user_request, &app_permissions) {
-                    handle_user(from_user, &app_permissions, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?;
+                    handle_user(from_user, &app_permissions, &mut server_state, &mut compact_gen, &mut user_sender, &mut app_sender).await?;
                 } else {
                     // Operation not permitted, we close the connection
                     return Ok(());
                 }
             },
             CompactServerEvent::UserClosed => return Ok(()),
-            CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut gen_id, &mut user_sender, &mut app_sender).await?,
+            CompactServerEvent::Node(app_server_to_app) => handle_node(app_server_to_app, &mut server_state, &mut compact_gen, &mut user_sender, &mut app_sender).await?,
             CompactServerEvent::NodeClosed => return Ok(()),
         }
         if let Some(ref mut event_sender) = opt_event_sender {
@@ -67,13 +67,13 @@ where
     Ok(())
 }
 
-pub async fn server_loop<GI>(app_conn_tuple: AppConnTuple, 
+pub async fn server_loop<CG>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    gen_id: GI) -> Result<(), CompactServerError> 
+    compact_gen: CG) -> Result<(), CompactServerError> 
 where   
-    GI: GenId,
+    CG: CompactGen,
 {
-    inner_server_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, gen_id, None).await
+    inner_server_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, compact_gen, None).await
 }

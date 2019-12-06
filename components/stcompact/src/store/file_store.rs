@@ -200,12 +200,18 @@ pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
 }
 
 
-async fn create_local_node(_info_local: NodePrivateInfoLocal, _local_path: &Path) -> Result<(), FileStoreError> {
+async fn create_local_node(info_local: NodePrivateInfoLocal, local_path: &Path) -> Result<(), FileStoreError> {
     // TODO:
     // - Make sure directory does not exist
     // - Create directory
     // - Create (Randomly generate) `node.ident` file
     // - Initialize database file
+
+    let node_path = local_path.join(&info_local.node_name.as_str());
+    // Create node's dir. Should fail if the directory already exists: 
+    fs::create_dir_all(&node_path).await.map_err(|_| FileStoreError::CreateDirFailed(node_path))?;
+
+
     unimplemented!();
 }
 

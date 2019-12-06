@@ -5,16 +5,16 @@ use database::DatabaseClient;
 use crate::compact_node::persist::{CompactState, OpenPaymentStatus};
 use crate::compact_node::types::{ConnPairCompact, CompactServerError};
 use crate::compact_node::messages::{PaymentDone, ToUser, PaymentCommit};
-use crate::compact_node::gen_id::GenId;
+use crate::gen::CompactGen;
 
 #[allow(unused)]
-pub async fn server_init<GI>(
+pub async fn server_init<CG>(
     conn_pair_compact: &mut ConnPairCompact,
     compact_state: &mut CompactState,
     database_client: &mut DatabaseClient<CompactState>,
-    gen_id: &mut GI) -> Result<(), CompactServerError>
+    compact_gen: &mut CG) -> Result<(), CompactServerError>
 where   
-    GI: GenId,
+    CG: CompactGen,
 {
 
     let payment_ids: Vec<_> = compact_state.open_payments.keys().cloned().collect();
@@ -31,7 +31,7 @@ where
                 // We decided not to do that at this point.
 
                 // Set payment as failure:
-                let ack_uid = gen_id.gen_uid();
+                let ack_uid = compact_gen.gen_uid();
                 open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
                 database_client.mutate(vec![compact_state.clone()])
                     .await
