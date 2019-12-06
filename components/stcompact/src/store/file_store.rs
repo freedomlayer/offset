@@ -22,8 +22,8 @@ use database::file_db::FileDb;
 
 use crate::gen::CompactGen;
 use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesInfo};
-#[allow(unused)]
-use crate::store::store::{LoadedNode, Store};
+
+use crate::store::store::{LoadedNode, Store, LoadedNodeLocal, LoadedNodeRemote};
 use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, NODE_DB, NODE_IDENT, NODE_INFO, APP_IDENT, COMPACT_DB};
 use crate::compact_node::CompactStateDb;
 
@@ -51,6 +51,7 @@ pub enum FileStoreError {
     AsyncStdIoError(async_std::io::Error),
     NodeIsLoaded,
     NodeNotLoaded,
+    NodeDoesNotExist,
 }
 
 
@@ -306,6 +307,25 @@ fn file_store_node_to_node_info(file_store_node: FileStoreNode) -> Result<NodeIn
     })
 }
 
+async fn load_local_node(_local: &FileStoreNodeLocal) -> Result<LoadedNodeLocal, FileStoreError> {
+    // TODO:
+    // - Create identity server
+    // - Get compact state
+    // - Create compact db server + client
+    // - Get node's state
+    // - Create node db server + client
+    unimplemented!();
+}
+
+async fn load_remote_node(_remote: &FileStoreNodeRemote) -> Result<LoadedNodeRemote, FileStoreError> {
+    // TODO:
+    // - Craete identity server + client
+    // - Get compact state
+    // - Create compact db server + client
+    // - Copy node address and public key (Possibly need to derive?)
+    unimplemented!();
+}
+
 #[allow(unused)]
 impl Store for FileStore {
     type Error = FileStoreError;
@@ -315,9 +335,7 @@ impl Store for FileStore {
         node_name: NodeName,
         node_private_key: PrivateKey,
     ) -> BoxFuture<'a, Result<(), Self::Error>> {
-        Box::pin(async move {
-            create_local_node(node_name, node_private_key, &self.store_path_buf).await
-        })
+        Box::pin(create_local_node(node_name, node_private_key, &self.store_path_buf))
     }
 
     fn create_remote_node<'a>(
@@ -347,13 +365,25 @@ impl Store for FileStore {
         &'a mut self,
         node_name: NodeName,
     ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>> {
-        unimplemented!();
+        Box::pin(async move {
+            let file_store_nodes = read_all_nodes(&self.store_path_buf).await?;
+            let file_store_node = if let Some(file_store_node) = file_store_nodes.get(&node_name) {
+                file_store_node
+            } else {
+                return Err(FileStoreError::NodeDoesNotExist);
+            };
+            
+            Ok(match file_store_node {
+                FileStoreNode::Local(local) => LoadedNode::Local(load_local_node(local).await?),
+                FileStoreNode::Remote(remote) => LoadedNode::Remote(load_remote_node(remote).await?),
+            })
+        })
     }
 
     /// Unload a node
-    fn unload_node<'a>(&'a mut self, node_name: NodeName) -> BoxFuture<'a, Result<(), Self::Error>> {
+    fn unload_node<'a>(&'a mut self, node_name: &'a NodeName) -> BoxFuture<'a, Result<(), Self::Error>> {
         Box::pin(async move {
-            if self.live_nodes.remove(&node_name).is_none() {
+            if self.live_nodes.remove(node_name).is_none() {
                 return Err(FileStoreError::NodeNotLoaded);
             }
             Ok(())

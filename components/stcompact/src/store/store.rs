@@ -12,6 +12,8 @@ use crate::messages::{NodeName, NodesInfo};
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
     pub node_identity: IdentityClient,
+    pub compact_state: CompactState,
+    pub compact_db_client: DatabaseClient<CompactState>,
     pub node_state: NodeState<NetAddress>,
     pub node_db_client: DatabaseClient<NodeMutation<NetAddress>>,
 }
@@ -21,21 +23,15 @@ pub struct LoadedNodeRemote {
     pub app_identity: IdentityClient,
     pub node_public_key: PublicKey,
     pub node_address: NetAddress,
+    pub compact_state: CompactState,
+    pub compact_db_client: DatabaseClient<CompactState>,
 }
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
-pub enum LoadedNodeType {
+pub enum LoadedNode {
     Local(LoadedNodeLocal),
     Remote(LoadedNodeRemote),
-}
-
-#[derive(Debug, Clone)]
-pub struct LoadedNode {
-    pub node_name: NodeName,
-    pub compact_state: CompactState,
-    pub compact_db_client: DatabaseClient<CompactState>,
-    pub node_type: LoadedNodeType,
 }
 
 // TODO: Possibly implement encryption for nodes' private key here:
@@ -67,8 +63,10 @@ pub trait Store {
     ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>>;
 
     /// Unload a node
-    fn unload_node<'a>(&'a mut self, node_name: NodeName)
-        -> BoxFuture<'a, Result<(), Self::Error>>;
+    fn unload_node<'a>(
+        &'a mut self,
+        node_name: &'a NodeName,
+    ) -> BoxFuture<'a, Result<(), Self::Error>>;
 
     /// Remove a node from the store
     /// A node must be in unloaded state to be removed.
