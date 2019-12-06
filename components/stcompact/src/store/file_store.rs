@@ -246,12 +246,6 @@ async fn create_remote_node(
     node_public_key: PublicKey, 
     node_address: NetAddress, 
     store_path: &Path) -> Result<(), FileStoreError> {
-
-    // TODO:
-    // - Make sure directory does not exist
-    // - Create directory
-    // - Create `app.ident`
-    // - Create `node.info`
     
     let node_path = store_path.join(REMOTE).join(&node_name.as_str());
 
