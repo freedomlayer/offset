@@ -50,13 +50,13 @@ pub enum CreateNodeResult {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateNodeLocal {
-    pub name: NodeName,
-    pub node_private_key: PrivateKey,
+    pub node_name: NodeName,
+    // pub node_private_key: PrivateKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateNodeRemote {
-    pub name: NodeName,
+    pub node_name: NodeName,
     pub app_private_key: PrivateKey,
     pub node_public_key: PublicKey,
     pub node_address: NetAddress,

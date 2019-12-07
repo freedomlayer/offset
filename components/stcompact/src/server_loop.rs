@@ -1,13 +1,19 @@
+use std::fmt::Debug;
 use std::collections::HashMap;
 
-use futures::{stream, StreamExt, SinkExt, channel::mpsc, future};
+use futures::{stream, StreamExt, SinkExt, channel::mpsc, future, Sink};
 use futures::task::Spawn;
 
 use common::select_streams::select_streams;
 use common::conn::{ConnPair, BoxStream};
 
-use crate::messages::{ServerToUser, UserToServer, NodeId, NodeName};
+use app::common::derive_public_key;
+
+#[allow(unused)]
+use crate::messages::{ServerToUser, UserToServer, NodeId, NodeName, 
+    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal};
 use crate::compact_node::{ToUser, FromUser};
+use crate::store::Store;
 
 pub type ConnPairServer = ConnPair<ServerToUser, UserToServer>;
 
@@ -15,6 +21,7 @@ pub type ConnPairServer = ConnPair<ServerToUser, UserToServer>;
 pub enum ServerError {
     UserSenderError,
     NodeSenderError,
+    DerivePublicKeyError,
 }
 
 type CompactNodeEvent = (NodeId, ToUser);
@@ -26,7 +33,7 @@ pub enum ServerEvent {
 }
 
 #[derive(Debug)]
-pub struct NodeState {
+pub struct OpenNode {
     pub node_name: NodeName,
     pub sender: mpsc::Sender<FromUser>,
     // TODO: How to signal to close the node?
@@ -34,35 +41,73 @@ pub struct NodeState {
 }
 
 #[derive(Debug)]
-pub struct ServerState {
+pub struct ServerState<ST> {
     pub next_node_id: NodeId,
-    pub nodes: HashMap<NodeId, NodeState>,
+    pub open_nodes: HashMap<NodeId, OpenNode>,
+    pub store: ST,
 }
 
-impl ServerState {
-    pub fn new() -> Self {
+impl<ST> ServerState<ST> {
+    pub fn new(store: ST) -> Self {
         Self {
             next_node_id: NodeId(0),
-            nodes: HashMap::new(),
+            open_nodes: HashMap::new(),
+            store,
         }
     }
 }
 
-pub async fn handle_user_to_server<S>(
+#[allow(unused)]
+pub async fn handle_create_node_local<ST,US>(create_node_local: CreateNodeLocal, store: &mut ST, user_sender: &mut US) -> Result<(), ServerError> 
+where
+    ST: Store,
+    US: Sink<ServerToUser> + Unpin,
+{
+    // TODO: Randomly generate a node private key:
+    let node_private_key = unimplemented!();
+    match store.create_local_node(create_node_local.node_name.clone(), node_private_key).await {
+        Ok(()) => {
+            let node_info_local = NodeInfoLocal {
+                node_public_key: derive_public_key(&node_private_key).map_err(|_| ServerError::DerivePublicKeyError)?,
+            };
+            let node_info = NodeInfo::Local(node_info_local);
+            let create_node_result = CreateNodeResult::Success(node_info);
+            user_sender.send(ServerToUser::ResponseCreateNode(create_node_local.node_name, create_node_result))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        },
+        Err(e) => {
+            warn!("handle_create_node_local: store error: {:?}", e);
+            user_sender.send(ServerToUser::ResponseCreateNode(create_node_local.node_name, CreateNodeResult::Failure))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        },
+    }
+    Ok(())
+}
+
+pub async fn handle_user_to_server<S,ST,US>(
     user_to_server: UserToServer, 
-    server_state: &mut ServerState,
+    server_state: &mut ServerState<ST>,
+    mut user_sender: US,
     _spawner: &S) -> Result<(), ServerError> 
 where
     S: Spawn,
+    ST: Store,
+    US: Sink<ServerToUser> + Unpin,
 {
-
     match user_to_server {
-        UserToServer::RequestCreateNode(_request_create_node) => unimplemented!(),
+        UserToServer::RequestCreateNode(request_create_node) => {
+            match request_create_node {
+                RequestCreateNode::CreateNodeLocal(local) => handle_create_node_local(local, &mut server_state.store, &mut user_sender).await?,
+                RequestCreateNode::CreateNodeRemote(_remote) => unimplemented!(),
+            }
+        },
         UserToServer::RequestRemoveNode(_node_name) => unimplemented!(),
         UserToServer::RequestOpenNode(_node_name) => unimplemented!(),
         UserToServer::RequestCloseNode(_node_id) => unimplemented!(),
         UserToServer::Node(node_id, from_user) => {
-            let node_state = if let Some(node_state) = server_state.nodes.get_mut(&node_id) {
+            let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
                 node_state
             } else {
                 warn!("UserToServer::Node: nonexistent node {:?}", node_id);
@@ -75,15 +120,17 @@ where
 }
 
 #[allow(unused)]
-pub async fn inner_server_loop<S>(
+pub async fn inner_server_loop<S,ST>(
     conn_pair: ConnPairServer,
+    store: ST,
     spawner: S,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
     S: Spawn,
+    ST: Store,
 {
 
-    let mut server_state = ServerState::new();
+    let mut server_state = ServerState::new(store);
 
     let (mut user_sender, mut user_receiver) = conn_pair.split();
 
@@ -101,12 +148,12 @@ where
     while let Some(event) = incoming_events.next().await {
         match event {
             ServerEvent::User(user_to_server) => {
-                handle_user_to_server(user_to_server, &mut server_state, &spawner).await?;
+                handle_user_to_server(user_to_server, &mut server_state, &mut user_sender, &spawner).await?;
             }
             ServerEvent::UserClosed => return Ok(()),
             ServerEvent::CompactNode(compact_node_event) => {
                 let (node_id, to_user) = compact_node_event;
-                if server_state.nodes.contains_key(&node_id) {
+                if server_state.open_nodes.contains_key(&node_id) {
                     user_sender.send(ServerToUser::Node(node_id, to_user))
                         .await
                         .map_err(|_| ServerError::UserSenderError)?;
