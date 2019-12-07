@@ -79,9 +79,12 @@ pub enum RequestCreateNode {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
+    // TODO: Possibly have (NodeName, ...) here: (???)
     ResponseOpenNode(ResponseOpenNode),
     ResponseCreateNode(NodeName, CreateNodeResult),
+    // TODO: Should we include success/failure here: (???)
     ResponseRemoveNode(NodeName),
+    // TODO: Should we include success/failure here: (???)
     ResponseCloseNode(NodeId), // node_id
     /// A message received from a specific node
     Node(NodeId, ToUser), // (node_id, to_user)
