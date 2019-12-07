@@ -58,7 +58,6 @@ impl<ST> ServerState<ST> {
     }
 }
 
-#[allow(unused)]
 pub async fn handle_create_node_local<ST,US,CG>(
     create_node_local: CreateNodeLocal, 
     store: &mut ST, 
@@ -69,6 +68,8 @@ where
     US: Sink<ServerToUser> + Unpin,
     CG: GenPrivateKey,
 {
+    // Randomly generate a private key ourselves, because we don't trust the user to correctly randomly
+    // generate a private key.
     let node_private_key = compact_gen.gen_private_key();
     let node_public_key = derive_public_key(&node_private_key).map_err(|_| ServerError::DerivePublicKeyError)?;
     match store.create_local_node(create_node_local.node_name.clone(), node_private_key).await {
@@ -92,16 +93,44 @@ where
     Ok(())
 }
 
-#[allow(unused)]
 pub async fn handle_create_node_remote<ST,US>(
-    create_node_local: CreateNodeRemote, 
+    create_node_remote: CreateNodeRemote, 
     store: &mut ST, 
     user_sender: &mut US) -> Result<(), ServerError> 
 where
     ST: Store,
     US: Sink<ServerToUser> + Unpin,
 {
-    unimplemented!();
+
+    let app_public_key = derive_public_key(&create_node_remote.app_private_key)
+                    .map_err(|_| ServerError::DerivePublicKeyError)?;
+    let create_remote_node_res = store.create_remote_node(
+        create_node_remote.node_name.clone(),
+        create_node_remote.app_private_key,
+        create_node_remote.node_public_key.clone(),
+        create_node_remote.node_address.clone()).await;
+
+    match create_remote_node_res {
+        Ok(()) => {
+            let node_info_remote = NodeInfoRemote {
+                app_public_key,
+                node_public_key: create_node_remote.node_public_key,
+                node_address: create_node_remote.node_address,
+            };
+            let node_info = NodeInfo::Remote(node_info_remote);
+            let create_node_result = CreateNodeResult::Success(node_info);
+            user_sender.send(ServerToUser::ResponseCreateNode(create_node_remote.node_name, create_node_result))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        },
+        Err(e) => {
+            warn!("handle_create_node_remote: store error: {:?}", e);
+            user_sender.send(ServerToUser::ResponseCreateNode(create_node_remote.node_name, CreateNodeResult::Failure))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        },
+    }
+    Ok(())
 }
 
 pub async fn handle_user_to_server<S,ST,CG,US>(
