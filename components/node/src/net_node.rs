@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+// use std::collections::HashMap;
 use std::fmt::Debug;
 
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::{FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
@@ -40,37 +40,33 @@ pub enum NetNodeError {
 }
 
 #[derive(Clone)]
-struct AppConnTransform<VT, ET, KT, GT, TS, S> {
+struct AppConnTransform<VT, ET, KT, TA, S> {
     version_transform: VT,
     encrypt_transform: ET,
     keepalive_transform: KT,
-    get_trusted_apps: GT,
-    /// An extra spawner used for running get_trusted_apps:
-    trusted_apps_spawner: TS,
+    trusted_apps: TA,
     spawner: S,
 }
 
-impl<VT, ET, KT, GT, TS, S> AppConnTransform<VT, ET, KT, GT, TS, S> {
+impl<VT, ET, KT, TA, S> AppConnTransform<VT, ET, KT, TA, S> {
     fn new(
         version_transform: VT,
         encrypt_transform: ET,
         keepalive_transform: KT,
-        get_trusted_apps: GT,
-        trusted_apps_spawner: TS,
+        trusted_apps: TA,
         spawner: S,
     ) -> Self {
         AppConnTransform {
             version_transform,
             encrypt_transform,
             keepalive_transform,
-            get_trusted_apps,
-            trusted_apps_spawner,
+            trusted_apps,
             spawner,
         }
     }
 }
 
-impl<VT, ET, KT, GT, TS, S> FutTransform for AppConnTransform<VT, ET, KT, GT, TS, S>
+impl<VT, ET, KT, TA, S> FutTransform for AppConnTransform<VT, ET, KT, TA, S>
 where
     VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
     ET: FutTransform<
@@ -79,14 +75,16 @@ where
         > + Clone
         + Send,
     KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
-    GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
-    TS: Spawn + Clone + Send,
+    TA: TrustedApps + Send + Clone,
+    // GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
+    // TS: Spawn + Clone + Send,
     S: Spawn + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
     type Output = Option<IncomingAppConnection<NetAddress>>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
+        // let c_trusted_apps = self.trusted_apps.clone();
         Box::pin(async move {
             // Version prefix:
             let ver_conn = self.version_transform.transform(conn_pair).await;
@@ -94,19 +92,7 @@ where
             let (public_key, enc_conn) = self.encrypt_transform.transform((None, ver_conn)).await?;
 
             // Obtain permissions for app (Or reject it if not trusted):
-            let c_get_trusted_apps = self.get_trusted_apps.clone();
-
-            // Obtain trusted apps using a separate spawner.
-            // At this point we re-read the directory of all trusted apps.
-            // This could be slow, therefore we perform this operation on self.trusted_apps_spawner
-            // and not on self.spawner, which represents the main executor for this program.
-            let trusted_apps_fut = self
-                .trusted_apps_spawner
-                .spawn_with_handle(future::lazy(move |_| (c_get_trusted_apps)()))
-                .ok()?;
-            let trusted_apps = trusted_apps_fut.await?;
-
-            let app_permissions = trusted_apps.get(&public_key)?;
+            let app_permissions: AppPermissions = self.trusted_apps.app_permissions(&public_key).await?;
 
             // Keepalive wrapper:
             let (mut sender, mut receiver) =
@@ -166,27 +152,28 @@ where
     }
 }
 
-pub async fn net_node<IAC, C, R, GT, TS, S>(
+pub trait TrustedApps {
+    /// Get the permissions of an app. Returns None if the app is not trusted at all.
+    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>>;
+}
+
+pub async fn net_node<IAC, C, R, TA, S>(
     incoming_app_raw_conns: IAC,
     net_connector: C,
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
     node_config: NodeConfig,
-    get_trusted_apps: GT,
+    trusted_apps: TA,
     node_state: NodeState<NetAddress>,
     database_client: DatabaseClient<NodeMutation<NetAddress>>,
-    // TODO: Might be possible to eliminate this spawner if GT returned a future instead.
-    // Might be possible if we use async-std's file operations.
-    trusted_apps_spawner: TS,
     spawner: S,
 ) -> Result<(), NetNodeError>
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
-    GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
-    TS: Spawn + Clone + Send + 'static,
+    TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     // Wrap net connector with a version prefix:
@@ -227,8 +214,7 @@ where
         version_transform,
         encrypt_transform,
         keepalive_transform,
-        get_trusted_apps,
-        trusted_apps_spawner,
+        trusted_apps,
         spawner.clone(),
     );
 

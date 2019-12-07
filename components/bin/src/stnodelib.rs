@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use std::fs;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use derive_more::From;
@@ -36,7 +34,9 @@ use proto::consts::{
 use proto::net::messages::NetAddress;
 use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
-use proto::file::{IdentityFile, TrustedAppFile};
+use proto::file::IdentityFile;
+
+use crate::file_trusted_apps::FileTrustedApps;
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -90,20 +90,6 @@ pub struct StNodeCmd {
     /// Directory path of trusted applications
     #[structopt(parse(from_os_str), short = "t", long = "trusted")]
     pub trusted: PathBuf,
-}
-
-/// Load all trusted applications files from a given directory.
-pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedAppFile>, NodeBinError> {
-    let mut res_trusted = Vec::new();
-    for entry in fs::read_dir(dir_path)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            continue;
-        }
-        res_trusted.push(deserialize_from_string(&fs::read_to_string(&path)?)?);
-    }
-    Ok(res_trusted)
 }
 
 pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
@@ -180,16 +166,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
     let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(laddr);
 
-    // Create a closure for loading trusted apps map:
-    let get_trusted_apps = move || -> Option<_> {
-        Some(
-            load_trusted_apps(&trusted)
-                .ok()?
-                .into_iter()
-                .map(|trusted_app_file| (trusted_app_file.public_key, trusted_app_file.permissions))
-                .collect::<HashMap<_, _>>(),
-        )
-    };
+    let trusted_apps = FileTrustedApps::new(trusted.into());
 
     // Get initial node_state:
     let node_state = atomic_db.get_state().clone();
@@ -217,10 +194,9 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         identity_client,
         rng,
         node_config,
-        get_trusted_apps,
+        trusted_apps,
         node_state,
         database_client,
-        file_system_thread_pool.clone(),
         thread_pool.clone(),
     );
 

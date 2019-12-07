@@ -10,6 +10,7 @@
 #[macro_use]
 extern crate log;
 
+mod file_trusted_apps;
 pub mod stindexlib;
 pub mod stmgrlib;
 pub mod stnodelib;

@@ -927,7 +927,7 @@ fn close_disable(stctrl_setup: &StCtrlSetup) {
 
 #[test]
 fn basic_cli() {
-    // let _ = env_logger::init();
+    let _ = env_logger::init();
 
     // Create a temporary directory.
     // Should be deleted when gets out of scope:

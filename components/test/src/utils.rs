@@ -13,7 +13,7 @@ use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::BoxStream;
+use common::conn::{BoxStream, BoxFuture};
 use common::select_streams::select_streams;
 
 use proto::crypto::PublicKey;
@@ -28,7 +28,7 @@ use identity::{create_identity, IdentityClient};
 use app::conn::{inner_connect, AppConnTuple, AppServerToApp};
 use app::report::NodeReport;
 
-use node::{net_node, NodeConfig, NodeState};
+use node::{net_node, NodeConfig, NodeState, TrustedApps};
 
 use database::file_db::FileDb;
 use database::{database_loop, AtomicDb, DatabaseClient};
@@ -262,6 +262,19 @@ where
     .ok()
 }
 
+#[derive(Debug, Clone)]
+struct DummyTrustedApps {
+    trusted_apps: HashMap<PublicKey, AppPermissions>,
+}
+
+impl TrustedApps for DummyTrustedApps {
+    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>> {
+        Box::pin(async move {
+            self.trusted_apps.get(app_public_key).cloned()
+        })
+    }
+}
+
 pub async fn create_node<S>(
     index: u8,
     sim_db: SimDb,
@@ -279,11 +292,12 @@ where
     let incoming_app_raw_conns = sim_network_client.listen(listen_address).await.unwrap();
 
     // Translate application index to application public key:
-    let trusted_apps = trusted_apps
+    let trusted_apps_map = trusted_apps
         .into_iter()
         .map(|(index, app_permissions)| (get_app_identity(index).get_public_key(), app_permissions))
         .collect::<HashMap<_, _>>();
-    let get_trusted_apps = move || Some(trusted_apps.clone());
+    let dummy_trusted_apps = DummyTrustedApps {trusted_apps: trusted_apps_map};
+    // let get_trusted_apps = move || Some(trusted_apps.clone());
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
 
@@ -316,11 +330,10 @@ where
         identity_client,
         rng,
         default_node_config(),
-        get_trusted_apps,
+        dummy_trusted_apps,
         node_state,
         database_client,
-        spawner.clone(), // trusted_apps_spawner
-        spawner.clone(), // database_spawner
+        spawner.clone(), 
     )
     .map_err(|e| error!("net_node() error: {:?}", e))
     .map(|_| ());
@@ -424,10 +437,6 @@ pub async fn advance_time<'a>(
         test_executor.wait().await;
     }
 }
-
-// TODO: Enhance this service to allow getting the last value of NodeReport.
-// Should be done similarly to how AppConn used to be implemented (Sending a oneshot and waiting
-// for a response)
 
 #[derive(Debug)]
 struct ReportRequest {
