@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use futures::StreamExt;
 use futures::task::{Spawn, SpawnExt};
 use futures::future::RemoteHandle;
+use futures::channel::mpsc;
 
 use derive_more::From;
 
@@ -19,7 +20,9 @@ use app::file::{NodeAddressFile, IdentityFile};
 use app::common::{NetAddress, PublicKey, PrivateKey, derive_public_key};
 
 use node::NodeState;
+
 use database::file_db::FileDb;
+use database::{DatabaseClient, AtomicDb, database_loop};
 
 use crypto::identity::SoftwareEd25519Identity;
 use identity::{create_identity, IdentityClient};
@@ -58,6 +61,7 @@ pub enum FileStoreError {
     NodeNotLoaded,
     NodeDoesNotExist,
     LoadIdentityError,
+    LoadDbError,
 }
 
 
@@ -337,14 +341,41 @@ async fn load_local_node<S>(local: &FileStoreNodeLocal, spawner: &S) -> Result<L
 where
     S: Spawn,
 {
-    // Create identity server::
+    // Create identity server:
     let (node_identity_server_handle, node_identity_client) = create_identity_server(&local.node_private_key, spawner)?;
 
     // TODO:
     // - Get compact state
     // - Create compact db server + client
+    
     // - Get node's state
     // - Create node db server + client
+    //
+    
+    /*
+    // Load database:
+    let atomic_db =
+        FileDb::<NodeState<NetAddress>>::load(local.node_db.into()).map_err(|_| FileStoreError::LoadDbError)?;
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(
+        atomic_db,
+        incoming_db_requests,
+        file_system_thread_pool.clone(),
+    )
+    .map_err(|e| error!("database_loop() error: {:?}", e))
+    .map(|_| ());
+
+    file_system_thread_pool
+        .spawn(loop_fut)
+        .map_err(|_| NetNodeError::SpawnError)?;
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+    */
     unimplemented!();
 }
 
