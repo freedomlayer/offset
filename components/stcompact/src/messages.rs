@@ -51,7 +51,6 @@ pub enum CreateNodeResult {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateNodeLocal {
     pub node_name: NodeName,
-    // pub node_private_key: PrivateKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -63,9 +62,9 @@ pub struct CreateNodeRemote {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ResponseOpenNode {
-    Success(NodeName, NodeId, CompactReport), // (node_name, node_id, compact_report)
-    Failure(NodeName),
+pub enum OpenNodeResult {
+    Success(NodeId, CompactReport), // (node_id, compact_report)
+    Failure,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -80,7 +79,7 @@ pub enum RequestCreateNode {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
     // TODO: Possibly have (NodeName, ...) here: (???)
-    ResponseOpenNode(ResponseOpenNode),
+    ResponseOpenNode(NodeName, OpenNodeResult),
     ResponseCreateNode(NodeName, CreateNodeResult),
     // TODO: Should we include success/failure here: (???)
     ResponseRemoveNode(NodeName),
