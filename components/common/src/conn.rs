@@ -12,6 +12,7 @@ use futures::Future;
 #[derive(Debug)]
 pub struct SinkError;
 
+// TODO: Possibly use futures' version of these types?
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type BoxStream<'a, T> = Pin<Box<dyn Stream<Item = T> + Send + 'a>>;
 pub type BoxSink<'a, T, E> = Pin<Box<dyn Sink<T, Error = E> + Send + 'a>>;
