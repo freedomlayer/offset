@@ -171,8 +171,30 @@ where
     Ok(())
 }
 
-pub async fn handle_remove_node(_node_name: NodeName) -> Result<(), ServerError> {
-    unimplemented!();
+pub async fn handle_remove_node<US,ST>(
+    node_name: NodeName, 
+    server_state: &mut ServerState<ST>, 
+    user_sender: &mut US) -> Result<(), ServerError> 
+where
+    US: Sink<ServerToUser> + Unpin,
+    ST: Store,
+{
+    // Make sure that we do not attempt to remove an open node:
+    if server_state.is_node_open(&node_name) {
+        return Err(ServerError::NodeIsOpen);
+    }
+
+    let remove_res = server_state.store.remove_node(node_name.clone()).await;
+    match remove_res {
+        Ok(()) => unimplemented!(),
+        Err(e) => {
+            warn!("handle_remove_node: store error: {:?}", e);
+            user_sender.send(ServerToUser::ResponseRemoveNode(node_name))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        },
+    }
+    Ok(())
 }
 
 pub async fn handle_user_to_server<S,ST,CG,US>(
@@ -189,7 +211,7 @@ where
 {
     match user_to_server {
         UserToServer::RequestCreateNode(request_create_node) => handle_create_node(request_create_node, server_state, compact_gen, user_sender).await?,
-        UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name).await?,
+        UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name, server_state, user_sender).await?,
         UserToServer::RequestOpenNode(_node_name) => unimplemented!(),
         UserToServer::RequestCloseNode(_node_id) => unimplemented!(),
         UserToServer::Node(node_id, from_user) => {
