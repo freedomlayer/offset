@@ -23,6 +23,7 @@ pub enum ServerError {
     UserSenderError,
     NodeSenderError,
     DerivePublicKeyError,
+    NodeIsOpen,
 }
 
 type CompactNodeEvent = (NodeId, ToUser);
@@ -55,6 +56,15 @@ impl<ST> ServerState<ST> {
             open_nodes: HashMap::new(),
             store,
         }
+    }
+
+    fn is_node_open(&self, node_name: &NodeName) -> bool {
+        for open_node in self.open_nodes.values() {
+            if &open_node.node_name == node_name {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -133,11 +143,43 @@ where
     Ok(())
 }
 
+async fn handle_create_node<CG, US, ST>(
+    request_create_node: RequestCreateNode,
+    server_state: &mut ServerState<ST>,
+    compact_gen: &mut CG,
+    mut user_sender: &mut US) -> Result<(), ServerError> 
+where
+    CG: GenPrivateKey,
+    US: Sink<ServerToUser> + Unpin,
+    ST: Store,
+{
+
+    match request_create_node {
+        RequestCreateNode::CreateNodeLocal(local) => {
+            if server_state.is_node_open(&local.node_name) {
+                return Err(ServerError::NodeIsOpen);
+            }
+            handle_create_node_local(local, &mut server_state.store, &mut user_sender, compact_gen).await?;
+        }
+        RequestCreateNode::CreateNodeRemote(remote) => {
+            if server_state.is_node_open(&remote.node_name) {
+                return Err(ServerError::NodeIsOpen);
+            }
+            handle_create_node_remote(remote, &mut server_state.store, &mut user_sender).await?;
+        }
+    }
+    Ok(())
+}
+
+pub async fn handle_remove_node(_node_name: NodeName) -> Result<(), ServerError> {
+    unimplemented!();
+}
+
 pub async fn handle_user_to_server<S,ST,CG,US>(
     user_to_server: UserToServer, 
     server_state: &mut ServerState<ST>,
     compact_gen: &mut CG,
-    mut user_sender: US,
+    user_sender: &mut US,
     _spawner: &S) -> Result<(), ServerError> 
 where
     S: Spawn,
@@ -146,15 +188,8 @@ where
     US: Sink<ServerToUser> + Unpin,
 {
     match user_to_server {
-        UserToServer::RequestCreateNode(request_create_node) => {
-            match request_create_node {
-                RequestCreateNode::CreateNodeLocal(local) => 
-                    handle_create_node_local(local, &mut server_state.store, &mut user_sender, compact_gen).await?,
-                RequestCreateNode::CreateNodeRemote(remote) => 
-                    handle_create_node_remote(remote, &mut server_state.store, &mut user_sender).await?,
-            }
-        },
-        UserToServer::RequestRemoveNode(_node_name) => unimplemented!(),
+        UserToServer::RequestCreateNode(request_create_node) => handle_create_node(request_create_node, server_state, compact_gen, user_sender).await?,
+        UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name).await?,
         UserToServer::RequestOpenNode(_node_name) => unimplemented!(),
         UserToServer::RequestCloseNode(_node_id) => unimplemented!(),
         UserToServer::Node(node_id, from_user) => {
