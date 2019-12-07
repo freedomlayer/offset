@@ -11,8 +11,9 @@ use app::common::derive_public_key;
 
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, NodeId, NodeName, 
-    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal};
+    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote};
 use crate::compact_node::{ToUser, FromUser};
+use crate::gen::GenPrivateKey;
 use crate::store::Store;
 
 pub type ConnPairServer = ConnPair<ServerToUser, UserToServer>;
@@ -58,17 +59,22 @@ impl<ST> ServerState<ST> {
 }
 
 #[allow(unused)]
-pub async fn handle_create_node_local<ST,US>(create_node_local: CreateNodeLocal, store: &mut ST, user_sender: &mut US) -> Result<(), ServerError> 
+pub async fn handle_create_node_local<ST,US,CG>(
+    create_node_local: CreateNodeLocal, 
+    store: &mut ST, 
+    user_sender: &mut US, 
+    compact_gen: &mut CG) -> Result<(), ServerError> 
 where
     ST: Store,
     US: Sink<ServerToUser> + Unpin,
+    CG: GenPrivateKey,
 {
-    // TODO: Randomly generate a node private key:
-    let node_private_key = unimplemented!();
+    let node_private_key = compact_gen.gen_private_key();
+    let node_public_key = derive_public_key(&node_private_key).map_err(|_| ServerError::DerivePublicKeyError)?;
     match store.create_local_node(create_node_local.node_name.clone(), node_private_key).await {
         Ok(()) => {
             let node_info_local = NodeInfoLocal {
-                node_public_key: derive_public_key(&node_private_key).map_err(|_| ServerError::DerivePublicKeyError)?,
+                node_public_key,
             };
             let node_info = NodeInfo::Local(node_info_local);
             let create_node_result = CreateNodeResult::Success(node_info);
@@ -86,21 +92,37 @@ where
     Ok(())
 }
 
-pub async fn handle_user_to_server<S,ST,US>(
+#[allow(unused)]
+pub async fn handle_create_node_remote<ST,US>(
+    create_node_local: CreateNodeRemote, 
+    store: &mut ST, 
+    user_sender: &mut US) -> Result<(), ServerError> 
+where
+    ST: Store,
+    US: Sink<ServerToUser> + Unpin,
+{
+    unimplemented!();
+}
+
+pub async fn handle_user_to_server<S,ST,CG,US>(
     user_to_server: UserToServer, 
     server_state: &mut ServerState<ST>,
+    compact_gen: &mut CG,
     mut user_sender: US,
     _spawner: &S) -> Result<(), ServerError> 
 where
     S: Spawn,
     ST: Store,
+    CG: GenPrivateKey,
     US: Sink<ServerToUser> + Unpin,
 {
     match user_to_server {
         UserToServer::RequestCreateNode(request_create_node) => {
             match request_create_node {
-                RequestCreateNode::CreateNodeLocal(local) => handle_create_node_local(local, &mut server_state.store, &mut user_sender).await?,
-                RequestCreateNode::CreateNodeRemote(_remote) => unimplemented!(),
+                RequestCreateNode::CreateNodeLocal(local) => 
+                    handle_create_node_local(local, &mut server_state.store, &mut user_sender, compact_gen).await?,
+                RequestCreateNode::CreateNodeRemote(remote) => 
+                    handle_create_node_remote(remote, &mut server_state.store, &mut user_sender).await?,
             }
         },
         UserToServer::RequestRemoveNode(_node_name) => unimplemented!(),
@@ -120,14 +142,16 @@ where
 }
 
 #[allow(unused)]
-pub async fn inner_server_loop<S,ST>(
+pub async fn inner_server_loop<ST,CG,S>(
     conn_pair: ConnPairServer,
     store: ST,
+    mut compact_gen: CG,
     spawner: S,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
-    S: Spawn,
     ST: Store,
+    CG: GenPrivateKey,
+    S: Spawn,
 {
 
     let mut server_state = ServerState::new(store);
@@ -148,7 +172,7 @@ where
     while let Some(event) = incoming_events.next().await {
         match event {
             ServerEvent::User(user_to_server) => {
-                handle_user_to_server(user_to_server, &mut server_state, &mut user_sender, &spawner).await?;
+                handle_user_to_server(user_to_server, &mut server_state, &mut compact_gen, &mut user_sender, &spawner).await?;
             }
             ServerEvent::UserClosed => return Ok(()),
             ServerEvent::CompactNode(compact_node_event) => {
