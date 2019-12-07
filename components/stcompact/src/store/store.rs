@@ -1,5 +1,6 @@
 use common::conn::BoxFuture;
 use database::DatabaseClient;
+use std::fmt::Debug;
 
 use app::common::{NetAddress, PrivateKey, PublicKey};
 use node::{NodeMutation, NodeState};
@@ -37,7 +38,7 @@ pub enum LoadedNode {
 // TODO: Possibly implement encryption for nodes' private key here:
 /// Persistent storage manager for nodes' private information.
 pub trait Store {
-    type Error;
+    type Error: Debug;
 
     fn create_local_node<'a>(
         &'a mut self,
