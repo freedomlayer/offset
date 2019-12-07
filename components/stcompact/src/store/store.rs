@@ -11,7 +11,7 @@ use crate::messages::{NodeName, NodesInfo};
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
-    pub node_identity: IdentityClient,
+    pub node_identity_client: IdentityClient,
     pub compact_state: CompactState,
     pub compact_db_client: DatabaseClient<CompactState>,
     pub node_state: NodeState<NetAddress>,
@@ -20,7 +20,7 @@ pub struct LoadedNodeLocal {
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeRemote {
-    pub app_identity: IdentityClient,
+    pub app_identity_client: IdentityClient,
     pub node_public_key: PublicKey,
     pub node_address: NetAddress,
     pub compact_state: CompactState,

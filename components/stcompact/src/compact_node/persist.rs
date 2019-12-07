@@ -69,7 +69,7 @@ pub struct CompactState {
 }
 
 impl CompactState {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             open_invoices: HashMap::new(),
             open_payments: HashMap::new(),
@@ -77,20 +77,7 @@ impl CompactState {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompactStateDb {
-    state: CompactState,
-}
-
-impl CompactStateDb {
-    pub fn new() -> Self {
-        Self {
-            state: CompactState::new(),
-        }
-    }
-}
-
-impl MutableState for CompactStateDb {
+impl MutableState for CompactState {
     // We consider the full state to be a mutation.
     // This is somewhat inefficient:
     type Mutation = CompactState;
@@ -98,7 +85,7 @@ impl MutableState for CompactStateDb {
 
     fn mutate(&mut self, mutation: &Self::Mutation) -> Result<(), Self::MutateError> {
         // We consider the full state to be a mutation:
-        self.state = mutation.clone();
+        *self = mutation.clone();
         Ok(())
     }
 }

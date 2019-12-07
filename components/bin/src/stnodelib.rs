@@ -173,14 +173,11 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
-    let loop_fut = database_loop(
-        atomic_db,
-        incoming_db_requests,
-        file_system_thread_pool.clone(),
-    )
-    .map_err(|e| error!("database_loop() error: {:?}", e))
-    .map(|_| ());
-    file_system_thread_pool
+    let loop_fut = database_loop(atomic_db, incoming_db_requests, file_system_thread_pool)
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+
+    thread_pool
         .spawn(loop_fut)
         .map_err(|_| NetNodeError::SpawnError)?;
 

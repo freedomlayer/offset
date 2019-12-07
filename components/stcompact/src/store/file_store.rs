@@ -1,13 +1,17 @@
+use std::fmt::Debug;
 use std::collections::HashMap;
 
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt, FutureExt};
 use futures::task::{Spawn, SpawnExt};
 use futures::future::RemoteHandle;
 use futures::channel::mpsc;
 
 use derive_more::From;
 
+use serde::{Serialize, de::DeserializeOwned};
+
 use common::conn::BoxFuture;
+use common::mutable_state::MutableState;
 
 use async_std::io::prelude::WriteExt;
 use async_std::fs;
@@ -32,14 +36,31 @@ use crate::messages::{NodeName, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodesIn
 
 use crate::store::store::{LoadedNode, Store, LoadedNodeLocal, LoadedNodeRemote};
 use crate::store::consts::{LOCKFILE, LOCAL, REMOTE, NODE_DB, NODE_IDENT, NODE_INFO, APP_IDENT, COMPACT_DB};
-use crate::compact_node::CompactStateDb;
+use crate::compact_node::CompactState;
 
-struct LiveNode {
+#[derive(Debug)]
+struct LiveNodeLocal {
+    node_identity_handle: RemoteHandle<()>,
+    compact_db_handle: RemoteHandle<()>,
+    node_db_handle: RemoteHandle<()>,
+}
+
+#[derive(Debug)]
+struct LiveNodeRemote {
+    app_identity_handle: RemoteHandle<()>,
+    compact_db_handle: RemoteHandle<()>,
+}
+
+#[derive(Debug)]
+enum LiveNode {
+    Local(LiveNodeLocal),
+    Remote(LiveNodeRemote),
 }
 
 #[allow(unused)]
-pub struct FileStore<S> {
+pub struct FileStore<S,FS> {
     spawner: S,
+    file_spawner: FS,
     store_path_buf: PathBuf,
     /// If dropped, the advisory lock file protecting the file store will be freed.
     lock_file_handle: LockFileHandle,
@@ -105,8 +126,7 @@ type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
 */
 
 
-
-pub async fn open_file_store<FS,S>(store_path_buf: PathBuf, file_spawner: &FS, spawner: S) -> Result<FileStore<S>, FileStoreError> 
+pub async fn open_file_store<FS,S>(store_path_buf: PathBuf, spawner: S, file_spawner: FS) -> Result<FileStore<S,FS>, FileStoreError> 
 where   
     FS: Spawn,
     S: Spawn + Sync,
@@ -129,6 +149,7 @@ where
 
     Ok(FileStore {
         spawner,
+        file_spawner,
         store_path_buf,
         lock_file_handle,
         live_nodes: HashMap::new(),
@@ -243,7 +264,7 @@ async fn create_local_node(
 
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
-    let initial_state = CompactStateDb::new();
+    let initial_state = CompactState::new();
     let _ = FileDb::create(compact_db_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.ident file:
@@ -283,7 +304,7 @@ async fn create_remote_node(
 
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
-    let initial_state = CompactStateDb::new();
+    let initial_state = CompactState::new();
     let _ = FileDb::create(compact_db_path.into(), initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.info:
@@ -336,68 +357,107 @@ where
     Ok((server_handle, identity_client))
 }
 
-
-async fn load_local_node<S>(local: &FileStoreNodeLocal, spawner: &S) -> Result<LoadedNodeLocal, FileStoreError> 
+async fn spawn_db<S,FS,MS>(db_path_buf: PathBuf, spawner: &S, file_spawner: FS) 
+    -> Result<(MS, RemoteHandle<()>, DatabaseClient<MS::Mutation>), FileStoreError>
 where
     S: Spawn,
+    FS: Spawn + Send + Clone + 'static,
+    MS: Clone + Serialize + DeserializeOwned + MutableState + Send + Debug + 'static,
+    MS::Mutation: Clone + Serialize + DeserializeOwned + Send + Debug,
+    MS::MutateError: Debug + Send,
 {
-    // Create identity server:
-    let (node_identity_server_handle, node_identity_client) = create_identity_server(&local.node_private_key, spawner)?;
+    // This operation blocks, so we are running it using the file_spawner:
+    let atomic_db = file_spawner.spawn_with_handle(async move {
+        FileDb::<MS>::load(db_path_buf.into()).map_err(|_| FileStoreError::LoadDbError)
+    }).map_err(|_| FileStoreError::SpawnError)?.await?;
 
-    // TODO:
-    // - Get compact state
-    // - Create compact db server + client
-    
-    // - Get node's state
-    // - Create node db server + client
-    //
-    
-    /*
-    // Load database:
-    let atomic_db =
-        FileDb::<NodeState<NetAddress>>::load(local.node_db.into()).map_err(|_| FileStoreError::LoadDbError)?;
-    // Get initial node_state:
-    let node_state = atomic_db.get_state().clone();
+    // Get initial state:
+    let state = atomic_db.get_state().clone();
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
     let loop_fut = database_loop(
         atomic_db,
         incoming_db_requests,
-        file_system_thread_pool.clone(),
+        file_spawner.clone(),
     )
-    .map_err(|e| error!("database_loop() error: {:?}", e))
+    .map_err(|e| error!("spawn_db(): database_loop() error: {:?}", e))
     .map(|_| ());
 
-    file_system_thread_pool
-        .spawn(loop_fut)
-        .map_err(|_| NetNodeError::SpawnError)?;
+    let remote_handle = spawner
+        .spawn_with_handle(loop_fut)
+        .map_err(|_| FileStoreError::SpawnError)?;
 
-    // Obtain a client to the database service:
-    let database_client = DatabaseClient::new(db_request_sender);
-    */
-    unimplemented!();
+    Ok((state, remote_handle, DatabaseClient::new(db_request_sender)))
 }
 
-async fn load_remote_node<S>(remote: &FileStoreNodeRemote, spawner: &S) -> Result<LoadedNodeRemote, FileStoreError> 
+
+async fn load_local_node<S,FS>(local: &FileStoreNodeLocal, spawner: &S, file_spawner: FS) -> Result<(LiveNodeLocal, LoadedNodeLocal), FileStoreError> 
 where
     S: Spawn,
+    FS: Spawn + Send + Clone + 'static,
+{
+    // Create identity server:
+    let (node_identity_handle, node_identity_client) = create_identity_server(&local.node_private_key, spawner)?;
+
+    // Spawn compact database:
+    let (compact_state, compact_db_handle, compact_db_client) = spawn_db(local.compact_db.clone(), spawner, file_spawner.clone()).await?;
+
+    // Spawn node database:
+    let (node_state, node_db_handle, node_db_client) = spawn_db(local.compact_db.clone(), spawner, file_spawner.clone()).await?;
+
+    // When we drop those handles, all servers will be closed:
+    let live_node_local = LiveNodeLocal {
+        node_identity_handle,
+        compact_db_handle,
+        node_db_handle,
+    };
+
+    let loaded_node_local = LoadedNodeLocal {
+        node_identity_client,
+        compact_state,
+        compact_db_client,
+        node_state,
+        node_db_client,
+    };
+
+    Ok((live_node_local, loaded_node_local))
+}
+
+async fn load_remote_node<S,FS>(remote: &FileStoreNodeRemote, spawner: &S, file_spawner: FS) -> Result<(LiveNodeRemote, LoadedNodeRemote), FileStoreError> 
+where
+    S: Spawn,
+    FS: Spawn + Send + Clone + 'static,
 {
 
     // Create identity server:
-    let (app_identity_server_handle, app_identity_client) = create_identity_server(&remote.app_private_key, spawner)?;
+    let (app_identity_handle, app_identity_client) = create_identity_server(&remote.app_private_key, spawner)?;
     
-    // TODO:
-    // - Get compact state
-    // - Create compact db server + client
-    // - Copy node address and public key (Possibly need to derive?)
-    unimplemented!();
+    // Spawn compact database:
+    let (compact_state, compact_db_handle, compact_db_client) = spawn_db(remote.compact_db.clone(), spawner, file_spawner.clone()).await?;
+
+    // When we drop those handles, all servers will be closed:
+    let live_node_remote = LiveNodeRemote {
+        app_identity_handle,
+        compact_db_handle,
+    };
+
+    let loaded_node_remote = LoadedNodeRemote {
+        app_identity_client,
+        node_public_key: remote.node_public_key.clone(),
+        node_address: remote.node_address.clone(),
+        compact_state,
+        compact_db_client,
+    };
+
+    Ok((live_node_remote, loaded_node_remote))
 }
 
 #[allow(unused)]
-impl<S> Store for FileStore<S> 
+impl<S,FS> Store for FileStore<S,FS>
 where
     S: Spawn + Send + Sync,
+    FS: Spawn + Clone + Send + Sync + 'static,
 {
     type Error = FileStoreError;
 
@@ -437,6 +497,11 @@ where
         node_name: NodeName,
     ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>> {
         Box::pin(async move {
+            // Make sure the node we want to load is not already loaded:
+            if self.live_nodes.contains_key(&node_name) {
+                return Err(FileStoreError::NodeIsLoaded);
+            }
+
             let file_store_nodes = read_all_nodes(&self.store_path_buf).await?;
             let file_store_node = if let Some(file_store_node) = file_store_nodes.get(&node_name) {
                 file_store_node
@@ -444,10 +509,21 @@ where
                 return Err(FileStoreError::NodeDoesNotExist);
             };
             
-            Ok(match file_store_node {
-                FileStoreNode::Local(local) => LoadedNode::Local(load_local_node(local, &self.spawner).await?),
-                FileStoreNode::Remote(remote) => LoadedNode::Remote(load_remote_node(remote, &self.spawner).await?),
-            })
+            let (live_node, loaded_node) = match file_store_node {
+                FileStoreNode::Local(local) => {
+                    let (live_node_local, loaded_node_local) = load_local_node(local, &self.spawner, self.file_spawner.clone()).await?;
+                    (LiveNode::Local(live_node_local), LoadedNode::Local(loaded_node_local))
+                },
+                FileStoreNode::Remote(remote) => {
+                    let (live_node_remote, loaded_node_remote) = load_remote_node(remote, &self.spawner, self.file_spawner.clone()).await?;
+                    (LiveNode::Remote(live_node_remote), LoadedNode::Remote(loaded_node_remote))
+                },
+            };
+
+            // Keep the loaded node:
+            self.live_nodes.insert(node_name, live_node);
+
+            Ok(loaded_node)
         })
     }
 
