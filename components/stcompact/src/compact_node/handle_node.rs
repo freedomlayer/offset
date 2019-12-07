@@ -10,7 +10,7 @@ use crate::compact_node::messages::{ToUser, PaymentFees, PaymentFeesResponse, Pa
 use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::compact_node::types::{CompactServerState, CompactServerError};
 use crate::compact_node::convert::create_compact_report;
-use crate::gen::CompactGen;
+use crate::gen::GenUid;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
@@ -47,7 +47,7 @@ async fn ack_close_payment<CG, AS>(
     compact_gen: &mut CG,
     app_sender: &mut AS) -> Result<(), CompactServerError>
 where 
-    CG: CompactGen,
+    CG: GenUid,
     AS: Sink<AppToAppServer> + Unpin,
 {
     // Ack the payment closing if possible:
@@ -77,7 +77,7 @@ pub async fn handle_node<CG,US,AS>(app_server_to_app: AppServerToApp,
     app_sender: &mut AS)
     -> Result<(), CompactServerError>
 where   
-    CG: CompactGen,
+    CG: GenUid,
     US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin,
 {

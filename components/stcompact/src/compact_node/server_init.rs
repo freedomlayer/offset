@@ -5,7 +5,7 @@ use database::DatabaseClient;
 use crate::compact_node::persist::{CompactState, OpenPaymentStatus};
 use crate::compact_node::types::{ConnPairCompact, CompactServerError};
 use crate::compact_node::messages::{PaymentDone, ToUser, PaymentCommit};
-use crate::gen::CompactGen;
+use crate::gen::GenUid;
 
 #[allow(unused)]
 pub async fn server_init<CG>(
@@ -14,7 +14,7 @@ pub async fn server_init<CG>(
     database_client: &mut DatabaseClient<CompactState>,
     compact_gen: &mut CG) -> Result<(), CompactServerError>
 where   
-    CG: CompactGen,
+    CG: GenUid,
 {
 
     let payment_ids: Vec<_> = compact_state.open_payments.keys().cloned().collect();

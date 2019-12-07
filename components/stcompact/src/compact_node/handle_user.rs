@@ -9,7 +9,7 @@ use crate::compact_node::messages::{FromUser, ToUser, UserRequest, ResponseCommi
     PaymentFees, PaymentFeesResponse, PaymentDone};
 use crate::compact_node::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
 use crate::compact_node::types::{CompactServerState, CompactServerError};
-use crate::gen::CompactGen;
+use crate::gen::GenUid;
 
 
 
@@ -27,7 +27,7 @@ pub async fn handle_user<CG,US,AS>(
 where   
     US: Sink<ToUser> + Unpin,
     AS: Sink<AppToAppServer> + Unpin,
-    CG: CompactGen,
+    CG: GenUid,
 {
     let FromUser {
         user_request_id,

@@ -13,7 +13,7 @@ use crate::compact_node::types::{CompactServerEvent, CompactServerState, Compact
 use crate::compact_node::handle_user::handle_user;
 use crate::compact_node::handle_node::handle_node;
 use crate::compact_node::permission::check_permission;
-use crate::gen::CompactGen;
+use crate::gen::GenUid;
 
 
 /// The compact server is mediating between the user and the node.
@@ -24,7 +24,7 @@ async fn inner_server_loop<CG>(app_conn_tuple: AppConnTuple,
     mut compact_gen: CG,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> 
 where
-    CG: CompactGen,
+    CG: GenUid,
 {
 
     // Interaction with the user:
@@ -73,7 +73,7 @@ pub async fn server_loop<CG>(app_conn_tuple: AppConnTuple,
     database_client: DatabaseClient<CompactState>,
     compact_gen: CG) -> Result<(), CompactServerError> 
 where   
-    CG: CompactGen,
+    CG: GenUid,
 {
     inner_server_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, compact_gen, None).await
 }
