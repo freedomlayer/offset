@@ -19,7 +19,6 @@ use async_std::path::{PathBuf, Path};
 
 use lockfile::{try_lock_file, LockFileHandle};
 
-#[allow(unused)]
 use app::file::{NodeAddressFile, IdentityFile};
 use app::common::{NetAddress, PublicKey, PrivateKey, derive_public_key};
 
@@ -57,7 +56,6 @@ enum LiveNode {
     Remote(LiveNodeRemote),
 }
 
-#[allow(unused)]
 pub struct FileStore<S,FS> {
     spawner: S,
     file_spawner: FS,
@@ -456,7 +454,6 @@ where
     Ok((live_node_remote, loaded_node_remote))
 }
 
-#[allow(unused)]
 impl<S,FS> Store for FileStore<S,FS>
 where
     S: Spawn + Send + Sync,
