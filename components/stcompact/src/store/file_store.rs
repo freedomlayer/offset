@@ -340,7 +340,8 @@ fn file_store_node_to_node_info(file_store_node: FileStoreNode) -> Result<NodeIn
     })
 }
 
-fn create_identity_server<S>(private_key: &PrivateKey, spawner: &S) -> Result<(RemoteHandle<()>, IdentityClient), FileStoreError> 
+fn create_identity_server<S>(private_key: &PrivateKey, spawner: &S) 
+    -> Result<(RemoteHandle<()>, IdentityClient), FileStoreError> 
 where
     S: Spawn,
 {
@@ -392,7 +393,8 @@ where
 }
 
 
-async fn load_local_node<S,FS>(local: &FileStoreNodeLocal, spawner: &S, file_spawner: FS) -> Result<(LiveNodeLocal, LoadedNodeLocal), FileStoreError> 
+async fn load_local_node<S,FS>(local: &FileStoreNodeLocal, spawner: &S, file_spawner: FS) 
+    -> Result<(LiveNodeLocal, LoadedNodeLocal), FileStoreError> 
 where
     S: Spawn,
     FS: Spawn + Send + Clone + 'static,
@@ -424,7 +426,8 @@ where
     Ok((live_node_local, loaded_node_local))
 }
 
-async fn load_remote_node<S,FS>(remote: &FileStoreNodeRemote, spawner: &S, file_spawner: FS) -> Result<(LiveNodeRemote, LoadedNodeRemote), FileStoreError> 
+async fn load_remote_node<S,FS>(remote: &FileStoreNodeRemote, spawner: &S, file_spawner: FS) 
+    -> Result<(LiveNodeRemote, LoadedNodeRemote), FileStoreError> 
 where
     S: Spawn,
     FS: Spawn + Send + Clone + 'static,
