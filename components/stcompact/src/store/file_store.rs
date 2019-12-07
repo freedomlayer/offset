@@ -480,6 +480,9 @@ where
         node_address: NetAddress,
     ) -> BoxFuture<'a, Result<(), Self::Error>> {
         Box::pin(async move {
+            if self.live_nodes.contains_key(&node_name) {
+                return Err(FileStoreError::NodeIsLoaded);
+            }
             create_remote_node(node_name, app_private_key, node_public_key, node_address, &self.store_path_buf).await
         })
     }
