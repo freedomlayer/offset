@@ -186,13 +186,6 @@ where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     GT: Fn() -> Option<HashMap<PublicKey, AppPermissions>> + Clone + Send + 'static,
-    /*
-    AD: AtomicDb<State = NodeState<NetAddress>, Mutation = NodeMutation<NetAddress>>
-        + Send
-        + 'static,
-    AD::Error: Send + Debug,
-    */
-    // DS: Spawn + Clone + Send + 'static,
     TS: Spawn + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -213,30 +206,11 @@ where
         .await
         .map_err(|_| NetNodeError::RequestPublicKeyError)?;
 
-    /*
-    // Get initial node_state:
-    let node_state = atomic_db.get_state().clone();
-    */
-
     // Make sure that the local public key in the database
     // matches the local public key from the provided identity file:
     if node_state.funder_state.local_public_key != local_public_key {
         return Err(NetNodeError::DatabaseIdentityMismatch);
     }
-
-    /*
-    // Spawn database service:
-    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
-    let loop_fut = database_loop(atomic_db, incoming_db_requests, database_spawner)
-        .map_err(|e| error!("database_loop() error: {:?}", e))
-        .map(|_| ());
-    spawner
-        .spawn(loop_fut)
-        .map_err(|_| NetNodeError::SpawnError)?;
-
-    // Obtain a client to the database service:
-    let database_client = DatabaseClient::new(db_request_sender);
-    */
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
