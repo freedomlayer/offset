@@ -12,21 +12,21 @@ use app::common::derive_public_key;
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, NodeId, NodeName, 
     RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote};
-use crate::compact_node::{ToUser, FromUser};
+#[allow(unused)]
+use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck};
 use crate::gen::GenPrivateKey;
 use crate::store::Store;
 
 pub type ConnPairServer = ConnPair<ServerToUser, UserToServer>;
 
 #[derive(Debug)]
-pub enum ServerError {
-    UserSenderError,
+pub enum ServerError { UserSenderError,
     NodeSenderError,
     DerivePublicKeyError,
     NodeIsOpen,
 }
 
-type CompactNodeEvent = (NodeId, ToUser);
+type CompactNodeEvent = (NodeId, CompactToUserAck);
 
 pub enum ServerEvent {
     User(UserToServer),
@@ -37,7 +37,7 @@ pub enum ServerEvent {
 #[derive(Debug)]
 pub struct OpenNode {
     pub node_name: NodeName,
-    pub sender: mpsc::Sender<FromUser>,
+    pub sender: mpsc::Sender<UserToCompactAck>,
     // TODO: How to signal to close the node?
     // Possibly await some handle (If we use spawn_with_handle for example?)
 }
@@ -197,6 +197,7 @@ where
     Ok(())
 }
 
+#[allow(unused)]
 pub async fn handle_user_to_server<S,ST,CG,US>(
     user_to_server: UserToServer, 
     server_state: &mut ServerState<ST>,
@@ -214,14 +215,18 @@ where
         UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name, server_state, user_sender).await?,
         UserToServer::RequestOpenNode(_node_name) => unimplemented!(),
         UserToServer::RequestCloseNode(_node_id) => unimplemented!(),
-        UserToServer::Node(node_id, from_user) => {
+        UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
                 node_state
             } else {
                 warn!("UserToServer::Node: nonexistent node {:?}", node_id);
                 return Ok(());
             };
-            node_state.sender.send(from_user).await.map_err(|_| ServerError::NodeSenderError)?;
+            // TODO: 
+            // - Generate a random uid here.
+            // - Remember that the uid is related to a certain id provided by the user.
+            let user_to_compact_ack = unimplemented!();
+            node_state.sender.send(user_to_compact_ack).await.map_err(|_| ServerError::NodeSenderError)?;
         },
     }
     Ok(())
@@ -262,9 +267,13 @@ where
             }
             ServerEvent::UserClosed => return Ok(()),
             ServerEvent::CompactNode(compact_node_event) => {
-                let (node_id, to_user) = compact_node_event;
+                unimplemented!();
+                /*
+                let (node_id, compact_to_user_ack) = compact_node_event;
+
+                // TODO: Find the matching user's request id.
                 if server_state.open_nodes.contains_key(&node_id) {
-                    user_sender.send(ServerToUser::Node(node_id, to_user))
+                    user_sender.send(ServerToUser::Node(node_id, compact_to_user_ack.inner))
                         .await
                         .map_err(|_| ServerError::UserSenderError)?;
                 } else {
@@ -272,6 +281,7 @@ where
                     // so we do not want to forward any more messages from this node to the user.
                     warn!("inner_server_loop: compact_node_event from a node {:?} that is closed.", node_id);
                 }
+                */
             },
         }
         // For testing:

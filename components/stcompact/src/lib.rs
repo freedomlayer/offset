@@ -18,5 +18,5 @@ mod compact_node;
 
 mod gen;
 mod messages;
-// mod server_loop;
+mod server_loop;
 mod store;
