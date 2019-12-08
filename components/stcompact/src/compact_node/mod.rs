@@ -8,6 +8,6 @@ mod server_init;
 mod server_loop;
 mod types;
 
-pub use messages::{CompactReport, FromUser, ToUser};
+pub use messages::{CompactReport, CompactToUser, UserToCompact};
 pub use persist::CompactState;
 pub use server_loop::server_loop;

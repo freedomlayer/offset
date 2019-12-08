@@ -49,7 +49,7 @@ where
     while let Some(event) = incoming_events.next().await {
         match event {
             CompactServerEvent::User(from_user) => {
-                if check_permission(&from_user.user_request, &app_permissions) {
+                if check_permission(&from_user.inner, &app_permissions) {
                     handle_user(from_user, &app_permissions, &mut server_state, &mut compact_gen, &mut user_sender, &mut app_sender).await?;
                 } else {
                     // Operation not permitted, we close the connection

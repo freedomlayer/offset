@@ -107,14 +107,6 @@ pub enum ResponseCommitInvoice {
     Success,
 }
 
-/*
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum PaymentCommitResult {
-    Failure,
-    Success(Commit),
-}
-*/
-
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
     pub payment_id: PaymentId,
@@ -371,9 +363,17 @@ pub struct CompactReport {
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompactToUserAck {
+    /// Acknowledge the receipt of `UserToCompact`
+    /// Should be sent after `Report`, in case any changes occured.
+    Ack(Uid),
+    CompactToUser(CompactToUser),
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ToUser {
+pub enum CompactToUser {
     // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
     PaymentFees(PaymentFees),
@@ -384,16 +384,13 @@ pub enum ToUser {
     // ------------[Seller]-------------------
     ResponseCommitInvoice(ResponseCommitInvoice),
     // ------------[Reports]-------------------
-    /// Acknowledge the receipt of `UserRequest`
-    /// Should be sent after `Report`, in case any changes occured.
-    Ack(Uid),
     /// Reports about current state:
     Report(CompactReport),
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum UserRequest {
+pub enum UserToCompact {
     // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
@@ -437,10 +434,10 @@ pub enum UserRequest {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct FromUser {
+pub struct UserToCompactAck {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub user_request_id: Uid,
-    pub user_request: UserRequest,
+    pub inner: UserToCompact,
 }
 
 /*

@@ -1,32 +1,32 @@
 use app::conn::AppPermissions;
 
-use crate::compact_node::messages::UserRequest;
+use crate::compact_node::messages::UserToCompact;
 
 /// Check if an app is allowed to send a certain user request
-pub fn check_permission(user_request: &UserRequest, app_permissions: &AppPermissions) -> bool {
+pub fn check_permission(user_request: &UserToCompact, app_permissions: &AppPermissions) -> bool {
     match user_request {
-        UserRequest::AddRelay(_)
-        | UserRequest::RemoveRelay(_)
-        | UserRequest::AddIndexServer(_)
-        | UserRequest::RemoveIndexServer(_)
-        | UserRequest::AddFriend(_)
-        | UserRequest::SetFriendRelays(_)
-        | UserRequest::SetFriendName(_)
-        | UserRequest::RemoveFriend(_)
-        | UserRequest::EnableFriend(_)
-        | UserRequest::DisableFriend(_)
-        | UserRequest::OpenFriendCurrency(_)
-        | UserRequest::CloseFriendCurrency(_)
-        | UserRequest::SetFriendCurrencyMaxDebt(_)
-        | UserRequest::SetFriendCurrencyRate(_)
-        | UserRequest::RemoveFriendCurrency(_)
-        | UserRequest::ResetFriendChannel(_) => app_permissions.config,
-        UserRequest::InitPayment(_)
-        | UserRequest::ConfirmPaymentFees(_)
-        | UserRequest::CancelPayment(_)
-        | UserRequest::AckPaymentDone(_, _) => app_permissions.buyer,
-        UserRequest::AddInvoice(_)
-        | UserRequest::CancelInvoice(_)
-        | UserRequest::RequestCommitInvoice(_) => app_permissions.seller,
+        UserToCompact::AddRelay(_)
+        | UserToCompact::RemoveRelay(_)
+        | UserToCompact::AddIndexServer(_)
+        | UserToCompact::RemoveIndexServer(_)
+        | UserToCompact::AddFriend(_)
+        | UserToCompact::SetFriendRelays(_)
+        | UserToCompact::SetFriendName(_)
+        | UserToCompact::RemoveFriend(_)
+        | UserToCompact::EnableFriend(_)
+        | UserToCompact::DisableFriend(_)
+        | UserToCompact::OpenFriendCurrency(_)
+        | UserToCompact::CloseFriendCurrency(_)
+        | UserToCompact::SetFriendCurrencyMaxDebt(_)
+        | UserToCompact::SetFriendCurrencyRate(_)
+        | UserToCompact::RemoveFriendCurrency(_)
+        | UserToCompact::ResetFriendChannel(_) => app_permissions.config,
+        UserToCompact::InitPayment(_)
+        | UserToCompact::ConfirmPaymentFees(_)
+        | UserToCompact::CancelPayment(_)
+        | UserToCompact::AckPaymentDone(_, _) => app_permissions.buyer,
+        UserToCompact::AddInvoice(_)
+        | UserToCompact::CancelInvoice(_)
+        | UserToCompact::RequestCommitInvoice(_) => app_permissions.seller,
     }
 }

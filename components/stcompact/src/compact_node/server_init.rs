@@ -4,7 +4,7 @@ use database::DatabaseClient;
 
 use crate::compact_node::persist::{CompactState, OpenPaymentStatus};
 use crate::compact_node::types::{ConnPairCompact, CompactServerError};
-use crate::compact_node::messages::{PaymentDone, ToUser, PaymentCommit};
+use crate::compact_node::messages::{PaymentDone, CompactToUser, CompactToUserAck, PaymentCommit};
 use crate::gen::GenUid;
 
 #[allow(unused)]
@@ -39,7 +39,8 @@ where
 
                 // Send failure message to user:
                 let payment_done = PaymentDone::Failure(ack_uid);
-                conn_pair_compact.sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                let compact_to_user = CompactToUser::PaymentDone(payment_done);
+                conn_pair_compact.sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
             },
             OpenPaymentStatus::Commit(commit, _fees) => {
                 // At this point we can not cancel the payment, because it is possible
@@ -50,17 +51,20 @@ where
                     payment_id: payment_id.clone(),
                     commit: commit.clone().into(),
                 };
-                conn_pair_compact.sender.send(ToUser::PaymentCommit(payment_commit)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                let compact_to_user = CompactToUser::PaymentCommit(payment_commit);
+                conn_pair_compact.sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
             },
             OpenPaymentStatus::Success(receipt, fees, ack_uid) => {
                 // Resend success to user:
                 let payment_done = PaymentDone::Success(receipt.clone(), *fees, ack_uid.clone());
-                conn_pair_compact.sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                let compact_to_user = CompactToUser::PaymentDone(payment_done);
+                conn_pair_compact.sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
             },
             OpenPaymentStatus::Failure(ack_uid) => {
                 // Resend failure to user:
                 let payment_done = PaymentDone::Failure(ack_uid.clone());
-                conn_pair_compact.sender.send(ToUser::PaymentDone(payment_done)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                let compact_to_user = CompactToUser::PaymentDone(payment_done);
+                conn_pair_compact.sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
             },
         }
     }

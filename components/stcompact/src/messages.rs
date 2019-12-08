@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use app::common::{NetAddress, PrivateKey, PublicKey};
 
-use crate::compact_node::{CompactReport, FromUser, ToUser};
+use crate::compact_node::{CompactReport, CompactToUser, UserToCompact};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct NodeName(String);
@@ -86,7 +86,7 @@ pub enum ServerToUser {
     // TODO: Should we include success/failure here: (???)
     ResponseCloseNode(NodeId), // node_id
     /// A message received from a specific node
-    Node(NodeId, ToUser), // (node_id, to_user)
+    Node(NodeId, CompactToUser), // (node_id, compact_to_user)
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -96,5 +96,5 @@ pub enum UserToServer {
     RequestOpenNode(NodeName),
     RequestCloseNode(NodeId), // node_id
     /// A message sent to a specific node
-    Node(NodeId, FromUser), // (node_id, to_user)
+    Node(NodeId, UserToCompact), // (node_id, user_to_compact)
 }

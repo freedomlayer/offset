@@ -4,14 +4,14 @@ use app::conn::AppServerToApp;
 use database::DatabaseClient;
 
 use crate::compact_node::persist::CompactState;
-use crate::compact_node::messages::{ToUser, FromUser};
+use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
 
-pub type ConnPairCompact = ConnPair<ToUser, FromUser>;
+pub type ConnPairCompact = ConnPair<CompactToUserAck, UserToCompactAck>;
 
 
 #[derive(Debug)]
 pub enum CompactServerEvent {
-    User(FromUser),
+    User(UserToCompactAck),
     UserClosed,
     Node(AppServerToApp),
     NodeClosed,
