@@ -260,21 +260,26 @@ where
             }
             ServerEvent::UserClosed => return Ok(()),
             ServerEvent::CompactNode(compact_node_event) => {
-                unimplemented!();
-                /*
                 let (node_id, compact_to_user_ack) = compact_node_event;
-
-                // TODO: Find the matching user's request id.
-                if server_state.open_nodes.contains_key(&node_id) {
-                    user_sender.send(ServerToUser::Node(node_id, compact_to_user_ack.inner))
-                        .await
-                        .map_err(|_| ServerError::UserSenderError)?;
-                } else {
-                    // The user was told that this node is closed,
-                    // so we do not want to forward any more messages from this node to the user.
-                    warn!("inner_server_loop: compact_node_event from a node {:?} that is closed.", node_id);
+                match compact_to_user_ack {
+                    CompactToUserAck::Ack(request_id) => {
+                        user_sender.send(ServerToUserAck::Ack(request_id))
+                            .await
+                            .map_err(|_| ServerError::UserSenderError)?;
+                    },
+                    CompactToUserAck::CompactToUser(compact_to_user) => {
+                        if server_state.open_nodes.contains_key(&node_id) {
+                            let server_to_user = ServerToUser::Node(node_id, compact_to_user);
+                            user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
+                                .await
+                                .map_err(|_| ServerError::UserSenderError)?;
+                        } else {
+                            // The user was told that this node is closed,
+                            // so we do not want to forward any more messages from this node to the user.
+                            warn!("inner_server_loop: compact_node_event from a node {:?} that is closed.", node_id);
+                        }
+                    },
                 }
-                */
             },
         }
         // For testing:
