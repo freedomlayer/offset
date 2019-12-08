@@ -485,12 +485,12 @@ where
 
     fn list_nodes<'a>(&'a self) -> BoxFuture<'a, Result<NodesInfo, Self::Error>> {
         Box::pin(async move {
-            let mut inner_nodes_info = HashMap::new();
+            let mut nodes_info = HashMap::new();
             for (node_name, file_store_node) in read_all_nodes(&self.store_path_buf).await? {
                 let node_info = file_store_node_to_node_info(file_store_node)?;
-                let _ = inner_nodes_info.insert(node_name, node_info);
+                let _ = nodes_info.insert(node_name, node_info);
             }
-            Ok(NodesInfo(inner_nodes_info))
+            Ok(nodes_info)
         })
     }
 

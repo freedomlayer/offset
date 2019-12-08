@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use app::common::{NetAddress, PrivateKey, PublicKey};
+use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
 
 use crate::compact_node::{CompactReport, CompactToUser, UserToCompact};
 
@@ -43,6 +43,12 @@ pub enum NodeInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeStatus {
+    pub is_open: bool,
+    pub info: NodeInfo,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum CreateNodeResult {
     Success(NodeInfo),
     Failure,
@@ -67,8 +73,9 @@ pub enum OpenNodeResult {
     Failure,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NodesInfo(pub HashMap<NodeName, NodeInfo>);
+pub type NodesInfo = HashMap<NodeName, NodeInfo>;
+
+pub type NodesStatus = HashMap<NodeName, NodeStatus>;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RequestCreateNode {
@@ -78,15 +85,16 @@ pub enum RequestCreateNode {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
-    // TODO: Possibly have (NodeName, ...) here: (???)
-    ResponseOpenNode(NodeName, OpenNodeResult),
-    ResponseCreateNode(NodeName, CreateNodeResult),
-    // TODO: Should we include success/failure here: (???)
-    ResponseRemoveNode(NodeName),
-    // TODO: Should we include success/failure here: (???)
-    ResponseCloseNode(NodeId), // node_id
+    /// A map of all nodes and their current status
+    NodesStatus(NodesStatus),
     /// A message received from a specific node
     Node(NodeId, CompactToUser), // (node_id, compact_to_user)
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ServerToUserAck {
+    ServerToUser(ServerToUser),
+    Ack(Uid),
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,4 +105,10 @@ pub enum UserToServer {
     RequestCloseNode(NodeId), // node_id
     /// A message sent to a specific node
     Node(NodeId, UserToCompact), // (node_id, user_to_compact)
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UserToServerAck {
+    pub request_id: Uid,
+    pub inner: UserToServer,
 }

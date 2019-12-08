@@ -19,8 +19,10 @@ use crate::store::Store;
 
 pub type ConnPairServer = ConnPair<ServerToUser, UserToServer>;
 
+#[allow(unused)]
 #[derive(Debug)]
-pub enum ServerError { UserSenderError,
+pub enum ServerError { 
+    UserSenderError,
     NodeSenderError,
     DerivePublicKeyError,
     NodeIsOpen,
@@ -68,6 +70,7 @@ impl<ST> ServerState<ST> {
     }
 }
 
+#[allow(unused)]
 pub async fn handle_create_node_local<ST,US,CG>(
     create_node_local: CreateNodeLocal, 
     store: &mut ST, 
@@ -78,6 +81,8 @@ where
     US: Sink<ServerToUser> + Unpin,
     CG: GenPrivateKey,
 {
+    unimplemented!();
+    /*
     // Randomly generate a private key ourselves, because we don't trust the user to correctly randomly
     // generate a private key.
     let node_private_key = compact_gen.gen_private_key();
@@ -101,8 +106,10 @@ where
         },
     }
     Ok(())
+    */
 }
 
+#[allow(unused)]
 pub async fn handle_create_node_remote<ST,US>(
     create_node_remote: CreateNodeRemote, 
     store: &mut ST, 
@@ -120,6 +127,9 @@ where
         create_node_remote.node_public_key.clone(),
         create_node_remote.node_address.clone()).await;
 
+    unimplemented!();
+
+    /*
     match create_remote_node_res {
         Ok(()) => {
             let node_info_remote = NodeInfoRemote {
@@ -141,8 +151,10 @@ where
         },
     }
     Ok(())
+    */
 }
 
+#[allow(unused)]
 async fn handle_create_node<CG, US, ST>(
     request_create_node: RequestCreateNode,
     server_state: &mut ServerState<ST>,
@@ -171,6 +183,7 @@ where
     Ok(())
 }
 
+#[allow(unused)]
 pub async fn handle_remove_node<US,ST>(
     node_name: NodeName, 
     server_state: &mut ServerState<ST>, 
@@ -184,6 +197,10 @@ where
         return Err(ServerError::NodeIsOpen);
     }
 
+    unimplemented!();
+
+    /*
+
     let remove_res = server_state.store.remove_node(node_name.clone()).await;
     match remove_res {
         Ok(()) => unimplemented!(),
@@ -195,6 +212,7 @@ where
         },
     }
     Ok(())
+    */
 }
 
 #[allow(unused)]
