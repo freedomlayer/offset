@@ -82,6 +82,8 @@ where
     }
 }
 
+// TODO: Possibly separate NodeConfig into parts that are protocol related, and parts that are
+// implementation related?
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
     /// Memory allocated to a channel in memory (Used to connect two components)
