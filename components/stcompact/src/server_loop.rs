@@ -13,11 +13,11 @@ use app::common::{derive_public_key, Uid};
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
     RequestCreateNode, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
-    NodeStatus, NodesStatus};
+    NodeStatus, NodesStatus, ResponseOpenNode};
 #[allow(unused)]
 use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck};
 use crate::gen::GenPrivateKey;
-use crate::store::Store;
+use crate::store::{Store, LoadedNode};
 
 pub type ConnPairServer = ConnPair<ServerToUserAck, UserToServerAck>;
 
@@ -193,17 +193,42 @@ where
     Ok(true)
 }
 
-async fn handle_open_node<ST,US,S>(_node_name: NodeName, _server_state: &mut ServerState<ST>, _user_sender: &mut US, _spawner: &S) -> Result<bool, ServerError> 
+#[allow(unused)]
+async fn handle_open_node<ST,US,S>(node_name: NodeName, server_state: &mut ServerState<ST>, user_sender: &mut US, _spawner: &S) -> Result<bool, ServerError> 
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
     S: Spawn,
 {
+    // Load node from store:
+    let loaded_node = match server_state.store.load_node(node_name.clone()).await {
+        Ok(loaded_node) => loaded_node,
+        Err(e) => {
+            let response_open_node = ResponseOpenNode::Failure(node_name);
+            let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
+            user_sender.send(ServerToUserAck::ServerToUser(server_to_user)).await.map_err(|_| ServerError::UserSenderError)?;
+            warn!("handle_open_node: load_node() error: {:?}",e);
+            return Ok(false);
+        }
+    };
+
+
+    match loaded_node {
+        LoadedNode::Local(local) => {
+            // TODO: Spawn a new node
+            unimplemented!();
+        },
+        LoadedNode::Remote(remote) => {
+            // TODO: Connect to a remote node
+            unimplemented!();
+        }
+    }
+
     // TODO:
-    // - Load node from store.
     // - Open node, should be different between local, remote
     // - Send ResponseOpenNode, with relevant first CompactReport
     unimplemented!();
+
 }
 
 
