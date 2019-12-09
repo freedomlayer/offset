@@ -49,12 +49,6 @@ pub struct NodeStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CreateNodeResult {
-    Success(NodeInfo),
-    Failure,
-}
-
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateNodeLocal {
     pub node_name: NodeName,
 }
@@ -68,9 +62,9 @@ pub struct CreateNodeRemote {
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum OpenNodeResult {
-    Success(NodeId, CompactReport), // (node_id, compact_report)
-    Failure,
+pub enum ResponseOpenNode {
+    Success(NodeName, NodeId, CompactReport), // (node_name, node_id, compact_report)
+    Failure(NodeName),
 }
 
 pub type NodesInfo = HashMap<NodeName, NodeInfo>;
@@ -85,6 +79,7 @@ pub enum RequestCreateNode {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
+    ResponseOpenNode(ResponseOpenNode),
     /// A map of all nodes and their current status
     NodesStatus(NodesStatus),
     /// A message received from a specific node

@@ -12,7 +12,7 @@ use app::common::{derive_public_key, Uid};
 
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
-    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
+    RequestCreateNode, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
     NodeStatus, NodesStatus};
 #[allow(unused)]
 use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck};
@@ -77,6 +77,7 @@ pub async fn handle_create_node_local<ST,CG>(
     create_node_local: CreateNodeLocal, 
     store: &mut ST, 
     compact_gen: &mut CG) -> Result<bool, ServerError> 
+
 where
     ST: Store,
     CG: GenPrivateKey,
@@ -145,13 +146,10 @@ where
     })
 }
 
-#[allow(unused)]
-pub async fn handle_remove_node<US,ST>(
+pub async fn handle_remove_node<ST>(
     node_name: NodeName, 
-    server_state: &mut ServerState<ST>, 
-    user_sender: &mut US) -> Result<bool, ServerError> 
+    server_state: &mut ServerState<ST>) -> Result<bool, ServerError> 
 where
-    US: Sink<ServerToUserAck> + Unpin,
     ST: Store,
 {
     // Make sure that we do not attempt to remove an open node:
@@ -170,6 +168,44 @@ where
     })
 }
 
+async fn handle_close_node<ST>(node_id: &NodeId, server_state: &mut ServerState<ST>) -> Result<bool, ServerError> 
+where
+    ST: Store,
+{
+    // Remove from open nodes:
+    let open_node = if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
+        open_node
+    } else {
+        return Ok(false);
+    };
+
+    // TODO: Make sure we drop everything besides the name:
+    let OpenNode {
+        node_name,
+        ..
+    } = open_node;
+
+    // Unload from store:
+    if let Err(e) = server_state.store.unload_node(&node_name).await {
+        warn!("handle_close_node(): Error in unload_node(): {:?}", e);
+    }
+
+    Ok(true)
+}
+
+async fn handle_open_node<ST,US,S>(_node_name: NodeName, _server_state: &mut ServerState<ST>, _user_sender: &mut US, _spawner: &S) -> Result<bool, ServerError> 
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+    S: Spawn,
+{
+    // TODO:
+    // - Load node from store.
+    // - Open node, should be different between local, remote
+    // - Send ResponseOpenNode, with relevant first CompactReport
+    unimplemented!();
+}
+
 
 async fn build_nodes_status<ST>(server_state: &mut ServerState<ST>) -> Result<NodesStatus, ServerError> 
 where
@@ -182,13 +218,14 @@ where
     })).collect())
 }
 
+
 #[allow(unused)]
 pub async fn handle_user_to_server<S,ST,CG,US>(
     user_to_server_ack: UserToServerAck, 
     server_state: &mut ServerState<ST>,
     compact_gen: &mut CG,
     user_sender: &mut US,
-    _spawner: &S) -> Result<(), ServerError> 
+    spawner: &S) -> Result<(), ServerError> 
 where
     S: Spawn,
     ST: Store,
@@ -202,9 +239,9 @@ where
 
     let has_changed = match user_to_server {
         UserToServer::RequestCreateNode(request_create_node) => handle_create_node(request_create_node, server_state, compact_gen).await?,
-        UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name, server_state, user_sender).await?,
-        UserToServer::RequestOpenNode(_node_name) => unimplemented!(),
-        UserToServer::RequestCloseNode(_node_id) => unimplemented!(),
+        UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name, server_state).await?,
+        UserToServer::RequestOpenNode(node_name) => handle_open_node(node_name, server_state, user_sender, spawner).await?, 
+        UserToServer::RequestCloseNode(node_id) => handle_close_node(&node_id, server_state).await?,
         UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
                 node_state
