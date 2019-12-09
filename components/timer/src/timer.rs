@@ -64,7 +64,7 @@ impl std::fmt::Debug for TimerRequest {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TimerClient {
     sender: mpsc::Sender<TimerRequest>,
 }
