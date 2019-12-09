@@ -12,7 +12,8 @@ use app::common::{derive_public_key, Uid};
 
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
-    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote};
+    RequestCreateNode, CreateNodeResult, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
+    NodeStatus, NodesStatus};
 #[allow(unused)]
 use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck};
 use crate::gen::GenPrivateKey;
@@ -26,6 +27,7 @@ pub enum ServerError {
     UserSenderError,
     NodeSenderError,
     DerivePublicKeyError,
+    StoreError,
 }
 
 type CompactNodeEvent = (NodeId, CompactToUserAck);
@@ -169,9 +171,15 @@ where
 }
 
 
-#[allow(unused)]
-async fn build_nodes_status<ST>(_server_state: &mut ServerState<ST>) {
-    unimplemented!();
+async fn build_nodes_status<ST>(server_state: &mut ServerState<ST>) -> Result<NodesStatus, ServerError> 
+where
+    ST: Store,
+{
+    let nodes_info = server_state.store.list_nodes().await.map_err(|_| ServerError::StoreError)?;
+    Ok(nodes_info.into_iter().map(|(node_name, node_info)| (node_name.clone(), NodeStatus {
+        is_open: server_state.is_node_open(&node_name),
+        info: node_info,
+    })).collect())
 }
 
 #[allow(unused)]
@@ -216,13 +224,15 @@ where
 
     // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
     if has_changed {
-        // TODO: Send NodesStatus to the user:
-        assert!(false);
+        let nodes_status_map = build_nodes_status(server_state).await?;
+        let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
+        let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
+        user_sender.send(server_to_user_ack).await.map_err(|_| ServerError::NodeSenderError)?;
     }
 
     // Send ack to the user (In the case of UserToServer::Node, another mechanism sends the ack):
-    let user_to_server_ack = ServerToUserAck::Ack(request_id);
-    user_sender.send(user_to_server_ack).await.map_err(|_| ServerError::NodeSenderError)
+    let server_to_user_ack = ServerToUserAck::Ack(request_id);
+    user_sender.send(server_to_user_ack).await.map_err(|_| ServerError::NodeSenderError)
 }
 
 #[allow(unused)]
