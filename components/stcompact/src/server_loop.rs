@@ -4,11 +4,24 @@ use std::collections::HashMap;
 use futures::{stream, StreamExt, SinkExt, channel::mpsc, future, Sink};
 use futures::task::Spawn;
 
+use crypto::rand::CryptoRandom;
+
 use common::select_streams::select_streams;
 use common::conn::{ConnPair, BoxStream};
 
+use timer::TimerClient;
+
 #[allow(unused)]
 use app::common::{derive_public_key, Uid};
+
+#[allow(unused)]
+use proto::consts::{
+    KEEPALIVE_TICKS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
+    TICK_MS,
+};
+
+#[allow(unused)]
+use node::{NodeConfig, node};
 
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
@@ -19,6 +32,26 @@ use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserTo
 use crate::gen::GenPrivateKey;
 use crate::store::{Store, LoadedNode};
 
+
+/// Memory allocated to a channel in memory (Used to connect two components)
+const CHANNEL_LEN: usize = 0x20;
+/// The amount of ticks we wait before attempting to reconnect
+const BACKOFF_TICKS: usize = 0x8;
+/// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
+/// time.
+const MAX_CONCURRENT_ENCRYPT: usize = 0x8;
+/// The size we allocate for the user send funds requests queue.
+const MAX_PENDING_USER_REQUESTS: usize = 0x20;
+/// Maximum amount of concurrent index client requests:
+const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
+/// The amount of ticks we are willing to wait until a connection is established (Through
+/// the relay)
+const CONN_TIMEOUT_TICKS: usize = 0x8;
+/// Maximum amount of concurrent applications
+/// going through the incoming connection transform at the same time
+const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
+
+
 pub type ConnPairServer = ConnPair<ServerToUserAck, UserToServerAck>;
 
 #[allow(unused)]
@@ -28,6 +61,7 @@ pub enum ServerError {
     NodeSenderError,
     DerivePublicKeyError,
     StoreError,
+    CreateTimerError,
 }
 
 type CompactNodeEvent = (NodeId, CompactToUserAck);
@@ -47,18 +81,32 @@ pub struct OpenNode {
 }
 
 #[derive(Debug)]
-pub struct ServerState<ST> {
+pub struct ServerState<ST, R, C, S> {
     pub next_node_id: NodeId,
     pub open_nodes: HashMap<NodeId, OpenNode>,
     pub store: ST,
+    pub rng: R,
+    pub timer_client: TimerClient,
+    pub net_connector: C, // C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    pub spawner: S,
 }
 
-impl<ST> ServerState<ST> {
-    pub fn new(store: ST) -> Self {
+impl<ST,R,C,S> ServerState<ST,R,C,S> {
+    pub fn new(
+        store: ST, 
+        rng: R, 
+        timer_client: TimerClient, 
+        net_connector: C, 
+        spawner: S) -> Self {
+
         Self {
             next_node_id: NodeId(0),
             open_nodes: HashMap::new(),
             store,
+            rng, 
+            timer_client,
+            net_connector,
+            spawner,
         }
     }
 
@@ -119,9 +167,9 @@ where
 }
 
 /// Returns if any change has happened
-async fn handle_create_node<CG, ST>(
+async fn handle_create_node<ST,R,C,S,CG>(
     request_create_node: RequestCreateNode,
-    server_state: &mut ServerState<ST>,
+    server_state: &mut ServerState<ST,R,C,S>,
     compact_gen: &mut CG) -> Result<bool, ServerError> 
 where
     CG: GenPrivateKey,
@@ -146,9 +194,9 @@ where
     })
 }
 
-pub async fn handle_remove_node<ST>(
+pub async fn handle_remove_node<ST,R,C,S>(
     node_name: NodeName, 
-    server_state: &mut ServerState<ST>) -> Result<bool, ServerError> 
+    server_state: &mut ServerState<ST,R,C,S>) -> Result<bool, ServerError> 
 where
     ST: Store,
 {
@@ -168,7 +216,7 @@ where
     })
 }
 
-async fn handle_close_node<ST>(node_id: &NodeId, server_state: &mut ServerState<ST>) -> Result<bool, ServerError> 
+async fn handle_close_node<ST,R,C,S>(node_id: &NodeId, server_state: &mut ServerState<ST,R,C,S>) -> Result<bool, ServerError> 
 where
     ST: Store,
 {
@@ -194,11 +242,44 @@ where
 }
 
 #[allow(unused)]
-async fn handle_open_node<ST,US,S>(node_name: NodeName, server_state: &mut ServerState<ST>, user_sender: &mut US, _spawner: &S) -> Result<bool, ServerError> 
+const NODE_CONFIG: NodeConfig = NodeConfig {
+    /// Memory allocated to a channel in memory (Used to connect two components)
+    channel_len: CHANNEL_LEN,
+    /// The amount of ticks we wait before attempting to reconnect
+    backoff_ticks: BACKOFF_TICKS,
+    /// The amount of ticks we wait until we decide an idle connection has timed out.
+    keepalive_ticks: KEEPALIVE_TICKS,
+    /// Amount of ticks to wait until the next rekeying (Channel encryption)
+    ticks_to_rekey: TICKS_TO_REKEY,
+    /// Maximum amount of encryption set ups (diffie hellman) that we allow to occur at the same
+    /// time.
+    max_concurrent_encrypt: MAX_CONCURRENT_ENCRYPT,
+    /// The amount of ticks we are willing to wait until a connection is established (Through
+    /// the relay)
+    conn_timeout_ticks: CONN_TIMEOUT_TICKS,
+    /// Maximum amount of operations in one move token message
+    max_operations_in_batch: MAX_OPERATIONS_IN_BATCH,
+    /// The size we allocate for the user send funds requests queue.
+    max_pending_user_requests: MAX_PENDING_USER_REQUESTS,
+    /// Maximum amount of concurrent index client requests:
+    max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
+    /// Maximum amount of relays a node may use.
+    max_node_relays: MAX_NODE_RELAYS,
+    /// Maximum amount of incoming app connections we set up at the same time
+    max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+};
+
+
+#[allow(unused)]
+async fn handle_open_node<ST,R,C,US,S>(
+    node_name: NodeName, 
+    server_state: &mut ServerState<ST,R,C,S>, 
+    user_sender: &mut US) -> Result<bool, ServerError> 
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
-    S: Spawn,
+    R: CryptoRandom + Clone,
+    S: Spawn + Clone + Send,
 {
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -212,18 +293,36 @@ where
         }
     };
 
-
     match loaded_node {
         LoadedNode::Local(local) => {
             // TODO: Spawn a new node
+            
+            /*
+            let version_connector = {unimplemented!()};
+            let incoming_apps = {unimplemented!()};
+
+            let _ = node(
+                NODE_CONFIG,
+                local.node_identity_client,
+                timer_client,
+                local.node_state,
+                local.node_db_client,
+                version_connector,
+                incoming_apps,
+                rng,
+                server_state.spawner.clone(),
+            )
+            .await;
+            */
+
             unimplemented!();
         },
+
         LoadedNode::Remote(remote) => {
             // TODO: Connect to a remote node
             unimplemented!();
         }
     }
-
     // TODO:
     // - Open node, should be different between local, remote
     // - Save opened node's info inside an OpenNode structures, and insert into
@@ -234,7 +333,7 @@ where
 }
 
 
-async fn build_nodes_status<ST>(server_state: &mut ServerState<ST>) -> Result<NodesStatus, ServerError> 
+async fn build_nodes_status<ST,R,C,S>(server_state: &mut ServerState<ST,R,C,S>) -> Result<NodesStatus, ServerError> 
 where
     ST: Store,
 {
@@ -247,14 +346,14 @@ where
 
 
 #[allow(unused)]
-pub async fn handle_user_to_server<S,ST,CG,US>(
+pub async fn handle_user_to_server<S,ST,R,C,CG,US>(
     user_to_server_ack: UserToServerAck, 
-    server_state: &mut ServerState<ST>,
+    server_state: &mut ServerState<ST,R,C,S>,
     compact_gen: &mut CG,
-    user_sender: &mut US,
-    spawner: &S) -> Result<(), ServerError> 
+    user_sender: &mut US) -> Result<(), ServerError> 
 where
-    S: Spawn,
+    S: Spawn + Clone + Send,
+    R: CryptoRandom + Clone,
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
@@ -267,7 +366,7 @@ where
     let has_changed = match user_to_server {
         UserToServer::RequestCreateNode(request_create_node) => handle_create_node(request_create_node, server_state, compact_gen).await?,
         UserToServer::RequestRemoveNode(node_name) => handle_remove_node(node_name, server_state).await?,
-        UserToServer::RequestOpenNode(node_name) => handle_open_node(node_name, server_state, user_sender, spawner).await?, 
+        UserToServer::RequestOpenNode(node_name) => handle_open_node(node_name, server_state, user_sender).await?, 
         UserToServer::RequestCloseNode(node_id) => handle_close_node(&node_id, server_state).await?,
         UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
@@ -300,19 +399,23 @@ where
 }
 
 #[allow(unused)]
-pub async fn inner_server_loop<ST,CG,S>(
+pub async fn inner_server_loop<ST,R,C,S,CG>(
     conn_pair: ConnPairServer,
     store: ST,
     mut compact_gen: CG,
+    timer_client: TimerClient,
+    rng: R,
+    net_connector: C,
     spawner: S,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
     ST: Store,
     CG: GenPrivateKey,
-    S: Spawn,
+    S: Spawn + Clone + Send,
+    R: CryptoRandom + Clone,
 {
 
-    let mut server_state = ServerState::new(store);
+    let mut server_state = ServerState::new(store, rng, timer_client, net_connector, spawner);
 
     let (mut user_sender, mut user_receiver) = conn_pair.split();
 
@@ -330,7 +433,7 @@ where
     while let Some(event) = incoming_events.next().await {
         match event {
             ServerEvent::User(user_to_server) => {
-                handle_user_to_server(user_to_server, &mut server_state, &mut compact_gen, &mut user_sender, &spawner).await?;
+                handle_user_to_server(user_to_server, &mut server_state, &mut compact_gen, &mut user_sender).await?;
             }
             ServerEvent::UserClosed => return Ok(()),
             ServerEvent::CompactNode(compact_node_event) => {
