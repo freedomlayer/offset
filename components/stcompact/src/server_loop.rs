@@ -226,6 +226,8 @@ where
 
     // TODO:
     // - Open node, should be different between local, remote
+    // - Save opened node's info inside an OpenNode structures, and insert into
+    // `server_state.open_nodes`
     // - Send ResponseOpenNode, with relevant first CompactReport
     unimplemented!();
 
