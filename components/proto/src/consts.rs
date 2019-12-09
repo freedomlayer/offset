@@ -10,6 +10,7 @@ pub const MAX_ROUTE_LEN: usize = 32;
 /// Maximum length for a name of a currency.
 pub const MAX_CURRENCY_LEN: usize = 16;
 
+// TODO: Possibly convert TICK_MS to be u64?
 /// Amount of milliseconds in one tick:
 pub const TICK_MS: usize = 1000;
 
