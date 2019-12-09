@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
+timer = { path = "../timer", version = "0.1.0", package = "offst-timer" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 lockfile = { path = "../lockfile", version = "0.1.0", package = "offst-lockfile" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
