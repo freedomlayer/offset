@@ -1,5 +1,4 @@
-use std::fmt::Debug;
-use std::collections::HashMap;
+use std::fmt::Debug; use std::collections::HashMap;
 
 use futures::{stream, StreamExt, SinkExt, channel::{mpsc, oneshot}, Sink, TryFutureExt};
 use futures::future;
@@ -283,7 +282,9 @@ where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
     R: CryptoRandom + Clone + 'static,
-    S: Spawn + Clone + Send + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // Load node from store:
@@ -376,7 +377,9 @@ pub async fn handle_user_to_server<S,ST,R,C,CG,US>(
     compact_gen: &mut CG,
     user_sender: &mut US) -> Result<(), ServerError> 
 where
-    S: Spawn + Clone + Send + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     ST: Store,
     CG: GenPrivateKey,
@@ -436,7 +439,9 @@ pub async fn inner_server_loop<ST,R,C,S,CG>(
 where
     ST: Store,
     CG: GenPrivateKey,
-    S: Spawn + Clone + Send + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
