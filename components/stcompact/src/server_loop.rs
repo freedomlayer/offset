@@ -65,6 +65,8 @@ pub enum ServerError {
     StoreError,
     CreateTimerError,
     SpawnError,
+    FirstNodeReportError,
+    SendConnPairError,
 }
 
 type CompactNodeEvent = (NodeId, CompactToUserAck);
@@ -333,12 +335,15 @@ where
             });
             server_state.spawner.spawn_with_handle(node_fut).map_err(|_| ServerError::SpawnError)?;
 
+            let (node_report, conn_pair_sender) = report_receiver.await.map_err(|_| ServerError::FirstNodeReportError)?;
+            let (sender, node_receiver) = mpsc::channel(1);
+            let (node_sender, receiver) = mpsc::channel(1);
+
+            let node_conn_pair = ConnPairServer::from_raw(node_sender, node_receiver);
+            conn_pair_sender.send(node_conn_pair).map_err(|_| ServerError::SendConnPairError)?;
+
             // TODO:
-            // - Spawn node (above)
-            // - Get initial report
-            // - Send ConnPair to node, 
-            // - Compose compact_node over conn_pair on the application
-            //   side
+            // - Compose compact_node over conn_pair on the application side
 
             unimplemented!();
         },
