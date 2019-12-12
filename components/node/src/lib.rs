@@ -22,4 +22,4 @@ mod types;
 pub use self::net_node::{net_node, NetNodeError, TrustedApps};
 pub use self::node::node;
 pub use self::types::{NodeConfig, NodeMutation, NodeState};
-pub use app_server::IncomingAppConnection;
+pub use app_server::{ConnPairServer, IncomingAppConnection};
