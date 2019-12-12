@@ -5,7 +5,7 @@ using import "common.capnp".PublicKey;
 
 # First message sent after a connection was encrypted.
 # This message will determine the context of the connection.
-# This messeag can be sent only once per encrypted connection.
+# This message can be sent only once per encrypted connection.
 struct InitConnection {
     union {
         listen @0: Void;
