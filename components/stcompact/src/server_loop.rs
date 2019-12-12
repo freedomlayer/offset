@@ -1,18 +1,20 @@
 use std::fmt::Debug;
 use std::collections::HashMap;
 
-use futures::{stream, StreamExt, SinkExt, channel::mpsc, future, Sink};
-use futures::task::Spawn;
+use futures::{stream, StreamExt, SinkExt, channel::{mpsc, oneshot}, Sink, TryFutureExt};
+use futures::future;
+#[allow(unused)]
+use futures::task::{Spawn, SpawnExt};
 
 use crypto::rand::CryptoRandom;
 
 use common::select_streams::select_streams;
-use common::conn::{ConnPair, BoxStream};
+use common::conn::{ConnPair, BoxStream, FutTransform, ConnPairVec};
 
 use timer::TimerClient;
 
 #[allow(unused)]
-use app::common::{derive_public_key, Uid};
+use app::common::{derive_public_key, Uid, NetAddress};
 
 #[allow(unused)]
 use proto::consts::{
@@ -21,7 +23,8 @@ use proto::consts::{
 };
 
 #[allow(unused)]
-use node::{NodeConfig, node};
+use node::{NodeConfig, node, IncomingAppConnection, ConnPairServer};
+use proto::app_server::messages::{AppPermissions, NodeReport};
 
 #[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
@@ -52,7 +55,7 @@ const CONN_TIMEOUT_TICKS: usize = 0x8;
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
 
-pub type ConnPairServer = ConnPair<ServerToUserAck, UserToServerAck>;
+pub type ConnPairCompactServer = ConnPair<ServerToUserAck, UserToServerAck>;
 
 #[allow(unused)]
 #[derive(Debug)]
@@ -62,6 +65,7 @@ pub enum ServerError {
     DerivePublicKeyError,
     StoreError,
     CreateTimerError,
+    SpawnError,
 }
 
 type CompactNodeEvent = (NodeId, CompactToUserAck);
@@ -87,7 +91,7 @@ pub struct ServerState<ST, R, C, S> {
     pub store: ST,
     pub rng: R,
     pub timer_client: TimerClient,
-    pub net_connector: C, // C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    pub version_connector: C, 
     pub spawner: S,
 }
 
@@ -96,7 +100,7 @@ impl<ST,R,C,S> ServerState<ST,R,C,S> {
         store: ST, 
         rng: R, 
         timer_client: TimerClient, 
-        net_connector: C, 
+        version_connector: C, 
         spawner: S) -> Self {
 
         Self {
@@ -105,7 +109,7 @@ impl<ST,R,C,S> ServerState<ST,R,C,S> {
             store,
             rng, 
             timer_client,
-            net_connector,
+            version_connector,
             spawner,
         }
     }
@@ -278,8 +282,9 @@ async fn handle_open_node<ST,R,C,US,S>(
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
-    R: CryptoRandom + Clone,
-    S: Spawn + Clone + Send,
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Clone + Send + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -297,23 +302,42 @@ where
         LoadedNode::Local(local) => {
             // TODO: Spawn a new node
             
-            /*
-            let version_connector = {unimplemented!()};
-            let incoming_apps = {unimplemented!()};
+            let app_permissions = AppPermissions {
+                routes: true,
+                buyer: true,
+                seller: true,
+                config: true,
+            };
+            let (report_sender, report_receiver) = oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
+            let incoming_app_connection = IncomingAppConnection {
+                app_permissions,
+                report_sender,
+            };
 
-            let _ = node(
+            let incoming_apps = stream::once(future::ready(incoming_app_connection));
+
+            let c_spawner = server_state.spawner.clone();
+            let node_fut = node(
                 NODE_CONFIG,
                 local.node_identity_client,
-                timer_client,
+                server_state.timer_client.clone(),
                 local.node_state,
                 local.node_db_client,
-                version_connector,
+                server_state.version_connector.clone(),
                 incoming_apps,
-                rng,
-                server_state.spawner.clone(),
-            )
-            .await;
-            */
+                server_state.rng.clone(),
+                c_spawner.clone(),
+            ).map_err(|e| {
+                error!("node() error: {:?}",e);
+            });
+            server_state.spawner.spawn_with_handle(node_fut).map_err(|_| ServerError::SpawnError)?;
+
+            // TODO:
+            // - Spawn node (above)
+            // - Get initial report
+            // - Send ConnPair to node, 
+            // - Compose compact_node over conn_pair on the application
+            //   side
 
             unimplemented!();
         },
@@ -352,11 +376,12 @@ pub async fn handle_user_to_server<S,ST,R,C,CG,US>(
     compact_gen: &mut CG,
     user_sender: &mut US) -> Result<(), ServerError> 
 where
-    S: Spawn + Clone + Send,
-    R: CryptoRandom + Clone,
+    S: Spawn + Clone + Send + 'static,
+    R: CryptoRandom + Clone + 'static,
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let UserToServerAck {
         request_id,
@@ -400,22 +425,23 @@ where
 
 #[allow(unused)]
 pub async fn inner_server_loop<ST,R,C,S,CG>(
-    conn_pair: ConnPairServer,
+    conn_pair: ConnPairCompactServer,
     store: ST,
     mut compact_gen: CG,
     timer_client: TimerClient,
     rng: R,
-    net_connector: C,
+    version_connector: C,
     spawner: S,
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
     ST: Store,
     CG: GenPrivateKey,
-    S: Spawn + Clone + Send,
-    R: CryptoRandom + Clone,
+    S: Spawn + Clone + Send + 'static,
+    R: CryptoRandom + Clone + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
 
-    let mut server_state = ServerState::new(store, rng, timer_client, net_connector, spawner);
+    let mut server_state = ServerState::new(store, rng, timer_client, version_connector, spawner);
 
     let (mut user_sender, mut user_receiver) = conn_pair.split();
 
