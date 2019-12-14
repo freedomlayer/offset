@@ -344,6 +344,14 @@ where
 
             // TODO:
             // - Compose compact_node over conn_pair on the application side
+            /*
+            compact_node(
+                app_conn_tuple: AppConnTuple,
+                mut conn_pair_compact: ConnPairCompact,
+                mut compact_state: CompactState,
+                mut database_client: DatabaseClient<CompactState>,
+                mut compact_gen: CG)
+            */
 
             unimplemented!();
         },
