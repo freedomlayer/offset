@@ -249,7 +249,6 @@ where
     Ok(true)
 }
 
-#[allow(unused)]
 const NODE_CONFIG: NodeConfig = NodeConfig {
     /// Memory allocated to a channel in memory (Used to connect two components)
     channel_len: CHANNEL_LEN,
@@ -527,7 +526,6 @@ where
 }
 
 
-#[allow(unused)]
 pub async fn handle_user_to_server<S,ST,R,C,CG,US>(
     user_to_server_ack: UserToServerAck, 
     server_state: &mut ServerState<ST,R,C,S>,
@@ -583,8 +581,7 @@ where
     user_sender.send(server_to_user_ack).await.map_err(|_| ServerError::NodeSenderError)
 }
 
-#[allow(unused)]
-pub async fn inner_server_loop<ST,R,C,S,CG>(
+async fn inner_server_loop<ST,R,C,S,CG>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     mut compact_gen: CG,
@@ -602,7 +599,7 @@ where
     R: CryptoRandom + Clone + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
-    let (mut user_sender, mut user_receiver) = conn_pair.split();
+    let (mut user_sender, user_receiver) = conn_pair.split();
 
     let user_receiver = user_receiver.map(ServerEvent::User)
         .chain(stream::once(future::ready(ServerEvent::UserClosed)));
@@ -654,4 +651,24 @@ where
     Ok(())
 }
 
-// pub async fn server_loop() -> Result<(), ServerError> {}
+#[allow(unused)]
+pub async fn server_loop<ST,R,C,S,CG>(
+    conn_pair: ConnPairCompactServer,
+    store: ST,
+    compact_gen: CG,
+    timer_client: TimerClient,
+    rng: R,
+    version_connector: C,
+    spawner: S) -> Result<(), ServerError>
+where
+    ST: Store,
+    CG: GenPrivateKey,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    R: CryptoRandom + Clone + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    let opt_event_sender = None;
+    inner_server_loop(conn_pair, store, compact_gen, timer_client, rng, version_connector, spawner, opt_event_sender).await
+}
