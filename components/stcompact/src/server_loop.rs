@@ -14,7 +14,7 @@ use timer::TimerClient;
 
 #[allow(unused)]
 use app::common::{derive_public_key, Uid, NetAddress};
-use app::conn::ConnPairApp;
+use app::conn::{ConnPairApp, connect};
 
 #[allow(unused)]
 use proto::consts::{
@@ -405,10 +405,10 @@ where
 
 
 async fn open_node_remote<ST,R,C,S,US>(
-    _node_name: NodeName,
-    _remote: LoadedNodeRemote,
-    _server_state: &mut ServerState<ST,R,C,S>, 
-    _user_sender: &mut US,
+    node_name: NodeName,
+    remote: LoadedNodeRemote,
+    server_state: &mut ServerState<ST,R,C,S>, 
+    user_sender: &mut US,
 ) -> Result<bool, ServerError> 
 where
     ST: Store,
@@ -419,12 +419,27 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
+    // Connect to remote node
+    let connect_res = connect(
+        remote.node_public_key,
+        remote.node_address,
+        remote.app_identity_client,
+        server_state.spawner.clone(),
+    )
+    .await;
+
+    let (_app_permissions, _node_report, _conn_pair) = if let Ok(tup) = connect_res {
+        tup
+    } else {
+        // Connection failed:
+        let server_to_user = ServerToUser::ResponseOpenNode(ResponseOpenNode::Failure(node_name));
+        user_sender.send(ServerToUserAck::ServerToUser(server_to_user)).await.map_err(|_| ServerError::UserSenderError)?;
+        return Ok(false);
+    };
+
     // TODO:
-    // - Connect to remote node
-    //  - If failed, send ResponseOpenNode::Failure and return Ok(false)
     // - Wrap connection with `compact_node`
     // - How to send permissions to user?
-    // - 
     unimplemented!();
 }
 
