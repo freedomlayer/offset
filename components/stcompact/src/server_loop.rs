@@ -34,7 +34,7 @@ use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerA
 use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, 
     UserToCompactAck, compact_node, ConnPairCompact, create_compact_report};
 use crate::gen::{GenPrivateKey, GenCryptoRandom};
-use crate::store::{Store, LoadedNode};
+use crate::store::{Store, LoadedNode, LoadedNodeLocal};
 
 
 /// Memory allocated to a channel in memory (Used to connect two components)
@@ -287,6 +287,122 @@ const NODE_CONFIG: NodeConfig = NodeConfig {
     max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
 };
 
+async fn open_node_local<ST,R,C,S,US>(
+    node_name: NodeName,
+    local: LoadedNodeLocal,
+    server_state: &mut ServerState<ST,R,C,S>, 
+    user_sender: &mut US,
+) -> Result<(), ServerError> 
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+    R: CryptoRandom + Clone + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    let app_permissions = AppPermissions {
+        routes: true,
+        buyer: true,
+        seller: true,
+        config: true,
+    };
+    let (report_sender, report_receiver) = oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
+    let incoming_app_connection = IncomingAppConnection {
+        app_permissions: app_permissions.clone(),
+        report_sender,
+    };
+
+    let incoming_apps = stream::once(future::ready(incoming_app_connection));
+
+    let c_spawner = server_state.spawner.clone();
+    let node_fut = node(
+        NODE_CONFIG,
+        local.node_identity_client,
+        server_state.timer_client.clone(),
+        local.node_state,
+        local.node_db_client,
+        server_state.version_connector.clone(),
+        incoming_apps,
+        server_state.rng.clone(),
+        c_spawner.clone(),
+    ).map_err(|e| {
+        error!("node() error: {:?}", e);
+    }).map(|_| ());
+
+    let node_handle = server_state.spawner.spawn_with_handle(node_fut).map_err(|_| ServerError::SpawnError)?;
+
+    let (node_report, conn_pair_sender) = report_receiver.await.map_err(|_| ServerError::FirstNodeReportError)?;
+
+    // Channel between compact app and node:
+    let (compact_sender, node_receiver) = mpsc::channel(1);
+    let (node_sender, compact_receiver) = mpsc::channel(1);
+
+    let node_conn_pair = ConnPairServer::from_raw(node_sender, node_receiver);
+    conn_pair_sender.send(node_conn_pair).map_err(|_| ServerError::SendConnPairError)?;
+
+    let conn_pair_app = ConnPairApp::from_raw(compact_sender, compact_receiver);
+    let app_conn_tuple = (app_permissions, node_report.clone(), conn_pair_app);
+
+    let compact_gen = GenCryptoRandom(server_state.rng.clone());
+
+    let (local_sender, compact_receiver) = mpsc::channel(1);
+    let (compact_sender, mut local_receiver) = mpsc::channel(1);
+
+    let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+    let compact_report = create_compact_report(local.compact_state.clone(), node_report);
+
+    let compact_node_fut = compact_node(
+        app_conn_tuple,
+        conn_pair_compact,
+        local.compact_state,
+        local.compact_db_client,
+        compact_gen)
+    .map_err(|e| {
+        error!("compact_node() error: {:?}", e);
+    }).map(|_| ());
+
+    let node_id = server_state.new_node_id();
+    let compact_node_handle = server_state.spawner.spawn_with_handle(compact_node_fut).map_err(|_| ServerError::SpawnError)?;
+
+    // Keep things inside the open node struct:
+    //  - A handle to the spawned node
+    //  - A handle to the compact node at the open node struct.
+    //  - A sender, allowing to send messages to the compact node.
+    let open_node = OpenNode {
+        node_name: node_name.clone(),
+        sender: local_sender,
+        node_handle,
+        compact_node_handle,
+    };
+
+    let old_value = server_state.open_nodes.insert(node_id.clone(), open_node);
+    // It shouldn't be possible to have two identical node_id-s
+    assert!(old_value.is_none());
+
+    // Redirect incoming node messages as events to main loop:
+    let mut c_event_sender = server_state.event_sender.clone();
+    let c_node_id = node_id.clone();
+    server_state.spawner.spawn(async move {
+        while let Some(compact_node_event) = local_receiver.next().await {
+            if let Err(e) = c_event_sender.send((c_node_id.clone(), compact_node_event)).await {
+                warn!("c_event_sender error! {:?}", e);
+                return;
+            }
+        }
+    }).map_err(|_| ServerError::SpawnError)?;
+    
+    // Send success message to the user, together with the first NodeReport etc.
+    let response_open_node = ResponseOpenNode::Success(node_name, node_id, compact_report);
+    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
+    user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
+        .await
+        .map_err(|_| ServerError::UserSenderError)?;
+    Ok(())
+}
+
 
 #[allow(unused)]
 async fn handle_open_node<ST,R,C,US,S>(
@@ -315,107 +431,7 @@ where
     };
 
     match loaded_node {
-        LoadedNode::Local(local) => {
-            let app_permissions = AppPermissions {
-                routes: true,
-                buyer: true,
-                seller: true,
-                config: true,
-            };
-            let (report_sender, report_receiver) = oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
-            let incoming_app_connection = IncomingAppConnection {
-                app_permissions: app_permissions.clone(),
-                report_sender,
-            };
-
-            let incoming_apps = stream::once(future::ready(incoming_app_connection));
-
-            let c_spawner = server_state.spawner.clone();
-            let node_fut = node(
-                NODE_CONFIG,
-                local.node_identity_client,
-                server_state.timer_client.clone(),
-                local.node_state,
-                local.node_db_client,
-                server_state.version_connector.clone(),
-                incoming_apps,
-                server_state.rng.clone(),
-                c_spawner.clone(),
-            ).map_err(|e| {
-                error!("node() error: {:?}", e);
-            }).map(|_| ());
-
-            let node_handle = server_state.spawner.spawn_with_handle(node_fut).map_err(|_| ServerError::SpawnError)?;
-
-            let (node_report, conn_pair_sender) = report_receiver.await.map_err(|_| ServerError::FirstNodeReportError)?;
-
-            // Channel between compact app and node:
-            let (compact_sender, node_receiver) = mpsc::channel(1);
-            let (node_sender, compact_receiver) = mpsc::channel(1);
-
-            let node_conn_pair = ConnPairServer::from_raw(node_sender, node_receiver);
-            conn_pair_sender.send(node_conn_pair).map_err(|_| ServerError::SendConnPairError)?;
-
-            let conn_pair_app = ConnPairApp::from_raw(compact_sender, compact_receiver);
-            let app_conn_tuple = (app_permissions, node_report.clone(), conn_pair_app);
-
-            let compact_gen = GenCryptoRandom(server_state.rng.clone());
-
-            let (local_sender, compact_receiver) = mpsc::channel(1);
-            let (compact_sender, mut local_receiver) = mpsc::channel(1);
-
-            let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
-
-            let compact_report = create_compact_report(local.compact_state.clone(), node_report);
-
-            let compact_node_fut = compact_node(
-                app_conn_tuple,
-                conn_pair_compact,
-                local.compact_state,
-                local.compact_db_client,
-                compact_gen)
-            .map_err(|e| {
-                error!("compact_node() error: {:?}", e);
-            }).map(|_| ());
-
-            let node_id = server_state.new_node_id();
-            let compact_node_handle = server_state.spawner.spawn_with_handle(compact_node_fut).map_err(|_| ServerError::SpawnError)?;
-
-            // Keep things inside the open node struct:
-            //  - A handle to the spawned node
-            //  - A handle to the compact node at the open node struct.
-            //  - A sender, allowing to send messages to the compact node.
-            let open_node = OpenNode {
-                node_name: node_name.clone(),
-                sender: local_sender,
-                node_handle,
-                compact_node_handle,
-            };
-
-            let old_value = server_state.open_nodes.insert(node_id.clone(), open_node);
-            // It shouldn't be possible to have two identical node_id-s
-            assert!(old_value.is_none());
-
-            // Redirect incoming node messages as events to main loop:
-            let mut c_event_sender = server_state.event_sender.clone();
-            let c_node_id = node_id.clone();
-            server_state.spawner.spawn(async move {
-                while let Some(compact_node_event) = local_receiver.next().await {
-                    if let Err(e) = c_event_sender.send((c_node_id.clone(), compact_node_event)).await {
-                        warn!("c_event_sender error! {:?}", e);
-                        return;
-                    }
-                }
-            }).map_err(|_| ServerError::SpawnError)?;
-            
-            // Send success message to the user, together with the first NodeReport etc.
-            let response_open_node = ResponseOpenNode::Success(node_name, node_id, compact_report);
-            let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
-            user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
-                .await
-                .map_err(|_| ServerError::UserSenderError)?;
-        },
-
+        LoadedNode::Local(local) => open_node_local(node_name, local, server_state, user_sender).await?,
         LoadedNode::Remote(remote) => {
             // TODO: Connect to a remote node
             unimplemented!();
