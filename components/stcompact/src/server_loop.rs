@@ -34,7 +34,7 @@ use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerA
 use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, 
     UserToCompactAck, compact_node, ConnPairCompact, create_compact_report};
 use crate::gen::{GenPrivateKey, GenCryptoRandom};
-use crate::store::{Store, LoadedNode, LoadedNodeLocal};
+use crate::store::{Store, LoadedNode, LoadedNodeLocal, LoadedNodeRemote};
 
 
 /// Memory allocated to a channel in memory (Used to connect two components)
@@ -404,6 +404,31 @@ where
 }
 
 
+async fn open_node_remote<ST,R,C,S,US>(
+    _node_name: NodeName,
+    _remote: LoadedNodeRemote,
+    _server_state: &mut ServerState<ST,R,C,S>, 
+    _user_sender: &mut US,
+) -> Result<bool, ServerError> 
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+    R: CryptoRandom + Clone + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    // TODO:
+    // - Connect to remote node
+    //  - If failed, send ResponseOpenNode::Failure and return Ok(false)
+    // - Wrap connection with `compact_node`
+    // - How to send permissions to user?
+    // - 
+    unimplemented!();
+}
+
+
 #[allow(unused)]
 async fn handle_open_node<ST,R,C,US,S>(
     node_name: NodeName, 
@@ -432,16 +457,8 @@ where
 
     match loaded_node {
         LoadedNode::Local(local) => open_node_local(node_name, local, server_state, user_sender).await,
-        LoadedNode::Remote(remote) => {
-            // TODO: Connect to a remote node
-            unimplemented!();
-        }
+        LoadedNode::Remote(remote) => open_node_remote(node_name, remote, server_state, user_sender).await,
     }
-    // TODO:
-    // - Open node, should be different between local, remote
-    // - Save opened node's info inside an OpenNode structures, and insert into
-    // `server_state.open_nodes`
-    // - Send ResponseOpenNode, with relevant first CompactReport
 }
 
 
