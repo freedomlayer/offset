@@ -1,41 +1,25 @@
-use std::collections::HashMap;
-
-use std::fs;
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use derive_more::From;
 
-use futures::executor::{block_on, ThreadPool};
+use futures::executor::ThreadPool;
+#[allow(unused)]
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
 
-use common::conn::Listener;
 use common::int_convert::usize_to_u64;
 
-use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::system_random;
 
-use identity::{create_identity, IdentityClient};
 use timer::create_timer;
 
-use node::{net_node, NetNodeError, NodeConfig, NodeState};
+use net::TcpConnector;
+use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
-use database::file_db::FileDb;
-
-use net::{TcpConnector, TcpListener};
-use proto::consts::{
-    KEEPALIVE_TICKS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
-    TICK_MS,
-};
-use proto::net::messages::NetAddress;
-use proto::ser_string::{deserialize_from_string, StringSerdeError};
-
+#[allow(unused)]
 use crate::server_loop::compact_server_loop;
-
-use proto::file::{IdentityFile, TrustedAppFile};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
@@ -67,8 +51,9 @@ pub struct StCompactCmd {
     pub store: PathBuf,
 }
 
+#[allow(unused)]
 pub fn stcompact(st_compact_cmd: StCompactCmd) -> Result<(), CompactBinError> {
-    let StCompactCmd { store } = st_compact_cmd;
+    let StCompactCmd { store: _ } = st_compact_cmd;
 
     /*
     // TODO:
@@ -84,19 +69,19 @@ pub fn stcompact(st_compact_cmd: StCompactCmd) -> Result<(), CompactBinError> {
     let thread_pool = ThreadPool::new().map_err(|_| CompactBinError::CreateThreadPoolError)?;
 
     // Create thread pool for file system operations:
-    let file_system_thread_pool =
+    let _file_system_thread_pool =
         ThreadPool::new().map_err(|_| CompactBinError::CreateThreadPoolError)?;
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
-    let timer_client =
+    let _timer_client =
         create_timer(dur, thread_pool.clone()).map_err(|_| CompactBinError::CreateTimerError)?;
 
     // A tcp connector, Used to connect to remote servers:
-    let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
+    let _tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());
 
     // Obtain secure cryptographic random:
-    let rng = system_random();
+    let _rng = system_random();
 
     /*
     let store = unimplemented!();
