@@ -19,6 +19,8 @@ pub trait GenPrivateKey {
     fn gen_private_key(&mut self) -> PrivateKey;
 }
 
+// TODO: Find a way to eliminate this shim.
+// Possibly have all the crates use traits like GenUid, GenPrivateKey, GenNonce etc?
 /// A wrapper over a random generator that implements
 /// GenUid and GenPrivateKey
 pub struct GenCryptoRandom<R>(pub R);

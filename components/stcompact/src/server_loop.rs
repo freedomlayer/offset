@@ -14,6 +14,7 @@ use timer::TimerClient;
 
 #[allow(unused)]
 use app::common::{derive_public_key, Uid, NetAddress};
+use app::conn::ConnPairApp;
 
 #[allow(unused)]
 use proto::consts::{
@@ -30,8 +31,8 @@ use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerA
     RequestCreateNode, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
     NodeStatus, NodesStatus, ResponseOpenNode};
 #[allow(unused)]
-use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck};
-use crate::gen::GenPrivateKey;
+use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck, compact_node, ConnPairCompact};
+use crate::gen::{GenPrivateKey, GenCryptoRandom};
 use crate::store::{Store, LoadedNode};
 
 
@@ -313,7 +314,7 @@ where
             };
             let (report_sender, report_receiver) = oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
             let incoming_app_connection = IncomingAppConnection {
-                app_permissions,
+                app_permissions: app_permissions.clone(),
                 report_sender,
             };
 
@@ -333,26 +334,46 @@ where
             ).map_err(|e| {
                 error!("node() error: {:?}",e);
             });
+
+            // TODO: Keep the handle:
             server_state.spawner.spawn_with_handle(node_fut).map_err(|_| ServerError::SpawnError)?;
+            assert!(false);
 
             let (node_report, conn_pair_sender) = report_receiver.await.map_err(|_| ServerError::FirstNodeReportError)?;
-            let (sender, node_receiver) = mpsc::channel(1);
-            let (node_sender, receiver) = mpsc::channel(1);
+
+            // Channel between compact app and node:
+            let (compact_sender, node_receiver) = mpsc::channel(1);
+            let (node_sender, compact_receiver) = mpsc::channel(1);
 
             let node_conn_pair = ConnPairServer::from_raw(node_sender, node_receiver);
             conn_pair_sender.send(node_conn_pair).map_err(|_| ServerError::SendConnPairError)?;
 
-            // TODO:
-            // - Compose compact_node over conn_pair on the application side
-            /*
-            compact_node(
-                app_conn_tuple: AppConnTuple,
-                mut conn_pair_compact: ConnPairCompact,
-                mut compact_state: CompactState,
-                mut database_client: DatabaseClient<CompactState>,
-                mut compact_gen: CG)
-            */
+            let conn_pair_app = ConnPairApp::from_raw(compact_sender, compact_receiver);
+            let app_conn_tuple = (app_permissions, node_report, conn_pair_app);
 
+            let compact_gen = GenCryptoRandom(server_state.rng.clone());
+
+            let (_user_sender, compact_receiver) = mpsc::channel(1);
+            let (compact_sender, _user_receiver) = mpsc::channel(1);
+
+            let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+            let _ = compact_node(
+                app_conn_tuple,
+                conn_pair_compact,
+                local.compact_state,
+                local.compact_db_client,
+                compact_gen);
+
+            // TODO:
+            // - Redirect incoming node messages as node events 
+            //   - Add a sender into server_state, allowing to send those events.
+            // - Keep things inside the open node struct:
+            //  - A handle to the spawned node
+            //  - A handle to the compact node at the open node struct.
+            //  - A sender, allowing to send messages to the compact node.
+            //
+            // - Send success message to the user, together with the first NodeReport etc.
             unimplemented!();
         },
 

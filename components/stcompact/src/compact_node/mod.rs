@@ -14,3 +14,4 @@ pub use messages::{
 };
 pub use persist::CompactState;
 pub use server::compact_node;
+pub use types::ConnPairCompact;
