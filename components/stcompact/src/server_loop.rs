@@ -405,6 +405,7 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
+    // TODO: Change `connect()` to `inner_connect()`
     // Connect to remote node
     let connect_res = connect(
         remote.node_public_key,
@@ -413,6 +414,7 @@ where
         server_state.spawner.clone(),
     )
     .await;
+    assert!(false);
 
     let (app_permissions, node_report, conn_pair) = if let Ok(tup) = connect_res {
         tup
