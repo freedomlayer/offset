@@ -9,6 +9,7 @@ use crate::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCo
     PaymentFees, PaymentFeesResponse, PaymentDone};
 use crate::compact_node::persist::{OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending};
 use crate::compact_node::types::{CompactServerState, CompactServerError};
+use crate::compact_node::create_compact_report;
 use crate::gen::GenUid;
 
 
@@ -16,7 +17,7 @@ use crate::gen::GenUid;
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
-pub async fn handle_user<CG,US,AS>(
+async fn handle_user_inner<CG,US,AS>(
     from_user: UserToCompactAck, 
     _app_permissions: &AppPermissions, 
     server_state: &mut CompactServerState, 
@@ -530,5 +531,35 @@ where
             return user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError);
         },
     }
+    Ok(())
+}
+
+pub async fn handle_user<CG,US,AS>(
+    from_user: UserToCompactAck, 
+    app_permissions: &AppPermissions, 
+    server_state: &mut CompactServerState, 
+    compact_gen: &mut CG,
+    user_sender: &mut US, 
+    app_sender: &mut AS) 
+    -> Result<(), CompactServerError>
+where   
+    US: Sink<CompactToUserAck> + Unpin,
+    AS: Sink<AppToAppServer> + Unpin,
+    CG: GenUid,
+{
+    // Save original compact report:
+    let orig_compact_report = create_compact_report(server_state.compact_state().clone(), server_state.node_report().clone());
+
+    handle_user_inner(from_user, app_permissions, server_state, compact_gen, user_sender, app_sender).await?;
+
+    // Get compact report after handle_user_inner:
+    let cur_compact_report = create_compact_report(server_state.compact_state().clone(), server_state.node_report().clone());
+
+    // If any change occured, we send the new compact report to the user:
+    if cur_compact_report != orig_compact_report {
+        let compact_to_user = CompactToUser::Report(cur_compact_report);
+        user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+    }
+
     Ok(())
 }

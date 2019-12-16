@@ -17,6 +17,7 @@ pub enum CompactServerEvent {
     NodeClosed,
 }
 
+#[derive(Debug)]
 pub enum CompactServerError {
     AppSenderError,
     UserSenderError,

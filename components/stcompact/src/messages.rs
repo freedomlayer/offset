@@ -10,7 +10,7 @@ use crate::compact_node::{CompactReport, CompactToUser, UserToCompact};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct NodeName(String);
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct NodeId(pub u64);
 
 impl NodeName {

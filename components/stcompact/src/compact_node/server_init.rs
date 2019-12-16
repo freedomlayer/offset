@@ -7,7 +7,9 @@ use crate::compact_node::types::{ConnPairCompact, CompactServerError};
 use crate::compact_node::messages::{PaymentDone, CompactToUser, CompactToUserAck, PaymentCommit};
 use crate::gen::GenUid;
 
-#[allow(unused)]
+/// Assume that the server was abruptly closed, and fix any possible issues by: 
+/// - Resend relevant communication
+/// - Cancel requests that were in very early stage.
 pub async fn server_init<CG>(
     conn_pair_compact: &mut ConnPairCompact,
     compact_state: &mut CompactState,

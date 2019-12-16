@@ -9,6 +9,7 @@ mod server_init;
 mod server_loop;
 mod types;
 
+pub use convert::create_compact_report;
 pub use messages::{
     CompactReport, CompactToUser, CompactToUserAck, UserToCompact, UserToCompactAck,
 };
