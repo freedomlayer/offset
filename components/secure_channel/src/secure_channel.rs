@@ -334,16 +334,20 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use futures::channel::oneshot;
     use futures::Future;
-    use timer::create_timer_incoming;
-
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
 
-    use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
+    use timer::create_timer_incoming;
+
+    use crypto::identity::{Identity, SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
+    use crypto::rand::RandGen;
     use identity::{create_identity, IdentityClient};
+
+    use proto::crypto::PrivateKey;
 
     async fn secure_channel1(
         fut_sc: impl Future<Output = Result<(PublicKey, ConnPairVec), SecureChannelError>> + 'static,
@@ -392,14 +396,14 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_private_key(&rng1);
+        let pkcs8 = PrivateKey::rand_gen(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let public_key1 = identity1.get_public_key();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
         let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = generate_private_key(&rng2);
+        let pkcs8 = PrivateKey::rand_gen(&rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let public_key2 = identity2.get_public_key();
         let (requests_sender2, identity_server2) = create_identity(identity2);

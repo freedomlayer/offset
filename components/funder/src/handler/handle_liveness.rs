@@ -96,10 +96,11 @@ mod tests {
 
     use std::cmp::Ordering;
 
-    use crypto::identity::{
-        compare_public_key, generate_private_key, Identity, SoftwareEd25519Identity,
-    };
+    use crypto::identity::{compare_public_key, Identity, SoftwareEd25519Identity};
+    use crypto::rand::RandGen;
     use crypto::test_utils::DummyRandom;
+
+    use proto::crypto::PrivateKey;
     use proto::funder::messages::{AddFriend, FriendStatus};
 
     use crate::ephemeral::Ephemeral;
@@ -113,11 +114,11 @@ mod tests {
     #[test]
     fn test_handle_liveness_basic() {
         let rng1 = DummyRandom::new(&[1u8]);
-        let private_key = generate_private_key(&rng1);
+        let private_key = PrivateKey::rand_gen(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let rng2 = DummyRandom::new(&[2u8]);
-        let private_key = generate_private_key(&rng2);
+        let private_key = PrivateKey::rand_gen(&rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let pk1 = identity1.get_public_key();

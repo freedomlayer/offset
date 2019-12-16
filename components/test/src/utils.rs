@@ -6,9 +6,9 @@ use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
+use crypto::identity::{Identity, SoftwareEd25519Identity};
 
-use crypto::rand::CryptoRandom;
+use crypto::rand::{CryptoRandom, RandGen};
 use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
@@ -16,7 +16,7 @@ use common::test_executor::TestExecutor;
 use common::conn::{BoxStream, BoxFuture};
 use common::select_streams::select_streams;
 
-use proto::crypto::PublicKey;
+use proto::crypto::{PublicKey, PrivateKey};
 
 use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
@@ -89,7 +89,7 @@ fn gen_identity<R>(rng: &R) -> impl Identity
 where
     R: CryptoRandom,
 {
-    let pkcs8 = generate_private_key(rng);
+    let pkcs8 = PrivateKey::rand_gen(rng);
     SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap()
 }
 

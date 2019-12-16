@@ -700,14 +700,16 @@ mod tests {
     use futures::executor::{block_on, ThreadPool};
     use futures::task::Spawn;
 
-    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
+    use crypto::identity::{SoftwareEd25519Identity};
     use crypto::test_utils::DummyRandom;
-    use proto::crypto::{PublicKey, RandValue, Signature};
+    use crypto::rand::RandGen;
+
+    use proto::crypto::{PublicKey, RandValue, Signature, PrivateKey};
+    use proto::funder::messages::Currency;
+    use proto::index_server::messages::{RemoveFriendCurrency, RequestRoutes};
 
     use common::dummy_connector::{ConnRequest, DummyConnector};
     use identity::{create_identity, IdentityClient};
-    use proto::funder::messages::Currency;
-    use proto::index_server::messages::{RemoveFriendCurrency, RequestRoutes};
 
     use signature::signature_buff::create_mutations_update_signature_buff;
 
@@ -724,7 +726,7 @@ mod tests {
         S: Spawn,
     {
         let rng = DummyRandom::new(seed);
-        let pkcs8 = generate_private_key(&rng);
+        let pkcs8 = PrivateKey::rand_gen(&rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let (requests_sender, identity_server) = create_identity(identity);
         let identity_client = IdentityClient::new(requests_sender);

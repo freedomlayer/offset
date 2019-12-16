@@ -46,8 +46,12 @@ pub fn create_identity<I: Identity>(
 mod tests {
     use super::*;
 
-    use crypto::identity::{generate_private_key, verify_signature, SoftwareEd25519Identity};
+    use crypto::identity::{verify_signature, SoftwareEd25519Identity};
+    use crypto::rand::RandGen;
     use crypto::test_utils::DummyRandom;
+
+    use proto::crypto::PrivateKey;
+
     use futures::channel::oneshot;
     use futures::executor::LocalPool;
     use futures::task::SpawnExt;
@@ -55,7 +59,7 @@ mod tests {
     #[test]
     fn test_identity_consistent_public_key() {
         let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let actual_public_key = identity.get_public_key();
         let (requests_sender, sm) = create_identity(identity);
@@ -90,7 +94,7 @@ mod tests {
     #[test]
     fn test_identity_request_signature_against_identity() {
         let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         // Get the public key straight from the Identity
         let public_key = identity.get_public_key();
@@ -127,7 +131,7 @@ mod tests {
     #[test]
     fn test_identity_request_signature() {
         let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         // Start the Identity service:

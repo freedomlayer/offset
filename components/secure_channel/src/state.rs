@@ -357,11 +357,16 @@ impl ScState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
     use futures::{future, FutureExt};
+
+    use proto::crypto::PrivateKey;
+
+    use crypto::identity::{SoftwareEd25519Identity};
+    use crypto::test_utils::DummyRandom;
+    use crypto::rand::RandGen;
+
     use identity::create_identity;
     use identity::IdentityClient;
 
@@ -470,13 +475,13 @@ mod tests {
 
     fn prepare_dh_test() -> (ScState, ScState, DummyRandom, DummyRandom) {
         let rng1 = DummyRandom::new(&[1u8]);
-        let private_key = generate_private_key(&rng1);
+        let private_key = PrivateKey::rand_gen(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
         let rng2 = DummyRandom::new(&[2u8]);
-        let private_key = generate_private_key(&rng2);
+        let private_key = PrivateKey::rand_gen(&rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);

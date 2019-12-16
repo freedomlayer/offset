@@ -7,13 +7,12 @@ use derive_more::From;
 
 use structopt::StructOpt;
 
-use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
-use crypto::rand::system_random;
+use crypto::identity::{Identity, SoftwareEd25519Identity};
+use crypto::rand::{system_random, RandGen};
 
 use proto::app_server::messages::AppPermissions;
-// use proto::index_server::messages::IndexServerAddress;
+use proto::crypto::PrivateKey;
 use proto::net::messages::{NetAddress, NetAddressError};
-// use proto::node::types::NodeAddress;
 
 use database::file_db::FileDb;
 use node::NodeState;
@@ -173,7 +172,7 @@ pub enum GenIdentityError {
 fn gen_identity(GenIdentCmd { output_path }: GenIdentCmd) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
     let rng = system_random();
-    let private_key = generate_private_key(&rng);
+    let private_key = PrivateKey::rand_gen(&rng);
 
     let identity_file = IdentityFile { private_key };
 
