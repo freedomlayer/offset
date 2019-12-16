@@ -589,6 +589,7 @@ async fn inner_server_loop<ST,R,C,S,CG>(
     rng: R,
     version_connector: C,
     spawner: S,
+    // opt_event_sender is used for testing:
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
     ST: Store,
@@ -652,7 +653,7 @@ where
 }
 
 #[allow(unused)]
-pub async fn server_loop<ST,R,C,S,CG>(
+pub async fn compact_server_loop<ST,R,C,S,CG>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     compact_gen: CG,
@@ -669,6 +670,7 @@ where
     R: CryptoRandom + Clone + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
+    // `opt_event_sender` is not needed in production:
     let opt_event_sender = None;
     inner_server_loop(conn_pair, store, compact_gen, timer_client, rng, version_connector, spawner, opt_event_sender).await
 }

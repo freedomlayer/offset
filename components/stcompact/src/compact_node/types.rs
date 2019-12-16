@@ -18,7 +18,7 @@ pub enum CompactServerEvent {
 }
 
 #[derive(Debug)]
-pub enum CompactServerError {
+pub enum CompactNodeError {
     AppSenderError,
     UserSenderError,
     ReportMutationError,
@@ -55,11 +55,11 @@ impl CompactServerState {
     }
 
     /// Persistent (and atomic) update to `compact_state`
-    pub async fn update_compact_state(&mut self, compact_state: CompactState) -> Result<(), CompactServerError> {
+    pub async fn update_compact_state(&mut self, compact_state: CompactState) -> Result<(), CompactNodeError> {
         self.compact_state = compact_state.clone();
         self.database_client.mutate(vec![compact_state])
             .await
-            .map_err(|_| CompactServerError::DatabaseMutateError)?;
+            .map_err(|_| CompactNodeError::DatabaseMutateError)?;
         Ok(())
     }
 }

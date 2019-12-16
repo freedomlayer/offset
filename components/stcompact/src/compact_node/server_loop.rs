@@ -8,7 +8,7 @@ use database::{DatabaseClient};
 use app::conn::AppConnTuple;
 
 use crate::compact_node::persist::CompactState;
-use crate::compact_node::types::{CompactServerEvent, CompactServerState, CompactServerError, ConnPairCompact};
+use crate::compact_node::types::{CompactServerEvent, CompactServerState, CompactNodeError, ConnPairCompact};
 
 use crate::compact_node::handle_user::handle_user;
 use crate::compact_node::handle_node::handle_node;
@@ -17,12 +17,12 @@ use crate::gen::GenUid;
 
 
 /// The compact server is mediating between the user and the node.
-async fn inner_server_loop<CG>(app_conn_tuple: AppConnTuple, 
+async fn inner_compact_node_loop<CG>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact, 
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
     mut compact_gen: CG,
-    mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactServerError> 
+    mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), CompactNodeError> 
 where
     CG: GenUid,
 {
@@ -67,13 +67,13 @@ where
     Ok(())
 }
 
-pub async fn server_loop<CG>(app_conn_tuple: AppConnTuple, 
+pub async fn compact_node_loop<CG>(app_conn_tuple: AppConnTuple, 
     conn_pair_compact: ConnPairCompact,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
-    compact_gen: CG) -> Result<(), CompactServerError> 
+    compact_gen: CG) -> Result<(), CompactNodeError> 
 where   
     CG: GenUid,
 {
-    inner_server_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, compact_gen, None).await
+    inner_compact_node_loop(app_conn_tuple, conn_pair_compact, compact_state, database_client, compact_gen, None).await
 }

@@ -8,7 +8,7 @@ use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::compact_node::messages::{CompactToUser, CompactToUserAck, PaymentFees, PaymentFeesResponse, PaymentDone, PaymentCommit};
 use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
-use crate::compact_node::types::{CompactServerState, CompactServerError};
+use crate::compact_node::types::{CompactServerState, CompactNodeError};
 use crate::compact_node::convert::create_compact_report;
 use crate::gen::GenUid;
 
@@ -45,7 +45,7 @@ fn obtain_multi_route(client_response_routes: &ClientResponseRoutes, dest_paymen
 async fn ack_close_payment<CG, AS>(
     response_close_payment: &ResponseClosePayment, 
     compact_gen: &mut CG,
-    app_sender: &mut AS) -> Result<(), CompactServerError>
+    app_sender: &mut AS) -> Result<(), CompactNodeError>
 where 
     CG: GenUid,
     AS: Sink<AppToAppServer> + Unpin,
@@ -65,7 +65,7 @@ where
             app_request_id: compact_gen.gen_uid(),
             app_request,
         };
-        app_sender.send(app_to_app_server).await.map_err(|_| CompactServerError::AppSenderError)?;
+        app_sender.send(app_to_app_server).await.map_err(|_| CompactNodeError::AppSenderError)?;
     }
     Ok(())
 }
@@ -75,7 +75,7 @@ pub async fn handle_node<CG,US,AS>(app_server_to_app: AppServerToApp,
     compact_gen: &mut CG,
     user_sender: &mut US,
     app_sender: &mut AS)
-    -> Result<(), CompactServerError>
+    -> Result<(), CompactNodeError>
 where   
     CG: GenUid,
     US: Sink<CompactToUserAck> + Unpin,
@@ -120,7 +120,7 @@ where
                         commit: commit.into(),
                     };
                     let compact_to_user = CompactToUser::PaymentCommit(payment_commit);
-                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
                 },
                 (RequestResult::Failure, _)
                     | (RequestResult::Success, true) => {
@@ -133,7 +133,7 @@ where
                     // Send a message about payment done:
                     let payment_done = PaymentDone::Failure(ack_uid);
                     let compact_to_user = CompactToUser::PaymentDone(payment_done);
-                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
                 },
                 (RequestResult::Success, false) => {
                     // There are still pending transactions. We will have to wait for the next
@@ -167,7 +167,7 @@ where
                     // Send a message about payment done:
                     let payment_done = PaymentDone::Failure(ack_uid);
                     let compact_to_user = CompactToUser::PaymentDone(payment_done);
-                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                    user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
                 },
                 OpenPaymentStatus::Commit(_commit, fees) => {
                     // This is the most common state to get a `ResponseClosePayment`.
@@ -185,7 +185,7 @@ where
                             // Send a message about payment done: 
                             let payment_done = PaymentDone::Failure(ack_uid);
                             let compact_to_user = CompactToUser::PaymentDone(payment_done);
-                            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
                         },
                         PaymentStatus::Success(success) => {
                             // Set payment to success:
@@ -197,7 +197,7 @@ where
                             // Send a message about payment done: 
                             let payment_done = PaymentDone::Success(success.receipt.clone(), fees, ack_uid);
                             let compact_to_user = CompactToUser::PaymentDone(payment_done);
-                            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
                         },
                     };
                 },
@@ -219,7 +219,7 @@ where
 
             // Apply mutations to `node_report`:
             for mutation in &report_mutations.mutations {
-                node_report.mutate(mutation).map_err(|_| CompactServerError::ReportMutationError)?;
+                node_report.mutate(mutation).map_err(|_| CompactNodeError::ReportMutationError)?;
             }
 
             // If `node_report` has changed, send it to the user:
@@ -228,12 +228,12 @@ where
                 
                 let compact_report = create_compact_report(server_state.compact_state().clone(), node_report.clone());
                 let compact_to_user = CompactToUser::Report(compact_report);
-                user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError)?;
             }
 
             // Possibly send acknowledgement for a completed command:
             if let Some(app_request_id) = report_mutations.opt_app_request_id {
-                user_sender.send(CompactToUserAck::Ack(app_request_id)).await.map_err(|_| CompactServerError::UserSenderError)?;
+                user_sender.send(CompactToUserAck::Ack(app_request_id)).await.map_err(|_| CompactNodeError::UserSenderError)?;
             }
         },
         AppServerToApp::ResponseRoutes(mut client_response_routes) => {
@@ -271,7 +271,7 @@ where
                     response: PaymentFeesResponse::Unreachable,
                 };
                 let compact_to_user = CompactToUser::PaymentFees(payment_fees);
-                return user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError);
+                return user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError);
             };
 
             // Update compact state (keep the best multiroute):
@@ -291,7 +291,7 @@ where
                 response: PaymentFeesResponse::Fees(fees, confirm_id),
             };
             let compact_to_user = CompactToUser::PaymentFees(payment_fees);
-            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactServerError::UserSenderError);
+            user_sender.send(CompactToUserAck::CompactToUser(compact_to_user)).await.map_err(|_| CompactNodeError::UserSenderError);
         }
     }
     Ok(())
