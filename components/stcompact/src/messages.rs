@@ -4,6 +4,7 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
+use app::conn::AppPermissions;
 
 use crate::compact_node::{CompactReport, CompactToUser, UserToCompact};
 
@@ -63,7 +64,7 @@ pub struct CreateNodeRemote {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ResponseOpenNode {
-    Success(NodeName, NodeId, CompactReport), // (node_name, node_id, compact_report)
+    Success(NodeName, NodeId, AppPermissions, CompactReport), // (node_name, node_id, compact_report)
     Failure(NodeName),
 }
 

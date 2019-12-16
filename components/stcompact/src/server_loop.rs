@@ -343,7 +343,7 @@ where
     conn_pair_sender.send(node_conn_pair).map_err(|_| ServerError::SendConnPairError)?;
 
     let conn_pair_app = ConnPairApp::from_raw(compact_sender, compact_receiver);
-    let app_conn_tuple = (app_permissions, node_report.clone(), conn_pair_app);
+    let app_conn_tuple = (app_permissions.clone(), node_report.clone(), conn_pair_app);
 
     let compact_gen = GenCryptoRandom(server_state.rng.clone());
 
@@ -395,7 +395,7 @@ where
     }).map_err(|_| ServerError::SpawnError)?;
     
     // Send success message to the user, together with the first NodeReport etc.
-    let response_open_node = ResponseOpenNode::Success(node_name, node_id, compact_report);
+    let response_open_node = ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
     let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
     user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
         .await
