@@ -581,10 +581,9 @@ where
     user_sender.send(server_to_user_ack).await.map_err(|_| ServerError::NodeSenderError)
 }
 
-async fn inner_server_loop<ST,R,C,S,CG>(
+async fn inner_server_loop<ST,R,C,S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
-    mut compact_gen: CG,
     timer_client: TimerClient,
     rng: R,
     version_connector: C,
@@ -593,7 +592,6 @@ async fn inner_server_loop<ST,R,C,S,CG>(
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
 where
     ST: Store,
-    CG: GenPrivateKey,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -608,7 +606,9 @@ where
     let (compact_node_sender, compact_node_receiver) = mpsc::channel(1);
     let compact_node_receiver = compact_node_receiver.map(ServerEvent::CompactNode);
 
-    let mut server_state = ServerState::new(store, compact_node_sender, rng, timer_client, version_connector, spawner);
+    let mut server_state = ServerState::new(store, compact_node_sender, rng.clone(), timer_client, version_connector, spawner);
+    // TODO: This is a hack, find a better solution later:
+    let mut compact_gen = GenCryptoRandom(rng);
 
     let mut incoming_events = select_streams![
         user_receiver,
@@ -653,17 +653,15 @@ where
 }
 
 #[allow(unused)]
-pub async fn compact_server_loop<ST,R,C,S,CG>(
+pub async fn compact_server_loop<ST,R,C,S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
-    compact_gen: CG,
     timer_client: TimerClient,
     rng: R,
     version_connector: C,
     spawner: S) -> Result<(), ServerError>
 where
     ST: Store,
-    CG: GenPrivateKey,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -672,5 +670,5 @@ where
 {
     // `opt_event_sender` is not needed in production:
     let opt_event_sender = None;
-    inner_server_loop(conn_pair, store, compact_gen, timer_client, rng, version_connector, spawner, opt_event_sender).await
+    inner_server_loop(conn_pair, store, timer_client, rng, version_connector, spawner, opt_event_sender).await
 }
