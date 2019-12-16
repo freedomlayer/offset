@@ -82,8 +82,13 @@ pub enum ServerEvent {
 #[derive(Debug)]
 pub struct OpenNode {
     pub node_name: NodeName,
+    /// A sender, allowing to send messages to compact node
     pub sender: mpsc::Sender<UserToCompactAck>,
-    node_handle: RemoteHandle<()>,
+    /// A handle for a spawned node. Will close node when dropped.
+    /// Exists only if this is a local node.
+    opt_node_handle: Option<RemoteHandle<()>>,
+    /// A handle for a spawned compact node. 
+    /// Will close compact node when dropped.
     compact_node_handle: RemoteHandle<()>,
 }
 
@@ -361,20 +366,17 @@ where
         local.compact_db_client,
         compact_gen)
     .map_err(|e| {
-        error!("compact_node() error: {:?}", e);
+        error!("open_node_local(): compact_node() error: {:?}", e);
     }).map(|_| ());
 
     let node_id = server_state.new_node_id();
     let compact_node_handle = server_state.spawner.spawn_with_handle(compact_node_fut).map_err(|_| ServerError::SpawnError)?;
 
     // Keep things inside the open node struct:
-    //  - A handle to the spawned node
-    //  - A handle to the compact node at the open node struct.
-    //  - A sender, allowing to send messages to the compact node.
     let open_node = OpenNode {
         node_name: node_name.clone(),
         sender: local_sender,
-        node_handle,
+        opt_node_handle: Some(node_handle),
         compact_node_handle,
     };
 
@@ -388,7 +390,7 @@ where
     server_state.spawner.spawn(async move {
         while let Some(compact_node_event) = local_receiver.next().await {
             if let Err(e) = c_event_sender.send((c_node_id.clone(), compact_node_event)).await {
-                warn!("c_event_sender error! {:?}", e);
+                warn!("open_node_local(): c_event_sender error! {:?}", e);
                 return;
             }
         }
@@ -428,7 +430,7 @@ where
     )
     .await;
 
-    let (_app_permissions, _node_report, _conn_pair) = if let Ok(tup) = connect_res {
+    let (app_permissions, node_report, conn_pair) = if let Ok(tup) = connect_res {
         tup
     } else {
         // Connection failed:
@@ -437,14 +439,65 @@ where
         return Ok(false);
     };
 
-    // TODO:
-    // - Wrap connection with `compact_node`
-    // - How to send permissions to user?
-    unimplemented!();
+    let compact_gen = GenCryptoRandom(server_state.rng.clone());
+
+    let (local_sender, compact_receiver) = mpsc::channel(1);
+    let (compact_sender, mut local_receiver) = mpsc::channel(1);
+
+    let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+    let compact_report = create_compact_report(remote.compact_state.clone(), node_report.clone());
+
+    let app_conn_tuple = (app_permissions.clone(), node_report, conn_pair);
+
+    let compact_node_fut = compact_node(
+        app_conn_tuple,
+        conn_pair_compact,
+        remote.compact_state,
+        remote.compact_db_client,
+        compact_gen)
+    .map_err(|e| {
+        error!("open_node_remote(): compact_node() error: {:?}", e);
+    }).map(|_| ());
+
+    let node_id = server_state.new_node_id();
+    let compact_node_handle = server_state.spawner.spawn_with_handle(compact_node_fut).map_err(|_| ServerError::SpawnError)?;
+
+    // Keep things inside the open node struct:
+    let open_node = OpenNode {
+        node_name: node_name.clone(),
+        sender: local_sender,
+        // The node is remote, so we do not have a `node_handle`:
+        opt_node_handle: None,
+        compact_node_handle,
+    };
+
+    let old_value = server_state.open_nodes.insert(node_id.clone(), open_node);
+    // It shouldn't be possible to have two identical node_id-s
+    assert!(old_value.is_none());
+
+    // Redirect incoming node messages as events to main loop:
+    let mut c_event_sender = server_state.event_sender.clone();
+    let c_node_id = node_id.clone();
+    server_state.spawner.spawn(async move {
+        while let Some(compact_node_event) = local_receiver.next().await {
+            if let Err(e) = c_event_sender.send((c_node_id.clone(), compact_node_event)).await {
+                warn!("open_node_remote(): c_event_sender error! {:?}", e);
+                return;
+            }
+        }
+    }).map_err(|_| ServerError::SpawnError)?;
+    
+    // Send success message to the user, together with the first NodeReport etc.
+    let response_open_node = ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
+    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
+    user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
+        .await
+        .map_err(|_| ServerError::UserSenderError)?;
+    Ok(true)
 }
 
 
-#[allow(unused)]
 async fn handle_open_node<ST,R,C,US,S>(
     node_name: NodeName, 
     server_state: &mut ServerState<ST,R,C,S>, 
@@ -564,8 +617,6 @@ where
     R: CryptoRandom + Clone + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
-
-
     let (mut user_sender, mut user_receiver) = conn_pair.split();
 
     let user_receiver = user_receiver.map(ServerEvent::User)
