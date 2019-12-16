@@ -2,7 +2,6 @@ use std::fmt::Debug; use std::collections::HashMap;
 
 use futures::{stream, StreamExt, FutureExt, SinkExt, channel::{mpsc, oneshot}, Sink, TryFutureExt};
 use futures::future::{self, RemoteHandle};
-#[allow(unused)]
 use futures::task::{Spawn, SpawnExt};
 
 use crypto::rand::CryptoRandom;
@@ -12,26 +11,21 @@ use common::conn::{ConnPair, BoxStream, FutTransform, ConnPairVec};
 
 use timer::TimerClient;
 
-#[allow(unused)]
-use app::common::{derive_public_key, Uid, NetAddress};
+use app::common::NetAddress;
 use app::conn::{ConnPairApp, connect};
 
-#[allow(unused)]
 use proto::consts::{
-    KEEPALIVE_TICKS, MAX_FRAME_LENGTH, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
-    TICK_MS,
+    KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY,
 };
 
-#[allow(unused)]
 use node::{NodeConfig, node, IncomingAppConnection, ConnPairServer};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
-#[allow(unused)]
 use crate::messages::{ServerToUser, UserToServer, ServerToUserAck, UserToServerAck, NodeId, NodeName, 
-    RequestCreateNode, NodeInfo, NodeInfoLocal, NodeInfoRemote, CreateNodeLocal, CreateNodeRemote, 
+    RequestCreateNode, CreateNodeLocal, CreateNodeRemote, 
     NodeStatus, NodesStatus, ResponseOpenNode};
-#[allow(unused)]
-use crate::compact_node::{CompactToUser, CompactToUserAck, UserToCompact, 
+
+use crate::compact_node::{CompactToUserAck, 
     UserToCompactAck, compact_node, ConnPairCompact, create_compact_report};
 use crate::gen::{GenPrivateKey, GenCryptoRandom};
 use crate::store::{Store, LoadedNode, LoadedNodeLocal, LoadedNodeRemote};
@@ -58,14 +52,11 @@ const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
 pub type ConnPairCompactServer = ConnPair<ServerToUserAck, UserToServerAck>;
 
-#[allow(unused)]
 #[derive(Debug)]
 pub enum ServerError { 
     UserSenderError,
     NodeSenderError,
-    DerivePublicKeyError,
     StoreError,
-    CreateTimerError,
     SpawnError,
     FirstNodeReportError,
     SendConnPairError,
@@ -143,7 +134,6 @@ impl<ST,R,C,S> ServerState<ST,R,C,S> {
     }
 }
 
-#[allow(unused)]
 pub async fn handle_create_node_local<ST,CG>(
     create_node_local: CreateNodeLocal, 
     store: &mut ST, 
@@ -156,7 +146,6 @@ where
     // Randomly generate a private key ourselves, because we don't trust the user to correctly randomly
     // generate a private key.
     let node_private_key = compact_gen.gen_private_key();
-    let node_public_key = derive_public_key(&node_private_key).map_err(|_| ServerError::DerivePublicKeyError)?;
     Ok(if let Err(e) = store.create_local_node(create_node_local.node_name.clone(), node_private_key).await {
         warn!("handle_create_node_local: store error: {:?}", e);
         false
@@ -171,10 +160,6 @@ pub async fn handle_create_node_remote<ST>(
 where
     ST: Store,
 {
-    /*
-    let app_public_key = derive_public_key(&create_node_remote.app_private_key)
-                    .map_err(|_| ServerError::DerivePublicKeyError)?;
-    */
     let create_remote_node_res = store.create_remote_node(
         create_node_remote.node_name.clone(),
         create_node_remote.app_private_key,
