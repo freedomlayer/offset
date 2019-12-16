@@ -292,7 +292,7 @@ async fn open_node_local<ST,R,C,S,US>(
     local: LoadedNodeLocal,
     server_state: &mut ServerState<ST,R,C,S>, 
     user_sender: &mut US,
-) -> Result<(), ServerError> 
+) -> Result<bool, ServerError> 
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
@@ -400,7 +400,7 @@ where
     user_sender.send(ServerToUserAck::ServerToUser(server_to_user))
         .await
         .map_err(|_| ServerError::UserSenderError)?;
-    Ok(())
+    Ok(true)
 }
 
 
@@ -431,7 +431,7 @@ where
     };
 
     match loaded_node {
-        LoadedNode::Local(local) => open_node_local(node_name, local, server_state, user_sender).await?,
+        LoadedNode::Local(local) => open_node_local(node_name, local, server_state, user_sender).await,
         LoadedNode::Remote(remote) => {
             // TODO: Connect to a remote node
             unimplemented!();
@@ -442,7 +442,6 @@ where
     // - Save opened node's info inside an OpenNode structures, and insert into
     // `server_state.open_nodes`
     // - Send ResponseOpenNode, with relevant first CompactReport
-    Ok(true)
 }
 
 
