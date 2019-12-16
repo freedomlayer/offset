@@ -24,6 +24,7 @@ route = { path = "../route", version = "0.1.0", package = "offst-route" }
 database = { path = "../database", version = "0.1.0", package = "offst-database" }
 identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
+net = { path = "../net", version = "0.1.0", package = "offst-net" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 
 serde = {version = "1.0.87", features = ["derive"]}

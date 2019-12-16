@@ -20,3 +20,6 @@ mod gen;
 mod messages;
 mod server_loop;
 mod store;
+
+#[allow(unused)]
+mod stcompactlib;

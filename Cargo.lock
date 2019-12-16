@@ -1229,6 +1229,7 @@ dependencies = [
  "offst-database 0.1.0",
  "offst-identity 0.1.0",
  "offst-lockfile 0.1.0",
+ "offst-net 0.1.0",
  "offst-node 0.1.0",
  "offst-proto 0.1.0",
  "offst-route 0.1.0",
