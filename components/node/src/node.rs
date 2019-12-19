@@ -31,8 +31,6 @@ use proto::funder::messages::{
 };
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
-// use proto::funder::serialize::{deserialize_friend_message, serialize_friend_message};
-
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
 use proto::net::messages::NetAddress;
 use proto::report::convert::funder_report_to_index_client_state;
