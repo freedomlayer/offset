@@ -12,7 +12,7 @@ extern crate log;
 
 use structopt::StructOpt;
 
-use bin::stnodelib::{stnode, NodeBinError, StNodeCmd};
+use bin::stnode::{stnode, NodeBinError, StNodeCmd};
 
 fn run() -> Result<(), NodeBinError> {
     env_logger::init();

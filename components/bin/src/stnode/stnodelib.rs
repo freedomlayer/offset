@@ -37,8 +37,8 @@ use proto::file::IdentityFile;
 
 use node::{NodeConfig, NodeState};
 
-use crate::file_trusted_apps::FileTrustedApps;
-use crate::node::{net_node, NetNodeError};
+use crate::stnode::file_trusted_apps::FileTrustedApps;
+use crate::stnode::node::{net_node, NetNodeError};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;

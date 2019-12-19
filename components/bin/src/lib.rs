@@ -10,12 +10,7 @@
 #[macro_use]
 extern crate log;
 
-mod file_trusted_apps;
-mod node;
-pub mod stnodelib;
-
 pub mod stindexlib;
 pub mod stmgrlib;
+pub mod stnode;
 pub mod strelaylib;
-
-pub use crate::node::{net_node, NetNodeError};

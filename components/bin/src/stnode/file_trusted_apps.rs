@@ -9,12 +9,12 @@ use derive_more::From;
 
 use common::conn::BoxFuture;
 
-use crate::node::TrustedApps;
-
 use proto::file::TrustedAppFile;
 use proto::crypto::PublicKey;
 use proto::ser_string::{deserialize_from_string, StringSerdeError};
 use proto::app_server::messages::AppPermissions;
+
+use crate::stnode::node::TrustedApps;
 
 
 #[derive(Debug, From)]
