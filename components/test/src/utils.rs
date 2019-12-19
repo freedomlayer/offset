@@ -28,13 +28,14 @@ use identity::{create_identity, IdentityClient};
 use app::conn::{inner_connect, AppConnTuple, AppServerToApp};
 use app::report::NodeReport;
 
-use node::{net_node, NodeConfig, NodeState, TrustedApps};
+use node::{NodeConfig, NodeState};
 
 use database::file_db::FileDb;
 use database::{database_loop, AtomicDb, DatabaseClient};
 
-use index_server::net_index_server;
-use relay::net_relay_server;
+use bin::stnode::{net_node, TrustedApps};
+use bin::stindex::net_index_server;
+use bin::strelay::net_relay_server;
 
 use timer::TimerClient;
 
@@ -150,8 +151,10 @@ fn default_node_config() -> NodeConfig {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
+        /*
         /// Maximum amount of incoming app connections we set up at the same time
         max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+        */
     }
 }
 

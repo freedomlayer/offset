@@ -2,9 +2,9 @@ use std::{str, thread, time};
 
 use tempfile::tempdir;
 
-use bin::stindexlib::{stindex, StIndexCmd};
-use bin::stnodelib::{stnode, StNodeCmd};
-use bin::strelaylib::{strelay, StRelayCmd};
+use bin::stindex::{stindex, StIndexCmd};
+use bin::stnode::{stnode, StNodeCmd};
+use bin::strelay::{strelay, StRelayCmd};
 
 use stctrl::config::{
     AddFriendCmd, AddIndexCmd, AddRelayCmd, CloseFriendCurrencyCmd, ConfigCmd, DisableFriendCmd,
