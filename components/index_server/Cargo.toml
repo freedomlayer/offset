@@ -13,9 +13,6 @@ identity = { path = "../identity", version = "0.1.0" , package = "offst-identity
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 signature = { path = "../signature", version = "0.1.0" , package = "offst-signature" }
-keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
-secure-channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
-version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 
 log = "0.4"
 # TODO: How to make sure this is only imported in tests?
