@@ -831,8 +831,7 @@ fn handle_move_token_success<B, R>(
                 // already have:
                 if friend.remote_relays != new_remote_relays {
                     // Update remote address:
-                    let friend_mutation =
-                        FriendMutation::SetRemoteRelays(new_remote_relays.clone());
+                    let friend_mutation = FriendMutation::SetRemoteRelays(new_remote_relays);
                     let funder_mutation = FunderMutation::FriendMutation((
                         remote_public_key.clone(),
                         friend_mutation,
@@ -1046,7 +1045,7 @@ where
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
         opt_last_incoming_move_token,
-        local_reset_terms: new_local_reset_terms.clone(),
+        local_reset_terms: new_local_reset_terms,
         opt_remote_reset_terms: Some(new_remote_reset_terms),
     };
     let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);

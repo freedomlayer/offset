@@ -105,7 +105,7 @@ where
         Some(HalfTunnel { conn_pair, .. }) => conn_pair,
         None => return Err(RelayServerError::NoPendingHalfTunnel),
     };
-    let c_accept_public_key = accept_public_key.clone();
+    let c_accept_public_key = accept_public_key;
 
     let (mut remote_sender, remote_receiver) = conn_pair.split();
 

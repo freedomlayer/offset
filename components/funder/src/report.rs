@@ -149,7 +149,7 @@ where
     FunderReport {
         local_public_key: funder_state.local_public_key.clone(),
         relays: funder_state.relays.clone().into_iter().collect(),
-        friends: friends.clone().into_iter().collect(),
+        friends: friends.into_iter().collect(),
     }
 }
 

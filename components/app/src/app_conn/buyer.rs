@@ -32,7 +32,7 @@ pub fn create_transaction(
 ) -> AppRequest {
     let create_transaction = CreateTransaction {
         payment_id,
-        request_id: request_id.clone(),
+        request_id,
         route,
         dest_payment,
         fees,
@@ -42,7 +42,7 @@ pub fn create_transaction(
 }
 
 pub fn request_close_payment(payment_id: PaymentId) -> AppRequest {
-    AppRequest::RequestClosePayment(payment_id.clone())
+    AppRequest::RequestClosePayment(payment_id)
 }
 
 pub fn ack_close_payment(payment_id: PaymentId, ack_uid: Uid) -> AppRequest {

@@ -580,7 +580,7 @@ where
                 FunderMutation::FriendMutation((origin_public_key.clone(), friend_mutation));
             m_state.mutate(funder_mutation);
 
-            cancel_public_keys.insert(origin_public_key.clone());
+            cancel_public_keys.insert(origin_public_key);
         }
         None => {
             // We are the origin of this request
@@ -677,13 +677,13 @@ where
     } else {
         match &friend.sent_local_relays {
             SentLocalRelays::NeverSent => {
-                Some(SentLocalRelays::LastSent(local_named_relays.clone()))
+                Some(SentLocalRelays::LastSent(local_named_relays))
             }
             SentLocalRelays::Transition((last_sent_local_relays, _))
             | SentLocalRelays::LastSent(last_sent_local_relays) => {
                 if &local_named_relays != last_sent_local_relays {
                     Some(SentLocalRelays::Transition((
-                        local_named_relays.clone(),
+                        local_named_relays,
                         last_sent_local_relays.clone(),
                     )))
                 } else {
@@ -695,7 +695,7 @@ where
 
     // Update friend.sent_local_relays accordingly:
     if let Some(new_sent_local_relays) = opt_new_sent_local_relays {
-        pending_move_token.set_local_relays(local_relays.clone());
+        pending_move_token.set_local_relays(local_relays);
         let friend_mutation = FriendMutation::SetSentLocalRelays(new_sent_local_relays);
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
