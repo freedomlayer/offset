@@ -14,7 +14,7 @@ use crate::gen::GenUid;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
-fn calc_multi_route_fees(multi_route: &MultiRoute, multi_route_choice: &MultiRouteChoice) -> Option<u128> {
+fn calc_multi_route_fees(multi_route: &MultiRoute, multi_route_choice: &[(usize, u128)]) -> Option<u128> {
     let mut total_fees = 0u128;
     for (route_index, dest_payment) in multi_route_choice {
         let fee = multi_route.routes[*route_index]
@@ -70,6 +70,7 @@ where
     Ok(())
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub async fn handle_node<CG,US,AS>(app_server_to_app: AppServerToApp, 
     server_state: &mut CompactServerState, 
     compact_gen: &mut CG,

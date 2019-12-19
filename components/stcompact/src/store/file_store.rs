@@ -230,7 +230,7 @@ async fn remove_node(store_path: &Path, node_name: &NodeName) -> Result<(), File
         return Err(FileStoreError::RemoveNodeError);
     }
 
-    return Ok(())
+    Ok(())
 }
 
 
@@ -460,21 +460,21 @@ where
 {
     type Error = FileStoreError;
 
-    fn create_local_node<'a>(
-        &'a mut self,
+    fn create_local_node(
+        &mut self,
         node_name: NodeName,
         node_private_key: PrivateKey,
-    ) -> BoxFuture<'a, Result<(), Self::Error>> {
+    ) -> BoxFuture<'_, Result<(), Self::Error>> {
         Box::pin(create_local_node(node_name, node_private_key, &self.store_path_buf))
     }
 
-    fn create_remote_node<'a>(
-        &'a mut self,
+    fn create_remote_node(
+        &mut self,
         node_name: NodeName,
         app_private_key: PrivateKey,
         node_public_key: PublicKey,
         node_address: NetAddress,
-    ) -> BoxFuture<'a, Result<(), Self::Error>> {
+    ) -> BoxFuture<'_, Result<(), Self::Error>> {
         Box::pin(async move {
             if self.live_nodes.contains_key(&node_name) {
                 return Err(FileStoreError::NodeIsLoaded);
@@ -483,7 +483,7 @@ where
         })
     }
 
-    fn list_nodes<'a>(&'a self) -> BoxFuture<'a, Result<NodesInfo, Self::Error>> {
+    fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>> {
         Box::pin(async move {
             let mut nodes_info = HashMap::new();
             for (node_name, file_store_node) in read_all_nodes(&self.store_path_buf).await? {
@@ -494,10 +494,10 @@ where
         })
     }
 
-    fn load_node<'a>(
-        &'a mut self,
+    fn load_node(
+        &mut self,
         node_name: NodeName,
-    ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>> {
+    ) -> BoxFuture<'_, Result<LoadedNode, Self::Error>> {
         Box::pin(async move {
             // Make sure the node we want to load is not already loaded:
             if self.live_nodes.contains_key(&node_name) {
@@ -541,7 +541,7 @@ where
 
     /// Remove a node from the store
     /// A node must be in unloaded state to be removed.
-    fn remove_node<'a>(&'a mut self, node_name: NodeName) -> BoxFuture<'a, Result<(), Self::Error>> {
+    fn remove_node(&mut self, node_name: NodeName) -> BoxFuture<'_, Result<(), Self::Error>> {
         Box::pin(async move {
             // Do not remove node if it is currently loaded:
             if self.live_nodes.contains_key(&node_name) {

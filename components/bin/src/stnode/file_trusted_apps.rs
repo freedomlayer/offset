@@ -72,8 +72,7 @@ impl TrustedApps for FileTrustedApps {
                     return None;
                 }
             };
-            let opt_app_permissions = trusted_map.get(app_public_key).cloned();
-            opt_app_permissions
+            trusted_map.get(app_public_key).cloned()
         })
     }
 }

@@ -95,6 +95,7 @@ pub struct PaymentFees {
     pub response: PaymentFeesResponse,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
     Failure(Uid),                // ack_uid
@@ -324,6 +325,7 @@ pub struct OpenInvoice {
     pub description: String,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid),         // request_routes_id
@@ -363,6 +365,7 @@ pub struct CompactReport {
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompactToUserAck {
     /// Acknowledge the receipt of `UserToCompact`

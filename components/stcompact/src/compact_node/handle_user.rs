@@ -17,6 +17,7 @@ use crate::gen::GenUid;
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
+#[allow(clippy::cognitive_complexity)]
 async fn handle_user_inner<CG,US,AS>(
     from_user: UserToCompactAck, 
     _app_permissions: &AppPermissions, 
@@ -226,7 +227,7 @@ where
             let app_request = routes::request_routes(
                 request_routes_id.clone(),
                 init_payment.currency.clone(),
-                init_payment.dest_payment.clone(),
+                init_payment.dest_payment,
                 server_state.node_report().funder_report.local_public_key.clone(),
                 init_payment.dest_public_key.clone(),
                 opt_exclude);
@@ -433,7 +434,7 @@ where
 
             let open_invoice = OpenInvoice {
                 currency: add_invoice.currency.clone(),
-                total_dest_payment: add_invoice.total_dest_payment.clone(),
+                total_dest_payment: add_invoice.total_dest_payment,
                 description: add_invoice.description,
             };
             compact_state.open_invoices.insert(add_invoice.invoice_id.clone(), open_invoice);

@@ -40,28 +40,25 @@ pub enum LoadedNode {
 pub trait Store {
     type Error: Debug;
 
-    fn create_local_node<'a>(
-        &'a mut self,
+    fn create_local_node(
+        &mut self,
         node_name: NodeName,
         node_private_key: PrivateKey,
-    ) -> BoxFuture<'a, Result<(), Self::Error>>;
+    ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
-    fn create_remote_node<'a>(
-        &'a mut self,
+    fn create_remote_node(
+        &mut self,
         node_name: NodeName,
         app_private_key: PrivateKey,
         node_public_key: PublicKey,
         node_address: NetAddress,
-    ) -> BoxFuture<'a, Result<(), Self::Error>>;
+    ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
     /// List all existing nodes in store
-    fn list_nodes<'a>(&'a self) -> BoxFuture<'a, Result<NodesInfo, Self::Error>>;
+    fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>>;
 
     /// Load (private) information of one node
-    fn load_node<'a>(
-        &'a mut self,
-        node_name: NodeName,
-    ) -> BoxFuture<'a, Result<LoadedNode, Self::Error>>;
+    fn load_node(&mut self, node_name: NodeName) -> BoxFuture<'_, Result<LoadedNode, Self::Error>>;
 
     /// Unload a node
     fn unload_node<'a>(
@@ -71,6 +68,5 @@ pub trait Store {
 
     /// Remove a node from the store
     /// A node must be in unloaded state to be removed.
-    fn remove_node<'a>(&'a mut self, node_name: NodeName)
-        -> BoxFuture<'a, Result<(), Self::Error>>;
+    fn remove_node(&mut self, node_name: NodeName) -> BoxFuture<'_, Result<(), Self::Error>>;
 }

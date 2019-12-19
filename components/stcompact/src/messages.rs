@@ -62,6 +62,7 @@ pub struct CreateNodeRemote {
     pub node_address: NetAddress,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ResponseOpenNode {
     Success(NodeName, NodeId, AppPermissions, CompactReport), // (node_name, node_id, compact_report)
@@ -78,6 +79,7 @@ pub enum RequestCreateNode {
     CreateNodeRemote(CreateNodeRemote),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
     ResponseOpenNode(ResponseOpenNode),
@@ -87,12 +89,14 @@ pub enum ServerToUser {
     Node(NodeId, CompactToUser), // (node_id, compact_to_user)
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUserAck {
     ServerToUser(ServerToUser),
     Ack(Uid),
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UserToServer {
     RequestCreateNode(RequestCreateNode),

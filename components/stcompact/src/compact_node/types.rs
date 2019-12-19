@@ -9,6 +9,7 @@ use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
 pub type ConnPairCompact = ConnPair<CompactToUserAck, UserToCompactAck>;
 
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum CompactServerEvent {
     User(UserToCompactAck),

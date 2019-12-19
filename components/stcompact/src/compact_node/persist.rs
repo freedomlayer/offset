@@ -10,6 +10,7 @@ use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use route::MultiRouteChoice;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
@@ -34,6 +35,7 @@ pub struct OpenPaymentStatusFoundRoute {
     pub fees: u128,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute(Uid), // request_routes_id
