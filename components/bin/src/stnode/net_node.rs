@@ -260,12 +260,13 @@ where
     let keepalive_transform =
         KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
 
+    let c_encrypt_transform = encrypt_transform.clone();
+    let c_keepalive_transform = keepalive_transform.clone();
     let secure_connector = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_connector = connector.clone();
         let mut c_version_transform = version_transform.clone();
-        let mut c_encrypt_transform = encrypt_transform.clone();
-        let mut c_keepalive_transform = keepalive_transform.clone();
-
+        let mut c_encrypt_transform = c_encrypt_transform.clone();
+        let mut c_keepalive_transform = c_keepalive_transform.clone();
         Box::pin(async move {
             let conn_pair = c_connector.transform(net_address).await?;
             let conn_pair = c_version_transform.transform(conn_pair).await;
@@ -277,6 +278,18 @@ where
         })
     });
 
+    // Note that this transform does not contain the version prefix, as it is applied to a
+    // connection between two nodes, relayed using a relay server.
+    let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
+        let mut c_encrypt_transform = encrypt_transform.clone();
+        let mut c_keepalive_transform = keepalive_transform.clone();
+        Box::pin(async move {
+            let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
+            let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
+            Some((public_key, conn_pair_vec))
+        })
+    });
+
     node(
         node_config,
         identity_client,
@@ -284,6 +297,7 @@ where
         node_state,
         database_client,
         secure_connector,
+        encrypt_keepalive,
         incoming_apps,
         rng,
         spawner.clone(),

@@ -19,8 +19,8 @@ use funder::types::{
     ChannelerConfig, FunderIncomingComm, FunderOutgoingComm, IncomingLivenessMessage,
 };
 use funder::{funder_loop, FunderError, FunderState};
-use keepalive::KeepAliveChannel;
-use secure_channel::SecureChannel;
+// use keepalive::KeepAliveChannel;
+// use secure_channel::SecureChannel;
 
 use index_client::{spawn_index_client, IndexClientError};
 
@@ -50,46 +50,52 @@ pub enum NodeError {
     AppServerError(AppServerError),
 }
 
-fn node_spawn_channeler<C, R, S>(
+/*
+let encrypt_transform = SecureChannel::new(
+    identity_client.clone(),
+    rng.clone(),
+    timer_client.clone(),
+    node_config.ticks_to_rekey,
+    spawner.clone(),
+);
+
+let keepalive_transform = KeepAliveChannel::new(
+    timer_client.clone(),
+    node_config.keepalive_ticks,
+    spawner.clone(),
+);
+
+let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
+    let mut c_encrypt_transform = encrypt_transform.clone();
+    let mut c_keepalive_transform = keepalive_transform.clone();
+    Box::pin(async move {
+        let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
+        let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
+        Some((public_key, conn_pair_vec))
+    })
+});
+*/
+
+fn node_spawn_channeler<C, EKT, S>(
     node_config: &NodeConfig,
     local_public_key: PublicKey,
-    identity_client: IdentityClient,
     timer_client: TimerClient,
     connector: C,
-    rng: R,
+    encrypt_keepalive: EKT,
     from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
     to_funder: mpsc::Sender<ChannelerToFunder>,
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), ChannelerError>>, NodeError>
 where
     C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let encrypt_transform = SecureChannel::new(
-        identity_client.clone(),
-        rng.clone(),
-        timer_client.clone(),
-        node_config.ticks_to_rekey,
-        spawner.clone(),
-    );
-
-    let keepalive_transform = KeepAliveChannel::new(
-        timer_client.clone(),
-        node_config.keepalive_ticks,
-        spawner.clone(),
-    );
-
-    let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
-        let mut c_encrypt_transform = encrypt_transform.clone();
-        let mut c_keepalive_transform = keepalive_transform.clone();
-        Box::pin(async move {
-            let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
-            let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
-            Some((public_key, conn_pair_vec))
-        })
-    });
-
 
     let enc_relay_connector = FuncFutTransform::new(move |relay_address: RelayAddress| {
         let mut c_connector = connector.clone();
@@ -340,19 +346,27 @@ where
 }
 
 // TODO: Possibly rename this function?
-pub async fn node<C, IA, R, S>(
+pub async fn node<C, EKT, IA, R, S>(
     node_config: NodeConfig,
     identity_client: IdentityClient,
     timer_client: TimerClient,
     node_state: NodeState<NetAddress>,
     database_client: DatabaseClient<NodeMutation<NetAddress>>,
     connector: C,
+    // encrypt_keepalive is used for encryption of the relayed communication between two nodes.
+    encrypt_keepalive: EKT,
     incoming_apps: IA,
     rng: R,
     spawner: S,
 ) -> Result<(), NodeError>
 where
     C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
     IA: Stream<Item = IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -380,10 +394,9 @@ where
     let channeler_handle = node_spawn_channeler(
         &node_config,
         local_public_key.clone(),
-        identity_client.clone(),
         timer_client.clone(),
         connector.clone(),
-        rng.clone(),
+        encrypt_keepalive,
         funder_to_channeler_receiver,
         channeler_to_funder_sender,
         spawner.clone(),

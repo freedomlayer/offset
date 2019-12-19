@@ -114,7 +114,6 @@ where
         > + Clone
         + Send
         + 'static,
-    // KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     let client_connector =
