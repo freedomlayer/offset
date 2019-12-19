@@ -234,7 +234,7 @@ async fn node_spawn_index_client<'a, C, R, S>(
     mut database_client: DatabaseClient<NodeMutation<NetAddress>>,
     from_app_server: mpsc::Receiver<AppServerToIndexClient<NetAddress>>,
     to_app_server: mpsc::Sender<IndexClientToAppServer<NetAddress>>,
-    net_connector: C,
+    version_connector: C,
     rng: R,
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, NodeError>
@@ -291,7 +291,7 @@ where
     let enc_keepalive_connector = EncKeepaliveConnector::new(
         encrypt_transform.clone(),
         keepalive_transform.clone(),
-        net_connector.clone(),
+        version_connector.clone(),
         spawner.clone(),
     );
 
