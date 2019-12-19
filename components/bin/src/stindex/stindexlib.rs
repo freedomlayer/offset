@@ -20,7 +20,7 @@ use identity::{create_identity, IdentityClient};
 
 use derive_more::From;
 
-use index_server::{net_index_server, NetIndexServerError};
+use crate::stindex::net_index::{net_index_server, NetIndexServerError};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use timer::create_timer;
 

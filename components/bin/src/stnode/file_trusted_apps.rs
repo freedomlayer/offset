@@ -14,7 +14,7 @@ use proto::crypto::PublicKey;
 use proto::ser_string::{deserialize_from_string, StringSerdeError};
 use proto::app_server::messages::AppPermissions;
 
-use crate::stnode::node::TrustedApps;
+use crate::stnode::net_node::TrustedApps;
 
 
 #[derive(Debug, From)]
