@@ -10,7 +10,7 @@
 #[macro_use]
 extern crate log;
 
-pub mod stindexlib;
+pub mod stindex;
 pub mod stmgrlib;
 pub mod stnode;
-pub mod strelaylib;
+pub mod strelay;

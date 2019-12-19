@@ -12,7 +12,7 @@ extern crate log;
 
 use structopt::StructOpt;
 
-use bin::stindexlib::{stindex, IndexServerBinError, StIndexCmd};
+use bin::stindex::{stindex, IndexServerBinError, StIndexCmd};
 
 fn run() -> Result<(), IndexServerBinError> {
     env_logger::init();

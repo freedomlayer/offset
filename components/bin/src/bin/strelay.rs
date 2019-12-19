@@ -12,7 +12,7 @@ extern crate log;
 
 use structopt::StructOpt;
 
-use bin::strelaylib::{strelay, RelayServerBinError, StRelayCmd};
+use bin::strelay::{strelay, RelayServerBinError, StRelayCmd};
 
 fn run() -> Result<(), RelayServerBinError> {
     env_logger::init();
