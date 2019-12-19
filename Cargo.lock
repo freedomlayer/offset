@@ -1132,7 +1132,6 @@ dependencies = [
  "offst-secure-channel 0.1.0",
  "offst-signature 0.1.0",
  "offst-timer 0.1.0",
- "offst-version 0.1.0",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
