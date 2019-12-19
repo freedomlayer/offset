@@ -52,7 +52,8 @@ where
         .await
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
-    let (dh_state_initial, exchange_rand_nonce) = ScStateInitial::new(local_public_key, opt_expected_remote.clone(), &rng);
+    let (dh_state_initial, exchange_rand_nonce) =
+        ScStateInitial::new(local_public_key, opt_expected_remote.clone(), &rng);
     let ser_exchange_rand_nonce = exchange_rand_nonce.proto_serialize();
     writer
         .send(ser_exchange_rand_nonce)
@@ -336,15 +337,15 @@ mod tests {
     use super::*;
 
     use futures::channel::oneshot;
-    use futures::Future;
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
+    use futures::Future;
 
     use timer::create_timer_incoming;
 
     use crypto::identity::{Identity, SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
     use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
     use identity::{create_identity, IdentityClient};
 
     use proto::crypto::PrivateKey;

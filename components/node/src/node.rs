@@ -4,7 +4,7 @@ use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 
 use derive_more::*;
 
-use common::conn::{ConnPairVec, FutTransform, FuncFutTransform};
+use common::conn::{ConnPairVec, FuncFutTransform, FutTransform};
 
 use crypto::rand::CryptoRandom;
 use proto::crypto::PublicKey;
@@ -38,7 +38,6 @@ use proto::report::convert::funder_report_to_index_client_state;
 
 use crate::types::{create_node_report, NodeConfig, NodeMutation, NodeState};
 
-
 #[derive(Debug, From)]
 pub enum NodeError {
     RequestPublicKeyError,
@@ -61,7 +60,10 @@ fn node_spawn_channeler<C, EKT, S>(
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), ChannelerError>>, NodeError>
 where
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
+        + Clone
+        + Send
+        + 'static,
     EKT: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
@@ -70,11 +72,12 @@ where
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-
     let enc_relay_connector = FuncFutTransform::new(move |relay_address: RelayAddress| {
         let mut c_connector = connector.clone();
         Box::pin(async move {
-            c_connector.transform((relay_address.public_key, relay_address.address)).await
+            c_connector
+                .transform((relay_address.public_key, relay_address.address))
+                .await
         })
     });
 
@@ -234,7 +237,10 @@ async fn node_spawn_index_client<C, R, S>(
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, NodeError>
 where
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
+        + Clone
+        + Send
+        + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -295,7 +301,12 @@ where
     let index_connector = FuncFutTransform::new(move |index_server_address: IndexServerAddress| {
         let mut c_connector = connector.clone();
         Box::pin(async move {
-            c_connector.transform((index_server_address.public_key, index_server_address.address)).await
+            c_connector
+                .transform((
+                    index_server_address.public_key,
+                    index_server_address.address,
+                ))
+                .await
         })
     });
 
@@ -334,7 +345,10 @@ pub async fn node<C, EKT, IA, R, S>(
     spawner: S,
 ) -> Result<(), NodeError>
 where
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
+        + Clone
+        + Send
+        + 'static,
     EKT: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,

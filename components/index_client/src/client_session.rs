@@ -109,8 +109,8 @@ mod tests {
     use futures::{SinkExt, StreamExt};
 
     use crypto::identity::{Identity, SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
     use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
 
     use proto::crypto::{HashResult, PrivateKey};
     use proto::index_server::messages::IndexServerToClient;

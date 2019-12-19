@@ -699,11 +699,11 @@ mod tests {
     use futures::executor::{block_on, ThreadPool};
     use futures::task::Spawn;
 
-    use crypto::identity::{SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
+    use crypto::identity::SoftwareEd25519Identity;
     use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
 
-    use proto::crypto::{PublicKey, RandValue, Signature, PrivateKey};
+    use proto::crypto::{PrivateKey, PublicKey, RandValue, Signature};
     use proto::funder::messages::Currency;
     use proto::index_server::messages::{RemoveFriendCurrency, RequestRoutes};
 

@@ -12,14 +12,11 @@ use timer::create_timer_incoming;
 
 use app::conn::{self, ConnPairApp};
 
-use crate::app_wrapper::{
-    send_request,
-};
+use crate::app_wrapper::send_request;
 use crate::sim_network::create_sim_network;
 use crate::utils::{
-    advance_time, create_app, create_node, create_relay,
-    named_relay_address, node_public_key, relay_address,
-    report_service, SimDb,
+    advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
+    relay_address, report_service, SimDb,
 };
 
 const TIMER_CHANNEL_LEN: usize = 0;
@@ -212,7 +209,6 @@ async fn task_handle_error_command(mut test_executor: TestExecutor) {
     .unwrap();
 
     advance_time(10, &mut tick_sender, &test_executor).await;
-
 }
 
 #[test]

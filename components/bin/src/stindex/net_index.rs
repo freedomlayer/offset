@@ -28,7 +28,6 @@ use version::VersionPrefix;
 
 use index_server::{index_server, IndexServerError};
 
-
 #[derive(Clone)]
 struct ConnTransformer<VT, ET, KT, S> {
     version_transform: VT,

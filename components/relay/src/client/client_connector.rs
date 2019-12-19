@@ -25,9 +25,7 @@ where
     C: FutTransform<Input = A, Output = Option<ConnPairVec>>,
 {
     pub fn new(connector: C) -> ClientConnector<C> {
-        ClientConnector {
-            connector,
-        }
+        ClientConnector { connector }
     }
 
     async fn relay_connect(

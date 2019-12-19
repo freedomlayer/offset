@@ -1,10 +1,9 @@
 use std::marker::Unpin;
 
-use futures::task::{Spawn};
+use futures::task::Spawn;
 use futures::Stream;
 
-
-use common::conn::{ConnPairVec};
+use common::conn::ConnPairVec;
 
 use proto::crypto::PublicKey;
 
@@ -29,7 +28,6 @@ where
     S: Spawn + Clone + Send + 'static,
     IC: Stream<Item = (PublicKey, ConnPairVec)> + Unpin + Send + 'static,
 {
-
     // TODO: How to get rid of the Box::pin here?
     let processed_conns = Box::pin(conn_processor(
         incoming_conns,
@@ -39,4 +37,3 @@ where
 
     relay_server_loop(timer_client, processed_conns, half_tunnel_ticks, spawner).await
 }
-

@@ -3,19 +3,18 @@ use std::collections::HashMap;
 use futures::StreamExt;
 
 use async_std::fs;
-use async_std::path::{PathBuf, Path};
+use async_std::path::{Path, PathBuf};
 
 use derive_more::From;
 
 use common::conn::BoxFuture;
 
-use proto::file::TrustedAppFile;
-use proto::crypto::PublicKey;
-use proto::ser_string::{deserialize_from_string, StringSerdeError};
 use proto::app_server::messages::AppPermissions;
+use proto::crypto::PublicKey;
+use proto::file::TrustedAppFile;
+use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
 use crate::stnode::net_node::TrustedApps;
-
 
 #[derive(Debug, From)]
 enum FileTrustedAppsError {
@@ -24,7 +23,9 @@ enum FileTrustedAppsError {
 }
 
 /// Load all trusted applications files from a given directory.
-async fn load_trusted_apps(dir_path: &Path) -> Result<HashMap<PublicKey, AppPermissions>, FileTrustedAppsError> {
+async fn load_trusted_apps(
+    dir_path: &Path,
+) -> Result<HashMap<PublicKey, AppPermissions>, FileTrustedAppsError> {
     let mut res_trusted = HashMap::new();
     let mut dir = fs::read_dir(dir_path).await?;
     while let Some(entry) = dir.next().await {
@@ -34,7 +35,8 @@ async fn load_trusted_apps(dir_path: &Path) -> Result<HashMap<PublicKey, AppPerm
             continue;
         }
 
-        let trusted_app_file: TrustedAppFile = deserialize_from_string(&fs::read_to_string(&path).await?)?;
+        let trusted_app_file: TrustedAppFile =
+            deserialize_from_string(&fs::read_to_string(&path).await?)?;
         res_trusted.insert(trusted_app_file.public_key, trusted_app_file.permissions);
     }
     Ok(res_trusted)
@@ -63,12 +65,15 @@ impl FileTrustedApps {
 
 impl TrustedApps for FileTrustedApps {
     /// Get the permissions of an app. Returns None if the app is not trusted at all.
-    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>> {
+    fn app_permissions<'a>(
+        &'a mut self,
+        app_public_key: &'a PublicKey,
+    ) -> BoxFuture<'a, Option<AppPermissions>> {
         Box::pin(async move {
             let trusted_map = match load_trusted_apps(&self.trusted_apps_path).await {
                 Ok(trusted_map) => trusted_map,
                 Err(e) => {
-                    error!("load_trusted_apps() failed: {:?}",e);
+                    error!("load_trusted_apps() failed: {:?}", e);
                     return None;
                 }
             };

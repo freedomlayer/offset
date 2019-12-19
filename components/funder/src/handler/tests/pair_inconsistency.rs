@@ -10,10 +10,10 @@ use futures::{future, FutureExt};
 use identity::{create_identity, IdentityClient};
 
 use crypto::identity::{compare_public_key, SoftwareEd25519Identity};
-use crypto::rand::{RngContainer, RandGen};
+use crypto::rand::{RandGen, RngContainer};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{Uid, PrivateKey};
+use proto::crypto::{PrivateKey, Uid};
 use proto::funder::messages::{
     AddFriend, Currency, CurrencyBalance, FriendMessage, FriendStatus, FunderControl,
     FunderIncomingControl, Rate, ResetFriendChannel, SetFriendCurrencyMaxDebt,

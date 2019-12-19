@@ -15,8 +15,8 @@ use proto::funder::messages::{
     RequestResult, TransactionResult,
 };
 
-use crate::server::IncomingAppConnection;
 use super::utils::spawn_dummy_app_server;
+use crate::server::IncomingAppConnection;
 
 async fn task_app_server_loop_request_send_funds<S>(spawner: S)
 where
@@ -85,7 +85,6 @@ where
 
     // Verify the report:
     assert_eq!(report, initial_node_report);
-
 
     let pk_e = PublicKey::from(&[0xee; PublicKey::len()]);
     let pk_f = PublicKey::from(&[0xff; PublicKey::len()]);

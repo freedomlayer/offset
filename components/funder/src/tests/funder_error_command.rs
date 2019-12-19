@@ -1,8 +1,7 @@
 use common::test_executor::TestExecutor;
 
 use proto::crypto::PublicKey;
-use proto::funder::messages::{FriendStatus};
-
+use proto::funder::messages::FriendStatus;
 
 use super::utils::{create_node_controls, dummy_relay_address};
 
@@ -36,7 +35,6 @@ async fn task_funder_error_command(test_executor: TestExecutor) {
     node_controls[0]
         .set_friend_status(&public_keys[1], FriendStatus::Enabled)
         .await;
-
 }
 
 #[test]

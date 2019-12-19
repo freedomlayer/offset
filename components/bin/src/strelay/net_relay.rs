@@ -17,12 +17,11 @@ use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
+use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
-use keepalive::KeepAliveChannel;
 
 use relay::{relay_server, RelayServerError};
-
 
 #[derive(Debug, From)]
 pub enum NetRelayServerError {
@@ -33,20 +32,20 @@ pub enum NetRelayServerError {
 /// Start a secure channel without knowing the identity of the remote
 /// side ahead of time.
 #[derive(Clone)]
-struct AnonSecureChannel<R,S> {
+struct AnonSecureChannel<R, S> {
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
     spawner: S,
 }
 
-impl<R,S> AnonSecureChannel<R,S> {
+impl<R, S> AnonSecureChannel<R, S> {
     pub fn new(
         timer_client: TimerClient,
         identity_client: IdentityClient,
         rng: R,
-        spawner: S) -> Self {
-
+        spawner: S,
+    ) -> Self {
         Self {
             timer_client,
             identity_client,
@@ -56,7 +55,7 @@ impl<R,S> AnonSecureChannel<R,S> {
     }
 }
 
-impl<R,S> FutTransform for AnonSecureChannel<R,S>
+impl<R, S> FutTransform for AnonSecureChannel<R, S>
 where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -102,12 +101,13 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
 {
     let (enc_conns_sender, incoming_enc_conns) = mpsc::channel::<(PublicKey, ConnPairVec)>(0);
-    
+
     let transform = AnonSecureChannel::new(
         timer_client.clone(),
         identity_client.clone(),
         rng,
-        spawner.clone());
+        spawner.clone(),
+    );
 
     let enc_pool_fut = transform_pool_loop(
         incoming_raw_conns,
@@ -133,4 +133,3 @@ where
     .await?;
     Ok(())
 }
-

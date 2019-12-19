@@ -13,10 +13,10 @@ use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::{BoxStream, BoxFuture};
+use common::conn::{BoxFuture, BoxStream};
 use common::select_streams::select_streams;
 
-use proto::crypto::{PublicKey, PrivateKey};
+use proto::crypto::{PrivateKey, PublicKey};
 
 use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
@@ -33,8 +33,8 @@ use node::{NodeConfig, NodeState};
 use database::file_db::FileDb;
 use database::{database_loop, AtomicDb, DatabaseClient};
 
-use bin::stnode::{net_node, TrustedApps};
 use bin::stindex::net_index_server;
+use bin::stnode::{net_node, TrustedApps};
 use bin::strelay::net_relay_server;
 
 use timer::TimerClient;
@@ -271,10 +271,11 @@ struct DummyTrustedApps {
 }
 
 impl TrustedApps for DummyTrustedApps {
-    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>> {
-        Box::pin(async move {
-            self.trusted_apps.get(app_public_key).cloned()
-        })
+    fn app_permissions<'a>(
+        &'a mut self,
+        app_public_key: &'a PublicKey,
+    ) -> BoxFuture<'a, Option<AppPermissions>> {
+        Box::pin(async move { self.trusted_apps.get(app_public_key).cloned() })
     }
 }
 
@@ -299,7 +300,9 @@ where
         .into_iter()
         .map(|(index, app_permissions)| (get_app_identity(index).get_public_key(), app_permissions))
         .collect::<HashMap<_, _>>();
-    let dummy_trusted_apps = DummyTrustedApps {trusted_apps: trusted_apps_map};
+    let dummy_trusted_apps = DummyTrustedApps {
+        trusted_apps: trusted_apps_map,
+    };
     // let get_trusted_apps = move || Some(trusted_apps.clone());
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
@@ -311,13 +314,9 @@ where
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
-    let loop_fut = database_loop(
-        atomic_db,
-        incoming_db_requests,
-        spawner.clone(),
-    )
-    .map_err(|e| error!("database_loop() error: {:?}", e))
-    .map(|_| ());
+    let loop_fut = database_loop(atomic_db, incoming_db_requests, spawner.clone())
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
 
     spawner.spawn(loop_fut).unwrap();
 
@@ -336,7 +335,7 @@ where
         dummy_trusted_apps,
         node_state,
         database_client,
-        spawner.clone(), 
+        spawner.clone(),
     )
     .map_err(|e| error!("net_node() error: {:?}", e))
     .map(|_| ());

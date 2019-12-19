@@ -5,10 +5,9 @@ use std::marker::Unpin;
 use futures::task::Spawn;
 use futures::Stream;
 
-use common::conn::{FutTransform};
+use common::conn::FutTransform;
 
 use proto::crypto::PublicKey;
-
 
 use timer::TimerClient;
 
@@ -84,4 +83,3 @@ where
     .await
     .map_err(IndexServerError::ServerLoopError)
 }
-

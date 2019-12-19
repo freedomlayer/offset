@@ -9,11 +9,11 @@ use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
-use crypto::identity::{SoftwareEd25519Identity};
-use crypto::test_utils::DummyRandom;
+use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::RandGen;
+use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{PublicKey, Uid, PrivateKey};
+use proto::crypto::{PrivateKey, PublicKey, Uid};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,

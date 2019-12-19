@@ -16,8 +16,8 @@ use proto::index_client::messages::{
     RequestRoutes, ResponseRoutesResult,
 };
 
-use crate::server::IncomingAppConnection;
 use super::utils::spawn_dummy_app_server;
+use crate::server::IncomingAppConnection;
 
 async fn task_app_server_loop_request_routes<S>(spawner: S)
 where

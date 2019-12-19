@@ -3,11 +3,10 @@ use common::conn::ConnPair;
 use app::conn::AppServerToApp;
 use database::DatabaseClient;
 
-use crate::compact_node::persist::CompactState;
 use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use crate::compact_node::persist::CompactState;
 
 pub type ConnPairCompact = ConnPair<CompactToUserAck, UserToCompactAck>;
-
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
@@ -33,7 +32,11 @@ pub struct CompactServerState {
 }
 
 impl CompactServerState {
-    pub fn new(node_report: app::report::NodeReport, compact_state: CompactState, database_client: DatabaseClient<CompactState>) -> Self {
+    pub fn new(
+        node_report: app::report::NodeReport,
+        compact_state: CompactState,
+        database_client: DatabaseClient<CompactState>,
+    ) -> Self {
         Self {
             node_report,
             compact_state,
@@ -56,9 +59,13 @@ impl CompactServerState {
     }
 
     /// Persistent (and atomic) update to `compact_state`
-    pub async fn update_compact_state(&mut self, compact_state: CompactState) -> Result<(), CompactNodeError> {
+    pub async fn update_compact_state(
+        &mut self,
+        compact_state: CompactState,
+    ) -> Result<(), CompactNodeError> {
         self.compact_state = compact_state.clone();
-        self.database_client.mutate(vec![compact_state])
+        self.database_client
+            .mutate(vec![compact_state])
             .await
             .map_err(|_| CompactNodeError::DatabaseMutateError)?;
         Ok(())

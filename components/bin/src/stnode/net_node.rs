@@ -3,8 +3,7 @@ use std::fmt::Debug;
 use futures::channel::{mpsc, oneshot};
 use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
-use futures::{SinkExt, Stream, StreamExt, FutureExt, TryFutureExt};
-
+use futures::{FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
@@ -16,10 +15,7 @@ use identity::IdentityClient;
 use database::DatabaseClient;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
-use proto::consts::{
-    KEEPALIVE_TICKS, PROTOCOL_VERSION,
-    TICKS_TO_REKEY,
-};
+use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
@@ -30,9 +26,9 @@ use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
 
-use node::{node, NodeConfig, NodeError, NodeMutation, NodeState, ConnPairServer, IncomingAppConnection};
-
-
+use node::{
+    node, ConnPairServer, IncomingAppConnection, NodeConfig, NodeError, NodeMutation, NodeState,
+};
 
 #[derive(Debug)]
 pub enum NetNodeError {
@@ -94,7 +90,8 @@ where
             let (public_key, enc_conn) = self.encrypt_transform.transform((None, ver_conn)).await?;
 
             // Obtain permissions for app (Or reject it if not trusted):
-            let app_permissions: AppPermissions = self.trusted_apps.app_permissions(&public_key).await?;
+            let app_permissions: AppPermissions =
+                self.trusted_apps.app_permissions(&public_key).await?;
 
             // Keepalive wrapper:
             let (mut sender, mut receiver) =
@@ -103,48 +100,55 @@ where
             // Tell app about its permissions:
             sender.send(app_permissions.proto_serialize()).await.ok()?;
 
-            let (report_sender, report_receiver) = 
+            let (report_sender, report_receiver) =
                 oneshot::channel::<(NodeReport, oneshot::Sender<ConnPairServer<NetAddress>>)>();
 
             let spawner = self.spawner.clone();
             let c_spawner = self.spawner.clone();
 
+            spawner
+                .spawn(async move {
+                    let _ = async move {
+                        let (node_report, conn_sender) = report_receiver.await.ok()?;
+                        sender.send(node_report.proto_serialize()).await.ok()?;
 
-            spawner.spawn(async move {
-                let _ = async move {
-                    let (node_report, conn_sender) = report_receiver.await.ok()?;
-                    sender.send(node_report.proto_serialize()).await.ok()?;
+                        // serialization:
+                        let (user_sender, mut from_user_sender) =
+                            mpsc::channel::<AppServerToApp>(0);
+                        let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
 
-                    // serialization:
-                    let (user_sender, mut from_user_sender) = mpsc::channel::<AppServerToApp>(0);
-                    let (mut to_user_receiver, user_receiver) = mpsc::channel(0);
-
-                    // Deserialize received data
-                    let _ = c_spawner.spawn(async move {
-                        let _ = async move {
-                            while let Some(data) = receiver.next().await {
-                                let message = AppToAppServer::proto_deserialize(&data).ok()?;
-                                to_user_receiver.send(message).await.ok()?;
+                        // Deserialize received data
+                        let _ = c_spawner.spawn(async move {
+                            let _ = async move {
+                                while let Some(data) = receiver.next().await {
+                                    let message = AppToAppServer::proto_deserialize(&data).ok()?;
+                                    to_user_receiver.send(message).await.ok()?;
+                                }
+                                Some(())
                             }
-                            Some(())
-                        }.await;
-                    });
+                                .await;
+                        });
 
-                    // Serialize sent data:
-                    let _ = c_spawner.spawn(async move {
-                        let _ = async move {
-                            while let Some(message) = from_user_sender.next().await {
-                                // let data = serialize_app_server_to_app(&message);
-                                let data = message.proto_serialize();
-                                sender.send(data).await.ok()?;
+                        // Serialize sent data:
+                        let _ = c_spawner.spawn(async move {
+                            let _ = async move {
+                                while let Some(message) = from_user_sender.next().await {
+                                    // let data = serialize_app_server_to_app(&message);
+                                    let data = message.proto_serialize();
+                                    sender.send(data).await.ok()?;
+                                }
+                                Some(())
                             }
-                            Some(())
-                        }.await;
-                    });
+                                .await;
+                        });
 
-                    conn_sender.send(ConnPair::from_raw(user_sender, user_receiver)).ok()
-                }.await;
-            }).ok()?;
+                        conn_sender
+                            .send(ConnPair::from_raw(user_sender, user_receiver))
+                            .ok()
+                    }
+                        .await;
+                })
+                .ok()?;
 
             Some(IncomingAppConnection {
                 app_permissions: app_permissions.clone(),
@@ -154,21 +158,27 @@ where
     }
 }
 
-fn transform_incoming_apps<IAC,R,TA,S>(
+fn transform_incoming_apps<IAC, R, TA, S>(
     incoming_app_raw_conns: IAC,
     identity_client: IdentityClient,
     rng: R,
     timer_client: TimerClient,
     trusted_apps: TA,
     max_concurrent_incoming_apps: usize,
-    spawner: S) -> Result<(RemoteHandle<()>, mpsc::Receiver<IncomingAppConnection<NetAddress>>), NetNodeError>
+    spawner: S,
+) -> Result<
+    (
+        RemoteHandle<()>,
+        mpsc::Receiver<IncomingAppConnection<NetAddress>>,
+    ),
+    NetNodeError,
+>
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
 
     let encrypt_transform = SecureChannel::new(
@@ -214,7 +224,10 @@ where
 
 pub trait TrustedApps {
     /// Get the permissions of an app. Returns None if the app is not trusted at all.
-    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>>;
+    fn app_permissions<'a>(
+        &'a mut self,
+        app_public_key: &'a PublicKey,
+    ) -> BoxFuture<'a, Option<AppPermissions>>;
 }
 
 pub async fn net_node<IAC, C, R, TA, S>(
@@ -236,7 +249,6 @@ where
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-
     // TODO: Move this number somewhere else?
     let max_concurrent_incoming_apps = 0x10;
     let (_pool_handle, incoming_apps) = transform_incoming_apps(
@@ -245,9 +257,9 @@ where
         rng.clone(),
         timer_client.clone(),
         trusted_apps,
-        max_concurrent_incoming_apps, 
-        spawner.clone())?;
-
+        max_concurrent_incoming_apps,
+        spawner.clone(),
+    )?;
 
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
     let encrypt_transform = SecureChannel::new(
@@ -284,7 +296,9 @@ where
         let mut c_encrypt_transform = encrypt_transform.clone();
         let mut c_keepalive_transform = keepalive_transform.clone();
         Box::pin(async move {
-            let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
+            let (public_key, conn_pair_vec) = c_encrypt_transform
+                .transform((opt_public_key, conn_pair_vec))
+                .await?;
             let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
             Some((public_key, conn_pair_vec))
         })

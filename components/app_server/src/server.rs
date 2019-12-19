@@ -39,7 +39,7 @@ pub struct IncomingAppConnection<B> {
     pub app_permissions: AppPermissions,
     // The server has to send the `NodeReport` first. Only then communication with the App becomes
     // possible.
-    pub report_sender: oneshot::Sender<(NodeReport<B>, oneshot::Sender<ConnPairServer<B>>)>
+    pub report_sender: oneshot::Sender<(NodeReport<B>, oneshot::Sender<ConnPairServer<B>>)>,
 }
 
 #[derive(Debug)]
@@ -188,9 +188,13 @@ where
 
         // Send the node report first:
         let (conn_pair_sender, conn_pair_receiver) = oneshot::channel();
-        report_sender.send((self.node_report.clone(), conn_pair_sender)).map_err(|_| AppServerError::SendNodeReportError)?;
+        report_sender
+            .send((self.node_report.clone(), conn_pair_sender))
+            .map_err(|_| AppServerError::SendNodeReportError)?;
 
-        let conn_pair = conn_pair_receiver.await.map_err(|_| AppServerError::ObtainConnPairError)?;
+        let conn_pair = conn_pair_receiver
+            .await
+            .map_err(|_| AppServerError::ObtainConnPairError)?;
         let (sender, receiver) = conn_pair.split();
 
         let app_counter = self.app_counter;

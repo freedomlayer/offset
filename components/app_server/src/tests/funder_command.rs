@@ -13,8 +13,8 @@ use proto::app_server::messages::{
 use proto::funder::messages::{FunderControl, FunderOutgoingControl};
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 
-use crate::server::IncomingAppConnection;
 use super::utils::{dummy_named_relay_address, spawn_dummy_app_server};
+use crate::server::IncomingAppConnection;
 
 async fn task_app_server_loop_funder_command<S>(spawner: S)
 where

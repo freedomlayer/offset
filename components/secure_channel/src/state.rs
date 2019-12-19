@@ -363,9 +363,9 @@ mod tests {
 
     use proto::crypto::PrivateKey;
 
-    use crypto::identity::{SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
+    use crypto::identity::SoftwareEd25519Identity;
     use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;
     use identity::IdentityClient;

@@ -15,8 +15,8 @@ use proto::index_client::messages::{
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
-use crate::server::IncomingAppConnection;
 use super::utils::spawn_dummy_app_server;
+use crate::server::IncomingAppConnection;
 
 async fn task_app_server_loop_index_client_command<S>(spawner: S)
 where
@@ -58,7 +58,6 @@ where
 
     // Verify the report:
     assert_eq!(report, initial_node_report);
-
 
     // Send a command through the app:
     let named_index_server_address = NamedIndexServerAddress {

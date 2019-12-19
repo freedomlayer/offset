@@ -116,8 +116,7 @@ where
         + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let client_connector =
-        ClientConnector::new(connector.clone());
+    let client_connector = ClientConnector::new(connector.clone());
 
     let connect_encrypt_transform = ConnectEncryptTransform::new(encrypt_keepalive.clone());
 

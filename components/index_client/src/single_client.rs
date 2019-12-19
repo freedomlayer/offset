@@ -257,14 +257,14 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
 
-    use proto::funder::messages::Currency;
     use proto::crypto::PrivateKey;
+    use proto::funder::messages::Currency;
 
     use signature::verify::verify_mutations_update;
 
     use crypto::identity::{Identity, SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
     use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;
 

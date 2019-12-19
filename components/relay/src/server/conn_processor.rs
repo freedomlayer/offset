@@ -63,10 +63,9 @@ async fn process_conn(
         if let Some(first_msg) = conn_pair_vec.receiver.next().await {
             // Added boxed because of issue: https://github.com/rust-lang/rust/issues/64496#issuecomment-546874018
             // We might be able to remove this later
-            let dispatch_res =
-                dispatch_conn(conn_pair_vec, public_key, first_msg)
-                    .boxed()
-                    .await;
+            let dispatch_res = dispatch_conn(conn_pair_vec, public_key, first_msg)
+                .boxed()
+                .await;
             if dispatch_res.is_none() {
                 warn!("process_conn(): dispatch_conn() failure");
             }
@@ -238,12 +237,8 @@ mod tests {
 
         let conn_timeout_ticks = 16;
 
-        let processed_conns = conn_processor(
-            incoming_conns,
-            timer_client,
-            conn_timeout_ticks,
-        )
-        .boxed();
+        let processed_conns =
+            conn_processor(incoming_conns, timer_client, conn_timeout_ticks).boxed();
 
         let processed_conns = Box::pin(processed_conns);
 
