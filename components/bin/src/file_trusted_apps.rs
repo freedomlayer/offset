@@ -9,7 +9,7 @@ use derive_more::From;
 
 use common::conn::BoxFuture;
 
-use node::TrustedApps;
+use crate::node::TrustedApps;
 
 use proto::file::TrustedAppFile;
 use proto::crypto::PublicKey;

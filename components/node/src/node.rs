@@ -42,6 +42,7 @@ use crate::types::{create_node_report, NodeConfig, NodeMutation, NodeState};
 #[derive(Debug, From)]
 pub enum NodeError {
     RequestPublicKeyError,
+    DatabaseIdentityMismatch,
     SpawnError,
     ChannelerError(ChannelerError),
     FunderError(FunderError),
@@ -328,6 +329,7 @@ where
     .map_err(|_| NodeError::SpawnError)
 }
 
+// TODO: Possibly rename this function?
 pub async fn node<C, IA, R, S>(
     node_config: NodeConfig,
     identity_client: IdentityClient,
@@ -350,6 +352,12 @@ where
         .request_public_key()
         .await
         .map_err(|_| NodeError::RequestPublicKeyError)?;
+
+    // Make sure that the local public key in the database
+    // matches the local public key from the provided identity file:
+    if node_state.funder_state.local_public_key != local_public_key {
+        return Err(NodeError::DatabaseIdentityMismatch);
+    }
 
     let initial_node_report = create_node_report(&node_state);
 

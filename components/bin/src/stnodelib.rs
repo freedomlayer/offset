@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -21,8 +22,6 @@ use crypto::rand::system_random;
 use identity::{create_identity, IdentityClient};
 use timer::create_timer;
 
-use node::{net_node, NetNodeError, NodeConfig, NodeState};
-
 use database::file_db::FileDb;
 use database::{database_loop, AtomicDb, DatabaseClient};
 
@@ -36,7 +35,10 @@ use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
 use proto::file::IdentityFile;
 
+use node::{NodeConfig, NodeState};
+
 use crate::file_trusted_apps::FileTrustedApps;
+use crate::node::{net_node, NetNodeError};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -52,9 +54,11 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// The amount of ticks we are willing to wait until a connection is established (Through
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
+/*
 /// Maximum amount of concurrent applications
 /// going through the incoming connection transform at the same time
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
+*/
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
@@ -148,8 +152,10 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
+        /*
         /// Maximum amount of incoming app connections we set up at the same time
-        max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+        // max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+         */
     };
 
     // A tcp connector, Used to connect to remote servers:
