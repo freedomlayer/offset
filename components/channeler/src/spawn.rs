@@ -99,7 +99,7 @@ pub async fn spawn_channeler<RA, C, ET, KT, S>(
     backoff_ticks: usize,
     conn_timeout_ticks: usize,
     max_concurrent_encrypt: usize,
-    enc_relay_connector: C,
+    connector: C,
     encrypt_transform: ET,
     keepalive_transform: KT,
     from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
@@ -119,7 +119,7 @@ where
     S: Spawn + Clone + Send + 'static,
 {
     let client_connector =
-        ClientConnector::new(enc_relay_connector.clone(), keepalive_transform.clone());
+        ClientConnector::new(connector.clone(), keepalive_transform.clone());
 
     let connect_encrypt_transform = ConnectEncryptTransform::new(encrypt_transform.clone());
 
@@ -132,7 +132,7 @@ where
     );
 
     let client_listener = ClientListener::new(
-        enc_relay_connector,
+        connector,
         keepalive_transform.clone(),
         conn_timeout_ticks,
         timer_client.clone(),

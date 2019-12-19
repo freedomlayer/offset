@@ -14,7 +14,7 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-mod adapters;
+// mod adapters;
 mod net_node;
 mod node;
 mod types;

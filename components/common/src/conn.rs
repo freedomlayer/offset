@@ -200,7 +200,7 @@ where
     type Input = I;
     type Output = O;
 
-    fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
+    fn transform(&mut self, input: Self::Input) -> BoxFuture<'static, Self::Output> {
         (self.func)(input)
     }
 }

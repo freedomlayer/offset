@@ -4,10 +4,11 @@ use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 
 use proto::crypto::PublicKey;
 
-use proto::app_server::messages::RelayAddress;
+// use proto::app_server::messages::RelayAddress;
 use proto::index_server::messages::IndexServerAddress;
 use proto::net::messages::NetAddress;
 
+/*
 #[derive(Clone)]
 /// Open an encrypted connection to a relay endpoint
 pub struct EncRelayConnector<ET, C> {
@@ -98,3 +99,4 @@ where
         })
     }
 }
+*/

@@ -107,7 +107,9 @@ pub struct NodeConfig {
     pub max_open_index_client_requests: usize,
     /// Maximum amount of relays a node may use.
     pub max_node_relays: usize,
+    /*
     /// Maximum amount of encryption set ups we allow to occur at the same time
     /// for incoming app connections
-    pub max_concurrent_incoming_apps: usize,
+    // pub max_concurrent_incoming_apps: usize,
+     */
 }

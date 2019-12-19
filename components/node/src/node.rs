@@ -4,7 +4,7 @@ use futures::{select, Future, FutureExt, SinkExt, Stream, StreamExt};
 
 use derive_more::*;
 
-use common::conn::{ConnPairVec, FutTransform};
+use common::conn::{ConnPairVec, FutTransform, FuncFutTransform};
 
 use crypto::rand::CryptoRandom;
 use proto::crypto::PublicKey;
@@ -32,11 +32,12 @@ use proto::funder::messages::{
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
 use proto::index_client::messages::{AppServerToIndexClient, IndexClientToAppServer};
+use proto::index_server::messages::IndexServerAddress;
 use proto::net::messages::NetAddress;
 use proto::report::convert::funder_report_to_index_client_state;
 
-use crate::adapters::{EncKeepaliveConnector, EncRelayConnector};
 use crate::types::{create_node_report, NodeConfig, NodeMutation, NodeState};
+
 
 #[derive(Debug, From)]
 pub enum NodeError {
@@ -53,14 +54,14 @@ fn node_spawn_channeler<C, R, S>(
     local_public_key: PublicKey,
     identity_client: IdentityClient,
     timer_client: TimerClient,
-    version_connector: C,
+    connector: C,
     rng: R,
     from_funder: mpsc::Receiver<FunderToChanneler<RelayAddress>>,
     to_funder: mpsc::Sender<ChannelerToFunder>,
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), ChannelerError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -78,7 +79,12 @@ where
         spawner.clone(),
     );
 
-    let enc_relay_connector = EncRelayConnector::new(encrypt_transform.clone(), version_connector);
+    let enc_relay_connector = FuncFutTransform::new(move |relay_address: RelayAddress| {
+        let mut c_connector = connector.clone();
+        Box::pin(async move {
+            c_connector.transform((relay_address.public_key, relay_address.address)).await
+        })
+    });
 
     spawner
         .spawn_with_handle(spawn_channeler(
@@ -223,21 +229,21 @@ where
         .map_err(|_| NodeError::SpawnError)
 }
 
-async fn node_spawn_index_client<'a, C, R, S>(
-    node_config: &'a NodeConfig,
+async fn node_spawn_index_client<C, R, S>(
+    node_config: &NodeConfig,
     local_public_key: PublicKey,
     identity_client: IdentityClient,
     timer_client: TimerClient,
-    node_state: &'a NodeState<NetAddress>,
+    node_state: &NodeState<NetAddress>,
     mut database_client: DatabaseClient<NodeMutation<NetAddress>>,
     from_app_server: mpsc::Receiver<AppServerToIndexClient<NetAddress>>,
     to_app_server: mpsc::Sender<IndexClientToAppServer<NetAddress>>,
-    version_connector: C,
+    connector: C,
     rng: R,
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -272,6 +278,7 @@ where
     let index_client_state =
         funder_report_to_index_client_state(&initial_node_report.funder_report);
 
+    /*
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
         rng.clone(),
@@ -292,6 +299,14 @@ where
         version_connector.clone(),
         spawner.clone(),
     );
+    */
+
+    let index_connector = FuncFutTransform::new(move |index_server_address: IndexServerAddress| {
+        let mut c_connector = connector.clone();
+        Box::pin(async move {
+            c_connector.transform((index_server_address.public_key, index_server_address.address)).await
+        })
+    });
 
     spawn_index_client(
         local_public_key,
@@ -305,7 +320,7 @@ where
         node_config.max_open_index_client_requests,
         node_config.keepalive_ticks,
         node_config.backoff_ticks,
-        enc_keepalive_connector,
+        index_connector,
         rng,
         spawner.clone(),
     )
@@ -319,13 +334,13 @@ pub async fn node<C, IA, R, S>(
     timer_client: TimerClient,
     node_state: NodeState<NetAddress>,
     database_client: DatabaseClient<NodeMutation<NetAddress>>,
-    version_connector: C,
+    connector: C,
     incoming_apps: IA,
     rng: R,
     spawner: S,
 ) -> Result<(), NodeError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
     IA: Stream<Item = IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
@@ -349,7 +364,7 @@ where
         local_public_key.clone(),
         identity_client.clone(),
         timer_client.clone(),
-        version_connector.clone(),
+        connector.clone(),
         rng.clone(),
         funder_to_channeler_receiver,
         channeler_to_funder_sender,
@@ -404,7 +419,7 @@ where
         database_client,
         app_server_to_index_client_receiver,
         index_client_to_app_server_sender,
-        version_connector,
+        connector,
         rng,
         spawner,
     )

@@ -4,8 +4,9 @@ use std::fmt::Debug;
 use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::future::RemoteHandle;
 
-use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
+use common::conn::{BoxFuture, ConnPair, ConnPairVec, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
 use crypto::rand::CryptoRandom;
@@ -152,52 +153,22 @@ where
     }
 }
 
-pub trait TrustedApps {
-    /// Get the permissions of an app. Returns None if the app is not trusted at all.
-    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>>;
-}
-
-pub async fn net_node<IAC, C, R, TA, S>(
+fn transform_incoming_apps<IAC,R,TA,S>(
     incoming_app_raw_conns: IAC,
-    net_connector: C,
-    timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
-    node_config: NodeConfig,
+    timer_client: TimerClient,
     trusted_apps: TA,
-    node_state: NodeState<NetAddress>,
-    database_client: DatabaseClient<NodeMutation<NetAddress>>,
-    spawner: S,
-) -> Result<(), NetNodeError>
+    max_concurrent_incoming_apps: usize,
+    spawner: S) -> Result<(RemoteHandle<()>, mpsc::Receiver<IncomingAppConnection<NetAddress>>), NetNodeError>
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    // Wrap net connector with a version prefix:
+
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
-    let c_version_transform = version_transform.clone();
-    let version_connector = FuncFutTransform::new(move |address| {
-        let mut c_net_connector = net_connector.clone();
-        let mut c_version_transform = c_version_transform.clone();
-        Box::pin(async move {
-            let conn_pair = c_net_connector.transform(address).await?;
-            Some(c_version_transform.transform(conn_pair).await)
-        })
-    });
-
-    let local_public_key = identity_client
-        .request_public_key()
-        .await
-        .map_err(|_| NetNodeError::RequestPublicKeyError)?;
-
-    // Make sure that the local public key in the database
-    // matches the local public key from the provided identity file:
-    if node_state.funder_state.local_public_key != local_public_key {
-        return Err(NetNodeError::DatabaseIdentityMismatch);
-    }
 
     let encrypt_transform = SecureChannel::new(
         identity_client.clone(),
@@ -225,7 +196,7 @@ where
         incoming_app_raw_conns,
         incoming_apps_sender,
         app_conn_transform,
-        node_config.max_concurrent_incoming_apps,
+        max_concurrent_incoming_apps,
         spawner.clone(),
     )
     .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
@@ -233,9 +204,58 @@ where
 
     // We spawn with handle here to make sure that this
     // future is dropped when this async function ends.
-    let _pool_handle = spawner
+    let pool_handle = spawner
         .spawn_with_handle(pool_fut)
         .map_err(|_| NetNodeError::SpawnError)?;
+
+    Ok((pool_handle, incoming_apps))
+}
+
+pub trait TrustedApps {
+    /// Get the permissions of an app. Returns None if the app is not trusted at all.
+    fn app_permissions<'a>(&'a mut self, app_public_key: &'a PublicKey) -> BoxFuture<'a, Option<AppPermissions>>;
+}
+
+pub async fn net_node<IAC, C, R, TA, S>(
+    incoming_app_raw_conns: IAC,
+    connector: C,
+    timer_client: TimerClient,
+    identity_client: IdentityClient,
+    rng: R,
+    node_config: NodeConfig,
+    trusted_apps: TA,
+    node_state: NodeState<NetAddress>,
+    database_client: DatabaseClient<NodeMutation<NetAddress>>,
+    spawner: S,
+) -> Result<(), NetNodeError>
+where
+    IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    R: CryptoRandom + Clone + 'static,
+    TA: TrustedApps + Send + Clone + 'static,
+    S: Spawn + Clone + Send + 'static,
+{
+
+    let local_public_key = identity_client
+        .request_public_key()
+        .await
+        .map_err(|_| NetNodeError::RequestPublicKeyError)?;
+
+    // Make sure that the local public key in the database
+    // matches the local public key from the provided identity file:
+    if node_state.funder_state.local_public_key != local_public_key {
+        return Err(NetNodeError::DatabaseIdentityMismatch);
+    }
+
+    let max_concurrent_incoming_apps = 0x10;
+    let (_pool_handle, incoming_apps) = transform_incoming_apps(
+        incoming_app_raw_conns,
+        identity_client.clone(),
+        rng.clone(),
+        timer_client.clone(),
+        trusted_apps,
+        max_concurrent_incoming_apps, 
+        spawner.clone())?;
 
     node(
         node_config,
@@ -243,7 +263,7 @@ where
         timer_client,
         node_state,
         database_client,
-        version_connector,
+        connector,
         incoming_apps,
         rng,
         spawner.clone(),
