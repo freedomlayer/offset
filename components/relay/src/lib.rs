@@ -20,4 +20,4 @@ mod server;
 
 pub use self::client::client_connector::ClientConnector;
 pub use self::client::client_listener::ClientListener;
-pub use self::server::net_server::{net_relay_server, NetRelayServerError};
+pub use self::server::{relay_server, RelayServerError};

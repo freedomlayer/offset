@@ -20,8 +20,8 @@ use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
 use common::int_convert::usize_to_u64;
 
+use crate::strelay::net_relay::{net_relay_server, NetRelayServerError};
 use net::TcpListener;
-use relay::{net_relay_server, NetRelayServerError};
 use timer::create_timer;
 
 use proto::file::IdentityFile;
