@@ -15,21 +15,18 @@ pub enum ClientConnectorError {
 /// ClientConnector is an end-to-end connector to a remote node.
 /// It relies on a given connector C to a relay.
 #[derive(Clone)]
-pub struct ClientConnector<C, FT> {
+pub struct ClientConnector<C> {
     connector: C,
-    keepalive_transform: FT,
 }
 
-impl<A, C, FT> ClientConnector<C, FT>
+impl<A, C> ClientConnector<C>
 where
     A: 'static,
     C: FutTransform<Input = A, Output = Option<ConnPairVec>>,
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec>,
 {
-    pub fn new(connector: C, keepalive_transform: FT) -> ClientConnector<C, FT> {
+    pub fn new(connector: C) -> ClientConnector<C> {
         ClientConnector {
             connector,
-            keepalive_transform,
         }
     }
 
@@ -53,29 +50,14 @@ where
             .await
             .map_err(|_| ClientConnectorError::SendInitConnectionError)?;
 
-        let from_tunnel_receiver = receiver;
-        let to_tunnel_sender = sender;
-
-        // TODO: Do something about the unwrap here:
-        // Maybe change ConnTransform trait to allow force returning something that is not None?
-        let (user_to_tunnel, user_from_tunnel) = self
-            .keepalive_transform
-            .transform(ConnPairVec::from_raw(
-                to_tunnel_sender,
-                from_tunnel_receiver,
-            ))
-            .await
-            .split();
-
-        Ok(ConnPairVec::from_raw(user_to_tunnel, user_from_tunnel))
+        Ok(ConnPairVec::from_raw(sender, receiver))
     }
 }
 
-impl<A, C, FT> FutTransform for ClientConnector<C, FT>
+impl<A, C> FutTransform for ClientConnector<C>
 where
     A: Send + 'static,
     C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Send,
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send,
 {
     type Input = (A, PublicKey);
     type Output = Option<ConnPairVec>;
@@ -95,11 +77,10 @@ mod tests {
     use futures::channel::mpsc;
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
-    use futures::{future, StreamExt};
+    use futures::StreamExt;
 
     use proto::proto_ser::ProtoDeserialize;
 
-    use common::conn::FuncFutTransform;
     use common::dummy_connector::DummyConnector;
 
     async fn task_client_connector_basic(spawner: impl Spawn + Clone + Send + 'static) {
@@ -111,10 +92,7 @@ mod tests {
         // conn_sender.send(conn_pair).await.unwrap();
         let connector = DummyConnector::new(req_sender);
 
-        // keepalive_transform does nothing:
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
-
-        let mut client_connector = ClientConnector::new(connector, keepalive_transform);
+        let mut client_connector = ClientConnector::new(connector);
 
         let address: u32 = 15;
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);

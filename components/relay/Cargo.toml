@@ -12,7 +12,6 @@ crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
-keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
 
 log = "0.4"
 futures = "0.3.1"

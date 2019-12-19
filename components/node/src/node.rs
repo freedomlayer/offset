@@ -80,6 +80,17 @@ where
         spawner.clone(),
     );
 
+    let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
+        let mut c_encrypt_transform = encrypt_transform.clone();
+        let mut c_keepalive_transform = keepalive_transform.clone();
+        Box::pin(async move {
+            let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
+            let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
+            Some((public_key, conn_pair_vec))
+        })
+    });
+
+
     let enc_relay_connector = FuncFutTransform::new(move |relay_address: RelayAddress| {
         let mut c_connector = connector.clone();
         Box::pin(async move {
@@ -95,8 +106,7 @@ where
             node_config.conn_timeout_ticks,
             node_config.max_concurrent_encrypt,
             enc_relay_connector,
-            encrypt_transform,
-            keepalive_transform,
+            encrypt_keepalive,
             from_funder,
             to_funder,
             spawner.clone(),

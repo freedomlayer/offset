@@ -2,7 +2,7 @@ use std::marker::Unpin;
 
 use futures::{future, FutureExt, SinkExt, Stream, StreamExt};
 
-use common::conn::{ConnPair, ConnPairVec, FutTransform, SinkError};
+use common::conn::{ConnPair, ConnPairVec, SinkError};
 
 use timer::utils::future_timeout;
 use timer::TimerClient;
@@ -15,16 +15,12 @@ use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 use proto::relay::messages::{IncomingConnection, InitConnection, RejectConnection};
 
-async fn dispatch_conn<FT>(
+async fn dispatch_conn(
     conn_pair_vec: ConnPairVec,
     public_key: PublicKey,
     first_msg: Vec<u8>,
-    mut keepalive_transform: FT,
-) -> Option<IncomingConn>
-where
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send + 'static,
-{
-    let (sender, receiver) = keepalive_transform.transform(conn_pair_vec).await.split();
+) -> Option<IncomingConn> {
+    let (sender, receiver) = conn_pair_vec.split();
 
     let sender = sender.sink_map_err(|_| ());
     let inner = match InitConnection::proto_deserialize(&first_msg).ok()? {
@@ -57,22 +53,18 @@ where
     Some(IncomingConn { public_key, inner })
 }
 
-async fn process_conn<FT>(
+async fn process_conn(
     mut conn_pair_vec: ConnPairVec,
     public_key: PublicKey,
-    keepalive_transform: FT,
     mut timer_client: TimerClient,
     conn_timeout_ticks: usize,
-) -> Option<IncomingConn>
-where
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Send + 'static,
-{
+) -> Option<IncomingConn> {
     let fut_receiver = Box::pin(async move {
         if let Some(first_msg) = conn_pair_vec.receiver.next().await {
             // Added boxed because of issue: https://github.com/rust-lang/rust/issues/64496#issuecomment-546874018
             // We might be able to remove this later
             let dispatch_res =
-                dispatch_conn(conn_pair_vec, public_key, first_msg, keepalive_transform)
+                dispatch_conn(conn_pair_vec, public_key, first_msg)
                     .boxed()
                     .await;
             if dispatch_res.is_none() {
@@ -96,22 +88,19 @@ where
 /// For each connection obtain the first message, and prepare the correct type according to this
 /// first messages.
 /// If waiting for the first message takes too long, discard the connection.
-pub fn conn_processor<T, FT>(
+pub fn conn_processor<T>(
     incoming_conns: T,
-    keepalive_transform: FT,
     timer_client: TimerClient,
     conn_timeout_ticks: usize,
 ) -> impl Stream<Item = IncomingConn>
 where
     T: Stream<Item = (PublicKey, ConnPairVec)> + Unpin + Send + 'static,
-    FT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
 {
     incoming_conns
         .map(move |(public_key, conn_pair_vec)| {
             process_conn(
                 conn_pair_vec,
                 public_key,
-                keepalive_transform.clone(),
                 timer_client.clone(),
                 conn_timeout_ticks,
             )
@@ -132,7 +121,6 @@ mod tests {
     use futures::{stream, FutureExt};
 
     use common::async_test_utils::receive;
-    use common::conn::FuncFutTransform;
     use proto::crypto::PublicKey;
     use timer::create_timer_incoming;
 
@@ -145,12 +133,10 @@ mod tests {
         let first_msg = InitConnection::Listen;
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
             ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform,
         )
         .await
         .unwrap();
@@ -166,12 +152,10 @@ mod tests {
         let first_msg = InitConnection::Accept(accept_public_key.clone());
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
             ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform,
         )
         .await
         .unwrap();
@@ -189,12 +173,10 @@ mod tests {
         let first_msg = InitConnection::Connect(connect_public_key.clone());
         let ser_first_msg = first_msg.proto_serialize();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let incoming_conn = dispatch_conn(
             ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform,
         )
         .await
         .unwrap();
@@ -222,12 +204,10 @@ mod tests {
         let (sender, receiver) = mpsc::channel::<Vec<u8>>(0);
         let ser_first_msg = b"This is an invalid message".to_vec();
         let public_key = PublicKey::from(&[0x77; PublicKey::len()]);
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
         let res = dispatch_conn(
             ConnPairVec::from_raw(sender, receiver),
             public_key.clone(),
             ser_first_msg,
-            keepalive_transform,
         )
         .await;
         assert!(res.is_none());
@@ -257,11 +237,9 @@ mod tests {
         )]);
 
         let conn_timeout_ticks = 16;
-        let keepalive_transform = FuncFutTransform::new(|x| Box::pin(future::ready(x)));
 
         let processed_conns = conn_processor(
             incoming_conns,
-            keepalive_transform,
             timer_client,
             conn_timeout_ticks,
         )
