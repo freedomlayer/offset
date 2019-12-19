@@ -2,7 +2,7 @@ use std::marker::Unpin;
 
 use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
-use futures::{FutureExt, Stream, StreamExt, TryFutureExt};
+use futures::{FutureExt, Stream, TryFutureExt};
 
 use derive_more::*;
 
@@ -19,6 +19,7 @@ use timer::TimerClient;
 
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
+use keepalive::KeepAliveChannel;
 
 use relay::{relay_server, RelayServerError};
 
@@ -32,28 +33,58 @@ pub enum NetRelayServerError {
 /// Start a secure channel without knowing the identity of the remote
 /// side ahead of time.
 #[derive(Clone)]
-struct AnonSecureChannel<ET> {
-    encrypt_transform: ET,
+struct AnonSecureChannel<R,S> {
+    timer_client: TimerClient,
+    identity_client: IdentityClient,
+    rng: R,
+    spawner: S,
 }
 
-impl<ET> AnonSecureChannel<ET> {
-    pub fn new(encrypt_transform: ET) -> Self {
-        AnonSecureChannel { encrypt_transform }
+impl<R,S> AnonSecureChannel<R,S> {
+    pub fn new(
+        timer_client: TimerClient,
+        identity_client: IdentityClient,
+        rng: R,
+        spawner: S) -> Self {
+
+        Self {
+            timer_client,
+            identity_client,
+            rng,
+            spawner,
+        }
     }
 }
 
-impl<ET> FutTransform for AnonSecureChannel<ET>
+impl<R,S> FutTransform for AnonSecureChannel<R,S>
 where
-    ET: FutTransform<
-        Input = (Option<PublicKey>, ConnPairVec),
-        Output = Option<(PublicKey, ConnPairVec)>,
-    >,
+    R: CryptoRandom + Clone + 'static,
+    S: Spawn + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
     type Output = Option<(PublicKey, ConnPairVec)>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
-        self.encrypt_transform.transform((None, conn_pair))
+        let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION, self.spawner.clone());
+        let mut encrypt_transform = SecureChannel::new(
+            self.identity_client.clone(),
+            self.rng.clone(),
+            self.timer_client.clone(),
+            TICKS_TO_REKEY,
+            self.spawner.clone(),
+        );
+        let mut keepalive_transform = KeepAliveChannel::new(
+            self.timer_client.clone(),
+            KEEPALIVE_TICKS,
+            self.spawner.clone(),
+        );
+
+        Box::pin(async move {
+            let conn_pair = version_transform.transform(conn_pair).await;
+            let (public_key, conn_pair) = encrypt_transform.transform((None, conn_pair)).await?;
+            let conn_pair = keepalive_transform.transform(conn_pair).await;
+            Some((public_key, conn_pair))
+        })
     }
 }
 
@@ -70,31 +101,18 @@ where
     R: CryptoRandom + Clone + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
-    let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
-
-    let encrypt_transform = SecureChannel::new(
-        identity_client,
-        rng,
-        timer_client.clone(),
-        TICKS_TO_REKEY,
-        spawner.clone(),
-    );
-
-    // TODO: How to get rid of Box::pin() here?
-    let incoming_ver_conns = Box::pin(incoming_raw_conns.then(move |raw_conn| {
-        // TODO: A more efficient way to do this?
-        // We seem to have to clone version_transform for every connection
-        // to make the borrow checker happy.
-        let mut c_version_transform = version_transform.clone();
-        async move { c_version_transform.transform(raw_conn).await }
-    }));
-
     let (enc_conns_sender, incoming_enc_conns) = mpsc::channel::<(PublicKey, ConnPairVec)>(0);
+    
+    let transform = AnonSecureChannel::new(
+        timer_client.clone(),
+        identity_client.clone(),
+        rng,
+        spawner.clone());
 
     let enc_pool_fut = transform_pool_loop(
-        incoming_ver_conns,
+        incoming_raw_conns,
         enc_conns_sender,
-        AnonSecureChannel::new(encrypt_transform),
+        transform,
         max_concurrent_encrypt,
         spawner.clone(),
     )
