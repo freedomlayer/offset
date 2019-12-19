@@ -50,32 +50,6 @@ pub enum NodeError {
     AppServerError(AppServerError),
 }
 
-/*
-let encrypt_transform = SecureChannel::new(
-    identity_client.clone(),
-    rng.clone(),
-    timer_client.clone(),
-    node_config.ticks_to_rekey,
-    spawner.clone(),
-);
-
-let keepalive_transform = KeepAliveChannel::new(
-    timer_client.clone(),
-    node_config.keepalive_ticks,
-    spawner.clone(),
-);
-
-let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
-    let mut c_encrypt_transform = encrypt_transform.clone();
-    let mut c_keepalive_transform = keepalive_transform.clone();
-    Box::pin(async move {
-        let (public_key, conn_pair_vec) = c_encrypt_transform.transform((opt_public_key, conn_pair_vec)).await?;
-        let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
-        Some((public_key, conn_pair_vec))
-    })
-});
-*/
-
 fn node_spawn_channeler<C, EKT, S>(
     node_config: &NodeConfig,
     local_public_key: PublicKey,
