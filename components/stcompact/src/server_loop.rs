@@ -61,6 +61,8 @@ pub enum ServerError {
 
 type CompactNodeEvent = (NodeId, CompactToUserAck);
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
 pub enum ServerEvent {
     User(UserToServerAck),
     UserClosed,
@@ -398,6 +400,7 @@ where
 }
 
 
+#[allow(unused)]
 async fn open_node_remote<ST,R,C,S,EKT,US>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
@@ -422,7 +425,7 @@ where
         server_state.spawner.clone(),
     )
     .await;
-    assert!(false);
+    todo!("Change connect() to inner_connect()");
 
     let (app_permissions, node_report, conn_pair) = if let Ok(tup) = connect_res {
         tup
