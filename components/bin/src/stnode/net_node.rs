@@ -126,7 +126,7 @@ where
                                 }
                                 Some(())
                             }
-                                .await;
+                            .await;
                         });
 
                         // Serialize sent data:
@@ -139,14 +139,14 @@ where
                                 }
                                 Some(())
                             }
-                                .await;
+                            .await;
                         });
 
                         conn_sender
                             .send(ConnPair::from_raw(user_sender, user_receiver))
                             .ok()
                     }
-                        .await;
+                    .await;
                 })
                 .ok()?;
 
@@ -189,8 +189,7 @@ where
         spawner.clone(),
     );
 
-    let keepalive_transform =
-        KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner.clone());
+    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner.clone());
 
     let app_conn_transform = AppConnTransform::new(
         version_transform,

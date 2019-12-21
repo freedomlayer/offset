@@ -9,8 +9,8 @@ use futures::task::{Spawn, SpawnExt};
 
 use structopt::StructOpt;
 
-use common::int_convert::usize_to_u64;
 use common::conn::{FuncFutTransform, FutTransform};
+use common::int_convert::usize_to_u64;
 
 use crypto::rand::system_random;
 
@@ -19,7 +19,7 @@ use timer::create_timer;
 use net::TcpConnector;
 use version::VersionPrefix;
 
-use proto::consts::{MAX_FRAME_LENGTH, TICK_MS, PROTOCOL_VERSION};
+use proto::consts::{MAX_FRAME_LENGTH, PROTOCOL_VERSION, TICK_MS};
 
 #[allow(unused)]
 use crate::server_loop::compact_server_loop;

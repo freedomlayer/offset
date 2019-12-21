@@ -503,8 +503,8 @@ mod tests {
             .await;
             res
         }
-            .map_err(|e| warn!("inner_client_listener error: {:?}", e))
-            .map(|_| ());
+        .map_err(|e| warn!("inner_client_listener error: {:?}", e))
+        .map(|_| ());
 
         spawner.spawn(fut_listener).unwrap();
 

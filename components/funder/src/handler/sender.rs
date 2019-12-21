@@ -676,9 +676,7 @@ where
         })
     } else {
         match &friend.sent_local_relays {
-            SentLocalRelays::NeverSent => {
-                Some(SentLocalRelays::LastSent(local_named_relays))
-            }
+            SentLocalRelays::NeverSent => Some(SentLocalRelays::LastSent(local_named_relays)),
             SentLocalRelays::Transition((last_sent_local_relays, _))
             | SentLocalRelays::LastSent(last_sent_local_relays) => {
                 if &local_named_relays != last_sent_local_relays {
