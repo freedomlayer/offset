@@ -11,7 +11,7 @@ use common::conn::{ConnPair, BoxStream, FutTransform, ConnPairVec};
 
 use timer::TimerClient;
 
-use app::common::NetAddress;
+use app::common::{NetAddress, PublicKey};
 use app::conn::{ConnPairApp, connect};
 
 use proto::consts::{
@@ -45,9 +45,6 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// The amount of ticks we are willing to wait until a connection is established (Through
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
-/// Maximum amount of concurrent applications
-/// going through the incoming connection transform at the same time
-const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
 
 
 pub type ConnPairCompactServer = ConnPair<ServerToUserAck, UserToServerAck>;
@@ -84,24 +81,26 @@ pub struct OpenNode {
 }
 
 #[derive(Debug)]
-pub struct ServerState<ST, R, C, S> {
+pub struct ServerState<ST, R, C, EKT, S> {
     next_node_id: NodeId,
     pub open_nodes: HashMap<NodeId, OpenNode>,
     pub store: ST,
     pub event_sender: mpsc::Sender<CompactNodeEvent>,
     pub rng: R,
     pub timer_client: TimerClient,
-    pub version_connector: C, 
+    pub connector: C, 
+    pub encrypt_keepalive: EKT,
     pub spawner: S,
 }
 
-impl<ST,R,C,S> ServerState<ST,R,C,S> {
+impl<ST,R,C,EKT,S> ServerState<ST,R,C,EKT,S> {
     pub fn new(
         store: ST, 
         event_sender: mpsc::Sender<CompactNodeEvent>,
         rng: R, 
         timer_client: TimerClient, 
-        version_connector: C, 
+        connector: C, 
+        encrypt_keepalive: EKT,
         spawner: S) -> Self {
 
         Self {
@@ -111,7 +110,8 @@ impl<ST,R,C,S> ServerState<ST,R,C,S> {
             event_sender,
             rng, 
             timer_client,
-            version_connector,
+            connector,
+            encrypt_keepalive,
             spawner,
         }
     }
@@ -175,9 +175,9 @@ where
 }
 
 /// Returns if any change has happened
-async fn handle_create_node<ST,R,C,S,CG>(
+async fn handle_create_node<ST,R,C,S,EKT,CG>(
     request_create_node: RequestCreateNode,
-    server_state: &mut ServerState<ST,R,C,S>,
+    server_state: &mut ServerState<ST,R,C,EKT,S>,
     compact_gen: &mut CG) -> Result<bool, ServerError> 
 where
     CG: GenPrivateKey,
@@ -202,9 +202,9 @@ where
     })
 }
 
-pub async fn handle_remove_node<ST,R,C,S>(
+pub async fn handle_remove_node<ST,R,C,EKT,S>(
     node_name: NodeName, 
-    server_state: &mut ServerState<ST,R,C,S>) -> Result<bool, ServerError> 
+    server_state: &mut ServerState<ST,R,C,EKT,S>) -> Result<bool, ServerError> 
 where
     ST: Store,
 {
@@ -224,7 +224,9 @@ where
     })
 }
 
-async fn handle_close_node<ST,R,C,S>(node_id: &NodeId, server_state: &mut ServerState<ST,R,C,S>) -> Result<bool, ServerError> 
+async fn handle_close_node<ST,R,C,EKT,S>(
+    node_id: &NodeId, 
+    server_state: &mut ServerState<ST,R,C,EKT,S>) -> Result<bool, ServerError> 
 where
     ST: Store,
 {
@@ -272,14 +274,12 @@ const NODE_CONFIG: NodeConfig = NodeConfig {
     max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
     /// Maximum amount of relays a node may use.
     max_node_relays: MAX_NODE_RELAYS,
-    /// Maximum amount of incoming app connections we set up at the same time
-    max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
 };
 
-async fn open_node_local<ST,R,C,S,US>(
+async fn open_node_local<ST,R,C,EKT,S,US>(
     node_name: NodeName,
     local: LoadedNodeLocal,
-    server_state: &mut ServerState<ST,R,C,S>, 
+    server_state: &mut ServerState<ST,R,C,EKT,S>, 
     user_sender: &mut US,
 ) -> Result<bool, ServerError> 
 where
@@ -289,7 +289,13 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
 {
     let app_permissions = AppPermissions {
         routes: true,
@@ -306,13 +312,15 @@ where
     let incoming_apps = stream::once(future::ready(incoming_app_connection));
 
     let c_spawner = server_state.spawner.clone();
+
     let node_fut = node(
         NODE_CONFIG,
         local.node_identity_client,
         server_state.timer_client.clone(),
         local.node_state,
         local.node_db_client,
-        server_state.version_connector.clone(),
+        server_state.connector.clone(),
+        server_state.encrypt_keepalive.clone(),
         incoming_apps,
         server_state.rng.clone(),
         c_spawner.clone(),
@@ -390,10 +398,10 @@ where
 }
 
 
-async fn open_node_remote<ST,R,C,S,US>(
+async fn open_node_remote<ST,R,C,S,EKT,US>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
-    server_state: &mut ServerState<ST,R,C,S>, 
+    server_state: &mut ServerState<ST,R,C,EKT,S>, 
     user_sender: &mut US,
 ) -> Result<bool, ServerError> 
 where
@@ -403,7 +411,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // TODO: Change `connect()` to `inner_connect()`
     // Connect to remote node
@@ -484,9 +492,9 @@ where
 }
 
 
-async fn handle_open_node<ST,R,C,US,S>(
+async fn handle_open_node<ST,R,C,US,EKT,S>(
     node_name: NodeName, 
-    server_state: &mut ServerState<ST,R,C,S>, 
+    server_state: &mut ServerState<ST,R,C,EKT,S>, 
     user_sender: &mut US) -> Result<bool, ServerError> 
 where
     ST: Store,
@@ -495,7 +503,13 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
 {
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -516,7 +530,8 @@ where
 }
 
 
-async fn build_nodes_status<ST,R,C,S>(server_state: &mut ServerState<ST,R,C,S>) -> Result<NodesStatus, ServerError> 
+async fn build_nodes_status<ST,R,C,EKT,S>(
+    server_state: &mut ServerState<ST,R,C,EKT,S>) -> Result<NodesStatus, ServerError> 
 where
     ST: Store,
 {
@@ -528,9 +543,9 @@ where
 }
 
 
-pub async fn handle_user_to_server<S,ST,R,C,CG,US>(
+pub async fn handle_user_to_server<S,ST,R,C,CG,EKT,US>(
     user_to_server_ack: UserToServerAck, 
-    server_state: &mut ServerState<ST,R,C,S>,
+    server_state: &mut ServerState<ST,R,C,EKT,S>,
     compact_gen: &mut CG,
     user_sender: &mut US) -> Result<(), ServerError> 
 where
@@ -541,7 +556,13 @@ where
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
 {
     let UserToServerAck {
         request_id,
@@ -583,12 +604,13 @@ where
     user_sender.send(server_to_user_ack).await.map_err(|_| ServerError::NodeSenderError)
 }
 
-async fn inner_server_loop<ST,R,C,S>(
+async fn inner_server_loop<ST,R,C,EKT,S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     timer_client: TimerClient,
     rng: R,
-    version_connector: C,
+    connector: C,
+    encrypt_keepalive: EKT,
     spawner: S,
     // opt_event_sender is used for testing:
     mut opt_event_sender: Option<mpsc::Sender<()>>) -> Result<(), ServerError> 
@@ -598,7 +620,13 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
 {
     let (mut user_sender, user_receiver) = conn_pair.split();
 
@@ -608,7 +636,13 @@ where
     let (compact_node_sender, compact_node_receiver) = mpsc::channel(1);
     let compact_node_receiver = compact_node_receiver.map(ServerEvent::CompactNode);
 
-    let mut server_state = ServerState::new(store, compact_node_sender, rng.clone(), timer_client, version_connector, spawner);
+    let mut server_state = ServerState::new(store, 
+        compact_node_sender, 
+        rng.clone(), 
+        timer_client, 
+        connector, 
+        encrypt_keepalive,
+        spawner);
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
 
@@ -655,12 +689,13 @@ where
 }
 
 #[allow(unused)]
-pub async fn compact_server_loop<ST,R,C,S>(
+pub async fn compact_server_loop<ST,R,C,EKT,S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     timer_client: TimerClient,
     rng: R,
-    version_connector: C,
+    connector: C,
+    encrypt_keepalive: EKT,
     spawner: S) -> Result<(), ServerError>
 where
     ST: Store,
@@ -668,9 +703,16 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone + Send + 'static,
+    EKT: FutTransform<
+            Input = (Option<PublicKey>, ConnPairVec),
+            Output = Option<(PublicKey, ConnPairVec)>,
+        > + Clone
+        + Send
+        + 'static,
 {
     // `opt_event_sender` is not needed in production:
     let opt_event_sender = None;
-    inner_server_loop(conn_pair, store, timer_client, rng, version_connector, spawner, opt_event_sender).await
+    inner_server_loop(conn_pair, store, timer_client, rng, connector, 
+        encrypt_keepalive, spawner, opt_event_sender).await
 }
