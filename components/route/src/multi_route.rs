@@ -2,9 +2,10 @@ use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 use num_traits::ops::checked::CheckedSub;
 
-use app::common::MultiRoute;
+use proto::index_server::messages::MultiRoute;
 
-pub type MultiRouteChoice = Vec<(usize, u128)>;
+/// For every route in a multi route: How many credits to push through.
+pub type MultiRouteChoice = Vec<(usize, u128)>; // (route_index, credits_to_push)
 
 /// Attempt to fill the given amount as much as possible, trying not to saturate any route.
 /// Returns `Some((i, added_credits(i)))` if in index `i` we can already fill `amount_left`, or
@@ -101,7 +102,9 @@ pub fn choose_multi_route(
 mod tests {
     use super::*;
 
-    use app::common::{FriendsRoute, PublicKey, Rate, RouteCapacityRate};
+    use proto::crypto::PublicKey;
+    use proto::funder::messages::{FriendsRoute, Rate};
+    use proto::index_server::messages::RouteCapacityRate;
 
     /// A helper function to create a test public key
     fn pk(i: u8) -> PublicKey {

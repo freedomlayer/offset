@@ -33,8 +33,9 @@ pub enum SetupConnectionError {
     EncryptSetupError,
     RecvAppPermissionsError,
     DeserializeAppPermissionsError,
-    ClosedBeforeNodeReport,
+    RecvNodeReportError,
     DeserializeNodeReportError,
+    ClosedBeforeNodeReport,
     FirstMessageNotNodeReport,
 }
 
@@ -85,19 +86,13 @@ where
     let app_permissions = AppPermissions::proto_deserialize(&app_permissions_data)
         .map_err(|_| SetupConnectionError::DeserializeAppPermissionsError)?;
 
-    // Wait for the first NodeReport.
-    let data = receiver
+    // Get NodeReport:
+    let node_report_data = receiver
         .next()
         .await
-        .ok_or(SetupConnectionError::ClosedBeforeNodeReport)?;
-    let message = AppServerToApp::proto_deserialize(&data)
+        .ok_or(SetupConnectionError::RecvNodeReportError)?;
+    let node_report = NodeReport::proto_deserialize(&node_report_data)
         .map_err(|_| SetupConnectionError::DeserializeNodeReportError)?;
-
-    let node_report = if let AppServerToApp::Report(node_report) = message {
-        node_report
-    } else {
-        return Err(SetupConnectionError::FirstMessageNotNodeReport);
-    };
 
     // serialization:
     let (user_sender, mut from_user_sender) = mpsc::channel::<AppToAppServer>(0);

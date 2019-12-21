@@ -37,6 +37,9 @@ relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
+keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
+version = { path = "../version", version = "0.1.0" , package = "offst-version" }
+secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 
 toml = "0.4.10"
@@ -46,10 +49,11 @@ base64 = "0.10.1"
 log = "0.4"
 env_logger = "0.6.0"
 futures = {version = "0.3.1", features = ["thread-pool"]}
+async-std = "1.2.0"
 
 structopt = "0.2.15"
 
-derive_more = "0.14.0"
+derive_more = "0.99.2"
 
 [dev-dependencies]
 

@@ -1,0 +1,16 @@
+[package]
+name = "offst-route"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+[dependencies]
+
+common = { path = "../common", version = "0.1.0", package = "offst-common" }
+proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+crypto = { path = "../crypto", version = "0.1.0" , package = "offst-crypto" }
+
+
+num-bigint = "0.2.2"
+num-traits = "0.2.6"

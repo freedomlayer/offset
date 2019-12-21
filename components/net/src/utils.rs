@@ -9,6 +9,9 @@ use async_std::net::TcpStream;
 
 use common::conn::ConnPairVec;
 
+// TODO: Maybe all the logic here of ensuring closing is not required after this fix in async-std:
+// https://github.com/async-rs/async-std/issues/599
+// Check if we can simplify logic here.
 pub fn tcp_stream_to_conn_pair<S>(
     tcp_stream: TcpStream,
     _max_frame_length: usize,

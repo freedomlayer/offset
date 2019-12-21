@@ -11,7 +11,18 @@ using import "common.capnp".RandValue;
 
 struct ExchangeRandNonce {
     randNonce @0: RandValue;
-    publicKey @1: PublicKey;
+    srcPublicKey @1: PublicKey;
+    # Sender's public key
+    optDestPublicKey: union {
+            empty @2: Void;
+            # Nothing has changed
+            publicKey @3: PublicKey;
+            # Set this exact list to be the list of relays
+    }
+    # PublicKey the sender expects the remote side to have.
+    # Useful for multiplexing multiple entities behind one listening port.
+    # A multiplexer can identify right at the first incoming message to which
+    # entity should this connection be redirected.
 }
 
 struct ExchangeDh {

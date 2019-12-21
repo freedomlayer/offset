@@ -8,11 +8,11 @@ use futures::{future, FutureExt};
 
 use identity::{create_identity, IdentityClient};
 
-use crypto::identity::{compare_public_key, generate_private_key, SoftwareEd25519Identity};
-use crypto::rand::RngContainer;
+use crypto::identity::{compare_public_key, SoftwareEd25519Identity};
+use crypto::rand::{RandGen, RngContainer};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::Uid;
+use proto::crypto::{PrivateKey, Uid};
 
 use proto::funder::messages::{
     AddFriend, FriendMessage, FriendStatus, FunderControl, FunderIncomingControl, SetFriendStatus,
@@ -457,7 +457,7 @@ fn test_handler_change_address() {
     let thread_pool = ThreadPool::new().unwrap();
 
     let rng1 = DummyRandom::new(&[1u8]);
-    let pkcs8 = generate_private_key(&rng1);
+    let pkcs8 = PrivateKey::rand_gen(&rng1);
     let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let (requests_sender1, identity_server1) = create_identity(identity1);
     let identity_client1 = IdentityClient::new(requests_sender1);
@@ -466,7 +466,7 @@ fn test_handler_change_address() {
         .unwrap();
 
     let rng2 = DummyRandom::new(&[2u8]);
-    let pkcs8 = generate_private_key(&rng2);
+    let pkcs8 = PrivateKey::rand_gen(&rng2);
     let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let (requests_sender2, identity_server2) = create_identity(identity2);
     let identity_client2 = IdentityClient::new(requests_sender2);

@@ -14,11 +14,9 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-mod adapters;
-mod net_node;
 mod node;
 mod types;
 
-pub use self::net_node::{net_node, NetNodeError};
-pub use self::types::{NodeConfig, NodeState};
-pub use app_server::IncomingAppConnection;
+pub use self::node::{node, NodeError};
+pub use self::types::{NodeConfig, NodeMutation, NodeState};
+pub use app_server::{ConnPairServer, IncomingAppConnection};

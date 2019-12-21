@@ -1,4 +1,4 @@
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
@@ -14,6 +14,7 @@ use proto::funder::messages::{FunderControl, FunderOutgoingControl};
 use proto::report::messages::{FunderReportMutation, FunderReportMutations};
 
 use super::utils::{dummy_named_relay_address, spawn_dummy_app_server};
+use crate::server::IncomingAppConnection;
 
 async fn task_app_server_loop_funder_command<S>(spawner: S)
 where
@@ -30,7 +31,7 @@ where
 
     let (mut app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
-    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
+    let server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
 
     let app_permissions = AppPermissions {
         routes: true,
@@ -39,17 +40,22 @@ where
         config: true,
     };
 
+    let (report_sender, report_receiver) = oneshot::channel();
+    let incoming_app_connection = IncomingAppConnection {
+        app_permissions,
+        report_sender,
+    };
+
     connections_sender
-        .send((app_permissions, app_server_conn_pair))
+        .send(incoming_app_connection)
         .await
         .unwrap();
 
-    // The app should receive the current node report as the first message:
-    let to_app_message = app_receiver.next().await.unwrap();
-    match to_app_message {
-        AppServerToApp::Report(report) => assert_eq!(report, initial_node_report),
-        _ => unreachable!(),
-    };
+    let (report, conn_sender) = report_receiver.await.unwrap();
+    conn_sender.send(server_conn_pair).unwrap();
+
+    // Verify the report:
+    assert_eq!(report, initial_node_report);
 
     // Send a command through the app:
     let funder_command = AppToAppServer::new(

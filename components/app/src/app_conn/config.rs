@@ -5,7 +5,7 @@ use proto::app_server::messages::{
 };
 use proto::funder::messages::{
     AddFriend, Currency, Rate, RemoveFriendCurrency, ResetFriendChannel, SetFriendCurrencyMaxDebt,
-    SetFriendCurrencyRate, SetFriendRelays,
+    SetFriendCurrencyRate, SetFriendName, SetFriendRelays,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
 
@@ -36,6 +36,14 @@ pub fn set_friend_relays(friend_public_key: PublicKey, relays: Vec<RelayAddress>
         relays,
     };
     AppRequest::SetFriendRelays(set_friend_relays)
+}
+
+pub fn set_friend_name(friend_public_key: PublicKey, name: String) -> AppRequest {
+    let set_friend_name = SetFriendName {
+        friend_public_key,
+        name,
+    };
+    AppRequest::SetFriendName(set_friend_name)
 }
 
 pub fn remove_friend(friend_public_key: PublicKey) -> AppRequest {

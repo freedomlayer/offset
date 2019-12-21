@@ -16,8 +16,8 @@ extern crate common;
 
 mod backoff_connector;
 mod graph;
-mod net_server;
 mod server;
+mod server_loop;
 mod verifier;
 
-pub use net_server::{net_index_server, NetIndexServerError};
+pub use server::{index_server, IndexServerError};

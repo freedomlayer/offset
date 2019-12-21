@@ -10,6 +10,7 @@ use proto::index_client::messages::IndexClientReport;
 
 use signature::canonical::CanonicalSerialize;
 
+// TODO: Can we remote the Clone bound here?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeMutation<B: Clone> {
     Funder(FunderMutation<B>),
@@ -81,6 +82,8 @@ where
     }
 }
 
+// TODO: Possibly separate NodeConfig into parts that are protocol related, and parts that are
+// implementation related?
 #[derive(Debug, Clone)]
 pub struct NodeConfig {
     /// Memory allocated to a channel in memory (Used to connect two components)
@@ -104,7 +107,9 @@ pub struct NodeConfig {
     pub max_open_index_client_requests: usize,
     /// Maximum amount of relays a node may use.
     pub max_node_relays: usize,
+    /*
     /// Maximum amount of encryption set ups we allow to occur at the same time
     /// for incoming app connections
-    pub max_concurrent_incoming_apps: usize,
+    // pub max_concurrent_incoming_apps: usize,
+     */
 }

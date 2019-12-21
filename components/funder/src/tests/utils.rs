@@ -9,10 +9,11 @@ use futures::stream::select;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, FutureExt, SinkExt, StreamExt};
 
-use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
+use crypto::identity::SoftwareEd25519Identity;
+use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{PublicKey, Uid};
+use proto::crypto::{PrivateKey, PublicKey, Uid};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
@@ -540,7 +541,7 @@ where
 
     for i in 0..num_nodes {
         let rng = DummyRandom::new(&[i as u8]);
-        let private_key = generate_private_key(&rng);
+        let private_key = PrivateKey::rand_gen(&rng);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender, identity_server) = create_identity(identity1);
         let identity_client = IdentityClient::new(requests_sender);

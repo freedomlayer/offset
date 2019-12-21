@@ -6,7 +6,6 @@ use proto::crypto::{PrivateKey, PublicKey, Signature};
 
 use crate::error::CryptoError;
 use crate::hash::sha_512_256;
-use crate::rand::CryptoRandom;
 
 /// Check if one public key is "lower" than another.
 /// This is used to decide which side begins the token channel.
@@ -14,11 +13,13 @@ pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
     sha_512_256(pk1).cmp(&sha_512_256(pk2))
 }
 
+/*
 // TODO: Could implement RandGen instead:
 /// Generate a pkcs8 key pair
 pub fn generate_private_key<R: CryptoRandom>(rng: &R) -> PrivateKey {
     PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap())
 }
+*/
 
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
@@ -33,6 +34,19 @@ pub trait Identity {
 
 pub struct SoftwareEd25519Identity {
     key_pair: signature::Ed25519KeyPair,
+}
+
+/// Derive a PublicKey from a PrivateKey
+pub fn derive_public_key(private_key: &PrivateKey) -> Result<PublicKey, CryptoError> {
+    let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(&private_key))?;
+
+    let mut public_key = PublicKey::default();
+    let public_key_array = &mut public_key;
+
+    let public_key_ref = key_pair.public_key_bytes();
+    public_key_array.clone_from_slice(public_key_ref);
+
+    Ok(public_key)
 }
 
 impl SoftwareEd25519Identity {
@@ -85,22 +99,26 @@ mod tests {
     use super::*;
     use ring::test::rand::FixedByteRandom;
 
+    use crate::rand::RandGen;
+
     #[test]
     fn test_get_public_key_sanity() {
         let secure_rand = FixedByteRandom { byte: 0x1 };
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let public_key0 = derive_public_key(&private_key).unwrap();
         let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let public_key1 = id.get_public_key();
         let public_key2 = id.get_public_key();
 
+        assert_eq!(public_key0, public_key2);
         assert_eq!(public_key1, public_key2);
     }
 
     #[test]
     fn test_sign_verify_self() {
         let secure_rand = FixedByteRandom { byte: 0x1 };
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";
@@ -115,12 +133,12 @@ mod tests {
     fn test_sign_verify_other() {
         let secure_rand = FixedByteRandom { byte: 0x2 };
         // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let id1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let secure_rand = FixedByteRandom { byte: 0x3 };
         // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let id2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";

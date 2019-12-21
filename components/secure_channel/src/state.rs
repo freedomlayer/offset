@@ -23,6 +23,7 @@ const MAX_RAND_PADDING: u16 = 0x100;
 
 #[derive(Debug, From)]
 pub enum ScStateError {
+    UnexpectedRemotePublicKey,
     PrivateKeyGenFailure,
     DhPublicKeyComputeFailure,
     IncorrectRandNonce,
@@ -38,6 +39,7 @@ pub enum ScStateError {
 
 pub struct ScStateInitial {
     local_public_key: PublicKey,
+    opt_remote_public_key: Option<PublicKey>,
     local_rand_nonce: RandValue,
 }
 
@@ -69,18 +71,21 @@ pub struct ScState {
 
 impl ScStateInitial {
     pub fn new<R: CryptoRandom>(
-        local_public_key: &PublicKey,
+        local_public_key: PublicKey,
+        opt_remote_public_key: Option<PublicKey>,
         rng: &R,
     ) -> (ScStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::rand_gen(rng);
 
         let sc_state_initial = ScStateInitial {
             local_public_key: local_public_key.clone(),
+            opt_remote_public_key: opt_remote_public_key.clone(),
             local_rand_nonce: local_rand_nonce.clone(),
         };
         let exchange_rand_nonce = ExchangeRandNonce {
             rand_nonce: local_rand_nonce,
-            public_key: local_public_key.clone(),
+            src_public_key: local_public_key,
+            opt_dest_public_key: opt_remote_public_key,
         };
         (sc_state_initial, exchange_rand_nonce)
     }
@@ -91,6 +96,13 @@ impl ScStateInitial {
         identity_client: IdentityClient,
         rng: R,
     ) -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
+        // In case we expect a specific remote public key, verify it first:
+        if let Some(expected_remote_public_key) = &self.opt_remote_public_key {
+            if expected_remote_public_key != &exchange_rand_nonce.src_public_key {
+                return Err(ScStateError::UnexpectedRemotePublicKey);
+            }
+        }
+
         let dh_private_key =
             DhPrivateKey::new(&rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
         let dh_public_key = dh_private_key
@@ -99,7 +111,7 @@ impl ScStateInitial {
         let local_salt = Salt::rand_gen(&rng);
 
         let sc_state_half = ScStateHalf {
-            remote_public_key: exchange_rand_nonce.public_key,
+            remote_public_key: exchange_rand_nonce.src_public_key,
             local_public_key: self.local_public_key,
             local_rand_nonce: self.local_rand_nonce,
             dh_private_key,
@@ -345,12 +357,16 @@ impl ScState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use tokio_core::reactor::Core;
-    use crypto::identity::{generate_private_key, SoftwareEd25519Identity};
-    use crypto::test_utils::DummyRandom;
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::SpawnExt;
     use futures::{future, FutureExt};
+
+    use proto::crypto::PrivateKey;
+
+    use crypto::identity::SoftwareEd25519Identity;
+    use crypto::rand::RandGen;
+    use crypto::test_utils::DummyRandom;
+
     use identity::create_identity;
     use identity::IdentityClient;
 
@@ -362,10 +378,12 @@ mod tests {
         let rng2 = DummyRandom::new(&[2u8]);
         let local_public_key1 = identity_client1.request_public_key().await.unwrap();
         let local_public_key2 = identity_client2.request_public_key().await.unwrap();
+        let opt_dest_public_key1 = Some(local_public_key2.clone());
+        let opt_dest_public_key2 = None;
         let (sc_state_initial1, exchange_rand_nonce1) =
-            ScStateInitial::new(&local_public_key1, &rng1);
+            ScStateInitial::new(local_public_key1.clone(), opt_dest_public_key1, &rng1);
         let (sc_state_initial2, exchange_rand_nonce2) =
-            ScStateInitial::new(&local_public_key2, &rng2);
+            ScStateInitial::new(local_public_key2.clone(), opt_dest_public_key2, &rng2);
 
         let (sc_state_half1, exchange_dh1) = sc_state_initial1
             .handle_exchange_rand_nonce(
@@ -457,13 +475,13 @@ mod tests {
 
     fn prepare_dh_test() -> (ScState, ScState, DummyRandom, DummyRandom) {
         let rng1 = DummyRandom::new(&[1u8]);
-        let private_key = generate_private_key(&rng1);
+        let private_key = PrivateKey::rand_gen(&rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
         let rng2 = DummyRandom::new(&[2u8]);
-        let private_key = generate_private_key(&rng2);
+        let private_key = PrivateKey::rand_gen(&rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);

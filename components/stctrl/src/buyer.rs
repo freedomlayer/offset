@@ -25,7 +25,7 @@ use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeE
 
 use crate::file::{CommitFile, InvoiceFile, PaymentFile, ReceiptFile};
 
-use crate::multi_route_util::choose_multi_route;
+use route::choose_multi_route;
 
 /// Pay an invoice
 #[derive(Clone, Debug, StructOpt)]

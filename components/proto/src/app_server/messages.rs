@@ -98,8 +98,8 @@ pub enum AppServerToApp<B = NetAddress> {
     /// Funds:
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
-    /// Reports about current state:
-    Report(NodeReport<B>),
+    // /// Reports about current state:
+    // Report(NodeReport<B>),
     ReportMutations(ReportMutations<B>),
     ResponseRoutes(ClientResponseRoutes),
 }

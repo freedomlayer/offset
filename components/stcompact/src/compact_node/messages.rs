@@ -3,15 +3,29 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use app::common::{
-    Currency, InvoiceId, NamedIndexServerAddress, NamedRelayAddress, PublicKey, Rate, RelayAddress,
-    Signature, Uid,
+    Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
+    PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    inner: Vec<u8>,
+    pub response_hash: HashResult,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub src_plain_lock: PlainLock,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub dest_hashed_lock: HashedLock,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub signature: Signature,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -53,7 +67,9 @@ pub struct SetFriendName {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct RequestPayInvoice {
+pub struct InitPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub payment_id: PaymentId,
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
@@ -62,36 +78,46 @@ pub struct RequestPayInvoice {
     pub dest_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
+    /// Short textual invoice description
+    pub description: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResponsePayInvoiceInner {
+pub enum PaymentFeesResponse {
     Unreachable,
-    Fees(u128),
+    Fees(u128, Uid), // (fees, confirm_id)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResponsePayInvoice {
+pub struct PaymentFees {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    pub invoice_id: InvoiceId,
-    pub response: ResponsePayInvoiceInner,
+    pub payment_id: PaymentId,
+    pub response: PaymentFeesResponse,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PayInvoiceResultInner {
-    Failure,
-    Success(Commit),
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum PaymentDone {
+    Failure(Uid),                // ack_uid
+    Success(Receipt, u128, Uid), // (receipt, fees, ack_uid)
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PayInvoiceDone {
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum ResponseCommitInvoice {
     Failure,
     Success,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PayInvoiceResult {
-    pub invoice_id: InvoiceId,
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct PaymentCommit {
+    pub payment_id: PaymentId,
+    pub commit: Commit,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct ConfirmPaymentFees {
+    pub payment_id: PaymentId,
+    pub confirm_id: Uid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +166,8 @@ pub struct AddInvoice {
     /// Total amount of credits to be paid.
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub total_dest_payment: u128,
+    /// Short textual description for the invoice
+    pub description: String,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
@@ -149,12 +177,7 @@ pub enum RequestsStatusReport {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct MoveTokenHashedReport {
-    inner: Vec<u8>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct CurrencyConfigReport {
+pub struct ConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
@@ -183,7 +206,7 @@ pub struct ResetTermsReport {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInconsistentReport {
-    pub local_reset_terms: HashMap<Currency, u128>,
+    pub local_reset_terms: HashMap<Currency, i128>,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
@@ -238,10 +261,50 @@ pub enum FriendStatusReport {
     Disabled,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct BalanceInfo {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub balance: i128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub local_pending_debt: u128,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub remote_pending_debt: u128,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct McInfo {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub local_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub remote_public_key: PublicKey,
+    pub balances: HashMap<Currency, BalanceInfo>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct CountersInfo {
+    pub inconsistency_counter: u64,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub move_token_counter: u128,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct TokenInfo {
+    pub mc: McInfo,
+    pub counters: CountersInfo,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MoveTokenHashedReport {
+    pub prefix_hash: HashResult,
+    pub token_info: TokenInfo,
+    pub rand_nonce: RandValue,
+    pub new_token: Signature,
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriendReport {
     pub name: String,
-    pub currency_configs: HashMap<Currency, CurrencyConfigReport>,
+    pub currency_configs: HashMap<Currency, ConfigReport>,
     /// Last message signed by the remote side.
     /// Can be used as a proof for the last known balance.
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
@@ -252,29 +315,86 @@ pub struct FriendReport {
     pub status: FriendStatusReport,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenInvoice {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub total_dest_payment: u128,
+    /// Invoice description
+    pub description: String,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum OpenPaymentStatus {
+    SearchingRoute(Uid),         // request_routes_id
+    FoundRoute(Uid, u128),       // (confirm_id, fees)
+    Sending(u128),               // fees
+    Commit(Commit, u128),        // (commit, fees)
+    Success(Receipt, u128, Uid), // (Receipt, fees, ack_uid)
+    Failure(Uid),                // ack_uid
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OpenPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub invoice_id: InvoiceId,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    pub dest_public_key: PublicKey,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    pub dest_payment: u128,
+    /// Invoice description (Obtained from the corresponding invoice)
+    pub description: String,
+    /// Current status of open payment
+    pub status: OpenPaymentStatus,
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeReport {
+pub struct CompactReport {
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
-    pub opt_connected_index_server: Option<NamedIndexServerAddress>,
+    pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
     pub friends: HashMap<PublicKey, FriendReport>,
+    /// Seller's open invoices:
+    pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
+    /// Buyer's open payments:
+    pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ToUser {
-    /// Funds:
-    ResponsePayInvoice(ResponsePayInvoice),
-    PayInvoiceResult(PayInvoiceResult),
-    PayInvoiceDone(PayInvoiceDone),
+pub enum CompactToUserAck {
+    /// Acknowledge the receipt of `UserToCompact`
+    /// Should be sent after `Report`, in case any changes occured.
+    Ack(Uid),
+    CompactToUser(CompactToUser),
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompactToUser {
+    // ------------[Buyer]------------------
+    /// Response: Shows required fees, or states that the destination is unreachable:
+    PaymentFees(PaymentFees),
+    /// Result: Possibly returns the Commit (Should be delivered out of band)
+    PaymentCommit(PaymentCommit),
+    /// Done: Possibly returns a Receipt or failure
+    PaymentDone(PaymentDone),
+    // ------------[Seller]-------------------
+    ResponseCommitInvoice(ResponseCommitInvoice),
+    // ------------[Reports]-------------------
     /// Reports about current state:
-    Report(NodeReport),
+    Report(CompactReport),
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum UserRequest {
+pub enum UserToCompact {
+    // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
@@ -299,23 +419,28 @@ pub enum UserRequest {
     SetFriendCurrencyRate(SetFriendCurrencyRate),
     RemoveFriendCurrency(RemoveFriendCurrency),
     ResetFriendChannel(ResetFriendChannel),
-    /// Buyer:
-    RequestPayInvoice(RequestPayInvoice),
-    // ConfirmPayInvoice(ConfirmPayInvoice),
+    // ---------------[Buyer]------------------------------
+    // Request sending an amount to some desination:
+    InitPayment(InitPayment),
+    // Confirm sending fees:
+    ConfirmPaymentFees(ConfirmPaymentFees),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
-    CancelPayInvoice(InvoiceId),
-    /// Seller:
+    CancelPayment(PaymentId),
+    AckPaymentDone(PaymentId, Uid), // (payment_id, ack_uid)
+    // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
-    CommitInvoice(Commit),
+    RequestCommitInvoice(Commit),
+    // ---------------[Verification]------------------------
+    // TODO: Add API for verification of receipt and last token?
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct FromUser {
+pub struct UserToCompactAck {
     #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub user_request_id: Uid,
-    pub user_request: UserRequest,
+    pub inner: UserToCompact,
 }
 
 /*

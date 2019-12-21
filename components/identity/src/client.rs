@@ -12,7 +12,7 @@ pub enum IdentityClientError {
     OneshotReceiverCanceled,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct IdentityClient {
     requests_sender: mpsc::Sender<ToIdentity>,
 }
@@ -74,13 +74,16 @@ mod tests {
     use futures::FutureExt;
 
     use crate::identity::create_identity;
-    use crypto::identity::{generate_private_key, verify_signature, SoftwareEd25519Identity};
+    use crypto::identity::{verify_signature, SoftwareEd25519Identity};
+    use crypto::rand::RandGen;
     use crypto::test_utils::DummyRandom;
+
+    use proto::crypto::PrivateKey;
 
     #[test]
     fn test_identity_consistent_public_key_with_client() {
         let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let (requests_sender, sm) = create_identity(identity);
@@ -100,7 +103,7 @@ mod tests {
     #[test]
     fn test_identity_request_sign_with_client() {
         let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = generate_private_key(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&secure_rand);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let (requests_sender, sm) = create_identity(identity);

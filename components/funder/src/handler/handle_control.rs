@@ -259,7 +259,7 @@ fn control_add_friend<B>(m_state: &mut MutableFunderState<B>, add_friend: AddFri
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let funder_mutation = FunderMutation::AddFriend(add_friend.clone());
+    let funder_mutation = FunderMutation::AddFriend(add_friend);
     m_state.mutate(funder_mutation);
 }
 
@@ -744,12 +744,12 @@ where
         route: route_tail,
         dest_payment: create_transaction.dest_payment,
         total_dest_payment: new_transactions.total_dest_payment,
-        invoice_id: new_transactions.invoice_id.clone(),
+        invoice_id: new_transactions.invoice_id,
         left_fees: create_transaction.fees,
     };
 
     let friend_mutation =
-        FriendMutation::PushBackPendingUserRequest((currency.clone(), request_send_funds));
+        FriendMutation::PushBackPendingUserRequest((currency, request_send_funds));
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
@@ -963,7 +963,7 @@ where
             if num_transactions > 0 {
                 // Update payment to be `AfterSuccessAck`:
                 let new_payment = Payment {
-                    src_plain_lock: payment.src_plain_lock.clone(),
+                    src_plain_lock: payment.src_plain_lock,
                     stage: PaymentStage::AfterSuccessAck(num_transactions),
                 };
                 let funder_mutation =

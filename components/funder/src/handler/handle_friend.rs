@@ -1,5 +1,7 @@
-use signature::canonical::CanonicalSerialize;
+use std::cmp::Ordering;
 use std::fmt::Debug;
+
+use signature::canonical::CanonicalSerialize;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
@@ -205,7 +207,7 @@ fn forward_request<B>(
     // Queue message to the relevant friend. Later this message will be queued to a specific
     // available token channel:
     let friend_mutation =
-        FriendMutation::PushBackPendingRequest((currency.clone(), request_send_funds.clone()));
+        FriendMutation::PushBackPendingRequest((currency.clone(), request_send_funds));
     let funder_mutation = FunderMutation::FriendMutation((next_pk.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
     send_commands.set_try_send(next_pk);
@@ -267,6 +269,16 @@ where
             return CheckRequest::Failure;
         };
 
+    match new_total_paid.cmp(&open_invoice.total_dest_payment) {
+        // Request is allowed, the invoice is not fully paid:
+        Ordering::Less => CheckRequest::Success,
+        // Request is allowed, and the invoice is fully paid:
+        Ordering::Equal => CheckRequest::Complete,
+        // We do not allow paying more than total_dest_payment
+        Ordering::Greater => CheckRequest::Failure,
+    }
+
+    /*
     if new_total_paid < open_invoice.total_dest_payment {
         // Request is allowed, the invoice is not fully paid:
         CheckRequest::Success
@@ -277,6 +289,7 @@ where
         // We do not allow paying more than total_dest_payment
         CheckRequest::Failure
     }
+    */
 }
 
 fn handle_request_send_funds<B>(
@@ -831,8 +844,7 @@ fn handle_move_token_success<B, R>(
                 // already have:
                 if friend.remote_relays != new_remote_relays {
                     // Update remote address:
-                    let friend_mutation =
-                        FriendMutation::SetRemoteRelays(new_remote_relays.clone());
+                    let friend_mutation = FriendMutation::SetRemoteRelays(new_remote_relays);
                     let funder_mutation = FunderMutation::FriendMutation((
                         remote_public_key.clone(),
                         friend_mutation,
@@ -1046,7 +1058,7 @@ where
     // Keep outgoing InconsistencyError message details in memory:
     let channel_inconsistent = ChannelInconsistent {
         opt_last_incoming_move_token,
-        local_reset_terms: new_local_reset_terms.clone(),
+        local_reset_terms: new_local_reset_terms,
         opt_remote_reset_terms: Some(new_remote_reset_terms),
     };
     let friend_mutation = FriendMutation::SetInconsistent(channel_inconsistent);

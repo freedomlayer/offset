@@ -1,4 +1,4 @@
-use futures::channel::mpsc;
+use futures::channel::{mpsc, oneshot};
 use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
@@ -7,11 +7,13 @@ use common::conn::ConnPair;
 
 use proto::crypto::PublicKey;
 
-use proto::app_server::messages::{AppPermissions, AppServerToApp};
+use proto::app_server::messages::AppPermissions;
 use proto::index_client::messages::{
     IndexClientReportMutation, IndexClientReportMutations, IndexClientToAppServer,
 };
 use proto::index_server::messages::NamedIndexServerAddress;
+
+use crate::server::IncomingAppConnection;
 
 use super::utils::spawn_dummy_app_server;
 
@@ -30,7 +32,7 @@ where
 
     let (app_sender, app_server_receiver) = mpsc::channel(0);
     let (app_server_sender, mut app_receiver) = mpsc::channel(0);
-    let app_server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
+    let server_conn_pair = ConnPair::from_raw(app_server_sender, app_server_receiver);
 
     let app_permissions = AppPermissions {
         routes: true,
@@ -39,17 +41,22 @@ where
         config: true,
     };
 
+    let (report_sender, report_receiver) = oneshot::channel();
+    let incoming_app_connection = IncomingAppConnection {
+        app_permissions,
+        report_sender,
+    };
+
     connections_sender
-        .send((app_permissions, app_server_conn_pair))
+        .send(incoming_app_connection)
         .await
         .unwrap();
 
-    // The app should receive the current node report as the first message:
-    let to_app_message = app_receiver.next().await.unwrap();
-    match to_app_message {
-        AppServerToApp::Report(report) => assert_eq!(report, initial_node_report),
-        _ => unreachable!(),
-    };
+    let (report, conn_sender) = report_receiver.await.unwrap();
+    conn_sender.send(server_conn_pair).unwrap();
+
+    // Verify the report:
+    assert_eq!(report, initial_node_report);
 
     drop(connections_sender);
 

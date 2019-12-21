@@ -257,11 +257,13 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{FutureExt, TryFutureExt};
 
+    use proto::crypto::PrivateKey;
     use proto::funder::messages::Currency;
 
     use signature::verify::verify_mutations_update;
 
-    use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
+    use crypto::identity::{Identity, SoftwareEd25519Identity};
+    use crypto::rand::RandGen;
     use crypto::test_utils::DummyRandom;
 
     use identity::create_identity;
@@ -311,7 +313,7 @@ mod tests {
 
         // Create identity_client:
         let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_private_key(&rng);
+        let pkcs8 = PrivateKey::rand_gen(&rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let local_public_key = identity.get_public_key();
         let (requests_sender, identity_server) = create_identity(identity);

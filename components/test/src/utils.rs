@@ -6,17 +6,17 @@ use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
+use crypto::identity::{Identity, SoftwareEd25519Identity};
 
-use crypto::rand::CryptoRandom;
+use crypto::rand::{CryptoRandom, RandGen};
 use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::BoxStream;
+use common::conn::{BoxFuture, BoxStream};
 use common::select_streams::select_streams;
 
-use proto::crypto::PublicKey;
+use proto::crypto::{PrivateKey, PublicKey};
 
 use proto::app_server::messages::{AppPermissions, NamedRelayAddress, RelayAddress};
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
@@ -28,12 +28,14 @@ use identity::{create_identity, IdentityClient};
 use app::conn::{inner_connect, AppConnTuple, AppServerToApp};
 use app::report::NodeReport;
 
-use node::{net_node, NodeConfig, NodeState};
+use node::{NodeConfig, NodeState};
 
 use database::file_db::FileDb;
+use database::{database_loop, AtomicDb, DatabaseClient};
 
-use index_server::net_index_server;
-use relay::net_relay_server;
+use bin::stindex::net_index_server;
+use bin::stnode::{net_node, TrustedApps};
+use bin::strelay::net_relay_server;
 
 use timer::TimerClient;
 
@@ -88,7 +90,7 @@ fn gen_identity<R>(rng: &R) -> impl Identity
 where
     R: CryptoRandom,
 {
-    let pkcs8 = generate_private_key(rng);
+    let pkcs8 = PrivateKey::rand_gen(rng);
     SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap()
 }
 
@@ -149,8 +151,10 @@ fn default_node_config() -> NodeConfig {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
+        /*
         /// Maximum amount of incoming app connections we set up at the same time
         max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+        */
     }
 }
 
@@ -261,6 +265,20 @@ where
     .ok()
 }
 
+#[derive(Debug, Clone)]
+struct DummyTrustedApps {
+    trusted_apps: HashMap<PublicKey, AppPermissions>,
+}
+
+impl TrustedApps for DummyTrustedApps {
+    fn app_permissions<'a>(
+        &'a mut self,
+        app_public_key: &'a PublicKey,
+    ) -> BoxFuture<'a, Option<AppPermissions>> {
+        Box::pin(async move { self.trusted_apps.get(app_public_key).cloned() })
+    }
+}
+
 pub async fn create_node<S>(
     index: u8,
     sim_db: SimDb,
@@ -278,13 +296,33 @@ where
     let incoming_app_raw_conns = sim_network_client.listen(listen_address).await.unwrap();
 
     // Translate application index to application public key:
-    let trusted_apps = trusted_apps
+    let trusted_apps_map = trusted_apps
         .into_iter()
         .map(|(index, app_permissions)| (get_app_identity(index).get_public_key(), app_permissions))
         .collect::<HashMap<_, _>>();
-    let get_trusted_apps = move || Some(trusted_apps.clone());
+    let dummy_trusted_apps = DummyTrustedApps {
+        trusted_apps: trusted_apps_map,
+    };
+    // let get_trusted_apps = move || Some(trusted_apps.clone());
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
+
+    let atomic_db = sim_db.load_db(index);
+
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(atomic_db, incoming_db_requests, spawner.clone())
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+
+    spawner.spawn(loop_fut).unwrap();
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
     // Note: we use the same spawner for testing purposes.
     // Simulating the passage of time becomes more difficult if our code uses a few different executors.
     let net_node_fut = net_node(
@@ -294,10 +332,9 @@ where
         identity_client,
         rng,
         default_node_config(),
-        get_trusted_apps,
-        sim_db.load_db(index),
-        spawner.clone(), // trusted_apps_spawner
-        spawner.clone(), // database_spawner
+        dummy_trusted_apps,
+        node_state,
+        database_client,
         spawner.clone(),
     )
     .map_err(|e| error!("net_node() error: {:?}", e))
@@ -402,10 +439,6 @@ pub async fn advance_time<'a>(
         test_executor.wait().await;
     }
 }
-
-// TODO: Enhance this service to allow getting the last value of NodeReport.
-// Should be done similarly to how AppConn used to be implemented (Sending a oneshot and waiting
-// for a response)
 
 #[derive(Debug)]
 struct ReportRequest {

@@ -7,4 +7,19 @@
     clippy::new_without_default
 )]
 
-mod types;
+#[macro_use]
+extern crate common;
+
+#[macro_use]
+extern crate log;
+
+#[allow(unused)]
+mod compact_node;
+
+mod gen;
+mod messages;
+mod server_loop;
+mod store;
+
+#[allow(clippy::useless_attribute)]
+mod stcompactlib;

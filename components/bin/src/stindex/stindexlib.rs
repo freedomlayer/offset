@@ -20,7 +20,7 @@ use identity::{create_identity, IdentityClient};
 
 use derive_more::From;
 
-use index_server::{net_index_server, NetIndexServerError};
+use crate::stindex::net_index::{net_index_server, NetIndexServerError};
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 use timer::create_timer;
 
@@ -146,7 +146,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         MAX_CONCURRENT_ENCRYPT,
         BACKOFF_TICKS,
         graph_service_thread_pool,
-        thread_pool.clone(),
+        thread_pool,
     );
 
     block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;

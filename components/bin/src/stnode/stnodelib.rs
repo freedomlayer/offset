@@ -1,14 +1,15 @@
-use std::collections::HashMap;
-
+use std::fmt::Debug;
 use std::fs;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use derive_more::From;
 
+use futures::channel::mpsc;
 use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
+use futures::{FutureExt, TryFutureExt};
 
 use structopt::StructOpt;
 
@@ -21,9 +22,8 @@ use crypto::rand::system_random;
 use identity::{create_identity, IdentityClient};
 use timer::create_timer;
 
-use node::{net_node, NetNodeError, NodeConfig, NodeState};
-
 use database::file_db::FileDb;
+use database::{database_loop, AtomicDb, DatabaseClient};
 
 use net::{TcpConnector, TcpListener};
 use proto::consts::{
@@ -33,7 +33,12 @@ use proto::consts::{
 use proto::net::messages::NetAddress;
 use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
-use proto::file::{IdentityFile, TrustedAppFile};
+use proto::file::IdentityFile;
+
+use node::{NodeConfig, NodeState};
+
+use crate::stnode::file_trusted_apps::FileTrustedApps;
+use crate::stnode::net_node::{net_node, NetNodeError};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -49,9 +54,11 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// The amount of ticks we are willing to wait until a connection is established (Through
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
+/*
 /// Maximum amount of concurrent applications
 /// going through the incoming connection transform at the same time
 const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
+*/
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
@@ -87,20 +94,6 @@ pub struct StNodeCmd {
     /// Directory path of trusted applications
     #[structopt(parse(from_os_str), short = "t", long = "trusted")]
     pub trusted: PathBuf,
-}
-
-/// Load all trusted applications files from a given directory.
-pub fn load_trusted_apps(dir_path: &Path) -> Result<Vec<TrustedAppFile>, NodeBinError> {
-    let mut res_trusted = Vec::new();
-    for entry in fs::read_dir(dir_path)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            continue;
-        }
-        res_trusted.push(deserialize_from_string(&fs::read_to_string(&path)?)?);
-    }
-    Ok(res_trusted)
 }
 
 pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
@@ -159,8 +152,10 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         max_open_index_client_requests: MAX_OPEN_INDEX_CLIENT_REQUESTS,
         /// Maximum amount of relays a node may use.
         max_node_relays: MAX_NODE_RELAYS,
+        /*
         /// Maximum amount of incoming app connections we set up at the same time
-        max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+        // max_concurrent_incoming_apps: MAX_CONCURRENT_INCOMING_APPS,
+         */
     };
 
     // A tcp connector, Used to connect to remote servers:
@@ -177,16 +172,23 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
     let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(laddr);
 
-    // Create a closure for loading trusted apps map:
-    let get_trusted_apps = move || -> Option<_> {
-        Some(
-            load_trusted_apps(&trusted)
-                .ok()?
-                .into_iter()
-                .map(|trusted_app_file| (trusted_app_file.public_key, trusted_app_file.permissions))
-                .collect::<HashMap<_, _>>(),
-        )
-    };
+    let trusted_apps = FileTrustedApps::new(trusted.into());
+
+    // Get initial node_state:
+    let node_state = atomic_db.get_state().clone();
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(atomic_db, incoming_db_requests, file_system_thread_pool)
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+
+    thread_pool
+        .spawn(loop_fut)
+        .map_err(|_| NetNodeError::SpawnError)?;
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
 
     let node_fut = net_node(
         incoming_app_raw_conns,
@@ -195,11 +197,10 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         identity_client,
         rng,
         node_config,
-        get_trusted_apps,
-        atomic_db,
-        file_system_thread_pool.clone(),
-        file_system_thread_pool.clone(),
-        thread_pool.clone(),
+        trusted_apps,
+        node_state,
+        database_client,
+        thread_pool,
     );
 
     block_on(node_fut).map_err(NodeBinError::NetNodeError)

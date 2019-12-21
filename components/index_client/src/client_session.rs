@@ -108,14 +108,16 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::{SinkExt, StreamExt};
 
-    use crypto::identity::{generate_private_key, Identity, SoftwareEd25519Identity};
+    use crypto::identity::{Identity, SoftwareEd25519Identity};
+    use crypto::rand::RandGen;
     use crypto::test_utils::DummyRandom;
-    use proto::crypto::HashResult;
+
+    use proto::crypto::{HashResult, PrivateKey};
+    use proto::index_server::messages::IndexServerToClient;
 
     use identity::create_identity;
 
     use common::dummy_connector::DummyConnector;
-    use proto::index_server::messages::IndexServerToClient;
 
     async fn task_index_client_session_basic<S>(spawner: S)
     where
@@ -123,7 +125,7 @@ mod tests {
     {
         // Create identity_client:
         let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = generate_private_key(&rng);
+        let pkcs8 = PrivateKey::rand_gen(&rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let local_public_key = identity.get_public_key();
         let (requests_sender, identity_server) = create_identity(identity);

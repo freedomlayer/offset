@@ -20,8 +20,8 @@ use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
 use common::int_convert::usize_to_u64;
 
+use crate::strelay::net_relay::{net_relay_server, NetRelayServerError};
 use net::TcpListener;
-use relay::{net_relay_server, NetRelayServerError};
 use timer::create_timer;
 
 use proto::file::IdentityFile;
@@ -90,7 +90,7 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         timer_client,
         rng,
         MAX_CONCURRENT_ENCRYPT,
-        thread_pool.clone(),
+        thread_pool,
     );
 
     block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)

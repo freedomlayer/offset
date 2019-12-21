@@ -19,10 +19,11 @@ pub mod gen;
 
 /// Common types
 pub mod common {
+    pub use crypto::identity::derive_public_key;
     pub use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
     pub use proto::crypto::{
-        HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature,
-        Uid,
+        HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PrivateKey, PublicKey, RandValue,
+        Signature, Uid,
     };
     pub use proto::funder::messages::{
         Commit, Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
@@ -30,6 +31,7 @@ pub mod common {
     pub use proto::index_server::messages::{
         MultiRoute, NamedIndexServerAddress, RouteCapacityRate,
     };
+    pub use proto::net::messages::NetAddress;
 }
 
 /// Common Offst files:
@@ -43,22 +45,25 @@ pub mod conn {
     pub use super::app_conn::{buyer, config, routes, seller};
     pub use super::connect::{connect, inner_connect, AppConnTuple, ConnPairApp, ConnectError};
     pub use super::identity::{identity_from_file, IdentityFromFileError};
-    pub use proto::app_server::messages::{AppRequest, AppServerToApp, AppToAppServer};
-    pub use proto::funder::messages::RequestResult;
-    pub use proto::index_client::messages::ResponseRoutesResult;
+    pub use proto::app_server::messages::{
+        AppPermissions, AppRequest, AppServerToApp, AppToAppServer,
+    };
+    pub use proto::funder::messages::{RequestResult, ResponseClosePayment};
+    pub use proto::index_client::messages::{ClientResponseRoutes, ResponseRoutesResult};
 }
 
 // TODO: Possibly reduce what we export from report in the future?
 /// Report related types
 pub mod report {
     pub use proto::report::messages::{
-        AddFriendReport, ChannelInconsistentReport, ChannelStatusReport, CurrencyReport,
-        FriendLivenessReport, FriendReport, FriendStatusReport, FunderReport, McBalanceReport,
-        McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
+        AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
+        CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport,
+        FriendStatusReport, FunderReport, McBalanceReport, McRequestsStatusReport,
+        MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
     };
 
     pub use proto::funder::messages::{
-        BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo, TokenInfo,
+        BalanceInfo, CountersInfo, CurrencyBalance, CurrencyBalanceInfo, McInfo, TokenInfo,
     };
 
     pub use proto::app_server::messages::NodeReport;

@@ -6,7 +6,7 @@ use ring::error::Unspecified;
 use ring::rand::{SecureRandom, SystemRandom};
 use ring::test::rand::FixedByteRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
+use proto::crypto::{InvoiceId, PaymentId, PlainLock, PrivateKey, RandValue, Salt, Uid};
 
 pub trait CryptoRandom: SecureRandom + Sync + Send {}
 
@@ -167,6 +167,12 @@ impl RandGen for PaymentId {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
+    }
+}
+
+impl RandGen for PrivateKey {
+    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+        PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(crypt_rng).unwrap())
     }
 }
 

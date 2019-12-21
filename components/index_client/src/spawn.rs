@@ -124,7 +124,7 @@ pub async fn spawn_index_client<ISA, C, R, S>(
     max_open_index_client_requests: usize,
     keepalive_ticks: usize,
     backoff_ticks: usize,
-    net_connector: C,
+    index_connector: C,
     rng: R,
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), IndexClientError>>, SpawnIndexClientError>
@@ -146,7 +146,7 @@ where
     let seq_friends_client = create_seq_friends_service(seq_friends, spawner.clone())
         .map_err(|_| SpawnIndexClientError::SpawnError)?;
 
-    let serde_client_connector = SerdeClientConnector::new(net_connector, spawner.clone());
+    let serde_client_connector = SerdeClientConnector::new(index_connector, spawner.clone());
 
     let index_client_session = IndexClientSession::new(
         serde_client_connector,

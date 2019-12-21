@@ -93,15 +93,14 @@ pub enum SpawnChannelerError {
 
 // TODO: Possibly rename this function and module, as the channeler future
 // is not spawned here.
-pub async fn spawn_channeler<RA, C, ET, KT, S>(
+pub async fn spawn_channeler<RA, C, EKT, S>(
     local_public_key: PublicKey,
     timer_client: TimerClient,
     backoff_ticks: usize,
     conn_timeout_ticks: usize,
     max_concurrent_encrypt: usize,
-    enc_relay_connector: C,
-    encrypt_transform: ET,
-    keepalive_transform: KT,
+    connector: C,
+    encrypt_keepalive: EKT,
     from_funder: mpsc::Receiver<FunderToChanneler<RA>>,
     to_funder: mpsc::Sender<ChannelerToFunder>,
     spawner: S,
@@ -109,19 +108,17 @@ pub async fn spawn_channeler<RA, C, ET, KT, S>(
 where
     RA: Eq + Hash + Clone + Send + Sync + Debug + 'static,
     C: FutTransform<Input = RA, Output = Option<ConnPairVec>> + Clone + Send + 'static,
-    ET: FutTransform<
+    EKT: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
         + Send
         + 'static,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let client_connector =
-        ClientConnector::new(enc_relay_connector.clone(), keepalive_transform.clone());
+    let client_connector = ClientConnector::new(connector.clone());
 
-    let connect_encrypt_transform = ConnectEncryptTransform::new(encrypt_transform.clone());
+    let connect_encrypt_transform = ConnectEncryptTransform::new(encrypt_keepalive.clone());
 
     let pool_connector = PoolConnector::new(
         timer_client.clone(),
@@ -132,14 +129,13 @@ where
     );
 
     let client_listener = ClientListener::new(
-        enc_relay_connector,
-        keepalive_transform.clone(),
+        connector,
         conn_timeout_ticks,
         timer_client.clone(),
         spawner.clone(),
     );
 
-    let listen_encrypt_transform = ListenEncryptTransform::new(encrypt_transform.clone());
+    let listen_encrypt_transform = ListenEncryptTransform::new(encrypt_keepalive.clone());
 
     let pool_listener = PoolListener::<RA, _, _, _>::new(
         client_listener,
