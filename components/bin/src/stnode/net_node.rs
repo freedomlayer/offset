@@ -182,15 +182,15 @@ where
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
 
     let encrypt_transform = SecureChannel::new(
-        identity_client.clone(),
-        rng.clone(),
+        identity_client,
+        rng,
         timer_client.clone(),
         TICKS_TO_REKEY,
         spawner.clone(),
     );
 
     let keepalive_transform =
-        KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
+        KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner.clone());
 
     let app_conn_transform = AppConnTransform::new(
         version_transform,

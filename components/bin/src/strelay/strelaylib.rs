@@ -90,7 +90,7 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         timer_client,
         rng,
         MAX_CONCURRENT_ENCRYPT,
-        thread_pool.clone(),
+        thread_pool,
     );
 
     block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)

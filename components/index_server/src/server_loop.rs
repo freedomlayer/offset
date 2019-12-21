@@ -431,7 +431,7 @@ async fn client_handler(
             IndexClientToServer::RequestRoutes(request_routes) => {
                 let opt_exclude_edge = request_routes
                     .opt_exclude
-                    .map(|edge| (edge.from_public_key.clone(), edge.to_public_key.clone()));
+                    .map(|edge| (edge.from_public_key.clone(), edge.to_public_key));
 
                 let graph_multi_routes = graph_client
                     .get_multi_routes(

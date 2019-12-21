@@ -56,7 +56,7 @@ where
         }
 
         assert!(self.last_ticks.len() <= self.last_ticks_max_len);
-        self.last_ticks_map.insert(tick_hash.clone(), expansion);
+        self.last_ticks_map.insert(tick_hash, expansion);
     }
 
     /// Should be called when a new hash is received from a neighbor.

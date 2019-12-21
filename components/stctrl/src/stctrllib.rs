@@ -94,14 +94,13 @@ pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(),
     let app_identity_client = identity_from_file(&idfile, thread_pool.clone())
         .map_err(|_| StCtrlError::SpawnIdentityServiceError)?;
 
-    let c_thread_pool = thread_pool.clone();
     block_on(async move {
         // Connect to node:
         let (app_permissions, node_report, conn_pair) = connect(
             node_address_file.public_key,
             node_address_file.address,
             app_identity_client,
-            c_thread_pool.clone(),
+            thread_pool.clone(),
         )
         .await
         .map_err(|_| StCtrlError::ConnectionError)?;

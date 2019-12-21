@@ -146,7 +146,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         MAX_CONCURRENT_ENCRYPT,
         BACKOFF_TICKS,
         graph_service_thread_pool,
-        thread_pool.clone(),
+        thread_pool,
     );
 
     block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;

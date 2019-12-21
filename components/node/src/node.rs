@@ -205,8 +205,8 @@ where
         .map_err(|_| NodeError::SpawnError)?;
 
     let funder_fut = funder_loop(
-        identity_client.clone(),
-        rng.clone(),
+        identity_client,
+        rng,
         from_app_server,
         incoming_comm,
         to_app_server,

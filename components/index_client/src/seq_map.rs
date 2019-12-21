@@ -66,7 +66,7 @@ where
             let value = self.map.get(&key).unwrap().clone();
             self.cycle_countdown = self.cycle_countdown.saturating_sub(1);
 
-            (self.cycle_countdown, (key.clone(), value))
+            (self.cycle_countdown, (key, value))
         })
     }
 }

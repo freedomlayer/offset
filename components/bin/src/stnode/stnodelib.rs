@@ -200,7 +200,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         trusted_apps,
         node_state,
         database_client,
-        thread_pool.clone(),
+        thread_pool,
     );
 
     block_on(node_fut).map_err(NodeBinError::NetNodeError)
