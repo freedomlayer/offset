@@ -23,7 +23,6 @@ pub struct CapacityEdge<C, T> {
     pub rate: T,
 }
 
-#[cfg(test)]
 impl<C, T> CapacityEdge<C, T> {
     pub fn new(is_send_open: bool, recv_capacity: C, rate: T) -> Self {
         Self {

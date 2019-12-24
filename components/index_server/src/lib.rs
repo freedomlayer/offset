@@ -11,16 +11,13 @@
 #[macro_use]
 extern crate log;
 
-// #[macro_use]
+#[macro_use]
 extern crate common;
 
-#[allow(unused)]
 mod backoff_connector;
-#[allow(unused)]
 mod graph;
-// mod server;
-// mod server_loop;
-#[allow(unused)]
+mod server;
+mod server_loop;
 mod verifier;
 
-// pub use server::{index_server, IndexServerError};
+pub use server::{index_server, IndexServerError};

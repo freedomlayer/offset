@@ -330,13 +330,10 @@ where
                         update_friend_currency.rate,
                     );
 
-                    let capacity_edge = CapacityEdge {
-                        capacity: (
-                            update_friend_currency.send_capacity,
-                            update_friend_currency.recv_capacity,
-                        ),
-                        rate: update_friend_currency.rate.clone(),
-                    };
+                    let capacity_edge = CapacityEdge::new(
+                        update_friend_currency.is_send_open,
+                        update_friend_currency.recv_capacity,
+                        update_friend_currency.rate.clone());
 
                     self.graph_client
                         .update_edge(
