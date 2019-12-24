@@ -431,15 +431,20 @@ fn handle_request_send_funds<B>(
 
 fn handle_request_send_funds_cancel<B>(
     m_state: &mut MutableFunderState<B>,
-    ephemeral: &Ephemeral,
     send_commands: &mut SendCommands,
     remote_public_key: &PublicKey,
     currency: &Currency,
-    mut request_send_funds: RequestSendFundsOp,
+    request_send_funds: RequestSendFundsOp,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    todo!();
+    reply_with_cancel(
+        m_state,
+        send_commands,
+        remote_public_key,
+        currency,
+        &request_send_funds.request_id,
+    );
 }
 
 fn handle_response_send_funds<B>(
@@ -722,7 +727,6 @@ fn handle_move_token_output<B, R>(
             IncomingMessage::RequestCancel(request_send_funds) => {
                 handle_request_send_funds_cancel(
                     m_state,
-                    m_ephemeral.ephemeral(),
                     send_commands,
                     remote_public_key,
                     currency,
