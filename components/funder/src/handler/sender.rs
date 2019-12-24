@@ -517,7 +517,7 @@ where
 /// Queue an operation to a PendingMoveToken.
 /// On cancel, queue a Cancel message to the relevant friend,
 /// or (if we are the origin of the request): send a failure notification through the control.
-fn queue_operation_or_cancel<'a, B>(
+fn queue_operation<'a, B>(
     m_state: &'a mut MutableFunderState<B>,
     pending_move_token: &'a mut PendingMoveToken<B>,
     currency: &Currency,
@@ -658,37 +658,6 @@ where
         pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
     }
 
-    /*
-    // Set remote_max_debt (if required):
-    let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    for (currency, currency_config) in friend.currency_configs.clone() {
-        // Set remote_max_debt and local_requests_status (if required):
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
-            // We need to change remote_max_debt:
-            if currency_config.wanted_remote_max_debt
-                != mutual_credit.state().balance.remote_max_debt
-            {
-                let operation =
-                    FriendTcOp::SetRemoteMaxDebt(currency_config.wanted_remote_max_debt);
-                queue_operation_or_cancel(
-                    m_state,
-                    rng,
-                    pending_move_token,
-                    cancel_public_keys,
-                    outgoing_control,
-                    &currency,
-                    &operation,
-                )?;
-            }
-        }
-    }
-    */
-
     // Set local_requests_status (if required):
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     for (currency, currency_config) in friend.currency_configs.clone() {
@@ -709,7 +678,7 @@ where
                     } else {
                         FriendTcOp::DisableRequests
                     };
-                queue_operation_or_cancel(
+                queue_operation(
                     m_state,
                     pending_move_token,
                     &currency,
@@ -719,81 +688,6 @@ where
         }
     }
 
-    /*
-    // Set remote_max_debt if needed:
-    for (currency, wanted_remote_max_debt) in channel_consistent.wanted_remote_max_debt.clone() {
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-        let remote_max_debt = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        }
-        .get_remote_max_debt(&currency);
-
-        assert_ne!(remote_max_debt, wanted_remote_max_debt);
-
-        let operation = FriendTcOp::SetRemoteMaxDebt(wanted_remote_max_debt);
-        queue_operation_or_cancel(
-            m_state,
-            rng,
-            pending_move_token,
-            cancel_public_keys,
-            outgoing_control,
-            &currency,
-            &operation,
-        )?;
-
-        let friend_mutation = FriendMutation::ClearWantedRemoteMaxDebt(currency.clone());
-        let funder_mutation =
-            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        m_state.mutate(funder_mutation);
-    }
-
-    let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    let channel_consistent = match &friend.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
-        ChannelStatus::Inconsistent(_) => unreachable!(),
-    };
-
-    // Open or close requests is needed:
-    for (currency, wanted_local_requests_status) in channel_consistent.wanted_local_requests_status.clone() {
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-        let channel_consistent = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => channel_consistent,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-
-        let local_requests_status = &channel_consistent
-            .token_channel
-            .get_mutual_credits()
-            .get(&currency)
-            .unwrap()
-            .state()
-            .requests_status
-            .local;
-
-        assert_ne!(&wanted_local_requests_status, local_requests_status);
-
-        let friend_op = if let RequestsStatus::Open = wanted_local_requests_status {
-            FriendTcOp::EnableRequests
-        } else {
-            FriendTcOp::DisableRequests
-        };
-        queue_operation_or_cancel(
-            m_state,
-            rng,
-            pending_move_token,
-            cancel_public_keys,
-            outgoing_control,
-            &currency,
-            &friend_op,
-        )?;
-
-        let friend_mutation = FriendMutation::ClearWantedLocalRequestsStatus(currency.clone());
-        let funder_mutation =
-            FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
-        m_state.mutate(funder_mutation);
-    }
-    */
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let channel_consistent = match &friend.channel_status {
@@ -806,7 +700,7 @@ where
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
-        queue_operation_or_cancel(
+        queue_operation(
             m_state,
             pending_move_token,
             &currency,
@@ -830,7 +724,7 @@ where
     let mut pending_requests = channel_consistent.pending_requests.clone();
     while let Some((currency, pending_request)) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-        queue_operation_or_cancel(
+        queue_operation(
             m_state,
             pending_move_token,
             &currency,
@@ -852,7 +746,7 @@ where
     let mut pending_user_requests = channel_consistent.pending_user_requests.clone();
     while let Some((currency, request_send_funds)) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        queue_operation_or_cancel(
+        queue_operation(
             m_state,
             pending_move_token,
             &currency,
@@ -885,7 +779,7 @@ where
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
-        queue_operation_or_cancel(
+        queue_operation(
             m_state,
             pending_move_token,
             &currency,
