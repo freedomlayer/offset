@@ -473,8 +473,9 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
-    // Node1 will send the SetRemoteMaxDebt message to Node2:
-    assert_eq!(outgoing_comms.len(), 1);
+    // Node1 sends nothing
+    assert!(outgoing_comms.is_empty());
+    /*
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
@@ -500,6 +501,7 @@ async fn task_handler_pair_basic<'a>(
     ))
     .await
     .unwrap();
+    */
 
     let friend2 = state1.friends.get(&pk2).unwrap();
     /*
@@ -675,7 +677,7 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
-    // Node1 will request the token:
+    // Node1 declares that requests are open:
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message =
         if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
@@ -684,7 +686,7 @@ async fn task_handler_pair_basic<'a>(
             unreachable!();
         };
 
-    // Node2 receives the request_token message:
+    // Node2 from Node1 that requests are open:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -697,6 +699,7 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
+    /*
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message =
         if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
@@ -738,6 +741,7 @@ async fn task_handler_pair_basic<'a>(
     ))
     .await
     .unwrap();
+    */
 
     // Checking the current requests status on the mutual credit for Node1:
     let friend2 = state1.friends.get(&pk2).unwrap();
