@@ -11,7 +11,7 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{McMutation, MutualCredit};
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -34,6 +34,7 @@ pub struct IncomingCollectSendFundsOp {
 #[derive(Debug)]
 pub enum IncomingMessage {
     Request(RequestSendFundsOp),
+    RequestCancel(RequestSendFundsOp),
     Response(IncomingResponseSendFundsOp),
     Cancel(IncomingCancelSendFundsOp),
     Collect(IncomingCollectSendFundsOp),
@@ -73,6 +74,7 @@ pub struct ProcessTransListError {
 pub fn process_operations_list(
     mutual_credit: &mut MutualCredit,
     operations: Vec<FriendTcOp>,
+    remote_max_debt: u128,
 ) -> Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
     let mut outputs = Vec::new();
 
@@ -81,8 +83,8 @@ pub fn process_operations_list(
     // This operation is not very expensive, because we are using immutable data structures
     // (specifically, HashMaps).
 
-    for (index, funds) in operations.into_iter().enumerate() {
-        match process_operation(mutual_credit, funds) {
+    for (index, friend_tc_op) in operations.into_iter().enumerate() {
+        match process_operation(mutual_credit, friend_tc_op, remote_max_debt) {
             Err(e) => {
                 return Err(ProcessTransListError {
                     index,
@@ -98,15 +100,13 @@ pub fn process_operations_list(
 pub fn process_operation(
     mutual_credit: &mut MutualCredit,
     friend_tc_op: FriendTcOp,
+    remote_max_debt: u128,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     match friend_tc_op {
         FriendTcOp::EnableRequests => process_enable_requests(mutual_credit),
         FriendTcOp::DisableRequests => process_disable_requests(mutual_credit),
-        FriendTcOp::SetRemoteMaxDebt(proposed_max_debt) => {
-            process_set_remote_max_debt(mutual_credit, proposed_max_debt)
-        }
         FriendTcOp::RequestSendFunds(request_send_funds) => {
-            process_request_send_funds(mutual_credit, request_send_funds)
+            process_request_send_funds(mutual_credit, request_send_funds, remote_max_debt)
         }
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
             process_response_send_funds(mutual_credit, response_send_funds)
@@ -153,31 +153,11 @@ fn process_disable_requests(
     }
 }
 
-fn process_set_remote_max_debt(
-    mutual_credit: &mut MutualCredit,
-    proposed_max_debt: u128,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
-        mc_mutations: Vec::new(),
-    };
-
-    if proposed_max_debt > MAX_FUNDER_DEBT {
-        Err(ProcessOperationError::RemoteMaxDebtTooLarge(
-            proposed_max_debt,
-        ))
-    } else {
-        let mc_mutation = McMutation::SetLocalMaxDebt(proposed_max_debt);
-        mutual_credit.mutate(&mc_mutation);
-        op_output.mc_mutations.push(mc_mutation);
-        Ok(op_output)
-    }
-}
-
 /// Process an incoming RequestSendFundsOp
 fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
+    remote_max_debt: u128,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     if !request_send_funds.route.is_part_valid() {
         return Err(ProcessOperationError::InvalidRoute);
@@ -190,6 +170,12 @@ fn process_request_send_funds(
     // Make sure that we are open to requests:
     if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);
+    }
+
+    // Make sure that we don't have this request as a pending request already:
+    let p_remote_requests = &mutual_credit.state().pending_transactions.remote;
+    if p_remote_requests.contains_key(&request_send_funds.request_id) {
+        return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
     // Calculate amount of credits to freeze
@@ -212,19 +198,17 @@ fn process_request_send_funds(
         .checked_add_unsigned(new_remote_pending_debt)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
-    if add
-        .checked_sub_unsigned(balance.remote_max_debt)
+    let incoming_message = if add
+        .checked_sub_unsigned(remote_max_debt)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?
         > 0
     {
-        return Err(ProcessOperationError::InsufficientTrust);
-    }
-
-    let p_remote_requests = &mutual_credit.state().pending_transactions.remote;
-    // Make sure that we don't have this request as a pending request already:
-    if p_remote_requests.contains_key(&request_send_funds.request_id) {
-        return Err(ProcessOperationError::RequestAlreadyExists);
-    }
+        // Insufficient trust:
+        // return Err(ProcessOperationError::InsufficientTrust);
+        IncomingMessage::RequestCancel(request_send_funds.clone())
+    } else {
+        IncomingMessage::Request(request_send_funds.clone())
+    };
 
     // Add pending transaction:
     let pending_transaction = create_pending_transaction(&request_send_funds);
@@ -232,7 +216,7 @@ fn process_request_send_funds(
     // let pending_friend_request = create_pending_transaction(&request_send_funds);
 
     let mut op_output = ProcessOperationOutput {
-        incoming_message: Some(IncomingMessage::Request(request_send_funds)),
+        incoming_message: Some(incoming_message),
         mc_mutations: Vec::new(),
     };
 
