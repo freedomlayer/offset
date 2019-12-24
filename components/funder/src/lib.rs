@@ -17,7 +17,8 @@ extern crate serde;
 
 #[allow(unused)]
 mod ephemeral;
-// mod friend;
+#[allow(unused)]
+mod friend;
 // mod funder;
 // mod handler;
 #[allow(unused)]
@@ -25,7 +26,8 @@ mod liveness;
 #[allow(unused)]
 mod mutual_credit;
 // pub mod report;
-// mod state;
+#[allow(unused)]
+mod state;
 #[allow(unused)]
 mod token_channel;
 #[allow(unused)]
