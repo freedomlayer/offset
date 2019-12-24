@@ -101,12 +101,11 @@ where
             return 0;
         };
 
-        let b_recv = if let Some(b_a_edge) = self.get_edge(&b, &a) {
+        if let Some(b_a_edge) = self.get_edge(&b, &a) {
             b_a_edge.capacity_edge.recv_capacity
         } else {
-            return 0;
-        };
-        b_recv
+            0
+        }
     }
 
     fn neighbors_with_send_capacity(
