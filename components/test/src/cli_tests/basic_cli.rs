@@ -498,6 +498,7 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
     };
     stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
 
+    /*
     // Wait until node1 sees that his local max debt is 200:
     // -----------------------------------------------------
     let friends_cmd = FriendsCmd {};
@@ -522,6 +523,7 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
         }
         thread::sleep(time::Duration::from_millis(100));
     }
+    */
 }
 
 /// Create and cancel an invoice, just to make sure the API is operational.
