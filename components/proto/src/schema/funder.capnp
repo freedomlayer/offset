@@ -160,10 +160,9 @@ struct FriendTcOp {
         union {
                 enableRequests @0: Void;
                 disableRequests @1: Void;
-                setRemoteMaxDebt @2: CustomUInt128;
-                requestSendFunds @3: RequestSendFundsOp;
-                responseSendFunds @4: ResponseSendFundsOp;
-                cancelSendFunds @5: CancelSendFundsOp;
-                collectSendFunds @6: CollectSendFundsOp;
+                requestSendFunds @2: RequestSendFundsOp;
+                responseSendFunds @3: ResponseSendFundsOp;
+                cancelSendFunds @4: CancelSendFundsOp;
+                collectSendFunds @5: CollectSendFundsOp;
         }
 }

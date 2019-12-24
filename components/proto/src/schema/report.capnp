@@ -80,15 +80,12 @@ struct McRequestsStatusReport {
 
 struct McBalanceReport {
     balance @0: CustomInt128;
-    # Amount of credits this side has against the remote side.
-    # The other side keeps the negation of this value.
-    localMaxDebt @1: CustomUInt128;
     # Maximum possible local debt
-    remoteMaxDebt @2: CustomUInt128;
+    remoteMaxDebt @1: CustomUInt128;
     # Maximum possible remote debt
-    localPendingDebt @3: CustomUInt128;
+    localPendingDebt @2: CustomUInt128;
     # Frozen credits by our side
-    remotePendingDebt @4: CustomUInt128;
+    remotePendingDebt @3: CustomUInt128;
     # Frozen credits by the remote side
 }
 

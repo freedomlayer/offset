@@ -57,9 +57,6 @@ pub struct McBalanceReport {
     /// The other side keeps the negation of this value.
     #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128,
-    /// Maximum possible local debt
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub local_max_debt: u128,
     /// Maximum possible remote debt
     #[capnp_conv(with = Wrapper<u128>)]
     pub remote_max_debt: u128,

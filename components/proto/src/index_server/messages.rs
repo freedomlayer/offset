@@ -95,9 +95,6 @@ pub struct UpdateFriendCurrency {
     pub public_key: PublicKey,
     /// Currency being updated
     pub currency: Currency,
-    /// To denote remote requests closed, assign 0 to sendCapacity
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub send_capacity: u128,
     /// To denote local requests closed, assign 0 to recvCapacity
     #[capnp_conv(with = Wrapper<u128>)]
     pub recv_capacity: u128,

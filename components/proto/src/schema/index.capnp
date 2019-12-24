@@ -54,11 +54,9 @@ struct UpdateFriendCurrency {
         # Friend's public key
         currency @1: Currency;
         # Currency being updated
-        sendCapacity @2: CustomUInt128;
-        # To denote remote requests closed, assign 0 to sendCapacity
-        recvCapacity @3: CustomUInt128;
+        recvCapacity @2: CustomUInt128;
         # To denote local requests closed, assign 0 to recvCapacity
-        rate @4: Rate;
+        rate @3: Rate;
         # Rate a node takes for forwarding messages for this friend (to another
         # node).
 }

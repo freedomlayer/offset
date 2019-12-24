@@ -131,8 +131,6 @@ pub struct CollectSendFundsOp {
 pub enum FriendTcOp {
     EnableRequests,
     DisableRequests,
-    #[capnp_conv(with = Wrapper<u128>)]
-    SetRemoteMaxDebt(u128),
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
