@@ -41,7 +41,6 @@ pub type OutgoingMessage<B> = (PublicKey, FriendMessage<B>);
 
 #[derive(Debug)]
 enum PendingQueueError {
-    InsufficientTrust,
     MaxOperationsReached,
 }
 
@@ -140,9 +139,6 @@ where
             Err(QueueOperationError::RequestAlreadyExists) => {
                 warn!("Request already exists: {:?}", operation);
                 Ok(vec![])
-            }
-            Err(QueueOperationError::InsufficientTrust) => {
-                Err(PendingQueueError::InsufficientTrust)
             }
             Err(_) => unreachable!(),
         }?;
@@ -503,13 +499,6 @@ where
                     .get_mutual_credits()
                     .get(currency)
                 {
-                    // We need to change remote_max_debt:
-                    if currency_config.wanted_remote_max_debt
-                        != mutual_credit.state().balance.remote_max_debt
-                    {
-                        return true;
-                    }
-
                     // We need to change local requests status:
                     if currency_config.wanted_local_requests_status
                         != mutual_credit.state().requests_status.local
@@ -555,7 +544,6 @@ where
             // We will send this message next time we have the token:
             return Err(CollectOutgoingError::MaxOperationsReached);
         }
-        Err(PendingQueueError::InsufficientTrust) => {}
     };
 
     // The operation must have been a request if we had one of the above errors:
@@ -728,6 +716,7 @@ where
         pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
     }
 
+    /*
     // Set remote_max_debt (if required):
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     for (currency, currency_config) in friend.currency_configs.clone() {
@@ -756,6 +745,7 @@ where
             }
         }
     }
+    */
 
     // Set local_requests_status (if required):
     let friend = m_state.state().friends.get(friend_public_key).unwrap();

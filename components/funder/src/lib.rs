@@ -9,8 +9,8 @@
     clippy::new_without_default
 )]
 
-// #[macro_use]
-// extern crate log;
+#[macro_use]
+extern crate log;
 
 #[macro_use]
 extern crate serde;
@@ -20,7 +20,8 @@ mod ephemeral;
 #[allow(unused)]
 mod friend;
 // mod funder;
-// mod handler;
+#[allow(unused)]
+mod handler;
 #[allow(unused)]
 mod liveness;
 #[allow(unused)]

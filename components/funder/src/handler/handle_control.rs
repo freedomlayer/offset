@@ -78,7 +78,7 @@ where
         .currency_configs
         .get(&set_friend_currency_max_debt.currency)
     {
-        if currency_config.wanted_remote_max_debt == set_friend_currency_max_debt.remote_max_debt {
+        if currency_config.remote_max_debt == set_friend_currency_max_debt.remote_max_debt {
             return Ok(());
         }
         currency_config.clone()
@@ -86,7 +86,7 @@ where
         CurrencyConfig::new()
     };
 
-    new_currency_config.wanted_remote_max_debt = set_friend_currency_max_debt.remote_max_debt;
+    new_currency_config.remote_max_debt = set_friend_currency_max_debt.remote_max_debt;
 
     let friend_mutation = FriendMutation::UpdateCurrencyConfig((
         set_friend_currency_max_debt.currency,
