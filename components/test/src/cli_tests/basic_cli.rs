@@ -497,33 +497,6 @@ fn set_max_debt(stctrl_setup: &StCtrlSetup) {
         subcommand,
     };
     stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
-
-    /*
-    // Wait until node1 sees that his local max debt is 200:
-    // -----------------------------------------------------
-    let friends_cmd = FriendsCmd {};
-    let info_cmd = InfoCmd::Friends(friends_cmd);
-    let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-    let st_ctrl_cmd = StCtrlCmd {
-        idfile: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
-        node_ticket: stctrl_setup
-            .temp_dir_path
-            .join("node1")
-            .join("node1.ticket"),
-        subcommand,
-    };
-
-    loop {
-        let mut output = Vec::new();
-        stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
-        let output_string = str::from_utf8(&output).unwrap();
-        if output_string.contains("LMD=200") {
-            break;
-        }
-        thread::sleep(time::Duration::from_millis(100));
-    }
-    */
 }
 
 /// Create and cancel an invoice, just to make sure the API is operational.
