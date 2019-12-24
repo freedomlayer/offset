@@ -169,6 +169,7 @@ where
         res_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
             public_key,
             currency,
+            is_send_open: friend_info.is_send_open,
             recv_capacity: friend_info.recv_capacity,
             rate: friend_info.rate,
         }));
