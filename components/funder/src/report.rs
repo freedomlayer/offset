@@ -30,8 +30,6 @@ impl From<&McBalance> for McBalanceReport {
     fn from(mc_balance: &McBalance) -> McBalanceReport {
         McBalanceReport {
             balance: mc_balance.balance,
-            remote_max_debt: mc_balance.remote_max_debt,
-            local_max_debt: mc_balance.local_max_debt,
             local_pending_debt: mc_balance.local_pending_debt,
             remote_pending_debt: mc_balance.remote_pending_debt,
         }
@@ -114,7 +112,7 @@ where
             .map(|(currency, currency_config)| CurrencyConfigReport {
                 currency,
                 rate: currency_config.rate,
-                wanted_remote_max_debt: currency_config.wanted_remote_max_debt,
+                remote_max_debt: currency_config.remote_max_debt,
                 wanted_local_requests_status: RequestsStatusReport::from(
                     &currency_config.wanted_local_requests_status,
                 ),
@@ -202,7 +200,7 @@ where
                 CurrencyConfigReport {
                     currency: currency.clone(),
                     rate: currency_config.rate.clone(),
-                    wanted_remote_max_debt: currency_config.wanted_remote_max_debt,
+                    remote_max_debt: currency_config.remote_max_debt,
                     wanted_local_requests_status: RequestsStatusReport::from(
                         &currency_config.wanted_local_requests_status,
                     ),

@@ -344,6 +344,7 @@ where
         }
     }
 
+    /*
     pub fn get_remote_max_debt(&self, currency: &Currency) -> u128 {
         self.mutual_credits
             .get(currency)
@@ -352,6 +353,7 @@ where
             .balance
             .remote_max_debt
     }
+    */
 
     pub fn get_direction(&self) -> TcDirectionBorrow<'_, B> {
         match &self.direction {
@@ -472,10 +474,13 @@ where
     pub fn simulate_receive_move_token(
         &self,
         new_move_token: MoveToken<B>,
+        remote_max_debts: &ImHashMap<Currency, u128>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
         match &self.get_direction() {
             TcDirectionBorrow::In(tc_in_borrow) => tc_in_borrow.handle_incoming(new_move_token),
-            TcDirectionBorrow::Out(tc_out_borrow) => tc_out_borrow.handle_incoming(new_move_token),
+            TcDirectionBorrow::Out(tc_out_borrow) => {
+                tc_out_borrow.handle_incoming(new_move_token, remote_max_debts)
+            }
         }
     }
 }
@@ -647,10 +652,11 @@ where
     fn handle_incoming(
         &self,
         new_move_token: MoveToken<B>,
+        remote_max_debts: &ImHashMap<Currency, u128>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError> {
         if new_move_token.old_token == self.tc_outgoing.move_token_out.new_token {
             Ok(ReceiveMoveTokenOutput::Received(
-                self.handle_incoming_token_match(new_move_token)?,
+                self.handle_incoming_token_match(new_move_token, remote_max_debts)?,
             ))
         // self.outgoing_to_incoming(friend_move_token, new_move_token)
         } else if self.tc_outgoing.move_token_out.old_token == new_move_token.new_token {
@@ -675,6 +681,7 @@ where
     fn handle_incoming_token_match(
         &self,
         new_move_token: MoveToken<B>,
+        remote_max_debts: &ImHashMap<Currency, u128>,
     ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError> {
         // We create a clone `token_channel` on which we are going to apply all the mutations.
         // Eventually this cloned TokenChannel is discarded, and we only output the applied mutations.
@@ -741,9 +748,17 @@ where
                 .ok_or(ReceiveMoveTokenError::InvalidCurrency)?
                 .clone();
 
-            let outputs =
-                process_operations_list(&mut mutual_credit, currency_operations.operations.clone())
-                    .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
+            let remote_max_debt = remote_max_debts
+                .get(&currency_operations.currency)
+                .cloned()
+                .unwrap_or(0);
+
+            let outputs = process_operations_list(
+                &mut mutual_credit,
+                currency_operations.operations.clone(),
+                remote_max_debt,
+            )
+            .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
 
             let initial_remote_requests = mutual_credit.state().requests_status.remote.is_open();
 
@@ -864,7 +879,7 @@ mod tests {
     use super::*;
 
     use proto::crypto::PrivateKey;
-    use proto::funder::messages::FriendTcOp;
+    // use proto::funder::messages::FriendTcOp;
 
     use crypto::identity::Identity;
     use crypto::identity::SoftwareEd25519Identity;
@@ -1003,7 +1018,7 @@ mod tests {
         assert!(tc2.get_outgoing().is_some());
 
         let receive_move_token_output = tc1
-            .simulate_receive_move_token(friend_move_token.clone())
+            .simulate_receive_move_token(friend_move_token.clone(), &ImHashMap::new())
             .unwrap();
 
         let move_token_received = match receive_move_token_output {
@@ -1037,6 +1052,7 @@ mod tests {
         }
     }
 
+    /*
     /// Before: tc1: outgoing, tc2: incoming
     /// Send SetRemoteMaxDebt: tc2 -> tc1
     /// After: tc1: incoming, tc2: outgoing
@@ -1054,7 +1070,9 @@ mod tests {
 
         let tc2_in_borrow = tc2.get_incoming().unwrap();
         // let mut outgoing_mc = tc2_in_borrow.create_outgoing_mc(&currency).unwrap();
-        let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
+        //
+        // let friend_tc_op = FriendTcOp::SetRemoteMaxDebt(100);
+        //
         // let mc_mutations = outgoing_mc.queue_operation(&friend_tc_op).unwrap();
         let currency_operations = CurrencyOperations {
             currency: currency.clone(),
@@ -1158,6 +1176,7 @@ mod tests {
             100
         );
     }
+    */
 
     /// This tests sends a SetRemoteMaxDebt(100) in both ways.
     #[test]
@@ -1204,12 +1223,12 @@ mod tests {
         // Current state:  tc1 --> tc2
         // tc1: outgoing
         // tc2: incoming
-        set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2, &currency);
+        // set_remote_max_debt21(&identity1, &identity2, &mut tc1, &mut tc2, &currency);
 
         // Current state:  tc2 --> tc1
         // tc1: incoming
         // tc2: outgoing
-        set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1, &currency);
+        // set_remote_max_debt21(&identity2, &identity1, &mut tc2, &mut tc1, &currency);
     }
 
     // TODO: Add more tests.

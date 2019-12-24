@@ -30,8 +30,6 @@ impl From<app::report::McBalanceReport> for McBalanceReport {
     fn from(from: app::report::McBalanceReport) -> Self {
         McBalanceReport {
             balance: from.balance,
-            local_max_debt: from.local_max_debt,
-            remote_max_debt: from.remote_max_debt,
             local_pending_debt: from.local_pending_debt,
             remote_pending_debt: from.remote_pending_debt,
         }
@@ -202,7 +200,7 @@ impl From<app::report::CurrencyConfigReport> for LocalWrapper<(Currency, ConfigR
             currency_config_report.currency,
             ConfigReport {
                 rate: currency_config_report.rate,
-                wanted_remote_max_debt: currency_config_report.wanted_remote_max_debt,
+                remote_max_debt: currency_config_report.remote_max_debt,
                 wanted_local_requests_status: currency_config_report
                     .wanted_local_requests_status
                     .into(),

@@ -113,10 +113,9 @@ pub struct CurrencyConfig {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
-    /// Wanted credit frame for the remote side (Set by the user of this node)
-    /// It might take a while until this value is applied, as it needs to be communicated to the
-    /// remote side.
-    pub wanted_remote_max_debt: u128,
+    /// Credit frame for the remote side (Set by the user of this node)
+    /// The remote side does not know this value.
+    pub remote_max_debt: u128,
     /// Can the remote friend send requests through us? This is a value chosen by the user, and it
     /// might take some time until it is applied (As it should be communicated to the remote
     /// friend).
@@ -172,7 +171,7 @@ impl CurrencyConfig {
     pub fn new() -> Self {
         Self {
             rate: Rate::new(),
-            wanted_remote_max_debt: 0,
+            remote_max_debt: 0,
             wanted_local_requests_status: RequestsStatus::Closed,
         }
     }

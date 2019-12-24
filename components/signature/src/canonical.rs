@@ -211,24 +211,20 @@ impl CanonicalSerialize for FriendTcOp {
             FriendTcOp::DisableRequests => {
                 res_bytes.push(1u8);
             }
-            FriendTcOp::SetRemoteMaxDebt(remote_max_debt) => {
-                res_bytes.push(2u8);
-                res_bytes.write_u128::<BigEndian>(*remote_max_debt).unwrap();
-            }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
-                res_bytes.push(3u8);
+                res_bytes.push(2u8);
                 res_bytes.append(&mut request_send_funds.canonical_serialize())
             }
             FriendTcOp::ResponseSendFunds(response_send_funds) => {
-                res_bytes.push(4u8);
+                res_bytes.push(3u8);
                 res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
             FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-                res_bytes.push(5u8);
+                res_bytes.push(4u8);
                 res_bytes.append(&mut cancel_send_funds.canonical_serialize())
             }
             FriendTcOp::CollectSendFunds(commit_send_funds) => {
-                res_bytes.push(6u8);
+                res_bytes.push(5u8);
                 res_bytes.append(&mut commit_send_funds.canonical_serialize())
             }
         }
@@ -302,9 +298,6 @@ impl CanonicalSerialize for UpdateFriendCurrency {
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
         res_bytes.extend_from_slice(&self.currency.canonical_serialize());
-        res_bytes
-            .write_u128::<BigEndian>(self.send_capacity)
-            .unwrap();
         res_bytes
             .write_u128::<BigEndian>(self.recv_capacity)
             .unwrap();

@@ -62,7 +62,7 @@ mod tests {
     use crate::state::{FunderMutation, FunderState};
 
     use crate::handler::state_wrap::MutableFunderState;
-    use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
+    use crate::handler::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
     fn test_handle_init_basic() {

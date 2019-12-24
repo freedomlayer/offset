@@ -38,8 +38,9 @@ fn apply_outgoing(
 fn apply_incoming(
     mut mutual_credit: &mut MutualCredit,
     friend_tc_op: FriendTcOp,
+    remote_max_debt: u128,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    process_operation(&mut mutual_credit, friend_tc_op)
+    process_operation(&mut mutual_credit, friend_tc_op, remote_max_debt)
 }
 
 #[test]
@@ -83,21 +84,6 @@ fn test_outgoing_open_close_requests() {
 }
 
 #[test]
-fn test_outgoing_set_remote_max_debt() {
-    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
-
-    let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
-    let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
-    let balance = 0;
-    let mut mutual_credit =
-        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
-
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
-    apply_outgoing(&mut mutual_credit, &FriendTcOp::SetRemoteMaxDebt(20)).unwrap();
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 20);
-}
-
-#[test]
 fn test_request_response_collect_send_funds() {
     let currency = Currency::try_from("OFFST".to_owned()).unwrap();
 
@@ -110,12 +96,12 @@ fn test_request_response_collect_send_funds() {
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
     // Make enough trust from remote side, so that we will be able to send credits:
-    apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
+    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
     // -----[EnableRequests]--------
     // -----------------------------
     // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
+    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -153,8 +139,6 @@ fn test_request_response_collect_send_funds() {
     .unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
@@ -178,13 +162,12 @@ fn test_request_response_collect_send_funds() {
     apply_incoming(
         &mut mutual_credit,
         FriendTcOp::ResponseSendFunds(response_send_funds),
+        100,
     )
     .unwrap();
 
     // We expect that no changes to balance happened yet:
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
@@ -199,13 +182,12 @@ fn test_request_response_collect_send_funds() {
     apply_incoming(
         &mut mutual_credit,
         FriendTcOp::CollectSendFunds(collect_send_funds),
+        100,
     )
     .unwrap();
 
     // We expect that no changes to balance happened yet:
     assert_eq!(mutual_credit.state().balance.balance, -15);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
@@ -228,12 +210,12 @@ fn test_request_cancel_send_funds() {
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
     // Make enough trust from remote side, so that we will be able to send credits:
-    apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
+    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
     // -----[EnableRequests]--------
     // -----------------------------
     // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
+    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -265,8 +247,6 @@ fn test_request_cancel_send_funds() {
     .unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
@@ -277,12 +257,11 @@ fn test_request_cancel_send_funds() {
     apply_incoming(
         &mut mutual_credit,
         FriendTcOp::CancelSendFunds(cancel_send_funds),
+        100,
     )
     .unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
@@ -300,12 +279,12 @@ fn test_request_response_cancel_send_funds() {
     // -----[SetRemoteMaxDebt]------
     // -----------------------------
     // Make enough trust from remote side, so that we will be able to send credits:
-    apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
+    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
 
     // -----[EnableRequests]--------
     // -----------------------------
     // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests).unwrap();
+    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -343,8 +322,6 @@ fn test_request_response_cancel_send_funds() {
     .unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
@@ -368,13 +345,12 @@ fn test_request_response_cancel_send_funds() {
     apply_incoming(
         &mut mutual_credit,
         FriendTcOp::ResponseSendFunds(response_send_funds),
+        100,
     )
     .unwrap();
 
     // We expect that no changes to balance happened yet:
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 
@@ -385,12 +361,11 @@ fn test_request_response_cancel_send_funds() {
     apply_incoming(
         &mut mutual_credit,
         FriendTcOp::CancelSendFunds(cancel_send_funds),
+        100,
     )
     .unwrap();
 
     assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_max_debt, 100);
-    assert_eq!(mutual_credit.state().balance.remote_max_debt, 0);
     assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }

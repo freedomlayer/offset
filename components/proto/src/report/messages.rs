@@ -57,12 +57,6 @@ pub struct McBalanceReport {
     /// The other side keeps the negation of this value.
     #[capnp_conv(with = Wrapper<i128>)]
     pub balance: i128,
-    /// Maximum possible local debt
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub local_max_debt: u128,
-    /// Maximum possible remote debt
-    #[capnp_conv(with = Wrapper<u128>)]
-    pub remote_max_debt: u128,
     /// Frozen credits by our side
     #[capnp_conv(with = Wrapper<u128>)]
     pub local_pending_debt: u128,
@@ -188,11 +182,9 @@ pub struct CurrencyConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
-    /// Wanted credit frame for the remote side (Set by the user of this node)
-    /// It might take a while until this value is applied, as it needs to be communicated to the
-    /// remote side.
+    /// Credit frame for the remote side (Set by the user of this node)
     #[capnp_conv(with = Wrapper<u128>)]
-    pub wanted_remote_max_debt: u128,
+    pub remote_max_debt: u128,
     /// Can the remote friend send requests through us? This is a value chosen by the user, and it
     /// might take some time until it is applied (As it should be communicated to the remote
     /// friend).

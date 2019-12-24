@@ -54,8 +54,8 @@ struct UpdateFriendCurrency {
         # Friend's public key
         currency @1: Currency;
         # Currency being updated
-        sendCapacity @2: CustomUInt128;
-        # To denote remote requests closed, assign 0 to sendCapacity
+        isSendOpen @2: Bool;
+        # Is it possible to forward requests from us to the remote side?
         recvCapacity @3: CustomUInt128;
         # To denote local requests closed, assign 0 to recvCapacity
         rate @4: Rate;

@@ -429,6 +429,24 @@ fn handle_request_send_funds<B>(
     );
 }
 
+fn handle_request_send_funds_cancel<B>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    remote_public_key: &PublicKey,
+    currency: &Currency,
+    request_send_funds: RequestSendFundsOp,
+) where
+    B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+{
+    reply_with_cancel(
+        m_state,
+        send_commands,
+        remote_public_key,
+        currency,
+        &request_send_funds.request_id,
+    );
+}
+
 fn handle_response_send_funds<B>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
@@ -706,6 +724,15 @@ fn handle_move_token_output<B, R>(
                     request_send_funds,
                 );
             }
+            IncomingMessage::RequestCancel(request_send_funds) => {
+                handle_request_send_funds_cancel(
+                    m_state,
+                    send_commands,
+                    remote_public_key,
+                    currency,
+                    request_send_funds,
+                );
+            }
             IncomingMessage::Response(IncomingResponseSendFundsOp {
                 pending_transaction,
                 incoming_response,
@@ -965,8 +992,14 @@ where
     };
 
     // We will only consider move token messages if we are in a consistent state:
-    let receive_move_token_res =
-        token_channel.simulate_receive_move_token(friend_move_token_request.move_token);
+    let remote_max_debts = friend
+        .currency_configs
+        .iter()
+        .map(|(currency, currency_config)| (currency.clone(), currency_config.remote_max_debt))
+        .collect();
+
+    let receive_move_token_res = token_channel
+        .simulate_receive_move_token(friend_move_token_request.move_token, &remote_max_debts);
     let token_wanted = friend_move_token_request.token_wanted;
 
     match receive_move_token_res {

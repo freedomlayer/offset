@@ -11,7 +11,7 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McMutation, MutualCredit, MAX_FUNDER_DEBT};
+use super::types::{McMutation, MutualCredit};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
@@ -26,7 +26,6 @@ pub enum QueueOperationError {
     InvalidRoute,
     PkPairNotInRoute,
     CreditsCalcOverflow,
-    InsufficientTrust,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
@@ -55,9 +54,6 @@ impl OutgoingMc {
         match operation.clone() {
             FriendTcOp::EnableRequests => self.queue_enable_requests(),
             FriendTcOp::DisableRequests => self.queue_disable_requests(),
-            FriendTcOp::SetRemoteMaxDebt(proposed_max_debt) => {
-                self.queue_set_remote_max_debt(proposed_max_debt)
-            }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 self.queue_request_send_funds(request_send_funds)
             }
@@ -92,21 +88,6 @@ impl OutgoingMc {
         Ok(mc_mutations)
     }
 
-    fn queue_set_remote_max_debt(
-        &mut self,
-        proposed_max_debt: u128,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
-        if proposed_max_debt > MAX_FUNDER_DEBT {
-            return Err(QueueOperationError::RemoteMaxDebtTooLarge);
-        }
-
-        let mut mc_mutations = Vec::new();
-        let mc_mutation = McMutation::SetRemoteMaxDebt(proposed_max_debt);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
-        Ok(mc_mutations)
-    }
-
     fn queue_request_send_funds(
         &mut self,
         request_send_funds: RequestSendFundsOp,
@@ -137,20 +118,6 @@ impl OutgoingMc {
             .local_pending_debt
             .checked_add(own_freeze_credits)
             .ok_or(QueueOperationError::CreditsCalcOverflow)?;
-
-        // Check that local_pending_debt - balance <= local_max_debt:
-        let sub = balance
-            .balance
-            .checked_sub_unsigned(new_local_pending_debt)
-            .ok_or(QueueOperationError::CreditsCalcOverflow)?;
-
-        if sub
-            .checked_add_unsigned(balance.local_max_debt)
-            .ok_or(QueueOperationError::CreditsCalcOverflow)?
-            < 0
-        {
-            return Err(QueueOperationError::InsufficientTrust);
-        }
 
         let p_local_requests = &self.mutual_credit.state().pending_transactions.local;
 

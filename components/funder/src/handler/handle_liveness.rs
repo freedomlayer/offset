@@ -108,8 +108,8 @@ mod tests {
     use crate::state::{FunderMutation, FunderState};
 
     use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
+    use crate::handler::tests::utils::{dummy_named_relay_address, dummy_relay_address};
     use crate::handler::types::SendCommands;
-    use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 
     #[test]
     fn test_handle_liveness_basic() {

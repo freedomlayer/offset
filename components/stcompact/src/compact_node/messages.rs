@@ -181,11 +181,9 @@ pub struct ConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
-    /// Wanted credit frame for the remote side (Set by the user of this node)
-    /// It might take a while until this value is applied, as it needs to be communicated to the
-    /// remote side.
+    /// Credit frame for the remote side (Set by the user of this node)
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub wanted_remote_max_debt: u128,
+    pub remote_max_debt: u128,
     /// Can the remote friend send requests through us? This is a value chosen by the user, and it
     /// might take some time until it is applied (As it should be communicated to the remote
     /// friend).
@@ -216,12 +214,6 @@ pub struct McBalanceReport {
     /// The other side keeps the negation of this value.
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub balance: i128,
-    /// Maximum possible local debt
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub local_max_debt: u128,
-    /// Maximum possible remote debt
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
-    pub remote_max_debt: u128,
     /// Frozen credits by our side
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub local_pending_debt: u128,

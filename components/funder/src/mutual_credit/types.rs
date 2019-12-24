@@ -5,9 +5,12 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, RequestsStatus, TransactionStage};
 
+/*
+// TODO: Where do we need to check this value?
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
+*/
 
 // TODO: Rename this to McIdents
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -24,10 +27,6 @@ pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     pub balance: i128,
-    /// Maximum possible local debt
-    pub local_max_debt: u128,
-    /// Maximum possible remote debt
-    pub remote_max_debt: u128,
     /// Frozen credits by our side
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
@@ -38,11 +37,6 @@ impl McBalance {
     fn new(balance: i128) -> McBalance {
         McBalance {
             balance,
-            local_max_debt: 0,
-            /// It is still unknown what will be a good choice of initial
-            /// remote_max_debt and local_max_debt here, given that balance != 0.
-            /// We currently pick the simple choice of having all max_debts equal 0 initially.
-            remote_max_debt: 0,
             local_pending_debt: 0,
             remote_pending_debt: 0,
         }
@@ -108,8 +102,6 @@ pub struct MutualCredit {
 pub enum McMutation {
     SetLocalRequestsStatus(RequestsStatus),
     SetRemoteRequestsStatus(RequestsStatus),
-    SetLocalMaxDebt(u128),
-    SetRemoteMaxDebt(u128),
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),
     RemoveLocalPendingTransaction(Uid),
@@ -169,12 +161,6 @@ impl MutualCredit {
             McMutation::SetRemoteRequestsStatus(requests_status) => {
                 self.set_remote_requests_status(requests_status.clone())
             }
-            McMutation::SetLocalMaxDebt(proposed_max_debt) => {
-                self.set_local_max_debt(*proposed_max_debt)
-            }
-            McMutation::SetRemoteMaxDebt(proposed_max_debt) => {
-                self.set_remote_max_debt(*proposed_max_debt)
-            }
             McMutation::SetBalance(balance) => self.set_balance(*balance),
             McMutation::InsertLocalPendingTransaction(pending_friend_request) => {
                 self.insert_local_pending_transaction(pending_friend_request)
@@ -209,14 +195,6 @@ impl MutualCredit {
 
     fn set_remote_requests_status(&mut self, requests_status: RequestsStatus) {
         self.state.requests_status.remote = requests_status;
-    }
-
-    fn set_remote_max_debt(&mut self, proposed_max_debt: u128) {
-        self.state.balance.remote_max_debt = proposed_max_debt;
-    }
-
-    fn set_local_max_debt(&mut self, proposed_max_debt: u128) {
-        self.state.balance.local_max_debt = proposed_max_debt;
     }
 
     fn set_balance(&mut self, balance: i128) {

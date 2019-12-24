@@ -26,7 +26,7 @@ use crate::report::messages::{
 // TODO: Add tests (Mostly for arithmetic stuff here)
 
 /// Calculate send and receive capacities for a given `friend_report`.
-fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> HashMap<Currency, (u128, u128)>
+fn calc_friend_capacities<B>(friend_report: &FriendReport<B>) -> HashMap<Currency, (bool, u128)>
 where
     B: Clone,
 {
@@ -34,7 +34,6 @@ where
         || friend_report.liveness == FriendLivenessReport::Offline
     {
         return HashMap::new();
-        // return (0, 0);
     }
 
     let channel_consistent_report = match &friend_report.channel_status {
@@ -42,29 +41,34 @@ where
         ChannelStatusReport::Consistent(channel_consistent_report) => channel_consistent_report,
     };
 
+    let remote_max_debts: HashMap<Currency, u128> = friend_report
+        .currency_configs
+        .iter()
+        .cloned()
+        .map(|currency_config_report| {
+            (
+                currency_config_report.currency,
+                currency_config_report.remote_max_debt,
+            )
+        })
+        .collect();
+
     channel_consistent_report
         .currency_reports
         .iter()
         .map(|currency_report| {
             let balance = &currency_report.balance;
-            let send_capacity =
-                if currency_report.requests_status.remote == RequestsStatusReport::Closed {
-                    0
-                } else {
-                    // local_max_debt + balance - local_pending_debt
-                    balance.local_max_debt.saturating_add_signed(
-                        balance
-                            .balance
-                            .checked_sub_unsigned(balance.local_pending_debt)
-                            .unwrap(),
-                    )
-                };
 
             let recv_capacity =
                 if currency_report.requests_status.local == RequestsStatusReport::Closed {
                     0
                 } else {
-                    balance.remote_max_debt.saturating_sub_signed(
+                    let remote_max_debt = remote_max_debts
+                        .get(&currency_report.currency)
+                        .cloned()
+                        .unwrap_or(0);
+
+                    remote_max_debt.saturating_sub_signed(
                         balance
                             .balance
                             .checked_add_unsigned(balance.remote_pending_debt)
@@ -72,9 +76,16 @@ where
                     )
                 };
 
+            let is_send_open =
+                if let RequestsStatusReport::Open = currency_report.requests_status.remote {
+                    true
+                } else {
+                    false
+                };
+
             (
                 currency_report.currency.clone(),
-                (send_capacity, recv_capacity),
+                (is_send_open, recv_capacity),
             )
         })
         .collect()
@@ -91,7 +102,7 @@ where
         .iter()
         .flat_map(|(friend_public_key, friend_report)| {
             calc_friend_capacities(friend_report).into_iter().map(
-                move |(currency, (send_capacity, recv_capacity))| {
+                move |(currency, (is_send_open, recv_capacity))| {
                     let rate = friend_report
                         .currency_configs
                         .iter()
@@ -102,7 +113,7 @@ where
                     (
                         (friend_public_key.clone(), currency),
                         FriendInfo {
-                            send_capacity,
+                            is_send_open,
                             recv_capacity,
                             rate,
                         },
@@ -110,7 +121,7 @@ where
                 },
             )
         })
-        .filter(|(_, friend_info)| friend_info.send_capacity != 0 || friend_info.recv_capacity != 0)
+        .filter(|(_, friend_info)| friend_info.recv_capacity != 0 || friend_info.is_send_open)
 }
 
 pub fn funder_report_to_index_client_state<B>(funder_report: &FunderReport<B>) -> IndexClientState
@@ -158,7 +169,7 @@ where
         res_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
             public_key,
             currency,
-            send_capacity: friend_info.send_capacity,
+            is_send_open: friend_info.is_send_open,
             recv_capacity: friend_info.recv_capacity,
             rate: friend_info.rate,
         }));
@@ -204,12 +215,26 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_configs: vec![CurrencyConfigReport {
-                    currency: currency3.clone(),
-                    rate: Rate { mul: 1, add: 10 },
-                    wanted_remote_max_debt: 0,
-                    wanted_local_requests_status: RequestsStatusReport::Open,
-                }],
+                currency_configs: vec![
+                    CurrencyConfigReport {
+                        currency: currency1.clone(),
+                        rate: Rate { mul: 0, add: 0 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency2.clone(),
+                        rate: Rate { mul: 0, add: 0 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency3.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                ],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
@@ -219,8 +244,6 @@ mod tests {
                             currency: currency1.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -233,8 +256,6 @@ mod tests {
                             currency: currency2.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -247,8 +268,6 @@ mod tests {
                             currency: currency3.clone(),
                             balance: McBalanceReport {
                                 balance: 50,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 10,
                                 remote_pending_debt: 30,
                             },
@@ -270,7 +289,7 @@ mod tests {
                 currency_configs: vec![CurrencyConfigReport {
                     currency: currency1.clone(),
                     rate: Rate { mul: 2, add: 2 },
-                    wanted_remote_max_debt: 0,
+                    remote_max_debt: 200,
                     wanted_local_requests_status: RequestsStatusReport::Open,
                 }],
                 remote_relays: vec![],
@@ -281,8 +300,6 @@ mod tests {
                         currency: currency1.clone(),
                         balance: McBalanceReport {
                             balance: 0,
-                            local_max_debt: 100,
-                            remote_max_debt: 200,
                             local_pending_debt: 0,
                             remote_pending_debt: 0,
                         },
@@ -304,22 +321,18 @@ mod tests {
             calc_friends_info(&funder_report).collect();
 
         let friend_info = friends_info.get(&(pk2.clone(), currency1.clone())).unwrap();
-        assert_eq!(friend_info.send_capacity, 100);
         assert_eq!(friend_info.recv_capacity, 200);
         assert_eq!(friend_info.rate, Rate::new());
 
         let friend_info = friends_info.get(&(pk2.clone(), currency2.clone())).unwrap();
-        assert_eq!(friend_info.send_capacity, 100);
         assert_eq!(friend_info.recv_capacity, 0);
         assert_eq!(friend_info.rate, Rate::new());
 
         let friend_info = friends_info.get(&(pk2.clone(), currency3.clone())).unwrap();
-        assert_eq!(friend_info.send_capacity, 140);
         assert_eq!(friend_info.recv_capacity, 120);
         assert_eq!(friend_info.rate, Rate { mul: 1, add: 10 });
 
         let friend_info = friends_info.get(&(pk3.clone(), currency1.clone())).unwrap();
-        assert_eq!(friend_info.send_capacity, 100);
         assert_eq!(friend_info.recv_capacity, 200);
         assert_eq!(friend_info.rate, Rate { mul: 2, add: 2 });
     }
@@ -340,7 +353,26 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_configs: vec![],
+                currency_configs: vec![
+                    CurrencyConfigReport {
+                        currency: currency1.clone(),
+                        rate: Rate { mul: 0, add: 0 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency2.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency4.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 40,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                ],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
@@ -350,8 +382,6 @@ mod tests {
                             currency: currency1.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -364,8 +394,6 @@ mod tests {
                             currency: currency2.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -378,8 +406,6 @@ mod tests {
                             currency: currency4.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 30,
-                                remote_max_debt: 40,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -405,12 +431,26 @@ mod tests {
             pk2.clone(),
             FriendReport::<u32> {
                 name: "friend_name".to_owned(),
-                currency_configs: vec![CurrencyConfigReport {
-                    currency: currency3.clone(),
-                    rate: Rate { mul: 1, add: 10 },
-                    wanted_remote_max_debt: 0,
-                    wanted_local_requests_status: RequestsStatusReport::Open,
-                }],
+                currency_configs: vec![
+                    CurrencyConfigReport {
+                        currency: currency1.clone(),
+                        rate: Rate { mul: 0, add: 0 },
+                        remote_max_debt: 300,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency3.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 200,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency4.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 40,
+                        wanted_local_requests_status: RequestsStatusReport::Open,
+                    },
+                ],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
                 liveness: FriendLivenessReport::Online,
@@ -420,8 +460,6 @@ mod tests {
                             currency: currency1.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 50,
-                                remote_max_debt: 300,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -434,8 +472,6 @@ mod tests {
                             currency: currency3.clone(),
                             balance: McBalanceReport {
                                 balance: 50,
-                                local_max_debt: 100,
-                                remote_max_debt: 200,
                                 local_pending_debt: 10,
                                 remote_pending_debt: 30,
                             },
@@ -448,8 +484,6 @@ mod tests {
                             currency: currency4.clone(),
                             balance: McBalanceReport {
                                 balance: 0,
-                                local_max_debt: 30,
-                                remote_max_debt: 40,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
@@ -480,12 +514,10 @@ mod tests {
                 IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
                     if update_friend_currency.currency == currency3 {
                         assert_eq!(update_friend_currency.public_key, pk2);
-                        assert_eq!(update_friend_currency.send_capacity, 140);
                         assert_eq!(update_friend_currency.recv_capacity, 120);
                         assert_eq!(update_friend_currency.rate, Rate { mul: 1, add: 10 });
                     } else {
                         assert_eq!(update_friend_currency.public_key, pk2);
-                        assert_eq!(update_friend_currency.send_capacity, 50);
                         assert_eq!(update_friend_currency.recv_capacity, 300);
                         assert_eq!(update_friend_currency.rate, Rate::new());
                     }
