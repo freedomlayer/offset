@@ -12,7 +12,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
-    CurrencyOperations, FriendMessage, FriendTcOp, FunderOutgoingControl, McInfo, MoveTokenRequest,
+    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest,
     RequestsStatus, TokenInfo,
 };
 
@@ -933,7 +933,6 @@ pub async fn create_friend_messages<'a, B, R>(
     identity_client: &'a mut IdentityClient,
     rng: &'a R,
 ) -> (
-    Vec<FunderOutgoingControl<B>>,
     Vec<OutgoingMessage<B>>,
     Vec<ChannelerConfig<RelayAddress<B>>>,
 )
@@ -941,7 +940,6 @@ where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug + Hash,
     R: CryptoRandom,
 {
-    let outgoing_control = Vec::new();
     let mut outgoing_messages = Vec::new();
     let mut outgoing_channeler_config = Vec::new();
     let mut pending_move_tokens: HashMap<PublicKey, PendingMoveToken<B>> = HashMap::new();
@@ -996,7 +994,6 @@ where
     }
 
     (
-        outgoing_control,
         outgoing_messages,
         outgoing_channeler_config,
     )
