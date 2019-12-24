@@ -222,9 +222,7 @@ fn currency_report_str(currency_report: &CurrencyReport) -> String {
     let balance = &currency_report.balance;
     res += &format!(
         "B  ={}\nLPD={}\nRPD={}\n",
-        balance.balance,
-        balance.local_pending_debt,
-        balance.remote_pending_debt
+        balance.balance, balance.local_pending_debt, balance.remote_pending_debt
     );
 
     res

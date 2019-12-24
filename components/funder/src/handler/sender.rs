@@ -12,17 +12,14 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
-    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest,
-    RequestsStatus, TokenInfo,
+    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest, RequestsStatus,
+    TokenInfo,
 };
 
 use identity::IdentityClient;
 
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
-use crate::types::{
-    create_unsigned_move_token,
-    sign_move_token, ChannelerConfig,
-};
+use crate::types::{create_unsigned_move_token, sign_move_token, ChannelerConfig};
 
 use crate::friend::{
     BackwardsOp, ChannelInconsistent, ChannelStatus, CurrencyConfig, FriendMutation,
@@ -678,16 +675,10 @@ where
                     } else {
                         FriendTcOp::DisableRequests
                     };
-                queue_operation(
-                    m_state,
-                    pending_move_token,
-                    &currency,
-                    &friend_op,
-                )?;
+                queue_operation(m_state, pending_move_token, &currency, &friend_op)?;
             }
         }
     }
-
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let channel_consistent = match &friend.channel_status {
@@ -700,12 +691,7 @@ where
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
-        queue_operation(
-            m_state,
-            pending_move_token,
-            &currency,
-            &pending_op,
-        )?;
+        queue_operation(m_state, pending_move_token, &currency, &pending_op)?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
@@ -724,12 +710,7 @@ where
     let mut pending_requests = channel_consistent.pending_requests.clone();
     while let Some((currency, pending_request)) = pending_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(pending_request);
-        queue_operation(
-            m_state,
-            pending_move_token,
-            &currency,
-            &pending_op,
-        )?;
+        queue_operation(m_state, pending_move_token, &currency, &pending_op)?;
         let friend_mutation = FriendMutation::PopFrontPendingRequest;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -746,12 +727,7 @@ where
     let mut pending_user_requests = channel_consistent.pending_user_requests.clone();
     while let Some((currency, request_send_funds)) = pending_user_requests.pop_front() {
         let pending_op = FriendTcOp::RequestSendFunds(request_send_funds);
-        queue_operation(
-            m_state,
-            pending_move_token,
-            &currency,
-            &pending_op,
-        )?;
+        queue_operation(m_state, pending_move_token, &currency, &pending_op)?;
         let friend_mutation = FriendMutation::PopFrontPendingUserRequest;
         let funder_mutation =
             FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
@@ -779,12 +755,7 @@ where
     let mut pending_backwards_ops = channel_consistent.pending_backwards_ops.clone();
     while let Some((currency, pending_backwards_op)) = pending_backwards_ops.pop_front() {
         let pending_op = backwards_op_to_friend_tc_op(pending_backwards_op);
-        queue_operation(
-            m_state,
-            pending_move_token,
-            &currency,
-            &pending_op,
-        )?;
+        queue_operation(m_state, pending_move_token, &currency, &pending_op)?;
 
         let friend_mutation = FriendMutation::PopFrontPendingBackwardsOp;
         let funder_mutation =
@@ -993,8 +964,5 @@ where
         .await;
     }
 
-    (
-        outgoing_messages,
-        outgoing_channeler_config,
-    )
+    (outgoing_messages, outgoing_channeler_config)
 }

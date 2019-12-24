@@ -6,9 +6,9 @@ use identity::IdentityClient;
 use crypto::rand::CryptoRandom;
 use signature::canonical::CanonicalSerialize;
 
-use proto::funder::messages::FunderOutgoingControl;
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
+use proto::funder::messages::FunderOutgoingControl;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{funder_handle_message, FunderHandlerError, FunderHandlerOutput};
