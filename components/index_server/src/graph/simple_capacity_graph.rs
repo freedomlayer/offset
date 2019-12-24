@@ -92,25 +92,21 @@ where
     }
 
     /// Get the send capacity from `a` to a direct neighbor `b`.
-    /// This is calculated as the minimum send capacity reported by `a` and the maximum recv
-    /// capacity reported by `b`.
     fn get_send_capacity(&self, a: &N, b: &N) -> u128 {
-        let a_b_edge = if let Some(a_b_edge) = self.get_edge(&a, &b) {
-            a_b_edge.capacity_edge.capacity
+        if let Some(a_b_edge) = self.get_edge(&a, &b) {
+            if !a_b_edge.capacity_edge.is_send_open {
+                return 0;
+            }
         } else {
             return 0;
         };
 
-        let b_a_edge = if let Some(b_a_edge) = self.get_edge(&b, &a) {
-            b_a_edge.capacity_edge.capacity
+        let b_recv = if let Some(b_a_edge) = self.get_edge(&b, &a) {
+            b_a_edge.capacity_edge.recv_capacity
         } else {
             return 0;
         };
-
-        let (a_send, _a_recv) = a_b_edge;
-        let (_b_send, b_recv) = b_a_edge;
-
-        cmp::min(a_send, b_recv)
+        b_recv
     }
 
     fn neighbors_with_send_capacity(
