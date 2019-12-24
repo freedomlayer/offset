@@ -31,7 +31,7 @@ fn apply_index_mutation(seq_friends: &mut SeqFriends, index_mutation: &IndexMuta
     match index_mutation {
         IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
             let friend_info = FriendInfo {
-                send_capacity: update_friend_currency.send_capacity,
+                is_send_open: update_friend_currency.is_send_open,
                 recv_capacity: update_friend_currency.recv_capacity,
                 rate: update_friend_currency.rate.clone(),
             };
@@ -70,14 +70,14 @@ async fn seq_friends_loop(
                 let update_friend = seq_friends.next().map(
                     |(cycle_countdown, ((public_key, currency), friend_info))| {
                         let FriendInfo {
-                            send_capacity,
+                            is_send_open,
                             recv_capacity,
                             rate,
                         } = friend_info;
                         let update_friend = UpdateFriendCurrency {
                             public_key,
                             currency,
-                            send_capacity,
+                            is_send_open,
                             recv_capacity,
                             rate,
                         };

@@ -159,7 +159,7 @@ where
                 let update_friend = UpdateFriendCurrency {
                     public_key: PublicKey::from(PublicKey::from(&[0xaa; PublicKey::len()])),
                     currency: currency.clone(),
-                    send_capacity: 100,
+                    is_send_open: true,
                     recv_capacity: 50,
                     rate: Rate { mul: 0, add: 1 },
                 };
@@ -340,7 +340,7 @@ where
     let update_friend_currency = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
         currency: currency.clone(),
-        send_capacity: 200,
+        is_send_open: true,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
     };
@@ -365,7 +365,7 @@ where
     let next_update_friend = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xcc; PublicKey::len()])),
         currency: currency.clone(),
-        send_capacity: 20,
+        is_send_open: true,
         recv_capacity: 30,
         rate: Rate { mul: 0, add: 1 },
     };
@@ -497,7 +497,7 @@ where
     let update_friend_currency = UpdateFriendCurrency {
         public_key: PublicKey::from(PublicKey::from(&[0xbb; PublicKey::len()])),
         currency: currency.clone(),
-        send_capacity: 200,
+        is_send_open: true,
         recv_capacity: 100,
         rate: Rate { mul: 0, add: 1 },
     };
