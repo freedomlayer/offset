@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
-use super::utils::apply_funder_incoming;
+use super::utils::{apply_funder_incoming, dummy_named_relay_address, dummy_relay_address};
 
 use futures::executor::{LocalPool, ThreadPool};
 use futures::task::SpawnExt;
@@ -30,8 +30,6 @@ use crate::types::{
     IncomingLivenessMessage,
 };
 
-use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
-
 async fn task_handler_pair_inconsistency<'a>(
     identity_client1: &'a mut IdentityClient,
     identity_client2: &'a mut IdentityClient,
@@ -41,6 +39,8 @@ async fn task_handler_pair_inconsistency<'a>(
     // See:  https://github.com/rust-lang-nursery/futures-rs/issues/1330
 
     let currency = Currency::try_from("FST".to_owned()).unwrap();
+    let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
+    let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
 
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = identity_client1.request_public_key().await.unwrap();
@@ -454,7 +454,7 @@ async fn task_handler_pair_inconsistency<'a>(
     .unwrap();
 
     ///////////////////////////////////////
-    // Set remote max debt (Node1 -> Node2)
+    // Set remote max debt (Node1)
     ///////////////////////////////////////
 
     // Node1 receives control message to set remote max debt.
@@ -478,7 +478,35 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node1 will send the SetRemoteMaxDebt message to Node2:
+    // Node1 sends nothing:
+    assert!(outgoing_comms.is_empty());
+
+    //////////////////////////////////////////
+    // Add currency: (Node1 -> Node2):
+    //////////////////////////////////////////
+
+    // Node1 receives control message to add another currency:
+    let set_friend_currency_rate = SetFriendCurrencyRate {
+        friend_public_key: pk2.clone(),
+        currency: currency2.clone(),
+        rate: Rate::new(),
+    };
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[16; Uid::len()]),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 produces outgoing communication (Adding an active currency):
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
@@ -493,10 +521,10 @@ async fn task_handler_pair_inconsistency<'a>(
         _ => unreachable!(),
     };
 
-    // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
+    // Node2 gets a MoveToken message from Node1, asking to add an active currency:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
@@ -505,38 +533,6 @@ async fn task_handler_pair_inconsistency<'a>(
     ))
     .await
     .unwrap();
-
-    let friend2 = state1.friends.get(&pk2).unwrap();
-    let remote_max_debt = match &friend2.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent
-                .token_channel
-                .get_mutual_credits()
-                .get(&currency)
-                .unwrap()
-                .state()
-                .balance
-                .remote_max_debt
-        }
-        _ => unreachable!(),
-    };
-    assert_eq!(remote_max_debt, 100);
-
-    let friend1 = state2.friends.get(&pk1).unwrap();
-    let local_max_debt = match &friend1.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent
-                .token_channel
-                .get_mutual_credits()
-                .get(&currency)
-                .unwrap()
-                .state()
-                .balance
-                .local_max_debt
-        }
-        _ => unreachable!(),
-    };
-    assert_eq!(local_max_debt, 100);
 
     /////////////////////////////////////////////////
     // Create inconsistency intentionaly:
@@ -551,19 +547,19 @@ async fn task_handler_pair_inconsistency<'a>(
     state1.mutate(&funder_mutation);
 
     ///////////////////////////////////////
-    // Set remote max debt (Node2 -> Node1)
+    // Add currency3 (Node2 -> Node1)
     // This will not work, because an inconsistency will be noticed
     ///////////////////////////////////////
 
-    // Node2 receives control message to set remote max debt.
-    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
+    // Node2 receives control message to add another currency:
+    let set_friend_currency_rate = SetFriendCurrencyRate {
         friend_public_key: pk1.clone(),
-        currency: currency.clone(),
-        remote_max_debt: 200,
+        currency: currency3.clone(),
+        rate: Rate::new(),
     };
     let incoming_control_message = FunderIncomingControl::new(
-        Uid::from(&[16; Uid::len()]),
-        FunderControl::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
+        Uid::from(&[19; Uid::len()]),
+        FunderControl::SetFriendCurrencyRate(set_friend_currency_rate),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -576,7 +572,7 @@ async fn task_handler_pair_inconsistency<'a>(
     .await
     .unwrap();
 
-    // Node2 will send the SetRemoteMaxDebt message to Node1:
+    // Node2 produces outgoing communication (Adding an active currency):
     assert_eq!(outgoing_comms.len(), 1);
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
@@ -591,7 +587,7 @@ async fn task_handler_pair_inconsistency<'a>(
         _ => unreachable!(),
     };
 
-    // Node1: Receive friend_message (With SetRemoteMaxDebt) from Node2:
+    // Node1 gets a MoveToken message from Node2, asking to add an active currency:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
     let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
@@ -763,8 +759,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, true);
 
                 let friend_move_token = &move_token_request.move_token;
-                // Should contain SetRemoteMaxDebt:
-                assert_eq!(friend_move_token.currencies_operations.len(), 1);
+                assert!(friend_move_token.currencies_operations.is_empty());
                 assert!(friend_move_token.opt_local_relays.is_some());
             } else {
                 unreachable!();
@@ -796,8 +791,7 @@ async fn task_handler_pair_inconsistency<'a>(
                 assert_eq!(move_token_request.token_wanted, false);
 
                 let friend_move_token = &move_token_request.move_token;
-                // Should contain SetRemoteMaxDebt:
-                assert_eq!(friend_move_token.currencies_operations.len(), 1);
+                assert!(friend_move_token.currencies_operations.is_empty());
                 assert!(friend_move_token.opt_local_relays.is_none());
             } else {
                 unreachable!();

@@ -7,6 +7,8 @@ use crypto::rand::CryptoRandom;
 use signature::canonical::CanonicalSerialize;
 
 use proto::funder::messages::FunderOutgoingControl;
+use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
+use proto::crypto::PublicKey;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::handler::{funder_handle_message, FunderHandlerError, FunderHandlerOutput};
@@ -16,6 +18,20 @@ use crate::types::{FunderIncoming, FunderOutgoingComm};
 const TEST_MAX_NODE_RELAYS: usize = 16;
 const TEST_MAX_OPERATIONS_IN_BATCH: usize = 16;
 const TEST_MAX_PENDING_USER_REQUESTS: usize = 16;
+
+/// A helper function to quickly create a dummy NamedRelayAddress.
+pub fn dummy_named_relay_address(index: u8) -> NamedRelayAddress<u32> {
+    NamedRelayAddress {
+        public_key: PublicKey::from(&[index; PublicKey::len()]),
+        address: index as u32,
+        name: format!("relay-{}", index),
+    }
+}
+
+/// A helper function to quickly create a dummy RelayAddress.
+pub fn dummy_relay_address(index: u8) -> RelayAddress<u32> {
+    dummy_named_relay_address(index).into()
+}
 
 /// A helper function. Applies an incoming funder message, updating state and ephemeral
 /// accordingly:

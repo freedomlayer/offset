@@ -1,4 +1,4 @@
-use super::utils::apply_funder_incoming;
+use super::utils::{apply_funder_incoming, dummy_named_relay_address, dummy_relay_address};
 
 use std::cmp::Ordering;
 
@@ -20,7 +20,6 @@ use proto::funder::messages::{
 
 use crate::ephemeral::Ephemeral;
 use crate::state::FunderState;
-use crate::tests::utils::{dummy_named_relay_address, dummy_relay_address};
 use crate::types::{
     ChannelerConfig, FunderIncoming, FunderIncomingComm, FunderOutgoingComm,
     IncomingLivenessMessage,
