@@ -503,8 +503,8 @@ async fn task_handler_pair_basic<'a>(
     .unwrap();
     */
 
-    let friend2 = state1.friends.get(&pk2).unwrap();
     /*
+    let friend2 = state1.friends.get(&pk2).unwrap();
     let remote_max_debt = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
             channel_consistent
@@ -689,7 +689,7 @@ async fn task_handler_pair_basic<'a>(
     // Node2 from Node1 that requests are open:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,

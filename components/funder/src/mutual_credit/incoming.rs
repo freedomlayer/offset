@@ -48,11 +48,9 @@ pub struct ProcessOperationOutput {
 
 #[derive(Debug)]
 pub enum ProcessOperationError {
-    RemoteMaxDebtTooLarge(u128),
     /// The Route contains some public key twice.
     InvalidRoute,
     RequestsAlreadyDisabled,
-    InsufficientTrust,
     CreditsCalcOverflow,
     RequestAlreadyExists,
     RequestDoesNotExist,
@@ -204,7 +202,6 @@ fn process_request_send_funds(
         > 0
     {
         // Insufficient trust:
-        // return Err(ProcessOperationError::InsufficientTrust);
         IncomingMessage::RequestCancel(request_send_funds.clone())
     } else {
         IncomingMessage::Request(request_send_funds.clone())

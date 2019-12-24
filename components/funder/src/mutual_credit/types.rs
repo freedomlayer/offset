@@ -5,9 +5,12 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, RequestsStatus, TransactionStage};
 
+/*
+// TODO: Where do we need to check this value?
 /// The maximum possible funder debt.
 /// We don't use the full u128 because i128 can not go beyond this value.
 pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
+*/
 
 // TODO: Rename this to McIdents
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

@@ -879,7 +879,7 @@ mod tests {
     use super::*;
 
     use proto::crypto::PrivateKey;
-    use proto::funder::messages::FriendTcOp;
+    // use proto::funder::messages::FriendTcOp;
 
     use crypto::identity::Identity;
     use crypto::identity::SoftwareEd25519Identity;

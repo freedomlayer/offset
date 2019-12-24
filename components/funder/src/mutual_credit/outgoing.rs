@@ -119,13 +119,13 @@ impl OutgoingMc {
             .checked_add(own_freeze_credits)
             .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
+        /*
         // Check that local_pending_debt - balance <= local_max_debt:
         let sub = balance
             .balance
             .checked_sub_unsigned(new_local_pending_debt)
             .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        /*
         if sub
             .checked_add_unsigned(balance.local_max_debt)
             .ok_or(QueueOperationError::CreditsCalcOverflow)?

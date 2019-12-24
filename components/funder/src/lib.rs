@@ -15,29 +15,19 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
-#[allow(unused)]
 mod ephemeral;
-#[allow(unused)]
 mod friend;
-#[allow(unused)]
 mod funder;
-#[allow(unused)]
 mod handler;
-#[allow(unused)]
 mod liveness;
-#[allow(unused)]
 mod mutual_credit;
-#[allow(unused)]
 pub mod report;
-#[allow(unused)]
 mod state;
-#[allow(unused)]
 mod token_channel;
-#[allow(unused)]
 pub mod types;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
-// pub use self::funder::{funder_loop, FunderError};
-// pub use self::state::{FunderMutation, FunderState};
+pub use self::funder::{funder_loop, FunderError};
+pub use self::state::{FunderMutation, FunderState};

@@ -524,7 +524,7 @@ async fn task_handler_pair_inconsistency<'a>(
     // Node2 gets a MoveToken message from Node1, asking to add an active currency:
     let funder_incoming =
         FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
