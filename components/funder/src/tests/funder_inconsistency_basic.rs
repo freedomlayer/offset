@@ -75,10 +75,10 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
 
     // Wait for liveness:
     node_controls[0]
-        .wait_until_ready(&public_keys[1], &currency1)
+        .wait_until_ready(&public_keys[1])
         .await;
     node_controls[1]
-        .wait_until_ready(&public_keys[0], &currency1)
+        .wait_until_ready(&public_keys[0])
         .await;
 
     // Let node 1 open an invoice:

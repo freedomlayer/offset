@@ -464,8 +464,6 @@ where
     pub async fn wait_until_ready<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
-        // TODO:
-        _currency: &'a Currency,
     ) {
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {

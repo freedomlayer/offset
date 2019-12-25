@@ -128,10 +128,10 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
     // Note: We don't need the other direction to be ready, because the request is sent
     // along the following route: 0 --> 1 --> 2
     node_controls[0]
-        .wait_until_ready(&public_keys[1], &currency1)
+        .wait_until_ready(&public_keys[1])
         .await;
     node_controls[1]
-        .wait_until_ready(&public_keys[2], &currency1)
+        .wait_until_ready(&public_keys[2])
         .await;
 
     // Create payment 0 --> 3 (Where 3 does not exist)
