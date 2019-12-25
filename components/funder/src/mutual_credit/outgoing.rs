@@ -29,7 +29,6 @@ pub enum QueueOperationError {
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
-    RemoteRequestsClosed,
     NotExpectingResponse,
     NotExpectingCollect,
     InvalidSrcPlainLock,
@@ -52,8 +51,6 @@ impl OutgoingMc {
     ) -> Result<Vec<McMutation>, QueueOperationError> {
         // TODO: Maybe remove clone from here later:
         match operation.clone() {
-            FriendTcOp::EnableRequests => self.queue_enable_requests(),
-            FriendTcOp::DisableRequests => self.queue_disable_requests(),
             FriendTcOp::RequestSendFunds(request_send_funds) => {
                 self.queue_request_send_funds(request_send_funds)
             }
@@ -69,25 +66,6 @@ impl OutgoingMc {
         }
     }
 
-    fn queue_enable_requests(&mut self) -> Result<Vec<McMutation>, QueueOperationError> {
-        // TODO: Should we check first if local requests are already open?
-        let mut mc_mutations = Vec::new();
-        let mc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Open);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
-
-        Ok(mc_mutations)
-    }
-
-    fn queue_disable_requests(&mut self) -> Result<Vec<McMutation>, QueueOperationError> {
-        let mut mc_mutations = Vec::new();
-        let mc_mutation = McMutation::SetLocalRequestsStatus(RequestsStatus::Closed);
-        self.mutual_credit.mutate(&mc_mutation);
-        mc_mutations.push(mc_mutation);
-
-        Ok(mc_mutations)
-    }
-
     fn queue_request_send_funds(
         &mut self,
         request_send_funds: RequestSendFundsOp,
@@ -100,10 +78,12 @@ impl OutgoingMc {
             return Err(QueueOperationError::DestPaymentExceedsTotal);
         }
 
+        /*
         // Make sure that remote side is open to requests:
         if !self.mutual_credit.state().requests_status.remote.is_open() {
             return Err(QueueOperationError::RemoteRequestsClosed);
         }
+        */
 
         // Calculate amount of credits to freeze
         let own_freeze_credits = request_send_funds

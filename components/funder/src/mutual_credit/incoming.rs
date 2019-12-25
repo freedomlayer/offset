@@ -55,7 +55,6 @@ pub enum ProcessOperationError {
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
-    LocalRequestsClosed,
     NotExpectingResponse,
     InvalidSrcPlainLock,
     InvalidDestPlainLock,
@@ -101,8 +100,6 @@ pub fn process_operation(
     remote_max_debt: u128,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     match friend_tc_op {
-        FriendTcOp::EnableRequests => process_enable_requests(mutual_credit),
-        FriendTcOp::DisableRequests => process_disable_requests(mutual_credit),
         FriendTcOp::RequestSendFunds(request_send_funds) => {
             process_request_send_funds(mutual_credit, request_send_funds, remote_max_debt)
         }
@@ -115,39 +112,6 @@ pub fn process_operation(
         FriendTcOp::CollectSendFunds(collect_send_funds) => {
             process_collect_send_funds(mutual_credit, collect_send_funds)
         }
-    }
-}
-
-fn process_enable_requests(
-    mutual_credit: &mut MutualCredit,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
-        mc_mutations: Vec::new(),
-    };
-    let mc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Open);
-    mutual_credit.mutate(&mc_mutation);
-    op_output.mc_mutations.push(mc_mutation);
-
-    Ok(op_output)
-}
-
-fn process_disable_requests(
-    mutual_credit: &mut MutualCredit,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: None,
-        mc_mutations: Vec::new(),
-    };
-
-    match mutual_credit.state().requests_status.remote {
-        RequestsStatus::Open => {
-            let mc_mutation = McMutation::SetRemoteRequestsStatus(RequestsStatus::Closed);
-            mutual_credit.mutate(&mc_mutation);
-            op_output.mc_mutations.push(mc_mutation);
-            Ok(op_output)
-        }
-        RequestsStatus::Closed => Err(ProcessOperationError::RequestsAlreadyDisabled),
     }
 }
 
@@ -165,10 +129,12 @@ fn process_request_send_funds(
         return Err(ProcessOperationError::DestPaymentExceedsTotal);
     }
 
+    /*
     // Make sure that we are open to requests:
     if !mutual_credit.state().requests_status.local.is_open() {
         return Err(ProcessOperationError::LocalRequestsClosed);
     }
+    */
 
     // Make sure that we don't have this request as a pending request already:
     let p_remote_requests = &mutual_credit.state().pending_transactions.remote;
