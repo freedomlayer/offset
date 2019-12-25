@@ -4,7 +4,7 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPair, ConnPairVec, FutTransform};
+use common::conn::{ConnPair, ConnPairVec, FutTransform, FuncFutTransform};
 use common::int_convert::usize_to_u64;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
@@ -40,43 +40,14 @@ pub enum SetupConnectionError {
 }
 
 /// Connect to an offst-node
-pub async fn setup_connection<R, S>(
+pub async fn setup_connection<S>(
     conn_pair: ConnPairVec,
-    timer_client: TimerClient,
-    rng: R,
-    node_public_key: PublicKey,
-    app_identity_client: IdentityClient,
     spawner: S,
 ) -> Result<AppConnTuple, SetupConnectionError>
 where
-    R: Clone + CryptoRandom + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
-
-    let mut encrypt_transform = SecureChannel::new(
-        app_identity_client.clone(),
-        rng.clone(),
-        timer_client.clone(),
-        TICKS_TO_REKEY,
-        spawner.clone(),
-    );
-
-    let mut keepalive_transform =
-        KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
-
-    // Report version and check remote side's version:
-    let ver_conn = version_transform.transform(conn_pair).await;
-
-    // Encrypt, requiring that the remote side will have node_public_key as public key:
-    let (public_key, enc_conn) = encrypt_transform
-        .transform((Some(node_public_key.clone()), ver_conn))
-        .await
-        .ok_or(SetupConnectionError::EncryptSetupError)?;
-    assert_eq!(public_key, node_public_key);
-
-    // Keepalive wrapper:
-    let (mut sender, mut receiver) = keepalive_transform.transform(enc_conn).await.split();
+    let (mut sender, mut receiver) = conn_pair.split();
 
     // Get AppPermissions:
     let app_permissions_data = receiver
@@ -133,46 +104,82 @@ where
 }
 
 #[derive(Debug)]
-pub enum InnerConnectError {
+pub enum ConnectExError {
     /// Could not open network connection
-    TcpConnectorError,
+    ConnectorError,
     SetupConnectionError(SetupConnectionError),
 }
 
 /// Connect to an offst node
-pub async fn inner_connect<C, R, S>(
-    mut tcp_connector: C,
+pub async fn connect_ex<C, S>(
+    mut connector: C,
     node_public_key: PublicKey,
     node_net_address: NetAddress,
-    timer_client: TimerClient,
-    app_identity_client: IdentityClient,
-    rng: R,
     spawner: S,
-) -> Result<AppConnTuple, InnerConnectError>
+) -> Result<AppConnTuple, ConnectExError>
 where
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>,
-    R: CryptoRandom + Clone + 'static,
+    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>,
     S: Spawn + Send + Clone + 'static,
 {
-    let conn_pair = tcp_connector
-        .transform(node_net_address)
+    let conn_pair = connector
+        .transform((node_public_key.clone(), node_net_address))
         .await
-        .ok_or(InnerConnectError::TcpConnectorError)?;
+        .ok_or(ConnectExError::ConnectorError)?;
 
     setup_connection(
         conn_pair,
-        timer_client,
-        rng.clone(),
-        node_public_key,
-        app_identity_client,
         spawner.clone(),
     )
     .await
-    .map_err(InnerConnectError::SetupConnectionError)
+    .map_err(ConnectExError::SetupConnectionError)
 }
 
 #[derive(Debug)]
 pub struct ConnectError;
+
+
+pub fn create_secure_connector<C, R, S>(
+    connector: C,
+    timer_client: TimerClient,
+    identity_client: IdentityClient,
+    rng: R,
+    spawner: S) -> impl FutTransform<Input=(PublicKey, NetAddress), Output=Option<ConnPairVec>>
+where
+    S: Spawn + Clone + Send + 'static,
+    R: CryptoRandom + Clone + 'static,
+    C: FutTransform<Input=NetAddress, Output=Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    // Wrap the connection (Version * Encrypt * Keepalive):
+    let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
+    let encrypt_transform = SecureChannel::new(
+        identity_client,
+        rng,
+        timer_client.clone(),
+        TICKS_TO_REKEY,
+        spawner.clone(),
+    );
+    let keepalive_transform =
+        KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
+
+    let c_encrypt_transform = encrypt_transform.clone();
+    let c_keepalive_transform = keepalive_transform.clone();
+    FuncFutTransform::new(move |(public_key, net_address)| {
+        let mut c_connector = connector.clone();
+        let mut c_version_transform = version_transform.clone();
+        let mut c_encrypt_transform = c_encrypt_transform.clone();
+        let mut c_keepalive_transform = c_keepalive_transform.clone();
+        Box::pin(async move {
+            let conn_pair = c_connector.transform(net_address).await?;
+            let conn_pair = c_version_transform.transform(conn_pair).await;
+            let (_public_key, conn_pair) = c_encrypt_transform
+                .transform((Some(public_key), conn_pair))
+                .await?;
+            let conn_pair = c_keepalive_transform.transform(conn_pair).await;
+            Some(conn_pair)
+        })
+    })
+
+}
 
 /// Connect to a remote offst-node.
 pub async fn connect<S>(
@@ -184,23 +191,27 @@ pub async fn connect<S>(
 where
     S: Spawn + Clone + Send + 'static,
 {
-    // A tcp connector, Used to connect to remote servers:
-    let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, spawner.clone());
+    // Obtain secure cryptographic random:
+    let rng = system_random();
 
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
     let timer_client = create_timer(dur, spawner.clone()).map_err(|_| ConnectError)?;
 
-    // Obtain secure cryptographic random:
-    let rng = system_random();
+    // A tcp connector, Used to connect to remote servers:
+    let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, spawner.clone());
 
-    inner_connect(
+    let secure_connector = create_secure_connector(
         tcp_connector,
-        node_public_key,
-        node_net_address,
         timer_client,
         app_identity_client,
         rng,
+        spawner.clone());
+
+    connect_ex(
+        secure_connector,
+        node_public_key,
+        node_net_address,
         spawner,
     )
     .await
