@@ -12,7 +12,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
-    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest, RequestsStatus,
+    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest,
     TokenInfo,
 };
 

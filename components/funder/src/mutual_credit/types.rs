@@ -3,7 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, PendingTransaction, RequestsStatus, TransactionStage};
+use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
 
 /*
 // TODO: Where do we need to check this value?

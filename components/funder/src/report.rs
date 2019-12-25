@@ -6,7 +6,7 @@ use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
     CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport, FriendReportMutation,
     FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport, MoveTokenHashedReport,
-    RequestsStatusReport, ResetTermsReport,
+    ResetTermsReport,
 };
 
 use crate::types::MoveTokenHashed;

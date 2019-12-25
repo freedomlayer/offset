@@ -8,7 +8,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, Currency, FriendStatus, Rate, RequestSendFundsOp,
-    RequestsStatus, ResetTerms, ResponseSendFundsOp,
+    ResetTerms, ResponseSendFundsOp,
 };
 
 use crate::token_channel::{TcMutation, TokenChannel};

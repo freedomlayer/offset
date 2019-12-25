@@ -5,7 +5,7 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp, TransactionStage,
+    ResponseSendFundsOp, TransactionStage,
 };
 use signature::signature_buff::create_response_signature_buffer;
 
@@ -50,7 +50,6 @@ pub struct ProcessOperationOutput {
 pub enum ProcessOperationError {
     /// The Route contains some public key twice.
     InvalidRoute,
-    RequestsAlreadyDisabled,
     CreditsCalcOverflow,
     RequestAlreadyExists,
     RequestDoesNotExist,

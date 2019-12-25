@@ -8,7 +8,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{InvoiceId, PlainLock, PrivateKey, PublicKey, RandValue, Signature, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp,
+    ResponseSendFundsOp,
 };
 use signature::signature_buff::create_response_signature_buffer;
 

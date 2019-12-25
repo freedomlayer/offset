@@ -614,7 +614,7 @@ async fn task_handler_pair_basic<'a>(
         FunderControl::CreateTransaction(create_transaction),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
-    let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
         funder_incoming,
         &mut state2,
         &mut ephemeral2,
@@ -758,7 +758,7 @@ async fn task_handler_pair_basic<'a>(
 
     // Checking the current requests status on the mutual credit:
     let friend2 = state1.friends.get(&pk2).unwrap();
-    let mutual_credit_state = match &friend2.channel_status {
+    let _mutual_credit_state = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => channel_consistent
             .token_channel
             .get_mutual_credits()
@@ -848,7 +848,7 @@ async fn task_handler_pair_basic<'a>(
 
     // Checking the current requests status on the mutual credit for Node1:
     let friend2 = state1.friends.get(&pk2).unwrap();
-    let mutual_credit_state = match &friend2.channel_status {
+    let _mutual_credit_state = match &friend2.channel_status {
         ChannelStatus::Consistent(channel_consistent) => channel_consistent
             .token_channel
             .get_mutual_credits()
@@ -865,7 +865,7 @@ async fn task_handler_pair_basic<'a>(
 
     // Checking the current requests status on the mutual credit for Node2:
     let friend1 = state2.friends.get(&pk1).unwrap();
-    let mutual_credit_state = match &friend1.channel_status {
+    let _mutual_credit_state = match &friend1.channel_status {
         ChannelStatus::Consistent(channel_consistent) => channel_consistent
             .token_channel
             .get_mutual_credits()
