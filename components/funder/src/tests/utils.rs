@@ -464,6 +464,7 @@ where
     pub async fn wait_until_ready<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
+        currency: &'a Currency,
     ) {
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {
@@ -474,12 +475,16 @@ where
                 return false;
             }
             match &friend.channel_status {
-                ChannelStatusReport::Consistent(_channel_consistent) => {
-                    true
-                    // &channel_consistent.currency_reports
-                }
+                ChannelStatusReport::Consistent(_channel_consistent) => {},
                 _ => return false,
+            };
+
+            for currency_config in &friend.currency_configs {
+                if &currency_config.currency == currency {
+                    return currency_config.is_open
+                }
             }
+            false
             /*
             if let Some(pos) = currency_reports
                 .iter()
