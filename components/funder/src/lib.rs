@@ -17,7 +17,8 @@ extern crate serde;
 
 #[allow(unused)]
 mod ephemeral;
-// mod friend;
+#[allow(unused)]
+mod friend;
 // mod funder;
 // mod handler;
 #[allow(unused)]
