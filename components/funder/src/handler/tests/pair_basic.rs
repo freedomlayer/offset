@@ -13,7 +13,7 @@ use crypto::identity::{compare_public_key, SoftwareEd25519Identity};
 use crypto::rand::{RandGen, RngContainer};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, PrivateKey, Uid};
+use proto::crypto::{InvoiceId, PaymentId, PrivateKey, Uid, PublicKey};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
@@ -44,6 +44,9 @@ async fn task_handler_pair_basic<'a>(
     // Sort the identities. identity_client1 will be the first sender:
     let pk1 = identity_client1.request_public_key().await.unwrap();
     let pk2 = identity_client2.request_public_key().await.unwrap();
+    // An extra dummy public key:
+    let pk3 = PublicKey::from(&[0x33; PublicKey::len()]);
+
     let (identity_client1, pk1, identity_client2, pk2) =
         if compare_public_key(&pk1, &pk2) == Ordering::Less {
             (identity_client1, pk1, identity_client2, pk2)
@@ -572,7 +575,7 @@ async fn task_handler_pair_basic<'a>(
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
         currency: currency.clone(),
         total_dest_payment: 16,
-        dest_public_key: pk1.clone(),
+        dest_public_key: pk3.clone(),
     };
 
     let incoming_control_message = FunderIncomingControl::new(
@@ -591,7 +594,7 @@ async fn task_handler_pair_basic<'a>(
     .unwrap();
 
     assert_eq!(outgoing_comms.len(), 0);
-    // SetNumPayments(1):
+    // CreatePayment(1):
     assert_eq!(outgoing_control.len(), 1);
 
     // Node2 creates a transaction to send funds to Node1:
@@ -599,7 +602,8 @@ async fn task_handler_pair_basic<'a>(
         payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
         request_id: Uid::from(&[0; Uid::len()]),
         route: FriendsRoute {
-            public_keys: vec![pk2.clone(), pk1.clone()],
+            // We add pk3, to make the request look like the destination is pk3.
+            public_keys: vec![pk2.clone(), pk1.clone(), pk3.clone()],
         },
         dest_payment: 16,
         fees: 4,
@@ -656,7 +660,7 @@ async fn task_handler_pair_basic<'a>(
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
             if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk1);
+                assert_eq!(pk, &pk2);
                 assert_eq!(move_token_request.token_wanted, false);
             } else {
                 unreachable!();
@@ -679,14 +683,65 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
+
+    // Node2 sends a RequestSendFunds to Node1:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive the token with RequestSendFunds from Node2:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 sends a CancelSendFunds to Node2:
+    assert_eq!(outgoing_comms.len(), 1);
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk2);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive the token from Node1:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
     assert!(outgoing_comms.is_empty());
 
-
-    // TODO: Continue fixing test here.
-
-
-    assert_eq!(outgoing_comms.len(), 0);
-    // SetNumPayments(1):
     assert_eq!(outgoing_control.len(), 2);
     let outgoing = &outgoing_control[1];
     let transaction_result = match outgoing {
@@ -696,7 +751,7 @@ async fn task_handler_pair_basic<'a>(
 
     // We expect failure, because remote side is not ready:
     assert_eq!(transaction_result.request_id, Uid::from(&[0; Uid::len()]));
-    match transaction_result.result {
+    match dbg!(&transaction_result.result) {
         RequestResult::Failure => {}
         _ => unreachable!(),
     };
@@ -824,9 +879,92 @@ async fn task_handler_pair_basic<'a>(
     assert!(mutual_credit_state.requests_status.remote.is_open());
     */
 
+    // Node2: Close the payment (To check the payment results)
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[90; Uid::len()]),
+        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PaymentId::len()])),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    assert_eq!(outgoing_comms.len(), 0);
+    assert_eq!(outgoing_control.len(), 2);
+
+    let response_close_payment = match &outgoing_control[1] {
+        FunderOutgoingControl::ResponseClosePayment(response_close_payment) => {
+            response_close_payment
+        }
+        _ => unreachable!(),
+    };
+
+    assert_eq!(
+        response_close_payment.payment_id,
+        PaymentId::from(&[3u8; PaymentId::len()])
+    );
+    let ack_uid = match &response_close_payment.status {
+        PaymentStatus::Canceled(ack_uid) => ack_uid.clone(),
+        _ => unreachable!(),
+    };
+
+    let ack_close_payment = AckClosePayment {
+        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        ack_uid: ack_uid,
+    };
+    // Node2: Send ack for closing the payment:
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[22; Uid::len()]),
+        FunderControl::AckClosePayment(ack_close_payment),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    // Node2: Create a new payment:
+    let create_payment = CreatePayment {
+        payment_id: PaymentId::from(&[4u8; PaymentId::len()]),
+        invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
+        currency: currency.clone(),
+        total_dest_payment: 16,
+        dest_public_key: pk1.clone(),
+    };
+
+    let incoming_control_message = FunderIncomingControl::new(
+        Uid::from(&[17; Uid::len()]),
+        FunderControl::CreatePayment(create_payment),
+    );
+    let funder_incoming = FunderIncoming::Control(incoming_control_message);
+    let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    assert_eq!(outgoing_comms.len(), 0);
+    // CreatePayment(1):
+    assert_eq!(outgoing_control.len(), 1);
+
     // Node2 again creates a transaction to send funds to Node1:
     let create_transaction = CreateTransaction {
-        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        payment_id: PaymentId::from(&[4u8; PaymentId::len()]),
         request_id: Uid::from(&[1; Uid::len()]),
         route: FriendsRoute {
             public_keys: vec![pk2.clone(), pk1.clone()],
@@ -1067,7 +1205,7 @@ async fn task_handler_pair_basic<'a>(
     // Node2: Close the payment (To check the payment results)
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[21; Uid::len()]),
-        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PaymentId::len()])),
+        FunderControl::RequestClosePayment(PaymentId::from(&[4u8; PaymentId::len()])),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
@@ -1092,7 +1230,7 @@ async fn task_handler_pair_basic<'a>(
 
     assert_eq!(
         response_close_payment.payment_id,
-        PaymentId::from(&[3u8; PaymentId::len()])
+        PaymentId::from(&[4u8; PaymentId::len()])
     );
     let (receipt, ack_uid) = match &response_close_payment.status {
         PaymentStatus::Success(payment_status_success) => (
@@ -1110,7 +1248,7 @@ async fn task_handler_pair_basic<'a>(
     assert_eq!(receipt.total_dest_payment, 16);
 
     let ack_close_payment = AckClosePayment {
-        payment_id: PaymentId::from(&[3u8; PaymentId::len()]),
+        payment_id: PaymentId::from(&[4u8; PaymentId::len()]),
         ack_uid: ack_uid.clone(),
     };
     // Node2: Send ack for closing the payment:
@@ -1132,7 +1270,7 @@ async fn task_handler_pair_basic<'a>(
     // Node2: Request for closing payment again:
     let incoming_control_message = FunderIncomingControl::new(
         Uid::from(&[23; Uid::len()]),
-        FunderControl::RequestClosePayment(PaymentId::from(&[3u8; PaymentId::len()])),
+        FunderControl::RequestClosePayment(PaymentId::from(&[4u8; PaymentId::len()])),
     );
     let funder_incoming = FunderIncoming::Control(incoming_control_message);
     let (outgoing_comms, outgoing_control) = Box::pin(apply_funder_incoming(
