@@ -205,26 +205,20 @@ impl CanonicalSerialize for FriendTcOp {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
         match self {
-            FriendTcOp::EnableRequests => {
-                res_bytes.push(0u8);
-            }
-            FriendTcOp::DisableRequests => {
-                res_bytes.push(1u8);
-            }
             FriendTcOp::RequestSendFunds(request_send_funds) => {
-                res_bytes.push(2u8);
+                res_bytes.push(0u8);
                 res_bytes.append(&mut request_send_funds.canonical_serialize())
             }
             FriendTcOp::ResponseSendFunds(response_send_funds) => {
-                res_bytes.push(3u8);
+                res_bytes.push(1u8);
                 res_bytes.append(&mut response_send_funds.canonical_serialize())
             }
             FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-                res_bytes.push(4u8);
+                res_bytes.push(2u8);
                 res_bytes.append(&mut cancel_send_funds.canonical_serialize())
             }
             FriendTcOp::CollectSendFunds(commit_send_funds) => {
-                res_bytes.push(5u8);
+                res_bytes.push(3u8);
                 res_bytes.append(&mut commit_send_funds.canonical_serialize())
             }
         }
