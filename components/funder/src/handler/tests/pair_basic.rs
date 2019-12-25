@@ -475,6 +475,7 @@ async fn task_handler_pair_basic<'a>(
 
     // Node1 sends nothing
     assert!(outgoing_comms.is_empty());
+    
     /*
     let friend_message = match &outgoing_comms[0] {
         FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
@@ -619,6 +620,71 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
+    // Node2 doesn't have the token, so it will request the token from Node1 using an empty
+    // MoveToken message:
+    assert_eq!(outgoing_comms.len(), 1);
+
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, true);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node1: Receive friend_message from Node2:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state1,
+        &mut ephemeral1,
+        &mut rng,
+        identity_client1,
+    ))
+    .await
+    .unwrap();
+
+    // Node1 moves the token to Node2, as requested:
+    assert_eq!(outgoing_comms.len(), 1);
+
+    let friend_message = match &outgoing_comms[0] {
+        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
+            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
+                assert_eq!(pk, &pk1);
+                assert_eq!(move_token_request.token_wanted, false);
+            } else {
+                unreachable!();
+            }
+            friend_message.clone()
+        }
+        _ => unreachable!(),
+    };
+
+    // Node2: Receive the token from Node1:
+    let funder_incoming =
+        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
+    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
+        funder_incoming,
+        &mut state2,
+        &mut ephemeral2,
+        &mut rng,
+        identity_client2,
+    ))
+    .await
+    .unwrap();
+
+    assert!(outgoing_comms.is_empty());
+
+
+    // TODO: Continue fixing test here.
+
+
     assert_eq!(outgoing_comms.len(), 0);
     // SetNumPayments(1):
     assert_eq!(outgoing_control.len(), 2);
@@ -646,6 +712,7 @@ async fn task_handler_pair_basic<'a>(
             .state(),
         _ => unreachable!(),
     };
+    /*
     assert_eq!(
         mutual_credit_state.requests_status.local,
         RequestsStatus::Closed
@@ -654,9 +721,9 @@ async fn task_handler_pair_basic<'a>(
         mutual_credit_state.requests_status.remote,
         RequestsStatus::Closed
     );
+    */
 
     // Node1 gets a control message to declare his requests are open,
-    // However, Node1 doesn't have the token at this moment.
     let set_requests_status = SetFriendCurrencyRequestsStatus {
         friend_public_key: pk2.clone(),
         currency: currency.clone(),
@@ -677,27 +744,8 @@ async fn task_handler_pair_basic<'a>(
     .await
     .unwrap();
 
-    // Node1 declares that requests are open:
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message =
-        if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
-            friend_message.clone()
-        } else {
-            unreachable!();
-        };
-
-    // Node2 from Node1 that requests are open:
-    let funder_incoming =
-        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
-        funder_incoming,
-        &mut state2,
-        &mut ephemeral2,
-        &mut rng,
-        identity_client2,
-    ))
-    .await
-    .unwrap();
+    // Node1 sends nothing
+    assert!(outgoing_comms.is_empty());
 
     /*
     assert_eq!(outgoing_comms.len(), 1);
@@ -754,8 +802,11 @@ async fn task_handler_pair_basic<'a>(
             .state(),
         _ => unreachable!(),
     };
+
+    /*
     assert!(mutual_credit_state.requests_status.local.is_open());
     assert!(!mutual_credit_state.requests_status.remote.is_open());
+    */
 
     // Checking the current requests status on the mutual credit for Node2:
     let friend1 = state2.friends.get(&pk1).unwrap();
@@ -768,8 +819,10 @@ async fn task_handler_pair_basic<'a>(
             .state(),
         _ => unreachable!(),
     };
+    /*
     assert!(!mutual_credit_state.requests_status.local.is_open());
     assert!(mutual_credit_state.requests_status.remote.is_open());
+    */
 
     // Node2 again creates a transaction to send funds to Node1:
     let create_transaction = CreateTransaction {
