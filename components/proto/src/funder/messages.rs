@@ -129,8 +129,6 @@ pub struct CollectSendFundsOp {
 #[capnp_conv(crate::funder_capnp::friend_tc_op)]
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
-    EnableRequests,
-    DisableRequests,
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
