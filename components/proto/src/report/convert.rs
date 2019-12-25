@@ -12,7 +12,7 @@ use crate::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateF
 
 use crate::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FriendReport, FriendStatusReport, FunderReport,
-    FunderReportMutation, RequestsStatusReport,
+    FunderReportMutation,
 };
 
 // Conversion to index client mutations and state
@@ -41,14 +41,17 @@ where
         ChannelStatusReport::Consistent(channel_consistent_report) => channel_consistent_report,
     };
 
-    let remote_max_debts: HashMap<Currency, u128> = friend_report
+    let remote_max_debts: HashMap<Currency, (u128, bool)> = friend_report
         .currency_configs
         .iter()
         .cloned()
         .map(|currency_config_report| {
             (
                 currency_config_report.currency,
-                currency_config_report.remote_max_debt,
+                (
+                    currency_config_report.remote_max_debt,
+                    currency_config_report.is_open,
+                ),
             )
         })
         .collect();
@@ -59,34 +62,23 @@ where
         .map(|currency_report| {
             let balance = &currency_report.balance;
 
-            let recv_capacity =
-                if currency_report.requests_status.local == RequestsStatusReport::Closed {
-                    0
-                } else {
-                    let remote_max_debt = remote_max_debts
-                        .get(&currency_report.currency)
-                        .cloned()
-                        .unwrap_or(0);
+            let (remote_max_debt, is_open) = remote_max_debts
+                .get(&currency_report.currency)
+                .cloned()
+                .unwrap_or((0, false));
 
-                    remote_max_debt.saturating_sub_signed(
-                        balance
-                            .balance
-                            .checked_add_unsigned(balance.remote_pending_debt)
-                            .unwrap(),
-                    )
-                };
+            let recv_capacity = if !is_open {
+                0
+            } else {
+                remote_max_debt.saturating_sub_signed(
+                    balance
+                        .balance
+                        .checked_add_unsigned(balance.remote_pending_debt)
+                        .unwrap(),
+                )
+            };
 
-            let is_send_open =
-                if let RequestsStatusReport::Open = currency_report.requests_status.remote {
-                    true
-                } else {
-                    false
-                };
-
-            (
-                currency_report.currency.clone(),
-                (is_send_open, recv_capacity),
-            )
+            (currency_report.currency.clone(), (is_open, recv_capacity))
         })
         .collect()
 }
@@ -102,7 +94,7 @@ where
         .iter()
         .flat_map(|(friend_public_key, friend_report)| {
             calc_friend_capacities(friend_report).into_iter().map(
-                move |(currency, (is_send_open, recv_capacity))| {
+                move |(currency, (is_open, recv_capacity))| {
                     let rate = friend_report
                         .currency_configs
                         .iter()
@@ -113,7 +105,7 @@ where
                     (
                         (friend_public_key.clone(), currency),
                         FriendInfo {
-                            is_send_open,
+                            is_open,
                             recv_capacity,
                             rate,
                         },
@@ -121,7 +113,7 @@ where
                 },
             )
         })
-        .filter(|(_, friend_info)| friend_info.recv_capacity != 0 || friend_info.is_send_open)
+        .filter(|(_, friend_info)| friend_info.recv_capacity != 0 || friend_info.is_open)
 }
 
 pub fn funder_report_to_index_client_state<B>(funder_report: &FunderReport<B>) -> IndexClientState
@@ -169,7 +161,6 @@ where
         res_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
             public_key,
             currency,
-            is_send_open: friend_info.is_send_open,
             recv_capacity: friend_info.recv_capacity,
             rate: friend_info.rate,
         }));
@@ -196,7 +187,6 @@ mod tests {
 
     use crate::report::messages::{
         ChannelConsistentReport, CurrencyConfigReport, CurrencyReport, McBalanceReport,
-        McRequestsStatusReport, RequestsStatusReport,
     };
     use std::convert::TryFrom;
 
@@ -220,19 +210,19 @@ mod tests {
                         currency: currency1.clone(),
                         rate: Rate { mul: 0, add: 0 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                     CurrencyConfigReport {
                         currency: currency2.clone(),
                         rate: Rate { mul: 0, add: 0 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: false,
                     },
                     CurrencyConfigReport {
                         currency: currency3.clone(),
                         rate: Rate { mul: 1, add: 10 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                 ],
                 remote_relays: vec![],
@@ -247,10 +237,6 @@ mod tests {
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
-                            },
                         },
                         CurrencyReport {
                             currency: currency2.clone(),
@@ -259,10 +245,6 @@ mod tests {
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Closed,
-                                remote: RequestsStatusReport::Open,
-                            },
                         },
                         CurrencyReport {
                             currency: currency3.clone(),
@@ -270,10 +252,6 @@ mod tests {
                                 balance: 50,
                                 local_pending_debt: 10,
                                 remote_pending_debt: 30,
-                            },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
                             },
                         },
                     ],
@@ -290,7 +268,7 @@ mod tests {
                     currency: currency1.clone(),
                     rate: Rate { mul: 2, add: 2 },
                     remote_max_debt: 200,
-                    wanted_local_requests_status: RequestsStatusReport::Open,
+                    is_open: true,
                 }],
                 remote_relays: vec![],
                 opt_last_incoming_move_token: None,
@@ -302,10 +280,6 @@ mod tests {
                             balance: 0,
                             local_pending_debt: 0,
                             remote_pending_debt: 0,
-                        },
-                        requests_status: McRequestsStatusReport {
-                            local: RequestsStatusReport::Open,
-                            remote: RequestsStatusReport::Open,
                         },
                     }],
                 }),
@@ -324,9 +298,9 @@ mod tests {
         assert_eq!(friend_info.recv_capacity, 200);
         assert_eq!(friend_info.rate, Rate::new());
 
-        let friend_info = friends_info.get(&(pk2.clone(), currency2.clone())).unwrap();
-        assert_eq!(friend_info.recv_capacity, 0);
-        assert_eq!(friend_info.rate, Rate::new());
+        assert!(friends_info
+            .get(&(pk2.clone(), currency2.clone()))
+            .is_none());
 
         let friend_info = friends_info.get(&(pk2.clone(), currency3.clone())).unwrap();
         assert_eq!(friend_info.recv_capacity, 120);
@@ -346,7 +320,6 @@ mod tests {
 
         let pk1 = PublicKey::from(&[1; PublicKey::len()]);
         let pk2 = PublicKey::from(&[2; PublicKey::len()]);
-        let _pk3 = PublicKey::from(&[3; PublicKey::len()]);
 
         let mut friends = HashMap::new();
         friends.insert(
@@ -358,19 +331,25 @@ mod tests {
                         currency: currency1.clone(),
                         rate: Rate { mul: 0, add: 0 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                     CurrencyConfigReport {
                         currency: currency2.clone(),
                         rate: Rate { mul: 1, add: 10 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
+                    },
+                    CurrencyConfigReport {
+                        currency: currency3.clone(),
+                        rate: Rate { mul: 1, add: 10 },
+                        remote_max_debt: 200,
+                        is_open: false,
                     },
                     CurrencyConfigReport {
                         currency: currency4.clone(),
                         rate: Rate { mul: 1, add: 10 },
                         remote_max_debt: 40,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                 ],
                 remote_relays: vec![],
@@ -385,10 +364,6 @@ mod tests {
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
-                            },
                         },
                         CurrencyReport {
                             currency: currency2.clone(),
@@ -397,9 +372,13 @@ mod tests {
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Closed,
-                                remote: RequestsStatusReport::Open,
+                        },
+                        CurrencyReport {
+                            currency: currency3.clone(),
+                            balance: McBalanceReport {
+                                balance: 0,
+                                local_pending_debt: 0,
+                                remote_pending_debt: 0,
                             },
                         },
                         CurrencyReport {
@@ -408,10 +387,6 @@ mod tests {
                                 balance: 0,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
-                            },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
                             },
                         },
                     ],
@@ -436,19 +411,19 @@ mod tests {
                         currency: currency1.clone(),
                         rate: Rate { mul: 0, add: 0 },
                         remote_max_debt: 300,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                     CurrencyConfigReport {
                         currency: currency3.clone(),
                         rate: Rate { mul: 1, add: 10 },
                         remote_max_debt: 200,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                     CurrencyConfigReport {
                         currency: currency4.clone(),
                         rate: Rate { mul: 1, add: 10 },
                         remote_max_debt: 40,
-                        wanted_local_requests_status: RequestsStatusReport::Open,
+                        is_open: true,
                     },
                 ],
                 remote_relays: vec![],
@@ -463,10 +438,6 @@ mod tests {
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
-                            },
                         },
                         CurrencyReport {
                             currency: currency3.clone(),
@@ -475,10 +446,6 @@ mod tests {
                                 local_pending_debt: 10,
                                 remote_pending_debt: 30,
                             },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
-                            },
                         },
                         CurrencyReport {
                             currency: currency4.clone(),
@@ -486,10 +453,6 @@ mod tests {
                                 balance: 0,
                                 local_pending_debt: 0,
                                 remote_pending_debt: 0,
-                            },
-                            requests_status: McRequestsStatusReport {
-                                local: RequestsStatusReport::Open,
-                                remote: RequestsStatusReport::Open,
                             },
                         },
                     ],
@@ -503,7 +466,7 @@ mod tests {
             friends,
         };
 
-        let index_mutations = calc_index_mutations(&old_funder_report, &new_funder_report);
+        let index_mutations = dbg!(calc_index_mutations(&old_funder_report, &new_funder_report));
         assert_eq!(index_mutations.len(), 3);
         for index_mutation in index_mutations {
             match index_mutation {

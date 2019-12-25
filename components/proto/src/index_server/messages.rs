@@ -95,8 +95,6 @@ pub struct UpdateFriendCurrency {
     pub public_key: PublicKey,
     /// Currency being updated
     pub currency: Currency,
-    /// Is it possible to forward requests from us to the remote side?
-    pub is_send_open: bool,
     /// To denote local requests closed, assign 0 to recvCapacity
     #[capnp_conv(with = Wrapper<u128>)]
     pub recv_capacity: u128,

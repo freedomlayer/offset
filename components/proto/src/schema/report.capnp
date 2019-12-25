@@ -73,11 +73,6 @@ struct FriendLivenessReport {
         }
 }
 
-struct McRequestsStatusReport {
-        local @0: RequestsStatusReport;
-        remote @1: RequestsStatusReport;
-}
-
 struct McBalanceReport {
     balance @0: CustomInt128;
     # Maximum possible remote debt
@@ -90,7 +85,6 @@ struct McBalanceReport {
 struct CurrencyReport {
         currency @0: Currency;
         balance @1: McBalanceReport;
-        requestsStatus @2: McRequestsStatusReport;
 }
 
 struct ResetTermsReport {
@@ -137,7 +131,7 @@ struct CurrencyConfigReport {
         currency @0: Currency;
         rate @1: Rate;
         remoteMaxDebt @2: CustomUInt128;
-        wantedLocalRequestsStatus @3: RequestsStatusReport;
+        isOpen @3: Bool;
 }
 
 struct FriendReport {

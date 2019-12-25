@@ -41,15 +41,6 @@ pub enum RequestsStatusReport {
     Closed,
 }
 
-#[capnp_conv(crate::report_capnp::mc_requests_status_report)]
-#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub struct McRequestsStatusReport {
-    // Local is open/closed for incoming requests:
-    pub local: RequestsStatusReport,
-    // Remote is open/closed for incoming requests:
-    pub remote: RequestsStatusReport,
-}
-
 #[capnp_conv(crate::report_capnp::mc_balance_report)]
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
@@ -87,7 +78,6 @@ impl FriendLivenessReport {
 pub struct CurrencyReport {
     pub currency: Currency,
     pub balance: McBalanceReport,
-    pub requests_status: McRequestsStatusReport,
 }
 
 #[capnp_conv(crate::report_capnp::reset_terms_report)]
@@ -185,10 +175,8 @@ pub struct CurrencyConfigReport {
     /// Credit frame for the remote side (Set by the user of this node)
     #[capnp_conv(with = Wrapper<u128>)]
     pub remote_max_debt: u128,
-    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
-    /// might take some time until it is applied (As it should be communicated to the remote
-    /// friend).
-    pub wanted_local_requests_status: RequestsStatusReport,
+    /// Can requests be sent through this mutual credit?
+    pub is_open: bool,
 }
 
 #[capnp_conv(crate::report_capnp::friend_report)]
