@@ -321,17 +321,15 @@ where
             match index_mutation {
                 IndexMutation::UpdateFriendCurrency(update_friend_currency) => {
                     info!(
-                        "pk_source: {}, pk_friend: {}, currency: {}, is_send_open: {}, recv: {}, rate: {:?}",
+                        "pk_source: {}, pk_friend: {}, currency: {}, recv: {}, rate: {:?}",
                         update_friend_currency.public_key[0],
                         mutations_update.node_public_key[0],
                         update_friend_currency.currency,
-                        update_friend_currency.is_send_open,
                         update_friend_currency.recv_capacity,
                         update_friend_currency.rate,
                     );
 
                     let capacity_edge = CapacityEdge::new(
-                        update_friend_currency.is_send_open,
                         update_friend_currency.recv_capacity,
                         update_friend_currency.rate.clone(),
                     );

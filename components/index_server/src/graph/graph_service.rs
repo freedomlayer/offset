@@ -286,12 +286,12 @@ mod tests {
                 currency1,
                 2u32,
                 5u32,
-                CapacityEdge::new(true, 5, ConstRate(1u32)),
+                CapacityEdge::new(5, ConstRate(1u32)),
             )
             .await
             .unwrap();
         graph_client
-            .update_edge(currency1, 5, 2, CapacityEdge::new(true, 30, ConstRate(1)))
+            .update_edge(currency1, 5, 2, CapacityEdge::new(30, ConstRate(1)))
             .await
             .unwrap();
 
@@ -333,7 +333,7 @@ mod tests {
 
         assert_eq!(
             graph_client.remove_edge(currency1, 2, 5).await.unwrap(),
-            Some(CapacityEdge::new(true, 5, ConstRate(1)))
+            Some(CapacityEdge::new(5, ConstRate(1)))
         );
         graph_client.remove_node(2).await.unwrap();
         graph_client.remove_node(5).await.unwrap();
