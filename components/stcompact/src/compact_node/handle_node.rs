@@ -363,7 +363,7 @@ where
             user_sender
                 .send(CompactToUserAck::CompactToUser(compact_to_user))
                 .await
-                .map_err(|_| CompactNodeError::UserSenderError);
+                .map_err(|_| CompactNodeError::UserSenderError)?;
         }
     }
     Ok(())

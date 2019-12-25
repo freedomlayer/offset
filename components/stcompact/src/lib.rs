@@ -13,7 +13,6 @@ extern crate common;
 #[macro_use]
 extern crate log;
 
-#[allow(unused)]
 mod compact_node;
 
 mod gen;
