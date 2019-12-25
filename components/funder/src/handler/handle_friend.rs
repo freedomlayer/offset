@@ -387,7 +387,7 @@ fn handle_request_send_funds<B>(
     // time before a response arrives.
     let friend_ready = if let Some(next_friend) = opt_next_friend {
         if let Some(currency_config) = next_friend.currency_configs.get(currency) {
-            if !currency_config.is_open {
+            if currency_config.is_open {
                 is_friend_ready(m_state.state(), ephemeral, &next_public_key, currency)
             } else {
                 false
