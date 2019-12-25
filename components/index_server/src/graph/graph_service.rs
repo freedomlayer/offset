@@ -282,12 +282,7 @@ mod tests {
         .unwrap();
 
         graph_client
-            .update_edge(
-                currency1,
-                2u32,
-                5u32,
-                CapacityEdge::new(5, ConstRate(1u32)),
-            )
+            .update_edge(currency1, 2u32, 5u32, CapacityEdge::new(5, ConstRate(1u32)))
             .await
             .unwrap();
         graph_client

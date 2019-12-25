@@ -475,13 +475,13 @@ where
                 return false;
             }
             match &friend.channel_status {
-                ChannelStatusReport::Consistent(_channel_consistent) => {},
+                ChannelStatusReport::Consistent(_channel_consistent) => {}
                 _ => return false,
             };
 
             for currency_config in &friend.currency_configs {
                 if &currency_config.currency == currency {
-                    return currency_config.is_open
+                    return currency_config.is_open;
                 }
             }
             false

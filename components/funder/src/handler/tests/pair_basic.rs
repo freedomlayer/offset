@@ -13,7 +13,7 @@ use crypto::identity::{compare_public_key, SoftwareEd25519Identity};
 use crypto::rand::{RandGen, RngContainer};
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{InvoiceId, PaymentId, PrivateKey, Uid, PublicKey};
+use proto::crypto::{InvoiceId, PaymentId, PrivateKey, PublicKey, Uid};
 
 use proto::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
@@ -478,7 +478,7 @@ async fn task_handler_pair_basic<'a>(
 
     // Node1 sends nothing
     assert!(outgoing_comms.is_empty());
-    
+
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
@@ -618,7 +618,6 @@ async fn task_handler_pair_basic<'a>(
     ))
     .await
     .unwrap();
-
 
     // Node2 sends a RequestSendFunds to Node1:
     assert_eq!(outgoing_comms.len(), 1);
