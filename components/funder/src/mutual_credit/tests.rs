@@ -53,16 +53,6 @@ fn test_request_response_collect_send_funds() {
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
-
     // -----[RequestSendFunds]--------
     // -----------------------------
     let rng = DummyRandom::new(&[1u8]);
@@ -167,16 +157,6 @@ fn test_request_cancel_send_funds() {
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
-
     // -----[RequestSendFunds]--------
     // -----------------------------
     let request_id = Uid::from(&[3; Uid::len()]);
@@ -235,16 +215,6 @@ fn test_request_response_cancel_send_funds() {
     let balance = 0;
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
-
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------

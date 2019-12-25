@@ -479,70 +479,6 @@ async fn task_handler_pair_basic<'a>(
     // Node1 sends nothing
     assert!(outgoing_comms.is_empty());
     
-    /*
-    let friend_message = match &outgoing_comms[0] {
-        FunderOutgoingComm::FriendMessage((pk, friend_message)) => {
-            if let FriendMessage::MoveTokenRequest(move_token_request) = friend_message {
-                assert_eq!(pk, &pk2);
-                assert_eq!(move_token_request.token_wanted, false);
-            } else {
-                unreachable!();
-            }
-            friend_message.clone()
-        }
-        _ => unreachable!(),
-    };
-
-    // Node2: Receive friend_message (With SetRemoteMaxDebt) from Node1:
-    let funder_incoming =
-        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
-        funder_incoming,
-        &mut state2,
-        &mut ephemeral2,
-        &mut rng,
-        identity_client2,
-    ))
-    .await
-    .unwrap();
-    */
-
-    /*
-    let friend2 = state1.friends.get(&pk2).unwrap();
-    let remote_max_debt = match &friend2.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent
-                .token_channel
-                .get_mutual_credits()
-                .get(&currency)
-                .unwrap()
-                .state()
-                .balance
-                .remote_max_debt
-        }
-        _ => unreachable!(),
-    };
-    assert_eq!(remote_max_debt, 100);
-    */
-
-    /*
-    let friend1 = state2.friends.get(&pk1).unwrap();
-    let local_max_debt = match &friend1.channel_status {
-        ChannelStatus::Consistent(channel_consistent) => {
-            channel_consistent
-                .token_channel
-                .get_mutual_credits()
-                .get(&currency)
-                .unwrap()
-                .state()
-                .balance
-                .local_max_debt
-        }
-        _ => unreachable!(),
-    };
-    assert_eq!(local_max_debt, 100);
-    */
-
     // Node1 opens an invoice (To get payment from Node2):
     let add_invoice = AddInvoice {
         invoice_id: InvoiceId::from(&[1u8; InvoiceId::len()]),
@@ -801,50 +737,6 @@ async fn task_handler_pair_basic<'a>(
 
     // Node1 sends nothing
     assert!(outgoing_comms.is_empty());
-
-    /*
-    assert_eq!(outgoing_comms.len(), 1);
-    let friend_message =
-        if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
-            friend_message.clone()
-        } else {
-            unreachable!();
-        };
-
-    // Node1 receives the token from Node2:
-    let funder_incoming =
-        FunderIncoming::Comm(FunderIncomingComm::Friend((pk2.clone(), friend_message)));
-    let (outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
-        funder_incoming,
-        &mut state1,
-        &mut ephemeral1,
-        &mut rng,
-        identity_client1,
-    ))
-    .await
-    .unwrap();
-
-    // Node1 declares that his requests are open:
-    let friend_message =
-        if let FunderOutgoingComm::FriendMessage((_pk, friend_message)) = &outgoing_comms[0] {
-            friend_message.clone()
-        } else {
-            unreachable!();
-        };
-
-    // Node2 receives the set requests open message:
-    let funder_incoming =
-        FunderIncoming::Comm(FunderIncomingComm::Friend((pk1.clone(), friend_message)));
-    let (_outgoing_comms, _outgoing_control) = Box::pin(apply_funder_incoming(
-        funder_incoming,
-        &mut state2,
-        &mut ephemeral2,
-        &mut rng,
-        identity_client2,
-    ))
-    .await
-    .unwrap();
-    */
 
     // Checking the current requests status on the mutual credit for Node1:
     let friend2 = state1.friends.get(&pk2).unwrap();
