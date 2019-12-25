@@ -23,7 +23,8 @@ use signature::verify::verify_commit;
 
 use crate::ephemeral::Ephemeral;
 use crate::handler::canceler::{
-    cancel_local_pending_transactions, cancel_pending_requests, reply_with_cancel, CurrencyChoice,
+    cancel_local_pending_transactions, cancel_nonuser_pending_requests, cancel_pending_requests,
+    reply_with_cancel, CurrencyChoice,
 };
 use crate::handler::prepare::prepare_commit;
 use crate::handler::state_wrap::{MutableEphemeral, MutableFunderState};
@@ -362,13 +363,17 @@ where
     Ok(())
 }
 
-fn control_set_friend_currency_requests_status<B>(
+fn control_set_friend_currency_requests_status<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    // TODO: rng might not be required here.
+    rng: &R,
     set_friend_currency_requests_status: SetFriendCurrencyRequestsStatus,
 ) -> Result<(), HandleControlError>
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
+    R: CryptoRandom,
 {
     // Make sure that friend exists:
     let friend = m_state
@@ -377,14 +382,12 @@ where
         .get(&set_friend_currency_requests_status.friend_public_key)
         .ok_or(HandleControlError::FriendDoesNotExist)?;
 
-    // If the newly proposed rate is the same as the old one, we do nothing:
+    // If the newly requests status is the same as the old one, we do nothing:
     let mut new_currency_config = if let Some(currency_config) = friend
         .currency_configs
         .get(&set_friend_currency_requests_status.currency)
     {
-        if currency_config.wanted_local_requests_status
-            == set_friend_currency_requests_status.status
-        {
+        if currency_config.is_open == set_friend_currency_requests_status.status.is_open() {
             return Ok(());
         }
         currency_config.clone()
@@ -392,7 +395,24 @@ where
         CurrencyConfig::new()
     };
 
-    new_currency_config.wanted_local_requests_status = set_friend_currency_requests_status.status;
+    // If remote requests were previously open, and now they were closed:
+    if !set_friend_currency_requests_status.status.is_open() {
+        // Cancel all messages pending for this friend with this currency.
+        // We don't want the senders of the requests to wait.
+        //
+        // Note that we do not cancel the local user's requests. This could be used for
+        // rebalancing.
+        cancel_nonuser_pending_requests(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            &set_friend_currency_requests_status.friend_public_key,
+            &CurrencyChoice::One(set_friend_currency_requests_status.currency.clone()),
+        );
+    }
+
+    new_currency_config.is_open = set_friend_currency_requests_status.status.is_open();
 
     let friend_mutation = FriendMutation::UpdateCurrencyConfig((
         set_friend_currency_requests_status.currency,
@@ -1196,6 +1216,8 @@ where
             control_set_friend_currency_requests_status(
                 m_state,
                 send_commands,
+                outgoing_control,
+                rng,
                 set_friend_currency_requests_status,
             )
         }

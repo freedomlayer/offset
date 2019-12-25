@@ -158,6 +158,7 @@ pub enum FriendMutation<B: Clone> {
     PushBackPendingUserRequest((Currency, RequestSendFundsOp)),
     PopFrontPendingUserRequest,
     RemovePendingRequestsCurrency(Currency),
+    RemovePendingUserRequestsCurrency(Currency),
     RemovePendingRequests,
     SetStatus(FriendStatus),
     SetRemoteRelays(Vec<RelayAddress<B>>),
@@ -328,7 +329,13 @@ where
                     channel_consistent
                         .pending_requests
                         .retain(|(currency0, _)| currency0 != currency);
-
+                } else {
+                    unreachable!();
+                }
+            }
+            FriendMutation::RemovePendingUserRequestsCurrency(currency) => {
+                // Remove all pending outgoing messages for a certain currency.
+                if let ChannelStatus::Consistent(channel_consistent) = &mut self.channel_status {
                     channel_consistent
                         .pending_user_requests
                         .retain(|(currency0, _)| currency0 != currency);

@@ -147,15 +147,15 @@ where
         ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
     };
 
-    let mutual_credit =
-        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(currency) {
-            mutual_credit
-        } else {
-            // TODO: Possibly a different error message for this case? Maybe to be added externally at
-            // the call site? The currency does not exist!
-            return false;
-        };
+    if let Some(_mutual_credit) = token_channel.get_mutual_credits().get(currency) {
+        true
+    } else {
+        // TODO: Possibly a different error message for this case? Maybe to be added externally at
+        // the call site? The currency does not exist!
+        false
+    }
 
+    // TODO: We need to check this outside
     // Make sure that the remote side has open requests:
-    mutual_credit.state().requests_status.remote.is_open()
+    // mutual_credit.state().requests_status.remote.is_open()
 }

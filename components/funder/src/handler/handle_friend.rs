@@ -924,20 +924,6 @@ fn handle_move_token_success<B, R>(
             }
 
             for move_token_received_currency in currencies {
-                // If remote requests were previously open, and now they were closed:
-                if move_token_received_currency.remote_requests_closed {
-                    // Cancel all messages pending for this friend with this currency.
-                    // We don't want the senders of the requests to wait.
-                    cancel_pending_requests(
-                        m_state,
-                        send_commands,
-                        outgoing_control,
-                        rng,
-                        remote_public_key,
-                        &CurrencyChoice::One(move_token_received_currency.currency.clone()),
-                    );
-                }
-
                 handle_move_token_output(
                     m_state,
                     m_ephemeral,

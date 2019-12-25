@@ -357,4 +357,62 @@ pub fn cancel_pending_requests<B, R>(
     let funder_mutation =
         FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
     m_state.mutate(funder_mutation);
+
+    // Remove user requests:
+    let friend_mutation = if let CurrencyChoice::One(currency0) = currency_choice {
+        FriendMutation::RemovePendingUserRequestsCurrency(currency0.clone())
+    } else {
+        FriendMutation::RemovePendingRequests
+    };
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
+}
+
+/// Cancel all pending request messages at the pending_requests queue.
+/// These are requests that were forwarded from other nodes.
+pub fn cancel_nonuser_pending_requests<B, R>(
+    m_state: &mut MutableFunderState<B>,
+    send_commands: &mut SendCommands,
+    outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
+    rng: &R,
+    friend_public_key: &PublicKey,
+    currency_choice: &CurrencyChoice,
+) where
+    B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
+    R: CryptoRandom,
+{
+    let friend = m_state.state().friends.get(friend_public_key).unwrap();
+    let channel_consistent = match &friend.channel_status {
+        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Consistent(channel_consistent) => channel_consistent,
+    };
+    let mut channel_consistent = channel_consistent.clone();
+
+    // Cancel requests (Queue backwards ops):
+    while let Some((currency, pending_request)) = channel_consistent.pending_requests.pop_front() {
+        if let CurrencyChoice::One(currency0) = &currency_choice {
+            if *currency0 != currency {
+                continue;
+            }
+        }
+        cancel_request(
+            m_state,
+            send_commands,
+            outgoing_control,
+            rng,
+            &currency,
+            &pending_request,
+        );
+    }
+
+    // Remove requests:
+    let friend_mutation = if let CurrencyChoice::One(currency0) = currency_choice {
+        FriendMutation::RemovePendingRequestsCurrency(currency0.clone())
+    } else {
+        FriendMutation::RemovePendingRequests
+    };
+    let funder_mutation =
+        FunderMutation::FriendMutation((friend_public_key.clone(), friend_mutation));
+    m_state.mutate(funder_mutation);
 }

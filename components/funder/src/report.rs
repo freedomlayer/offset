@@ -173,7 +173,8 @@ where
         | FriendMutation::PushBackPendingUserRequest(_)
         | FriendMutation::PopFrontPendingUserRequest
         | FriendMutation::RemovePendingRequests
-        | FriendMutation::RemovePendingRequestsCurrency(_) => vec![],
+        | FriendMutation::RemovePendingRequestsCurrency(_)
+        | FriendMutation::RemovePendingUserRequestsCurrency(_) => vec![],
         FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(
             FriendStatusReport::from(friend_status),
         )],
