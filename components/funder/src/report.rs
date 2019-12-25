@@ -5,8 +5,8 @@ use signature::canonical::CanonicalSerialize;
 use proto::report::messages::{
     AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
     CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport, FriendReportMutation,
-    FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport,
-    McRequestsStatusReport, MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
+    FriendStatusReport, FunderReport, FunderReportMutation, McBalanceReport, MoveTokenHashedReport,
+    ResetTermsReport,
 };
 
 use crate::types::MoveTokenHashed;
@@ -14,17 +14,8 @@ use crate::types::MoveTokenHashed;
 use crate::ephemeral::{Ephemeral, EphemeralMutation};
 use crate::friend::{ChannelStatus, FriendMutation, FriendState};
 use crate::liveness::LivenessMutation;
-use crate::mutual_credit::types::{McBalance, McRequestsStatus};
+use crate::mutual_credit::types::McBalance;
 use crate::state::{FunderMutation, FunderState};
-
-impl From<&McRequestsStatus> for McRequestsStatusReport {
-    fn from(mc_requests_status: &McRequestsStatus) -> McRequestsStatusReport {
-        McRequestsStatusReport {
-            local: (&mc_requests_status.local).into(),
-            remote: (&mc_requests_status.remote).into(),
-        }
-    }
-}
 
 impl From<&McBalance> for McBalanceReport {
     fn from(mc_balance: &McBalance) -> McBalanceReport {
@@ -81,9 +72,6 @@ where
                             CurrencyReport {
                                 currency: currency.clone(),
                                 balance: McBalanceReport::from(&mc_state.balance),
-                                requests_status: McRequestsStatusReport::from(
-                                    &mc_state.requests_status,
-                                ),
                             }
                         })
                         .collect(),
@@ -113,9 +101,7 @@ where
                 currency,
                 rate: currency_config.rate,
                 remote_max_debt: currency_config.remote_max_debt,
-                wanted_local_requests_status: RequestsStatusReport::from(
-                    &currency_config.wanted_local_requests_status,
-                ),
+                is_open: currency_config.is_open,
             })
             .collect(),
         remote_relays: friend_state.remote_relays.clone(),
@@ -187,7 +173,8 @@ where
         | FriendMutation::PushBackPendingUserRequest(_)
         | FriendMutation::PopFrontPendingUserRequest
         | FriendMutation::RemovePendingRequests
-        | FriendMutation::RemovePendingRequestsCurrency(_) => vec![],
+        | FriendMutation::RemovePendingRequestsCurrency(_)
+        | FriendMutation::RemovePendingUserRequestsCurrency(_) => vec![],
         FriendMutation::SetStatus(friend_status) => vec![FriendReportMutation::SetStatus(
             FriendStatusReport::from(friend_status),
         )],
@@ -201,9 +188,7 @@ where
                     currency: currency.clone(),
                     rate: currency_config.rate.clone(),
                     remote_max_debt: currency_config.remote_max_debt,
-                    wanted_local_requests_status: RequestsStatusReport::from(
-                        &currency_config.wanted_local_requests_status,
-                    ),
+                    is_open: currency_config.is_open,
                 },
             )]
         }

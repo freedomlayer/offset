@@ -8,7 +8,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{InvoiceId, PlainLock, PrivateKey, PublicKey, RandValue, Signature, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, CollectSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
-    RequestsStatus, ResponseSendFundsOp,
+    ResponseSendFundsOp,
 };
 use signature::signature_buff::create_response_signature_buffer;
 
@@ -44,46 +44,6 @@ fn apply_incoming(
 }
 
 #[test]
-fn test_outgoing_open_close_requests() {
-    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
-
-    let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
-    let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
-    let balance = 0;
-    let mut mutual_credit =
-        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
-
-    assert_eq!(
-        mutual_credit.state().requests_status.local,
-        RequestsStatus::Closed
-    );
-    assert_eq!(
-        mutual_credit.state().requests_status.remote,
-        RequestsStatus::Closed
-    );
-
-    apply_outgoing(&mut mutual_credit, &FriendTcOp::EnableRequests).unwrap();
-    assert_eq!(
-        mutual_credit.state().requests_status.local,
-        RequestsStatus::Open
-    );
-    assert_eq!(
-        mutual_credit.state().requests_status.remote,
-        RequestsStatus::Closed
-    );
-
-    apply_outgoing(&mut mutual_credit, &FriendTcOp::DisableRequests).unwrap();
-    assert_eq!(
-        mutual_credit.state().requests_status.local,
-        RequestsStatus::Closed
-    );
-    assert_eq!(
-        mutual_credit.state().requests_status.remote,
-        RequestsStatus::Closed
-    );
-}
-
-#[test]
 fn test_request_response_collect_send_funds() {
     let currency = Currency::try_from("OFFST".to_owned()).unwrap();
 
@@ -92,16 +52,6 @@ fn test_request_response_collect_send_funds() {
     let balance = 0;
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
-
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -207,16 +157,6 @@ fn test_request_cancel_send_funds() {
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
 
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
-
     // -----[RequestSendFunds]--------
     // -----------------------------
     let request_id = Uid::from(&[3; Uid::len()]);
@@ -275,16 +215,6 @@ fn test_request_response_cancel_send_funds() {
     let balance = 0;
     let mut mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
-
-    // -----[SetRemoteMaxDebt]------
-    // -----------------------------
-    // Make enough trust from remote side, so that we will be able to send credits:
-    // apply_incoming(&mut mutual_credit, FriendTcOp::SetRemoteMaxDebt(100)).unwrap();
-
-    // -----[EnableRequests]--------
-    // -----------------------------
-    // Remote side should open his requests status:
-    apply_incoming(&mut mutual_credit, FriendTcOp::EnableRequests, 100).unwrap();
 
     // -----[RequestSendFunds]--------
     // -----------------------------

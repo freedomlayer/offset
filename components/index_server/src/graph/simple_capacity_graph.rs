@@ -93,13 +93,9 @@ where
 
     /// Get the send capacity from `a` to a direct neighbor `b`.
     fn get_send_capacity(&self, a: &N, b: &N) -> u128 {
-        if let Some(a_b_edge) = self.get_edge(&a, &b) {
-            if !a_b_edge.capacity_edge.is_send_open {
-                return 0;
-            }
-        } else {
+        if self.get_edge(&a, &b).is_none() {
             return 0;
-        };
+        }
 
         if let Some(b_a_edge) = self.get_edge(&b, &a) {
             b_a_edge.capacity_edge.recv_capacity
@@ -267,8 +263,8 @@ mod tests {
     #[test]
     fn test_get_send_capacity_basic() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
-        cg.update_edge(0, 1, CapacityEdge::new(true, 20, ConstRate(1)));
-        cg.update_edge(1, 0, CapacityEdge::new(true, 5, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(20, ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new(5, ConstRate(1)));
 
         assert_eq!(cg.get_send_capacity(&0, &1), 5);
         assert_eq!(cg.get_send_capacity(&1, &0), 20);
@@ -277,7 +273,7 @@ mod tests {
     #[test]
     fn test_get_send_capacity_one_sided() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
-        cg.update_edge(0, 1, CapacityEdge::new(true, 20, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(20, ConstRate(1)));
 
         assert_eq!(cg.get_send_capacity(&0, &1), 0);
         assert_eq!(cg.get_send_capacity(&1, &0), 0);
@@ -287,16 +283,16 @@ mod tests {
     fn test_add_remove_edge() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
         assert_eq!(cg.remove_edge(&0, &1), None);
-        cg.update_edge(0, 1, CapacityEdge::new(true, 20, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(20, ConstRate(1)));
         assert_eq!(cg.nodes.len(), 1);
 
         assert_eq!(
             cg.remove_edge(&0, &1),
-            Some(CapacityEdge::new(true, 20, ConstRate(1)))
+            Some(CapacityEdge::new(20, ConstRate(1)))
         );
         assert_eq!(cg.nodes.len(), 0);
 
-        cg.update_edge(0, 1, CapacityEdge::new(true, 20, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(20, ConstRate(1)));
         assert_eq!(cg.nodes.len(), 1);
         cg.remove_node(&1);
         assert_eq!(cg.nodes.len(), 1);
@@ -315,23 +311,23 @@ mod tests {
 
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, CapacityEdge::new(true, 10, ConstRate(1)));
-        cg.update_edge(1, 0, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(10, ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new(30, ConstRate(1)));
 
-        cg.update_edge(1, 2, CapacityEdge::new(true, 10, ConstRate(1)));
-        cg.update_edge(2, 1, CapacityEdge::new(true, 10, ConstRate(1)));
+        cg.update_edge(1, 2, CapacityEdge::new(10, ConstRate(1)));
+        cg.update_edge(2, 1, CapacityEdge::new(10, ConstRate(1)));
 
-        cg.update_edge(2, 5, CapacityEdge::new(true, 5, ConstRate(1)));
-        cg.update_edge(5, 2, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(2, 5, CapacityEdge::new(5, ConstRate(1)));
+        cg.update_edge(5, 2, CapacityEdge::new(30, ConstRate(1)));
 
-        cg.update_edge(1, 3, CapacityEdge::new(true, 8, ConstRate(1)));
-        cg.update_edge(3, 1, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(1, 3, CapacityEdge::new(8, ConstRate(1)));
+        cg.update_edge(3, 1, CapacityEdge::new(30, ConstRate(1)));
 
-        cg.update_edge(3, 4, CapacityEdge::new(true, 6, ConstRate(1)));
-        cg.update_edge(4, 3, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(3, 4, CapacityEdge::new(6, ConstRate(1)));
+        cg.update_edge(4, 3, CapacityEdge::new(30, ConstRate(1)));
 
-        cg.update_edge(4, 2, CapacityEdge::new(true, 18, ConstRate(1)));
-        cg.update_edge(2, 4, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(4, 2, CapacityEdge::new(18, ConstRate(1)));
+        cg.update_edge(2, 4, CapacityEdge::new(30, ConstRate(1)));
 
         cg
     }
@@ -390,11 +386,11 @@ mod tests {
     fn test_simple_capacity_graph_tick() {
         let mut cg = SimpleCapacityGraph::<u32, ConstRate>::new();
 
-        cg.update_edge(0, 1, CapacityEdge::new(true, 30, ConstRate(1)));
-        cg.update_edge(1, 0, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(0, 1, CapacityEdge::new(30, ConstRate(1)));
+        cg.update_edge(1, 0, CapacityEdge::new(30, ConstRate(1)));
 
-        cg.update_edge(2, 3, CapacityEdge::new(true, 10, ConstRate(1)));
-        cg.update_edge(3, 2, CapacityEdge::new(true, 30, ConstRate(1)));
+        cg.update_edge(2, 3, CapacityEdge::new(10, ConstRate(1)));
+        cg.update_edge(3, 2, CapacityEdge::new(30, ConstRate(1)));
 
         let multi_route = cg.get_multi_route(&0, &1, 30, None).unwrap();
         assert_eq!(multi_route.routes[0].route, vec![0, 1]);

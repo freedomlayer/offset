@@ -17,7 +17,6 @@ use proto::crypto::{PrivateKey, PublicKey, Uid};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
-    RequestsStatusReport,
 };
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -475,12 +474,18 @@ where
             if friend.liveness != FriendLivenessReport::Online {
                 return false;
             }
-            let currency_reports = match &friend.channel_status {
-                ChannelStatusReport::Consistent(channel_consistent) => {
-                    &channel_consistent.currency_reports
-                }
+            match &friend.channel_status {
+                ChannelStatusReport::Consistent(_channel_consistent) => {}
                 _ => return false,
             };
+
+            for currency_config in &friend.currency_configs {
+                if &currency_config.currency == currency {
+                    return currency_config.is_open;
+                }
+            }
+            false
+            /*
             if let Some(pos) = currency_reports
                 .iter()
                 .position(|currency_report| &currency_report.currency == currency)
@@ -491,6 +496,7 @@ where
             } else {
                 false
             }
+            */
         };
         self.recv_until(pred).await;
     }

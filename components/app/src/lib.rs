@@ -58,8 +58,8 @@ pub mod report {
     pub use proto::report::messages::{
         AddFriendReport, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport,
         CurrencyConfigReport, CurrencyReport, FriendLivenessReport, FriendReport,
-        FriendStatusReport, FunderReport, McBalanceReport, McRequestsStatusReport,
-        MoveTokenHashedReport, RequestsStatusReport, ResetTermsReport,
+        FriendStatusReport, FunderReport, McBalanceReport, MoveTokenHashedReport,
+        RequestsStatusReport, ResetTermsReport,
     };
 
     pub use proto::funder::messages::{

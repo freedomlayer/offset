@@ -3,8 +3,8 @@ use app::common::Currency;
 use crate::compact_node::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
     CompactReport, ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
-    FriendStatusReport, McBalanceReport, McInfo, McRequestsStatusReport, MoveTokenHashedReport,
-    OpenInvoice, OpenPayment, OpenPaymentStatus, RequestsStatusReport, ResetTermsReport, TokenInfo,
+    FriendStatusReport, McBalanceReport, McInfo, MoveTokenHashedReport, OpenInvoice, OpenPayment,
+    OpenPaymentStatus, RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
 
 use crate::compact_node::persist;
@@ -16,15 +16,6 @@ use crate::compact_node::persist::CompactState;
 struct LocalWrapper<T>(pub T);
 
 // ====================[NodeReport]============================
-
-impl From<app::report::McRequestsStatusReport> for McRequestsStatusReport {
-    fn from(from: app::report::McRequestsStatusReport) -> Self {
-        McRequestsStatusReport {
-            local: from.local.into(),
-            remote: from.remote.into(),
-        }
-    }
-}
 
 impl From<app::report::McBalanceReport> for McBalanceReport {
     fn from(from: app::report::McBalanceReport) -> Self {
@@ -42,7 +33,6 @@ impl From<app::report::CurrencyReport> for LocalWrapper<(Currency, CurrencyRepor
             from.currency,
             CurrencyReport {
                 balance: from.balance.into(),
-                requests_status: from.requests_status.into(),
             },
         ))
     }
@@ -201,9 +191,7 @@ impl From<app::report::CurrencyConfigReport> for LocalWrapper<(Currency, ConfigR
             ConfigReport {
                 rate: currency_config_report.rate,
                 remote_max_debt: currency_config_report.remote_max_debt,
-                wanted_local_requests_status: currency_config_report
-                    .wanted_local_requests_status
-                    .into(),
+                is_open: currency_config_report.is_open,
             },
         ))
     }

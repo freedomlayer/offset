@@ -184,10 +184,9 @@ pub struct ConfigReport {
     /// Credit frame for the remote side (Set by the user of this node)
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub remote_max_debt: u128,
-    /// Can the remote friend send requests through us? This is a value chosen by the user, and it
-    /// might take some time until it is applied (As it should be communicated to the remote
-    /// friend).
-    pub wanted_local_requests_status: RequestsStatusReport,
+    /// Can requests be sent through this node (Incoming or outgoing)?
+    /// If `false`, only the local user may send or receive requests through this node.
+    pub is_open: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -222,18 +221,9 @@ pub struct McBalanceReport {
     pub remote_pending_debt: u128,
 }
 
-#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub struct McRequestsStatusReport {
-    /// Local is open/closed for incoming requests:
-    pub local: RequestsStatusReport,
-    /// Remote is open/closed for incoming requests:
-    pub remote: RequestsStatusReport,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CurrencyReport {
     pub balance: McBalanceReport,
-    pub requests_status: McRequestsStatusReport,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

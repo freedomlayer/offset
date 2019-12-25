@@ -390,36 +390,6 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
         };
         stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
-
-    // Wait until requests are seen open:
-    for j in 0..2 {
-        let friends_cmd = FriendsCmd {};
-        let info_cmd = InfoCmd::Friends(friends_cmd);
-        let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-        let st_ctrl_cmd = StCtrlCmd {
-            idfile: stctrl_setup
-                .temp_dir_path
-                .join(format!("app{}", j))
-                .join(format!("app{}.ident", j)),
-            node_ticket: stctrl_setup
-                .temp_dir_path
-                .join(format!("node{}", j))
-                .join(format!("node{}.ticket", j)),
-            subcommand,
-        };
-
-        // Wait until the local requests and remote requests are both open:
-        loop {
-            let mut output = Vec::new();
-            stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
-            let output_string = str::from_utf8(&output).unwrap();
-            if output_string.contains("LR=+") && output_string.contains("RR=+") {
-                break;
-            }
-            thread::sleep(time::Duration::from_millis(100));
-        }
-    }
 }
 
 /// Close requests and disable friends
@@ -790,36 +760,6 @@ fn close_disable(stctrl_setup: &StCtrlSetup) {
             subcommand,
         };
         stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
-    }
-
-    // Wait until requests are seen closed:
-    for j in 0..2 {
-        let friends_cmd = FriendsCmd {};
-        let info_cmd = InfoCmd::Friends(friends_cmd);
-        let subcommand = StCtrlSubcommand::Info(info_cmd);
-
-        let st_ctrl_cmd = StCtrlCmd {
-            idfile: stctrl_setup
-                .temp_dir_path
-                .join(format!("app{}", j))
-                .join(format!("app{}.ident", j)),
-            node_ticket: stctrl_setup
-                .temp_dir_path
-                .join(format!("node{}", j))
-                .join(format!("node{}.ticket", j)),
-            subcommand,
-        };
-
-        // Wait until the local requests and remote requests are both open:
-        loop {
-            let mut output = Vec::new();
-            stctrl(st_ctrl_cmd.clone(), &mut output).unwrap();
-            let output_string = str::from_utf8(&output).unwrap();
-            if output_string.contains("LR=-") && output_string.contains("RR=-") {
-                break;
-            }
-            thread::sleep(time::Duration::from_millis(100));
-        }
     }
 
     // Remove currencies:

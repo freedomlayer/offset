@@ -358,15 +358,43 @@ fn handle_request_send_funds<B>(
     }
 
     // We are not the destination of this request.
+
+    // If the currency on (`remote_public_key`) is closed, we cancel the request:
+    let friend = m_state.state().friends.get(&remote_public_key).unwrap();
+    let is_currency_open = if let Some(currency_config) = friend.currency_configs.get(currency) {
+        currency_config.is_open
+    } else {
+        false
+    };
+
+    if !is_currency_open {
+        reply_with_cancel(
+            m_state,
+            send_commands,
+            remote_public_key,
+            currency,
+            &request_send_funds.request_id,
+        );
+        return;
+    }
+
     // The node on the route has to be one of our friends:
     let next_public_key = request_send_funds.route.index_to_pk(0).unwrap().clone();
-    let friend_exists = m_state.state().friends.contains_key(&next_public_key);
+    let opt_next_friend = m_state.state().friends.get(&next_public_key);
 
     // This friend must be considered online for us to forward the message.
     // If we forward the request to an offline friend, the request could be stuck for a long
     // time before a response arrives.
-    let friend_ready = if friend_exists {
-        is_friend_ready(m_state.state(), ephemeral, &next_public_key, currency)
+    let friend_ready = if let Some(next_friend) = opt_next_friend {
+        if let Some(currency_config) = next_friend.currency_configs.get(currency) {
+            if currency_config.is_open {
+                is_friend_ready(m_state.state(), ephemeral, &next_public_key, currency)
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     } else {
         false
     };
@@ -924,20 +952,6 @@ fn handle_move_token_success<B, R>(
             }
 
             for move_token_received_currency in currencies {
-                // If remote requests were previously open, and now they were closed:
-                if move_token_received_currency.remote_requests_closed {
-                    // Cancel all messages pending for this friend with this currency.
-                    // We don't want the senders of the requests to wait.
-                    cancel_pending_requests(
-                        m_state,
-                        send_commands,
-                        outgoing_control,
-                        rng,
-                        remote_public_key,
-                        &CurrencyChoice::One(move_token_received_currency.currency.clone()),
-                    );
-                }
-
                 handle_move_token_output(
                     m_state,
                     m_ephemeral,

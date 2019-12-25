@@ -93,13 +93,6 @@ struct FriendMessage {
 # Token Operations
 # ------------------
 
-# Set the maximum possible debt for the remote party.
-# Note: It is not possible to set a maximum debt smaller than the current debt
-# This will cause an inconsistency.
-# struct SetRemoteMaxDebtOp {
-#         remoteMaxDebt @0: CustomUInt128;
-# }
-
 struct FriendsRoute {
         publicKeys @0: List(PublicKey);
         # A list of public keys
@@ -158,11 +151,9 @@ struct CollectSendFundsOp {
 
 struct FriendTcOp {
         union {
-                enableRequests @0: Void;
-                disableRequests @1: Void;
-                requestSendFunds @2: RequestSendFundsOp;
-                responseSendFunds @3: ResponseSendFundsOp;
-                cancelSendFunds @4: CancelSendFundsOp;
-                collectSendFunds @5: CollectSendFundsOp;
+                requestSendFunds @0: RequestSendFundsOp;
+                responseSendFunds @1: ResponseSendFundsOp;
+                cancelSendFunds @2: CancelSendFundsOp;
+                collectSendFunds @3: CollectSendFundsOp;
         }
 }

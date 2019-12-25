@@ -12,8 +12,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::{PublicKey, RandValue};
 use proto::funder::messages::{
     BalanceInfo, ChannelerUpdateFriend, CountersInfo, Currency, CurrencyBalanceInfo,
-    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest, RequestsStatus,
-    TokenInfo,
+    CurrencyOperations, FriendMessage, FriendTcOp, McInfo, MoveTokenRequest, TokenInfo,
 };
 
 use identity::IdentityClient;
@@ -468,7 +467,6 @@ where
         }
     };
 
-    // Check if update to remote_max_debt is required:
     match &friend.channel_status {
         ChannelStatus::Consistent(channel_consistent) => {
             // Check if we need to tell remote side about our local active currencies:
@@ -483,21 +481,7 @@ where
                 return true;
             }
 
-            for (currency, currency_config) in &friend.currency_configs {
-                if let Some(mutual_credit) = channel_consistent
-                    .token_channel
-                    .get_mutual_credits()
-                    .get(currency)
-                {
-                    // We need to change local requests status:
-                    if currency_config.wanted_local_requests_status
-                        != mutual_credit.state().requests_status.local
-                    {
-                        return true;
-                    }
-                }
-            }
-
+            // Check if we have any messages to send to the remote side:
             if !channel_consistent.pending_backwards_ops.is_empty()
                 || !channel_consistent.pending_requests.is_empty()
                 || !channel_consistent.pending_user_requests.is_empty()
@@ -653,31 +637,6 @@ where
             .calc_active()
             .is_subset(&wanted_local_currencies));
         pending_move_token.set_active_currencies(wanted_local_currencies.into_iter().collect());
-    }
-
-    // Set local_requests_status (if required):
-    let friend = m_state.state().friends.get(friend_public_key).unwrap();
-    for (currency, currency_config) in friend.currency_configs.clone() {
-        // Set remote_max_debt and local_requests_status (if required):
-        let friend = m_state.state().friends.get(friend_public_key).unwrap();
-        let token_channel = match &friend.channel_status {
-            ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
-            ChannelStatus::Inconsistent(_) => unreachable!(),
-        };
-        if let Some(mutual_credit) = token_channel.get_mutual_credits().get(&currency) {
-            // We need to change local requests status:
-            if currency_config.wanted_local_requests_status
-                != mutual_credit.state().requests_status.local
-            {
-                let friend_op =
-                    if let RequestsStatus::Open = currency_config.wanted_local_requests_status {
-                        FriendTcOp::EnableRequests
-                    } else {
-                        FriendTcOp::DisableRequests
-                    };
-                queue_operation(m_state, pending_move_token, &currency, &friend_op)?;
-            }
-        }
     }
 
     let friend = m_state.state().friends.get(friend_public_key).unwrap();

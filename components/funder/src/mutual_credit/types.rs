@@ -3,7 +3,7 @@ use im::hashmap::HashMap as ImHashMap;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, PendingTransaction, RequestsStatus, TransactionStage};
+use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
 
 /*
 // TODO: Where do we need to check this value?
@@ -60,23 +60,6 @@ impl McPendingTransactions {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Serialize, Deserialize, Debug)]
-pub struct McRequestsStatus {
-    // Local is open/closed for incoming requests:
-    pub local: RequestsStatus,
-    // Remote is open/closed for incoming requests:
-    pub remote: RequestsStatus,
-}
-
-impl McRequestsStatus {
-    fn new() -> McRequestsStatus {
-        McRequestsStatus {
-            local: RequestsStatus::Closed,
-            remote: RequestsStatus::Closed,
-        }
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct MutualCreditState {
     /// Public identities of local and remote side
@@ -87,10 +70,6 @@ pub struct MutualCreditState {
     pub balance: McBalance,
     /// Requests in progress
     pub pending_transactions: McPendingTransactions,
-    /// Can local or remote side open requests?
-    /// We can allow or disallow opening new requests from the remote side to our side.
-    /// The remote side controls the opposite direction.
-    pub requests_status: McRequestsStatus,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -100,8 +79,6 @@ pub struct MutualCredit {
 
 #[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum McMutation {
-    SetLocalRequestsStatus(RequestsStatus),
-    SetRemoteRequestsStatus(RequestsStatus),
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),
     RemoveLocalPendingTransaction(Uid),
@@ -130,7 +107,6 @@ impl MutualCredit {
                 currency: currency.clone(),
                 balance: McBalance::new(balance),
                 pending_transactions: McPendingTransactions::new(),
-                requests_status: McRequestsStatus::new(),
             },
         }
     }
@@ -155,12 +131,6 @@ impl MutualCredit {
 
     pub fn mutate(&mut self, mc_mutation: &McMutation) {
         match mc_mutation {
-            McMutation::SetLocalRequestsStatus(requests_status) => {
-                self.set_local_requests_status(requests_status.clone())
-            }
-            McMutation::SetRemoteRequestsStatus(requests_status) => {
-                self.set_remote_requests_status(requests_status.clone())
-            }
             McMutation::SetBalance(balance) => self.set_balance(*balance),
             McMutation::InsertLocalPendingTransaction(pending_friend_request) => {
                 self.insert_local_pending_transaction(pending_friend_request)
@@ -187,14 +157,6 @@ impl MutualCredit {
                 self.set_remote_pending_debt(*remote_pending_debt)
             }
         }
-    }
-
-    fn set_local_requests_status(&mut self, requests_status: RequestsStatus) {
-        self.state.requests_status.local = requests_status;
-    }
-
-    fn set_remote_requests_status(&mut self, requests_status: RequestsStatus) {
-        self.state.requests_status.remote = requests_status;
     }
 
     fn set_balance(&mut self, balance: i128) {

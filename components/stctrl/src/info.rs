@@ -214,11 +214,6 @@ fn is_consistent(friend_report: &FriendReport) -> bool {
 fn currency_report_str(currency_report: &CurrencyReport) -> String {
     let mut res = String::new();
 
-    let local_requests_str = requests_status_str(&currency_report.requests_status.local);
-    let remote_requests_str = requests_status_str(&currency_report.requests_status.remote);
-
-    res += &format!("LR={}, RR={}\n", local_requests_str, remote_requests_str);
-
     let balance = &currency_report.balance;
     res += &format!(
         "B  ={}\nLPD={}\nRPD={}\n",

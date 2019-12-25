@@ -18,15 +18,13 @@ where
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapacityEdge<C, T> {
-    pub is_send_open: bool,
     pub recv_capacity: C,
     pub rate: T,
 }
 
 impl<C, T> CapacityEdge<C, T> {
-    pub fn new(is_send_open: bool, recv_capacity: C, rate: T) -> Self {
+    pub fn new(recv_capacity: C, rate: T) -> Self {
         Self {
-            is_send_open,
             recv_capacity,
             rate,
         }

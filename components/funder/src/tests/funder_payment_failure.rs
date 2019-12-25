@@ -117,21 +117,32 @@ async fn task_funder_payment_failure(test_executor: TestExecutor) {
         .await;
 
     // Open requests, allowing this route: 0 --> 1 --> 2
+    node_controls[0]
+        .set_requests_status(&public_keys[1], &currency1, RequestsStatus::Open)
+        .await;
     node_controls[1]
         .set_requests_status(&public_keys[0], &currency1, RequestsStatus::Open)
+        .await;
+    node_controls[1]
+        .set_requests_status(&public_keys[2], &currency1, RequestsStatus::Open)
         .await;
     node_controls[2]
         .set_requests_status(&public_keys[1], &currency1, RequestsStatus::Open)
         .await;
 
     // Wait until route is ready (Online + Consistent + open requests)
-    // Note: We don't need the other direction to be ready, because the request is sent
-    // along the following route: 0 --> 1 --> 2
+    // along the following route: 0 --- 1 --- 2
     node_controls[0]
         .wait_until_ready(&public_keys[1], &currency1)
         .await;
     node_controls[1]
+        .wait_until_ready(&public_keys[0], &currency1)
+        .await;
+    node_controls[1]
         .wait_until_ready(&public_keys[2], &currency1)
+        .await;
+    node_controls[2]
+        .wait_until_ready(&public_keys[1], &currency1)
         .await;
 
     // Create payment 0 --> 3 (Where 3 does not exist)
