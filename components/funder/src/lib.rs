@@ -36,8 +36,8 @@ mod token_channel;
 #[allow(unused)]
 pub mod types;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 // pub use self::funder::{funder_loop, FunderError};
 // pub use self::state::{FunderMutation, FunderState};

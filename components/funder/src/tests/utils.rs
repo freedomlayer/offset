@@ -17,7 +17,6 @@ use proto::crypto::{PrivateKey, PublicKey, Uid};
 
 use proto::report::messages::{
     ChannelStatusReport, FriendLivenessReport, FunderReport, FunderReportMutations,
-    RequestsStatusReport,
 };
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -465,7 +464,8 @@ where
     pub async fn wait_until_ready<'a>(
         &'a mut self,
         friend_public_key: &'a PublicKey,
-        currency: &'a Currency,
+        // TODO:
+        _currency: &'a Currency,
     ) {
         let pred = |report: &FunderReport<_>| {
             let friend = match report.friends.get(&friend_public_key) {
@@ -475,12 +475,14 @@ where
             if friend.liveness != FriendLivenessReport::Online {
                 return false;
             }
-            let currency_reports = match &friend.channel_status {
-                ChannelStatusReport::Consistent(channel_consistent) => {
-                    &channel_consistent.currency_reports
+            match &friend.channel_status {
+                ChannelStatusReport::Consistent(_channel_consistent) => {
+                    true
+                    // &channel_consistent.currency_reports
                 }
                 _ => return false,
-            };
+            }
+            /*
             if let Some(pos) = currency_reports
                 .iter()
                 .position(|currency_report| &currency_report.currency == currency)
@@ -491,6 +493,7 @@ where
             } else {
                 false
             }
+            */
         };
         self.recv_until(pred).await;
     }
