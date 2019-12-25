@@ -102,18 +102,21 @@ where
                         .map(|currency_config| currency_config.rate.clone())
                         .unwrap_or_else(Rate::new);
 
-                    (
-                        (friend_public_key.clone(), currency),
-                        FriendInfo {
-                            is_open,
+                    let opt_friend_info = if is_open {
+                        Some(FriendInfo {
                             recv_capacity,
                             rate,
-                        },
-                    )
+                        })
+                    } else {
+                        None
+                    };
+
+                    ((friend_public_key.clone(), currency), opt_friend_info)
                 },
             )
         })
-        .filter(|(_, friend_info)| friend_info.recv_capacity != 0 || friend_info.is_open)
+        .filter(|(_, opt_friend_info)| opt_friend_info.is_some())
+        .map(|(tuple, opt_friend_info)| (tuple, opt_friend_info.unwrap()))
 }
 
 pub fn funder_report_to_index_client_state<B>(funder_report: &FunderReport<B>) -> IndexClientState
