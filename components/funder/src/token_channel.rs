@@ -131,7 +131,6 @@ pub enum ReceiveMoveTokenError {
 pub struct MoveTokenReceivedCurrency {
     pub currency: Currency,
     pub incoming_messages: Vec<IncomingMessage>,
-    pub remote_requests_closed: bool,
 }
 
 #[derive(Debug)]
@@ -760,14 +759,11 @@ where
             )
             .map_err(ReceiveMoveTokenError::InvalidTransaction)?;
 
-            let initial_remote_requests = mutual_credit.state().requests_status.remote.is_open();
-
             let mut incoming_messages = Vec::new();
 
             // We apply mutations on this token channel, to verify stated balance values
             // let mut check_mutual_credit = mutual_credit.clone();
 
-            let mut final_remote_requests: bool = initial_remote_requests;
             for output in outputs {
                 let ProcessOperationOutput {
                     incoming_message,
@@ -784,17 +780,12 @@ where
                     ));
                     token_channel.mutate(&mutation);
                     move_token_received.mutations.push(mutation);
-                    if let McMutation::SetRemoteRequestsStatus(requests_status) = &mc_mutation {
-                        final_remote_requests = requests_status.is_open();
-                    }
                 }
             }
 
             let move_token_received_currency = MoveTokenReceivedCurrency {
                 currency: currency_operations.currency.clone(),
                 incoming_messages,
-                // Were the remote requests initially open and now it is closed?
-                remote_requests_closed: final_remote_requests && !initial_remote_requests,
             };
 
             move_token_received

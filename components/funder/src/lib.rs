@@ -26,7 +26,8 @@ mod liveness;
 mod mutual_credit;
 // pub mod report;
 // mod state;
-// mod token_channel;
+#[allow(unused)]
+mod token_channel;
 #[allow(unused)]
 pub mod types;
 
