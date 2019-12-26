@@ -41,6 +41,7 @@ keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepal
 version = { path = "../version", version = "0.1.0" , package = "offst-version" }
 secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
+connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
 toml = "0.4.10"
 serde = {version = "1.0.87", features = ["derive"]}

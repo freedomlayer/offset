@@ -910,6 +910,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-common 0.1.0",
+ "offst-connection 0.1.0",
  "offst-crypto 0.1.0",
  "offst-database 0.1.0",
  "offst-identity 0.1.0",
