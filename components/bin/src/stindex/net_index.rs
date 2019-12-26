@@ -9,7 +9,7 @@ use futures::{FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use proto::consts::{INDEX_NODE_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::consts::{INDEX_NODE_TIMEOUT_TICKS};
 use proto::crypto::PublicKey;
 use proto::index_server::messages::{
     IndexClientToServer, IndexServerToClient, IndexServerToServer,
@@ -22,61 +22,46 @@ use timer::TimerClient;
 use crypto::rand::CryptoRandom;
 
 use identity::IdentityClient;
-use keepalive::KeepAliveChannel;
-use secure_channel::SecureChannel;
-use version::VersionPrefix;
+
+use connection::create_version_encrypt_keepalive;
 
 use index_server::{index_server, IndexServerError};
 
 #[derive(Clone)]
-struct ConnTransformer<VT, ET, KT, S> {
-    version_transform: VT,
-    encrypt_transform: ET,
-    keepalive_transform: KT,
+struct ConnTransformer<CT, S> {
+    conn_transform: CT,
     spawner: S,
 }
 
-impl<VT, ET, KT, S> ConnTransformer<VT, ET, KT, S>
+impl<CT, S> ConnTransformer<CT, S>
 where
-    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
-    ET: FutTransform<
+    CT: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
-        + Send
-        + Sync,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send + Sync,
-    S: Spawn + Clone + Send + Sync,
+        + Send,
+    S: Spawn + Clone + Send,
 {
     pub fn new(
-        version_transform: VT,
-        encrypt_transform: ET,
-        keepalive_transform: KT,
+        conn_transform: CT,
         spawner: S,
     ) -> Self {
         ConnTransformer {
-            version_transform,
-            encrypt_transform,
-            keepalive_transform,
+            conn_transform,
             spawner,
         }
     }
 
     fn version_enc_keepalive(
-        &self,
+        &mut self,
         opt_public_key: Option<PublicKey>,
         conn_pair: ConnPairVec,
     ) -> BoxFuture<'_, Option<(PublicKey, ConnPairVec)>> {
-        let mut c_version_transform = self.version_transform.clone();
-        let mut c_encrypt_transform = self.encrypt_transform.clone();
-        let mut c_keepalive_transform = self.keepalive_transform.clone();
+        let mut c_conn_transform = self.conn_transform.clone();
         Box::pin(async move {
-            let conn_pair = c_version_transform.transform(conn_pair).await;
-            let (public_key, conn_pair) = c_encrypt_transform
+            c_conn_transform
                 .transform((opt_public_key, conn_pair))
-                .await?;
-            let conn_pair = c_keepalive_transform.transform(conn_pair).await;
-            Some((public_key, conn_pair))
+                .await
         })
     }
 
@@ -86,7 +71,7 @@ where
     /// - keepalives
     /// - Serialization
     pub fn incoming_index_client_conn_transform(
-        &self,
+        &mut self,
         conn_pair: ConnPairVec,
     ) -> BoxFuture<
         '_,
@@ -95,7 +80,7 @@ where
             ConnPair<IndexServerToClient, IndexClientToServer>,
         )>,
     > {
-        let c_self = self.clone();
+        let mut c_self = self.clone();
         Box::pin(async move {
             let (public_key, conn_pair) = c_self.version_enc_keepalive(None, conn_pair).await?;
 
@@ -136,7 +121,7 @@ where
     }
 
     pub fn incoming_index_server_conn_transform(
-        &self,
+        &mut self,
         conn_pair: ConnPairVec,
     ) -> BoxFuture<
         '_,
@@ -145,7 +130,7 @@ where
             ConnPair<IndexServerToServer, IndexServerToServer>,
         )>,
     > {
-        let c_self = self.clone();
+        let mut c_self = self.clone();
         Box::pin(async move {
             let (public_key, conn_pair) = c_self.version_enc_keepalive(None, conn_pair).await?;
 
@@ -186,11 +171,11 @@ where
     }
 
     pub fn outgoing_index_server_conn_transform(
-        &self,
+        &mut self,
         public_key: PublicKey,
         conn_pair: ConnPairVec,
     ) -> BoxFuture<'_, Option<ConnPair<IndexServerToServer, IndexServerToServer>>> {
-        let c_self = self.clone();
+        let mut c_self = self.clone();
         Box::pin(async move {
             let (_public_key, conn_pair) = c_self
                 .version_enc_keepalive(Some(public_key), conn_pair)
@@ -267,29 +252,22 @@ where
         .await
         .map_err(|_| NetIndexServerError::RequestPublicKeyError)?;
 
-    let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
-    let encrypt_transform = SecureChannel::new(
-        identity_client,
-        rng.clone(),
-        timer_client.clone(),
-        TICKS_TO_REKEY,
-        spawner.clone(),
-    );
 
-    let keepalive_transform =
-        KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
+    let conn_transform = create_version_encrypt_keepalive(
+        timer_client.clone(),
+        identity_client.clone(),
+        rng.clone(),
+        spawner.clone());
 
     let conn_transformer = ConnTransformer::new(
-        version_transform,
-        encrypt_transform,
-        keepalive_transform,
+        conn_transform,
         spawner.clone(),
     );
 
     // Transform incoming client connections:
     let c_conn_transformer = conn_transformer.clone();
     let incoming_client_transform = FuncFutTransform::new(move |raw_conn| {
-        let c_conn_transformer = c_conn_transformer.clone();
+        let mut c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
             c_conn_transformer
                 .incoming_index_client_conn_transform(raw_conn)
@@ -313,7 +291,7 @@ where
     // Transform incoming server connections:
     let c_conn_transformer = conn_transformer.clone();
     let incoming_server_transform = FuncFutTransform::new(move |raw_conn| {
-        let c_conn_transformer = c_conn_transformer.clone();
+        let mut c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
             c_conn_transformer
                 .incoming_index_server_conn_transform(raw_conn)
@@ -338,7 +316,7 @@ where
     let c_conn_transformer = conn_transformer.clone();
     let server_connector = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_raw_server_net_connector = raw_server_net_connector.clone();
-        let c_conn_transformer = c_conn_transformer.clone();
+        let mut c_conn_transformer = c_conn_transformer.clone();
         Box::pin(async move {
             let raw_conn = c_raw_server_net_connector.transform(net_address).await?;
             c_conn_transformer
