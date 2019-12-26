@@ -25,7 +25,9 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::conn::{connect_ex, create_secure_connector, AppConnTuple, AppServerToApp};
+use app::conn::{AppConnTuple, AppServerToApp};
+use app_conn::app_connect_to_node;
+use connection::create_secure_connector;
 use app::report::NodeReport;
 
 use node::{NodeConfig, NodeState};
@@ -258,7 +260,7 @@ where
         rng,
         spawner.clone());
 
-    connect_ex(
+    app_connect_to_node(
         secure_connector,
         node_public_key,
         listen_node_address(node_index),

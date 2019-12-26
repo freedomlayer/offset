@@ -16,7 +16,8 @@ use common::select_streams::select_streams;
 use timer::TimerClient;
 
 use app::common::{NetAddress, PublicKey};
-use app::conn::{connect_ex, ConnPairApp};
+use app::conn::ConnPairApp;
+use app_conn::app_connect_to_node;
 
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
 
@@ -461,7 +462,7 @@ where
         + 'static,
 {
     // Connect to remote node
-    let connect_res = connect_ex(
+    let connect_res = app_connect_to_node(
         server_state.connector.clone(),
         remote.node_public_key,
         remote.node_address,

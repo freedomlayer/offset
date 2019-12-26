@@ -43,9 +43,7 @@ pub use proto::ser_string;
 /// Offst connection
 pub mod conn {
     pub use super::app_conn::{buyer, config, routes, seller};
-    pub use super::connect::{
-        connect, connect_ex, create_secure_connector, AppConnTuple, ConnPairApp, ConnectError,
-    };
+    pub use super::connect::{connect, AppConnTuple, ConnPairApp, ConnectError};
     pub use super::identity::{identity_from_file, IdentityFromFileError};
     pub use proto::app_server::messages::{
         AppPermissions, AppRequest, AppServerToApp, AppToAppServer,

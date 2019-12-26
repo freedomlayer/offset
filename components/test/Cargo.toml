@@ -20,9 +20,9 @@ database = { path = "../database", version = "0.1.0" , package = "offst-database
 bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
 stctrl = { path = "../stctrl", version = "0.1.0" , package = "offst-stctrl" }
 app = { path = "../app", version = "0.1.0" , package = "offst-app" }
+app_conn = { path = "../app_conn", version = "0.1.0" , package = "offst-app-conn" }
+connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
-# futures-preview = {version = "0.3.0-alpha.16", features = ["compat"] }
-# futures-test-preview = {version = "0.3.0-alpha.16"}
 futures = "0.3.1"
 
 log = "0.4"

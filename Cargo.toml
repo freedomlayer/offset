@@ -30,4 +30,6 @@ members = [
   "components/signature",
   "components/route",
   "components/lockfile",
+  "components/connection",
+  "components/app_conn",
 ]

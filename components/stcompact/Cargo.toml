@@ -27,6 +27,7 @@ node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 net = { path = "../net", version = "0.1.0", package = "offst-net" }
 version = { path = "../version", version = "0.1.0", package = "offst-version" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
+app_conn = { path = "../app_conn", version = "0.1.0", package = "offst-app-conn" }
 
 serde = {version = "1.0.87", features = ["derive"]}
 base64 = "0.10.1"
