@@ -21,7 +21,7 @@ pub fn create_version_encrypt_keepalive<R, S>(
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
-    spawner: S) -> impl FutTransform<Input=(Option<PublicKey>, ConnPairVec), Output=Option<(PublicKey, ConnPairVec)>> + Clone
+    spawner: S) -> impl FutTransform<Input=(Option<PublicKey>, ConnPairVec), Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send
 where
     S: Spawn + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
