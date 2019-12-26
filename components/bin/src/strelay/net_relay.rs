@@ -9,7 +9,7 @@ use derive_more::*;
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use proto::consts::{CONN_TIMEOUT_TICKS, KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
+use proto::consts::{CONN_TIMEOUT_TICKS, KEEPALIVE_TICKS};
 use proto::crypto::PublicKey;
 
 use crypto::rand::CryptoRandom;
@@ -17,9 +17,7 @@ use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 use timer::TimerClient;
 
-use keepalive::KeepAliveChannel;
-use secure_channel::SecureChannel;
-use version::VersionPrefix;
+use connection::create_version_encrypt_keepalive;
 
 use relay::{relay_server, RelayServerError};
 
@@ -64,24 +62,15 @@ where
     type Output = Option<(PublicKey, ConnPairVec)>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
-        let mut version_transform = VersionPrefix::new(PROTOCOL_VERSION, self.spawner.clone());
-        let mut encrypt_transform = SecureChannel::new(
+
+        let mut conn_transform = create_version_encrypt_keepalive(
+            self.timer_client.clone(),
             self.identity_client.clone(),
             self.rng.clone(),
-            self.timer_client.clone(),
-            TICKS_TO_REKEY,
-            self.spawner.clone(),
-        );
-        let mut keepalive_transform = KeepAliveChannel::new(
-            self.timer_client.clone(),
-            KEEPALIVE_TICKS,
-            self.spawner.clone(),
-        );
+            self.spawner.clone());
 
         Box::pin(async move {
-            let conn_pair = version_transform.transform(conn_pair).await;
-            let (public_key, conn_pair) = encrypt_transform.transform((None, conn_pair)).await?;
-            let conn_pair = keepalive_transform.transform(conn_pair).await;
+            let (public_key, conn_pair) = conn_transform.transform((None, conn_pair)).await?;
             Some((public_key, conn_pair))
         })
     }
