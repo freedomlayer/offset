@@ -24,7 +24,6 @@ pub fn create_encrypt_keepalive<R, S>(
     spawner: S) -> impl FutTransform<Input = (Option<PublicKey>, ConnPairVec), Output = Option<(PublicKey, ConnPairVec)>> 
         + Clone
         + Send
-        + 'static
 where
     S: Spawn + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
