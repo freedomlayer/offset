@@ -169,9 +169,9 @@ where
     S: Spawn + Clone + Send + 'static,
 {
     let conn_transform = create_version_encrypt_keepalive(
-        timer_client.clone(),
-        identity_client.clone(),
-        rng.clone(),
+        timer_client,
+        identity_client,
+        rng,
         spawner.clone());
 
     let app_conn_transform = AppConnTransform::new(
