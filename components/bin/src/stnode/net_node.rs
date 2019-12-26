@@ -19,7 +19,7 @@ use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
-use connection::{create_version_encrypt_keepalive, create_encrypt_keepalive};
+use connection::{create_encrypt_keepalive, create_version_encrypt_keepalive};
 
 use timer::TimerClient;
 
@@ -50,11 +50,7 @@ struct AppConnTransform<CT, TA, S> {
 }
 
 impl<CT, TA, S> AppConnTransform<CT, TA, S> {
-    fn new(
-        conn_transform: CT,
-        trusted_apps: TA,
-        spawner: S,
-    ) -> Self {
+    fn new(conn_transform: CT, trusted_apps: TA, spawner: S) -> Self {
         AppConnTransform {
             conn_transform,
             trusted_apps,
@@ -168,17 +164,10 @@ where
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let conn_transform = create_version_encrypt_keepalive(
-        timer_client,
-        identity_client,
-        rng,
-        spawner.clone());
+    let conn_transform =
+        create_version_encrypt_keepalive(timer_client, identity_client, rng, spawner.clone());
 
-    let app_conn_transform = AppConnTransform::new(
-        conn_transform,
-        trusted_apps,
-        spawner.clone(),
-    );
+    let app_conn_transform = AppConnTransform::new(conn_transform, trusted_apps, spawner.clone());
 
     let (incoming_apps_sender, incoming_apps) = mpsc::channel(0);
 
@@ -245,14 +234,17 @@ where
         timer_client.clone(),
         identity_client.clone(),
         rng.clone(),
-        spawner.clone());
+        spawner.clone(),
+    );
 
     let secure_connector = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_connector = connector.clone();
         let mut c_conn_transform = conn_transform.clone();
         Box::pin(async move {
             let conn_pair = c_connector.transform(net_address).await?;
-            let (_public_key, conn_pair) = c_conn_transform.transform((Some(public_key), conn_pair)).await?;
+            let (_public_key, conn_pair) = c_conn_transform
+                .transform((Some(public_key), conn_pair))
+                .await?;
             Some(conn_pair)
         })
     });
@@ -261,7 +253,8 @@ where
         timer_client.clone(),
         identity_client.clone(),
         rng.clone(),
-        spawner.clone());
+        spawner.clone(),
+    );
 
     node(
         node_config,

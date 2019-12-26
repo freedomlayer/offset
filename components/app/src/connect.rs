@@ -1,25 +1,24 @@
 use std::time::Duration;
 
-use futures::task::{Spawn};
+use futures::task::Spawn;
 
-use common::conn::{ConnPair};
+use common::conn::ConnPair;
 use common::int_convert::usize_to_u64;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
-use proto::consts::{MAX_FRAME_LENGTH};
+use proto::consts::MAX_FRAME_LENGTH;
+use proto::consts::TICK_MS;
 use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
-use proto::consts::TICK_MS;
 
-use crypto::rand::{system_random};
+use crypto::rand::system_random;
 
 use identity::IdentityClient;
 use net::TcpConnector;
-use timer::{create_timer};
+use timer::create_timer;
 
 use app_conn::app_connect_to_node;
 use connection::create_secure_connector;
-
 
 /// A connection of an App to a Node
 pub type ConnPairApp = ConnPair<AppToAppServer, AppServerToApp>;
@@ -54,14 +53,10 @@ where
         timer_client,
         app_identity_client,
         rng,
-        spawner.clone());
+        spawner.clone(),
+    );
 
-    app_connect_to_node(
-        secure_connector,
-        node_public_key,
-        node_net_address,
-        spawner,
-    )
-    .await
-    .map_err(|_| ConnectError)
+    app_connect_to_node(secure_connector, node_public_key, node_net_address, spawner)
+        .await
+        .map_err(|_| ConnectError)
 }

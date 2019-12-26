@@ -9,7 +9,7 @@ use futures::{FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 use common::conn::{BoxFuture, ConnPair, ConnPairVec, FuncFutTransform, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use proto::consts::{INDEX_NODE_TIMEOUT_TICKS};
+use proto::consts::INDEX_NODE_TIMEOUT_TICKS;
 use proto::crypto::PublicKey;
 use proto::index_server::messages::{
     IndexClientToServer, IndexServerToClient, IndexServerToServer,
@@ -42,10 +42,7 @@ where
         + Send,
     S: Spawn + Clone + Send,
 {
-    pub fn new(
-        conn_transform: CT,
-        spawner: S,
-    ) -> Self {
+    pub fn new(conn_transform: CT, spawner: S) -> Self {
         ConnTransformer {
             conn_transform,
             spawner,
@@ -252,17 +249,14 @@ where
         .await
         .map_err(|_| NetIndexServerError::RequestPublicKeyError)?;
 
-
     let conn_transform = create_version_encrypt_keepalive(
         timer_client.clone(),
         identity_client.clone(),
         rng.clone(),
-        spawner.clone());
-
-    let conn_transformer = ConnTransformer::new(
-        conn_transform,
         spawner.clone(),
     );
+
+    let conn_transformer = ConnTransformer::new(conn_transform, spawner.clone());
 
     // Transform incoming client connections:
     let c_conn_transformer = conn_transformer.clone();

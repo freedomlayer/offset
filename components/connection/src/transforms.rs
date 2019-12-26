@@ -1,6 +1,6 @@
-use futures::task::{Spawn};
+use futures::task::Spawn;
 
-use common::conn::{ConnPairVec, FutTransform, FuncFutTransform};
+use common::conn::{ConnPairVec, FuncFutTransform, FutTransform};
 
 use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::crypto::PublicKey;
@@ -21,14 +21,16 @@ pub fn create_encrypt_keepalive<R, S>(
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
-    spawner: S) -> impl FutTransform<Input = (Option<PublicKey>, ConnPairVec), Output = Option<(PublicKey, ConnPairVec)>> 
-        + Clone
-        + Send
+    spawner: S,
+) -> impl FutTransform<
+    Input = (Option<PublicKey>, ConnPairVec),
+    Output = Option<(PublicKey, ConnPairVec)>,
+> + Clone
+       + Send
 where
     S: Spawn + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
 {
-
     // Wrap the connection (Version * Encrypt * Keepalive):
     let encrypt_transform = SecureChannel::new(
         identity_client,
@@ -37,8 +39,7 @@ where
         TICKS_TO_REKEY,
         spawner.clone(),
     );
-    let keepalive_transform =
-        KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
+    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
 
     // Note that this transform does not contain the version prefix, as it is applied to a
     // connection between two nodes, relayed using a relay server.
@@ -61,7 +62,12 @@ pub fn create_version_encrypt_keepalive<R, S>(
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
-    spawner: S) -> impl FutTransform<Input=(Option<PublicKey>, ConnPairVec), Output=Option<(PublicKey, ConnPairVec)>> + Clone + Send
+    spawner: S,
+) -> impl FutTransform<
+    Input = (Option<PublicKey>, ConnPairVec),
+    Output = Option<(PublicKey, ConnPairVec)>,
+> + Clone
+       + Send
 where
     S: Spawn + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
@@ -75,8 +81,7 @@ where
         TICKS_TO_REKEY,
         spawner.clone(),
     );
-    let keepalive_transform =
-        KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
+    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
 
     FuncFutTransform::new(move |(opt_public_key, conn_pair)| {
         let mut c_version_transform = version_transform.clone();
@@ -91,7 +96,6 @@ where
             Some((public_key, conn_pair))
         })
     })
-
 }
 
 // TODO: Possibly remove in favour of create_version_encrypt_keepalive
@@ -102,17 +106,15 @@ pub fn create_secure_connector<C, R, S>(
     timer_client: TimerClient,
     identity_client: IdentityClient,
     rng: R,
-    spawner: S) -> impl FutTransform<Input=(PublicKey, NetAddress), Output=Option<ConnPairVec>> + Clone
+    spawner: S,
+) -> impl FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone
 where
     S: Spawn + Clone + Send + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input=NetAddress, Output=Option<ConnPairVec>> + Clone + Send + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
-    let conn_transform = create_version_encrypt_keepalive(
-        timer_client,
-        identity_client,
-        rng,
-        spawner);
+    let conn_transform =
+        create_version_encrypt_keepalive(timer_client, identity_client, rng, spawner);
 
     FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_connector = connector.clone();

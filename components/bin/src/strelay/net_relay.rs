@@ -62,12 +62,12 @@ where
     type Output = Option<(PublicKey, ConnPairVec)>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
-
         let mut conn_transform = create_version_encrypt_keepalive(
             self.timer_client.clone(),
             self.identity_client.clone(),
             self.rng.clone(),
-            self.spawner.clone());
+            self.spawner.clone(),
+        );
 
         Box::pin(async move {
             let (public_key, conn_pair) = conn_transform.transform((None, conn_pair)).await?;

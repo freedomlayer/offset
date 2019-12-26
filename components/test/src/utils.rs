@@ -26,9 +26,9 @@ use proto::net::messages::NetAddress;
 use identity::{create_identity, IdentityClient};
 
 use app::conn::{AppConnTuple, AppServerToApp};
+use app::report::NodeReport;
 use app_conn::app_connect_to_node;
 use connection::create_secure_connector;
-use app::report::NodeReport;
 
 use node::{NodeConfig, NodeState};
 
@@ -254,11 +254,13 @@ where
     let node_public_key = get_node_identity(node_index).get_public_key();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
-    let secure_connector = create_secure_connector(sim_network_client,
+    let secure_connector = create_secure_connector(
+        sim_network_client,
         timer_client,
         app_identity_client,
         rng,
-        spawner.clone());
+        spawner.clone(),
+    );
 
     app_connect_to_node(
         secure_connector,

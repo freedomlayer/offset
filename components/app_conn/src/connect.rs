@@ -9,7 +9,6 @@ use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
-
 /// A connection of an App to a Node
 pub type ConnPairApp = ConnPair<AppToAppServer, AppServerToApp>;
 
@@ -113,10 +112,7 @@ where
         .await
         .ok_or(AppConnectError::ConnectorError)?;
 
-    setup_connection(
-        conn_pair,
-        spawner.clone(),
-    )
-    .await
-    .map_err(AppConnectError::SetupConnectionError)
+    setup_connection(conn_pair, spawner.clone())
+        .await
+        .map_err(AppConnectError::SetupConnectionError)
 }
