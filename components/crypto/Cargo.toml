@@ -15,7 +15,7 @@ rand = "0.5"
 ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
 untrusted = "0.6"
 
-serde = {version = "1", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
 bytes = "0.4"
 base64 = "0.9"
 

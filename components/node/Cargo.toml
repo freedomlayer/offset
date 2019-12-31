@@ -24,6 +24,6 @@ net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
 log = "0.4"
 futures = "0.3.1"
-serde = {version = "1.0.87", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
 
 derive_more = "0.14.0"

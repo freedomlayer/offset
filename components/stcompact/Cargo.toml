@@ -29,7 +29,8 @@ connection = { path = "../connection", version = "0.1.0", package = "offst-conne
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 app_client = { path = "../app_client", version = "0.1.0", package = "offst-app-client" }
 
-serde = {version = "1.0.87", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
+
 base64 = "0.10.1"
 
 log = "0.4"
