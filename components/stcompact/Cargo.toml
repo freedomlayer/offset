@@ -25,7 +25,7 @@ database = { path = "../database", version = "0.1.0", package = "offst-database"
 identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 net = { path = "../net", version = "0.1.0", package = "offst-net" }
-version = { path = "../version", version = "0.1.0", package = "offst-version" }
+connection = { path = "../connection", version = "0.1.0", package = "offst-connection" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
 app_client = { path = "../app_client", version = "0.1.0", package = "offst-app-client" }
 
