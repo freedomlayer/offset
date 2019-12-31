@@ -7,6 +7,9 @@ use derive_more::From;
 #[allow(unused)]
 use futures::task::{Spawn, SpawnExt};
 
+use futures::channel::mpsc;
+use futures::StreamExt;
+
 use structopt::StructOpt;
 
 // use common::conn::{FuncFutTransform, FutTransform};
@@ -33,10 +36,10 @@ pub enum CompactBinError {
     CreateTimerError,
     OpenFileStoreError,
     ServerError(ServerError),
+    SpawnError,
     /*
     LoadIdentityError,
     LoadDbError,
-    SpawnError,
     NetNodeError(NetNodeError),
     // SerializeError(SerializeError),
     StringSerdeError(StringSerdeError),
@@ -58,18 +61,49 @@ pub struct StCompactCmd {
     pub store_path: PathBuf,
 }
 
-fn create_stdio_conn_pair() -> ConnPairCompactServer {
-    /*
+#[allow(unused)]
+fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairCompactServer, CompactBinError>
+where
+    S: Spawn,
+{
+    let (user_sender, mut receiver) = mpsc::channel(1);
+    let (_sender, user_receiver) = mpsc::channel(1);
 
     let mut stdout = async_std::io::stdout();
     let mut stdin = async_std::io::stdin();
+
+    let send_fut = async move {
+        // Send data to stdout:
+        while let Some(user_to_server_ack) = receiver.next().await {
+            todo!();
+            // - Serialize
+            // - Output to shell
+        }
+    };
+    spawner.spawn(send_fut).map_err(|_| CompactBinError::SpawnError)?;
+
+    let recv_fut = async move {
+        // Receive data from stdin:
+        let mut line = String::new();
+        loop {
+            // Read line from shell:
+            if let Err(_) = stdin.read_line(&mut line).await {
+                return;
+            }
+            todo!();
+            // - Deserialize
+            // - Forward to `sender`
+        }
+    };
+    spawner.spawn(recv_fut).map_err(|_| CompactBinError::SpawnError)?;
+    /*
 
     // TODO: Things to prepare:
         - async stdio
         - serialization (json)
             - Which seperator to use for messages? Newline?
     */
-    todo!();
+    Ok(ConnPairCompactServer::from_raw(user_sender, user_receiver))
 }
 
 #[allow(unused)]
@@ -95,12 +129,11 @@ where
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-
     let file_store = open_file_store(store_path.into(), spawner.clone(), file_spawner.clone())
         .await
         .map_err(|_| CompactBinError::OpenFileStoreError)?;
 
-    let conn_pair = create_stdio_conn_pair();
+    let conn_pair = create_stdio_conn_pair(&spawner)?;
 
     Ok(compact_server_loop(
         conn_pair,
