@@ -28,7 +28,7 @@ use crate::serialize::{serialize_conn_pair, SerializeConnError};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
-pub enum CompactBinError {
+pub enum StCompactError {
     CreateTimerError,
     OpenFileStoreError,
     ServerError(ServerError),
@@ -50,7 +50,7 @@ pub struct StCompactCmd {
     pub store_path: PathBuf,
 }
 
-fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairString, CompactBinError> 
+fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairString, StCompactError> 
 where
     S: Spawn,
 {
@@ -70,7 +70,7 @@ where
         }
         Some(())
     };
-    spawner.spawn(send_fut.map(|_: Option<()>| ())).map_err(|_| CompactBinError::SpawnError)?;
+    spawner.spawn(send_fut.map(|_: Option<()>| ())).map_err(|_| StCompactError::SpawnError)?;
 
     let recv_fut = async move {
         // Receive data from stdin:
@@ -85,7 +85,7 @@ where
             sender.send(line.clone()).await.ok()?;
         }
     };
-    spawner.spawn(recv_fut.map(|_: Option<()>| ())).map_err(|_| CompactBinError::SpawnError)?;
+    spawner.spawn(recv_fut.map(|_: Option<()>| ())).map_err(|_| StCompactError::SpawnError)?;
 
     Ok(ConnPairString::from_raw(server_sender, server_receiver))
 }
@@ -95,7 +95,7 @@ pub async fn stcompact<S, FS>(
     st_compact_cmd: StCompactCmd,
     spawner: S,
     file_spawner: FS,
-) -> Result<(), CompactBinError>
+) -> Result<(), StCompactError>
 where
     S: Spawn + Clone + Send + Sync + 'static,
     FS: Spawn + Clone + Send + Sync + 'static,
@@ -105,7 +105,7 @@ where
     // Get a timer client:
     let dur = Duration::from_millis(usize_to_u64(TICK_MS).unwrap());
     let timer_client =
-        create_timer(dur, spawner.clone()).map_err(|_| CompactBinError::CreateTimerError)?;
+        create_timer(dur, spawner.clone()).map_err(|_| StCompactError::CreateTimerError)?;
 
     // A tcp connector, Used to connect to remote servers:
     let tcp_connector = TcpConnector::new(MAX_FRAME_LENGTH, spawner.clone());
@@ -115,7 +115,7 @@ where
 
     let file_store = open_file_store(store_path.into(), spawner.clone(), file_spawner.clone())
         .await
-        .map_err(|_| CompactBinError::OpenFileStoreError)?;
+        .map_err(|_| StCompactError::OpenFileStoreError)?;
 
     // Get line (string) communication with stdio:
     let stdio_conn_pair = create_stdio_conn_pair(&spawner)?;

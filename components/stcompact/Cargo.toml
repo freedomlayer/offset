@@ -9,9 +9,9 @@ edition = "2018"
 name = "stcompact"
 path = "src/lib.rs"
 
-# [[bin]]
-# name = "stcompact"
-# path = "src/bin/stcompact.rs"
+[[bin]]
+name = "stcompact"
+path = "src/bin/stcompact.rs"
 
 [dependencies]
 

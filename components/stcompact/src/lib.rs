@@ -21,4 +21,4 @@ mod server_loop;
 mod store;
 
 mod serialize;
-mod stcompactlib;
+pub mod stcompactlib;
