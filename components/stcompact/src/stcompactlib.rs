@@ -55,6 +55,8 @@ where
     let (server_sender, mut receiver) = mpsc::channel(1);
     let (mut sender, server_receiver) = mpsc::channel(1);
 
+    // TODO: Should take a generic stdin and stdout, instead of creating stdin and stdout here.
+    // This will make testing easier.
     let mut stdout = async_std::io::stdout();
     let stdin = async_std::io::stdin();
 
