@@ -16,7 +16,8 @@ use common::select_streams::select_streams;
 use timer::TimerClient;
 
 use app::common::{NetAddress, PublicKey};
-use app::conn::{connect, ConnPairApp};
+use app::conn::ConnPairApp;
+use app_client::app_connect_to_node;
 
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
 
@@ -460,16 +461,14 @@ where
         + Send
         + 'static,
 {
-    // TODO: Change `connect()` to `inner_connect()`
     // Connect to remote node
-    let connect_res = connect(
+    let connect_res = app_connect_to_node(
+        server_state.connector.clone(),
         remote.node_public_key,
         remote.node_address,
-        remote.app_identity_client,
         server_state.spawner.clone(),
     )
     .await;
-    todo!("Change connect() to inner_connect()");
 
     let (app_permissions, node_report, conn_pair) = if let Ok(tup) = connect_res {
         tup

@@ -37,10 +37,8 @@ relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
 node = { path = "../node", version = "0.1.0" , package = "offst-node" }
-keepalive = { path = "../keepalive", version = "0.1.0" , package = "offst-keepalive" }
-version = { path = "../version", version = "0.1.0" , package = "offst-version" }
-secure_channel = { path = "../secure_channel", version = "0.1.0" , package = "offst-secure-channel" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
+connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
 toml = "0.4.10"
 serde = {version = "1.0.87", features = ["derive"]}

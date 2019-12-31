@@ -1,0 +1,17 @@
+[package]
+name = "offst-app-client"
+version = "0.1.0"
+authors = ["real <real@freedomlayer.org>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+[dependencies]
+
+common = { path = "../common", version = "0.1.0", package = "offst-common" }
+proto = { path = "../proto", version = "0.1.0", package = "offst-proto" }
+
+futures = "0.3.1"
+
+[dev-dependencies]
+
+futures = {version = "0.3.1", features = ["thread-pool"]}

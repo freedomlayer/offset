@@ -15,16 +15,19 @@ use identity::IdentityClient;
 use database::DatabaseClient;
 
 use proto::app_server::messages::{AppPermissions, AppServerToApp, AppToAppServer, NodeReport};
-use proto::consts::{KEEPALIVE_TICKS, PROTOCOL_VERSION, TICKS_TO_REKEY};
 use proto::crypto::PublicKey;
 use proto::net::messages::NetAddress;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
 
+use connection::{create_encrypt_keepalive, create_version_encrypt_keepalive};
+
 use timer::TimerClient;
 
+/*
 use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
+*/
 
 use node::{
     node, ConnPairServer, IncomingAppConnection, NodeConfig, NodeError, NodeMutation, NodeState,
@@ -40,41 +43,29 @@ pub enum NetNodeError {
 }
 
 #[derive(Clone)]
-struct AppConnTransform<VT, ET, KT, TA, S> {
-    version_transform: VT,
-    encrypt_transform: ET,
-    keepalive_transform: KT,
+struct AppConnTransform<CT, TA, S> {
+    conn_transform: CT,
     trusted_apps: TA,
     spawner: S,
 }
 
-impl<VT, ET, KT, TA, S> AppConnTransform<VT, ET, KT, TA, S> {
-    fn new(
-        version_transform: VT,
-        encrypt_transform: ET,
-        keepalive_transform: KT,
-        trusted_apps: TA,
-        spawner: S,
-    ) -> Self {
+impl<CT, TA, S> AppConnTransform<CT, TA, S> {
+    fn new(conn_transform: CT, trusted_apps: TA, spawner: S) -> Self {
         AppConnTransform {
-            version_transform,
-            encrypt_transform,
-            keepalive_transform,
+            conn_transform,
             trusted_apps,
             spawner,
         }
     }
 }
 
-impl<VT, ET, KT, TA, S> FutTransform for AppConnTransform<VT, ET, KT, TA, S>
+impl<CT, TA, S> FutTransform for AppConnTransform<CT, TA, S>
 where
-    VT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
-    ET: FutTransform<
+    CT: FutTransform<
             Input = (Option<PublicKey>, ConnPairVec),
             Output = Option<(PublicKey, ConnPairVec)>,
         > + Clone
         + Send,
-    KT: FutTransform<Input = ConnPairVec, Output = ConnPairVec> + Clone + Send,
     TA: TrustedApps + Send + Clone,
     S: Spawn + Clone + Send + 'static,
 {
@@ -82,20 +73,14 @@ where
     type Output = Option<IncomingAppConnection<NetAddress>>;
 
     fn transform(&mut self, conn_pair: Self::Input) -> BoxFuture<'_, Self::Output> {
-        // let c_trusted_apps = self.trusted_apps.clone();
         Box::pin(async move {
-            // Version prefix:
-            let ver_conn = self.version_transform.transform(conn_pair).await;
-            // Encrypt:
-            let (public_key, enc_conn) = self.encrypt_transform.transform((None, ver_conn)).await?;
+            let (public_key, conn_pair) = self.conn_transform.transform((None, conn_pair)).await?;
+
+            let (mut sender, mut receiver) = conn_pair.split();
 
             // Obtain permissions for app (Or reject it if not trusted):
             let app_permissions: AppPermissions =
                 self.trusted_apps.app_permissions(&public_key).await?;
-
-            // Keepalive wrapper:
-            let (mut sender, mut receiver) =
-                self.keepalive_transform.transform(enc_conn).await.split();
 
             // Tell app about its permissions:
             sender.send(app_permissions.proto_serialize()).await.ok()?;
@@ -179,25 +164,10 @@ where
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
+    let conn_transform =
+        create_version_encrypt_keepalive(timer_client, identity_client, rng, spawner.clone());
 
-    let encrypt_transform = SecureChannel::new(
-        identity_client,
-        rng,
-        timer_client.clone(),
-        TICKS_TO_REKEY,
-        spawner.clone(),
-    );
-
-    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner.clone());
-
-    let app_conn_transform = AppConnTransform::new(
-        version_transform,
-        encrypt_transform,
-        keepalive_transform,
-        trusted_apps,
-        spawner.clone(),
-    );
+    let app_conn_transform = AppConnTransform::new(conn_transform, trusted_apps, spawner.clone());
 
     let (incoming_apps_sender, incoming_apps) = mpsc::channel(0);
 
@@ -260,48 +230,31 @@ where
         spawner.clone(),
     )?;
 
-    let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
-    let encrypt_transform = SecureChannel::new(
+    let conn_transform = create_version_encrypt_keepalive(
+        timer_client.clone(),
         identity_client.clone(),
         rng.clone(),
-        timer_client.clone(),
-        TICKS_TO_REKEY,
         spawner.clone(),
     );
-    let keepalive_transform =
-        KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner.clone());
 
-    let c_encrypt_transform = encrypt_transform.clone();
-    let c_keepalive_transform = keepalive_transform.clone();
     let secure_connector = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_connector = connector.clone();
-        let mut c_version_transform = version_transform.clone();
-        let mut c_encrypt_transform = c_encrypt_transform.clone();
-        let mut c_keepalive_transform = c_keepalive_transform.clone();
+        let mut c_conn_transform = conn_transform.clone();
         Box::pin(async move {
             let conn_pair = c_connector.transform(net_address).await?;
-            let conn_pair = c_version_transform.transform(conn_pair).await;
-            let (_public_key, conn_pair) = c_encrypt_transform
+            let (_public_key, conn_pair) = c_conn_transform
                 .transform((Some(public_key), conn_pair))
                 .await?;
-            let conn_pair = c_keepalive_transform.transform(conn_pair).await;
             Some(conn_pair)
         })
     });
 
-    // Note that this transform does not contain the version prefix, as it is applied to a
-    // connection between two nodes, relayed using a relay server.
-    let encrypt_keepalive = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
-        let mut c_encrypt_transform = encrypt_transform.clone();
-        let mut c_keepalive_transform = keepalive_transform.clone();
-        Box::pin(async move {
-            let (public_key, conn_pair_vec) = c_encrypt_transform
-                .transform((opt_public_key, conn_pair_vec))
-                .await?;
-            let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
-            Some((public_key, conn_pair_vec))
-        })
-    });
+    let encrypt_keepalive = create_encrypt_keepalive(
+        timer_client.clone(),
+        identity_client.clone(),
+        rng.clone(),
+        spawner.clone(),
+    );
 
     node(
         node_config,
