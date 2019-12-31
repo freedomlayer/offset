@@ -78,8 +78,10 @@ where
         loop {
             // Read line from shell:
             stdin.read_line(&mut line).await.ok()?;
+            // Note: The line contains an extra newline:
+            // TODO: Should we remove the trailing newline?
             if let Some(last) = line.chars().last() {
-                assert!(last != '\n');
+                assert!(last == '\n');
             }
             // Forward to user:
             sender.send(line.clone()).await.ok()?;
