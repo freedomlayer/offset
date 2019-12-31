@@ -50,3 +50,54 @@ where
 
     Ok(ConnPairCompactServer::from_raw(server_sender, server_receiver))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::convert::TryFrom;
+    use proto::crypto::{Uid, PrivateKey, PublicKey};
+    use proto::net::messages::NetAddress;
+
+    use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer, 
+        RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
+    use crate::compact_node::{CompactToUser, PaymentDone};
+
+    #[test]
+    fn test_ser_deser_server_to_user_ack1() {
+        let msg = ServerToUserAck::Ack(Uid::from(&[21; Uid::len()]));
+        let ser_str = serde_json::to_string(&msg).unwrap();
+        let msg2 = serde_json::from_str(&ser_str).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    #[test]
+    fn test_ser_deser_server_to_user_ack2() {
+        let payment_done = PaymentDone::Failure(Uid::from(&[1; Uid::len()]));
+        let compact_to_user = CompactToUser::PaymentDone(payment_done);
+        let server_to_user = ServerToUser::Node(NodeId(0x100u64), compact_to_user);
+        let msg = ServerToUserAck::ServerToUser(server_to_user);
+        let ser_str = serde_json::to_string(&msg).unwrap();
+        println!("{}", ser_str);
+        let msg2 = serde_json::from_str(&ser_str).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    #[test]
+    fn test_ser_deser_user_to_server_ack() {
+        let create_node_remote = CreateNodeRemote {
+            node_name: NodeName::new("node_name".to_owned()),
+            app_private_key: PrivateKey::from(&[0xaa; PrivateKey::len()]),
+            node_public_key: PublicKey::from(&[0xbb; PublicKey::len()]),
+            node_address: NetAddress::try_from("net_address".to_owned()).unwrap(),
+        };
+        let request_create_node = RequestCreateNode::CreateNodeRemote(create_node_remote);
+        let msg = UserToServerAck {
+            request_id: Uid::from(&[1; Uid::len()]),
+            inner: UserToServer::RequestCreateNode(request_create_node),
+        };
+        let ser_str = serde_json::to_string(&msg).unwrap();
+        // println!("{}", ser_str);
+        let msg2 = serde_json::from_str(&ser_str).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+}

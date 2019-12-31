@@ -4,7 +4,7 @@ use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
-use crate::ser_string::{from_base64, from_string, to_base64, to_string};
+use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;

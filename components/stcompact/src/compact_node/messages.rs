@@ -6,7 +6,7 @@ use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
-use app::ser_string::{from_base64, from_string, to_base64, to_string};
+use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
@@ -98,7 +98,8 @@ pub struct PaymentFees {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
-    Failure(Uid),                // ack_uid
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    Failure(Uid), // ack_uid
     Success(Receipt, u128, Uid), // (receipt, fees, ack_uid)
 }
 

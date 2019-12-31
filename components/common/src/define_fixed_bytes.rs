@@ -4,6 +4,7 @@
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
         #[derive(Clone, Serialize, Deserialize)]
+        // #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
         pub struct $name(#[serde(with = "BigArray")] [u8; $len]);
 
         impl $name {

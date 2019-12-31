@@ -34,4 +34,5 @@ pub mod select_streams;
 pub mod state_service;
 pub mod transform_pool;
 // pub mod wait_spawner;
+pub mod ser_string;
 pub mod test_executor;

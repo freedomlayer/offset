@@ -17,6 +17,12 @@ mod types;
 /// Utils for random generation of types
 pub mod gen;
 
+/// Utils for serializing and deserializing
+pub mod ser_string {
+    pub use common::ser_string::*;
+    pub use proto::ser_string::*;
+}
+
 /// Common types
 pub mod common {
     pub use crypto::identity::derive_public_key;
@@ -36,9 +42,6 @@ pub mod common {
 
 /// Common Offst files:
 pub use proto::file;
-
-/// Utils for serializing and deserializing
-pub use proto::ser_string;
 
 /// Offst connection
 pub mod conn {

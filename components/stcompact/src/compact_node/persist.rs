@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
+use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
-use app::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use route::MultiRouteChoice;
 
@@ -23,27 +23,37 @@ pub struct OpenInvoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusSending {
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub fees: u128,
     pub open_transactions: HashSet<Uid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusFoundRoute {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub confirm_id: Uid,
     pub multi_route: MultiRoute,
     pub multi_route_choice: MultiRouteChoice,
+    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub fees: u128,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
-    SearchingRoute(Uid), // request_routes_id
+    SearchingRoute(#[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
-    Commit(Commit, u128),        // (commit, fees)
-    Success(Receipt, u128, Uid), // (Receipt, fees, ack_uid)
-    Failure(Uid),                // ack_uid
+    Commit(
+        Commit,
+        #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
+    ), // (commit, fees)
+    Success(
+        Receipt,
+        #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
+        #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid,
+    ), // (Receipt, fees, ack_uid)
+    Failure(#[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid), // ack_uid
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
