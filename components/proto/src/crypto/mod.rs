@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::big_array::BigArray;
+use common::b64_array::B64Array;
 use common::define_fixed_bytes;
 
 use crate::common_capnp;
