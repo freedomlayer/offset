@@ -8,11 +8,11 @@ use derive_more::From;
 use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
-use futures::StreamExt;
+use futures::{StreamExt, SinkExt, FutureExt};
+use futures::AsyncWriteExt;
 
 use structopt::StructOpt;
 
-// use common::conn::{FuncFutTransform, FutTransform};
 use common::int_convert::usize_to_u64;
 
 use crypto::rand::system_random;
@@ -20,31 +20,21 @@ use crypto::rand::system_random;
 use timer::create_timer;
 
 use net::TcpConnector;
-// use version::VersionPrefix;
-// use connection::{create_encrypt_keepalive, create_secure_connector};
 
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
 #[allow(unused)]
 use crate::server_loop::{compact_server_loop, ServerError, ConnPairCompactServer};
 use crate::store::open_file_store;
+use crate::messages::UserToServerAck;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
 pub enum CompactBinError {
-    // CreateThreadPoolError,
     CreateTimerError,
     OpenFileStoreError,
     ServerError(ServerError),
     SpawnError,
-    /*
-    LoadIdentityError,
-    LoadDbError,
-    NetNodeError(NetNodeError),
-    // SerializeError(SerializeError),
-    StringSerdeError(StringSerdeError),
-    IoError(std::io::Error),
-    */
 }
 
 /// stcompact: Offst Compact
@@ -66,44 +56,45 @@ fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairCompactServer, Compa
 where
     S: Spawn,
 {
-    let (user_sender, mut receiver) = mpsc::channel(1);
-    let (_sender, user_receiver) = mpsc::channel(1);
+    let (server_sender, mut receiver) = mpsc::channel(1);
+    let (mut sender, server_receiver) = mpsc::channel(1);
 
     let mut stdout = async_std::io::stdout();
     let mut stdin = async_std::io::stdin();
 
     let send_fut = async move {
         // Send data to stdout:
-        while let Some(user_to_server_ack) = receiver.next().await {
-            todo!();
-            // - Serialize
-            // - Output to shell
+        while let Some(server_to_user_ack) = receiver.next().await {
+            // Serialize:
+            let ser_str = serde_json::to_string(&server_to_user_ack)
+                .expect("Serialization error!");
+
+            // Output to shell:
+            stdout.write_all(ser_str.as_bytes()).await.ok()?;
+            // TODO: Do we need to add a newline?
+            stdout.write_all(b"\n").await.ok()?;
         }
+        Some(())
     };
-    spawner.spawn(send_fut).map_err(|_| CompactBinError::SpawnError)?;
+    spawner.spawn(send_fut.map(|_: Option<()>| ())).map_err(|_| CompactBinError::SpawnError)?;
 
     let recv_fut = async move {
         // Receive data from stdin:
         let mut line = String::new();
         loop {
             // Read line from shell:
-            if let Err(_) = stdin.read_line(&mut line).await {
-                return;
-            }
-            todo!();
-            // - Deserialize
-            // - Forward to `sender`
+            stdin.read_line(&mut line).await.ok()?;
+
+            // Deserialize:
+            let user_to_server_ack: UserToServerAck = serde_json::from_str(&line).ok()?;
+
+            // Forward to user:
+            sender.send(user_to_server_ack).await.ok()?;
         }
     };
-    spawner.spawn(recv_fut).map_err(|_| CompactBinError::SpawnError)?;
-    /*
+    spawner.spawn(recv_fut.map(|_: Option<()>| ())).map_err(|_| CompactBinError::SpawnError)?;
 
-    // TODO: Things to prepare:
-        - async stdio
-        - serialization (json)
-            - Which seperator to use for messages? Newline?
-    */
-    Ok(ConnPairCompactServer::from_raw(user_sender, user_receiver))
+    Ok(ConnPairCompactServer::from_raw(server_sender, server_receiver))
 }
 
 #[allow(unused)]
