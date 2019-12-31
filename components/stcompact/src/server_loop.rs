@@ -17,7 +17,7 @@ use timer::TimerClient;
 
 use app::common::{NetAddress, PublicKey};
 use app::conn::ConnPairApp;
-use app_conn::app_connect_to_node;
+use app_client::app_connect_to_node;
 
 use proto::consts::{KEEPALIVE_TICKS, MAX_NODE_RELAYS, MAX_OPERATIONS_IN_BATCH, TICKS_TO_REKEY};
 

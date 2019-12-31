@@ -17,7 +17,7 @@ use identity::IdentityClient;
 use net::TcpConnector;
 use timer::create_timer;
 
-use app_conn::app_connect_to_node;
+use app_client::app_connect_to_node;
 use connection::create_secure_connector;
 
 /// A connection of an App to a Node

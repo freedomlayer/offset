@@ -20,7 +20,7 @@ database = { path = "../database", version = "0.1.0" , package = "offst-database
 bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
 stctrl = { path = "../stctrl", version = "0.1.0" , package = "offst-stctrl" }
 app = { path = "../app", version = "0.1.0" , package = "offst-app" }
-app_conn = { path = "../app_conn", version = "0.1.0" , package = "offst-app-conn" }
+app_client = { path = "../app_client", version = "0.1.0" , package = "offst-app-client" }
 connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
 futures = "0.3.1"

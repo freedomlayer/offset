@@ -31,5 +31,5 @@ members = [
   "components/route",
   "components/lockfile",
   "components/connection",
-  "components/app_conn",
+  "components/app_client",
 ]

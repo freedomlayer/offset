@@ -27,7 +27,7 @@ use identity::{create_identity, IdentityClient};
 
 use app::conn::{AppConnTuple, AppServerToApp};
 use app::report::NodeReport;
-use app_conn::app_connect_to_node;
+use app_client::app_connect_to_node;
 use connection::create_secure_connector;
 
 use node::{NodeConfig, NodeState};

@@ -14,7 +14,7 @@ timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 signature = { path = "../signature", version = "0.1.0" , package = "offst-signature" }
 net = { path = "../net", version = "0.1.0" , package = "offst-net" }
-app_conn = { path = "../app_conn", version = "0.1.0" , package = "offst-app-conn" }
+app_client = { path = "../app_client", version = "0.1.0" , package = "offst-app-client" }
 connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
 log = "0.4"

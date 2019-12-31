@@ -864,7 +864,7 @@ dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app-conn 0.1.0",
+ "offst-app-client 0.1.0",
  "offst-common 0.1.0",
  "offst-connection 0.1.0",
  "offst-crypto 0.1.0",
@@ -877,7 +877,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-app-conn"
+name = "offst-app-client"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1244,7 +1244,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-app 0.1.0",
- "offst-app-conn 0.1.0",
+ "offst-app-client 0.1.0",
  "offst-common 0.1.0",
  "offst-crypto 0.1.0",
  "offst-database 0.1.0",
@@ -1288,7 +1288,7 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "offst-app 0.1.0",
- "offst-app-conn 0.1.0",
+ "offst-app-client 0.1.0",
  "offst-bin 0.1.0",
  "offst-common 0.1.0",
  "offst-connection 0.1.0",
