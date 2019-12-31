@@ -6,25 +6,31 @@ use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
-use common::ser_string::{from_string, to_string};
+use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub response_hash: HashResult,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub src_plain_lock: PlainLock,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_hashed_lock: HashedLock,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub total_dest_payment: u128,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub signature: Signature,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct OpenFriendCurrency {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -32,6 +38,7 @@ pub struct OpenFriendCurrency {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CloseFriendCurrency {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -39,6 +46,7 @@ pub struct CloseFriendCurrency {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
     pub name: String,
@@ -46,22 +54,27 @@ pub struct AddFriend {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendRelays {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendName {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     pub name: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct InitPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub payment_id: PaymentId,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
@@ -77,6 +90,7 @@ pub enum PaymentFeesResponse {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaymentFees {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub payment_id: PaymentId,
     pub response: PaymentFeesResponse,
 }
@@ -84,7 +98,8 @@ pub struct PaymentFees {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
-    Failure(Uid),                // ack_uid
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    Failure(Uid), // ack_uid
     Success(Receipt, u128, Uid), // (receipt, fees, ack_uid)
 }
 
@@ -108,6 +123,7 @@ pub struct ConfirmPaymentFees {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyMaxDebt {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -117,6 +133,7 @@ pub struct SetFriendCurrencyMaxDebt {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoveFriendCurrency {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -124,12 +141,15 @@ pub struct RemoveFriendCurrency {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetFriendChannel {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub reset_token: Signature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyRate {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub friend_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
@@ -139,6 +159,7 @@ pub struct SetFriendCurrencyRate {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     /// Currency in use
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
@@ -235,7 +256,9 @@ pub struct BalanceInfo {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub local_public_key: PublicKey,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub remote_public_key: PublicKey,
     pub balances: HashMap<Currency, BalanceInfo>,
 }
@@ -298,9 +321,11 @@ pub enum OpenPaymentStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,
@@ -355,16 +380,21 @@ pub enum UserToCompact {
     // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveRelay(PublicKey),
     /// Manage index servers:
     AddIndexServer(NamedIndexServerAddress),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveIndexServer(PublicKey),
     /// Friend management:
     AddFriend(AddFriend),
     SetFriendRelays(SetFriendRelays),
     SetFriendName(SetFriendName),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     RemoveFriend(PublicKey),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     EnableFriend(PublicKey),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     DisableFriend(PublicKey),
     OpenFriendCurrency(OpenFriendCurrency),
     CloseFriendCurrency(CloseFriendCurrency),
@@ -377,10 +407,12 @@ pub enum UserToCompact {
     InitPayment(InitPayment),
     // Confirm sending fees:
     ConfirmPaymentFees(ConfirmPaymentFees),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelPayment(PaymentId),
     AckPaymentDone(PaymentId, Uid), // (payment_id, ack_uid)
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     CancelInvoice(InvoiceId),
     RequestCommitInvoice(Commit),
     // ---------------[Verification]------------------------
@@ -389,6 +421,7 @@ pub enum UserToCompact {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UserToCompactAck {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub user_request_id: Uid,
     pub inner: UserToCompact,
 }

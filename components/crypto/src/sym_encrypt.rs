@@ -5,7 +5,7 @@ use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey, CHACHA20_
 
 use crate::error::CryptoError;
 
-use common::b64_array::B64Array;
+use common::big_array::BigArray;
 
 pub const SYMMETRIC_KEY_LEN: usize = 32;
 // Length of tag for CHACHA20_POLY1305

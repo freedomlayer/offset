@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_string::{from_string, to_string};
+use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
@@ -30,6 +30,7 @@ pub struct OpenPaymentStatusSending {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusFoundRoute {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub confirm_id: Uid,
     pub multi_route: MultiRoute,
     pub multi_route_choice: MultiRouteChoice,
@@ -40,22 +41,28 @@ pub struct OpenPaymentStatusFoundRoute {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
-    SearchingRoute(Uid), // request_routes_id
+    SearchingRoute(#[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
     Commit(
         Commit,
         #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
     ), // (commit, fees)
-    Success(Receipt, u128, Uid), // (Receipt, fees, ack_uid)
-    Failure(Uid),                // ack_uid
+    Success(
+        Receipt,
+        #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
+        #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid,
+    ), // (Receipt, fees, ack_uid)
+    Failure(#[serde(serialize_with = "to_base64", deserialize_with = "from_base64")] Uid), // ack_uid
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub invoice_id: InvoiceId,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub currency: Currency,
+    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
     pub dest_public_key: PublicKey,
     #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub dest_payment: u128,

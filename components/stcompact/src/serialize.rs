@@ -76,7 +76,7 @@ mod tests {
         let server_to_user = ServerToUser::Node(NodeId(0x100u64), compact_to_user);
         let msg = ServerToUserAck::ServerToUser(server_to_user);
         let ser_str = serde_json::to_string(&msg).unwrap();
-        // println!("{}", ser_str);
+        println!("{}", ser_str);
         let msg2 = serde_json::from_str(&ser_str).unwrap();
         assert_eq!(msg, msg2);
     }
