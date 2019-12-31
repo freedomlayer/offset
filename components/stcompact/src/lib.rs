@@ -20,4 +20,5 @@ mod messages;
 mod server_loop;
 mod store;
 
+mod serialize;
 mod stcompactlib;

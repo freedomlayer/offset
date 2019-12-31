@@ -66,6 +66,7 @@ impl<SendItem, RecvItem> ConnPair<SendItem, RecvItem> {
 }
 
 pub type ConnPairVec = ConnPair<Vec<u8>, Vec<u8>>;
+pub type ConnPairString = ConnPair<String, String>;
 
 /// A hack to convert any sink into an mpsc::Sender.
 /// This is useful because mpsc::Sender is cloneable.
