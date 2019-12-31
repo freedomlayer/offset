@@ -3,8 +3,6 @@ use std::time::Duration;
 
 use derive_more::From;
 
-// use futures::executor::ThreadPool;
-#[allow(unused)]
 use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
@@ -23,7 +21,6 @@ use net::TcpConnector;
 
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
-#[allow(unused)]
 use crate::server_loop::{compact_server_loop, ServerError, ConnPairCompactServer};
 use crate::store::open_file_store;
 use crate::messages::UserToServerAck;
@@ -51,7 +48,6 @@ pub struct StCompactCmd {
     pub store_path: PathBuf,
 }
 
-#[allow(unused)]
 fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairCompactServer, CompactBinError>
 where
     S: Spawn,
@@ -60,7 +56,7 @@ where
     let (mut sender, server_receiver) = mpsc::channel(1);
 
     let mut stdout = async_std::io::stdout();
-    let mut stdin = async_std::io::stdin();
+    let stdin = async_std::io::stdin();
 
     let send_fut = async move {
         // Send data to stdout:

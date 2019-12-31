@@ -20,5 +20,4 @@ mod messages;
 mod server_loop;
 mod store;
 
-#[allow(clippy::useless_attribute)]
 mod stcompactlib;
