@@ -53,10 +53,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryFrom;
+
     #[allow(unused)]
     use proto::crypto::{Uid, PrivateKey, PublicKey, InvoiceId};
     use proto::net::messages::NetAddress;
+    use proto::funder::messages::Currency;
 
     use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer, 
         RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
@@ -82,16 +85,19 @@ mod tests {
         assert_eq!(msg, msg2);
     }
 
-    /*
     #[test]
     fn test_ser_deser_server_to_user_ack3() {
+        let open_invoice = OpenInvoice {
+            currency: Currency::try_from("FST".to_owned()).unwrap(),
+            total_dest_payment: 0x1234u128,
+            description: "description".to_owned(),
+        };
         let mut open_invoices = HashMap::new();
-        open_invoices.insert(InvoiceId::from(&[0x11; InvoiceId::len()]),
-            OpenInvoice {});
+        open_invoices.insert(InvoiceId::from(&[0x11; InvoiceId::len()]), open_invoice);
         let compact_report = CompactReport {
             local_public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
             index_servers: Vec::new(),
-            opt_connected_index_server: Option<PublicKey>,
+            opt_connected_index_server: None,
             relays: Vec::new(),
             friends: HashMap::new(),
             open_invoices: open_invoices,
@@ -105,7 +111,6 @@ mod tests {
         let msg2 = serde_json::from_str(&ser_str).unwrap();
         assert_eq!(msg, msg2);
     }
-    */
 
     #[test]
     fn test_ser_deser_user_to_server_ack() {
