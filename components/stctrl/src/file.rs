@@ -1,4 +1,4 @@
-use app::ser_string::{from_base64, from_string, to_base64, to_string};
+use app::ser_string::{SerBase64, SerString};
 
 use app::common::{
     Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,
@@ -10,13 +10,13 @@ use mutual_from::mutual_from;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InvoiceFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub dest_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
 }
 
@@ -24,28 +24,28 @@ pub struct InvoiceFile {
 #[mutual_from(Commit)]
 #[derive(Serialize, Deserialize)]
 pub struct CommitFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub response_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub src_plain_lock: PlainLock,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub signature: Signature,
 }
 
 /// A helper structure for serialize and deserializing Payment.
 #[derive(Serialize, Deserialize)]
 pub struct PaymentFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
 }
 
@@ -53,22 +53,22 @@ pub struct PaymentFile {
 #[mutual_from(Receipt)]
 #[derive(Serialize, Deserialize)]
 pub struct ReceiptFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub response_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub src_plain_lock: PlainLock,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub signature: Signature,
 }
 
@@ -76,11 +76,11 @@ pub struct ReceiptFile {
 #[mutual_from(MoveTokenHashedReport)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TokenFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub prefix_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub rand_nonce: RandValue,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "SerBase64")]
     pub new_token: Signature,
     pub token_info: TokenInfo,
 }

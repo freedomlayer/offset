@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_string::{from_string, to_string, SerBase64};
+use common::ser_string::{SerBase64, SerString};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
@@ -13,9 +13,9 @@ use route::MultiRouteChoice;
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
@@ -23,7 +23,7 @@ pub struct OpenInvoice {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusSending {
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub fees: u128,
     pub open_transactions: HashSet<Uid>,
 }
@@ -34,7 +34,7 @@ pub struct OpenPaymentStatusFoundRoute {
     pub confirm_id: Uid,
     pub multi_route: MultiRoute,
     pub multi_route_choice: MultiRouteChoice,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub fees: u128,
 }
 
@@ -44,27 +44,24 @@ pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
-    Commit(
-        Commit,
-        #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
-    ), // (commit, fees)
+    Commit(Commit, #[serde(with = "SerString")] u128), // (commit, fees)
     Success(
         Receipt,
-        #[serde(serialize_with = "to_string", deserialize_with = "from_string")] u128,
+        #[serde(with = "SerString")] u128,
         #[serde(with = "SerBase64")] Uid,
     ), // (Receipt, fees, ack_uid)
-    Failure(#[serde(with = "SerBase64")] Uid), // ack_uid
+    Failure(#[serde(with = "SerBase64")] Uid),         // ack_uid
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     #[serde(with = "SerBase64")]
     pub dest_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,

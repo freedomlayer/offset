@@ -7,7 +7,7 @@ use app::common::{
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use common::ser_hash_map::SerHashMap;
-use common::ser_string::{from_string, to_string, SerBase64};
+use common::ser_string::{SerBase64, SerString};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
@@ -17,13 +17,13 @@ pub struct Commit {
     pub src_plain_lock: PlainLock,
     #[serde(with = "SerBase64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     #[serde(with = "SerBase64")]
     pub signature: Signature,
@@ -33,7 +33,7 @@ pub struct Commit {
 pub struct OpenFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
 }
 
@@ -41,7 +41,7 @@ pub struct OpenFriendCurrency {
 pub struct CloseFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
 }
 
@@ -73,11 +73,11 @@ pub struct InitPayment {
     pub payment_id: PaymentId,
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     #[serde(with = "SerBase64")]
     pub dest_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
     /// Short textual invoice description
     pub description: String,
@@ -126,9 +126,9 @@ pub struct ConfirmPaymentFees {
 pub struct SetFriendCurrencyMaxDebt {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub remote_max_debt: u128,
 }
 
@@ -136,7 +136,7 @@ pub struct SetFriendCurrencyMaxDebt {
 pub struct RemoveFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
 }
 
@@ -152,7 +152,7 @@ pub struct ResetFriendChannel {
 pub struct SetFriendCurrencyRate {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     pub rate: Rate,
 }
@@ -163,10 +163,10 @@ pub struct AddInvoice {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
     /// Currency in use
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     /// Total amount of credits to be paid.
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
     /// Short textual description for the invoice
     pub description: String,
@@ -184,7 +184,7 @@ pub struct ConfigReport {
     /// for a certain currency.
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub remote_max_debt: u128,
     /// Can requests be sent through this node (Incoming or outgoing)?
     /// If `false`, only the local user may send or receive requests through this node.
@@ -213,13 +213,13 @@ pub struct ChannelInconsistentReport {
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub balance: i128,
     /// Frozen credits by our side
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub remote_pending_debt: u128,
 }
 
@@ -247,11 +247,11 @@ pub enum FriendStatusReport {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub balance: i128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub local_pending_debt: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub remote_pending_debt: u128,
 }
 
@@ -267,7 +267,7 @@ pub struct McInfo {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub move_token_counter: u128,
 }
 
@@ -301,9 +301,9 @@ pub struct FriendReport {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
@@ -324,11 +324,11 @@ pub enum OpenPaymentStatus {
 pub struct OpenPayment {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub currency: Currency,
     #[serde(with = "SerBase64")]
     pub dest_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "SerString")]
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,
