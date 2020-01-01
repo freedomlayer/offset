@@ -6,7 +6,7 @@ use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
-use common::ser_hash_map::SerHashMap;
+use common::ser_hash_map::{SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64};
 use common::ser_string::{SerBase64, SerString};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -199,12 +199,15 @@ pub enum FriendLivenessReport {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTermsReport {
+    #[serde(with = "SerBase64")]
     pub reset_token: Signature,
+    #[serde(with = "SerMapStrStr")]
     pub balance_for_reset: HashMap<Currency, i128>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInconsistentReport {
+    #[serde(with = "SerMapStrStr")]
     pub local_reset_terms: HashMap<Currency, i128>,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
@@ -230,6 +233,7 @@ pub struct CurrencyReport {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelConsistentReport {
+    #[serde(with = "SerMapStrAny")]
     pub currency_reports: HashMap<Currency, CurrencyReport>,
 }
 
@@ -261,6 +265,7 @@ pub struct McInfo {
     pub local_public_key: PublicKey,
     #[serde(with = "SerBase64")]
     pub remote_public_key: PublicKey,
+    #[serde(with = "SerMapStrAny")]
     pub balances: HashMap<Currency, BalanceInfo>,
 }
 
@@ -288,6 +293,7 @@ pub struct MoveTokenHashedReport {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriendReport {
     pub name: String,
+    #[serde(with = "SerMapStrAny")]
     pub currency_configs: HashMap<Currency, ConfigReport>,
     /// Last message signed by the remote side.
     /// Can be used as a proof for the last known balance.
@@ -338,17 +344,19 @@ pub struct OpenPayment {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactReport {
+    #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
+    #[serde(with = "SerOptionB64")]
     pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
-    #[serde(with = "SerHashMap")]
+    #[serde(with = "SerMapB64Any")]
     pub friends: HashMap<PublicKey, FriendReport>,
     /// Seller's open invoices:
-    #[serde(with = "SerHashMap")]
+    #[serde(with = "SerMapB64Any")]
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
-    #[serde(with = "SerHashMap")]
+    #[serde(with = "SerMapB64Any")]
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
