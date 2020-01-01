@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{PublicKey, Uid};
@@ -66,7 +64,7 @@ pub struct IndexClientReport<ISA = NetAddress> {
     pub opt_connected_server: Option<PublicKey>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddIndexServer<ISA> {
     pub public_key: PublicKey,
     pub address: ISA,
