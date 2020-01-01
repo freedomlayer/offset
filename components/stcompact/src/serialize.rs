@@ -54,12 +54,14 @@ where
 #[cfg(test)]
 mod tests {
     use std::convert::TryFrom;
-    use proto::crypto::{Uid, PrivateKey, PublicKey};
+    #[allow(unused)]
+    use proto::crypto::{Uid, PrivateKey, PublicKey, InvoiceId};
     use proto::net::messages::NetAddress;
 
     use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer, 
         RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
-    use crate::compact_node::{CompactToUser, PaymentDone};
+    #[allow(unused)]
+    use crate::compact_node::messages::{CompactToUser, PaymentDone, CompactReport, FriendReport, OpenInvoice};
 
     #[test]
     fn test_ser_deser_server_to_user_ack1() {
@@ -76,10 +78,34 @@ mod tests {
         let server_to_user = ServerToUser::Node(NodeId(0x100u64), compact_to_user);
         let msg = ServerToUserAck::ServerToUser(server_to_user);
         let ser_str = serde_json::to_string(&msg).unwrap();
+        let msg2 = serde_json::from_str(&ser_str).unwrap();
+        assert_eq!(msg, msg2);
+    }
+
+    /*
+    #[test]
+    fn test_ser_deser_server_to_user_ack3() {
+        let mut open_invoices = HashMap::new();
+        open_invoices.insert(InvoiceId::from(&[0x11; InvoiceId::len()]),
+            OpenInvoice {});
+        let compact_report = CompactReport {
+            local_public_key: PublicKey::from(&[0xaa; PublicKey::len()]),
+            index_servers: Vec::new(),
+            opt_connected_index_server: Option<PublicKey>,
+            relays: Vec::new(),
+            friends: HashMap::new(),
+            open_invoices: open_invoices,
+            open_payments: HashMap::new(),
+        };
+        let compact_to_user = CompactToUser::Report(compact_report);
+        let server_to_user = ServerToUser::Node(NodeId(0x100u64), compact_to_user);
+        let msg = ServerToUserAck::ServerToUser(server_to_user);
+        let ser_str = serde_json::to_string(&msg).unwrap();
         println!("{}", ser_str);
         let msg2 = serde_json::from_str(&ser_str).unwrap();
         assert_eq!(msg, msg2);
     }
+    */
 
     #[test]
     fn test_ser_deser_user_to_server_ack() {
@@ -95,9 +121,7 @@ mod tests {
             inner: UserToServer::RequestCreateNode(request_create_node),
         };
         let ser_str = serde_json::to_string(&msg).unwrap();
-        // println!("{}", ser_str);
         let msg2 = serde_json::from_str(&ser_str).unwrap();
         assert_eq!(msg, msg2);
     }
-
 }

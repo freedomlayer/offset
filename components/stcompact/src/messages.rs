@@ -8,7 +8,7 @@ use common::ser_string::{from_base64, from_string, to_base64, to_string};
 use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
 use app::conn::AppPermissions;
 
-use crate::compact_node::{CompactReport, CompactToUser, UserToCompact};
+use crate::compact_node::messages::{CompactReport, CompactToUser, UserToCompact};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 pub struct NodeName(String);
@@ -75,8 +75,6 @@ pub enum ResponseOpenNode {
     Success(NodeName, NodeId, AppPermissions, CompactReport), // (node_name, node_id, compact_report)
     Failure(NodeName),
 }
-
-pub type NodesInfo = HashMap<NodeName, NodeInfo>;
 
 pub type NodesStatus = HashMap<NodeName, NodeStatus>;
 

@@ -31,7 +31,10 @@ use crate::messages::{
 };
 
 use crate::compact_node::{
-    compact_node, create_compact_report, CompactToUserAck, ConnPairCompact, UserToCompactAck,
+    compact_node, create_compact_report, ConnPairCompact,
+};
+use crate::compact_node::messages::{
+    CompactToUserAck, UserToCompactAck,
 };
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
 use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};

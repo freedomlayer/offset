@@ -30,9 +30,10 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use crypto::identity::SoftwareEd25519Identity;
 use identity::{create_identity, IdentityClient};
 
-use crate::messages::{NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName, NodesInfo};
+use crate::messages::{NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName};
 
 use crate::compact_node::CompactState;
+use crate::store::NodesInfo;
 use crate::store::consts::{
     APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
