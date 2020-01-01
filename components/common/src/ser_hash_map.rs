@@ -14,10 +14,9 @@ use base64::{self, URL_SAFE_NO_PAD};
 use serde::de::{Deserialize, Deserializer, Error, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, Serializer};
 
-/// This code is required to be able to Serialize and Deserialize arrays of size larger than 64.
-/// This feature is required for serializing the Signature type, which is of size 64.
-/// In the future this might be supported automatically by Rust, or can be done using an external
-/// crate.
+/// A util for serializing HashMaps with keys that are not strings.
+/// For example: JSON serialization does not allow keys that are not strings.
+/// SerHashMap first converts the key to a base64 string, and only then serializes.
 pub trait SerHashMap<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
