@@ -6,6 +6,7 @@ use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
+use common::ser_hash_map::SerHashMap;
 use common::ser_string::{from_base64, from_string, to_base64, to_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -341,10 +342,13 @@ pub struct CompactReport {
     pub index_servers: Vec<NamedIndexServerAddress>,
     pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
+    #[serde(with = "SerHashMap")]
     pub friends: HashMap<PublicKey, FriendReport>,
     /// Seller's open invoices:
+    #[serde(with = "SerHashMap")]
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
+    #[serde(with = "SerHashMap")]
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 
