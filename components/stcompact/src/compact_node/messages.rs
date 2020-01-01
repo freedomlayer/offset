@@ -86,7 +86,10 @@ pub struct InitPayment {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PaymentFeesResponse {
     Unreachable,
-    Fees(u128, Uid), // (fees, confirm_id)
+    Fees(
+        #[serde(with = "SerString")] u128,
+        #[serde(with = "SerBase64")] Uid,
+    ), // (fees, confirm_id)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,7 +104,11 @@ pub struct PaymentFees {
 pub enum PaymentDone {
     #[serde(with = "SerBase64")]
     Failure(Uid), // ack_uid
-    Success(Receipt, u128, Uid), // (receipt, fees, ack_uid)
+    Success(
+        Receipt,
+        #[serde(with = "SerString")] u128,
+        #[serde(with = "SerBase64")] Uid,
+    ), // (receipt, fees, ack_uid)
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -112,13 +119,16 @@ pub enum ResponseCommitInvoice {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
+    #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
     pub commit: Commit,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct ConfirmPaymentFees {
+    #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
+    #[serde(with = "SerBase64")]
     pub confirm_id: Uid,
 }
 
@@ -284,9 +294,12 @@ pub struct TokenInfo {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveTokenHashedReport {
+    #[serde(with = "SerBase64")]
     pub prefix_hash: HashResult,
     pub token_info: TokenInfo,
+    #[serde(with = "SerBase64")]
     pub rand_nonce: RandValue,
+    #[serde(with = "SerBase64")]
     pub new_token: Signature,
 }
 
@@ -318,12 +331,19 @@ pub struct OpenInvoice {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpenPaymentStatus {
-    SearchingRoute(Uid),         // request_routes_id
-    FoundRoute(Uid, u128),       // (confirm_id, fees)
-    Sending(u128),               // fees
-    Commit(Commit, u128),        // (commit, fees)
-    Success(Receipt, u128, Uid), // (Receipt, fees, ack_uid)
-    Failure(Uid),                // ack_uid
+    SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
+    FoundRoute(
+        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "SerString")] u128,
+    ), // (confirm_id, fees)
+    Sending(#[serde(with = "SerString")] u128),       // fees
+    Commit(Commit, #[serde(with = "SerString")] u128), // (commit, fees)
+    Success(
+        Receipt,
+        #[serde(with = "SerString")] u128,
+        #[serde(with = "SerBase64")] Uid,
+    ), // (Receipt, fees, ack_uid)
+    Failure(#[serde(with = "SerBase64")] Uid),        // ack_uid
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -365,7 +385,7 @@ pub struct CompactReport {
 pub enum CompactToUserAck {
     /// Acknowledge the receipt of `UserToCompact`
     /// Should be sent after `Report`, in case any changes occured.
-    Ack(Uid),
+    Ack(#[serde(with = "SerBase64")] Uid),
     CompactToUser(CompactToUser),
 }
 
