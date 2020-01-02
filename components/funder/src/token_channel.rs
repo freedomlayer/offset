@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
-use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
+use std::collections::HashMap as ImHashMap;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -34,7 +34,7 @@ pub enum SetDirection<B> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum TcMutation<B> {
     McMutation((Currency, McMutation)),
     SetLocalActiveCurrencies(Vec<Currency>),

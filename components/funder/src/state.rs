@@ -110,7 +110,7 @@ pub struct OpenTransaction {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum FunderMutation<B: Clone> {
     FriendMutation((PublicKey, FriendMutation<B>)),
     AddRelay(NamedRelayAddress<B>),

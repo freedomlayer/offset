@@ -84,7 +84,7 @@ pub struct MutualCredit {
     state: MutualCreditState,
 }
 
-#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone)]
 pub enum McMutation {
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),

@@ -11,7 +11,7 @@ use proto::index_client::messages::IndexClientReport;
 use signature::canonical::CanonicalSerialize;
 
 // TODO: Can we remote the Clone bound here?
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum NodeMutation<B: Clone> {
     Funder(FunderMutation<B>),
     IndexClient(IndexClientConfigMutation<B>),

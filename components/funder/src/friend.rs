@@ -1,5 +1,5 @@
-use std::collections::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
+use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
 
 use signature::canonical::CanonicalSerialize;
@@ -144,7 +144,7 @@ pub struct FriendState<B: Clone> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),

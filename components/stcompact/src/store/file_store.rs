@@ -378,7 +378,7 @@ where
     S: Spawn,
     FS: Spawn + Send + Clone + 'static,
     MS: Clone + Serialize + DeserializeOwned + MutableState + Send + Debug + 'static,
-    MS::Mutation: Clone + Serialize + DeserializeOwned + Send + Debug,
+    MS::Mutation: Clone + Send + Debug,
     MS::MutateError: Debug + Send,
 {
     // This operation blocks, so we are running it using the file_spawner:

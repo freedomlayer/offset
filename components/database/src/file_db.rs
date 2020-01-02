@@ -36,7 +36,7 @@ pub struct FileDb<S> {
 impl<S> FileDb<S>
 where
     S: Clone + Serialize + DeserializeOwned + MutableState,
-    S::Mutation: Clone + Serialize + DeserializeOwned,
+    S::Mutation: Clone,
     S::MutateError: Debug,
 {
     /// Create a new database file from an initial state
@@ -83,7 +83,7 @@ where
 impl<S> AtomicDb for FileDb<S>
 where
     S: Debug + Clone + Serialize + DeserializeOwned + MutableState,
-    S::Mutation: Clone + Serialize + DeserializeOwned,
+    S::Mutation: Clone,
     S::MutateError: Debug,
 {
     type State = S;
