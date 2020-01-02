@@ -56,6 +56,8 @@ mod tests {
     use std::collections::HashMap;
     use std::convert::TryFrom;
 
+    use serde::{Deserialize, Serialize};
+
     #[allow(unused)]
     use proto::crypto::{Uid, PrivateKey, PublicKey, InvoiceId};
     use proto::net::messages::NetAddress;
@@ -127,5 +129,18 @@ mod tests {
         let ser_str = serde_json::to_string(&msg).unwrap();
         let msg2 = serde_json::from_str(&ser_str).unwrap();
         assert_eq!(msg, msg2);
+    }
+
+    #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    struct ExampleStruct {
+        ex_num: i32,
+        ex_string: String,
+    }
+
+    #[quickcheck]
+    fn qc_example_struct(msg: ExampleStruct) -> bool {
+        let ser_str = serde_json::to_string(&msg).unwrap();
+        let msg2: ExampleStruct = serde_json::from_str(&ser_str).unwrap();
+        msg2 == msg
     }
 }
