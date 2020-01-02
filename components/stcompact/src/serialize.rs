@@ -58,15 +58,23 @@ mod tests {
 
     use serde::{Deserialize, Serialize};
 
+    // use common::ser_utils::SerMapStrAny;
+
+    use quickcheck::QuickCheck;
+
     #[allow(unused)]
     use proto::crypto::{Uid, PrivateKey, PublicKey, InvoiceId};
     use proto::net::messages::NetAddress;
     use proto::funder::messages::Currency;
 
+
+    /*
     use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer, 
         RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
-    #[allow(unused)]
-    use crate::compact_node::messages::{CompactToUser, PaymentDone, CompactReport, FriendReport, OpenInvoice};
+    */
+    use crate::messages::*;
+    // use crate::compact_node::messages::{CompactToUser, PaymentDone, CompactReport, FriendReport, OpenInvoice};
+    use crate::compact_node::messages::*;
 
     #[test]
     fn test_ser_deser_server_to_user_ack1() {
@@ -148,6 +156,7 @@ mod tests {
     enum ExampleEnum {
         Hello,
         World(Vec<u8>),
+        MyString(String),
     }
 
     #[quickcheck]
@@ -155,5 +164,41 @@ mod tests {
         let ser_str = serde_json::to_string(&msg).unwrap();
         let msg2: ExampleEnum = serde_json::from_str(&ser_str).unwrap();
         msg2 == msg
+    }
+
+    #[test]
+    fn qc_small() {
+        fn ser_de(msg: McInfo) -> bool {
+            let ser_str = serde_json::to_string(&msg).unwrap();
+            let msg2: McInfo = serde_json::from_str(&ser_str).unwrap();
+            msg2 == msg
+        }
+        QuickCheck::new()
+            .max_tests(100)
+            .quickcheck(ser_de as fn(McInfo) -> bool);
+    }
+
+    #[test]
+    fn qc_server_to_user_ack_json() {
+        fn ser_de(msg: ServerToUserAck) -> bool {
+            let ser_str = serde_json::to_string(&msg).unwrap();
+            let msg2: ServerToUserAck = serde_json::from_str(&ser_str).unwrap();
+            msg2 == msg
+        }
+        QuickCheck::new()
+            .max_tests(100)
+            .quickcheck(ser_de as fn(ServerToUserAck) -> bool);
+    }
+
+    #[test]
+    fn qc_user_to_server_ack_json() {
+        fn ser_de(msg: UserToServerAck) -> bool {
+            let ser_str = serde_json::to_string(&msg).unwrap();
+            let msg2: UserToServerAck = serde_json::from_str(&ser_str).unwrap();
+            msg2 == msg
+        }
+        QuickCheck::new()
+            .max_tests(100)
+            .quickcheck(ser_de as fn(UserToServerAck) -> bool);
     }
 }
