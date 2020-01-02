@@ -66,13 +66,13 @@ define_fixed_bytes!(InvoiceId, InvoiceId::len());
 */
 
 #[capnp_conv(crate::funder_capnp::friends_route)]
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
     pub public_keys: Vec<PublicKey>,
 }
 
 #[capnp_conv(crate::funder_capnp::request_send_funds_op)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
     pub request_id: Uid,
     pub src_hashed_lock: HashedLock,
@@ -87,7 +87,7 @@ pub struct RequestSendFundsOp {
 }
 
 #[capnp_conv(crate::funder_capnp::response_send_funds_op)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFundsOp<S = Signature> {
     pub request_id: Uid,
     pub dest_hashed_lock: HashedLock,
@@ -97,7 +97,7 @@ pub struct ResponseSendFundsOp<S = Signature> {
 }
 
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CancelSendFundsOp {
     pub request_id: Uid,
 }
@@ -119,7 +119,7 @@ pub struct Commit {
 }
 
 #[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CollectSendFundsOp {
     pub request_id: Uid,
     pub src_plain_lock: PlainLock,
