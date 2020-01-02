@@ -2,6 +2,8 @@ use im::vector::Vector as ImVec;
 use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
 
+use common::ser_utils::{SerBase64, SerString};
+
 use signature::canonical::CanonicalSerialize;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -115,6 +117,7 @@ pub struct CurrencyConfig {
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
     /// The remote side does not know this value.
+    #[serde(with = "SerString")]
     pub remote_max_debt: u128,
     /// Can new requests be sent through the mutual credit with this friend?
     pub is_open: bool,
@@ -123,8 +126,10 @@ pub struct CurrencyConfig {
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
+    #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
     /// Public key of the friend node
+    #[serde(with = "SerBase64")]
     pub remote_public_key: PublicKey,
     /// Relays on which the friend node can be found.
     /// This list of relays corresponds to the last report of relays we got from the remote friend.
