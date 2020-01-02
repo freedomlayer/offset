@@ -18,18 +18,11 @@ database = { path = "../database", version = "0.1.0", package = "offst-database"
 log = "0.4"
 pretty_env_logger = "0.2"
 
-untrusted = "0.6"
-
 bytes = "0.4"
-futures-cpupool = "0.1.8"
 futures = "0.3.1"
 
 
 serde = {version = "1.0.104", features = ["derive"]}
-serde_json = "1.0.27"
-base64 = "0.9"
-
-atomicwrites = "0.2.2"
 
 im = {version = "13.0.0", features = ["serde"]}
 byteorder = {version = "1.1", features = ["i128"]}
