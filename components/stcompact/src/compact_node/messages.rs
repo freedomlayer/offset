@@ -10,7 +10,7 @@ use common::ser_utils::{
     SerBase64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, SerString,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
     #[serde(with = "SerBase64")]
     pub response_hash: HashResult,
@@ -30,7 +30,7 @@ pub struct Commit {
     pub signature: Signature,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct OpenFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -38,7 +38,7 @@ pub struct OpenFriendCurrency {
     pub currency: Currency,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CloseFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -46,7 +46,7 @@ pub struct CloseFriendCurrency {
     pub currency: Currency,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -54,21 +54,21 @@ pub struct AddFriend {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendRelays {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendName {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
     pub name: String,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct InitPayment {
     #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
@@ -84,7 +84,7 @@ pub struct InitPayment {
     pub description: String,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PaymentFeesResponse {
     Unreachable,
     Fees(
@@ -93,7 +93,7 @@ pub enum PaymentFeesResponse {
     ), // (fees, confirm_id)
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaymentFees {
     #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
@@ -101,7 +101,7 @@ pub struct PaymentFees {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
     #[serde(with = "SerBase64")]
     Failure(Uid), // ack_uid
@@ -112,20 +112,20 @@ pub enum PaymentDone {
     ), // (receipt, fees, ack_uid)
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum ResponseCommitInvoice {
     Failure,
     Success,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
     #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
     pub commit: Commit,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct ConfirmPaymentFees {
     #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
@@ -133,7 +133,7 @@ pub struct ConfirmPaymentFees {
     pub confirm_id: Uid,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyMaxDebt {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -143,7 +143,7 @@ pub struct SetFriendCurrencyMaxDebt {
     pub remote_max_debt: u128,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoveFriendCurrency {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -151,7 +151,7 @@ pub struct RemoveFriendCurrency {
     pub currency: Currency,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetFriendChannel {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -159,7 +159,7 @@ pub struct ResetFriendChannel {
     pub reset_token: Signature,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyRate {
     #[serde(with = "SerBase64")]
     pub friend_public_key: PublicKey,
@@ -168,7 +168,7 @@ pub struct SetFriendCurrencyRate {
     pub rate: Rate,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     #[serde(with = "SerBase64")]
@@ -183,13 +183,13 @@ pub struct AddInvoice {
     pub description: String,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
@@ -202,13 +202,13 @@ pub struct ConfigReport {
     pub is_open: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum FriendLivenessReport {
     Online,
     Offline,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTermsReport {
     #[serde(with = "SerBase64")]
     pub reset_token: Signature,
@@ -216,14 +216,14 @@ pub struct ResetTermsReport {
     pub balance_for_reset: HashMap<Currency, i128>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInconsistentReport {
     #[serde(with = "SerMapStrStr")]
     pub local_reset_terms: HashMap<Currency, i128>,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -237,30 +237,30 @@ pub struct McBalanceReport {
     pub remote_pending_debt: u128,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CurrencyReport {
     pub balance: McBalanceReport,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelConsistentReport {
     #[serde(with = "SerMapStrAny")]
     pub currency_reports: HashMap<Currency, CurrencyReport>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
     Consistent(ChannelConsistentReport),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
     #[serde(with = "SerString")]
     pub balance: i128,
@@ -270,7 +270,7 @@ pub struct BalanceInfo {
     pub remote_pending_debt: u128,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
     #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
@@ -280,20 +280,20 @@ pub struct McInfo {
     pub balances: HashMap<Currency, BalanceInfo>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
     #[serde(with = "SerString")]
     pub move_token_counter: u128,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
     pub mc: McInfo,
     pub counters: CountersInfo,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveTokenHashedReport {
     #[serde(with = "SerBase64")]
     pub prefix_hash: HashResult,
@@ -304,7 +304,7 @@ pub struct MoveTokenHashedReport {
     pub new_token: Signature,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriendReport {
     pub name: String,
     #[serde(with = "SerMapStrAny")]
@@ -319,7 +319,7 @@ pub struct FriendReport {
     pub status: FriendStatusReport,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -330,7 +330,7 @@ pub struct OpenInvoice {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
     FoundRoute(
@@ -347,7 +347,7 @@ pub enum OpenPaymentStatus {
     Failure(#[serde(with = "SerBase64")] Uid),        // ack_uid
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPayment {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
@@ -363,7 +363,7 @@ pub struct OpenPayment {
     pub status: OpenPaymentStatus,
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactReport {
     #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
@@ -382,7 +382,7 @@ pub struct CompactReport {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompactToUserAck {
     /// Acknowledge the receipt of `UserToCompact`
     /// Should be sent after `Report`, in case any changes occured.
@@ -391,7 +391,7 @@ pub enum CompactToUserAck {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CompactToUser {
     // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
@@ -408,7 +408,7 @@ pub enum CompactToUser {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum UserToCompact {
     // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
@@ -452,7 +452,7 @@ pub enum UserToCompact {
     // TODO: Add API for verification of receipt and last token?
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UserToCompactAck {
     #[serde(with = "SerBase64")]
     pub user_request_id: Uid,
@@ -460,7 +460,7 @@ pub struct UserToCompactAck {
 }
 
 /*
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,

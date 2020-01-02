@@ -20,7 +20,6 @@ extern crate quickcheck;
 #[macro_use(quickcheck)]
 extern crate quickcheck_macros;
 
-#[cfg(test)]
 #[macro_use]
 extern crate quickcheck_derive;
 

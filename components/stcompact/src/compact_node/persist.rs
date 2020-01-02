@@ -11,7 +11,7 @@ use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey,
 use route::MultiRouteChoice;
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -21,14 +21,14 @@ pub struct OpenInvoice {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusSending {
     #[serde(with = "SerString")]
     pub fees: u128,
     pub open_transactions: HashSet<Uid>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusFoundRoute {
     #[serde(with = "SerBase64")]
     pub confirm_id: Uid,
@@ -39,7 +39,7 @@ pub struct OpenPaymentStatusFoundRoute {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
@@ -53,7 +53,7 @@ pub enum OpenPaymentStatus {
     Failure(#[serde(with = "SerBase64")] Uid),         // ack_uid
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
@@ -69,7 +69,7 @@ pub struct OpenPayment {
     pub status: OpenPaymentStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct CompactState {
     /// Seller's open invoices:
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
