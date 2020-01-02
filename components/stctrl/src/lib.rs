@@ -12,6 +12,9 @@
 #[macro_use]
 extern crate prettytable;
 
+#[macro_use]
+extern crate quickcheck_derive;
+
 // #[macro_use]
 // extern crate log;
 

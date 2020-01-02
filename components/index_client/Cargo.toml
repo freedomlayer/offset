@@ -22,6 +22,12 @@ futures = "0.3.1"
 
 serde = {version = "1.0.104", features = ["derive"]}
 
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
+
 [dev-dependencies]
 
 futures = {version = "0.3.1", features = ["thread-pool"]}

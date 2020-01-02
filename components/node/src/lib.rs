@@ -14,6 +14,9 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 
+#[macro_use]
+extern crate quickcheck_derive;
+
 mod node;
 mod types;
 

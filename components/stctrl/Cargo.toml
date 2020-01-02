@@ -38,6 +38,12 @@ structopt = "0.2.15"
 
 derive_more = "0.14.0"
 
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
+
 [dev_dependencies]
 
 tempfile = "3.0.5"

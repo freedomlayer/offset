@@ -8,7 +8,7 @@ use app::report::{MoveTokenHashedReport, TokenInfo};
 
 use mutual_from::mutual_from;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Serialize, Deserialize, Debug, Clone)]
 pub struct InvoiceFile {
     #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
@@ -22,7 +22,7 @@ pub struct InvoiceFile {
 
 /// Representing a Commit in an easy to serialize representation.
 #[mutual_from(Commit)]
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct CommitFile {
     #[serde(with = "SerBase64")]
     pub response_hash: HashResult,
@@ -43,7 +43,7 @@ pub struct CommitFile {
 }
 
 /// A helper structure for serialize and deserializing Payment.
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct PaymentFile {
     #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
@@ -51,7 +51,7 @@ pub struct PaymentFile {
 
 /// A helper structure for serialize and deserializing Receipt.
 #[mutual_from(Receipt)]
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct ReceiptFile {
     #[serde(with = "SerBase64")]
     pub response_hash: HashResult,
@@ -74,7 +74,7 @@ pub struct ReceiptFile {
 
 /// A helper structure for serialize and deserializing Token.
 #[mutual_from(MoveTokenHashedReport)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct TokenFile {
     #[serde(with = "SerBase64")]
     pub prefix_hash: HashResult,
