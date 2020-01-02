@@ -127,7 +127,7 @@ pub struct CollectSendFundsOp {
 }
 
 #[capnp_conv(crate::funder_capnp::friend_tc_op)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
@@ -136,7 +136,7 @@ pub enum FriendTcOp {
 }
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum OptLocalRelays<B = NetAddress> {
     Empty,
     Relays(Vec<RelayAddress<B>>),
@@ -188,7 +188,7 @@ impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
 
 /// Balance information for a single currency
 #[capnp_conv(crate::report_capnp::balance_info)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
     #[capnp_conv(with = Wrapper<i128>)]
     #[serde(with = "SerString")]
@@ -202,7 +202,7 @@ pub struct BalanceInfo {
 }
 
 #[capnp_conv(crate::report_capnp::currency_balance_info)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyBalanceInfo {
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -211,7 +211,7 @@ pub struct CurrencyBalanceInfo {
 
 /// Mutual Credit info
 #[capnp_conv(crate::report_capnp::mc_info)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
     #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
@@ -223,7 +223,7 @@ pub struct McInfo {
 /// Token channel counters.
 /// Both sides agree on these values implicitly.
 #[capnp_conv(crate::report_capnp::counters_info)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -235,21 +235,21 @@ pub struct CountersInfo {
 /// Those values are also signed as part of the prefix hash.
 /// A hash of this structure is included inside MoveToken.
 #[capnp_conv(crate::report_capnp::token_info)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
     pub mc: McInfo,
     pub counters: CountersInfo,
 }
 
 #[capnp_conv(crate::funder_capnp::currency_operations)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyOperations {
     pub currency: Currency,
     pub operations: Vec<FriendTcOp>,
 }
 
 #[capnp_conv(crate::funder_capnp::move_token)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
@@ -845,4 +845,22 @@ mod tests {
         assert_eq!(is_route_part_valid(&[1, 1]), false); // should have no repetitions ins a partial route
         assert_eq!(is_route_part_valid(&[1, 2, 3, 2, 4]), false); // should have no repetitions in a partial route
     }
+
+    use im::hashset::HashSet as ImHashSet;
+
+    #[derive(Arbitrary, Clone)]
+    struct ExampleHashSet {
+        my_set: ImHashSet<u32>,
+    }
+
+    /*
+    // Does not compile, see:
+    // https://github.com/bodil/im-rs/issues/118
+    use im::hashmap::HashMap as ImHashMap;
+
+    #[derive(Arbitrary, Clone)]
+    struct ExampleHashMap {
+        my_map: ImHashMap<u32, u64>,
+    }
+    */
 }
