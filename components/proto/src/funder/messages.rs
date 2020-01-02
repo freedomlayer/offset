@@ -304,13 +304,33 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 }
 
 #[capnp_conv(crate::common_capnp::currency)]
-#[derive(
-    Arbitrary, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
 #[display(fmt = "{}", currency)]
 pub struct Currency {
     #[serde(with = "SerString")]
     currency: String,
+}
+
+impl quickcheck::Arbitrary for Currency {
+    fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> Currency {
+        let size = rand::Rng::gen_range(g, 1, MAX_CURRENCY_LEN);
+        let mut s = String::with_capacity(size);
+        for _ in 0..size {
+            let new_char = rand::seq::SliceRandom::choose(&['a', 'b', 'c', 'd'][..], g)
+                .unwrap()
+                .to_owned();
+            s.push(new_char);
+        }
+        Currency { currency: s }
+    }
+
+    fn shrink(&self) -> Box<dyn Iterator<Item = Currency>> {
+        // Shrink a string by shrinking a vector of its characters.
+        let chars: Vec<char> = self.currency.chars().collect();
+        Box::new(chars.shrink().map(|x| Currency {
+            currency: x.into_iter().collect::<String>(),
+        }))
+    }
 }
 
 #[capnp_conv(crate::funder_capnp::currency_balance)]
