@@ -5,6 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
+use common::ser_utils::{ser_map_b64_any, SerBase64, SerString};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -17,16 +18,25 @@ use crate::friend::{FriendMutation, FriendState};
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct FunderState<B: Clone> {
     /// Public key of this node
+    #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
     /// Addresses of relays we are going to connect to.
     pub relays: ImVec<NamedRelayAddress<B>>,
     /// All configured friends and their state
+    #[serde(with = "ser_map_b64_any")]
+    #[serde(bound(
+        serialize = "B: serde::Serialize",
+        deserialize = "B: serde::de::Deserialize<'de>"
+    ))]
     pub friends: ImHashMap<PublicKey, FriendState<B>>,
     /// Locally issued invoices in progress (For which this node is the seller)
+    #[serde(with = "ser_map_b64_any")]
     pub open_invoices: ImHashMap<InvoiceId, OpenInvoice>,
     /// Locally created transaction in progress. (For which this node is the buyer).
+    #[serde(with = "ser_map_b64_any")]
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
     /// Ongoing payments (For which this node is the buyer):
+    #[serde(with = "ser_map_b64_any")]
     pub payments: ImHashMap<PaymentId, Payment>,
 }
 
@@ -36,9 +46,12 @@ pub struct NewTransactions {
     pub num_transactions: u64,
     /// We have one src_plain_lock that we are going to use for every Transaction we create through
     /// this payment.
+    #[serde(with = "SerBase64")]
     pub invoice_id: InvoiceId,
     pub currency: Currency,
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
+    #[serde(with = "SerBase64")]
     pub dest_public_key: PublicKey,
 }
 
