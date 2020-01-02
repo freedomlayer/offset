@@ -14,7 +14,7 @@ use proto::funder::messages::{AddFriend, Currency, Receipt, ResponseSendFundsOp}
 
 use crate::friend::{FriendMutation, FriendState};
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct FunderState<B: Clone> {
     /// Public key of this node
     pub local_public_key: PublicKey,
@@ -31,7 +31,7 @@ pub struct FunderState<B: Clone> {
 }
 
 /// A state of a Payment where new transactions may still be added.
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct NewTransactions {
     pub num_transactions: u64,
     /// We have one src_plain_lock that we are going to use for every Transaction we create through
@@ -43,7 +43,7 @@ pub struct NewTransactions {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum PaymentStage {
     /// User can add new transactions
     // TODO: Think about a better name for this?
@@ -58,21 +58,21 @@ pub enum PaymentStage {
     AfterSuccessAck(u64), // num_transactions
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Payment {
     pub src_plain_lock: PlainLock,
     pub stage: PaymentStage,
 }
 
 /*
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct IncomingTransaction {
     pub request_id: Uid,
 }
 */
 
 /// A local invoice in progress
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct OpenInvoice {
     /// Currency in use for this invoice
     pub currency: Currency,
@@ -102,7 +102,7 @@ impl OpenInvoice {
 }
 
 /// A local request (Originated from this node) in progress
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct OpenTransaction {
     pub payment_id: PaymentId,
     /// A response (if we got one):
@@ -110,7 +110,7 @@ pub struct OpenTransaction {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum FunderMutation<B: Clone> {
     FriendMutation((PublicKey, FriendMutation<B>)),
     AddRelay(NamedRelayAddress<B>),

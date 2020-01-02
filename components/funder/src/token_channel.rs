@@ -27,14 +27,14 @@ use crate::mutual_credit::types::{McMutation, MutualCredit};
 
 use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed, UnsignedMoveToken};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum SetDirection<B> {
     Incoming(MoveTokenHashed),
     Outgoing((MoveToken<B>, TokenInfo)),
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum TcMutation<B> {
     McMutation((Currency, McMutation)),
     SetLocalActiveCurrencies(Vec<Currency>),
@@ -45,7 +45,7 @@ pub enum TcMutation<B> {
 
 /// The currencies set to be active by two sides of the token channel.
 /// Only currencies that are active on both sides (Intersection) can be used for trading.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ActiveCurrencies {
     /// Currencies set to be active by local side
     pub local: ImHashSet<Currency>,
@@ -66,20 +66,20 @@ impl ActiveCurrencies {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcOutgoing<B> {
     pub move_token_out: MoveToken<B>,
     pub token_info: TokenInfo,
     pub opt_prev_move_token_in: Option<MoveTokenHashed>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcIncoming {
     pub move_token_in: MoveTokenHashed,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum TcDirection<B> {
     Incoming(TcIncoming),
     Outgoing(TcOutgoing<B>),
@@ -105,7 +105,7 @@ pub enum TcDirectionBorrow<'a, B> {
     Out(TcOutBorrow<'a, B>),
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
     mutual_credits: ImHashMap<Currency, MutualCredit>,

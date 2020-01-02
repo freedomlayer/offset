@@ -15,14 +15,14 @@ use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
 
 /// Any operation that goes backwards (With respect to the initial request)
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
     Cancel(CancelSendFundsOp),
     Collect(CollectSendFundsOp),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum SentLocalRelays<B>
 where
     B: Clone,
@@ -61,14 +61,14 @@ where
         }
     }
 }
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
     pub local_reset_terms: ResetTerms,
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
 
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelConsistent<B> {
     /// Our mutual state with the remote side
     pub token_channel: TokenChannel<B>,
@@ -85,7 +85,7 @@ pub struct ChannelConsistent<B> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub enum ChannelStatus<B> {
     Inconsistent(ChannelInconsistent),
     Consistent(ChannelConsistent<B>),
@@ -108,7 +108,7 @@ where
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct CurrencyConfig {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
@@ -120,7 +120,7 @@ pub struct CurrencyConfig {
     pub is_open: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
     pub local_public_key: PublicKey,
@@ -144,7 +144,7 @@ pub struct FriendState<B: Clone> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),

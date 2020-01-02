@@ -91,7 +91,7 @@ pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> Pe
     }
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum UnsignedFriendTcOp {
     EnableRequests,
     DisableRequests,
@@ -103,7 +103,7 @@ pub enum UnsignedFriendTcOp {
     CollectSendFunds(CollectSendFundsOp),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     pub prefix_hash: HashResult,
