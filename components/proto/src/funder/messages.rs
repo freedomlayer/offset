@@ -143,7 +143,7 @@ pub enum OptLocalRelays<B = NetAddress> {
 }
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_active_currencies)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum OptActiveCurrencies {
     Empty,
     Currencies(Vec<Currency>),
@@ -263,7 +263,9 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 }
 
 #[capnp_conv(crate::common_capnp::currency)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[derive(
+    Arbitrary, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display,
+)]
 #[display(fmt = "{}", currency)]
 pub struct Currency {
     #[serde(with = "SerString")]

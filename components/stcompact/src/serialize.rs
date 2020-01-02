@@ -143,4 +143,17 @@ mod tests {
         let msg2: ExampleStruct = serde_json::from_str(&ser_str).unwrap();
         msg2 == msg
     }
+
+    #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+    enum ExampleEnum {
+        Hello,
+        World(Vec<u8>),
+    }
+
+    #[quickcheck]
+    fn qc_example_enum(msg: ExampleEnum) -> bool {
+        let ser_str = serde_json::to_string(&msg).unwrap();
+        let msg2: ExampleEnum = serde_json::from_str(&ser_str).unwrap();
+        msg2 == msg
+    }
 }
