@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
+use common::ser_utils::{SerBase64, SerString};
+
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{Currency, FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
@@ -64,6 +66,7 @@ pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "SerString")]
     pub capacity: u128,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,
@@ -200,6 +203,7 @@ pub enum IndexServerToServer {
 #[capnp_conv(crate::common_capnp::named_index_server_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamedIndexServerAddress<ISA = NetAddress> {
+    #[serde(with = "SerBase64")]
     pub public_key: PublicKey,
     pub address: ISA,
     pub name: String,
@@ -207,6 +211,7 @@ pub struct NamedIndexServerAddress<ISA = NetAddress> {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexServerAddress<ISA = NetAddress> {
+    #[serde(with = "SerBase64")]
     pub public_key: PublicKey,
     pub address: ISA,
 }
