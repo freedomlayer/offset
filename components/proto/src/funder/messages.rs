@@ -856,7 +856,7 @@ mod tests {
     /*
     // Does not compile, see:
     // https://github.com/bodil/im-rs/issues/118
-    use im::hashmap::HashMap as ImHashMap;
+    use std::collections::HashMap as ImHashMap;
 
     #[derive(Arbitrary, Clone)]
     struct ExampleHashMap {

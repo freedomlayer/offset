@@ -1,4 +1,4 @@
-use im::hashmap::HashMap as ImHashMap;
+use std::collections::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
 use std::fmt::Debug;
 

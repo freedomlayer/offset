@@ -1,4 +1,4 @@
-use im::hashmap::HashMap as ImHashMap;
+use std::collections::HashMap as ImHashMap;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -95,8 +95,9 @@ where
         name: friend_state.name.clone(),
         currency_configs: friend_state
             .currency_configs
-            .iter()
-            .cloned()
+            .clone()
+            .into_iter()
+            // .cloned()
             .map(|(currency, currency_config)| CurrencyConfigReport {
                 currency,
                 rate: currency_config.rate,

@@ -1,4 +1,7 @@
-use im::hashmap::HashMap as ImHashMap;
+// Temporary fix due to:
+// https://github.com/bodil/im-rs/issues/118
+use std::collections::HashMap as ImHashMap;
+
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 

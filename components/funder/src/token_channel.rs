@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
-use im::hashmap::HashMap as ImHashMap;
+use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
