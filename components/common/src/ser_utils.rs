@@ -236,6 +236,72 @@ where
     }
 }
 
+/// A util for serializing HashMaps with keys that are not strings.
+/// For example: JSON serialization does not allow keys that are not strings.
+/// SerHashMap first converts the key to a base64 string, and only then serializes.
+pub mod ser_map_b64_any {
+    use super::*;
+
+    pub fn serialize<S, K, V>(input_map: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        K: Serialize + AsRef<[u8]> + Eq + Hash,
+        V: Serialize,
+    {
+        let mut map = serializer.serialize_map(Some(input_map.len()))?;
+        for (k, v) in input_map {
+            let string_k = base64::encode_config(k.as_ref(), URL_SAFE_NO_PAD);
+            map.serialize_entry(&string_k, v)?;
+        }
+        map.end()
+    }
+
+    pub fn deserialize<'de, D, K, V>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
+    where
+        D: Deserializer<'de>,
+        K: Deserialize<'de> + for<'t> TryFrom<&'t [u8]> + Eq + Hash,
+        V: Deserialize<'de>,
+    {
+        struct MapVisitor<K, V> {
+            key: PhantomData<K>,
+            value: PhantomData<V>,
+        }
+
+        impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
+        where
+            K: Deserialize<'de> + for<'t> TryFrom<&'t [u8]> + Eq + Hash,
+            V: Deserialize<'de>,
+        {
+            type Value = HashMap<K, V>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("A map")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut res_map = HashMap::new();
+                while let Some((k_string, v)) = map.next_entry::<String, V>()? {
+                    let vec = base64::decode_config(&k_string, URL_SAFE_NO_PAD)
+                        .map_err(|err| Error::custom(err.to_string()))?;
+                    let k = K::try_from(&vec).map_err(|_| Error::custom("Length mismatch"))?;
+
+                    res_map.insert(k, v);
+                }
+                Ok(res_map)
+            }
+        }
+
+        let visitor = MapVisitor {
+            key: PhantomData,
+            value: PhantomData,
+        };
+        deserializer.deserialize_map(visitor)
+    }
+}
+
 // ===============================================================
 
 pub trait SerMapStrAny<'de>: Sized {
