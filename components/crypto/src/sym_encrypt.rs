@@ -1,5 +1,7 @@
 use std::iter;
 
+use quickcheck::{Arbitrary, Gen};
+
 use ring;
 use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey, CHACHA20_POLY1305};
 
