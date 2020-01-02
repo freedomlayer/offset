@@ -24,7 +24,7 @@ pub enum BackwardsOp {
     Collect(CollectSendFundsOp),
 }
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SentLocalRelays<B>
 where
     B: Clone,
@@ -87,7 +87,7 @@ pub struct ChannelConsistent<B> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum ChannelStatus<B> {
     Inconsistent(ChannelInconsistent),
     Consistent(ChannelConsistent<B>),
@@ -110,7 +110,7 @@ where
     }
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfig {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
@@ -123,7 +123,7 @@ pub struct CurrencyConfig {
     pub is_open: bool,
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
     #[serde(with = "SerBase64")]

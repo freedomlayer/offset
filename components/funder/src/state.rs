@@ -15,7 +15,7 @@ use proto::funder::messages::{AddFriend, Currency, Receipt, ResponseSendFundsOp}
 
 use crate::friend::{FriendMutation, FriendState};
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FunderState<B: Clone> {
     /// Public key of this node
     #[serde(with = "SerBase64")]
@@ -87,7 +87,7 @@ pub struct IncomingTransaction {
 */
 
 /// A local invoice in progress
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct OpenInvoice {
     /// Currency in use for this invoice
     pub currency: Currency,
@@ -121,8 +121,9 @@ impl OpenInvoice {
 }
 
 /// A local request (Originated from this node) in progress
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct OpenTransaction {
+    #[serde(with = "SerBase64")]
     pub payment_id: PaymentId,
     /// A response (if we got one):
     pub opt_response: Option<ResponseSendFundsOp>,
