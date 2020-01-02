@@ -625,11 +625,11 @@ fn handle_collect_send_funds<B, R>(
                     );
                     let ack_uid = Uid::rand_gen(rng);
                     (
-                        Some(PaymentStage::Success((
+                        Some(PaymentStage::Success(
                             new_transactions.num_transactions.checked_sub(1).unwrap(),
                             receipt.clone(),
                             ack_uid.clone(),
-                        ))),
+                        )),
                         Some(PaymentStatus::Success(PaymentStatusSuccess {
                             receipt,
                             ack_uid,
@@ -647,23 +647,23 @@ fn handle_collect_send_funds<B, R>(
                     );
                     let ack_uid = Uid::rand_gen(rng);
                     (
-                        Some(PaymentStage::Success((
+                        Some(PaymentStage::Success(
                             num_transactions.checked_sub(1).unwrap(),
                             receipt.clone(),
                             ack_uid.clone(),
-                        ))),
+                        )),
                         Some(PaymentStatus::Success(PaymentStatusSuccess {
                             receipt,
                             ack_uid,
                         })),
                     )
                 }
-                PaymentStage::Success((num_transactions, receipt, ack_uid)) => (
-                    Some(PaymentStage::Success((
+                PaymentStage::Success(num_transactions, receipt, ack_uid) => (
+                    Some(PaymentStage::Success(
                         num_transactions.checked_sub(1).unwrap(),
                         receipt.clone(),
                         ack_uid.clone(),
-                    ))),
+                    )),
                     Some(PaymentStatus::Success(PaymentStatusSuccess {
                         receipt: receipt.clone(),
                         ack_uid: ack_uid.clone(),

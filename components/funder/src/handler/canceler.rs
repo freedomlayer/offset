@@ -108,14 +108,14 @@ pub fn remove_transaction<B, R>(
                 )
             }
         }
-        PaymentStage::Success((num_transactions, receipt, ack_uid)) => {
+        PaymentStage::Success(num_transactions, receipt, ack_uid) => {
             let new_num_transactions = num_transactions.checked_sub(1).unwrap();
             (
-                Some(PaymentStage::Success((
+                Some(PaymentStage::Success(
                     new_num_transactions,
                     receipt.clone(),
                     ack_uid.clone(),
-                ))),
+                )),
                 Some(PaymentStatus::Success(PaymentStatusSuccess {
                     receipt,
                     ack_uid,

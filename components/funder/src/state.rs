@@ -64,7 +64,7 @@ pub enum PaymentStage {
     /// User can no longer add new transactions (user sent a RequestClosePayment)
     InProgress(u64), // num_transactions
     /// A receipt was received:
-    Success((u64, Receipt, Uid)), // (num_transactions, Receipt, ack_uid)
+    Success(u64, Receipt, #[serde(with = "SerBase64")] Uid), // (num_transactions, Receipt, ack_uid)
     /// The payment will not complete, because all transactions were canceled:
     Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.

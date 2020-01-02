@@ -911,8 +911,8 @@ where
             assert!(*num_transactions > 0);
             (PaymentStage::InProgress(*num_transactions), None)
         }
-        PaymentStage::Success((num_transactions, receipt, ack_uid)) => (
-            PaymentStage::Success((*num_transactions, receipt.clone(), ack_uid.clone())),
+        PaymentStage::Success(num_transactions, receipt, ack_uid) => (
+            PaymentStage::Success(*num_transactions, receipt.clone(), ack_uid.clone()),
             Some(PaymentStatus::Success(PaymentStatusSuccess {
                 receipt: receipt.clone(),
                 ack_uid: ack_uid.clone(),
@@ -974,7 +974,7 @@ where
         PaymentStage::NewTransactions(_)
         | PaymentStage::InProgress(_)
         | PaymentStage::AfterSuccessAck(_) => return Err(HandleControlError::AckStateInvalid),
-        PaymentStage::Success((num_transactions, _receipt, ack_uid)) => {
+        PaymentStage::Success(num_transactions, _receipt, ack_uid) => {
             // Make sure that ack matches:
             if ack_close_payment.ack_uid != ack_uid {
                 return Err(HandleControlError::AckMismatch);
