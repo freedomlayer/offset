@@ -1302,6 +1302,7 @@ dependencies = [
  "offst-connection 0.1.0",
  "offst-crypto 0.1.0",
  "offst-database 0.1.0",
+ "offst-funder 0.1.0",
  "offst-identity 0.1.0",
  "offst-index-server 0.1.0",
  "offst-net 0.1.0",
@@ -1310,6 +1311,9 @@ dependencies = [
  "offst-relay 0.1.0",
  "offst-stctrl 0.1.0",
  "offst-timer 0.1.0",
+ "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

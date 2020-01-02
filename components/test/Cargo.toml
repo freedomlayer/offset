@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
+funder = { path = "../funder", version = "0.1.0", package = "offst-funder" }
 crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
 timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
@@ -31,5 +32,10 @@ log = "0.4"
 
 tempfile = "3.0.5"
 env_logger = "0.6.0"
+serde_json = "1.0.44"
+
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
 
 futures = {version = "0.3.1", features = ["thread-pool"]}
