@@ -29,7 +29,7 @@ pub struct NamedRelayAddress<B = NetAddress> {
 }
 
 #[capnp_conv(crate::common_capnp::relay_address)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
     pub public_key: PublicKey,
     pub address: B,
@@ -214,7 +214,7 @@ where
 }
 
 #[capnp_conv(crate::app_server_capnp::app_permissions)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,

@@ -28,21 +28,21 @@ pub struct MoveTokenHashedReport {
 }
 
 #[capnp_conv(crate::report_capnp::friend_status_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
 #[capnp_conv(crate::report_capnp::requests_status_report)]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
 #[capnp_conv(crate::report_capnp::mc_balance_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -166,7 +166,7 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
 }
 
 #[capnp_conv(crate::report_capnp::currency_config_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfigReport {
     pub currency: Currency,
     /// Rate of forwarding transactions that arrived from this friend to any other friend

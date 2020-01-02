@@ -273,7 +273,7 @@ pub struct Currency {
 }
 
 #[capnp_conv(crate::funder_capnp::currency_balance)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CurrencyBalance {
     pub currency: Currency,
     #[capnp_conv(with = Wrapper<i128>)]
@@ -281,7 +281,7 @@ pub struct CurrencyBalance {
 }
 
 #[capnp_conv(crate::funder_capnp::reset_terms)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
@@ -289,7 +289,7 @@ pub struct ResetTerms {
 }
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
-#[derive(PartialEq, Eq, Clone, Serialize, Debug)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]
 pub struct MoveTokenRequest<B = NetAddress> {
     pub move_token: MoveToken<B>,
     // Do we want the remote side to return the token:
@@ -307,7 +307,7 @@ pub enum FriendMessage<B = NetAddress> {
 /// A `Receipt` is received if a `RequestSendFunds` is successful.
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[capnp_conv(crate::common_capnp::receipt)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Receipt {
     pub response_hash: HashResult,
     // = sha512/256(requestId || randNonce)
@@ -336,13 +336,13 @@ pub struct Receipt {
     */
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
     Response((HashedLock, bool)), // inner: (dest_hashed_lock, is_complete)
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingTransaction {
     pub request_id: Uid,
     pub route: FriendsRoute,
@@ -455,13 +455,13 @@ fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
 // AppServer <-> Funder communication:
 // ===================================
 
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatus {
     Enabled,
     Disabled,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatus {
     Open,
     Closed,
@@ -481,7 +481,7 @@ impl RequestsStatus {
 /// For a transaction of `x` credits, the amount of fees will be:
 /// `(x * mul) / 2^32 + add`
 #[capnp_conv(crate::common_capnp::rate)]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Rate {
     /// Commission
     pub mul: u32,
@@ -527,7 +527,7 @@ impl Rate {
 }
 
 #[capnp_conv(crate::app_server_capnp::add_friend)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
