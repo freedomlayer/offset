@@ -30,8 +30,8 @@ macro_rules! define_fixed_bytes {
             }
         }
 
-        impl Arbitrary for $name {
-            fn arbitrary<G: Gen>(g: &mut G) -> $name {
+        impl quickcheck::Arbitrary for $name {
+            fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> $name {
                 let mut res_vec = Vec::new();
                 for _ in 0..$len {
                     res_vec.push(u8::arbitrary(g));
