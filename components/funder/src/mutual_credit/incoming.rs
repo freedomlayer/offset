@@ -241,10 +241,10 @@ fn process_response_send_funds(
     // Set the stage to Response, and remember dest_hashed_lock:
     let mc_mutation = McMutation::SetLocalPendingTransactionStage((
         response_send_funds.request_id.clone(),
-        TransactionStage::Response((
+        TransactionStage::Response(
             response_send_funds.dest_hashed_lock.clone(),
             response_send_funds.is_complete,
-        )),
+        ),
     ));
     mutual_credit.mutate(&mc_mutation);
     mc_mutations.push(mc_mutation);
@@ -328,7 +328,7 @@ fn process_collect_send_funds(
         .clone();
 
     let dest_hashed_lock = match &pending_transaction.stage {
-        TransactionStage::Response((dest_hashed_lock, _is_complete)) => dest_hashed_lock,
+        TransactionStage::Response(dest_hashed_lock, _is_complete) => dest_hashed_lock,
         _ => return Err(ProcessOperationError::NotExpectingCollect),
     };
 
