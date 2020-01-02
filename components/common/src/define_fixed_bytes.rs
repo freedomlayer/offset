@@ -29,6 +29,20 @@ macro_rules! define_fixed_bytes {
                 $len
             }
         }
+
+        impl Arbitrary for $name {
+            fn arbitrary<G: Gen>(g: &mut G) -> $name {
+                let mut res_vec = Vec::new();
+                for _ in 0..$len {
+                    res_vec.push(u8::arbitrary(g));
+                }
+
+                let mut inner = [0x00u8; $len];
+                inner.copy_from_slice(&res_vec[..]);
+                $name(inner)
+            }
+        }
+
         impl AsRef<[u8]> for $name {
             #[inline]
             fn as_ref(&self) -> &[u8] {

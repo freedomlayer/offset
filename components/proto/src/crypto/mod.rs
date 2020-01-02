@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use quickcheck::{Arbitrary, Gen};
 use serde::{Deserialize, Serialize};
 
 use capnp_conv::{CapnpConvError, ReadCapnp, WriteCapnp};

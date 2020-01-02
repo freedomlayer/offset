@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 
-# crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
 capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offst-capnp-conv" }
@@ -33,6 +32,10 @@ num-traits = "0.2.6"
 
 paste = "0.1.5"
 
+# Quickcheck:
+quickcheck = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
 
 [dev-dependencies]
 tempfile = "3.0.5"
