@@ -104,7 +104,7 @@ pub struct CancelSendFundsOp {
 
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::common_capnp::commit)]
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub response_hash: HashResult,
     pub src_plain_lock: PlainLock,
