@@ -1,6 +1,7 @@
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
+use common::ser_utils::{SerBase64, SerString};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
@@ -16,8 +17,10 @@ pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McIdents {
     /// My public key
+    #[serde(with = "SerBase64")]
     pub local_public_key: PublicKey,
     /// Friend's public key
+    #[serde(with = "SerBase64")]
     pub remote_public_key: PublicKey,
 }
 
@@ -26,10 +29,13 @@ pub struct McIdents {
 pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
+    #[serde(with = "SerString")]
     pub balance: i128,
     /// Frozen credits by our side
+    #[serde(with = "SerString")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
+    #[serde(with = "SerString")]
     pub remote_pending_debt: u128,
 }
 
@@ -45,6 +51,7 @@ impl McBalance {
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
+    // TODO: Missing serialization helper here:
     /// Pending transactions that were opened locally and not yet completed
     pub local: ImHashMap<Uid, PendingTransaction>,
     /// Pending transactions that were opened remotely and not yet completed
