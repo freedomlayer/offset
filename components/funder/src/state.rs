@@ -5,7 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
-use common::ser_utils::{ser_map_b64_any, SerBase64, SerString};
+use common::ser_utils::{ser_map_b64_any, SerBase64, SerOptionB64, SerString};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -66,6 +66,7 @@ pub enum PaymentStage {
     /// A receipt was received:
     Success(u64, Receipt, #[serde(with = "SerBase64")] Uid), // (num_transactions, Receipt, ack_uid)
     /// The payment will not complete, because all transactions were canceled:
+    #[serde(with = "SerBase64")]
     Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.
     AfterSuccessAck(u64), // num_transactions
@@ -73,6 +74,7 @@ pub enum PaymentStage {
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Payment {
+    #[serde(with = "SerBase64")]
     pub src_plain_lock: PlainLock,
     pub stage: PaymentStage,
 }
@@ -90,15 +92,19 @@ pub struct OpenInvoice {
     /// Currency in use for this invoice
     pub currency: Currency,
     /// Total payment required to fulfill this invoice:
+    #[serde(with = "SerString")]
     pub total_dest_payment: u128,
     /// The lock we used on our ResponseSendFundsOp message.
     /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.
+    #[serde(with = "SerBase64")]
     pub dest_plain_lock: PlainLock,
     /// Lock created by the originator of the transactions used to fulfill this invoice.
     /// We expect all transactions to have the same lock. This allows the buyer to unlock all the
     /// transactions at once by sending a commit message.
+    #[serde(with = "SerOptionB64")]
     pub opt_src_hashed_lock: Option<HashedLock>,
     /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
+    // TODO: Add serde hint
     pub incoming_transactions: ImHashSet<Uid>,
 }
 
