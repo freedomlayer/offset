@@ -12,7 +12,9 @@ use common::ser_utils::SerString;
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
 #[capnp_conv(crate::common_capnp::net_address)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[derive(
+    Arbitrary, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display,
+)]
 #[display(fmt = "{}", address)]
 pub struct NetAddress {
     #[serde(with = "SerString")]
