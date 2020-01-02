@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 use std::string::ToString;
 
-use serde::de::{Deserialize, Error, MapAccess, Visitor};
+use serde::de::{Deserialize, Error, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde::Deserializer;
 
@@ -470,5 +470,69 @@ where
 
         let visitor = ItemVisitor { item: PhantomData };
         deserializer.deserialize_option(visitor)
+    }
+}
+
+// ============================================================================
+
+pub trait SerVecB64<'de>: Sized {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer;
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>;
+}
+
+impl<'de, T> SerVecB64<'de> for Vec<T>
+where
+    T: Serialize + Deserialize<'de> + AsRef<[u8]> + for<'t> TryFrom<&'t [u8]>,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let items_iter = self
+            .iter()
+            .map(|item| base64::encode_config(item.as_ref(), URL_SAFE_NO_PAD));
+        serializer.collect_seq(items_iter)
+    }
+
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SeqVisitor<T> {
+            item: PhantomData<T>,
+        }
+
+        impl<'de, T> Visitor<'de> for SeqVisitor<T>
+        where
+            T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
+        {
+            type Value = Vec<T>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("An option")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut res_vec = Vec::new();
+                while let Some(str_item) = seq.next_element::<String>()? {
+                    let item_vec = base64::decode_config(&str_item, URL_SAFE_NO_PAD)
+                        .map_err(|err| Error::custom(err.to_string()))?;
+                    let item =
+                        T::try_from(&item_vec).map_err(|_| Error::custom("Length mismatch"))?;
+                    res_vec.push(item);
+                }
+                Ok(res_vec)
+            }
+        }
+
+        let visitor = SeqVisitor { item: PhantomData };
+        deserializer.deserialize_seq(visitor)
     }
 }
