@@ -6,8 +6,9 @@ use app::common::{
     Currency, HashResult, HashedLock, InvoiceId, NamedIndexServerAddress, NamedRelayAddress,
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
-use common::ser_hash_map::{SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64};
-use common::ser_string::{SerBase64, SerString};
+use common::ser_utils::{
+    SerBase64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, SerString,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {

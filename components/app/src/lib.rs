@@ -18,8 +18,8 @@ mod types;
 pub mod gen;
 
 /// Utils for serializing and deserializing
-pub mod ser_string {
-    pub use common::ser_string::*;
+pub mod ser_utils {
+    pub use common::ser_utils::*;
     pub use proto::ser_string::*;
 }
 

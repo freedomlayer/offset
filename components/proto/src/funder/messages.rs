@@ -21,7 +21,7 @@ use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
-use common::ser_string::{SerBase64, SerString};
+use common::ser_utils::{SerBase64, SerString};
 
 use crate::wrapper::Wrapper;
 

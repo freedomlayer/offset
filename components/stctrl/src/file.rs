@@ -1,4 +1,4 @@
-use app::ser_string::{SerBase64, SerString};
+use app::ser_utils::{SerBase64, SerString};
 
 use app::common::{
     Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,

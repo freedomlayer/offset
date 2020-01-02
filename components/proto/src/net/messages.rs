@@ -7,7 +7,7 @@ use derive_more::Display;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_string::SerString;
+use common::ser_utils::SerString;
 
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 

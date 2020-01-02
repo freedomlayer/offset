@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use common::ser_string::SerBase64;
+use common::ser_utils::SerBase64;
 
 use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
 use app::conn::AppPermissions;

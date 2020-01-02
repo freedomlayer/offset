@@ -16,8 +16,7 @@ pub mod never;
 pub mod safe_arithmetic;
 #[macro_use]
 pub mod big_array;
-#[macro_use]
-pub mod ser_hash_map;
+// pub mod ser_hash_map;
 #[macro_use]
 pub mod define_fixed_bytes;
 // pub mod async_adapter;
@@ -36,5 +35,6 @@ pub mod select_streams;
 pub mod state_service;
 pub mod transform_pool;
 // pub mod wait_spawner;
-pub mod ser_string;
+#[macro_use]
+pub mod ser_utils;
 pub mod test_executor;

@@ -15,7 +15,7 @@ use app::gen::gen_uid;
 use app::report::{ChannelStatusReport, NodeReport};
 
 use app::file::{FriendFile, IndexServerFile, RelayAddressFile};
-use app::ser_string::{deserialize_from_string, StringSerdeError};
+use app::ser_utils::{deserialize_from_string, StringSerdeError};
 
 use crate::utils::friend_public_key_by_name;
 

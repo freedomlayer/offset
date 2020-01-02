@@ -12,7 +12,7 @@ use app::common::{Commit, Currency, PublicKey};
 use app::conn::{self, AppRequest, AppServerToApp, AppToAppServer, ConnPairApp};
 use app::gen::{gen_invoice_id, gen_uid};
 use app::report::NodeReport;
-use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
+use app::ser_utils::{deserialize_from_string, serialize_to_string, StringSerdeError};
 use app::verify::verify_commit;
 
 use crate::file::{CommitFile, InvoiceFile};

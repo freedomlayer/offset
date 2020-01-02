@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_string::{SerBase64, SerString};
+use common::ser_utils::{SerBase64, SerString};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
