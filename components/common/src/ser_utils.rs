@@ -357,7 +357,7 @@ where
                 while let Some((k_string, v)) = map.next_entry::<String, V>()? {
                     let k = k_string
                         .parse()
-                        .map_err(|_| Error::custom("Parse failed"))?;
+                        .map_err(|_| Error::custom(format!("Parse failed: {:?}", k_string)))?;
 
                     res_map.insert(k, v);
                 }
