@@ -58,6 +58,8 @@ pub mod ser_b64 {
     }
 }
 
+// =========================================================================
+
 pub mod ser_string {
     use super::*;
 
@@ -102,6 +104,8 @@ pub mod ser_string {
         deserializer.deserialize_str(visitor)
     }
 }
+
+// =========================================================================
 
 /// A util for serializing HashMaps with keys that are not strings.
 /// For example: JSON serialization does not allow keys that are not strings.
