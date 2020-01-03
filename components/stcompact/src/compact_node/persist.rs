@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_utils::{SerBase64, SerString};
+use common::ser_utils::{ser_b64, SerString};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
@@ -30,7 +30,7 @@ pub struct OpenPaymentStatusSending {
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusFoundRoute {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub confirm_id: Uid,
     pub multi_route: MultiRoute,
     pub multi_route_choice: MultiRouteChoice,
@@ -41,25 +41,25 @@ pub struct OpenPaymentStatusFoundRoute {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum OpenPaymentStatus {
-    SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
+    SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
     Commit(Commit, #[serde(with = "SerString")] u128), // (commit, fees)
     Success(
         Receipt,
         #[serde(with = "SerString")] u128,
-        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "ser_b64")] Uid,
     ), // (Receipt, fees, ack_uid)
-    Failure(#[serde(with = "SerBase64")] Uid),         // ack_uid
+    Failure(#[serde(with = "ser_b64")] Uid),         // ack_uid
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPayment {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub dest_payment: u128,

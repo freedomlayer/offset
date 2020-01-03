@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use common::ser_utils::SerBase64;
+use common::ser_utils::ser_b64;
 
 use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
 use app::conn::AppPermissions;
@@ -29,15 +29,15 @@ impl NodeName {
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeInfoLocal {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub node_public_key: PublicKey,
 }
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeInfoRemote {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub app_public_key: PublicKey,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub node_public_key: PublicKey,
     pub node_address: NetAddress,
 }
@@ -62,9 +62,9 @@ pub struct CreateNodeLocal {
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CreateNodeRemote {
     pub node_name: NodeName,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub app_private_key: PrivateKey,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub node_public_key: PublicKey,
     pub node_address: NetAddress,
 }
@@ -98,7 +98,7 @@ pub enum ServerToUser {
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUserAck {
     ServerToUser(ServerToUser),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     Ack(Uid),
 }
 
@@ -115,7 +115,7 @@ pub enum UserToServer {
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UserToServerAck {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
     pub inner: UserToServer,
 }

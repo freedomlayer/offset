@@ -1,4 +1,4 @@
-use app::ser_utils::{SerBase64, SerString};
+use app::ser_utils::{ser_b64, SerString};
 
 use app::common::{
     Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,
@@ -10,11 +10,11 @@ use mutual_from::mutual_from;
 
 #[derive(Arbitrary, Serialize, Deserialize, Debug, Clone)]
 pub struct InvoiceFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
@@ -24,28 +24,28 @@ pub struct InvoiceFile {
 #[mutual_from(Commit)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct CommitFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 /// A helper structure for serialize and deserializing Payment.
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct PaymentFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
 }
 
@@ -53,22 +53,22 @@ pub struct PaymentFile {
 #[mutual_from(Receipt)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct ReceiptFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
@@ -76,11 +76,11 @@ pub struct ReceiptFile {
 #[mutual_from(MoveTokenHashedReport)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct TokenFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub prefix_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub new_token: Signature,
     pub token_info: TokenInfo,
 }

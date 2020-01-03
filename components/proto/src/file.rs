@@ -4,7 +4,7 @@ use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
-use common::ser_utils::{SerBase64, SerString};
+use common::ser_utils::{ser_b64, SerString};
 
 use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
@@ -12,14 +12,14 @@ use crate::net::messages::NetAddress;
 /// A helper structure for serialize and deserializing IndexServerAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
 pub struct TrustedAppFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub permissions: AppPermissions,
 }
 
 #[derive(Arbitrary, Serialize, Deserialize, Clone, Debug)]
 pub struct FriendAddressFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub relays: Vec<RelayAddressFile>,
 }
@@ -28,7 +28,7 @@ pub struct FriendAddressFile {
 #[mutual_from(RelayAddress)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize)]
 pub struct RelayAddressFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     #[serde(with = "SerString")]
     pub address: NetAddress,
@@ -37,7 +37,7 @@ pub struct RelayAddressFile {
 /// A helper structure for serialize and deserializing FriendAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
 pub struct FriendFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub relays: Vec<RelayAddressFile>,
 }
@@ -45,14 +45,14 @@ pub struct FriendFile {
 /// A helper structure for serialize and deserializing IdentityAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
 pub struct IdentityFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub private_key: PrivateKey,
 }
 
 /// A helper structure for serialize and deserializing IndexServer.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
 pub struct IndexServerFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: NetAddress,
 }
@@ -60,7 +60,7 @@ pub struct IndexServerFile {
 /// A helper structure for serialize and deserializing NodeAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
 pub struct NodeAddressFile {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: NetAddress,
 }

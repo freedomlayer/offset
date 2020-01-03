@@ -1,7 +1,7 @@
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
-use common::ser_utils::{SerBase64, SerMapB64Any, SerString};
+use common::ser_utils::{ser_b64, SerMapB64Any, SerString};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
@@ -17,10 +17,10 @@ pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McIdents {
     /// My public key
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Friend's public key
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
 }
 

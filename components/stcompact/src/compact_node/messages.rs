@@ -7,32 +7,32 @@ use app::common::{
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use common::ser_utils::{
-    SerBase64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, SerString,
+    ser_b64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, SerString,
 };
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commit {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct OpenFriendCurrency {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -40,7 +40,7 @@ pub struct OpenFriendCurrency {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CloseFriendCurrency {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -48,7 +48,7 @@ pub struct CloseFriendCurrency {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
     pub name: String,
@@ -56,27 +56,27 @@ pub struct AddFriend {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendRelays {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress>,
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendName {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     pub name: String,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct InitPayment {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
@@ -89,13 +89,13 @@ pub enum PaymentFeesResponse {
     Unreachable,
     Fees(
         #[serde(with = "SerString")] u128,
-        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "ser_b64")] Uid,
     ), // (fees, confirm_id)
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaymentFees {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
     pub response: PaymentFeesResponse,
 }
@@ -103,12 +103,12 @@ pub struct PaymentFees {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum PaymentDone {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     Failure(Uid), // ack_uid
     Success(
         Receipt,
         #[serde(with = "SerString")] u128,
-        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "ser_b64")] Uid,
     ), // (receipt, fees, ack_uid)
 }
 
@@ -120,22 +120,22 @@ pub enum ResponseCommitInvoice {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct PaymentCommit {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
     pub commit: Commit,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct ConfirmPaymentFees {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub confirm_id: Uid,
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyMaxDebt {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -145,7 +145,7 @@ pub struct SetFriendCurrencyMaxDebt {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RemoveFriendCurrency {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -153,15 +153,15 @@ pub struct RemoveFriendCurrency {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetFriendChannel {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub reset_token: Signature,
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetFriendCurrencyRate {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub currency: Currency,
@@ -171,7 +171,7 @@ pub struct SetFriendCurrencyRate {
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     /// Currency in use
     #[serde(with = "SerString")]
@@ -210,7 +210,7 @@ pub enum FriendLivenessReport {
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTermsReport {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub reset_token: Signature,
     #[serde(with = "SerMapStrStr")]
     pub balance_for_reset: HashMap<Currency, i128>,
@@ -272,9 +272,9 @@ pub struct BalanceInfo {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
     #[serde(with = "SerMapStrAny")]
     pub balances: HashMap<Currency, BalanceInfo>,
@@ -295,12 +295,12 @@ pub struct TokenInfo {
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveTokenHashedReport {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub prefix_hash: HashResult,
     pub token_info: TokenInfo,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
 
@@ -332,9 +332,9 @@ pub struct OpenInvoice {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpenPaymentStatus {
-    SearchingRoute(#[serde(with = "SerBase64")] Uid), // request_routes_id
+    SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(
-        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "ser_b64")] Uid,
         #[serde(with = "SerString")] u128,
     ), // (confirm_id, fees)
     Sending(#[serde(with = "SerString")] u128),       // fees
@@ -342,18 +342,18 @@ pub enum OpenPaymentStatus {
     Success(
         Receipt,
         #[serde(with = "SerString")] u128,
-        #[serde(with = "SerBase64")] Uid,
+        #[serde(with = "ser_b64")] Uid,
     ), // (Receipt, fees, ack_uid)
-    Failure(#[serde(with = "SerBase64")] Uid),        // ack_uid
+    Failure(#[serde(with = "ser_b64")] Uid),        // ack_uid
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPayment {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
@@ -365,7 +365,7 @@ pub struct OpenPayment {
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CompactReport {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
     #[serde(with = "SerOptionB64")]
@@ -386,7 +386,7 @@ pub struct CompactReport {
 pub enum CompactToUserAck {
     /// Acknowledge the receipt of `UserToCompact`
     /// Should be sent after `Report`, in case any changes occured.
-    Ack(#[serde(with = "SerBase64")] Uid),
+    Ack(#[serde(with = "ser_b64")] Uid),
     CompactToUser(CompactToUser),
 }
 
@@ -413,21 +413,21 @@ pub enum UserToCompact {
     // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
     AddRelay(NamedRelayAddress),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     RemoveRelay(PublicKey),
     /// Manage index servers:
     AddIndexServer(NamedIndexServerAddress),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     RemoveIndexServer(PublicKey),
     /// Friend management:
     AddFriend(AddFriend),
     SetFriendRelays(SetFriendRelays),
     SetFriendName(SetFriendName),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     RemoveFriend(PublicKey),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     EnableFriend(PublicKey),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     DisableFriend(PublicKey),
     OpenFriendCurrency(OpenFriendCurrency),
     CloseFriendCurrency(CloseFriendCurrency),
@@ -440,12 +440,12 @@ pub enum UserToCompact {
     InitPayment(InitPayment),
     // Confirm sending fees:
     ConfirmPaymentFees(ConfirmPaymentFees),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     CancelPayment(PaymentId),
     AckPaymentDone(PaymentId, Uid), // (payment_id, ack_uid)
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     CancelInvoice(InvoiceId),
     RequestCommitInvoice(Commit),
     // ---------------[Verification]------------------------
@@ -454,7 +454,7 @@ pub enum UserToCompact {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UserToCompactAck {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub user_request_id: Uid,
     pub inner: UserToCompact,
 }

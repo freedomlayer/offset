@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_utils::{SerBase64, SerString};
+use common::ser_utils::{ser_b64, SerString};
 
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{Currency, FriendsRoute, Rate};
@@ -203,7 +203,7 @@ pub enum IndexServerToServer {
 #[capnp_conv(crate::common_capnp::named_index_server_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamedIndexServerAddress<ISA = NetAddress> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: ISA,
     pub name: String,
@@ -211,7 +211,7 @@ pub struct NamedIndexServerAddress<ISA = NetAddress> {
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexServerAddress<ISA = NetAddress> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: ISA,
 }

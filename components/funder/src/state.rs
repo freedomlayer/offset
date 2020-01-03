@@ -5,7 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
-use common::ser_utils::{ser_map_b64_any, SerBase64, SerOptionB64, SerString};
+use common::ser_utils::{ser_map_b64_any, ser_b64, SerOptionB64, SerString};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -18,7 +18,7 @@ use crate::friend::{FriendMutation, FriendState};
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FunderState<B: Clone> {
     /// Public key of this node
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Addresses of relays we are going to connect to.
     pub relays: ImVec<NamedRelayAddress<B>>,
@@ -46,12 +46,12 @@ pub struct NewTransactions {
     pub num_transactions: u64,
     /// We have one src_plain_lock that we are going to use for every Transaction we create through
     /// this payment.
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     pub currency: Currency,
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
 }
 
@@ -64,9 +64,9 @@ pub enum PaymentStage {
     /// User can no longer add new transactions (user sent a RequestClosePayment)
     InProgress(u64), // num_transactions
     /// A receipt was received:
-    Success(u64, Receipt, #[serde(with = "SerBase64")] Uid), // (num_transactions, Receipt, ack_uid)
+    Success(u64, Receipt, #[serde(with = "ser_b64")] Uid), // (num_transactions, Receipt, ack_uid)
     /// The payment will not complete, because all transactions were canceled:
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.
     AfterSuccessAck(u64), // num_transactions
@@ -74,7 +74,7 @@ pub enum PaymentStage {
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Payment {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
     pub stage: PaymentStage,
 }
@@ -96,7 +96,7 @@ pub struct OpenInvoice {
     pub total_dest_payment: u128,
     /// The lock we used on our ResponseSendFundsOp message.
     /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     /// Lock created by the originator of the transactions used to fulfill this invoice.
     /// We expect all transactions to have the same lock. This allows the buyer to unlock all the
@@ -123,7 +123,7 @@ impl OpenInvoice {
 /// A local request (Originated from this node) in progress
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct OpenTransaction {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
     /// A response (if we got one):
     pub opt_response: Option<ResponseSendFundsOp>,

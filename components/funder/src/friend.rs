@@ -2,7 +2,7 @@ use im::vector::Vector as ImVec;
 use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
 
-use common::ser_utils::{SerBase64, SerMapStrAny, SerString};
+use common::ser_utils::{ser_b64, SerMapStrAny, SerString};
 
 use signature::canonical::CanonicalSerialize;
 
@@ -126,10 +126,10 @@ pub struct CurrencyConfig {
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Public key of the friend node
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
     /// Relays on which the friend node can be found.
     /// This list of relays corresponds to the last report of relays we got from the remote friend.

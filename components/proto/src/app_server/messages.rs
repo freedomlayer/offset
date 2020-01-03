@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use common::mutable_state::MutableState;
-use common::ser_utils::SerBase64;
+use common::ser_utils::ser_b64;
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
@@ -24,7 +24,7 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 #[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B = NetAddress> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
@@ -33,7 +33,7 @@ pub struct NamedRelayAddress<B = NetAddress> {
 #[capnp_conv(crate::common_capnp::relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
 }

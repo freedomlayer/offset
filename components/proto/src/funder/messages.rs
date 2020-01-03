@@ -22,7 +22,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
-use common::ser_utils::{SerBase64, SerString, SerVecB64};
+use common::ser_utils::{ser_b64, SerString, SerVecB64};
 
 use crate::wrapper::Wrapper;
 
@@ -76,9 +76,9 @@ pub struct FriendsRoute {
 #[capnp_conv(crate::funder_capnp::request_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -86,7 +86,7 @@ pub struct RequestSendFundsOp {
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "SerString")]
@@ -96,17 +96,17 @@ pub struct RequestSendFundsOp {
 #[capnp_conv(crate::funder_capnp::response_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFundsOp<S = Signature> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
     pub is_complete: bool,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
     /*
     // TODO:
     #[serde(
-        with = "SerBase64",
+        with = "ser_b64",
         bound = "S: AsRef<[u8]> + for<'a> TryFrom<&'a [u8]>"
     )]
     */
@@ -116,7 +116,7 @@ pub struct ResponseSendFundsOp<S = Signature> {
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CancelSendFundsOp {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
 }
 
@@ -124,11 +124,11 @@ pub struct CancelSendFundsOp {
 #[capnp_conv(crate::common_capnp::commit)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "SerString")]
@@ -136,22 +136,22 @@ pub struct Commit {
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 #[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CollectSendFundsOp {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
 }
 
@@ -243,9 +243,9 @@ pub struct CurrencyBalanceInfo {
 #[capnp_conv(crate::report_capnp::mc_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
     pub balances: Vec<CurrencyBalanceInfo>,
 }
@@ -282,21 +282,21 @@ pub struct CurrencyOperations {
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken<B = NetAddress, S = Signature> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
     #[capnp_conv(with = OptLocalRelays<NetAddress>)]
     pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
     #[capnp_conv(with = OptActiveCurrencies)]
     pub opt_active_currencies: Option<Vec<Currency>>,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
     /*
     TODO:
     #[serde(
-        with = "SerBase64",
+        with = "ser_b64",
         bound = "S: AsRef<[u8]> + for<'a> TryFrom<&'a [u8]>"
     )]
     */
@@ -345,7 +345,7 @@ pub struct CurrencyBalance {
 #[capnp_conv(crate::funder_capnp::reset_terms)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResetTerms {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub reset_token: Signature,
     pub inconsistency_counter: u64,
     pub balance_for_reset: Vec<CurrencyBalance>,
@@ -372,15 +372,15 @@ pub enum FriendMessage<B = NetAddress> {
 #[capnp_conv(crate::common_capnp::receipt)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Receipt {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
     // = sha512/256(requestId || randNonce)
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     pub currency: Currency,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
     #[capnp_conv(with = Wrapper<u128>)]
@@ -389,7 +389,7 @@ pub struct Receipt {
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
     /*
     # Signature{key=destinationKey}(
@@ -409,23 +409,23 @@ pub struct Receipt {
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TransactionStage {
     Request,
-    Response(#[serde(with = "SerBase64")] HashedLock, bool), // inner: (dest_hashed_lock, is_complete)
+    Response(#[serde(with = "ser_b64")] HashedLock, bool), // inner: (dest_hashed_lock, is_complete)
 }
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingTransaction {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub request_id: Uid,
     pub route: FriendsRoute,
     #[serde(with = "SerString")]
     pub dest_payment: u128,
     #[serde(with = "SerString")]
     pub total_dest_payment: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[serde(with = "SerString")]
     pub left_fees: u128,
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
     pub stage: TransactionStage,
 }
@@ -605,7 +605,7 @@ impl Rate {
 #[capnp_conv(crate::app_server_capnp::add_friend)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AddFriend<B = NetAddress> {
-    #[serde(with = "SerBase64")]
+    #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
     pub relays: Vec<RelayAddress<B>>,
     pub name: String,
