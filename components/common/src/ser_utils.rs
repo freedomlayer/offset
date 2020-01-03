@@ -12,30 +12,22 @@ use serde::Deserializer;
 
 use base64::{self, URL_SAFE_NO_PAD};
 
-pub trait SerBase64<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_b64 {
+    use super::*;
 
-impl<'de, T> SerBase64<'de> for T
-where
-    T: AsRef<[u8]> + for<'t> TryFrom<&'t [u8]>,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T, S>(item: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        T: AsRef<[u8]>,
     {
-        let base64_str = base64::encode_config(&self.as_ref(), URL_SAFE_NO_PAD);
+        let base64_str = base64::encode_config(&item.as_ref(), URL_SAFE_NO_PAD);
         serializer.serialize_str(&base64_str)
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
+        T: for<'t> TryFrom<&'t [u8]>,
     {
         struct ItemVisitor<T> {
             item: PhantomData<T>,
@@ -118,50 +110,6 @@ where
         deserializer.deserialize_str(visitor)
     }
 }
-
-/*
-/// Serializes `buffer` to a lowercase hex string.
-pub fn to_base64<T, S>(to_base64: &T, serializer: S) -> Result<S::Ok, S::Error>
-where
-    T: AsRef<[u8]>,
-    S: Serializer,
-{
-    let base64_str = base64::encode_config(&to_base64.as_ref(), URL_SAFE_NO_PAD);
-    serializer.serialize_str(&base64_str)
-}
-
-/// Deserializes a lowercase hex string to a `Vec<u8>`.
-pub fn from_base64<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    T: for<'t> TryFrom<&'t [u8]>,
-    D: Deserializer<'de>,
-{
-    let string = String::deserialize(deserializer)?;
-    let vec = base64::decode_config(&string, URL_SAFE_NO_PAD)
-        .map_err(|err| Error::custom(err.to_string()))?;
-    T::try_from(&vec).map_err(|_| Error::custom("Length mismatch"))
-}
-
-/// Serializes value as a string
-pub fn to_string<T, S>(input: &T, serializer: S) -> Result<S::Ok, S::Error>
-where
-    T: ToString,
-    S: Serializer,
-{
-    serializer.serialize_str(&input.to_string())
-}
-
-/// Deserializes a string into a value
-pub fn from_string<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-where
-    T: FromStr,
-    D: Deserializer<'de>,
-{
-    String::deserialize(deserializer)?
-        .parse()
-        .map_err(|_| Error::custom("Failed to parse as string"))
-}
-*/
 
 /// A util for serializing HashMaps with keys that are not strings.
 /// For example: JSON serialization does not allow keys that are not strings.
