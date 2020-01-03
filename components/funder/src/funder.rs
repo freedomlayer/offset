@@ -10,7 +10,6 @@ use signature::canonical::CanonicalSerialize;
 use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
 
-// use crate::database::{AtomicDb, DbRunner, DbRunnerError};
 use database::DatabaseClient;
 
 use proto::funder::messages::{FunderIncomingControl, FunderOutgoingControl};
