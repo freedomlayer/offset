@@ -4,6 +4,8 @@ use std::convert::TryFrom;
 use im::hashset::HashSet as ImHashSet;
 use std::collections::HashMap as ImHashMap;
 
+use common::ser_utils::SerMapStrAny;
+
 use signature::canonical::CanonicalSerialize;
 
 use crypto::hash::sha_512_256;
@@ -108,6 +110,7 @@ pub enum TcDirectionBorrow<'a, B> {
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
+    #[serde(with = "SerMapStrAny")]
     mutual_credits: ImHashMap<Currency, MutualCredit>,
     active_currencies: ActiveCurrencies,
 }
