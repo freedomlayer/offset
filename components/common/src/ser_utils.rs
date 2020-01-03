@@ -389,32 +389,24 @@ pub mod ser_option_b4 {
 
 // ============================================================================
 
-pub trait SerVecB64<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_vec_b64 {
+    use super::*;
 
-impl<'de, T> SerVecB64<'de> for Vec<T>
-where
-    T: Serialize + Deserialize<'de> + AsRef<[u8]> + for<'t> TryFrom<&'t [u8]>,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T, S>(input_vec: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        T: Serialize + AsRef<[u8]>,
     {
-        let items_iter = self
+        let items_iter = input_vec
             .iter()
             .map(|item| base64::encode_config(item.as_ref(), URL_SAFE_NO_PAD));
         serializer.collect_seq(items_iter)
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
     where
         D: Deserializer<'de>,
+        T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
     {
         struct SeqVisitor<T> {
             item: PhantomData<T>,
@@ -427,7 +419,7 @@ where
             type Value = Vec<T>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("An option")
+                formatter.write_str("A vector")
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
