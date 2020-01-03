@@ -238,34 +238,27 @@ pub mod ser_map_str_any {
 
 // ===============================================================
 
-pub trait SerMapStrStr<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_map_str_str {
+    use super::*;
 
-impl<'de, K, V> SerMapStrStr<'de> for HashMap<K, V>
-where
-    K: Serialize + Deserialize<'de> + FromStr + ToString + Eq + Hash,
-    V: Serialize + Deserialize<'de> + FromStr + ToString,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, K, V>(input_map: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        K: Serialize + ToString + Eq + Hash,
+        V: Serialize + ToString,
     {
-        let mut map = serializer.serialize_map(Some(self.len()))?;
-        for (k, v) in self {
+        let mut map = serializer.serialize_map(Some(input_map.len()))?;
+        for (k, v) in input_map {
             map.serialize_entry(&k.to_string(), &v.to_string())?;
         }
         map.end()
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, K, V, D>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
     where
         D: Deserializer<'de>,
+        K: Deserialize<'de> + FromStr + Eq + Hash,
+        V: Deserialize<'de> + FromStr,
     {
         struct MapVisitor<K, V> {
             key: PhantomData<K>,
@@ -274,8 +267,8 @@ where
 
         impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
         where
-            K: Serialize + Deserialize<'de> + FromStr + Eq + Hash,
-            V: Serialize + Deserialize<'de> + FromStr,
+            K: Deserialize<'de> + FromStr + Eq + Hash,
+            V: Deserialize<'de> + FromStr,
         {
             type Value = HashMap<K, V>;
 
