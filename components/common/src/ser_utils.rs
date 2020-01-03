@@ -306,24 +306,15 @@ pub mod ser_map_str_str {
 
 // =========================================================================
 
-pub trait SerOptionB64<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_option_b4 {
+    use super::*;
 
-impl<'de, T> SerOptionB64<'de> for Option<T>
-where
-    T: Serialize + Deserialize<'de> + AsRef<[u8]> + for<'t> TryFrom<&'t [u8]>,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T, S>(opt_item: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        T: Serialize + AsRef<[u8]>,
     {
-        match self {
+        match opt_item {
             Some(item) => {
                 let string_item = base64::encode_config(item.as_ref(), URL_SAFE_NO_PAD);
                 serializer.serialize_some(&string_item)
@@ -332,9 +323,10 @@ where
         }
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
     where
         D: Deserializer<'de>,
+        T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
     {
         struct ItemVisitor<T> {
             item: PhantomData<T>,
