@@ -1,4 +1,4 @@
-use app::ser_utils::{ser_b64, SerString};
+use app::ser_utils::{ser_b64, ser_string};
 
 use app::common::{
     Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,
@@ -12,11 +12,11 @@ use mutual_from::mutual_from;
 pub struct InvoiceFile {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
 }
 
@@ -30,13 +30,13 @@ pub struct CommitFile {
     pub src_plain_lock: PlainLock,
     #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
@@ -57,16 +57,16 @@ pub struct ReceiptFile {
     pub response_hash: HashResult,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
     #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub signature: Signature,

@@ -22,7 +22,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
-use common::ser_utils::{ser_b64, SerString, SerVecB64};
+use common::ser_utils::{ser_b64, ser_string, SerVecB64};
 
 use crate::wrapper::Wrapper;
 
@@ -84,12 +84,12 @@ pub struct RequestSendFundsOp {
     #[capnp_conv(with = Wrapper<u128>)]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub left_fees: u128,
 }
 
@@ -131,14 +131,14 @@ pub struct Commit {
     #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
@@ -221,20 +221,20 @@ impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
     #[capnp_conv(with = Wrapper<i128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
 #[capnp_conv(crate::report_capnp::currency_balance_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyBalanceInfo {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     pub balance_info: BalanceInfo,
 }
@@ -257,7 +257,7 @@ pub struct McInfo {
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub move_token_counter: u128,
 }
 
@@ -274,7 +274,7 @@ pub struct TokenInfo {
 #[capnp_conv(crate::funder_capnp::currency_operations)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyOperations {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     pub operations: Vec<FriendTcOp>,
 }
@@ -307,7 +307,7 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
 #[display(fmt = "{}", currency)]
 pub struct Currency {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     currency: String,
 }
 
@@ -338,7 +338,7 @@ impl quickcheck::Arbitrary for Currency {
 pub struct CurrencyBalance {
     pub currency: Currency,
     #[capnp_conv(with = Wrapper<i128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
 }
 
@@ -384,10 +384,10 @@ pub struct Receipt {
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
@@ -417,13 +417,13 @@ pub struct PendingTransaction {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     pub route: FriendsRoute,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub left_fees: u128,
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,

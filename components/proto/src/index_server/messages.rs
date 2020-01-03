@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_utils::{ser_b64, SerString};
+use common::ser_utils::{ser_b64, ser_string};
 
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{Currency, FriendsRoute, Rate};
@@ -66,7 +66,7 @@ pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub capacity: u128,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,

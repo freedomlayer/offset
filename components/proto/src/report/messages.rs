@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_utils::SerString;
+use common::ser_utils::ser_string;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
@@ -48,15 +48,15 @@ pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     #[capnp_conv(with = Wrapper<i128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
@@ -178,7 +178,7 @@ pub struct CurrencyConfigReport {
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
     #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can requests be sent through this mutual credit?
     pub is_open: bool,

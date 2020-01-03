@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_utils::{ser_b64, SerString};
+use common::ser_utils::{ser_b64, ser_string};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
@@ -13,9 +13,9 @@ use route::MultiRouteChoice;
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
@@ -23,7 +23,7 @@ pub struct OpenInvoice {
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub struct OpenPaymentStatusSending {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub fees: u128,
     pub open_transactions: HashSet<Uid>,
 }
@@ -34,7 +34,7 @@ pub struct OpenPaymentStatusFoundRoute {
     pub confirm_id: Uid,
     pub multi_route: MultiRoute,
     pub multi_route_choice: MultiRouteChoice,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub fees: u128,
 }
 
@@ -44,10 +44,10 @@ pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
     Sending(OpenPaymentStatusSending),
-    Commit(Commit, #[serde(with = "SerString")] u128), // (commit, fees)
+    Commit(Commit, #[serde(with = "ser_string")] u128), // (commit, fees)
     Success(
         Receipt,
-        #[serde(with = "SerString")] u128,
+        #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (Receipt, fees, ack_uid)
     Failure(#[serde(with = "ser_b64")] Uid),         // ack_uid
@@ -57,11 +57,11 @@ pub enum OpenPaymentStatus {
 pub struct OpenPayment {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,

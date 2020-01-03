@@ -7,7 +7,7 @@ use derive_more::Display;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_utils::SerString;
+use common::ser_utils::ser_string;
 
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
@@ -15,7 +15,7 @@ use crate::consts::MAX_NET_ADDRESS_LENGTH;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
 #[display(fmt = "{}", address)]
 pub struct NetAddress {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     address: String,
 }
 

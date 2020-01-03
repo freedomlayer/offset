@@ -1,7 +1,7 @@
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
-use common::ser_utils::{ser_b64, SerMapB64Any, SerString};
+use common::ser_utils::{ser_b64, SerMapB64Any, ser_string};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
@@ -29,13 +29,13 @@ pub struct McIdents {
 pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 

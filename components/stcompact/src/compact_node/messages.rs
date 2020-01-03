@@ -7,7 +7,7 @@ use app::common::{
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use common::ser_utils::{
-    ser_b64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, SerString,
+    ser_b64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, ser_string,
 };
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -18,13 +18,13 @@ pub struct Commit {
     pub src_plain_lock: PlainLock,
     #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
@@ -34,7 +34,7 @@ pub struct Commit {
 pub struct OpenFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
 }
 
@@ -42,7 +42,7 @@ pub struct OpenFriendCurrency {
 pub struct CloseFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
 }
 
@@ -74,11 +74,11 @@ pub struct InitPayment {
     pub payment_id: PaymentId,
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     /// Short textual invoice description
     pub description: String,
@@ -88,7 +88,7 @@ pub struct InitPayment {
 pub enum PaymentFeesResponse {
     Unreachable,
     Fees(
-        #[serde(with = "SerString")] u128,
+        #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (fees, confirm_id)
 }
@@ -107,7 +107,7 @@ pub enum PaymentDone {
     Failure(Uid), // ack_uid
     Success(
         Receipt,
-        #[serde(with = "SerString")] u128,
+        #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (receipt, fees, ack_uid)
 }
@@ -137,9 +137,9 @@ pub struct ConfirmPaymentFees {
 pub struct SetFriendCurrencyMaxDebt {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
 }
 
@@ -147,7 +147,7 @@ pub struct SetFriendCurrencyMaxDebt {
 pub struct RemoveFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
 }
 
@@ -163,7 +163,7 @@ pub struct ResetFriendChannel {
 pub struct SetFriendCurrencyRate {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     pub rate: Rate,
 }
@@ -174,10 +174,10 @@ pub struct AddInvoice {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     /// Currency in use
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     /// Total amount of credits to be paid.
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     /// Short textual description for the invoice
     pub description: String,
@@ -195,7 +195,7 @@ pub struct ConfigReport {
     /// for a certain currency.
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can requests be sent through this node (Incoming or outgoing)?
     /// If `false`, only the local user may send or receive requests through this node.
@@ -227,13 +227,13 @@ pub struct ChannelInconsistentReport {
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
@@ -262,11 +262,11 @@ pub enum FriendStatusReport {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub balance: i128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
@@ -283,7 +283,7 @@ pub struct McInfo {
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub move_token_counter: u128,
 }
 
@@ -321,9 +321,9 @@ pub struct FriendReport {
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
@@ -335,13 +335,13 @@ pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(
         #[serde(with = "ser_b64")] Uid,
-        #[serde(with = "SerString")] u128,
+        #[serde(with = "ser_string")] u128,
     ), // (confirm_id, fees)
-    Sending(#[serde(with = "SerString")] u128),       // fees
-    Commit(Commit, #[serde(with = "SerString")] u128), // (commit, fees)
+    Sending(#[serde(with = "ser_string")] u128),       // fees
+    Commit(Commit, #[serde(with = "ser_string")] u128), // (commit, fees)
     Success(
         Receipt,
-        #[serde(with = "SerString")] u128,
+        #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (Receipt, fees, ack_uid)
     Failure(#[serde(with = "ser_b64")] Uid),        // ack_uid
@@ -351,11 +351,11 @@ pub enum OpenPaymentStatus {
 pub struct OpenPayment {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
     #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,

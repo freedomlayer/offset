@@ -5,7 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
-use common::ser_utils::{ser_map_b64_any, ser_b64, SerOptionB64, SerString};
+use common::ser_utils::{ser_map_b64_any, ser_b64, SerOptionB64, ser_string};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -49,7 +49,7 @@ pub struct NewTransactions {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     pub currency: Currency,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
@@ -92,7 +92,7 @@ pub struct OpenInvoice {
     /// Currency in use for this invoice
     pub currency: Currency,
     /// Total payment required to fulfill this invoice:
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     /// The lock we used on our ResponseSendFundsOp message.
     /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.

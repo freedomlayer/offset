@@ -2,7 +2,7 @@ use im::vector::Vector as ImVec;
 use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
 
-use common::ser_utils::{ser_b64, SerMapStrAny, SerString};
+use common::ser_utils::{ser_b64, SerMapStrAny, ser_string};
 
 use signature::canonical::CanonicalSerialize;
 
@@ -117,7 +117,7 @@ pub struct CurrencyConfig {
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
     /// The remote side does not know this value.
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can new requests be sent through the mutual credit with this friend?
     pub is_open: bool,

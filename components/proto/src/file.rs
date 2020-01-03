@@ -4,7 +4,7 @@ use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
-use common::ser_utils::{ser_b64, SerString};
+use common::ser_utils::{ser_b64, ser_string};
 
 use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
@@ -30,7 +30,7 @@ pub struct FriendAddressFile {
 pub struct RelayAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
-    #[serde(with = "SerString")]
+    #[serde(with = "ser_string")]
     pub address: NetAddress,
 }
 

@@ -58,29 +58,21 @@ pub mod ser_b64 {
     }
 }
 
-pub trait SerString<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_string {
+    use super::*;
 
-impl<'de, T> SerString<'de> for T
-where
-    T: ToString + FromStr,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T, S>(item: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        T: ToString,
     {
-        serializer.serialize_str(&self.to_string())
+        serializer.serialize_str(&item.to_string())
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
+        T: FromStr,
     {
         struct ItemVisitor<T> {
             item: PhantomData<T>,
