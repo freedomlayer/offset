@@ -7,7 +7,7 @@ use app::common::{
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use common::ser_utils::{
-    ser_b64, ser_map_b64_any, SerMapStrAny, SerMapStrStr, SerOptionB64, ser_string,
+    ser_b64, ser_map_b64_any, ser_map_str_any, ser_map_str_str, ser_option_b64, ser_string,
 };
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,13 +212,13 @@ pub enum FriendLivenessReport {
 pub struct ResetTermsReport {
     #[serde(with = "ser_b64")]
     pub reset_token: Signature,
-    #[serde(with = "SerMapStrStr")]
+    #[serde(with = "ser_map_str_str")]
     pub balance_for_reset: HashMap<Currency, i128>,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelInconsistentReport {
-    #[serde(with = "SerMapStrStr")]
+    #[serde(with = "ser_map_str_str")]
     pub local_reset_terms: HashMap<Currency, i128>,
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
@@ -244,7 +244,7 @@ pub struct CurrencyReport {
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelConsistentReport {
-    #[serde(with = "SerMapStrAny")]
+    #[serde(with = "ser_map_str_any")]
     pub currency_reports: HashMap<Currency, CurrencyReport>,
 }
 
@@ -276,7 +276,7 @@ pub struct McInfo {
     pub local_public_key: PublicKey,
     #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
-    #[serde(with = "SerMapStrAny")]
+    #[serde(with = "ser_map_str_any")]
     pub balances: HashMap<Currency, BalanceInfo>,
 }
 
@@ -307,7 +307,7 @@ pub struct MoveTokenHashedReport {
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FriendReport {
     pub name: String,
-    #[serde(with = "SerMapStrAny")]
+    #[serde(with = "ser_map_str_any")]
     pub currency_configs: HashMap<Currency, ConfigReport>,
     /// Last message signed by the remote side.
     /// Can be used as a proof for the last known balance.
@@ -368,7 +368,7 @@ pub struct CompactReport {
     #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     pub index_servers: Vec<NamedIndexServerAddress>,
-    #[serde(with = "SerOptionB64")]
+    #[serde(with = "ser_option_b64")]
     pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
     #[serde(with = "ser_map_b64_any")]

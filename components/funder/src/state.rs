@@ -5,7 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
-use common::ser_utils::{ser_map_b64_any, ser_b64, SerOptionB64, ser_string};
+use common::ser_utils::{ser_map_b64_any, ser_b64, ser_option_b64, ser_string};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -101,7 +101,7 @@ pub struct OpenInvoice {
     /// Lock created by the originator of the transactions used to fulfill this invoice.
     /// We expect all transactions to have the same lock. This allows the buyer to unlock all the
     /// transactions at once by sending a commit message.
-    #[serde(with = "SerOptionB64")]
+    #[serde(with = "ser_option_b64")]
     pub opt_src_hashed_lock: Option<HashedLock>,
     /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
     // TODO: Add serde hint

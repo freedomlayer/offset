@@ -91,7 +91,7 @@ where
 
 // ===============================================================
 
-pub trait SerMapStrAny<'de>: Sized {
+pub trait ser_map_str_any<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
@@ -100,7 +100,7 @@ pub trait SerMapStrAny<'de>: Sized {
         D: Deserializer<'de>;
 }
 
-impl<'de, K, V> SerMapStrAny<'de> for HashMap<K, V>
+impl<'de, K, V> ser_map_str_any<'de> for HashMap<K, V>
 where
     K: Serialize + Deserialize<'de> + ToString + FromStr + Eq + Hash,
     V: Serialize + Deserialize<'de>,
@@ -162,7 +162,7 @@ where
 
 // ===============================================================
 
-pub trait SerMapStrStr<'de>: Sized {
+pub trait ser_map_str_str<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
@@ -171,7 +171,7 @@ pub trait SerMapStrStr<'de>: Sized {
         D: Deserializer<'de>;
 }
 
-impl<'de, K, V> SerMapStrStr<'de> for HashMap<K, V>
+impl<'de, K, V> ser_map_str_str<'de> for HashMap<K, V>
 where
     K: Serialize + Deserialize<'de> + FromStr + ToString + Eq + Hash,
     V: Serialize + Deserialize<'de> + FromStr + ToString,
@@ -237,7 +237,7 @@ where
 
 // =========================================================================
 
-pub trait SerOptionB64<'de>: Sized {
+pub trait ser_option_b64<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
@@ -246,7 +246,7 @@ pub trait SerOptionB64<'de>: Sized {
         D: Deserializer<'de>;
 }
 
-impl<'de, T> SerOptionB64<'de> for Option<T>
+impl<'de, T> ser_option_b64<'de> for Option<T>
 where
     T: Serialize + Deserialize<'de> + AsRef<[u8]> + for<'t> TryFrom<&'t [u8]>,
 {

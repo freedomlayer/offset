@@ -306,7 +306,7 @@ pub mod ser_map_str_str {
 
 // =========================================================================
 
-pub mod ser_option_b4 {
+pub mod ser_option_b64 {
     use super::*;
 
     pub fn serialize<T, S>(opt_item: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>

@@ -58,7 +58,7 @@ mod tests {
 
     use serde::{Deserialize, Serialize};
 
-    // use common::ser_utils::SerMapStrAny;
+    // use common::ser_utils::ser_map_str_any;
 
     use quickcheck::QuickCheck;
 

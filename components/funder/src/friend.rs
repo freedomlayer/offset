@@ -2,7 +2,7 @@ use im::vector::Vector as ImVec;
 use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
 
-use common::ser_utils::{ser_b64, SerMapStrAny, ser_string};
+use common::ser_utils::{ser_b64, ser_map_str_any, ser_string};
 
 use signature::canonical::CanonicalSerialize;
 
@@ -140,7 +140,7 @@ pub struct FriendState<B: Clone> {
     /// Locally maintained name of the remote friend node.
     pub name: String,
     /// Local configurations for currencies relationship with this friend
-    #[serde(with = "SerMapStrAny")]
+    #[serde(with = "ser_map_str_any")]
     pub currency_configs: ImHashMap<Currency, CurrencyConfig>,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).

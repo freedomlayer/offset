@@ -22,7 +22,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
-use common::ser_utils::{ser_b64, ser_string, SerVecB64};
+use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
 
 use crate::wrapper::Wrapper;
 
@@ -69,7 +69,7 @@ define_fixed_bytes!(InvoiceId, InvoiceId::len());
 #[capnp_conv(crate::funder_capnp::friends_route)]
 #[derive(Arbitrary, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
-    #[serde(with = "SerVecB64")]
+    #[serde(with = "ser_vec_b64")]
     pub public_keys: Vec<PublicKey>,
 }
 
