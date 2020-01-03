@@ -16,7 +16,6 @@ pub mod never;
 pub mod safe_arithmetic;
 #[macro_use]
 pub mod big_array;
-// pub mod ser_hash_map;
 #[macro_use]
 pub mod define_fixed_bytes;
 // pub mod async_adapter;
