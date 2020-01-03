@@ -171,34 +171,30 @@ pub mod ser_map_b64_any {
 
 // ===============================================================
 
-pub trait SerMapStrAny<'de>: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
+pub mod ser_map_str_any {
+    use super::*;
 
-impl<'de, K, V> SerMapStrAny<'de> for HashMap<K, V>
-where
-    K: Serialize + Deserialize<'de> + ToString + FromStr + Eq + Hash,
-    V: Serialize + Deserialize<'de>,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<'de, K, V, S>(
+        input_map: &HashMap<K, V>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
+        K: Serialize + ToString + Eq + Hash,
+        V: Serialize,
     {
-        let mut map = serializer.serialize_map(Some(self.len()))?;
-        for (k, v) in self {
+        let mut map = serializer.serialize_map(Some(input_map.len()))?;
+        for (k, v) in input_map {
             map.serialize_entry(&k.to_string(), v)?;
         }
         map.end()
     }
 
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    pub fn deserialize<'de, K, V, D>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
     where
         D: Deserializer<'de>,
+        K: Deserialize<'de> + FromStr + Eq + Hash,
+        V: Deserialize<'de>,
     {
         struct MapVisitor<K, V> {
             key: PhantomData<K>,
