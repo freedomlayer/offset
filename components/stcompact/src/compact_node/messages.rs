@@ -7,7 +7,7 @@ use app::common::{
     PaymentId, PlainLock, PublicKey, RandValue, Rate, Receipt, RelayAddress, Signature, Uid,
 };
 use common::ser_utils::{
-    ser_b64, SerMapB64Any, SerMapStrAny, SerMapStrStr, SerOptionB64, ser_string,
+    ser_b64, ser_map_b64_any, SerMapStrAny, SerMapStrStr, SerOptionB64, ser_string,
 };
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -371,13 +371,13 @@ pub struct CompactReport {
     #[serde(with = "SerOptionB64")]
     pub opt_connected_index_server: Option<PublicKey>,
     pub relays: Vec<NamedRelayAddress>,
-    #[serde(with = "SerMapB64Any")]
+    #[serde(with = "ser_map_b64_any")]
     pub friends: HashMap<PublicKey, FriendReport>,
     /// Seller's open invoices:
-    #[serde(with = "SerMapB64Any")]
+    #[serde(with = "ser_map_b64_any")]
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
-    #[serde(with = "SerMapB64Any")]
+    #[serde(with = "ser_map_b64_any")]
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 

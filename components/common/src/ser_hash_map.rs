@@ -19,7 +19,7 @@ use serde::ser::{Serialize, SerializeMap, Serializer};
 /// A util for serializing HashMaps with keys that are not strings.
 /// For example: JSON serialization does not allow keys that are not strings.
 /// SerHashMap first converts the key to a base64 string, and only then serializes.
-pub trait SerMapB64Any<'de>: Sized {
+pub trait ser_map_b64_any<'de>: Sized {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer;
@@ -28,7 +28,7 @@ pub trait SerMapB64Any<'de>: Sized {
         D: Deserializer<'de>;
 }
 
-impl<'de, K, V> SerMapB64Any<'de> for HashMap<K, V>
+impl<'de, K, V> ser_map_b64_any<'de> for HashMap<K, V>
 where
     K: Serialize + Deserialize<'de> + AsRef<[u8]> + for<'t> TryFrom<&'t [u8]> + Eq + Hash,
     V: Serialize + Deserialize<'de>,

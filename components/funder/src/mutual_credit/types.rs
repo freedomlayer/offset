@@ -1,7 +1,7 @@
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
-use common::ser_utils::{ser_b64, SerMapB64Any, ser_string};
+use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
@@ -54,11 +54,11 @@ pub struct McPendingTransactions {
     // TODO: Missing serialization helper here:
     /// Pending transactions that were opened locally and not yet completed
     // TODO: Fix this when we go back to using ImHashMap, and not HashMap.
-    #[serde(with = "SerMapB64Any")]
+    #[serde(with = "ser_map_b64_any")]
     pub local: ImHashMap<Uid, PendingTransaction>,
     /// Pending transactions that were opened remotely and not yet completed
     // TODO: Fix this when we go back to using ImHashMap, and not HashMap.
-    #[serde(with = "SerMapB64Any")]
+    #[serde(with = "ser_map_b64_any")]
     pub remote: ImHashMap<Uid, PendingTransaction>,
 }
 
