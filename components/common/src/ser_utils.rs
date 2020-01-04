@@ -184,39 +184,41 @@ pub mod ser_map_b64_any {
 pub mod ser_map_str_any {
     use super::*;
 
-    pub fn serialize<'de, K, V, S>(
-        input_map: &HashMap<K, V>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<'de, K, V, M, S>(input_map: M, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         K: Serialize + ToString + Eq + Hash,
         V: Serialize,
+        M: IntoIterator<Item = (K, V)>,
     {
-        let mut map = serializer.serialize_map(Some(input_map.len()))?;
-        for (k, v) in input_map {
-            map.serialize_entry(&k.to_string(), v)?;
+        let opt_length = None;
+        let mut map = serializer.serialize_map(opt_length)?;
+        for (k, v) in input_map.into_iter() {
+            map.serialize_entry(&k.to_string(), &v)?;
         }
         map.end()
     }
 
-    pub fn deserialize<'de, K, V, D>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
+    pub fn deserialize<'de, K, V, M, D>(deserializer: D) -> Result<M, D::Error>
     where
         D: Deserializer<'de>,
         K: Deserialize<'de> + FromStr + Eq + Hash,
         V: Deserialize<'de>,
+        M: Default + Extend<(K, V)>,
     {
-        struct MapVisitor<K, V> {
+        struct MapVisitor<K, V, M> {
             key: PhantomData<K>,
             value: PhantomData<V>,
+            map: PhantomData<M>,
         }
 
-        impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
+        impl<'de, K, V, M> Visitor<'de> for MapVisitor<K, V, M>
         where
             K: Deserialize<'de> + FromStr + Eq + Hash,
             V: Deserialize<'de>,
+            M: Default + Extend<(K, V)>,
         {
-            type Value = HashMap<K, V>;
+            type Value = M;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("A map")
@@ -226,13 +228,13 @@ pub mod ser_map_str_any {
             where
                 A: MapAccess<'de>,
             {
-                let mut res_map = HashMap::new();
+                let mut res_map = M::default();
                 while let Some((k_string, v)) = map.next_entry::<String, V>()? {
                     let k = k_string
                         .parse()
                         .map_err(|_| Error::custom(format!("Parse failed: {:?}", k_string)))?;
 
-                    res_map.insert(k, v);
+                    res_map.extend(Some((k, v)));
                 }
                 Ok(res_map)
             }
@@ -241,6 +243,7 @@ pub mod ser_map_str_any {
         let visitor = MapVisitor {
             key: PhantomData,
             value: PhantomData,
+            map: PhantomData,
         };
         deserializer.deserialize_map(visitor)
     }
