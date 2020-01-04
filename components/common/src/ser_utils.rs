@@ -537,7 +537,7 @@ mod tests {
     /*
     #[allow(unused)]
     #[derive(Deserialize)]
-    struct MyVecStruct {
+    struct MySeqStruct {
         #[serde(with = "ser_seq_b64")]
         my_vec: Vec<[u8; 16]>,
     }
