@@ -19,7 +19,7 @@ fn qc_ser_de_funder_state_json() {
     // Limit size, to avoid blowup to type size:
     let size = 3usize;
     QuickCheck::with_gen(quickcheck::StdGen::new(rng, size))
-        .max_tests(10)
+        .max_tests(100)
         .quickcheck(ser_de as fn(FunderState<NetAddress>) -> bool);
 }
 
