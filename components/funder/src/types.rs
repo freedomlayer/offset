@@ -6,7 +6,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, Currency, CurrencyOperations,
     FriendMessage, FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedResponseSendFundsOp, UnsignedMoveToken,
 };
 
 use signature::signature_buff::{
@@ -15,17 +15,14 @@ use signature::signature_buff::{
 
 use identity::IdentityClient;
 
-pub type UnsignedResponseSendFundsOp = ResponseSendFundsOp<()>;
-pub type UnsignedMoveToken<B> = MoveToken<B, ()>;
-
 pub async fn sign_move_token<'a, B>(
     unsigned_move_token: UnsignedMoveToken<B>,
     identity_client: &'a mut IdentityClient,
 ) -> MoveToken<B>
 where
-    B: CanonicalSerialize + 'a,
+    B: CanonicalSerialize + Clone + 'a,
 {
-    let signature_buff = move_token_signature_buff(&unsigned_move_token);
+    let signature_buff = move_token_signature_buff(unsigned_move_token.clone());
     let new_token = identity_client
         .request_signature(signature_buff)
         .await
@@ -50,16 +47,15 @@ pub async fn create_response_send_funds<'a>(
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
-    let u_response_send_funds = ResponseSendFundsOp {
+    let u_response_send_funds = UnsignedResponseSendFundsOp {
         request_id: pending_transaction.request_id.clone(),
         dest_hashed_lock,
         is_complete,
         rand_nonce,
-        signature: (),
     };
 
     let signature_buff =
-        create_response_signature_buffer(currency, &u_response_send_funds, pending_transaction);
+        create_response_signature_buffer(currency, u_response_send_funds.clone(), pending_transaction);
     let signature = identity_client
         .request_signature(signature_buff)
         .await
@@ -120,14 +116,13 @@ pub fn create_unsigned_move_token<B>(
     old_token: Signature,
     rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
-    MoveToken {
+    UnsignedMoveToken {
         old_token,
         currencies_operations,
         opt_local_relays,
         opt_active_currencies,
         info_hash: hash_token_info(token_info),
         rand_nonce,
-        new_token: (),
     }
 }
 
@@ -170,10 +165,10 @@ where
 /// hence it is usually shorter.
 pub fn create_hashed<B>(move_token: &MoveToken<B>, token_info: &TokenInfo) -> MoveTokenHashed
 where
-    B: CanonicalSerialize,
+    B: CanonicalSerialize + Clone,
 {
     MoveTokenHashed {
-        prefix_hash: prefix_hash(move_token),
+        prefix_hash: prefix_hash(move_token.clone()),
         token_info: token_info.clone(),
         rand_nonce: move_token.rand_nonce.clone(),
         new_token: move_token.new_token.clone(),

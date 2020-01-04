@@ -132,7 +132,7 @@ pub fn try_reset_channel<B>(
     if move_token.old_token != local_reset_terms.reset_token
         || !move_token.currencies_operations.is_empty()
         || hash_token_info(&remote_token_info) != move_token.info_hash
-        || !verify_move_token(move_token, friend_public_key)
+        || !verify_move_token(move_token.clone(), friend_public_key)
     {
         send_commands.set_resend_outgoing(friend_public_key);
         return;

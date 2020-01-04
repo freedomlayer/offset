@@ -140,7 +140,7 @@ impl OutgoingMc {
         // verify signature:
         let response_signature_buffer = create_response_signature_buffer(
             &self.mutual_credit.state().currency,
-            &response_send_funds,
+            response_send_funds.clone(),
             &pending_transaction,
         );
         // The response was signed by the destination node:

@@ -107,6 +107,17 @@ pub struct ResponseSendFundsOp {
     pub signature: Signature,
 }
 
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+pub struct UnsignedResponseSendFundsOp {
+    #[serde(with = "ser_b64")]
+    pub request_id: Uid,
+    #[serde(with = "ser_b64")]
+    pub dest_hashed_lock: HashedLock,
+    pub is_complete: bool,
+    #[serde(with = "ser_b64")]
+    pub rand_nonce: RandValue,
+}
+
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CancelSendFundsOp {
@@ -171,6 +182,17 @@ pub enum OptActiveCurrencies {
     Empty,
     // TODO: Possibly add SerVecString?
     Currencies(Vec<Currency>),
+}
+
+impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
+    fn into(self) -> UnsignedResponseSendFundsOp {
+        UnsignedResponseSendFundsOp {
+            request_id: self.request_id,
+            dest_hashed_lock: self.dest_hashed_lock,
+            is_complete: self.is_complete,
+            rand_nonce: self.rand_nonce,
+        }
+    }
 }
 
 // TODO: Create a macro that does this:
@@ -275,7 +297,7 @@ pub struct CurrencyOperations {
 
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<B = NetAddress, S = Signature> {
+pub struct MoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
@@ -287,14 +309,34 @@ pub struct MoveToken<B = NetAddress, S = Signature> {
     pub info_hash: HashResult,
     #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
-    /*
-    TODO:
-    #[serde(
-        with = "ser_b64",
-        bound = "S: AsRef<[u8]> + for<'a> TryFrom<&'a [u8]>"
-    )]
-    */
-    pub new_token: S,
+    #[serde(with = "ser_b64")]
+    pub new_token: Signature,
+}
+
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct UnsignedMoveToken<B = NetAddress> {
+    #[serde(with = "ser_b64")]
+    pub old_token: Signature,
+    pub currencies_operations: Vec<CurrencyOperations>,
+    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    pub opt_active_currencies: Option<Vec<Currency>>,
+    #[serde(with = "ser_b64")]
+    pub info_hash: HashResult,
+    #[serde(with = "ser_b64")]
+    pub rand_nonce: RandValue,
+}
+
+impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
+    fn into(self) -> UnsignedMoveToken<B> {
+        UnsignedMoveToken {
+            old_token: self.old_token,
+            currencies_operations: self.currencies_operations,
+            opt_local_relays: self.opt_local_relays,
+            opt_active_currencies: self.opt_active_currencies,
+            info_hash: self.info_hash,
+            rand_nonce: self.rand_nonce,
+        }
+    }
 }
 
 #[capnp_conv(crate::common_capnp::currency)]

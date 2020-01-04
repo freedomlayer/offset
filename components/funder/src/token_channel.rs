@@ -16,7 +16,7 @@ use proto::crypto::{PublicKey, RandValue, Signature};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McInfo,
-    MoveToken, TokenInfo,
+    MoveToken, TokenInfo, UnsignedMoveToken,
 };
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
@@ -27,7 +27,7 @@ use crate::mutual_credit::incoming::{
 use crate::mutual_credit::outgoing::OutgoingMc;
 use crate::mutual_credit::types::{McMutation, MutualCredit};
 
-use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed, UnsignedMoveToken};
+use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum SetDirection<B> {
@@ -503,7 +503,7 @@ impl<'a> TcInBorrow<'a> {
         new_move_token: MoveToken<B>,
     ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
     where
-        B: CanonicalSerialize,
+        B: CanonicalSerialize + Clone,
     {
         // We compare the whole move token message and not just the signature (new_token)
         // because we don't check the signature in this flow.
@@ -695,7 +695,7 @@ where
         // This allows the genesis move token to occur smoothly, even though its signature
         // is not correct.
         let remote_public_key = &tc_out_borrow.tc_outgoing.token_info.mc.remote_public_key;
-        if !verify_move_token(&new_move_token, remote_public_key) {
+        if !verify_move_token(new_move_token.clone(), remote_public_key) {
             return Err(ReceiveMoveTokenError::InvalidSignature);
         }
 
@@ -888,10 +888,10 @@ mod tests {
         identity: &I,
     ) -> MoveToken<B>
     where
-        B: CanonicalSerialize,
+        B: CanonicalSerialize + Clone,
         I: Identity,
     {
-        let signature_buff = move_token_signature_buff(&unsigned_move_token);
+        let signature_buff = move_token_signature_buff(unsigned_move_token.clone());
 
         MoveToken {
             old_token: unsigned_move_token.old_token,

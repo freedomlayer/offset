@@ -217,7 +217,7 @@ fn process_response_send_funds(
 
     let response_signature_buffer = create_response_signature_buffer(
         &mutual_credit.state().currency,
-        &response_send_funds,
+        response_send_funds.clone(),
         &pending_transaction,
     );
 
