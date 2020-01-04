@@ -119,9 +119,10 @@ pub mod ser_map_b64_any {
         V: Serialize,
         M: IntoIterator<Item = (K, V)>,
     {
-        let opt_length = None;
-        let mut map = serializer.serialize_map(opt_length)?;
-        for (k, v) in input_map.into_iter() {
+        // TODO: A more efficient way to do this?
+        let pairs: Vec<_> = input_map.into_iter().collect();
+        let mut map = serializer.serialize_map(Some(pairs.len()))?;
+        for (k, v) in pairs.into_iter() {
             let string_k = base64::encode_config(k.as_ref(), URL_SAFE_NO_PAD);
             map.serialize_entry(&string_k, &v)?;
         }
@@ -190,9 +191,10 @@ pub mod ser_map_str_any {
         V: Serialize,
         M: IntoIterator<Item = (K, V)>,
     {
-        let opt_length = None;
-        let mut map = serializer.serialize_map(opt_length)?;
-        for (k, v) in input_map.into_iter() {
+        // TODO: A more efficient way to do this?
+        let pairs: Vec<_> = input_map.into_iter().collect();
+        let mut map = serializer.serialize_map(Some(pairs.len()))?;
+        for (k, v) in pairs.into_iter() {
             map.serialize_entry(&k.to_string(), &v)?;
         }
         map.end()
@@ -260,9 +262,10 @@ pub mod ser_map_str_str {
         V: Serialize + ToString,
         M: IntoIterator<Item = (K, V)>,
     {
-        let opt_length = None;
-        let mut map = serializer.serialize_map(opt_length)?;
-        for (k, v) in input_map.into_iter() {
+        // TODO: A more efficient way to do this?
+        let pairs: Vec<_> = input_map.into_iter().collect();
+        let mut map = serializer.serialize_map(Some(pairs.len()))?;
+        for (k, v) in pairs.into_iter() {
             map.serialize_entry(&k.to_string(), &v.to_string())?;
         }
         map.end()
