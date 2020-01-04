@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -59,4 +59,13 @@ struct MySerStringStruct {
 struct MySerB64Struct {
     #[serde(with = "ser_b64")]
     my_array: [u8; 32],
+}
+
+#[allow(unused)]
+#[derive(Serialize, Deserialize)]
+struct MySeqStrStruct {
+    #[serde(with = "ser_seq_str")]
+    my_vec: Vec<String>,
+    #[serde(with = "ser_seq_str")]
+    my_hash_set: HashSet<String>,
 }
