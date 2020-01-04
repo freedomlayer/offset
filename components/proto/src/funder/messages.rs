@@ -22,7 +22,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
-use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
+use common::ser_utils::{ser_b64, ser_seq_str, ser_string, ser_vec_b64};
 
 use crate::wrapper::Wrapper;
 
@@ -180,7 +180,7 @@ pub enum OptLocalRelays<B = NetAddress> {
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum OptActiveCurrencies {
     Empty,
-    // TODO: Possibly add SerVecString?
+    #[serde(with = "ser_seq_str")]
     Currencies(Vec<Currency>),
 }
 
