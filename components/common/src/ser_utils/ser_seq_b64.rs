@@ -25,7 +25,10 @@ pub fn deserialize<'de, T, V, D>(deserializer: D) -> Result<V, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
-    V: Default + Extend<T>,
+    // The `IntoIterator<Item=T>` bound is a hack for solving ambiguity.
+    // See:
+    // https://users.rust-lang.org/t/serde-type-annotations-needed-cannot-resolve-serde-deserialize/36482?u=realcr
+    V: Default + Extend<T> + IntoIterator<Item = T>,
 {
     struct SeqVisitor<T, V> {
         item: PhantomData<T>,
@@ -52,6 +55,7 @@ where
                 let item_vec: Vec<u8> = base64::decode_config(&str_item, URL_SAFE_NO_PAD)
                     .map_err(|err| Error::custom(err.to_string()))?;
                 let item = T::try_from(&item_vec).map_err(|_| Error::custom("Length mismatch"))?;
+                // Extend::<T>::extend(&mut res_vec, Some(item));
                 res_vec.extend(Some(item));
             }
             Ok(res_vec)

@@ -3,14 +3,12 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-/*
 #[allow(unused)]
 #[derive(Deserialize)]
 struct MySeqStruct {
     #[serde(with = "ser_seq_b64")]
     my_vec: Vec<[u8; 16]>,
 }
-*/
 
 #[allow(unused)]
 #[derive(Deserialize)]
