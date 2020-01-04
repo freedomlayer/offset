@@ -22,3 +22,7 @@ fn qc_ser_de_funder_state_json() {
         .max_tests(10)
         .quickcheck(ser_de as fn(FunderState<NetAddress>) -> bool);
 }
+
+// TODO: Add serialization tests for proto::file
+// Possibly create a macro to do all the boilerplate for quickcheck tests.
+// use proto::file::*;
