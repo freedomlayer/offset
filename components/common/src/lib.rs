@@ -12,7 +12,6 @@
 extern crate log;
 
 #[cfg(test)]
-#[macro_use]
 extern crate serde;
 
 pub mod int_convert;
