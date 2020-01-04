@@ -486,7 +486,6 @@ mod tests {
     #[allow(unused)]
     #[derive(Serialize, Deserialize)]
     struct MyOptionB64Struct {
-        // #[serde(serialize_with = "ser_vec_b64::serialize")]
         #[serde(with = "ser_option_b64")]
         my_opt: Option<[u8; 16]>,
     }
