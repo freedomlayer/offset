@@ -408,7 +408,7 @@ pub mod ser_option_b64 {
 
 // ============================================================================
 
-pub mod ser_vec_b64 {
+pub mod ser_seq_b64 {
     use super::*;
 
     pub fn serialize<T, V, S>(input_vec: V, serializer: S) -> Result<S::Ok, S::Error>
@@ -474,31 +474,55 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_ser_vec_b64() {
-        /*
-        #[allow(unused)]
-        #[derive(Deserialize)]
-        struct MyVecStruct {
-            // #[serde(serialize_with = "ser_vec_b64::serialize")]
-            #[serde(deserialize_with = "ser_vec_b64::deserialize")]
-            my_vec: Vec<[u8; 16]>,
-        }
-        */
+    /*
+    #[allow(unused)]
+    #[derive(Deserialize)]
+    struct MyVecStruct {
+        #[serde(with = "ser_seq_b64")]
+        my_vec: Vec<[u8; 16]>,
+    }
+    */
 
-        #[allow(unused)]
-        #[derive(Serialize, Deserialize)]
-        struct MyOptStruct {
-            // #[serde(serialize_with = "ser_vec_b64::serialize")]
-            #[serde(with = "ser_option_b64")]
-            my_opt: Option<[u8; 16]>,
-        }
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MyOptionB64Struct {
+        // #[serde(serialize_with = "ser_vec_b64::serialize")]
+        #[serde(with = "ser_option_b64")]
+        my_opt: Option<[u8; 16]>,
+    }
 
-        #[allow(unused)]
-        #[derive(Serialize, Deserialize)]
-        struct MyMapStruct {
-            #[serde(with = "ser_map_b64_any")]
-            my_map: HashMap<[u8; 32], String>,
-        }
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MyMapB64AnyStruct {
+        #[serde(with = "ser_map_b64_any")]
+        my_map: HashMap<[u8; 32], String>,
+    }
+
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MyMapStrAnyStruct {
+        #[serde(with = "ser_map_str_any")]
+        my_map: HashMap<String, u64>,
+    }
+
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MyMapStrStrStruct {
+        #[serde(with = "ser_map_str_any")]
+        my_map: HashMap<String, String>,
+    }
+
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MySerStringStruct {
+        #[serde(with = "ser_string")]
+        my_string: String,
+    }
+
+    #[allow(unused)]
+    #[derive(Serialize, Deserialize)]
+    struct MySerB64Struct {
+        #[serde(with = "ser_b64")]
+        my_array: [u8; 32],
     }
 }
