@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::hash::Hash;
@@ -254,36 +253,41 @@ pub mod ser_map_str_any {
 pub mod ser_map_str_str {
     use super::*;
 
-    pub fn serialize<S, K, V>(input_map: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, K, V, M>(input_map: M, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         K: Serialize + ToString + Eq + Hash,
         V: Serialize + ToString,
+        M: IntoIterator<Item = (K, V)>,
     {
-        let mut map = serializer.serialize_map(Some(input_map.len()))?;
-        for (k, v) in input_map {
+        let opt_length = None;
+        let mut map = serializer.serialize_map(opt_length)?;
+        for (k, v) in input_map.into_iter() {
             map.serialize_entry(&k.to_string(), &v.to_string())?;
         }
         map.end()
     }
 
-    pub fn deserialize<'de, K, V, D>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
+    pub fn deserialize<'de, K, V, M, D>(deserializer: D) -> Result<M, D::Error>
     where
         D: Deserializer<'de>,
         K: Deserialize<'de> + FromStr + Eq + Hash,
         V: Deserialize<'de> + FromStr,
+        M: Default + Extend<(K, V)>,
     {
-        struct MapVisitor<K, V> {
+        struct MapVisitor<K, V, M> {
             key: PhantomData<K>,
             value: PhantomData<V>,
+            map: PhantomData<M>,
         }
 
-        impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
+        impl<'de, K, V, M> Visitor<'de> for MapVisitor<K, V, M>
         where
             K: Deserialize<'de> + FromStr + Eq + Hash,
             V: Deserialize<'de> + FromStr,
+            M: Default + Extend<(K, V)>,
         {
-            type Value = HashMap<K, V>;
+            type Value = M;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("A map")
@@ -293,7 +297,8 @@ pub mod ser_map_str_str {
             where
                 A: MapAccess<'de>,
             {
-                let mut res_map = HashMap::new();
+                let mut res_map = M::default();
+
                 while let Some((k_string, v_string)) = map.next_entry::<String, String>()? {
                     let k = k_string
                         .parse()
@@ -303,7 +308,7 @@ pub mod ser_map_str_str {
                         .parse()
                         .map_err(|_| Error::custom("Parse failed"))?;
 
-                    res_map.insert(k, v);
+                    res_map.extend(Some((k, v)));
                 }
                 Ok(res_map)
             }
@@ -312,6 +317,7 @@ pub mod ser_map_str_str {
         let visitor = MapVisitor {
             key: PhantomData,
             value: PhantomData,
+            map: PhantomData,
         };
         deserializer.deserialize_map(visitor)
     }
@@ -405,31 +411,35 @@ pub mod ser_option_b64 {
 pub mod ser_vec_b64 {
     use super::*;
 
-    pub fn serialize<T, S>(input_vec: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<T, V, S>(input_vec: V, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         T: Serialize + AsRef<[u8]>,
+        V: IntoIterator<Item = T>,
     {
         let items_iter = input_vec
-            .iter()
+            .into_iter()
             .map(|item| base64::encode_config(item.as_ref(), URL_SAFE_NO_PAD));
         serializer.collect_seq(items_iter)
     }
 
-    pub fn deserialize<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
+    pub fn deserialize<'de, T, V, D>(deserializer: D) -> Result<V, D::Error>
     where
         D: Deserializer<'de>,
         T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
+        V: Default + Extend<T>,
     {
-        struct SeqVisitor<T> {
+        struct SeqVisitor<T, V> {
             item: PhantomData<T>,
+            seq: PhantomData<V>,
         }
 
-        impl<'de, T> Visitor<'de> for SeqVisitor<T>
+        impl<'de, T, V> Visitor<'de> for SeqVisitor<T, V>
         where
             T: Deserialize<'de> + for<'t> TryFrom<&'t [u8]>,
+            V: Default + Extend<T>,
         {
-            type Value = Vec<T>;
+            type Value = V;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("A vector")
@@ -439,19 +449,56 @@ pub mod ser_vec_b64 {
             where
                 A: SeqAccess<'de>,
             {
-                let mut res_vec = Vec::new();
+                let mut res_vec: V = V::default();
                 while let Some(str_item) = seq.next_element::<String>()? {
                     let item_vec = base64::decode_config(&str_item, URL_SAFE_NO_PAD)
                         .map_err(|err| Error::custom(err.to_string()))?;
                     let item =
                         T::try_from(&item_vec).map_err(|_| Error::custom("Length mismatch"))?;
-                    res_vec.push(item);
+                    res_vec.extend(Some(item));
                 }
                 Ok(res_vec)
             }
         }
 
-        let visitor = SeqVisitor { item: PhantomData };
+        let visitor = SeqVisitor {
+            item: PhantomData,
+            seq: PhantomData,
+        };
         deserializer.deserialize_seq(visitor)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_ser_vec_b64() {
+        /*
+        #[allow(unused)]
+        #[derive(Deserialize)]
+        struct MyVecStruct {
+            // #[serde(serialize_with = "ser_vec_b64::serialize")]
+            #[serde(deserialize_with = "ser_vec_b64::deserialize")]
+            my_vec: Vec<[u8; 16]>,
+        }
+        */
+
+        #[allow(unused)]
+        #[derive(Serialize, Deserialize)]
+        struct MyOptStruct {
+            // #[serde(serialize_with = "ser_vec_b64::serialize")]
+            #[serde(with = "ser_option_b64")]
+            my_opt: Option<[u8; 16]>,
+        }
+
+        #[allow(unused)]
+        #[derive(Serialize, Deserialize)]
+        struct MyMapStruct {
+            #[serde(with = "ser_map_b64_any")]
+            my_map: HashMap<[u8; 32], String>,
+        }
     }
 }
