@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn qc_small() {
+    fn qc_mc_info_json() {
         fn ser_de(msg: McInfo) -> bool {
             let ser_str = serde_json::to_string(&msg).unwrap();
             let msg2: McInfo = serde_json::from_str(&ser_str).unwrap();
