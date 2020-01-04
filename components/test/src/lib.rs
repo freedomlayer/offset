@@ -20,10 +20,14 @@ extern crate common;
 #[cfg(test)]
 extern crate quickcheck;
 
+// #[cfg(test)]
+// #[macro_use(quickcheck)]
+// extern crate quickcheck_macros;
+
 /*
 #[cfg(test)]
-#[macro_use(quickcheck)]
-extern crate quickcheck_macros;
+#[macro_use]
+extern crate quickcheck_derive;
 */
 
 #[allow(unused)]
