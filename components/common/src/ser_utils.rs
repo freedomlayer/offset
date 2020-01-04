@@ -113,37 +113,42 @@ pub mod ser_string {
 pub mod ser_map_b64_any {
     use super::*;
 
-    pub fn serialize<S, K, V>(input_map: &HashMap<K, V>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, K, V, M>(input_map: M, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         K: Serialize + AsRef<[u8]> + Eq + Hash,
         V: Serialize,
+        M: IntoIterator<Item = (K, V)>,
     {
-        let mut map = serializer.serialize_map(Some(input_map.len()))?;
-        for (k, v) in input_map {
+        let opt_length = None;
+        let mut map = serializer.serialize_map(opt_length)?;
+        for (k, v) in input_map.into_iter() {
             let string_k = base64::encode_config(k.as_ref(), URL_SAFE_NO_PAD);
-            map.serialize_entry(&string_k, v)?;
+            map.serialize_entry(&string_k, &v)?;
         }
         map.end()
     }
 
-    pub fn deserialize<'de, D, K, V>(deserializer: D) -> Result<HashMap<K, V>, D::Error>
+    pub fn deserialize<'de, D, K, V, M>(deserializer: D) -> Result<M, D::Error>
     where
         D: Deserializer<'de>,
         K: Deserialize<'de> + for<'t> TryFrom<&'t [u8]> + Eq + Hash,
         V: Deserialize<'de>,
+        M: Default + Extend<(K, V)>,
     {
-        struct MapVisitor<K, V> {
+        struct MapVisitor<K, V, M> {
             key: PhantomData<K>,
             value: PhantomData<V>,
+            map: PhantomData<M>,
         }
 
-        impl<'de, K, V> Visitor<'de> for MapVisitor<K, V>
+        impl<'de, K, V, M> Visitor<'de> for MapVisitor<K, V, M>
         where
             K: Deserialize<'de> + for<'t> TryFrom<&'t [u8]> + Eq + Hash,
             V: Deserialize<'de>,
+            M: Default + Extend<(K, V)>,
         {
-            type Value = HashMap<K, V>;
+            type Value = M;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("A map")
@@ -153,13 +158,13 @@ pub mod ser_map_b64_any {
             where
                 A: MapAccess<'de>,
             {
-                let mut res_map = HashMap::new();
+                let mut res_map = M::default();
                 while let Some((k_string, v)) = map.next_entry::<String, V>()? {
                     let vec = base64::decode_config(&k_string, URL_SAFE_NO_PAD)
                         .map_err(|err| Error::custom(err.to_string()))?;
                     let k = K::try_from(&vec).map_err(|_| Error::custom("Length mismatch"))?;
 
-                    res_map.insert(k, v);
+                    res_map.extend(Some((k, v)));
                 }
                 Ok(res_map)
             }
@@ -168,6 +173,7 @@ pub mod ser_map_b64_any {
         let visitor = MapVisitor {
             key: PhantomData,
             value: PhantomData,
+            map: PhantomData,
         };
         deserializer.deserialize_map(visitor)
     }
