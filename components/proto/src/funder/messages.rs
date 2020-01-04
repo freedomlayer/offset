@@ -95,7 +95,7 @@ pub struct RequestSendFundsOp {
 
 #[capnp_conv(crate::funder_capnp::response_send_funds_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct ResponseSendFundsOp<S = Signature> {
+pub struct ResponseSendFundsOp {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
@@ -103,14 +103,8 @@ pub struct ResponseSendFundsOp<S = Signature> {
     pub is_complete: bool,
     #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
-    /*
-    // TODO:
-    #[serde(
-        with = "ser_b64",
-        bound = "S: AsRef<[u8]> + for<'a> TryFrom<&'a [u8]>"
-    )]
-    */
-    pub signature: S,
+    #[serde(with = "ser_b64")]
+    pub signature: Signature,
 }
 
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
