@@ -51,13 +51,10 @@ impl McBalance {
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
-    // TODO: Missing serialization helper here:
     /// Pending transactions that were opened locally and not yet completed
-    // TODO: Fix this when we go back to using ImHashMap, and not HashMap.
     #[serde(with = "ser_map_b64_any")]
     pub local: ImHashMap<Uid, PendingTransaction>,
     /// Pending transactions that were opened remotely and not yet completed
-    // TODO: Fix this when we go back to using ImHashMap, and not HashMap.
     #[serde(with = "ser_map_b64_any")]
     pub remote: ImHashMap<Uid, PendingTransaction>,
 }
