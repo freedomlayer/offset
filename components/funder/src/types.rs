@@ -1,10 +1,12 @@
 use signature::canonical::CanonicalSerialize;
 
+use common::ser_utils::ser_b64;
+
 use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, CollectSendFundsOp, Currency, CurrencyOperations,
+    CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations,
     FriendMessage, FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
     RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedResponseSendFundsOp, UnsignedMoveToken,
 };
@@ -87,6 +89,7 @@ pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> Pe
     }
 }
 
+/*
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum UnsignedFriendTcOp {
     EnableRequests,
@@ -98,13 +101,17 @@ pub enum UnsignedFriendTcOp {
     CancelSendFunds(CancelSendFundsOp),
     CollectSendFunds(CollectSendFundsOp),
 }
+*/
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
+    #[serde(with = "ser_b64")]
     pub prefix_hash: HashResult,
     pub token_info: TokenInfo,
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
+    #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
 
