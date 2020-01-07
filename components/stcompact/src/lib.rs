@@ -23,7 +23,7 @@ extern crate quickcheck_macros;
 #[macro_use]
 extern crate quickcheck_derive;
 
-mod compact_node;
+pub mod compact_node;
 
 mod gen;
 mod messages;
@@ -32,3 +32,6 @@ mod store;
 
 mod serialize;
 pub mod stcompactlib;
+
+// TODO: Possibly remove later?
+pub use gen::GenCryptoRandom;

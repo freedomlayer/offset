@@ -57,7 +57,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
     // Create 6 nodes with apps:
     for i in 0..6 {
-        sim_db.init_db(i);
+        sim_db.init_node_db(i).unwrap();
 
         let mut trusted_apps = HashMap::new();
         trusted_apps.insert(

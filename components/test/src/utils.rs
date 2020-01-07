@@ -13,7 +13,7 @@ use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::{BoxFuture, BoxStream};
+use common::conn::{BoxFuture, BoxStream, ConnPair};
 use common::select_streams::select_streams;
 
 use proto::crypto::{PrivateKey, PublicKey};
@@ -38,6 +38,10 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use bin::stindex::net_index_server;
 use bin::stnode::{net_node, TrustedApps};
 use bin::strelay::net_relay_server;
+
+use stcompact::compact_node::{compact_node, CompactState, ConnPairCompact};
+use stcompact::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use stcompact::GenCryptoRandom;
 
 use timer::TimerClient;
 
@@ -165,29 +169,56 @@ pub struct SimDb {
     temp_dir_path: PathBuf,
 }
 
+#[derive(Debug)]
+pub struct SimDbError;
+
 impl SimDb {
     pub fn new(temp_dir_path: PathBuf) -> Self {
         SimDb { temp_dir_path }
     }
 
     /// Create an empty node database
-    pub fn init_db(&self, index: u8) -> FileDb<NodeState<NetAddress>> {
+    pub fn init_node_db(&self, index: u8) -> Result<FileDb<NodeState<NetAddress>>, SimDbError> {
         let identity = get_node_identity(index);
         let local_public_key = identity.get_public_key();
 
         // Create a new database file:
-        let db_path_buf = self.temp_dir_path.join(format!("db_{}", index));
+        let db_path_buf = self.temp_dir_path
+            .join(format!("node_db_{}", index));
         let initial_state = NodeState::<NetAddress>::new(local_public_key);
-        FileDb::create(db_path_buf, initial_state).unwrap()
+        FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
     }
 
     /// Load a database. The database should already exist,
     /// otherwise a panic happens.
-    pub fn load_db(&self, index: u8) -> FileDb<NodeState<NetAddress>> {
-        let db_path_buf = self.temp_dir_path.join(format!("db_{}", index));
+    pub fn load_node_db(&self, index: u8) -> Result<FileDb<NodeState<NetAddress>>, SimDbError> {
+        let db_path_buf = self.temp_dir_path
+            .join(format!("node_db_{}", index));
 
         // Load database from file:
-        FileDb::<NodeState<NetAddress>>::load(db_path_buf).unwrap()
+        FileDb::<NodeState<NetAddress>>::load(db_path_buf).map_err(|_| SimDbError)
+    }
+
+    /// Create an empty compact database
+    pub fn init_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
+        let identity = get_node_identity(index);
+        let local_public_key = identity.get_public_key();
+
+        // Create a new database file:
+        let db_path_buf = self.temp_dir_path
+            .join(format!("compact_db_{}", index));
+        let initial_state = CompactState::new();
+        FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
+    }
+
+    /// Load a database. The database should already exist,
+    /// otherwise a panic happens.
+    pub fn load_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
+        let db_path_buf = self.temp_dir_path
+            .join(format!("compact_db_{}", index));
+
+        // Load database from file:
+        FileDb::<CompactState>::load(db_path_buf).map_err(|_| SimDbError)
     }
 }
 
@@ -239,7 +270,7 @@ pub fn relay_public_key(index: u8) -> PublicKey {
 }
 
 pub async fn create_app<S>(
-    index: u8,
+    app_index: u8,
     sim_network_client: SimNetworkClient,
     timer_client: TimerClient,
     node_index: u8,
@@ -248,12 +279,12 @@ pub async fn create_app<S>(
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
-    let identity = get_app_identity(index);
+    let identity = get_app_identity(app_index);
     let app_identity_client = create_identity_client(identity, spawner.clone());
 
     let node_public_key = get_node_identity(node_index).get_public_key();
 
-    let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
+    let rng = DummyRandom::new(&[0xff, 0x13, 0x36, app_index]);
     let secure_connector = create_secure_connector(
         sim_network_client,
         timer_client,
@@ -270,6 +301,53 @@ where
     )
     .await
     .ok()
+}
+
+pub async fn create_compact_node<S>(
+    app_index: u8,
+    sim_db: SimDb,
+    sim_network_client: SimNetworkClient,
+    timer_client: TimerClient,
+    node_index: u8,
+    spawner: S,
+) -> Option<ConnPair<UserToCompactAck, CompactToUserAck> >
+where
+    S: Spawn + Clone + Sync + Send + 'static,
+{
+    let app_conn_tuple = create_app(
+        app_index, sim_network_client, timer_client, node_index, spawner.clone())
+        .await?;
+
+    let compact_db = sim_db.load_compact_db(app_index).unwrap_or(sim_db.init_compact_db(app_index).unwrap());
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(compact_db, incoming_db_requests, spawner.clone())
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+
+    spawner.spawn(loop_fut).unwrap();
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
+
+    let (user_sender, compact_receiver) = mpsc::channel(1);
+    let (compact_sender, user_receiver) = mpsc::channel(1);
+
+    let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+
+    let compact_gen = GenCryptoRandom(DummyRandom::new(&[0xff, 0x13, 0x3a, app_index]));
+    let compact_fut = compact_node(
+        app_conn_tuple,
+        conn_pair_compact,
+        CompactState::new(),
+        database_client,
+        compact_gen,
+    );
+    spawner.spawn(compact_fut.map(|e| error!("compact_node() error: {:?}", e))).unwrap();
+    Some(ConnPair::from_raw(user_sender, user_receiver))
 }
 
 #[derive(Debug, Clone)]
@@ -314,7 +392,7 @@ where
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
 
-    let atomic_db = sim_db.load_db(index);
+    let atomic_db = sim_db.load_node_db(index).unwrap();
 
     // Get initial node_state:
     let node_state = atomic_db.get_state().clone();

@@ -76,7 +76,7 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     let sim_net_client = create_sim_network(&mut test_executor);
 
     // Create initial database for node 0:
-    sim_db.init_db(0);
+    sim_db.init_node_db(0).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(
@@ -110,7 +110,7 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Create initial database for node 1:
-    sim_db.init_db(1);
+    sim_db.init_node_db(1).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(

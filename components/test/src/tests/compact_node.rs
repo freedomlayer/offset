@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
+use futures::{SinkExt, StreamExt};
 
 use tempfile::tempdir;
 
@@ -11,16 +12,22 @@ use proto::app_server::messages::AppPermissions;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
 
+use crypto::test_utils::DummyRandom;
+
 use timer::create_timer_incoming;
 
 use app::conn::{self, ConnPairApp, RequestResult};
+use app::gen::gen_uid;
+
+use stcompact::compact_node::compact_node;
+use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact};
 
 use crate::app_wrapper::{
     ack_close_payment, create_transaction, request_close_payment, request_routes, send_request,
 };
 use crate::sim_network::create_sim_network;
 use crate::utils::{
-    advance_time, create_app, create_index_server, create_node, create_relay,
+    advance_time, create_compact_node, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address,
     report_service, SimDb,
 };
@@ -138,7 +145,7 @@ async fn make_test_payment(
     payment_status
 }
 
-async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
+async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
     let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
     let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
@@ -182,26 +189,14 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    // Connection attempt to the wrong node should fail:
-    let opt_wrong_app = create_app(
+    let mut compact_node0 = create_compact_node(
         0,
-        sim_net_client.clone(),
-        timer_client.clone(),
-        1,
-        test_executor.clone(),
-    )
-    .await;
-    assert!(opt_wrong_app.is_none());
-
-    let app0 = create_app(
-        0,
+        sim_db.clone(),
         sim_net_client.clone(),
         timer_client.clone(),
         0,
         test_executor.clone(),
-    )
-    .await
-    .unwrap();
+    ).await.unwrap();
 
     // Create initial database for node 1:
     sim_db.init_node_db(1).unwrap();
@@ -227,15 +222,14 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let app1 = create_app(
+    let compact_node1 = create_compact_node(
         1,
+        sim_db.clone(),
         sim_net_client.clone(),
         timer_client.clone(),
         1,
         test_executor.clone(),
-    )
-    .await
-    .unwrap();
+    ).await.unwrap();
 
     // Create relays:
     create_relay(
@@ -285,17 +279,30 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     )
     .await;
 
-    let (_permissions0, node_report0, conn_pair0) = app0;
-    let (_permissions1, node_report1, conn_pair1) = app1;
+    let user_request_id = gen_uid();
+    let inner = UserToCompact::RemoveRelay(PublicKey::from(&[0xaa; PublicKey::len()]));
+    let user_to_compact_ack = UserToCompactAck {
+        user_request_id: user_request_id.clone(),
+        inner,
+    };
+    compact_node0
+        .sender
+        .send(user_to_compact_ack)
+        .await
+        .unwrap();
 
-    let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut report_client0) = report_service(node_report0, receiver0, &test_executor);
-    let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
+    // Wait until we get an ack for our request:
+    while let Some(compact_to_user_ack) = compact_node0.receiver.next().await {
+        if let CompactToUserAck::Ack(request_id) = compact_to_user_ack {
+            if request_id == user_request_id {
+                break;
+            }
+        }
+    }
 
-    let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut report_client1) = report_service(node_report1, receiver1, &test_executor);
-    let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
+    todo!();
 
+    /*
     // Configure relays:
     send_request(
         &mut conn_pair0,
@@ -605,11 +612,12 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         }
         _ => unreachable!(),
     }
+    */
 }
 
 #[test]
-fn test_two_nodes_payment() {
+fn test_compact_node_two_nodes_payment() {
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_two_nodes_payment(test_executor.clone()));
+    let res = test_executor.run(task_compact_two_nodes_payment(test_executor.clone()));
     assert!(res.is_output());
 }

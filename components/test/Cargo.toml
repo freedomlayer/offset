@@ -20,6 +20,7 @@ node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 bin = { path = "../bin", version = "0.1.0" , package = "offst-bin" }
 stctrl = { path = "../stctrl", version = "0.1.0" , package = "offst-stctrl" }
+stcompact = { path = "../stcompact", version = "0.1.0" , package = "offst-stcompact" }
 app = { path = "../app", version = "0.1.0" , package = "offst-app" }
 app_client = { path = "../app_client", version = "0.1.0" , package = "offst-app-client" }
 connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
