@@ -22,7 +22,9 @@ use app::gen::gen_uid;
 
 use stcompact::compact_node::compact_node;
 use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport,
-                                        SetFriendCurrencyRate, OpenFriendCurrency};
+                                        SetFriendCurrencyRate, OpenFriendCurrency, SetFriendCurrencyMaxDebt, 
+                                        AddInvoice, InitPayment, PaymentFeesResponse, ConfirmPaymentFees, CompactToUser, 
+                                        ResponseCommitInvoice};
 
 use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -36,12 +38,12 @@ use crate::compact_report_service::compact_report_service;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
-/*
+#[allow(unused)]
 /// Perform a basic payment between a buyer and a seller.
 /// Node0 sends credits to Node1
 async fn make_test_payment(
-    mut conn_pair0: &mut ConnPairApp,
-    mut conn_pair1: &mut ConnPairApp,
+    mut conn_pair0: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
+    mut conn_pair1: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
     buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
@@ -54,58 +56,100 @@ async fn make_test_payment(
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
 
+    // Node1: Add invoice:
+    let add_invoice = AddInvoice {
+        invoice_id: invoice_id.clone(),
+        currency: currency.clone(),
+        total_dest_payment,
+        description: "Example payment".to_owned(),
+    };
     send_request(
         &mut conn_pair1,
-        conn::seller::add_invoice(invoice_id.clone(), currency.clone(), total_dest_payment),
+        UserToCompact::AddInvoice(add_invoice)
     )
     .await
     .unwrap();
 
-    // Node0: Request routes:
-    let mut routes = request_routes(
-        conn_pair0,
-        currency.clone(),
-        total_dest_payment.checked_add(fees).unwrap(),
-        buyer_public_key.clone(),
-        seller_public_key.clone(),
-        None,
-    )
-    .await
-    .unwrap();
-
-    let multi_route = routes.pop().unwrap();
-    let route = multi_route.routes[0].clone();
-
-    // Node0: Open a payment to pay the invoice issued by Node1:
-    send_request(
+    // Node0: Init payment
+    let init_payment = InitPayment {
+        payment_id: payment_id.clone(),
+        invoice_id: invoice_id.clone(),
+        currency: currency.clone(),
+        dest_public_key: seller_public_key.clone(),
+        dest_payment: total_dest_payment,
+        description: "Example payment".to_owned(),
+    };
+    let mut routes = send_request(
         &mut conn_pair0,
-        conn::buyer::create_payment(
-            payment_id.clone(),
-            invoice_id.clone(),
-            currency.clone(),
-            total_dest_payment,
-            seller_public_key.clone(),
-        ),
+        UserToCompact::InitPayment(init_payment)
     )
     .await
     .unwrap();
 
-    // Node0: Create one transaction for the given route:
-    let request_result = create_transaction(
-        conn_pair0,
-        payment_id.clone(),
-        request_id.clone(),
-        route.route.clone(),
-        total_dest_payment,
-        fees,
+    // Node0: Wait for payment fees:
+    let (fees, confirm_id) = loop {
+        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
+        let payment_fees = if let CompactToUserAck::CompactToUser(CompactToUser::PaymentFees(payment_fees)) = compact_to_user_ack {
+            payment_fees
+        } else {
+            continue;
+        };
+        assert_eq!(payment_fees.payment_id, payment_id);
+        let (fees, confirm_id): (u128, Uid) = match payment_fees.response {
+            PaymentFeesResponse::Fees(fees, confirm_id) => break (fees, confirm_id),
+            _ => unreachable!(),
+        };
+    };
+
+    // Node0: Confirm payment fees:
+    let confirm_payment_fees = ConfirmPaymentFees {
+        payment_id: payment_id.clone(),
+        confirm_id,
+    };
+    let mut routes = send_request(
+        &mut conn_pair0,
+        UserToCompact::ConfirmPaymentFees(confirm_payment_fees)
     )
     .await
     .unwrap();
 
-    let commit = if let RequestResult::Complete(commit) = request_result {
-        commit
-    } else {
-        unreachable!();
+    // Node0: Wait for commit to be created:
+    let commit = loop {
+        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
+        let payment_commit = if let CompactToUserAck::CompactToUser(CompactToUser::PaymentCommit(payment_commit)) = compact_to_user_ack {
+            payment_commit
+        } else {
+            continue;
+        };
+        assert_eq!(payment_commit.payment_id, payment_id);
+        break payment_commit.commit
+    };
+
+    // ... Node0 now passes the commit to Node1 out of band ...
+    
+    // Node1: Apply the commit:
+    send_request(
+        &mut conn_pair1,
+        UserToCompact::RequestCommitInvoice(commit)
+    )
+    .await
+    .unwrap();
+
+    todo!();
+
+    /*
+
+    // Node1: Wait for response commit:
+    let commit = loop {
+        let compact_to_user_ack = conn_pair1.receiver.next().await.unwrap();
+        let response_commit_invoice = if let CompactToUserAck::CompactToUser(CompactToUser::ResponseCommitInvoice(response_commit_invoice)) = compact_to_user_ack {
+            response_commit_invoice
+        } else {
+            continue;
+        };
+        assert_eq!(
+        assert_eq!(payment_commit.payment_id, payment_id);
+        break payment_commit.commit
     };
 
     // Node1: Apply the Commit
@@ -146,8 +190,8 @@ async fn make_test_payment(
     }
 
     payment_status
+    */
 }
-*/
 
 async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -444,26 +488,36 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     }
 
     // Wait some time, to let the index servers exchange information:
-    advance_time(20, &mut tick_sender, &test_executor).await;
+    advance_time(10, &mut tick_sender, &test_executor).await;
 
-    /*
-
-    // Node1 allows node0 to have maximum debt of 10
+    // Node1 allows node0 to have maximum debt of currency1=10
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
+        friend_public_key: node_public_key(0),
+        currency: currency1.clone(),
+        remote_max_debt: 10,
+    };
     send_request(
-        &mut conn_pair1,
-        conn::config::set_friend_currency_max_debt(node_public_key(0), currency1.clone(), 10),
-    )
+        &mut compact_node1, 
+        UserToCompact::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt))
     .await
     .unwrap();
+
+    // Node1 allows node0 to have maximum debt of currency2=15
+    let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
+        friend_public_key: node_public_key(0),
+        currency: currency2.clone(),
+        remote_max_debt: 15,
+    };
     send_request(
-        &mut conn_pair1,
-        conn::config::set_friend_currency_max_debt(node_public_key(0), currency2.clone(), 15),
-    )
+        &mut compact_node1, 
+        UserToCompact::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt))
     .await
     .unwrap();
 
     // Wait until the max debt was set:
-    advance_time(40, &mut tick_sender, &test_executor).await;
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    /*
 
     // Send 10 currency1 credits from node0 to node1:
     let payment_status = make_test_payment(
