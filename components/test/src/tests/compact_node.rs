@@ -11,7 +11,7 @@ use common::conn::ConnPair;
 
 use proto::app_server::messages::AppPermissions;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
-use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate};
+use proto::funder::messages::{Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate, Receipt};
 
 use crypto::test_utils::DummyRandom;
 
@@ -24,7 +24,7 @@ use stcompact::compact_node::compact_node;
 use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport,
                                         SetFriendCurrencyRate, OpenFriendCurrency, SetFriendCurrencyMaxDebt, 
                                         AddInvoice, InitPayment, PaymentFeesResponse, ConfirmPaymentFees, CompactToUser, 
-                                        ResponseCommitInvoice};
+                                        ResponseCommitInvoice, CommitInvoiceStatus, PaymentDoneStatus};
 
 use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -51,7 +51,7 @@ async fn make_test_payment(
     fees: u128,
     mut tick_sender: mpsc::Sender<()>,
     test_executor: TestExecutor,
-) -> PaymentStatus {
+) -> Option<Receipt> {
     let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
@@ -135,62 +135,47 @@ async fn make_test_payment(
     .await
     .unwrap();
 
-    todo!();
-
-    /*
-
     // Node1: Wait for response commit:
-    let commit = loop {
+    loop {
         let compact_to_user_ack = conn_pair1.receiver.next().await.unwrap();
         let response_commit_invoice = if let CompactToUserAck::CompactToUser(CompactToUser::ResponseCommitInvoice(response_commit_invoice)) = compact_to_user_ack {
             response_commit_invoice
         } else {
             continue;
         };
-        assert_eq!(
-        assert_eq!(payment_commit.payment_id, payment_id);
-        break payment_commit.commit
+        assert_eq!(response_commit_invoice.invoice_id, invoice_id);
+        assert_eq!(response_commit_invoice.status, CommitInvoiceStatus::Success);
+        break;
     };
-
-    // Node1: Apply the Commit
-    send_request(&mut conn_pair1, conn::seller::commit_invoice(commit))
-        .await
-        .unwrap();
-
-    // Node0: Close payment (No more transactions will be sent through this payment)
-    let _ = request_close_payment(conn_pair0, payment_id.clone())
-        .await
-        .unwrap();
-
-    // Node0 now passes the Commit to Node1 out of band.
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;
 
-    // Node0: Check the payment's result:
-    let payment_status = request_close_payment(conn_pair0, payment_id.clone())
-        .await
-        .unwrap();
+    // Node0: Wait for PaymentDone:
+    let (receipt, _fees, ack_uid) = loop {
+        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
+        let payment_done = if let CompactToUserAck::CompactToUser(CompactToUser::PaymentDone(payment_done)) = compact_to_user_ack {
+            payment_done
+        } else {
+            continue;
+        };
+        assert_eq!(payment_done.payment_id, payment_id);
+        match payment_done.status {
+            PaymentDoneStatus::Success(receipt, fees, ack_uid) => break (receipt, fees, ack_uid),
+            PaymentDoneStatus::Failure(_ack_uid) => unreachable!(),
+        };
+    };
 
-    // Acknowledge the payment closing result if required:
-    match &payment_status {
-        PaymentStatus::Success(PaymentStatusSuccess { receipt, ack_uid }) => {
-            assert_eq!(receipt.total_dest_payment, total_dest_payment);
-            assert_eq!(receipt.invoice_id, invoice_id);
-            ack_close_payment(conn_pair0, payment_id.clone(), ack_uid.clone())
-                .await
-                .unwrap();
-        }
-        PaymentStatus::Canceled(ack_uid) => {
-            ack_close_payment(conn_pair0, payment_id.clone(), ack_uid.clone())
-                .await
-                .unwrap();
-        }
-        _ => unreachable!(),
-    }
 
-    payment_status
-    */
+    // Node0: AckPaymentDone:
+    send_request(
+        &mut conn_pair0,
+        UserToCompact::AckPaymentDone(payment_id, ack_uid)
+    )
+    .await
+    .unwrap();
+
+    Some(receipt)
 }
 
 async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
@@ -517,12 +502,11 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     // Wait until the max debt was set:
     advance_time(10, &mut tick_sender, &test_executor).await;
 
-    /*
 
     // Send 10 currency1 credits from node0 to node1:
-    let payment_status = make_test_payment(
-        &mut conn_pair0,
-        &mut conn_pair1,
+    let opt_receipt = make_test_payment(
+        &mut compact_node0,
+        &mut compact_node1,
         node_public_key(0),
         node_public_key(1),
         currency1.clone(),
@@ -532,6 +516,9 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
         test_executor.clone(),
     )
     .await;
+
+    assert!(opt_receipt.is_some());
+    /*
 
     if let PaymentStatus::Success(_) = payment_status {
     } else {
@@ -648,6 +635,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
 
 #[test]
 fn test_compact_node_two_nodes_payment() {
+    let _ = env_logger::init();
     let test_executor = TestExecutor::new();
     let res = test_executor.run(task_compact_two_nodes_payment(test_executor.clone()));
     assert!(res.is_output());
