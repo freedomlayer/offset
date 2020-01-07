@@ -27,7 +27,7 @@ use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_compact_node, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address,
-    report_service, SimDb,
+    node_report_service, SimDb,
 };
 
 const TIMER_CHANNEL_LEN: usize = 0;

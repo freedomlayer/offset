@@ -23,7 +23,7 @@ use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_app, create_index_server, create_node, create_relay,
     named_index_server_address, named_relay_address, node_public_key, relay_address,
-    report_service, ReportClient, SimDb,
+    node_report_service, NodeReportClient, SimDb,
 };
 
 const TIMER_CHANNEL_LEN: usize = 0;
@@ -32,7 +32,7 @@ struct AppControl {
     #[allow(unused)]
     permissions: AppPermissions,
     conn_pair: ConnPairApp,
-    report_client: ReportClient,
+    report_client: NodeReportClient,
 }
 
 async fn task_nodes_chain(mut test_executor: TestExecutor) {
@@ -93,7 +93,7 @@ async fn task_nodes_chain(mut test_executor: TestExecutor) {
 
         // Create report service (Allowing to query reports):
         let (sender, receiver) = conn_pair.split();
-        let (receiver, report_client) = report_service(node_report, receiver, &test_executor);
+        let (receiver, report_client) = node_report_service(node_report, receiver, &test_executor);
         let conn_pair = ConnPairApp::from_raw(sender, receiver);
 
         let app = AppControl {
