@@ -21,7 +21,8 @@ use app::conn::{self, ConnPairApp, RequestResult};
 use app::gen::gen_uid;
 
 use stcompact::compact_node::compact_node;
-use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport};
+use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport,
+                                        SetFriendCurrencyRate, OpenFriendCurrency};
 
 use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -361,6 +362,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
 
     advance_time(10, &mut tick_sender, &test_executor).await;
 
+    // Wait until both sides see each other as online:
     loop {
         let compact_report0 = compact_report_client0.request_report().await;
         let friend_report = match compact_report0.friends.get(&node_public_key(1)) {
@@ -385,65 +387,66 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
         advance_time(5, &mut tick_sender, &test_executor).await;
     }
 
-    /*
-
-    // Set active currencies for both sides:
+    // Node0: Set active currencies for Node1:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
+        let set_friend_currency_rate = SetFriendCurrencyRate {
+            friend_public_key: node_public_key(1),
+            currency: (*currency).clone(),
+            rate: Rate::new(),
+        };
         send_request(
-            &mut conn_pair0,
-            conn::config::set_friend_currency_rate(
-                node_public_key(1),
-                (*currency).clone(),
-                Rate::new(),
-            ),
-        )
+            &mut compact_node0, 
+            UserToCompact::SetFriendCurrencyRate(set_friend_currency_rate))
         .await
         .unwrap();
     }
+
+    // Node1: Set active currencies for Node0:
     for currency in [&currency1, &currency2].into_iter() {
+        let set_friend_currency_rate = SetFriendCurrencyRate {
+            friend_public_key: node_public_key(0),
+            currency: (*currency).clone(),
+            rate: Rate::new(),
+        };
         send_request(
-            &mut conn_pair1,
-            conn::config::set_friend_currency_rate(
-                node_public_key(0),
-                (*currency).clone(),
-                Rate::new(),
-            ),
-        )
+            &mut compact_node1, 
+            UserToCompact::SetFriendCurrencyRate(set_friend_currency_rate))
         .await
         .unwrap();
     }
 
     // Wait some time, to let the two nodes negotiate currencies:
-    advance_time(40, &mut tick_sender, &test_executor).await;
+    advance_time(10, &mut tick_sender, &test_executor).await;
 
-    send_request(
-        &mut conn_pair0,
-        conn::config::open_friend_currency(node_public_key(1), currency1.clone()),
-    )
-    .await
-    .unwrap();
-    send_request(
-        &mut conn_pair1,
-        conn::config::open_friend_currency(node_public_key(0), currency1.clone()),
-    )
-    .await
-    .unwrap();
 
-    send_request(
-        &mut conn_pair1,
-        conn::config::open_friend_currency(node_public_key(0), currency2.clone()),
-    )
-    .await
-    .unwrap();
-    send_request(
-        &mut conn_pair0,
-        conn::config::open_friend_currency(node_public_key(1), currency2.clone()),
-    )
-    .await
-    .unwrap();
+    for currency in [&currency1, &currency2].into_iter() {
+        // Node0: Open currency
+        let open_friend_currency = OpenFriendCurrency {
+            friend_public_key: node_public_key(1),
+            currency: (*currency).clone(),
+        };
+        send_request(
+            &mut compact_node0, 
+            UserToCompact::OpenFriendCurrency(open_friend_currency))
+        .await
+        .unwrap();
+
+        // Node1: Open currency
+        let open_friend_currency = OpenFriendCurrency {
+            friend_public_key: node_public_key(0),
+            currency: (*currency).clone(),
+        };
+        send_request(
+            &mut compact_node1, 
+            UserToCompact::OpenFriendCurrency(open_friend_currency))
+        .await
+        .unwrap();
+    }
 
     // Wait some time, to let the index servers exchange information:
-    advance_time(40, &mut tick_sender, &test_executor).await;
+    advance_time(20, &mut tick_sender, &test_executor).await;
+
+    /*
 
     // Node1 allows node0 to have maximum debt of 10
     send_request(
