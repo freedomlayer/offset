@@ -30,17 +30,23 @@ extern crate quickcheck;
 extern crate quickcheck_derive;
 */
 
+// TODO: Remove unused here?
 #[allow(unused)]
 #[cfg(test)]
 mod sim_network;
 
+// TODO: Remove unused here?
 #[allow(unused)]
 #[cfg(test)]
 mod utils;
 
+// TODO: Remove unused here?
 #[allow(unused)]
 #[cfg(test)]
 mod app_wrapper;
+
+#[cfg(test)]
+mod compact_node_wrapper;
 
 #[cfg(test)]
 mod tests;

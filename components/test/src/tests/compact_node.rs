@@ -20,11 +20,9 @@ use app::conn::{self, ConnPairApp, RequestResult};
 use app::gen::gen_uid;
 
 use stcompact::compact_node::compact_node;
-use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact};
+use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend};
 
-use crate::app_wrapper::{
-    ack_close_payment, create_transaction, request_close_payment, request_routes, send_request,
-};
+use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_compact_node, create_index_server, create_node, create_relay,
@@ -34,6 +32,7 @@ use crate::utils::{
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
+/*
 /// Perform a basic payment between a buyer and a seller.
 /// Node0 sends credits to Node1
 async fn make_test_payment(
@@ -144,6 +143,7 @@ async fn make_test_payment(
 
     payment_status
 }
+*/
 
 async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -189,7 +189,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let mut compact_node0 = create_compact_node(
+    let (mut compact_node0, mut compact_report0) = create_compact_node(
         0,
         sim_db.clone(),
         sim_net_client.clone(),
@@ -222,7 +222,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let compact_node1 = create_compact_node(
+    let (mut compact_node1, mut compact_report1) = create_compact_node(
         1,
         sim_db.clone(),
         sim_net_client.clone(),
@@ -279,117 +279,84 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     )
     .await;
 
-    let user_request_id = gen_uid();
-    let inner = UserToCompact::RemoveRelay(PublicKey::from(&[0xaa; PublicKey::len()]));
-    let user_to_compact_ack = UserToCompactAck {
-        user_request_id: user_request_id.clone(),
-        inner,
-    };
-    compact_node0
-        .sender
-        .send(user_to_compact_ack)
+    // Configure relays:
+    send_request(
+        &mut compact_node0, 
+        &mut compact_report0, 
+        UserToCompact::AddRelay(named_relay_address(0)))
         .await
         .unwrap();
 
-    // Wait until we get an ack for our request:
-    while let Some(compact_to_user_ack) = compact_node0.receiver.next().await {
-        if let CompactToUserAck::Ack(request_id) = compact_to_user_ack {
-            if request_id == user_request_id {
-                break;
-            }
-        }
-    }
-
-    todo!();
-
-    /*
-    // Configure relays:
     send_request(
-        &mut conn_pair0,
-        conn::config::add_relay(named_relay_address(0)),
-    )
-    .await
-    .unwrap();
-    send_request(
-        &mut conn_pair1,
-        conn::config::add_relay(named_relay_address(1)),
-    )
-    .await
-    .unwrap();
+        &mut compact_node1, 
+        &mut compact_report1, 
+        UserToCompact::AddRelay(named_relay_address(1)))
+        .await
+        .unwrap();
 
     // Configure index servers:
     send_request(
-        &mut conn_pair0,
-        conn::config::add_index_server(named_index_server_address(0)),
-    )
-    .await
-    .unwrap();
+        &mut compact_node0, 
+        &mut compact_report0, 
+        UserToCompact::AddIndexServer(named_index_server_address(0)))
+        .await
+        .unwrap();
+
     send_request(
-        &mut conn_pair1,
-        conn::config::add_index_server(named_index_server_address(1)),
-    )
-    .await
-    .unwrap();
+        &mut compact_node1, 
+        &mut compact_report1, 
+        UserToCompact::AddIndexServer(named_index_server_address(1)))
+        .await
+        .unwrap();
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
 
-    // Node0: Add node1 as a friend:
+    // Node0: Add Node1 as a friend:
+    let add_friend = AddFriend {
+        friend_public_key: node_public_key(1),
+        relays: vec![relay_address(1)],
+        name: "node1".to_owned(),
+    };
     send_request(
-        &mut conn_pair0,
-        conn::config::add_friend(
-            node_public_key(1),
-            vec![relay_address(1)],
-            String::from("node1"),
-        ),
-    )
+        &mut compact_node0, 
+        &mut compact_report0, 
+        UserToCompact::AddFriend(add_friend))
     .await
     .unwrap();
 
-    // Node1: Add node0 as a friend:
+    // Node1: Add Node0 as a friend:
+    let add_friend = AddFriend {
+        friend_public_key: node_public_key(0),
+        relays: vec![relay_address(0)],
+        name: "node0".to_owned(),
+    };
     send_request(
-        &mut conn_pair1,
-        conn::config::add_friend(
-            node_public_key(0),
-            vec![relay_address(0)],
-            String::from("node0"),
-        ),
-    )
+        &mut compact_node1, 
+        &mut compact_report1, 
+        UserToCompact::AddFriend(add_friend))
     .await
     .unwrap();
 
-    // Node0: Enable/Disable/Enable node1:
+    // Node0: Enable node1:
     send_request(
-        &mut conn_pair0,
-        conn::config::enable_friend(node_public_key(1)),
-    )
+        &mut compact_node0, 
+        &mut compact_report0, 
+        UserToCompact::EnableFriend(node_public_key(1)))
     .await
     .unwrap();
-    advance_time(10, &mut tick_sender, &test_executor).await;
-    send_request(
-        &mut conn_pair0,
-        conn::config::disable_friend(node_public_key(1)),
-    )
-    .await
-    .unwrap();
-    advance_time(10, &mut tick_sender, &test_executor).await;
-    send_request(
-        &mut conn_pair0,
-        conn::config::enable_friend(node_public_key(1)),
-    )
-    .await
-    .unwrap();
-    advance_time(10, &mut tick_sender, &test_executor).await;
 
-    // Node1: Enable node0:
+    // Node1: Enable node1:
     send_request(
-        &mut conn_pair1,
-        conn::config::enable_friend(node_public_key(0)),
-    )
+        &mut compact_node1, 
+        &mut compact_report1, 
+        UserToCompact::EnableFriend(node_public_key(0)))
     .await
     .unwrap();
 
     advance_time(40, &mut tick_sender, &test_executor).await;
+    
+    /*
 
     loop {
         let node_report0 = report_client0.request_report().await;

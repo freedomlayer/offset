@@ -39,8 +39,8 @@ use bin::stindex::net_index_server;
 use bin::stnode::{net_node, TrustedApps};
 use bin::strelay::net_relay_server;
 
-use stcompact::compact_node::{compact_node, CompactState, ConnPairCompact};
-use stcompact::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use stcompact::compact_node::{compact_node, CompactState, ConnPairCompact, create_compact_report};
+use stcompact::compact_node::messages::{CompactToUserAck, UserToCompactAck, CompactReport};
 use stcompact::GenCryptoRandom;
 
 use timer::TimerClient;
@@ -310,13 +310,20 @@ pub async fn create_compact_node<S>(
     timer_client: TimerClient,
     node_index: u8,
     spawner: S,
-) -> Option<ConnPair<UserToCompactAck, CompactToUserAck> >
+) -> Option<(ConnPair<UserToCompactAck, CompactToUserAck>, CompactReport)>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
     let app_conn_tuple = create_app(
         app_index, sim_network_client, timer_client, node_index, spawner.clone())
         .await?;
+
+    let compact_state = CompactState::new();
+
+    // Get a copy of `node_report`, and turn it into `compact_report`:
+    let (app_permissions, node_report, conn_pair_app) = app_conn_tuple;
+    let compact_report: CompactReport = create_compact_report(compact_state.clone(), node_report.clone());
+    let app_conn_tuple = (app_permissions, node_report, conn_pair_app);
 
     let compact_db = sim_db.load_compact_db(app_index).unwrap_or(sim_db.init_compact_db(app_index).unwrap());
 
@@ -342,12 +349,12 @@ where
     let compact_fut = compact_node(
         app_conn_tuple,
         conn_pair_compact,
-        CompactState::new(),
+        compact_state,
         database_client,
         compact_gen,
     );
     spawner.spawn(compact_fut.map(|e| error!("compact_node() error: {:?}", e))).unwrap();
-    Some(ConnPair::from_raw(user_sender, user_receiver))
+    Some((ConnPair::from_raw(user_sender, user_receiver), compact_report))
 }
 
 #[derive(Debug, Clone)]
