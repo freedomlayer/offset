@@ -44,20 +44,19 @@ str_convert_funcs!(
 #[derive(Debug, From)]
 pub enum StringSerdeError {
     // IoError(io::Error),
-    TomlDeError(toml::de::Error),
-    TomlSeError(toml::ser::Error),
+    JsonSerdeError(serde_json::Error),
 }
 
 pub fn deserialize_from_string<T>(input: &str) -> Result<T, StringSerdeError>
 where
     T: DeserializeOwned,
 {
-    Ok(toml::from_str(&input)?)
+    Ok(serde_json::from_str(&input)?)
 }
 
 pub fn serialize_to_string<T>(t: &T) -> Result<String, StringSerdeError>
 where
     T: Serialize,
 {
-    Ok(toml::to_string(t)?)
+    Ok(serde_json::to_string_pretty(t)?)
 }
