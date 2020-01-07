@@ -10,14 +10,14 @@ use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TrustedAppFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub permissions: AppPermissions,
 }
 
-#[derive(Arbitrary, Serialize, Deserialize, Clone, Debug)]
+#[derive(Arbitrary, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct FriendAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -26,7 +26,7 @@ pub struct FriendAddressFile {
 
 /// A helper structure for serialize and deserializing RelayAddress.
 #[mutual_from(RelayAddress)]
-#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RelayAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -35,7 +35,7 @@ pub struct RelayAddressFile {
 }
 
 /// A helper structure for serialize and deserializing FriendAddress.
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct FriendFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -43,14 +43,14 @@ pub struct FriendFile {
 }
 
 /// A helper structure for serialize and deserializing IdentityAddress.
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct IdentityFile {
     #[serde(with = "ser_b64")]
     pub private_key: PrivateKey,
 }
 
 /// A helper structure for serialize and deserializing IndexServer.
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct IndexServerFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -58,7 +58,7 @@ pub struct IndexServerFile {
 }
 
 /// A helper structure for serialize and deserializing NodeAddress.
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct NodeAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
