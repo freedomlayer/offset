@@ -85,17 +85,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ser_deser_server_to_user_ack2() {
-        let payment_done = PaymentDone::Failure(Uid::from(&[1; Uid::len()]));
-        let compact_to_user = CompactToUser::PaymentDone(payment_done);
-        let server_to_user = ServerToUser::Node(NodeId(0x100u64), compact_to_user);
-        let msg = ServerToUserAck::ServerToUser(server_to_user);
-        let ser_str = serde_json::to_string(&msg).unwrap();
-        let msg2 = serde_json::from_str(&ser_str).unwrap();
-        assert_eq!(msg, msg2);
-    }
-
-    #[test]
     fn test_ser_deser_server_to_user_ack3() {
         let open_invoice = OpenInvoice {
             currency: Currency::try_from("FST".to_owned()).unwrap(),
