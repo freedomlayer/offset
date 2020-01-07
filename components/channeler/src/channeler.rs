@@ -600,7 +600,7 @@ mod tests {
 
         let lp_config = listener_request.config_receiver.next().await.unwrap();
         match lp_config {
-            LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, vec![]),
+            LpConfig::SetLocalAddresses(addresses) => assert_eq!(addresses, Vec::<u32>::new()),
             _ => unreachable!(),
         };
 
