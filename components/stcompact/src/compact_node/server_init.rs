@@ -2,7 +2,7 @@ use futures::SinkExt;
 
 use database::DatabaseClient;
 
-use crate::compact_node::messages::{CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone};
+use crate::compact_node::messages::{CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus};
 use crate::compact_node::persist::{CompactState, OpenPaymentStatus};
 use crate::compact_node::types::{CompactNodeError, ConnPairCompact};
 use crate::gen::GenUid;
@@ -41,7 +41,10 @@ where
                     .map_err(|_| CompactNodeError::DatabaseMutateError)?;
 
                 // Send failure message to user:
-                let payment_done = PaymentDone::Failure(ack_uid);
+                let payment_done = PaymentDone {
+                    payment_id: payment_id.clone(),
+                    status: PaymentDoneStatus::Failure(ack_uid),
+                };
                 let compact_to_user = CompactToUser::PaymentDone(payment_done);
                 conn_pair_compact
                     .sender
@@ -67,7 +70,10 @@ where
             }
             OpenPaymentStatus::Success(receipt, fees, ack_uid) => {
                 // Resend success to user:
-                let payment_done = PaymentDone::Success(receipt.clone(), *fees, ack_uid.clone());
+                let payment_done = PaymentDone {
+                    payment_id: payment_id.clone(),
+                    status: PaymentDoneStatus::Success(receipt.clone(), *fees, ack_uid.clone()),
+                };
                 let compact_to_user = CompactToUser::PaymentDone(payment_done);
                 conn_pair_compact
                     .sender
@@ -77,7 +83,11 @@ where
             }
             OpenPaymentStatus::Failure(ack_uid) => {
                 // Resend failure to user:
-                let payment_done = PaymentDone::Failure(ack_uid.clone());
+                let payment_done = PaymentDone {
+                    payment_id: payment_id.clone(),
+                    status: PaymentDoneStatus::Failure(ack_uid.clone()),
+                };
+                    
                 let compact_to_user = CompactToUser::PaymentDone(payment_done);
                 conn_pair_compact
                     .sender

@@ -102,7 +102,7 @@ pub struct PaymentFees {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum PaymentDone {
+pub enum PaymentDoneStatus {
     #[serde(with = "ser_b64")]
     Failure(Uid), // ack_uid
     Success(
@@ -110,6 +110,13 @@ pub enum PaymentDone {
         #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (receipt, fees, ack_uid)
+}
+
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct PaymentDone {
+    #[serde(with = "ser_b64")]
+    pub payment_id: PaymentId,
+    pub status: PaymentDoneStatus,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]

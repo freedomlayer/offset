@@ -6,7 +6,7 @@ use app::verify::verify_commit;
 
 use crate::compact_node::create_compact_report;
 use crate::compact_node::messages::{
-    CompactToUser, CompactToUserAck, PaymentDone, PaymentFees, PaymentFeesResponse,
+    CompactToUser, CompactToUserAck, PaymentDone, PaymentDoneStatus, PaymentFees, PaymentFeesResponse,
     ResponseCommitInvoice, UserToCompact, UserToCompactAck, CommitInvoiceStatus,
 };
 use crate::compact_node::persist::{
@@ -489,7 +489,10 @@ where
 
                     // Inform the user about failure.
                     // Send a message about payment done:
-                    let payment_done = PaymentDone::Failure(ack_uid);
+                    let payment_done = PaymentDone {
+                        payment_id: payment_id.clone(),
+                        status: PaymentDoneStatus::Failure(ack_uid),
+                    };
                     let compact_to_user = CompactToUser::PaymentDone(payment_done);
                     user_sender
                         .send(CompactToUserAck::CompactToUser(compact_to_user))
