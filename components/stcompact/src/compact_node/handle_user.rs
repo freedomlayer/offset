@@ -7,7 +7,7 @@ use app::verify::verify_commit;
 use crate::compact_node::create_compact_report;
 use crate::compact_node::messages::{
     CompactToUser, CompactToUserAck, PaymentDone, PaymentFees, PaymentFeesResponse,
-    ResponseCommitInvoice, UserToCompact, UserToCompactAck,
+    ResponseCommitInvoice, UserToCompact, UserToCompactAck, CommitInvoiceStatus,
 };
 use crate::compact_node::persist::{
     OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending,
@@ -673,8 +673,13 @@ where
                     .send(CompactToUserAck::Ack(user_request_id))
                     .await
                     .map_err(|_| CompactNodeError::UserSenderError)?;
+
+                let response_commit_invoice = ResponseCommitInvoice {
+                    invoice_id: commit.invoice_id.clone(),
+                    status: CommitInvoiceStatus::Failure,
+                };
                 let compact_to_user =
-                    CompactToUser::ResponseCommitInvoice(ResponseCommitInvoice::Failure);
+                    CompactToUser::ResponseCommitInvoice(response_commit_invoice);
                 return user_sender
                     .send(CompactToUserAck::CompactToUser(compact_to_user))
                     .await
@@ -701,8 +706,12 @@ where
             server_state.update_compact_state(compact_state).await?;
 
             // Send indication to user that the commitment is successful:
+            let response_commit_invoice = ResponseCommitInvoice {
+                invoice_id: commit.invoice_id.clone(),
+                status: CommitInvoiceStatus::Success,
+            };
             let compact_to_user =
-                CompactToUser::ResponseCommitInvoice(ResponseCommitInvoice::Success);
+                CompactToUser::ResponseCommitInvoice(response_commit_invoice);
             return user_sender
                 .send(CompactToUserAck::CompactToUser(compact_to_user))
                 .await

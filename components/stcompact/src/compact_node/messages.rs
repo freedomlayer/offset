@@ -113,7 +113,14 @@ pub enum PaymentDone {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum ResponseCommitInvoice {
+pub struct ResponseCommitInvoice {
+    #[serde(with = "ser_b64")]
+    pub invoice_id: InvoiceId,
+    pub status: CommitInvoiceStatus,
+}
+
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum CommitInvoiceStatus {
     Failure,
     Success,
 }
@@ -183,6 +190,7 @@ pub struct AddInvoice {
     pub description: String,
 }
 
+// TODO; Who uses this enum?
 #[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
