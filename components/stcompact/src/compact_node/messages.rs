@@ -337,7 +337,7 @@ pub enum OpenPaymentStatus {
         #[serde(with = "ser_b64")] Uid,
         #[serde(with = "ser_string")] u128,
     ), // (confirm_id, fees)
-    Sending(#[serde(with = "ser_string")] u128),       // fees
+    Sending(#[serde(with = "ser_string")] u128),    // fees
     Commit(Commit, #[serde(with = "ser_string")] u128), // (commit, fees)
     Success(
         Receipt,
