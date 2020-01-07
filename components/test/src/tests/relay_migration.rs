@@ -14,8 +14,10 @@ use app::conn::{self, ConnPairApp};
 
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, relay_public_key, node_report_service, NodeReportClient, SimDb,
+    relay_address, relay_public_key, SimDb,
 };
+
+use crate::node_report_service::{node_report_service, NodeReportClient};
 
 use crate::app_wrapper::send_request;
 use crate::sim_network::create_sim_network;

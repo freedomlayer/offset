@@ -18,8 +18,9 @@ use timer::create_timer_incoming;
 
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, node_report_service, SimDb,
+    relay_address, SimDb,
 };
+use crate::node_report_service::node_report_service;
 
 use crate::sim_network::create_sim_network;
 

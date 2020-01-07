@@ -2,37 +2,13 @@
 use futures::channel::{mpsc, oneshot};
 
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt};
+use futures::{future, stream, SinkExt, Stream, StreamExt};
 
-
-
-
-
-
-
-
-use common::conn::{BoxFuture, BoxStream, ConnPair};
+use common::conn::BoxStream;
 use common::select_streams::select_streams;
-
-
-
-
-
-
 
 use app::conn::AppServerToApp;
 use app::report::NodeReport;
-
-
-
-
-
-
-
-
-
-
-
 
 #[derive(Debug)]
 struct NodeReportRequest {
@@ -70,7 +46,7 @@ const APP_SERVER_TO_APP_CHANNEL_LEN: usize = 0x200;
 /// A service for maintaining knowledge of the current report
 pub fn node_report_service<S, FS>(
     mut node_report: NodeReport,
-    mut from_server: FS,
+    from_server: FS,
     spawner: &S,
 ) -> (mpsc::Receiver<AppServerToApp>, NodeReportClient)
 where
@@ -94,7 +70,7 @@ where
             while let Some(incoming_event) = incoming_events.next().await {
                 match incoming_event {
                     NodeReportServiceEvent::Request(report_request) => {
-                        report_request.response_sender.send(node_report.clone());
+                        report_request.response_sender.send(node_report.clone()).unwrap();
                     }
                     NodeReportServiceEvent::AppServerToApp(app_server_to_app) => {
                         if let AppServerToApp::ReportMutations(report_mutations) =
@@ -114,5 +90,5 @@ where
         })
         .unwrap();
 
-    (app_receiver, NodeReportClient { requests_sender })
+    (app_receiver, NodeReportClient::new(requests_sender))
 }
