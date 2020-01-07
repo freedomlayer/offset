@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
-use common::ser_utils::{ser_b64, ser_string};
+use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
 
 use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey, Receipt, Uid};
 
@@ -21,14 +21,14 @@ pub struct OpenInvoice {
     pub description: String,
 }
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPaymentStatusSending {
     #[serde(with = "ser_string")]
     pub fees: u128,
     pub open_transactions: HashSet<Uid>,
 }
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPaymentStatusFoundRoute {
     #[serde(with = "ser_b64")]
     pub confirm_id: Uid,
@@ -39,7 +39,7 @@ pub struct OpenPaymentStatusFoundRoute {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(OpenPaymentStatusFoundRoute),
@@ -50,10 +50,10 @@ pub enum OpenPaymentStatus {
         #[serde(with = "ser_string")] u128,
         #[serde(with = "ser_b64")] Uid,
     ), // (Receipt, fees, ack_uid)
-    Failure(#[serde(with = "ser_b64")] Uid),         // ack_uid
+    Failure(#[serde(with = "ser_b64")] Uid),            // ack_uid
 }
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenPayment {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
@@ -69,11 +69,13 @@ pub struct OpenPayment {
     pub status: OpenPaymentStatus,
 }
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CompactState {
     /// Seller's open invoices:
+    #[serde(with = "ser_map_b64_any")]
     pub open_invoices: HashMap<InvoiceId, OpenInvoice>,
     /// Buyer's open payments:
+    #[serde(with = "ser_map_b64_any")]
     pub open_payments: HashMap<PaymentId, OpenPayment>,
 }
 

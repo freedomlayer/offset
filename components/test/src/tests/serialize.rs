@@ -6,6 +6,7 @@ use proto::file::{
     RelayAddressFile, TrustedAppFile,
 };
 use proto::net::messages::NetAddress;
+use stcompact::compact_node::CompactState;
 
 use quickcheck::QuickCheck;
 
@@ -40,6 +41,8 @@ ser_de_test!(qc_ser_de_index_server_file, IndexServerFile);
 ser_de_test!(qc_ser_de_node_address_file, NodeAddressFile);
 ser_de_test!(qc_ser_de_relay_address_file, RelayAddressFile);
 ser_de_test!(qc_ser_de_trusted_app_file, TrustedAppFile);
+
+ser_de_test!(qc_ser_de_compact_state, CompactState);
 
 /*
 #[test]
