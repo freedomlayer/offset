@@ -52,6 +52,9 @@ mod compact_node_wrapper;
 mod node_report_service;
 
 #[cfg(test)]
+mod compact_report_service;
+
+#[cfg(test)]
 mod tests;
 
 #[cfg(test)]

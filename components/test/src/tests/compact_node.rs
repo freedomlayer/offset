@@ -7,6 +7,7 @@ use futures::{SinkExt, StreamExt};
 use tempfile::tempdir;
 
 use common::test_executor::TestExecutor;
+use common::conn::ConnPair;
 
 use proto::app_server::messages::AppPermissions;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
@@ -20,7 +21,7 @@ use app::conn::{self, ConnPairApp, RequestResult};
 use app::gen::gen_uid;
 
 use stcompact::compact_node::compact_node;
-use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend};
+use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport};
 
 use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -30,7 +31,7 @@ use crate::utils::{
     SimDb,
 };
 
-use crate::node_report_service::node_report_service;
+use crate::compact_report_service::compact_report_service;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -233,6 +234,16 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
         test_executor.clone(),
     ).await.unwrap();
 
+
+    // Handle reports:
+    let (sender0, receiver0) = compact_node0.split();
+    let (receiver0, mut compact_report_client0) = compact_report_service(compact_report0, receiver0, &test_executor);
+    let mut compact_node0 = ConnPair::from_raw(sender0, receiver0);
+
+    let (sender1, receiver1) = compact_node1.split();
+    let (receiver1, mut compact_report_client1) = compact_report_service(compact_report1, receiver1, &test_executor);
+    let mut compact_node1 = ConnPair::from_raw(sender1, receiver1);
+
     // Create relays:
     create_relay(
         0,
@@ -284,14 +295,12 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     // Configure relays:
     send_request(
         &mut compact_node0, 
-        &mut compact_report0, 
         UserToCompact::AddRelay(named_relay_address(0)))
         .await
         .unwrap();
 
     send_request(
         &mut compact_node1, 
-        &mut compact_report1, 
         UserToCompact::AddRelay(named_relay_address(1)))
         .await
         .unwrap();
@@ -299,14 +308,12 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     // Configure index servers:
     send_request(
         &mut compact_node0, 
-        &mut compact_report0, 
         UserToCompact::AddIndexServer(named_index_server_address(0)))
         .await
         .unwrap();
 
     send_request(
         &mut compact_node1, 
-        &mut compact_report1, 
         UserToCompact::AddIndexServer(named_index_server_address(1)))
         .await
         .unwrap();
@@ -322,7 +329,6 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     };
     send_request(
         &mut compact_node0, 
-        &mut compact_report0, 
         UserToCompact::AddFriend(add_friend))
     .await
     .unwrap();
@@ -335,7 +341,6 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     };
     send_request(
         &mut compact_node1, 
-        &mut compact_report1, 
         UserToCompact::AddFriend(add_friend))
     .await
     .unwrap();
@@ -343,7 +348,6 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     // Node0: Enable node1:
     send_request(
         &mut compact_node0, 
-        &mut compact_report0, 
         UserToCompact::EnableFriend(node_public_key(1)))
     .await
     .unwrap();
@@ -351,36 +355,37 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     // Node1: Enable node1:
     send_request(
         &mut compact_node1, 
-        &mut compact_report1, 
         UserToCompact::EnableFriend(node_public_key(0)))
     .await
     .unwrap();
 
-    advance_time(40, &mut tick_sender, &test_executor).await;
-    
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    loop {
+        let compact_report0 = compact_report_client0.request_report().await;
+        let friend_report = match compact_report0.friends.get(&node_public_key(1)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
+        if friend_report.liveness == FriendLivenessReport::Online {
+            break;
+        }
+        advance_time(5, &mut tick_sender, &test_executor).await;
+    }
+
+    loop {
+        let compact_report1 = compact_report_client1.request_report().await;
+        let friend_report = match compact_report1.friends.get(&node_public_key(0)) {
+            None => continue,
+            Some(friend_report) => friend_report,
+        };
+        if friend_report.liveness == FriendLivenessReport::Online {
+            break;
+        }
+        advance_time(5, &mut tick_sender, &test_executor).await;
+    }
+
     /*
-
-    loop {
-        let node_report0 = report_client0.request_report().await;
-        let friend_report = match node_report0.funder_report.friends.get(&node_public_key(1)) {
-            None => continue,
-            Some(friend_report) => friend_report,
-        };
-        if friend_report.liveness.is_online() {
-            break;
-        }
-    }
-
-    loop {
-        let node_report1 = report_client1.request_report().await;
-        let friend_report = match node_report1.funder_report.friends.get(&node_public_key(0)) {
-            None => continue,
-            Some(friend_report) => friend_report,
-        };
-        if friend_report.liveness.is_online() {
-            break;
-        }
-    }
 
     // Set active currencies for both sides:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
