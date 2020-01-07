@@ -5,6 +5,7 @@ use app::common::{
     RandValue, Receipt, Signature,
 };
 use app::report::{MoveTokenHashedReport, TokenInfo};
+use app::ser_utils::serialize_to_string;
 
 use mutual_from::mutual_from;
 
@@ -102,7 +103,7 @@ mod test {
             dest_payment: 10u128,
         };
 
-        let _ = toml::to_string(&invoice_file).unwrap();
+        let _ = serialize_to_string(&invoice_file).unwrap();
     }
 
     #[test]
@@ -118,10 +119,10 @@ mod test {
             signature: Signature::from(&[7u8; Signature::len()]),
         };
 
-        let _ = toml::to_string(&commit_file).unwrap();
+        let _ = serialize_to_string(&commit_file).unwrap();
     }
 
-    /// Check if we can serialize TokenFile into TOML without crasing
+    /// Check if we can serialize TokenFile without crasing
     #[test]
     fn test_serialize_token_file() {
         let token_info = TokenInfo {
@@ -150,6 +151,6 @@ mod test {
             token_info,
         };
 
-        let _ = toml::to_string(&token_file).unwrap();
+        let _ = serialize_to_string(&token_file).unwrap();
     }
 }

@@ -32,8 +32,6 @@ prettytable-rs = "0.8.0"
 
 serde = {version = "1.0.104", features = ["derive"]}
 
-toml = "0.4.10"
-
 structopt = "0.2.15"
 
 derive_more = "0.14.0"
