@@ -18,7 +18,8 @@ atomicwrites = "0.2.2"
 serde = {version = "1.0.104", features = ["derive"]}
 
 base64 = "0.9"
-bincode = "1.1.2"
+# bincode = "1.1.2"
+serde_json = "1.0.44"
 
 [dev-dependencies]
 
