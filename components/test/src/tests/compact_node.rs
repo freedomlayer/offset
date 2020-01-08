@@ -115,10 +115,27 @@ async fn make_test_payment(
     // Node0: Wait for commit to be created:
     let commit = loop {
         let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
-        let payment_commit = if let CompactToUserAck::CompactToUser(CompactToUser::PaymentCommit(payment_commit)) = compact_to_user_ack {
-            payment_commit
-        } else {
-            continue;
+        let payment_commit = match compact_to_user_ack {
+            CompactToUserAck::CompactToUser(CompactToUser::PaymentCommit(payment_commit)) => payment_commit,
+            CompactToUserAck::CompactToUser(CompactToUser::PaymentDone(payment_done)) => {
+                // We get here if the remote side rejects our request for payment:
+                assert_eq!(payment_done.payment_id, payment_id);
+                match payment_done.status {
+                    PaymentDoneStatus::Failure(ack_uid) => {
+                        // Node0: AckPaymentDone:
+                        send_request(
+                            &mut conn_pair0,
+                            UserToCompact::AckPaymentDone(payment_id, ack_uid)
+                        )
+                        .await
+                        .unwrap();
+
+                        return None;
+                    },
+                    PaymentDoneStatus::Success(_, _, _) => unreachable!(),
+                }
+            },
+            _ => continue,
         };
         assert_eq!(payment_commit.payment_id, payment_id);
         break payment_commit.commit
@@ -130,7 +147,7 @@ async fn make_test_payment(
     let verify_request_id = gen_uid();
     let request_verify_commit = RequestVerifyCommit {
         request_id: verify_request_id.clone(),
-        seller_public_key: node_public_key(1),
+        seller_public_key: seller_public_key.clone(),
         commit: commit.clone(),
     };
     send_request(
@@ -152,7 +169,7 @@ async fn make_test_payment(
         assert_eq!(response_verify_commit.status, VerifyCommitStatus::Success);
         break;
     };
-
+    
     // Node1: Apply the commit:
     send_request(
         &mut conn_pair1,
@@ -529,7 +546,6 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await;
 
     assert!(opt_receipt_fees.is_some());
-    assert!(false);
 
     // Allow some time for the index servers to be updated about the new state:
     advance_time(10, &mut tick_sender, &test_executor).await;
@@ -554,8 +570,8 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
 
     // Node1: Send 5 credits to Node0:
     let opt_receipt_fees = make_test_payment(
-        &mut compact_node0,
         &mut compact_node1,
+        &mut compact_node0,
         node_public_key(1),
         node_public_key(0),
         currency1.clone(),
@@ -567,70 +583,24 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
 
     assert!(opt_receipt_fees.is_some());
 
-    /*
+    // Allow some time for the index servers to be updated about the new state:
+    advance_time(10, &mut tick_sender, &test_executor).await;
 
-    // Node1: Attempt to send 6 more credits.
-    // This should not work, because 6 + 5 = 11 > 8.
-    let total_dest_payment = 6;
-    let fees = 0;
-    let payment_id = PaymentId::from(&[8u8; PaymentId::len()]);
-    let invoice_id = InvoiceId::from(&[9u8; InvoiceId::len()]);
-    let request_id = Uid::from(&[10u8; Uid::len()]);
-
-    send_request(
-        &mut conn_pair0,
-        conn::seller::add_invoice(invoice_id.clone(), currency1.clone(), total_dest_payment),
+    // Node1: Attempt to send 6 more credits to Node0:
+    // This should not work, because 6 + 5 = 11 > 10
+    let opt_receipt_fees = make_test_payment(
+        &mut compact_node1,
+        &mut compact_node0,
+        node_public_key(1),
+        node_public_key(0),
+        currency1.clone(),
+        6u128, // total_dest_payment
+        tick_sender.clone(),
+        test_executor.clone(),
     )
-    .await
-    .unwrap();
+    .await;
 
-    // Node1: Open a payment to pay the invoice issued by Node1:
-    send_request(
-        &mut conn_pair1,
-        conn::buyer::create_payment(
-            payment_id.clone(),
-            invoice_id.clone(),
-            currency1.clone(),
-            total_dest_payment,
-            node_public_key(0),
-        ),
-    )
-    .await
-    .unwrap();
-
-    // Use the route (pk1, pk0)
-    let route = FriendsRoute {
-        public_keys: vec![node_public_key(1), node_public_key(0)],
-    };
-    // Node1: Create one transaction for the given route:
-    let res = create_transaction(
-        &mut conn_pair1,
-        payment_id.clone(),
-        request_id.clone(),
-        route,
-        total_dest_payment,
-        fees,
-    )
-    .await
-    .unwrap();
-
-    assert_eq!(res, RequestResult::Failure);
-
-    // Node0: Check the payment's result:
-    let payment_status = request_close_payment(&mut conn_pair1, payment_id.clone())
-        .await
-        .unwrap();
-
-    // Acknowledge the payment closing result if required:
-    match &payment_status {
-        PaymentStatus::Canceled(ack_uid) => {
-            ack_close_payment(&mut conn_pair1, payment_id.clone(), ack_uid.clone())
-                .await
-                .unwrap();
-        }
-        _ => unreachable!(),
-    }
-    */
+    assert!(opt_receipt_fees.is_none());
 }
 
 #[test]
