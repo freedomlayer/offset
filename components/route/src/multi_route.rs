@@ -159,4 +159,17 @@ mod tests {
         }
         assert_eq!(total_credits, 300);
     }
+
+    #[test]
+    fn test_safe_multi_route_amounts_exact() {
+        let mut multi_route = MultiRoute { routes: vec![] };
+        multi_route.routes.push(RouteCapacityRate {
+            route: FriendsRoute {
+                public_keys: vec![pk(0), pk(1)],
+            },
+            capacity: 10u128,
+            rate: Rate { add: 0, mul: 0 },
+        });
+        assert!(safe_multi_route_amounts(&multi_route, 10u128).is_some());
+    }
 }
