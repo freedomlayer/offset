@@ -282,7 +282,7 @@ where
                     | OpenPaymentStatus::Failure(_) => {
                         // Payment already in progress, and the user should know it.
                         warn!(
-                            "RequestPayInvoice: Paymenet for invoice {:?} is already open!",
+                            "RequestPayInvoice: Payment for invoice {:?} is already open!",
                             init_payment.invoice_id
                         );
                         return user_sender
