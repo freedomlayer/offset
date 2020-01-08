@@ -16,8 +16,10 @@ use crate::app_wrapper::send_request;
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, report_service, SimDb,
+    relay_address, SimDb,
 };
+
+use crate::node_report_service::node_report_service;
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -43,7 +45,7 @@ async fn task_handle_error_command(mut test_executor: TestExecutor) {
     let sim_net_client = create_sim_network(&mut test_executor);
 
     // Create initial database for node 0:
-    sim_db.init_db(0);
+    sim_db.init_node_db(0).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(
@@ -89,7 +91,7 @@ async fn task_handle_error_command(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Create initial database for node 1:
-    sim_db.init_db(1);
+    sim_db.init_node_db(1).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(
@@ -143,11 +145,13 @@ async fn task_handle_error_command(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut _report_client0) = report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut _report_client0) =
+        node_report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut _report_client1) = report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut _report_client1) =
+        node_report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:

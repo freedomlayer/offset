@@ -24,6 +24,12 @@ net = { path = "../net", version = "0.1.0" , package = "offst-net" }
 
 log = "0.4"
 futures = "0.3.1"
-serde = {version = "1.0.87", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
 
 derive_more = "0.14.0"
+
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}

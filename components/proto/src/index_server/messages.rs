@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
+use common::ser_utils::{ser_b64, ser_string};
+
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 use crate::funder::messages::{Currency, FriendsRoute, Rate};
 use crate::net::messages::NetAddress;
@@ -59,11 +61,12 @@ pub struct RequestRoutes {
 }
 
 #[capnp_conv(crate::index_capnp::route_capacity_rate)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RouteCapacityRate {
     pub route: FriendsRoute,
     /// How many credits we can push along this route?
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
     pub capacity: u128,
     /// Combined rate of pushing credits along this route.
     pub rate: Rate,
@@ -72,7 +75,7 @@ pub struct RouteCapacityRate {
 /// Multiple routes that together allow to pass a certain amount of credits to a destination.
 /// All routes must have the same beginning and the same end.
 #[capnp_conv(crate::index_capnp::multi_route)]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MultiRoute {
     pub routes: Vec<RouteCapacityRate>,
 }
@@ -198,15 +201,17 @@ pub enum IndexServerToServer {
 // ----------------------------------------------
 
 #[capnp_conv(crate::common_capnp::named_index_server_address)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NamedIndexServerAddress<ISA = NetAddress> {
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: ISA,
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexServerAddress<ISA = NetAddress> {
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: ISA,
 }

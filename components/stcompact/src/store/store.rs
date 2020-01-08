@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+use std::fmt::Debug;
+
 use common::conn::BoxFuture;
 use database::DatabaseClient;
-use std::fmt::Debug;
 
 use app::common::{NetAddress, PrivateKey, PublicKey};
 use node::{NodeMutation, NodeState};
@@ -8,7 +10,9 @@ use node::{NodeMutation, NodeState};
 use identity::IdentityClient;
 
 use crate::compact_node::CompactState;
-use crate::messages::{NodeName, NodesInfo};
+use crate::messages::{NodeInfo, NodeName};
+
+pub type NodesInfo = HashMap<NodeName, NodeInfo>;
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
@@ -28,7 +32,7 @@ pub struct LoadedNodeRemote {
     pub compact_db_client: DatabaseClient<CompactState>,
 }
 
-#[allow(unused)]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum LoadedNode {
     Local(LoadedNodeLocal),

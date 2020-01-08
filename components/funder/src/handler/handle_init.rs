@@ -14,7 +14,7 @@ pub fn handle_init<B>(
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
     let mut enabled_friends = Vec::new();
-    for (_friend_public_key, friend) in &m_state.state().friends {
+    for friend in m_state.state().friends.values() {
         match friend.status {
             FriendStatus::Enabled => {
                 let channeler_add_friend = ChannelerUpdateFriend {

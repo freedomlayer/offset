@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use common::mutable_state::MutableState;
+use common::ser_utils::ser_b64;
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
 
@@ -21,16 +22,18 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
 
 #[capnp_conv(crate::common_capnp::named_relay_address)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NamedRelayAddress<B = NetAddress> {
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
     pub name: String,
 }
 
 #[capnp_conv(crate::common_capnp::relay_address)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RelayAddress<B = NetAddress> {
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
 }
@@ -214,7 +217,7 @@ where
 }
 
 #[capnp_conv(crate::app_server_capnp::app_permissions)]
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,

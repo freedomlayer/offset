@@ -1,6 +1,8 @@
-use im::hashmap::HashMap as ImHashMap;
 use im::vector::Vector as ImVec;
+use std::collections::HashMap as ImHashMap;
 use std::fmt::Debug;
+
+use common::ser_utils::{ser_b64, ser_map_str_any, ser_string};
 
 use signature::canonical::CanonicalSerialize;
 
@@ -15,14 +17,14 @@ use crate::token_channel::{TcMutation, TokenChannel};
 use crate::types::MoveTokenHashed;
 
 /// Any operation that goes backwards (With respect to the initial request)
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
     Cancel(CancelSendFundsOp),
     Collect(CollectSendFundsOp),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SentLocalRelays<B>
 where
     B: Clone,
@@ -61,14 +63,14 @@ where
         }
     }
 }
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelInconsistent {
     pub opt_last_incoming_move_token: Option<MoveTokenHashed>,
     pub local_reset_terms: ResetTerms,
     pub opt_remote_reset_terms: Option<ResetTerms>,
 }
 
-#[derive(PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Deserialize, Debug)]
 pub struct ChannelConsistent<B> {
     /// Our mutual state with the remote side
     pub token_channel: TokenChannel<B>,
@@ -85,7 +87,7 @@ pub struct ChannelConsistent<B> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum ChannelStatus<B> {
     Inconsistent(ChannelInconsistent),
     Consistent(ChannelConsistent<B>),
@@ -108,23 +110,26 @@ where
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfig {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
     /// The remote side does not know this value.
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can new requests be sent through the mutual credit with this friend?
     pub is_open: bool,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FriendState<B: Clone> {
     /// Public key of this node
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Public key of the friend node
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
     /// Relays on which the friend node can be found.
     /// This list of relays corresponds to the last report of relays we got from the remote friend.
@@ -135,6 +140,7 @@ pub struct FriendState<B: Clone> {
     /// Locally maintained name of the remote friend node.
     pub name: String,
     /// Local configurations for currencies relationship with this friend
+    #[serde(with = "ser_map_str_any")]
     pub currency_configs: ImHashMap<Currency, CurrencyConfig>,
     /// Friend status. If disabled, we don't attempt to connect to this friend. (Friend will think
     /// we are offline).
@@ -144,7 +150,7 @@ pub struct FriendState<B: Clone> {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum FriendMutation<B: Clone> {
     TcMutation(TcMutation<B>),
     SetInconsistent(ChannelInconsistent),

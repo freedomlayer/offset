@@ -21,7 +21,7 @@ use app::conn::{
 };
 use app::gen::{gen_payment_id, gen_uid};
 use app::report::NodeReport;
-use app::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
+use app::ser_utils::{deserialize_from_string, serialize_to_string, StringSerdeError};
 
 use crate::file::{CommitFile, InvoiceFile, PaymentFile, ReceiptFile};
 

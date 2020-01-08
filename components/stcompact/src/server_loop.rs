@@ -15,7 +15,7 @@ use common::select_streams::select_streams;
 
 use timer::TimerClient;
 
-use app::common::{NetAddress, PublicKey};
+use app::common::NetAddress;
 use app::conn::ConnPairApp;
 use app_client::app_connect_to_node;
 
@@ -30,11 +30,12 @@ use crate::messages::{
     UserToServerAck,
 };
 
-use crate::compact_node::{
-    compact_node, create_compact_report, CompactToUserAck, ConnPairCompact, UserToCompactAck,
-};
+use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
 use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
+
+use connection::{create_encrypt_keepalive, create_secure_connector};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -87,7 +88,7 @@ pub struct OpenNode {
 }
 
 #[derive(Debug)]
-pub struct ServerState<ST, R, C, EKT, S> {
+pub struct ServerState<ST, R, C, S> {
     next_node_id: NodeId,
     pub open_nodes: HashMap<NodeId, OpenNode>,
     pub store: ST,
@@ -95,18 +96,16 @@ pub struct ServerState<ST, R, C, EKT, S> {
     pub rng: R,
     pub timer_client: TimerClient,
     pub connector: C,
-    pub encrypt_keepalive: EKT,
     pub spawner: S,
 }
 
-impl<ST, R, C, EKT, S> ServerState<ST, R, C, EKT, S> {
+impl<ST, R, C, S> ServerState<ST, R, C, S> {
     pub fn new(
         store: ST,
         event_sender: mpsc::Sender<CompactNodeEvent>,
         rng: R,
         timer_client: TimerClient,
         connector: C,
-        encrypt_keepalive: EKT,
         spawner: S,
     ) -> Self {
         Self {
@@ -117,7 +116,6 @@ impl<ST, R, C, EKT, S> ServerState<ST, R, C, EKT, S> {
             rng,
             timer_client,
             connector,
-            encrypt_keepalive,
             spawner,
         }
     }
@@ -190,9 +188,9 @@ where
 }
 
 /// Returns if any change has happened
-async fn handle_create_node<ST, R, C, S, EKT, CG>(
+async fn handle_create_node<ST, R, C, S, CG>(
     request_create_node: RequestCreateNode,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
 ) -> Result<bool, ServerError>
 where
@@ -223,9 +221,9 @@ where
     })
 }
 
-pub async fn handle_remove_node<ST, R, C, EKT, S>(
+pub async fn handle_remove_node<ST, R, C, S>(
     node_name: NodeName,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
 ) -> Result<bool, ServerError>
 where
     ST: Store,
@@ -245,9 +243,9 @@ where
     })
 }
 
-async fn handle_close_node<ST, R, C, EKT, S>(
+async fn handle_close_node<ST, R, C, S>(
     node_id: &NodeId,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
 ) -> Result<bool, ServerError>
 where
     ST: Store,
@@ -295,10 +293,10 @@ const NODE_CONFIG: NodeConfig = NodeConfig {
     max_node_relays: MAX_NODE_RELAYS,
 };
 
-async fn open_node_local<ST, R, C, EKT, S, US>(
+async fn open_node_local<ST, R, C, S, US>(
     node_name: NodeName,
     local: LoadedNodeLocal,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
     user_sender: &mut US,
 ) -> Result<bool, ServerError>
 where
@@ -308,16 +306,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
-    EKT: FutTransform<
-            Input = (Option<PublicKey>, ConnPairVec),
-            Output = Option<(PublicKey, ConnPairVec)>,
-        > + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let app_permissions = AppPermissions {
         routes: true,
@@ -334,7 +323,20 @@ where
 
     let incoming_apps = stream::once(future::ready(incoming_app_connection));
 
-    let c_spawner = server_state.spawner.clone();
+    let secure_connector = create_secure_connector(
+        server_state.connector.clone(),
+        server_state.timer_client.clone(),
+        local.node_identity_client.clone(),
+        server_state.rng.clone(),
+        server_state.spawner.clone(),
+    );
+
+    let encrypt_keepalive = create_encrypt_keepalive(
+        server_state.timer_client.clone(),
+        local.node_identity_client.clone(),
+        server_state.rng.clone(),
+        server_state.spawner.clone(),
+    );
 
     let node_fut = node(
         NODE_CONFIG,
@@ -342,11 +344,11 @@ where
         server_state.timer_client.clone(),
         local.node_state,
         local.node_db_client,
-        server_state.connector.clone(),
-        server_state.encrypt_keepalive.clone(),
+        secure_connector,
+        encrypt_keepalive,
         incoming_apps,
         server_state.rng.clone(),
-        c_spawner.clone(),
+        server_state.spawner.clone(),
     )
     .map_err(|e| {
         error!("node() error: {:?}", e);
@@ -443,10 +445,10 @@ where
 }
 
 #[allow(unused)]
-async fn open_node_remote<ST, R, C, S, EKT, US>(
+async fn open_node_remote<ST, R, C, S, US>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
     user_sender: &mut US,
 ) -> Result<bool, ServerError>
 where
@@ -456,14 +458,19 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
+    let secure_connector = create_secure_connector(
+        server_state.connector.clone(),
+        server_state.timer_client.clone(),
+        remote.app_identity_client.clone(),
+        server_state.rng.clone(),
+        server_state.spawner.clone(),
+    );
+
     // Connect to remote node
     let connect_res = app_connect_to_node(
-        server_state.connector.clone(),
+        secure_connector,
         remote.node_public_key,
         remote.node_address,
         server_state.spawner.clone(),
@@ -553,9 +560,9 @@ where
     Ok(true)
 }
 
-async fn handle_open_node<ST, R, C, US, EKT, S>(
+async fn handle_open_node<ST, R, C, US, S>(
     node_name: NodeName,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
     user_sender: &mut US,
 ) -> Result<bool, ServerError>
 where
@@ -565,16 +572,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
-    EKT: FutTransform<
-            Input = (Option<PublicKey>, ConnPairVec),
-            Output = Option<(PublicKey, ConnPairVec)>,
-        > + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -601,8 +599,8 @@ where
     }
 }
 
-async fn build_nodes_status<ST, R, C, EKT, S>(
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+async fn build_nodes_status<ST, R, C, S>(
+    server_state: &mut ServerState<ST, R, C, S>,
 ) -> Result<NodesStatus, ServerError>
 where
     ST: Store,
@@ -626,9 +624,9 @@ where
         .collect())
 }
 
-pub async fn handle_user_to_server<S, ST, R, C, CG, EKT, US>(
+pub async fn handle_user_to_server<S, ST, R, C, CG, US>(
     user_to_server_ack: UserToServerAck,
-    server_state: &mut ServerState<ST, R, C, EKT, S>,
+    server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
     user_sender: &mut US,
 ) -> Result<(), ServerError>
@@ -640,16 +638,7 @@ where
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
-    EKT: FutTransform<
-            Input = (Option<PublicKey>, ConnPairVec),
-            Output = Option<(PublicKey, ConnPairVec)>,
-        > + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let UserToServerAck {
         request_id,
@@ -709,13 +698,12 @@ where
         .map_err(|_| ServerError::NodeSenderError)
 }
 
-async fn inner_server_loop<ST, R, C, EKT, S>(
+async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     timer_client: TimerClient,
     rng: R,
     connector: C,
-    encrypt_keepalive: EKT,
     spawner: S,
     // opt_event_sender is used for testing:
     mut opt_event_sender: Option<mpsc::Sender<()>>,
@@ -726,16 +714,7 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
-    EKT: FutTransform<
-            Input = (Option<PublicKey>, ConnPairVec),
-            Output = Option<(PublicKey, ConnPairVec)>,
-        > + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let (mut user_sender, user_receiver) = conn_pair.split();
 
@@ -752,7 +731,6 @@ where
         rng.clone(),
         timer_client,
         connector,
-        encrypt_keepalive,
         spawner,
     );
     // TODO: This is a hack, find a better solution later:
@@ -805,14 +783,12 @@ where
     Ok(())
 }
 
-#[allow(unused)]
-pub async fn compact_server_loop<ST, R, C, EKT, S>(
+pub async fn compact_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
     timer_client: TimerClient,
     rng: R,
     connector: C,
-    encrypt_keepalive: EKT,
     spawner: S,
 ) -> Result<(), ServerError>
 where
@@ -821,16 +797,7 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
-    EKT: FutTransform<
-            Input = (Option<PublicKey>, ConnPairVec),
-            Output = Option<(PublicKey, ConnPairVec)>,
-        > + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // `opt_event_sender` is not needed in production:
     let opt_event_sender = None;
@@ -840,7 +807,6 @@ where
         timer_client,
         rng,
         connector,
-        encrypt_keepalive,
         spawner,
         opt_event_sender,
     )

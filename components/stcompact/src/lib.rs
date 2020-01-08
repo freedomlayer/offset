@@ -13,12 +13,25 @@ extern crate common;
 #[macro_use]
 extern crate log;
 
-mod compact_node;
+#[cfg(test)]
+extern crate quickcheck;
+
+#[cfg(test)]
+#[macro_use(quickcheck)]
+extern crate quickcheck_macros;
+
+#[macro_use]
+extern crate quickcheck_derive;
+
+pub mod compact_node;
 
 mod gen;
 mod messages;
 mod server_loop;
 mod store;
 
-#[allow(clippy::useless_attribute)]
-mod stcompactlib;
+mod serialize;
+pub mod stcompactlib;
+
+// TODO: Possibly remove later?
+pub use gen::GenCryptoRandom;

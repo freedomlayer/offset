@@ -1,7 +1,11 @@
-use im::hashmap::HashMap as ImHashMap;
+// Temporary fix due to:
+// https://github.com/bodil/im-rs/issues/118
+use std::collections::HashMap as ImHashMap;
+
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
+use common::ser_utils::{ser_b64, ser_map_b64_any, ser_option_b64, ser_string};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};
@@ -11,36 +15,48 @@ use proto::funder::messages::{AddFriend, Currency, Receipt, ResponseSendFundsOp}
 
 use crate::friend::{FriendMutation, FriendState};
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct FunderState<B: Clone> {
     /// Public key of this node
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Addresses of relays we are going to connect to.
     pub relays: ImVec<NamedRelayAddress<B>>,
     /// All configured friends and their state
+    #[serde(with = "ser_map_b64_any")]
+    #[serde(bound(
+        serialize = "B: serde::Serialize",
+        deserialize = "B: serde::de::Deserialize<'de>"
+    ))]
     pub friends: ImHashMap<PublicKey, FriendState<B>>,
     /// Locally issued invoices in progress (For which this node is the seller)
+    #[serde(with = "ser_map_b64_any")]
     pub open_invoices: ImHashMap<InvoiceId, OpenInvoice>,
     /// Locally created transaction in progress. (For which this node is the buyer).
+    #[serde(with = "ser_map_b64_any")]
     pub open_transactions: ImHashMap<Uid, OpenTransaction>,
     /// Ongoing payments (For which this node is the buyer):
+    #[serde(with = "ser_map_b64_any")]
     pub payments: ImHashMap<PaymentId, Payment>,
 }
 
 /// A state of a Payment where new transactions may still be added.
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct NewTransactions {
     pub num_transactions: u64,
     /// We have one src_plain_lock that we are going to use for every Transaction we create through
     /// this payment.
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
     pub currency: Currency,
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum PaymentStage {
     /// User can add new transactions
     // TODO: Think about a better name for this?
@@ -48,41 +64,47 @@ pub enum PaymentStage {
     /// User can no longer add new transactions (user sent a RequestClosePayment)
     InProgress(u64), // num_transactions
     /// A receipt was received:
-    Success((u64, Receipt, Uid)), // (num_transactions, Receipt, ack_uid)
+    Success(u64, Receipt, #[serde(with = "ser_b64")] Uid), // (num_transactions, Receipt, ack_uid)
     /// The payment will not complete, because all transactions were canceled:
+    #[serde(with = "ser_b64")]
     Canceled(Uid), // ack_uid
     /// User already acked, We now wait for the remaining transactions to finish.
     AfterSuccessAck(u64), // num_transactions
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Payment {
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
     pub stage: PaymentStage,
 }
 
 /*
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct IncomingTransaction {
     pub request_id: Uid,
 }
 */
 
 /// A local invoice in progress
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct OpenInvoice {
     /// Currency in use for this invoice
     pub currency: Currency,
     /// Total payment required to fulfill this invoice:
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     /// The lock we used on our ResponseSendFundsOp message.
     /// We have to keep it, otherwise we will not be able to send a valid CollectSendFundsOp later.
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     /// Lock created by the originator of the transactions used to fulfill this invoice.
     /// We expect all transactions to have the same lock. This allows the buyer to unlock all the
     /// transactions at once by sending a commit message.
+    #[serde(with = "ser_option_b64")]
     pub opt_src_hashed_lock: Option<HashedLock>,
     /// Multiple transactions are possible for a single invoice in case of a multi-route payment.
+    // TODO: Add serde hint
     pub incoming_transactions: ImHashSet<Uid>,
 }
 
@@ -99,15 +121,16 @@ impl OpenInvoice {
 }
 
 /// A local request (Originated from this node) in progress
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct OpenTransaction {
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
     /// A response (if we got one):
     pub opt_response: Option<ResponseSendFundsOp>,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Clone)]
 pub enum FunderMutation<B: Clone> {
     FriendMutation((PublicKey, FriendMutation<B>)),
     AddRelay(NamedRelayAddress<B>),

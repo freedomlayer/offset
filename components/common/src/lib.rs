@@ -11,6 +11,9 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(test)]
+extern crate serde;
+
 pub mod int_convert;
 pub mod never;
 pub mod safe_arithmetic;
@@ -34,4 +37,6 @@ pub mod select_streams;
 pub mod state_service;
 pub mod transform_pool;
 // pub mod wait_spawner;
+#[macro_use]
+pub mod ser_utils;
 pub mod test_executor;

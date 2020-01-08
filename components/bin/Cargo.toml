@@ -40,8 +40,7 @@ node = { path = "../node", version = "0.1.0" , package = "offst-node" }
 database = { path = "../database", version = "0.1.0" , package = "offst-database" }
 connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
 
-toml = "0.4.10"
-serde = {version = "1.0.87", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
 base64 = "0.10.1"
 
 log = "0.4"
@@ -55,4 +54,4 @@ derive_more = "0.99.2"
 
 [dev-dependencies]
 
-tempfile = "3.0.5"
+tempfile = "3.1.0"

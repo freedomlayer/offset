@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use futures::channel::mpsc;
 use futures::future::RemoteHandle;
-use futures::task::{Spawn, SpawnExt};
+use futures::task::{Spawn, SpawnError, SpawnExt};
 use futures::{FutureExt, StreamExt, TryFutureExt};
 
 use derive_more::From;
@@ -12,10 +15,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use common::conn::BoxFuture;
 use common::mutable_state::MutableState;
-
-use async_std::fs;
-use async_std::io::prelude::WriteExt;
-use async_std::path::{Path, PathBuf};
 
 use lockfile::{try_lock_file, LockFileHandle};
 
@@ -30,13 +29,14 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use crypto::identity::SoftwareEd25519Identity;
 use identity::{create_identity, IdentityClient};
 
-use crate::messages::{NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName, NodesInfo};
+use crate::messages::{NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName};
 
 use crate::compact_node::CompactState;
 use crate::store::consts::{
     APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
 use crate::store::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
+use crate::store::NodesInfo;
 
 #[derive(Debug)]
 struct LiveNodeLocal {
@@ -69,13 +69,13 @@ pub struct FileStore<S, FS> {
 #[derive(Debug, From)]
 pub enum FileStoreError {
     DuplicateNodeName(NodeName),
-    SpawnError,
+    SpawnError(SpawnError),
     LockError,
     SerdeError(serde_json::Error),
     RemoveNodeError,
     DerivePublicKeyError,
     FileDbError,
-    AsyncStdIoError(async_std::io::Error),
+    IoError(std::io::Error),
     NodeIsLoaded,
     NodeNotLoaded,
     NodeDoesNotExist,
@@ -132,20 +132,24 @@ where
     S: Spawn + Sync,
 {
     // Create directory if missing:
-    if !store_path_buf.is_dir().await {
-        fs::create_dir_all(&store_path_buf).await?;
-    }
+    let c_store_path_buf = store_path_buf.clone();
+    file_spawner
+        .spawn_with_handle(async move {
+            if !c_store_path_buf.is_dir() {
+                fs::create_dir_all(&c_store_path_buf)?;
+            }
+            std::io::Result::Ok(())
+        })?
+        .await?;
 
-    let store_path_buf_std: std::path::PathBuf = store_path_buf.clone().into();
-    let lockfile_path_buf = store_path_buf_std.join(LOCKFILE);
+    let lockfile_path_buf = store_path_buf.join(LOCKFILE);
     let lock_file_handle = file_spawner
-        .spawn_with_handle(async move { try_lock_file(&lockfile_path_buf) })
-        .map_err(|_| FileStoreError::SpawnError)?
+        .spawn_with_handle(async move { try_lock_file(&lockfile_path_buf) })?
         .await
         .map_err(|_| FileStoreError::LockError)?;
 
     // Verify file store's integrity:
-    verify_store(&store_path_buf).await?;
+    verify_store(store_path_buf.clone(), &file_spawner).await?;
 
     Ok(FileStore {
         spawner,
@@ -156,9 +160,9 @@ where
     })
 }
 
-async fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileStoreError> {
+fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileStoreError> {
     let node_ident_path = node_path.join(NODE_IDENT);
-    let ident_data = fs::read_to_string(&node_ident_path).await?;
+    let ident_data = fs::read_to_string(&node_ident_path)?;
     let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
     Ok(FileStoreNodeLocal {
@@ -168,13 +172,13 @@ async fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileSto
     })
 }
 
-async fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileStoreError> {
+fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileStoreError> {
     let app_ident_path = node_path.join(APP_IDENT);
-    let ident_data = fs::read_to_string(&app_ident_path).await?;
+    let ident_data = fs::read_to_string(&app_ident_path)?;
     let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
     let node_info_path = node_path.join(NODE_INFO);
-    let node_info_data = fs::read_to_string(&node_info_path).await?;
+    let node_info_data = fs::read_to_string(&node_info_path)?;
     let node_address_file: NodeAddressFile = serde_json::from_str(&node_info_data)?;
 
     Ok(FileStoreNodeRemote {
@@ -185,56 +189,76 @@ async fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileS
     })
 }
 
-async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreError> {
-    let mut file_store_nodes = HashMap::new();
+async fn read_all_nodes<FS>(
+    store_path: PathBuf,
+    file_spawner: &FS,
+) -> Result<FileStoreNodes, FileStoreError>
+where
+    FS: Spawn,
+{
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file_store_nodes = HashMap::new();
 
-    // Read local nodes:
-    let local_dir = store_path.join(LOCAL);
-    if let Ok(mut dir) = fs::read_dir(local_dir).await {
-        while let Some(res) = dir.next().await {
-            let local_node_entry = res?;
-            let node_name =
-                NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
-            read_local_node(&local_node_entry.path()).await?;
-            let local_node = FileStoreNode::Local(read_local_node(&local_node_entry.path()).await?);
-            if file_store_nodes
-                .insert(node_name.clone(), local_node)
-                .is_some()
-            {
-                return Err(FileStoreError::DuplicateNodeName(node_name));
+            // Read local nodes:
+            let local_dir = store_path.join(LOCAL);
+            if let Ok(mut dir) = fs::read_dir(local_dir) {
+                for res in dir {
+                    let local_node_entry = res?;
+                    let node_name =
+                        NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
+                    let local_node =
+                        FileStoreNode::Local(read_local_node(&local_node_entry.path())?);
+                    if file_store_nodes
+                        .insert(node_name.clone(), local_node)
+                        .is_some()
+                    {
+                        return Err(FileStoreError::DuplicateNodeName(node_name));
+                    }
+                }
             }
-        }
-    }
 
-    // Read remote nodes:
-    let remote_dir = store_path.join(REMOTE);
-    if let Ok(mut dir) = fs::read_dir(remote_dir).await {
-        while let Some(res) = dir.next().await {
-            let remote_node_entry = res?;
-            let node_name =
-                NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
-            let remote_node =
-                FileStoreNode::Remote(read_remote_node(&remote_node_entry.path()).await?);
-            if file_store_nodes
-                .insert(node_name.clone(), remote_node)
-                .is_some()
-            {
-                return Err(FileStoreError::DuplicateNodeName(node_name));
+            // Read remote nodes:
+            let remote_dir = store_path.join(REMOTE);
+            if let Ok(mut dir) = fs::read_dir(remote_dir) {
+                for res in dir {
+                    let remote_node_entry = res?;
+                    let node_name =
+                        NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
+                    let remote_node =
+                        FileStoreNode::Remote(read_remote_node(&remote_node_entry.path())?);
+                    if file_store_nodes
+                        .insert(node_name.clone(), remote_node)
+                        .is_some()
+                    {
+                        return Err(FileStoreError::DuplicateNodeName(node_name));
+                    }
+                }
             }
-        }
-    }
-
-    Ok(file_store_nodes)
+            Ok(file_store_nodes)
+        })?
+        .await
 }
 
-async fn remove_node(store_path: &Path, node_name: &NodeName) -> Result<(), FileStoreError> {
+async fn remove_node<FS>(
+    store_path: &Path,
+    node_name: &NodeName,
+    file_spawner: &FS,
+) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
     // Attempt to remove from local dir:
-    let node_path = store_path.join(LOCAL).join(node_name.as_str());
-    let is_local_removed = fs::remove_file(&node_path).await.is_ok();
+    let local_path = store_path.join(LOCAL).join(node_name.as_str());
+    let is_local_removed = file_spawner
+        .spawn_with_handle(async move { fs::remove_dir_all(&local_path).is_ok() })?
+        .await;
 
     // Attempt to remove from remote dir:
-    let remote_dir = store_path.join(REMOTE).join(node_name.as_str());
-    let is_remote_removed = fs::remove_file(&node_path).await.is_ok();
+    let remote_path = store_path.join(REMOTE).join(node_name.as_str());
+    let is_remote_removed = file_spawner
+        .spawn_with_handle(async move { fs::remove_dir_all(&remote_path).is_ok() })?
+        .await;
 
     if !(is_local_removed || is_remote_removed) {
         // No removal worked:
@@ -245,36 +269,45 @@ async fn remove_node(store_path: &Path, node_name: &NodeName) -> Result<(), File
 }
 
 /// Verify store's integrity
-pub async fn verify_store(store_path: &Path) -> Result<(), FileStoreError> {
+pub async fn verify_store<FS>(store_path: PathBuf, file_spawner: &FS) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
     // We read all nodes, and make sure it works correctly. We discard the result.
     // We might have a different implementation for this function in the future.
-    let _ = read_all_nodes(store_path).await?;
+    let _ = read_all_nodes(store_path, file_spawner).await?;
     Ok(())
 }
 
-async fn create_local_node(
+async fn create_local_node<FS>(
     node_name: NodeName,
     node_private_key: PrivateKey,
     store_path: &Path,
-) -> Result<(), FileStoreError> {
+    file_spawner: &FS,
+) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
     let node_path = store_path.join(LOCAL).join(&node_name.as_str());
 
     // Create node's dir. Should fail if the directory already exists:
-    fs::create_dir_all(&node_path).await?;
+    let c_node_path = node_path.clone();
+    file_spawner
+        .spawn_with_handle(async move { fs::create_dir_all(&c_node_path) })?
+        .await?;
 
     // Create node database file:
     let node_db_path = node_path.join(NODE_DB);
     let node_public_key =
         derive_public_key(&node_private_key).map_err(|_| FileStoreError::DerivePublicKeyError)?;
     let initial_state = NodeState::<NetAddress>::new(node_public_key);
-    let _ = FileDb::create(node_db_path.into(), initial_state)
-        .map_err(|_| FileStoreError::FileDbError)?;
+    let _ = FileDb::create(node_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
     let initial_state = CompactState::new();
-    let _ = FileDb::create(compact_db_path.into(), initial_state)
-        .map_err(|_| FileStoreError::FileDbError)?;
+    let _ =
+        FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.ident file:
     let identity_file = IdentityFile {
@@ -283,23 +316,34 @@ async fn create_local_node(
     let identity_file_string = serde_json::to_string(&identity_file)?;
 
     let node_ident_path = node_path.join(NODE_IDENT);
-    let mut file = fs::File::create(node_ident_path).await?;
-    file.write_all(identity_file_string.as_bytes()).await?;
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file = fs::File::create(node_ident_path)?;
+            file.write_all(identity_file_string.as_bytes())
+        })?
+        .await?;
 
     Ok(())
 }
 
-async fn create_remote_node(
+async fn create_remote_node<FS>(
     node_name: NodeName,
     app_private_key: PrivateKey,
     node_public_key: PublicKey,
     node_address: NetAddress,
     store_path: &Path,
-) -> Result<(), FileStoreError> {
+    file_spawner: &FS,
+) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
     let node_path = store_path.join(REMOTE).join(&node_name.as_str());
 
     // Create node's dir. Should fail if the directory already exists:
-    fs::create_dir_all(&node_path).await?;
+    let c_node_path = node_path.clone();
+    file_spawner
+        .spawn_with_handle(async move { fs::create_dir_all(&c_node_path) })?
+        .await?;
 
     // Create app.ident file:
     let identity_file = IdentityFile {
@@ -308,14 +352,18 @@ async fn create_remote_node(
     let identity_file_string = serde_json::to_string(&identity_file)?;
 
     let node_ident_path = node_path.join(APP_IDENT);
-    let mut file = fs::File::create(node_ident_path).await?;
-    file.write_all(identity_file_string.as_bytes()).await?;
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file = fs::File::create(node_ident_path)?;
+            file.write_all(identity_file_string.as_bytes())
+        })?
+        .await?;
 
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
     let initial_state = CompactState::new();
-    let _ = FileDb::create(compact_db_path.into(), initial_state)
-        .map_err(|_| FileStoreError::FileDbError)?;
+    let _ =
+        FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.info:
     let node_address_file = NodeAddressFile {
@@ -325,8 +373,12 @@ async fn create_remote_node(
     let node_address_string = serde_json::to_string(&node_address_file)?;
 
     let node_info_path = node_path.join(NODE_INFO);
-    let mut file = fs::File::create(node_info_path).await?;
-    file.write_all(node_address_string.as_bytes()).await?;
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file = fs::File::create(node_info_path)?;
+            file.write_all(node_address_string.as_bytes())
+        })?
+        .await?;
 
     Ok(())
 }
@@ -360,9 +412,7 @@ where
 
     // Spawn identity service:
     let (sender, identity_loop) = create_identity(identity);
-    let server_handle = spawner
-        .spawn_with_handle(identity_loop)
-        .map_err(|_| FileStoreError::SpawnError)?;
+    let server_handle = spawner.spawn_with_handle(identity_loop)?;
     let identity_client = IdentityClient::new(sender);
 
     Ok((server_handle, identity_client))
@@ -377,15 +427,14 @@ where
     S: Spawn,
     FS: Spawn + Send + Clone + 'static,
     MS: Clone + Serialize + DeserializeOwned + MutableState + Send + Debug + 'static,
-    MS::Mutation: Clone + Serialize + DeserializeOwned + Send + Debug,
+    MS::Mutation: Clone + Send + Debug,
     MS::MutateError: Debug + Send,
 {
     // This operation blocks, so we are running it using the file_spawner:
     let atomic_db = file_spawner
         .spawn_with_handle(async move {
-            FileDb::<MS>::load(db_path_buf.into()).map_err(|_| FileStoreError::LoadDbError)
-        })
-        .map_err(|_| FileStoreError::SpawnError)?
+            FileDb::<MS>::load(db_path_buf).map_err(|_| FileStoreError::LoadDbError)
+        })?
         .await?;
 
     // Get initial state:
@@ -397,9 +446,7 @@ where
         .map_err(|e| error!("spawn_db(): database_loop() error: {:?}", e))
         .map(|_| ());
 
-    let remote_handle = spawner
-        .spawn_with_handle(loop_fut)
-        .map_err(|_| FileStoreError::SpawnError)?;
+    let remote_handle = spawner.spawn_with_handle(loop_fut)?;
 
     Ok((state, remote_handle, DatabaseClient::new(db_request_sender)))
 }
@@ -423,7 +470,7 @@ where
 
     // Spawn node database:
     let (node_state, node_db_handle, node_db_client) =
-        spawn_db(local.compact_db.clone(), spawner, file_spawner.clone()).await?;
+        spawn_db(local.node_db.clone(), spawner, file_spawner.clone()).await?;
 
     // When we drop those handles, all servers will be closed:
     let live_node_local = LiveNodeLocal {
@@ -493,6 +540,7 @@ where
             node_name,
             node_private_key,
             &self.store_path_buf,
+            &self.file_spawner,
         ))
     }
 
@@ -513,6 +561,7 @@ where
                 node_public_key,
                 node_address,
                 &self.store_path_buf,
+                &self.file_spawner,
             )
             .await
         })
@@ -521,7 +570,9 @@ where
     fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>> {
         Box::pin(async move {
             let mut nodes_info = HashMap::new();
-            for (node_name, file_store_node) in read_all_nodes(&self.store_path_buf).await? {
+            for (node_name, file_store_node) in
+                read_all_nodes(self.store_path_buf.clone(), &self.file_spawner).await?
+            {
                 let node_info = file_store_node_to_node_info(file_store_node)?;
                 let _ = nodes_info.insert(node_name, node_info);
             }
@@ -536,7 +587,8 @@ where
                 return Err(FileStoreError::NodeIsLoaded);
             }
 
-            let file_store_nodes = read_all_nodes(&self.store_path_buf).await?;
+            let file_store_nodes =
+                read_all_nodes(self.store_path_buf.clone(), &self.file_spawner).await?;
             let file_store_node = if let Some(file_store_node) = file_store_nodes.get(&node_name) {
                 file_store_node
             } else {
@@ -590,7 +642,7 @@ where
             if self.live_nodes.contains_key(&node_name) {
                 return Err(FileStoreError::NodeIsLoaded);
             }
-            remove_node(&self.store_path_buf, &node_name).await
+            remove_node(&self.store_path_buf, &node_name, &self.file_spawner).await
         })
     }
 }

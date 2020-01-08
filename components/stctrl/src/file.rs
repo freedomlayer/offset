@@ -1,86 +1,87 @@
-use app::ser_string::{from_base64, from_string, to_base64, to_string};
+use app::ser_utils::{ser_b64, ser_string};
 
 use app::common::{
     Commit, Currency, HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey,
     RandValue, Receipt, Signature,
 };
 use app::report::{MoveTokenHashedReport, TokenInfo};
+use app::ser_utils::serialize_to_string;
 
 use mutual_from::mutual_from;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Serialize, Deserialize, Debug, Clone)]
 pub struct InvoiceFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub dest_public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
 }
 
 /// Representing a Commit in an easy to serialize representation.
 #[mutual_from(Commit)]
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct CommitFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub dest_hashed_lock: HashedLock,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 /// A helper structure for serialize and deserializing Payment.
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct PaymentFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
 }
 
 /// A helper structure for serialize and deserializing Receipt.
 #[mutual_from(Receipt)]
-#[derive(Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct ReceiptFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub currency: Currency,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub dest_plain_lock: PlainLock,
     pub is_complete: bool,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 /// A helper structure for serialize and deserializing Token.
 #[mutual_from(MoveTokenHashedReport)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug)]
 pub struct TokenFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub prefix_hash: HashResult,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub rand_nonce: RandValue,
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub new_token: Signature,
     pub token_info: TokenInfo,
 }
@@ -102,7 +103,7 @@ mod test {
             dest_payment: 10u128,
         };
 
-        let _ = toml::to_string(&invoice_file).unwrap();
+        let _ = serialize_to_string(&invoice_file).unwrap();
     }
 
     #[test]
@@ -118,10 +119,10 @@ mod test {
             signature: Signature::from(&[7u8; Signature::len()]),
         };
 
-        let _ = toml::to_string(&commit_file).unwrap();
+        let _ = serialize_to_string(&commit_file).unwrap();
     }
 
-    /// Check if we can serialize TokenFile into TOML without crasing
+    /// Check if we can serialize TokenFile without crasing
     #[test]
     fn test_serialize_token_file() {
         let token_info = TokenInfo {
@@ -150,6 +151,6 @@ mod test {
             token_info,
         };
 
-        let _ = toml::to_string(&token_file).unwrap();
+        let _ = serialize_to_string(&token_file).unwrap();
     }
 }

@@ -30,15 +30,19 @@ env_logger = "0.6.0"
 futures = {version = "0.3.1", features = ["thread-pool"]}
 prettytable-rs = "0.8.0"
 
-serde = {version = "1", features = ["derive"]}
-
-toml = "0.4.10"
+serde = {version = "1.0.104", features = ["derive"]}
 
 structopt = "0.2.15"
 
 derive_more = "0.14.0"
 
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
+
 [dev_dependencies]
 
-tempfile = "3.0.5"
+tempfile = "3.1.0"
 

@@ -686,7 +686,7 @@ async fn task_handler_pair_basic<'a>(
 
     // We expect failure, because remote side is not ready:
     assert_eq!(transaction_result.request_id, Uid::from(&[0; Uid::len()]));
-    match dbg!(&transaction_result.result) {
+    match &transaction_result.result {
         RequestResult::Failure => {}
         _ => unreachable!(),
     };

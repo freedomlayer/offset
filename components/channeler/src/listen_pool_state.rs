@@ -258,7 +258,7 @@ mod tests {
         let (mut relays_add, mut relays_remove, mut relays_spawn) =
             lps.update_friend(100u64, vec![4u32]);
         relays_add.sort();
-        assert_eq!(relays_add, vec![]);
+        assert_eq!(relays_add, Vec::<u32>::new());
         relays_remove.sort();
         assert_eq!(relays_remove, vec![3u32]);
         relays_spawn.sort();
@@ -267,9 +267,9 @@ mod tests {
         let (mut relays_add, mut relays_remove, mut relays_spawn) =
             lps.update_friend(100u64, vec![0u32, 4u32, 5u32, 6u32]);
         relays_add.sort();
-        assert_eq!(relays_add, vec![]);
+        assert!(relays_add.is_empty());
         relays_remove.sort();
-        assert_eq!(relays_remove, vec![]);
+        assert!(relays_remove.is_empty());
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![5u32, 6u32]);
 
@@ -278,7 +278,7 @@ mod tests {
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32, 4u32, 5u32, 6u32]);
         relays_remove.sort();
-        assert_eq!(relays_remove, vec![]);
+        assert!(relays_remove.is_empty());
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![3u32]);
 
@@ -287,7 +287,7 @@ mod tests {
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32]);
         relays_remove.sort();
-        assert_eq!(relays_remove, vec![]);
+        assert!(relays_remove.is_empty());
         relays_spawn.sort();
         assert_eq!(relays_spawn, vec![7u32]);
 
@@ -296,18 +296,18 @@ mod tests {
         relays_add.sort();
         assert_eq!(relays_add, vec![0u32, 1u32, 2u32, 7u32]);
         relays_remove.sort();
-        assert_eq!(relays_remove, vec![]);
+        assert!(relays_remove.is_empty());
         relays_spawn.sort();
-        assert_eq!(relays_spawn, vec![]);
+        assert!(relays_remove.is_empty());
 
         let (mut relays_add, mut relays_remove, mut relays_spawn) =
             lps.update_friend(300u64, vec![]);
         relays_add.sort();
-        assert_eq!(relays_add, vec![]);
+        assert!(relays_add.is_empty());
         relays_remove.sort();
         assert_eq!(relays_remove, vec![7u32]);
         relays_spawn.sort();
-        assert_eq!(relays_spawn, vec![]);
+        assert!(relays_spawn.is_empty());
     }
 
     #[test]

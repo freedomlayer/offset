@@ -18,7 +18,7 @@ pub fn prepare_receipt(
     // = sha512/256(requestId || randNonce)
 
     let is_complete = match &pending_transaction.stage {
-        TransactionStage::Response((_dest_hashed_lock, is_complete)) => *is_complete,
+        TransactionStage::Response(_dest_hashed_lock, is_complete) => *is_complete,
         _ => unreachable!(),
     };
 

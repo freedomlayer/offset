@@ -1,4 +1,4 @@
-// use im::hashmap::HashMap as ImHashMap;
+// use std::collections::HashMap as ImHashMap;
 // use im::vector::Vector as ImVec;
 use std::collections::HashMap;
 
@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use common::mutable_state::MutableState;
 use common::never::Never;
+use common::ser_utils::ser_string;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
@@ -28,31 +29,34 @@ pub struct MoveTokenHashedReport {
 }
 
 #[capnp_conv(crate::report_capnp::friend_status_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
 #[capnp_conv(crate::report_capnp::requests_status_report)]
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
 #[capnp_conv(crate::report_capnp::mc_balance_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     #[capnp_conv(with = Wrapper<i128>)]
+    #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
@@ -166,7 +170,7 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
 }
 
 #[capnp_conv(crate::report_capnp::currency_config_report)]
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfigReport {
     pub currency: Currency,
     /// Rate of forwarding transactions that arrived from this friend to any other friend
@@ -174,6 +178,7 @@ pub struct CurrencyConfigReport {
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can requests be sent through this mutual credit?
     pub is_open: bool,

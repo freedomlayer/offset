@@ -8,6 +8,9 @@
 )]
 
 #[macro_use]
+extern crate quickcheck_derive;
+
+#[macro_use]
 pub mod macros;
 pub mod app_server;
 pub mod consts;

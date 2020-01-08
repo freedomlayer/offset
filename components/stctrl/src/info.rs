@@ -12,11 +12,11 @@ use app::report::{
     ChannelStatusReport, CurrencyReport, FriendReport, FriendStatusReport, NodeReport,
     RequestsStatusReport,
 };
-use app::ser_string::public_key_to_string;
+use app::ser_utils::public_key_to_string;
 
 use app::conn::ConnPairApp;
 use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
-use app::ser_string::{serialize_to_string, StringSerdeError};
+use app::ser_utils::{serialize_to_string, StringSerdeError};
 
 use crate::file::TokenFile;
 

@@ -8,7 +8,7 @@ use common::int_convert::usize_to_u64;
 
 use crate::canonical::CanonicalSerialize;
 use proto::funder::messages::{
-    Currency, MoveToken, PendingTransaction, ResponseSendFundsOp, TokenInfo,
+    Currency, PendingTransaction, TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
 };
 use proto::index_server::messages::MutationsUpdate;
 use proto::report::messages::MoveTokenHashedReport;
@@ -19,11 +19,15 @@ pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_response_signature_buffer<S>(
+pub fn create_response_signature_buffer<RSF>(
     currency: &Currency,
-    response_send_funds: &ResponseSendFundsOp<S>,
+    response_send_funds: RSF,
     pending_transaction: &PendingTransaction,
-) -> Vec<u8> {
+) -> Vec<u8>
+where
+    RSF: Into<UnsignedResponseSendFundsOp>,
+{
+    let response_send_funds: UnsignedResponseSendFundsOp = response_send_funds.into();
     let mut sbuffer = Vec::new();
 
     sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
@@ -53,15 +57,21 @@ pub fn create_response_signature_buffer<S>(
 pub const TOKEN_NEXT: &[u8] = b"NEXT";
 
 /// Combine all operations into one hash value.
-pub fn operations_hash<B>(move_token: &MoveToken<B>) -> HashResult {
+pub fn operations_hash<B, MT>(move_token: MT) -> HashResult
+where
+    MT: Into<UnsignedMoveToken<B>>,
+{
+    let move_token: UnsignedMoveToken<B> = move_token.into();
     let operations_data = move_token.currencies_operations.canonical_serialize();
     sha_512_256(&operations_data)
 }
 
-pub fn local_address_hash<B>(move_token: &MoveToken<B>) -> HashResult
+pub fn local_address_hash<B, MT>(move_token: MT) -> HashResult
 where
-    B: CanonicalSerialize,
+    B: CanonicalSerialize + Clone,
+    MT: Into<UnsignedMoveToken<B>>,
 {
+    let move_token: UnsignedMoveToken<B> = move_token.into();
     sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
 
@@ -70,10 +80,12 @@ pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
 }
 
 /// Hash operations and local_address:
-pub fn prefix_hash<B, S>(move_token: &MoveToken<B, S>) -> HashResult
+pub fn prefix_hash<B, MT>(move_token: MT) -> HashResult
 where
-    B: CanonicalSerialize,
+    B: CanonicalSerialize + Clone,
+    MT: Into<UnsignedMoveToken<B>>,
 {
+    let move_token: UnsignedMoveToken<B> = move_token.into();
     let mut hash_buff = Vec::new();
 
     hash_buff.extend_from_slice(&move_token.old_token);
@@ -84,13 +96,15 @@ where
     sha_512_256(&hash_buff)
 }
 
-pub fn move_token_signature_buff<B, S>(move_token: &MoveToken<B, S>) -> Vec<u8>
+pub fn move_token_signature_buff<B, MT>(move_token: MT) -> Vec<u8>
 where
-    B: CanonicalSerialize,
+    B: CanonicalSerialize + Clone,
+    MT: Into<UnsignedMoveToken<B>>,
 {
+    let move_token: UnsignedMoveToken<B> = move_token.into();
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&prefix_hash(move_token));
+    sig_buffer.extend_from_slice(&prefix_hash(move_token.clone()));
     sig_buffer.extend_from_slice(&move_token.info_hash);
     sig_buffer.extend_from_slice(&move_token.rand_nonce);
     sig_buffer

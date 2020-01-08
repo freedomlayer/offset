@@ -105,8 +105,11 @@ fn test_request_response_collect_send_funds() {
         signature: Signature::from(&[0; Signature::len()]),
     };
 
-    let sign_buffer =
-        create_response_signature_buffer(&currency, &response_send_funds, &pending_transaction);
+    let sign_buffer = create_response_signature_buffer(
+        &currency,
+        response_send_funds.clone(),
+        &pending_transaction,
+    );
     response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(
@@ -268,8 +271,11 @@ fn test_request_response_cancel_send_funds() {
         signature: Signature::from(&[0; Signature::len()]),
     };
 
-    let sign_buffer =
-        create_response_signature_buffer(&currency, &response_send_funds, &pending_transaction);
+    let sign_buffer = create_response_signature_buffer(
+        &currency,
+        response_send_funds.clone(),
+        &pending_transaction,
+    );
     response_send_funds.signature = identity.sign(&sign_buffer);
 
     apply_incoming(

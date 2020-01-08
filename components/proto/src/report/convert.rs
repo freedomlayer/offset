@@ -469,7 +469,7 @@ mod tests {
             friends,
         };
 
-        let index_mutations = dbg!(calc_index_mutations(&old_funder_report, &new_funder_report));
+        let index_mutations = calc_index_mutations(&old_funder_report, &new_funder_report);
         assert_eq!(index_mutations.len(), 3);
         for index_mutation in index_mutations {
             match index_mutation {

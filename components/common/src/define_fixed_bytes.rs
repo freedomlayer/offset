@@ -4,6 +4,7 @@
 macro_rules! define_fixed_bytes {
     ($name:ident, $len:expr) => {
         #[derive(Clone, Serialize, Deserialize)]
+        // #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
         pub struct $name(#[serde(with = "BigArray")] [u8; $len]);
 
         impl $name {
@@ -28,6 +29,20 @@ macro_rules! define_fixed_bytes {
                 $len
             }
         }
+
+        impl quickcheck::Arbitrary for $name {
+            fn arbitrary<G: quickcheck::Gen>(g: &mut G) -> $name {
+                let mut res_vec = Vec::new();
+                for _ in 0..$len {
+                    res_vec.push(u8::arbitrary(g));
+                }
+
+                let mut inner = [0x00u8; $len];
+                inner.copy_from_slice(&res_vec[..]);
+                $name(inner)
+            }
+        }
+
         impl AsRef<[u8]> for $name {
             #[inline]
             fn as_ref(&self) -> &[u8] {

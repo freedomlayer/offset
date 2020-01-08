@@ -4,66 +4,64 @@ use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
-use crate::ser_string::{from_base64, from_string, to_base64, to_string};
+use common::ser_utils::{ser_b64, ser_string};
 
 use crate::app_server::messages::{AppPermissions, RelayAddress};
 use crate::net::messages::NetAddress;
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct TrustedAppFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub permissions: AppPermissions,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Arbitrary, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct FriendAddressFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub relays: Vec<RelayAddressFile>,
 }
 
 /// A helper structure for serialize and deserializing RelayAddress.
 #[mutual_from(RelayAddress)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RelayAddressFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
+    #[serde(with = "ser_string")]
     pub address: NetAddress,
 }
 
 /// A helper structure for serialize and deserializing FriendAddress.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct FriendFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub relays: Vec<RelayAddressFile>,
 }
 
 /// A helper structure for serialize and deserializing IdentityAddress.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct IdentityFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub private_key: PrivateKey,
 }
 
 /// A helper structure for serialize and deserializing IndexServer.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct IndexServerFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub address: NetAddress,
 }
 
 /// A helper structure for serialize and deserializing NodeAddress.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct NodeAddressFile {
-    #[serde(serialize_with = "to_base64", deserialize_with = "from_base64")]
+    #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
-    #[serde(serialize_with = "to_string", deserialize_with = "from_string")]
     pub address: NetAddress,
 }
 

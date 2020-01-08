@@ -1,6 +1,7 @@
-use im::hashmap::HashMap as ImHashMap;
+use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
+use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
 
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
@@ -13,23 +14,28 @@ pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
 */
 
 // TODO: Rename this to McIdents
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McIdents {
     /// My public key
+    #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
     /// Friend's public key
+    #[serde(with = "ser_b64")]
     pub remote_public_key: PublicKey,
 }
 
 // TODO: Rename this to McBalance
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalance {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
+    #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
+    #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
+    #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
@@ -43,11 +49,13 @@ impl McBalance {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
     /// Pending transactions that were opened locally and not yet completed
+    #[serde(with = "ser_map_b64_any")]
     pub local: ImHashMap<Uid, PendingTransaction>,
     /// Pending transactions that were opened remotely and not yet completed
+    #[serde(with = "ser_map_b64_any")]
     pub remote: ImHashMap<Uid, PendingTransaction>,
 }
 
@@ -60,7 +68,7 @@ impl McPendingTransactions {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct MutualCreditState {
     /// Public identities of local and remote side
     pub idents: McIdents,
@@ -72,12 +80,12 @@ pub struct MutualCreditState {
     pub pending_transactions: McPendingTransactions,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct MutualCredit {
     state: MutualCreditState,
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[derive(Arbitrary, Eq, PartialEq, Debug, Clone)]
 pub enum McMutation {
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),

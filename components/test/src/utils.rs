@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::{future, FutureExt, SinkExt, TryFutureExt};
 
 use crypto::identity::{Identity, SoftwareEd25519Identity};
 
@@ -13,8 +13,7 @@ use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::{BoxFuture, BoxStream};
-use common::select_streams::select_streams;
+use common::conn::{BoxFuture, ConnPair};
 
 use proto::crypto::{PrivateKey, PublicKey};
 
@@ -25,8 +24,7 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::conn::{AppConnTuple, AppServerToApp};
-use app::report::NodeReport;
+use app::conn::AppConnTuple;
 use app_client::app_connect_to_node;
 use connection::create_secure_connector;
 
@@ -38,6 +36,10 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use bin::stindex::net_index_server;
 use bin::stnode::{net_node, TrustedApps};
 use bin::strelay::net_relay_server;
+
+use stcompact::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
+use stcompact::compact_node::{compact_node, create_compact_report, CompactState, ConnPairCompact};
+use stcompact::GenCryptoRandom;
 
 use timer::TimerClient;
 
@@ -57,36 +59,6 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// The amount of ticks we are willing to wait until a connection is established (Through
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
-/// Maximum amount of concurrent applications
-/// going through the incoming connection transform at the same time
-const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
-
-/*
-// Based on:
-// - https://rust-lang-nursery.github.io/futures-api-docs/0.3.0-alpha.13/src/futures_test/future/pending_once.rs.html#14-17
-// - https://github.com/rust-lang-nursery/futures-rs/issues/869
-pub struct Yield(usize);
-
-impl Yield {
-    pub fn new(num_yields: usize) -> Self {
-        Yield(num_yields)
-    }
-}
-
-impl Future for Yield {
-    type Output = ();
-    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
-        let count = &mut self.as_mut().0;
-        *count = count.saturating_sub(1);
-        if *count == 0 {
-            Poll::Ready(())
-        } else {
-            waker.wake();
-            Poll::Pending
-        }
-    }
-}
-*/
 
 fn gen_identity<R>(rng: &R) -> impl Identity
 where
@@ -165,29 +137,49 @@ pub struct SimDb {
     temp_dir_path: PathBuf,
 }
 
+#[derive(Debug)]
+pub struct SimDbError;
+
 impl SimDb {
     pub fn new(temp_dir_path: PathBuf) -> Self {
         SimDb { temp_dir_path }
     }
 
     /// Create an empty node database
-    pub fn init_db(&self, index: u8) -> FileDb<NodeState<NetAddress>> {
+    pub fn init_node_db(&self, index: u8) -> Result<FileDb<NodeState<NetAddress>>, SimDbError> {
         let identity = get_node_identity(index);
         let local_public_key = identity.get_public_key();
 
         // Create a new database file:
-        let db_path_buf = self.temp_dir_path.join(format!("db_{}", index));
+        let db_path_buf = self.temp_dir_path.join(format!("node_db_{}", index));
         let initial_state = NodeState::<NetAddress>::new(local_public_key);
-        FileDb::create(db_path_buf, initial_state).unwrap()
+        FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
     }
 
     /// Load a database. The database should already exist,
     /// otherwise a panic happens.
-    pub fn load_db(&self, index: u8) -> FileDb<NodeState<NetAddress>> {
-        let db_path_buf = self.temp_dir_path.join(format!("db_{}", index));
+    pub fn load_node_db(&self, index: u8) -> Result<FileDb<NodeState<NetAddress>>, SimDbError> {
+        let db_path_buf = self.temp_dir_path.join(format!("node_db_{}", index));
 
         // Load database from file:
-        FileDb::<NodeState<NetAddress>>::load(db_path_buf).unwrap()
+        FileDb::<NodeState<NetAddress>>::load(db_path_buf).map_err(|_| SimDbError)
+    }
+
+    /// Create an empty compact database
+    pub fn init_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
+        // Create a new database file:
+        let db_path_buf = self.temp_dir_path.join(format!("compact_db_{}", index));
+        let initial_state = CompactState::new();
+        FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
+    }
+
+    /// Load a database. The database should already exist,
+    /// otherwise a panic happens.
+    pub fn load_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
+        let db_path_buf = self.temp_dir_path.join(format!("compact_db_{}", index));
+
+        // Load database from file:
+        FileDb::<CompactState>::load(db_path_buf).map_err(|_| SimDbError)
     }
 }
 
@@ -239,7 +231,7 @@ pub fn relay_public_key(index: u8) -> PublicKey {
 }
 
 pub async fn create_app<S>(
-    index: u8,
+    app_index: u8,
     sim_network_client: SimNetworkClient,
     timer_client: TimerClient,
     node_index: u8,
@@ -248,12 +240,12 @@ pub async fn create_app<S>(
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
-    let identity = get_app_identity(index);
+    let identity = get_app_identity(app_index);
     let app_identity_client = create_identity_client(identity, spawner.clone());
 
     let node_public_key = get_node_identity(node_index).get_public_key();
 
-    let rng = DummyRandom::new(&[0xff, 0x13, 0x36, index]);
+    let rng = DummyRandom::new(&[0xff, 0x13, 0x36, app_index]);
     let secure_connector = create_secure_connector(
         sim_network_client,
         timer_client,
@@ -270,6 +262,71 @@ where
     )
     .await
     .ok()
+}
+
+pub async fn create_compact_node<S>(
+    app_index: u8,
+    sim_db: SimDb,
+    sim_network_client: SimNetworkClient,
+    timer_client: TimerClient,
+    node_index: u8,
+    spawner: S,
+) -> Option<(ConnPair<UserToCompactAck, CompactToUserAck>, CompactReport)>
+where
+    S: Spawn + Clone + Sync + Send + 'static,
+{
+    let app_conn_tuple = create_app(
+        app_index,
+        sim_network_client,
+        timer_client,
+        node_index,
+        spawner.clone(),
+    )
+    .await?;
+
+    let compact_state = CompactState::new();
+
+    // Get a copy of `node_report`, and turn it into `compact_report`:
+    let (app_permissions, node_report, conn_pair_app) = app_conn_tuple;
+    let compact_report: CompactReport =
+        create_compact_report(compact_state.clone(), node_report.clone());
+    let app_conn_tuple = (app_permissions, node_report, conn_pair_app);
+
+    let compact_db = sim_db
+        .load_compact_db(app_index)
+        .unwrap_or(sim_db.init_compact_db(app_index).unwrap());
+
+    // Spawn database service:
+    let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
+    let loop_fut = database_loop(compact_db, incoming_db_requests, spawner.clone())
+        .map_err(|e| error!("database_loop() error: {:?}", e))
+        .map(|_| ());
+
+    spawner.spawn(loop_fut).unwrap();
+
+    // Obtain a client to the database service:
+    let database_client = DatabaseClient::new(db_request_sender);
+
+    let (user_sender, compact_receiver) = mpsc::channel(1);
+    let (compact_sender, user_receiver) = mpsc::channel(1);
+
+    let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+    let compact_gen = GenCryptoRandom(DummyRandom::new(&[0xff, 0x13, 0x3a, app_index]));
+    let compact_fut = compact_node(
+        app_conn_tuple,
+        conn_pair_compact,
+        compact_state,
+        database_client,
+        compact_gen,
+    );
+    spawner
+        .spawn(compact_fut.map(|e| error!("compact_node() error: {:?}", e)))
+        .unwrap();
+    Some((
+        ConnPair::from_raw(user_sender, user_receiver),
+        compact_report,
+    ))
 }
 
 #[derive(Debug, Clone)]
@@ -314,7 +371,7 @@ where
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x37, index]);
 
-    let atomic_db = sim_db.load_db(index);
+    let atomic_db = sim_db.load_node_db(index).unwrap();
 
     // Get initial node_state:
     let node_state = atomic_db.get_state().clone();
@@ -445,87 +502,4 @@ pub async fn advance_time<'a>(
         tick_sender.send(()).await.unwrap();
         test_executor.wait().await;
     }
-}
-
-#[derive(Debug)]
-struct ReportRequest {
-    response_sender: oneshot::Sender<NodeReport>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ReportClient {
-    requests_sender: mpsc::Sender<ReportRequest>,
-}
-
-impl ReportClient {
-    fn new(requests_sender: mpsc::Sender<ReportRequest>) -> Self {
-        Self { requests_sender }
-    }
-
-    pub async fn request_report(&mut self) -> NodeReport {
-        let (response_sender, response_receiver) = oneshot::channel();
-        let report_request = ReportRequest { response_sender };
-        self.requests_sender.send(report_request).await.unwrap();
-
-        response_receiver.await.unwrap()
-    }
-}
-
-#[derive(Debug)]
-enum ReportServiceEvent {
-    Request(ReportRequest),
-    AppServerToApp(AppServerToApp),
-    ServerClosed,
-}
-
-const APP_SERVER_TO_APP_CHANNEL_LEN: usize = 0x200;
-
-/// A service for maintaining knowledge of the current report
-pub fn report_service<S, FS>(
-    mut node_report: NodeReport,
-    mut from_server: FS,
-    spawner: &S,
-) -> (mpsc::Receiver<AppServerToApp>, ReportClient)
-where
-    S: Spawn,
-    FS: Stream<Item = AppServerToApp> + Unpin + Send + 'static,
-{
-    let (requests_sender, requests_receiver) = mpsc::channel(1);
-    let (mut app_sender, app_receiver) = mpsc::channel(APP_SERVER_TO_APP_CHANNEL_LEN);
-
-    let requests_receiver = requests_receiver.map(ReportServiceEvent::Request);
-    let from_server = from_server
-        .map(ReportServiceEvent::AppServerToApp)
-        .chain(stream::once(future::ready(
-            ReportServiceEvent::ServerClosed,
-        )));
-
-    let mut incoming_events = select_streams![from_server, requests_receiver];
-
-    spawner
-        .spawn(async move {
-            while let Some(incoming_event) = incoming_events.next().await {
-                match incoming_event {
-                    ReportServiceEvent::Request(report_request) => {
-                        report_request.response_sender.send(node_report.clone());
-                    }
-                    ReportServiceEvent::AppServerToApp(app_server_to_app) => {
-                        if let AppServerToApp::ReportMutations(report_mutations) =
-                            &app_server_to_app
-                        {
-                            for mutation in &report_mutations.mutations {
-                                node_report.mutate(&mutation).unwrap();
-                            }
-                        }
-                        let _ = app_sender.send(app_server_to_app).await;
-                    }
-                    ReportServiceEvent::ServerClosed => {
-                        return;
-                    }
-                }
-            }
-        })
-        .unwrap();
-
-    (app_receiver, ReportClient { requests_sender })
 }

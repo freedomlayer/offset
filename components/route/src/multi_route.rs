@@ -24,10 +24,13 @@ fn fill_amount(amount: u128, sorted_routes: &[(Option<usize>, u128)]) -> Option<
                 .unwrap(),
         ) * i;
 
-        if let Some(new_amount_left) = amount_left.checked_sub(&added_credits) {
-            amount_left = new_amount_left;
-        } else {
-            return Some((i, amount_left));
+        // TODO: A more elegant way for writing this clause?
+        match amount_left.checked_sub(&added_credits) {
+            None => return Some((i, amount_left)),
+            Some(new_amount_left) if new_amount_left == BigUint::from(0u128) => {
+                return Some((i, amount_left))
+            }
+            Some(new_amount_left) => amount_left = new_amount_left,
         }
     }
     None
@@ -158,5 +161,18 @@ mod tests {
             total_credits = total_credits.checked_add(route_choice.1).unwrap();
         }
         assert_eq!(total_credits, 300);
+    }
+
+    #[test]
+    fn test_safe_multi_route_amounts_exact() {
+        let mut multi_route = MultiRoute { routes: vec![] };
+        multi_route.routes.push(RouteCapacityRate {
+            route: FriendsRoute {
+                public_keys: vec![pk(0), pk(1)],
+            },
+            capacity: 10u128,
+            rate: Rate { add: 0, mul: 0 },
+        });
+        assert!(safe_multi_route_amounts(&multi_route, 10u128).is_some());
     }
 }

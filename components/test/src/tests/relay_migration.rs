@@ -14,8 +14,10 @@ use app::conn::{self, ConnPairApp};
 
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
-    relay_address, relay_public_key, report_service, ReportClient, SimDb,
+    relay_address, relay_public_key, SimDb,
 };
+
+use crate::node_report_service::{node_report_service, NodeReportClient};
 
 use crate::app_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -24,7 +26,7 @@ const TIMER_CHANNEL_LEN: usize = 0;
 
 /// Checks if a friend is online
 /// panics if the friend does not exist.
-async fn wait_friend_online(report_client: &mut ReportClient, index: u8) {
+async fn wait_friend_online(report_client: &mut NodeReportClient, index: u8) {
     loop {
         let node_report = report_client.request_report().await;
         let friend_report = match node_report
@@ -43,7 +45,7 @@ async fn wait_friend_online(report_client: &mut ReportClient, index: u8) {
 
 /// Checks if a friend is online
 /// panics if the friend does not exist.
-async fn wait_friend_offline(report_client: &mut ReportClient, index: u8) {
+async fn wait_friend_offline(report_client: &mut NodeReportClient, index: u8) {
     loop {
         let node_report = report_client.request_report().await;
         let friend_report = match node_report
@@ -76,7 +78,7 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     let sim_net_client = create_sim_network(&mut test_executor);
 
     // Create initial database for node 0:
-    sim_db.init_db(0);
+    sim_db.init_node_db(0).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(
@@ -110,7 +112,7 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     .unwrap();
 
     // Create initial database for node 1:
-    sim_db.init_db(1);
+    sim_db.init_node_db(1).unwrap();
 
     let mut trusted_apps = HashMap::new();
     trusted_apps.insert(
@@ -187,11 +189,13 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut report_client0) = report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut report_client0) =
+        node_report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut report_client1) = report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut report_client1) =
+        node_report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:
@@ -335,7 +339,8 @@ async fn task_relay_migration(mut test_executor: TestExecutor) {
 
     let (_permissions1, node_report1, conn_pair1) = app1;
     let (_sender1, receiver1) = conn_pair1.split();
-    let (_receiver1, mut report_client1) = report_service(node_report1, receiver1, &test_executor);
+    let (_receiver1, mut report_client1) =
+        node_report_service(node_report1, receiver1, &test_executor);
     // let _conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     advance_time(40, &mut tick_sender, &test_executor).await;

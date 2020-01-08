@@ -10,7 +10,8 @@ use route::{choose_multi_route, MultiRouteChoice};
 
 use crate::compact_node::convert::create_compact_report;
 use crate::compact_node::messages::{
-    CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentFees, PaymentFeesResponse,
+    CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus, PaymentFees,
+    PaymentFeesResponse,
 };
 use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::compact_node::types::{CompactNodeError, CompactServerState};
@@ -157,7 +158,10 @@ where
 
                     // Inform the user about failure.
                     // Send a message about payment done:
-                    let payment_done = PaymentDone::Failure(ack_uid);
+                    let payment_done = PaymentDone {
+                        payment_id: payment_id.clone(),
+                        status: PaymentDoneStatus::Failure(ack_uid),
+                    };
                     let compact_to_user = CompactToUser::PaymentDone(payment_done);
                     user_sender
                         .send(CompactToUserAck::CompactToUser(compact_to_user))
@@ -199,7 +203,10 @@ where
 
                     // Inform the user about failure.
                     // Send a message about payment done:
-                    let payment_done = PaymentDone::Failure(ack_uid);
+                    let payment_done = PaymentDone {
+                        payment_id: response_close_payment.payment_id.clone(),
+                        status: PaymentDoneStatus::Failure(ack_uid),
+                    };
                     let compact_to_user = CompactToUser::PaymentDone(payment_done);
                     user_sender
                         .send(CompactToUserAck::CompactToUser(compact_to_user))
@@ -219,7 +226,10 @@ where
 
                             // Inform the user about failure.
                             // Send a message about payment done:
-                            let payment_done = PaymentDone::Failure(ack_uid);
+                            let payment_done = PaymentDone {
+                                payment_id: response_close_payment.payment_id.clone(),
+                                status: PaymentDoneStatus::Failure(ack_uid),
+                            };
                             let compact_to_user = CompactToUser::PaymentDone(payment_done);
                             user_sender
                                 .send(CompactToUserAck::CompactToUser(compact_to_user))
@@ -238,8 +248,14 @@ where
 
                             // Inform the user about success.
                             // Send a message about payment done:
-                            let payment_done =
-                                PaymentDone::Success(success.receipt.clone(), fees, ack_uid);
+                            let payment_done = PaymentDone {
+                                payment_id: response_close_payment.payment_id.clone(),
+                                status: PaymentDoneStatus::Success(
+                                    success.receipt.clone(),
+                                    fees,
+                                    ack_uid,
+                                ),
+                            };
                             let compact_to_user = CompactToUser::PaymentDone(payment_done);
                             user_sender
                                 .send(CompactToUserAck::CompactToUser(compact_to_user))

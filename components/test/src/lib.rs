@@ -17,17 +17,36 @@ extern crate log;
 #[macro_use]
 extern crate common;
 
-#[allow(unused)]
+#[cfg(test)]
+extern crate quickcheck;
+
+// #[cfg(test)]
+// #[macro_use(quickcheck)]
+// extern crate quickcheck_macros;
+
+/*
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck_derive;
+*/
+
 #[cfg(test)]
 mod sim_network;
 
-#[allow(unused)]
 #[cfg(test)]
 mod utils;
 
-#[allow(unused)]
 #[cfg(test)]
 mod app_wrapper;
+
+#[cfg(test)]
+mod compact_node_wrapper;
+
+#[cfg(test)]
+mod node_report_service;
+
+#[cfg(test)]
+mod compact_report_service;
 
 #[cfg(test)]
 mod tests;

@@ -20,7 +20,13 @@ log = "0.4"
 env_logger = "0.6.0"
 futures = "0.3.1"
 
-serde = {version = "1.0.87", features = ["derive"]}
+serde = {version = "1.0.104", features = ["derive"]}
+
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_macros = {version = "0.8"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
 
 [dev-dependencies]
 

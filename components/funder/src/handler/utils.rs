@@ -62,7 +62,7 @@ pub fn find_local_pending_transaction<'a, B>(
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    for (_friend_public_key, friend) in &state.friends {
+    for friend in state.friends.values() {
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
             ChannelStatus::Consistent(channel_consistent) => {
@@ -99,7 +99,7 @@ pub fn find_remote_pending_transaction<'a, B>(
 where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
 {
-    for (_friend_public_key, friend) in &state.friends {
+    for friend in state.friends.values() {
         match &friend.channel_status {
             ChannelStatus::Inconsistent(_) => continue,
             ChannelStatus::Consistent(channel_consistent) => {

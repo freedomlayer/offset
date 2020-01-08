@@ -140,7 +140,7 @@ impl OutgoingMc {
         // verify signature:
         let response_signature_buffer = create_response_signature_buffer(
             &self.mutual_credit.state().currency,
-            &response_send_funds,
+            response_send_funds.clone(),
             &pending_transaction,
         );
         // The response was signed by the destination node:
@@ -170,10 +170,10 @@ impl OutgoingMc {
         // Set the stage to Response, and remember dest_hashed_lock:
         let mc_mutation = McMutation::SetRemotePendingTransactionStage((
             response_send_funds.request_id,
-            TransactionStage::Response((
+            TransactionStage::Response(
                 response_send_funds.dest_hashed_lock.clone(),
                 response_send_funds.is_complete,
-            )),
+            ),
         ));
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
@@ -238,7 +238,7 @@ impl OutgoingMc {
         // TODO: Possibly get rid of clone() here for optimization later
 
         let dest_hashed_lock = match &pending_transaction.stage {
-            TransactionStage::Response((dest_hashed_lock, _is_complete)) => dest_hashed_lock,
+            TransactionStage::Response(dest_hashed_lock, _is_complete) => dest_hashed_lock,
             _ => return Err(QueueOperationError::NotExpectingCollect),
         };
 

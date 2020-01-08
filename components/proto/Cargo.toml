@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 
-# crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
 common = { path = "../common", version = "0.1.0", package = "offst-common" }
 mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
 capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offst-capnp-conv" }
@@ -17,14 +16,14 @@ capnp = "0.10.0"
 
 byteorder = "1.1"
 
-serde = { version = "1.0.94", features = ["derive"] }
+serde = { version = "1.0.104", features = ["derive"] }
 
-serde_json = "1.0.27"
+serde_json = "1.0.44"
 bytes = "0.4"
-toml = "0.4.10"
+# toml = "0.4.10"
 base64 = "0.10.1"
 
-im = {version = "12.0.0", features = ["serde"]}
+im = {version = "14.1.0", features = ["serde", "quickcheck"]}
 
 derive_more = "0.14.0"
 
@@ -33,9 +32,13 @@ num-traits = "0.2.6"
 
 paste = "0.1.5"
 
+# Quickcheck:
+quickcheck = {version = "0.9"}
+quickcheck_derive = {version = "0.2.1"}
+rand = {version = "0.7.2"}
 
 [dev-dependencies]
-tempfile = "3.0.5"
+tempfile = "3.1.0"
 
 [build-dependencies]
 capnpc = "0.10.0"

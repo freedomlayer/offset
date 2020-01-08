@@ -1,4 +1,4 @@
-use im::hashmap::HashMap as ImHashMap;
+use std::collections::HashMap as ImHashMap;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -95,8 +95,9 @@ where
         name: friend_state.name.clone(),
         currency_configs: friend_state
             .currency_configs
-            .iter()
-            .cloned()
+            .clone()
+            .into_iter()
+            // .cloned()
             .map(|(currency, currency_config)| CurrencyConfigReport {
                 currency,
                 rate: currency_config.rate,
@@ -380,7 +381,7 @@ mod test {
 
         // Make sure that we get the same signature buffer from all the different representations
         // of MoveToken:
-        let sig_buff = move_token_signature_buff(&move_token);
+        let sig_buff = move_token_signature_buff(move_token.clone());
         let sig_buff_report = move_token_hashed_report_signature_buff(&move_token_hashed_report);
 
         assert_eq!(sig_buff, sig_buff_report);
