@@ -48,10 +48,9 @@ async fn make_test_payment(
     seller_public_key: PublicKey,
     currency: Currency,
     total_dest_payment: u128,
-    fees: u128,
     mut tick_sender: mpsc::Sender<()>,
     test_executor: TestExecutor,
-) -> Option<Receipt> {
+) -> Option<(Receipt, u128)> {
     let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
     let request_id = Uid::from(&[5u8; Uid::len()]);
@@ -166,7 +165,7 @@ async fn make_test_payment(
     advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node0: Wait for PaymentDone:
-    let (receipt, _fees, ack_uid) = loop {
+    let (opt_receipt_fees, ack_uid) = loop {
         let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
         let payment_done = if let CompactToUserAck::CompactToUser(CompactToUser::PaymentDone(payment_done)) = compact_to_user_ack {
             payment_done
@@ -175,8 +174,8 @@ async fn make_test_payment(
         };
         assert_eq!(payment_done.payment_id, payment_id);
         match payment_done.status {
-            PaymentDoneStatus::Success(receipt, fees, ack_uid) => break (receipt, fees, ack_uid),
-            PaymentDoneStatus::Failure(_ack_uid) => unreachable!(),
+            PaymentDoneStatus::Success(receipt, fees, ack_uid) => break (Some((receipt, fees)), ack_uid),
+            PaymentDoneStatus::Failure(ack_uid) => break (None, ack_uid),
         };
     };
 
@@ -188,7 +187,7 @@ async fn make_test_payment(
     .await
     .unwrap();
 
-    Some(receipt)
+    opt_receipt_fees
 }
 
 async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
@@ -517,70 +516,58 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     advance_time(10, &mut tick_sender, &test_executor).await;
 
     // Send 10 currency1 credits from node0 to node1:
-    let opt_receipt = make_test_payment(
+    let opt_receipt_fees = make_test_payment(
         &mut compact_node0,
         &mut compact_node1,
         node_public_key(0),
         node_public_key(1),
         currency1.clone(),
-        8u128, // total_dest_payment
-        2u128, // fees
+        10u128, // total_dest_payment
         tick_sender.clone(),
         test_executor.clone(),
     )
     .await;
 
-    assert!(opt_receipt.is_some());
-    /*
-
-    if let PaymentStatus::Success(_) = payment_status {
-    } else {
-        unreachable!();
-    };
+    assert!(opt_receipt_fees.is_some());
+    assert!(false);
 
     // Allow some time for the index servers to be updated about the new state:
-    advance_time(40, &mut tick_sender, &test_executor).await;
+    advance_time(10, &mut tick_sender, &test_executor).await;
 
     // Send 11 currency2 credits from node0 to node1:
-    let payment_status = make_test_payment(
-        &mut conn_pair0,
-        &mut conn_pair1,
+    let opt_receipt_fees = make_test_payment(
+        &mut compact_node0,
+        &mut compact_node1,
         node_public_key(0),
         node_public_key(1),
         currency2.clone(),
-        9u128, // total_dest_payment
-        2u128, // fees
+        11u128, // total_dest_payment
         tick_sender.clone(),
         test_executor.clone(),
     )
     .await;
 
-    if let PaymentStatus::Success(_) = payment_status {
-    } else {
-        unreachable!();
-    };
+    assert!(opt_receipt_fees.is_some());
 
     // Allow some time for the index servers to be updated about the new state:
-    advance_time(40, &mut tick_sender, &test_executor).await;
+    advance_time(10, &mut tick_sender, &test_executor).await;
 
-    // Node1: Send 5 = 3 + 2 credits to Node0:
-    let payment_status = make_test_payment(
-        &mut conn_pair1,
-        &mut conn_pair0,
+    // Node1: Send 5 credits to Node0:
+    let opt_receipt_fees = make_test_payment(
+        &mut compact_node0,
+        &mut compact_node1,
         node_public_key(1),
         node_public_key(0),
         currency1.clone(),
-        3u128, // total_dest_payment
-        2u128, // fees
+        5u128, // total_dest_payment
         tick_sender.clone(),
         test_executor.clone(),
     )
     .await;
 
-    if let PaymentStatus::Success(_) = payment_status {
-    } else {
-        unreachable!();
-    };
+    assert!(opt_receipt_fees.is_some());
+
+    /*
 
     // Node1: Attempt to send 6 more credits.
     // This should not work, because 6 + 5 = 11 > 8.
