@@ -25,7 +25,7 @@ pub async fn send_request(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     // Wait until we get an ack for our request:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
@@ -70,7 +70,7 @@ pub async fn request_routes(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     // Wait until we get back response routes:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
@@ -85,6 +85,7 @@ pub async fn request_routes(
     return Err(AppWrapperError);
 }
 
+/*
 /// Request to close payment, but do not wait for the payment to be closed.
 pub async fn request_close_payment_nowait(
     conn_pair: &mut ConnPairApp,
@@ -103,7 +104,7 @@ pub async fn request_close_payment_nowait(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
@@ -117,6 +118,7 @@ pub async fn request_close_payment_nowait(
 
     return Err(AppWrapperError);
 }
+*/
 
 /// Request to close the payment, and wait for the payment to be closed.
 pub async fn request_close_payment(
@@ -136,7 +138,7 @@ pub async fn request_close_payment(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ResponseClosePayment(response_close_payment) = app_server_to_app {
@@ -168,7 +170,7 @@ pub async fn ack_close_payment(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
@@ -211,7 +213,7 @@ pub async fn create_transaction(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| AppWrapperError);
+        .map_err(|_| AppWrapperError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::TransactionResult(transaction_result) = app_server_to_app {

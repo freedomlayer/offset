@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::mpsc;
 use futures::future::RemoteHandle;
 use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
+use futures::{future, FutureExt, SinkExt, TryFutureExt};
 
 use crypto::identity::{Identity, SoftwareEd25519Identity};
 
@@ -13,8 +13,7 @@ use crypto::test_utils::DummyRandom;
 
 use common::test_executor::TestExecutor;
 
-use common::conn::{BoxFuture, BoxStream, ConnPair};
-use common::select_streams::select_streams;
+use common::conn::{BoxFuture, ConnPair};
 
 use proto::crypto::{PrivateKey, PublicKey};
 
@@ -25,8 +24,7 @@ use proto::net::messages::NetAddress;
 
 use identity::{create_identity, IdentityClient};
 
-use app::conn::{AppConnTuple, AppServerToApp};
-use app::report::NodeReport;
+use app::conn::AppConnTuple;
 use app_client::app_connect_to_node;
 use connection::create_secure_connector;
 
@@ -61,36 +59,6 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// The amount of ticks we are willing to wait until a connection is established (Through
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
-/// Maximum amount of concurrent applications
-/// going through the incoming connection transform at the same time
-const MAX_CONCURRENT_INCOMING_APPS: usize = 0x8;
-
-/*
-// Based on:
-// - https://rust-lang-nursery.github.io/futures-api-docs/0.3.0-alpha.13/src/futures_test/future/pending_once.rs.html#14-17
-// - https://github.com/rust-lang-nursery/futures-rs/issues/869
-pub struct Yield(usize);
-
-impl Yield {
-    pub fn new(num_yields: usize) -> Self {
-        Yield(num_yields)
-    }
-}
-
-impl Future for Yield {
-    type Output = ();
-    fn poll(mut self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
-        let count = &mut self.as_mut().0;
-        *count = count.saturating_sub(1);
-        if *count == 0 {
-            Poll::Ready(())
-        } else {
-            waker.wake();
-            Poll::Pending
-        }
-    }
-}
-*/
 
 fn gen_identity<R>(rng: &R) -> impl Identity
 where
@@ -201,9 +169,6 @@ impl SimDb {
 
     /// Create an empty compact database
     pub fn init_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
-        let identity = get_node_identity(index);
-        let local_public_key = identity.get_public_key();
-
         // Create a new database file:
         let db_path_buf = self.temp_dir_path
             .join(format!("compact_db_{}", index));
