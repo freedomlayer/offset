@@ -92,7 +92,6 @@ where
     Ok(ConnPairString::from_raw(server_sender, server_receiver))
 }
 
-#[allow(unused)]
 pub async fn stcompact<S, FS>(
     st_compact_cmd: StCompactCmd,
     spawner: S,
