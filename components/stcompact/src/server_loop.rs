@@ -801,7 +801,6 @@ where
     Ok(())
 }
 
-#[allow(unused)]
 pub async fn compact_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
