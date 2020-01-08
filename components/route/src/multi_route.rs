@@ -24,10 +24,13 @@ fn fill_amount(amount: u128, sorted_routes: &[(Option<usize>, u128)]) -> Option<
                 .unwrap(),
         ) * i;
 
-        if let Some(new_amount_left) = amount_left.checked_sub(&added_credits) {
-            amount_left = new_amount_left;
-        } else {
-            return Some((i, amount_left));
+        // TODO: A more elegant way for writing this clause?
+        match amount_left.checked_sub(&added_credits) {
+            None => return Some((i, amount_left)),
+            Some(new_amount_left) if new_amount_left == BigUint::from(0u128) => {
+                return Some((i, amount_left))
+            }
+            Some(new_amount_left) => amount_left = new_amount_left,
         }
     }
     None
