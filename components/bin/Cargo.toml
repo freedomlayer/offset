@@ -54,4 +54,4 @@ derive_more = "0.99.2"
 
 [dev-dependencies]
 
-tempfile = "3.0.5"
+tempfile = "3.1.0"
