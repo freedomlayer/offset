@@ -145,11 +145,13 @@ async fn task_handle_error_command(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut _report_client0) = node_report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut _report_client0) =
+        node_report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut _report_client1) = node_report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut _report_client1) =
+        node_report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:

@@ -2,7 +2,9 @@ use futures::SinkExt;
 
 use database::DatabaseClient;
 
-use crate::compact_node::messages::{CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus};
+use crate::compact_node::messages::{
+    CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus,
+};
 use crate::compact_node::persist::{CompactState, OpenPaymentStatus};
 use crate::compact_node::types::{CompactNodeError, ConnPairCompact};
 use crate::gen::GenUid;
@@ -87,7 +89,7 @@ where
                     payment_id: payment_id.clone(),
                     status: PaymentDoneStatus::Failure(ack_uid.clone()),
                 };
-                    
+
                 let compact_to_user = CompactToUser::PaymentDone(payment_done);
                 conn_pair_compact
                     .sender

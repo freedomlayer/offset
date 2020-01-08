@@ -4,7 +4,10 @@ use app::conn::AppConnTuple;
 
 use crate::gen::GenUid;
 
-use crate::compact_node::{persist::CompactState, types::{CompactNodeError, ConnPairCompact}};
+use crate::compact_node::{
+    persist::CompactState,
+    types::{CompactNodeError, ConnPairCompact},
+};
 use crate::compact_node::{server_init::compact_node_init, server_loop::compact_node_loop};
 
 pub async fn compact_node<CG>(

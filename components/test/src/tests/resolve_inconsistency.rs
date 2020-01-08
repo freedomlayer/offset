@@ -16,11 +16,11 @@ use app::conn::{self, ConnPairApp, RequestResult};
 
 use timer::create_timer_incoming;
 
+use crate::node_report_service::node_report_service;
 use crate::utils::{
     advance_time, create_app, create_node, create_relay, named_relay_address, node_public_key,
     relay_address, SimDb,
 };
-use crate::node_report_service::node_report_service;
 
 use crate::sim_network::create_sim_network;
 
@@ -250,11 +250,13 @@ async fn task_resolve_inconsistency(mut test_executor: TestExecutor) {
     let (_permissions1, node_report1, conn_pair1) = app1;
 
     let (sender0, receiver0) = conn_pair0.split();
-    let (receiver0, mut report_client0) = node_report_service(node_report0, receiver0, &test_executor);
+    let (receiver0, mut report_client0) =
+        node_report_service(node_report0, receiver0, &test_executor);
     let mut conn_pair0 = ConnPairApp::from_raw(sender0, receiver0);
 
     let (sender1, receiver1) = conn_pair1.split();
-    let (receiver1, mut report_client1) = node_report_service(node_report1, receiver1, &test_executor);
+    let (receiver1, mut report_client1) =
+        node_report_service(node_report1, receiver1, &test_executor);
     let mut conn_pair1 = ConnPairApp::from_raw(sender1, receiver1);
 
     // Configure relays:

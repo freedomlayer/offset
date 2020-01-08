@@ -15,7 +15,7 @@ use common::select_streams::select_streams;
 
 use timer::TimerClient;
 
-use app::common::{NetAddress};
+use app::common::NetAddress;
 use app::conn::ConnPairApp;
 use app_client::app_connect_to_node;
 
@@ -30,16 +30,12 @@ use crate::messages::{
     UserToServerAck,
 };
 
-use crate::compact_node::{
-    compact_node, create_compact_report, ConnPairCompact,
-};
-use crate::compact_node::messages::{
-    CompactToUserAck, UserToCompactAck,
-};
+use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
 use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
 
-use connection::{create_secure_connector, create_encrypt_keepalive};
+use connection::{create_encrypt_keepalive, create_secure_connector};
 
 /// Memory allocated to a channel in memory (Used to connect two components)
 const CHANNEL_LEN: usize = 0x20;
@@ -310,10 +306,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let app_permissions = AppPermissions {
         routes: true,
@@ -342,7 +335,8 @@ where
         server_state.timer_client.clone(),
         local.node_identity_client.clone(),
         server_state.rng.clone(),
-        server_state.spawner.clone());
+        server_state.spawner.clone(),
+    );
 
     let node_fut = node(
         NODE_CONFIG,
@@ -464,10 +458,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let secure_connector = create_secure_connector(
         server_state.connector.clone(),
@@ -581,10 +572,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -650,10 +638,7 @@ where
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let UserToServerAck {
         request_id,
@@ -729,10 +714,7 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let (mut user_sender, user_receiver) = conn_pair.split();
 
@@ -815,10 +797,7 @@ where
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
-    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>>
-        + Clone
-        + Send
-        + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // `opt_event_sender` is not needed in production:
     let opt_event_sender = None;

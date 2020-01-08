@@ -69,7 +69,10 @@ where
             while let Some(incoming_event) = incoming_events.next().await {
                 match incoming_event {
                     NodeReportServiceEvent::Request(report_request) => {
-                        report_request.response_sender.send(node_report.clone()).unwrap();
+                        report_request
+                            .response_sender
+                            .send(node_report.clone())
+                            .unwrap();
                     }
                     NodeReportServiceEvent::AppServerToApp(app_server_to_app) => {
                         if let AppServerToApp::ReportMutations(report_mutations) =

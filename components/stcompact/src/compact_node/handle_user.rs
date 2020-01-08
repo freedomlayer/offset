@@ -6,8 +6,8 @@ use app::verify::verify_commit;
 
 use crate::compact_node::create_compact_report;
 use crate::compact_node::messages::{
-    CompactToUser, CompactToUserAck, PaymentDone, PaymentDoneStatus, PaymentFees, PaymentFeesResponse,
-    ResponseVerifyCommit, UserToCompact, UserToCompactAck, VerifyCommitStatus,
+    CompactToUser, CompactToUserAck, PaymentDone, PaymentDoneStatus, PaymentFees,
+    PaymentFeesResponse, ResponseVerifyCommit, UserToCompact, UserToCompactAck, VerifyCommitStatus,
 };
 use crate::compact_node::persist::{
     OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending,
@@ -695,7 +695,7 @@ where
             // Update local database:
             compact_state.open_invoices.remove(&commit.invoice_id);
             server_state.update_compact_state(compact_state).await?;
-        },
+        }
         UserToCompact::RequestVerifyCommit(request_verify_commit) => {
             // Send ack:
             user_sender
@@ -721,13 +721,12 @@ where
                 }
             };
 
-            let compact_to_user =
-                CompactToUser::ResponseVerifyCommit(response_verify_commit);
+            let compact_to_user = CompactToUser::ResponseVerifyCommit(response_verify_commit);
             return user_sender
                 .send(CompactToUserAck::CompactToUser(compact_to_user))
                 .await
                 .map_err(|_| CompactNodeError::UserSenderError);
-        },
+        }
     }
     Ok(())
 }

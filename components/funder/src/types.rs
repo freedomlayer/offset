@@ -6,9 +6,10 @@ use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations,
-    FriendMessage, FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedResponseSendFundsOp, UnsignedMoveToken,
+    CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations, FriendMessage,
+    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedMoveToken,
+    UnsignedResponseSendFundsOp,
 };
 
 use signature::signature_buff::{
@@ -56,8 +57,11 @@ pub async fn create_response_send_funds<'a>(
         rand_nonce,
     };
 
-    let signature_buff =
-        create_response_signature_buffer(currency, u_response_send_funds.clone(), pending_transaction);
+    let signature_buff = create_response_signature_buffer(
+        currency,
+        u_response_send_funds.clone(),
+        pending_transaction,
+    );
     let signature = identity_client
         .request_signature(signature_buff)
         .await

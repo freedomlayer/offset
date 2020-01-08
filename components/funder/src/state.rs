@@ -5,7 +5,7 @@ use std::collections::HashMap as ImHashMap;
 use im::hashset::HashSet as ImHashSet;
 use im::vector::Vector as ImVec;
 
-use common::ser_utils::{ser_map_b64_any, ser_b64, ser_option_b64, ser_string};
+use common::ser_utils::{ser_b64, ser_map_b64_any, ser_option_b64, ser_string};
 use signature::canonical::CanonicalSerialize;
 
 use proto::crypto::{HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Uid};

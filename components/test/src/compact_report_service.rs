@@ -7,8 +7,7 @@ use futures::{future, stream, SinkExt, Stream, StreamExt};
 use common::conn::BoxStream;
 use common::select_streams::select_streams;
 
-use stcompact::compact_node::messages::{CompactToUserAck, CompactToUser, CompactReport};
-
+use stcompact::compact_node::messages::{CompactReport, CompactToUser, CompactToUserAck};
 
 #[derive(Debug)]
 struct CompactReportRequest {
@@ -70,11 +69,15 @@ where
             while let Some(incoming_event) = incoming_events.next().await {
                 match incoming_event {
                     CompactReportServiceEvent::Request(report_request) => {
-                        report_request.response_sender.send(compact_report.clone()).unwrap();
+                        report_request
+                            .response_sender
+                            .send(compact_report.clone())
+                            .unwrap();
                     }
                     CompactReportServiceEvent::CompactToUserAck(compact_to_user_ack) => {
-                        if let CompactToUserAck::CompactToUser(CompactToUser::Report(new_compact_report)) = 
-                            &compact_to_user_ack
+                        if let CompactToUserAck::CompactToUser(CompactToUser::Report(
+                            new_compact_report,
+                        )) = &compact_to_user_ack
                         {
                             let _ = mem::replace(&mut compact_report, new_compact_report.clone());
                         }

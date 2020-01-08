@@ -6,13 +6,13 @@ use derive_more::From;
 use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
-use futures::{StreamExt, SinkExt, FutureExt};
 use futures::AsyncWriteExt;
+use futures::{FutureExt, SinkExt, StreamExt};
 
 use structopt::StructOpt;
 
-use common::int_convert::usize_to_u64;
 use common::conn::ConnPairString;
+use common::int_convert::usize_to_u64;
 
 use crypto::rand::system_random;
 
@@ -22,9 +22,9 @@ use net::TcpConnector;
 
 use proto::consts::{MAX_FRAME_LENGTH, TICK_MS};
 
+use crate::serialize::{serialize_conn_pair, SerializeConnError};
 use crate::server_loop::{compact_server_loop, ServerError};
 use crate::store::open_file_store;
-use crate::serialize::{serialize_conn_pair, SerializeConnError};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
@@ -50,7 +50,7 @@ pub struct StCompactCmd {
     pub store_path: PathBuf,
 }
 
-fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairString, StCompactError> 
+fn create_stdio_conn_pair<S>(spawner: &S) -> Result<ConnPairString, StCompactError>
 where
     S: Spawn,
 {
@@ -70,7 +70,9 @@ where
         }
         Some(())
     };
-    spawner.spawn(send_fut.map(|_: Option<()>| ())).map_err(|_| StCompactError::SpawnError)?;
+    spawner
+        .spawn(send_fut.map(|_: Option<()>| ()))
+        .map_err(|_| StCompactError::SpawnError)?;
 
     let recv_fut = async move {
         // Receive data from stdin:
@@ -87,7 +89,9 @@ where
             sender.send(line.clone()).await.ok()?;
         }
     };
-    spawner.spawn(recv_fut.map(|_: Option<()>| ())).map_err(|_| StCompactError::SpawnError)?;
+    spawner
+        .spawn(recv_fut.map(|_: Option<()>| ()))
+        .map_err(|_| StCompactError::SpawnError)?;
 
     Ok(ConnPairString::from_raw(server_sender, server_receiver))
 }
@@ -131,5 +135,6 @@ where
         rng,
         tcp_connector,
         spawner.clone(),
-    ).await?)
+    )
+    .await?)
 }

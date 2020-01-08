@@ -1,13 +1,12 @@
 use futures::task::{Spawn, SpawnExt};
 
 use futures::channel::mpsc;
-use futures::{StreamExt, SinkExt, FutureExt};
+use futures::{FutureExt, SinkExt, StreamExt};
 
 use common::conn::ConnPairString;
 
-use crate::server_loop::ConnPairCompactServer;
 use crate::messages::UserToServerAck;
-
+use crate::server_loop::ConnPairCompactServer;
 
 #[derive(Debug)]
 pub enum SerializeConnError {
@@ -15,7 +14,10 @@ pub enum SerializeConnError {
 }
 
 /// Serialize a strings communication into ConnPairCompactServer
-pub fn serialize_conn_pair<S>(conn_pair: ConnPairString, spawner: &S) -> Result<ConnPairCompactServer, SerializeConnError>
+pub fn serialize_conn_pair<S>(
+    conn_pair: ConnPairString,
+    spawner: &S,
+) -> Result<ConnPairCompactServer, SerializeConnError>
 where
     S: Spawn,
 {
@@ -27,14 +29,15 @@ where
     let send_fut = async move {
         while let Some(server_to_user_ack) = receiver.next().await {
             // Serialize:
-            let ser_str = serde_json::to_string(&server_to_user_ack)
-                .expect("Serialization error!");
+            let ser_str = serde_json::to_string(&server_to_user_ack).expect("Serialization error!");
 
             user_sender.send(ser_str).await.ok()?;
         }
         Some(())
     };
-    spawner.spawn(send_fut.map(|_: Option<()>| ())).map_err(|_| SerializeConnError::SpawnError)?;
+    spawner
+        .spawn(send_fut.map(|_: Option<()>| ()))
+        .map_err(|_| SerializeConnError::SpawnError)?;
 
     let recv_fut = async move {
         while let Some(line) = user_receiver.next().await {
@@ -46,9 +49,14 @@ where
         }
         Some(())
     };
-    spawner.spawn(recv_fut.map(|_: Option<()>| ())).map_err(|_| SerializeConnError::SpawnError)?;
+    spawner
+        .spawn(recv_fut.map(|_: Option<()>| ()))
+        .map_err(|_| SerializeConnError::SpawnError)?;
 
-    Ok(ConnPairCompactServer::from_raw(server_sender, server_receiver))
+    Ok(ConnPairCompactServer::from_raw(
+        server_sender,
+        server_receiver,
+    ))
 }
 
 #[cfg(test)]
@@ -63,13 +71,12 @@ mod tests {
     use quickcheck::QuickCheck;
 
     #[allow(unused)]
-    use proto::crypto::{Uid, PrivateKey, PublicKey, InvoiceId};
-    use proto::net::messages::NetAddress;
+    use proto::crypto::{InvoiceId, PrivateKey, PublicKey, Uid};
     use proto::funder::messages::Currency;
-
+    use proto::net::messages::NetAddress;
 
     /*
-    use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer, 
+    use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer,
         RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
     */
     use crate::messages::*;

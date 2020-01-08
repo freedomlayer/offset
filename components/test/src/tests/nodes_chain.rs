@@ -22,8 +22,7 @@ use crate::app_wrapper::{
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_app, create_index_server, create_node, create_relay,
-    named_index_server_address, named_relay_address, node_public_key, relay_address,
-     SimDb,
+    named_index_server_address, named_relay_address, node_public_key, relay_address, SimDb,
 };
 
 use crate::node_report_service::{node_report_service, NodeReportClient};

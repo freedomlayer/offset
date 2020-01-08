@@ -37,8 +37,8 @@ use bin::stindex::net_index_server;
 use bin::stnode::{net_node, TrustedApps};
 use bin::strelay::net_relay_server;
 
-use stcompact::compact_node::{compact_node, CompactState, ConnPairCompact, create_compact_report};
-use stcompact::compact_node::messages::{CompactToUserAck, UserToCompactAck, CompactReport};
+use stcompact::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
+use stcompact::compact_node::{compact_node, create_compact_report, CompactState, ConnPairCompact};
 use stcompact::GenCryptoRandom;
 
 use timer::TimerClient;
@@ -151,8 +151,7 @@ impl SimDb {
         let local_public_key = identity.get_public_key();
 
         // Create a new database file:
-        let db_path_buf = self.temp_dir_path
-            .join(format!("node_db_{}", index));
+        let db_path_buf = self.temp_dir_path.join(format!("node_db_{}", index));
         let initial_state = NodeState::<NetAddress>::new(local_public_key);
         FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
     }
@@ -160,8 +159,7 @@ impl SimDb {
     /// Load a database. The database should already exist,
     /// otherwise a panic happens.
     pub fn load_node_db(&self, index: u8) -> Result<FileDb<NodeState<NetAddress>>, SimDbError> {
-        let db_path_buf = self.temp_dir_path
-            .join(format!("node_db_{}", index));
+        let db_path_buf = self.temp_dir_path.join(format!("node_db_{}", index));
 
         // Load database from file:
         FileDb::<NodeState<NetAddress>>::load(db_path_buf).map_err(|_| SimDbError)
@@ -170,8 +168,7 @@ impl SimDb {
     /// Create an empty compact database
     pub fn init_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
         // Create a new database file:
-        let db_path_buf = self.temp_dir_path
-            .join(format!("compact_db_{}", index));
+        let db_path_buf = self.temp_dir_path.join(format!("compact_db_{}", index));
         let initial_state = CompactState::new();
         FileDb::create(db_path_buf, initial_state).map_err(|_| SimDbError)
     }
@@ -179,8 +176,7 @@ impl SimDb {
     /// Load a database. The database should already exist,
     /// otherwise a panic happens.
     pub fn load_compact_db(&self, index: u8) -> Result<FileDb<CompactState>, SimDbError> {
-        let db_path_buf = self.temp_dir_path
-            .join(format!("compact_db_{}", index));
+        let db_path_buf = self.temp_dir_path.join(format!("compact_db_{}", index));
 
         // Load database from file:
         FileDb::<CompactState>::load(db_path_buf).map_err(|_| SimDbError)
@@ -280,17 +276,25 @@ where
     S: Spawn + Clone + Sync + Send + 'static,
 {
     let app_conn_tuple = create_app(
-        app_index, sim_network_client, timer_client, node_index, spawner.clone())
-        .await?;
+        app_index,
+        sim_network_client,
+        timer_client,
+        node_index,
+        spawner.clone(),
+    )
+    .await?;
 
     let compact_state = CompactState::new();
 
     // Get a copy of `node_report`, and turn it into `compact_report`:
     let (app_permissions, node_report, conn_pair_app) = app_conn_tuple;
-    let compact_report: CompactReport = create_compact_report(compact_state.clone(), node_report.clone());
+    let compact_report: CompactReport =
+        create_compact_report(compact_state.clone(), node_report.clone());
     let app_conn_tuple = (app_permissions, node_report, conn_pair_app);
 
-    let compact_db = sim_db.load_compact_db(app_index).unwrap_or(sim_db.init_compact_db(app_index).unwrap());
+    let compact_db = sim_db
+        .load_compact_db(app_index)
+        .unwrap_or(sim_db.init_compact_db(app_index).unwrap());
 
     // Spawn database service:
     let (db_request_sender, incoming_db_requests) = mpsc::channel(0);
@@ -303,12 +307,10 @@ where
     // Obtain a client to the database service:
     let database_client = DatabaseClient::new(db_request_sender);
 
-
     let (user_sender, compact_receiver) = mpsc::channel(1);
     let (compact_sender, user_receiver) = mpsc::channel(1);
 
     let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
-
 
     let compact_gen = GenCryptoRandom(DummyRandom::new(&[0xff, 0x13, 0x3a, app_index]));
     let compact_fut = compact_node(
@@ -318,8 +320,13 @@ where
         database_client,
         compact_gen,
     );
-    spawner.spawn(compact_fut.map(|e| error!("compact_node() error: {:?}", e))).unwrap();
-    Some((ConnPair::from_raw(user_sender, user_receiver), compact_report))
+    spawner
+        .spawn(compact_fut.map(|e| error!("compact_node() error: {:?}", e)))
+        .unwrap();
+    Some((
+        ConnPair::from_raw(user_sender, user_receiver),
+        compact_report,
+    ))
 }
 
 #[derive(Debug, Clone)]
@@ -496,4 +503,3 @@ pub async fn advance_time<'a>(
         test_executor.wait().await;
     }
 }
-
