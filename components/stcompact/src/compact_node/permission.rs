@@ -27,6 +27,7 @@ pub fn check_permission(user_request: &UserToCompact, app_permissions: &AppPermi
         | UserToCompact::AckPaymentDone(_, _) => app_permissions.buyer,
         UserToCompact::AddInvoice(_)
         | UserToCompact::CancelInvoice(_)
-        | UserToCompact::RequestCommitInvoice(_) => app_permissions.seller,
+        | UserToCompact::CommitInvoice(_) => app_permissions.seller,
+        UserToCompact::RequestVerifyCommit(_) => true,
     }
 }

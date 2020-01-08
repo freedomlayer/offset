@@ -24,7 +24,7 @@ use stcompact::compact_node::compact_node;
 use stcompact::compact_node::messages::{UserToCompactAck, CompactToUserAck, UserToCompact, AddFriend, FriendLivenessReport,
                                         SetFriendCurrencyRate, OpenFriendCurrency, SetFriendCurrencyMaxDebt, 
                                         AddInvoice, InitPayment, PaymentFeesResponse, ConfirmPaymentFees, CompactToUser, 
-                                        ResponseCommitInvoice, CommitInvoiceStatus, PaymentDoneStatus};
+                                        PaymentDoneStatus, RequestVerifyCommit, VerifyCommitStatus};
 
 use crate::compact_node_wrapper::send_request;
 use crate::sim_network::create_sim_network;
@@ -127,26 +127,40 @@ async fn make_test_payment(
 
     // ... Node0 now passes the commit to Node1 out of band ...
     
-    // Node1: Apply the commit:
+    // Node1: Verify the commit:
+    let verify_request_id = gen_uid();
+    let request_verify_commit = RequestVerifyCommit {
+        request_id: verify_request_id.clone(),
+        seller_public_key: node_public_key(1),
+        commit: commit.clone(),
+    };
     send_request(
         &mut conn_pair1,
-        UserToCompact::RequestCommitInvoice(commit)
+        UserToCompact::RequestVerifyCommit(request_verify_commit)
     )
     .await
     .unwrap();
 
-    // Node1: Wait for response commit:
+    // Node1: Wait for verification of commit:
     loop {
         let compact_to_user_ack = conn_pair1.receiver.next().await.unwrap();
-        let response_commit_invoice = if let CompactToUserAck::CompactToUser(CompactToUser::ResponseCommitInvoice(response_commit_invoice)) = compact_to_user_ack {
-            response_commit_invoice
+        let response_verify_commit = if let CompactToUserAck::CompactToUser(CompactToUser::ResponseVerifyCommit(response_verify_commit)) = compact_to_user_ack {
+            response_verify_commit
         } else {
             continue;
         };
-        assert_eq!(response_commit_invoice.invoice_id, invoice_id);
-        assert_eq!(response_commit_invoice.status, CommitInvoiceStatus::Success);
+        assert_eq!(response_verify_commit.request_id, verify_request_id);
+        assert_eq!(response_verify_commit.status, VerifyCommitStatus::Success);
         break;
     };
+
+    // Node1: Apply the commit:
+    send_request(
+        &mut conn_pair1,
+        UserToCompact::CommitInvoice(commit)
+    )
+    .await
+    .unwrap();
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;
@@ -165,7 +179,6 @@ async fn make_test_payment(
             PaymentDoneStatus::Failure(_ack_uid) => unreachable!(),
         };
     };
-
 
     // Node0: AckPaymentDone:
     send_request(
@@ -499,9 +512,9 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .unwrap();
 
+
     // Wait until the max debt was set:
     advance_time(10, &mut tick_sender, &test_executor).await;
-
 
     // Send 10 currency1 credits from node0 to node1:
     let opt_receipt = make_test_payment(

@@ -119,15 +119,24 @@ pub struct PaymentDone {
     pub status: PaymentDoneStatus,
 }
 
-#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct ResponseCommitInvoice {
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct RequestVerifyCommit {
     #[serde(with = "ser_b64")]
-    pub invoice_id: InvoiceId,
-    pub status: CommitInvoiceStatus,
+    pub request_id: Uid,
+    #[serde(with = "ser_b64")]
+    pub seller_public_key: PublicKey,
+    pub commit: Commit,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub enum CommitInvoiceStatus {
+pub struct ResponseVerifyCommit {
+    #[serde(with = "ser_b64")]
+    pub request_id: Uid,
+    pub status: VerifyCommitStatus,
+}
+
+#[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub enum VerifyCommitStatus {
     Failure,
     Success,
 }
@@ -415,11 +424,11 @@ pub enum CompactToUser {
     PaymentCommit(PaymentCommit),
     /// Done: Possibly returns a Receipt or failure
     PaymentDone(PaymentDone),
-    // ------------[Seller]-------------------
-    ResponseCommitInvoice(ResponseCommitInvoice),
     // ------------[Reports]-------------------
     /// Reports about current state:
     Report(CompactReport),
+    // -------------[Verify]-------------------
+    ResponseVerifyCommit(ResponseVerifyCommit),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -457,13 +466,17 @@ pub enum UserToCompact {
     ConfirmPaymentFees(ConfirmPaymentFees),
     #[serde(with = "ser_b64")]
     CancelPayment(PaymentId),
-    AckPaymentDone(PaymentId, Uid), // (payment_id, ack_uid)
+    AckPaymentDone(
+        #[serde(with = "ser_b64")] PaymentId,
+        #[serde(with = "ser_b64")] Uid,
+    ), // (payment_id, ack_uid)
     // ---------------[Seller]------------------------------
     AddInvoice(AddInvoice),
     #[serde(with = "ser_b64")]
     CancelInvoice(InvoiceId),
-    RequestCommitInvoice(Commit),
+    CommitInvoice(Commit),
     // ---------------[Verification]------------------------
+    RequestVerifyCommit(RequestVerifyCommit),
     // TODO: Add API for verification of receipt and last token?
 }
 

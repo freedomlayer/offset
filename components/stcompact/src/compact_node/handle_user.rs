@@ -7,7 +7,7 @@ use app::verify::verify_commit;
 use crate::compact_node::create_compact_report;
 use crate::compact_node::messages::{
     CompactToUser, CompactToUserAck, PaymentDone, PaymentDoneStatus, PaymentFees, PaymentFeesResponse,
-    ResponseCommitInvoice, UserToCompact, UserToCompactAck, CommitInvoiceStatus,
+    ResponseVerifyCommit, UserToCompact, UserToCompactAck, VerifyCommitStatus,
 };
 use crate::compact_node::persist::{
     OpenInvoice, OpenPayment, OpenPaymentStatus, OpenPaymentStatusSending,
@@ -646,7 +646,7 @@ where
             // invoice in our persistent database, and we will be able to resend it.
             server_state.update_compact_state(compact_state).await?;
         }
-        UserToCompact::RequestCommitInvoice(commit) => {
+        UserToCompact::CommitInvoice(commit) => {
             // Make sure that the corresponding invoice is open:
             let mut compact_state = server_state.compact_state().clone();
             if !compact_state.open_invoices.contains_key(&commit.invoice_id) {
@@ -655,6 +655,8 @@ where
                     "RequestCommitInvoice: Invoice {:?} is not open!",
                     commit.invoice_id
                 );
+
+                // Send ack:
                 return user_sender
                     .send(CompactToUserAck::Ack(user_request_id))
                     .await
@@ -663,7 +665,7 @@ where
 
             let node_commit = commit.clone().into();
 
-            // Verify commitment
+            // Verify commitment (Just in case):
             if !verify_commit(
                 &node_commit,
                 &server_state.node_report().funder_report.local_public_key,
@@ -672,19 +674,8 @@ where
                     "RequestCommitInvoice: Invoice: {:?}: Invalid commit",
                     commit.invoice_id
                 );
-                user_sender
-                    .send(CompactToUserAck::Ack(user_request_id))
-                    .await
-                    .map_err(|_| CompactNodeError::UserSenderError)?;
-
-                let response_commit_invoice = ResponseCommitInvoice {
-                    invoice_id: commit.invoice_id.clone(),
-                    status: CommitInvoiceStatus::Failure,
-                };
-                let compact_to_user =
-                    CompactToUser::ResponseCommitInvoice(response_commit_invoice);
                 return user_sender
-                    .send(CompactToUserAck::CompactToUser(compact_to_user))
+                    .send(CompactToUserAck::Ack(user_request_id))
                     .await
                     .map_err(|_| CompactNodeError::UserSenderError);
             }
@@ -703,23 +694,40 @@ where
 
             // Update local database:
             compact_state.open_invoices.remove(&commit.invoice_id);
-            // Note that we first update our local persistent database, and only then send a
-            // message to the node. The order here is crucial: If a crash happens, we will the open
-            // invoice in our persistent database, and we will be able to resend it.
             server_state.update_compact_state(compact_state).await?;
+        },
+        UserToCompact::RequestVerifyCommit(request_verify_commit) => {
+            // Send ack:
+            user_sender
+                .send(CompactToUserAck::Ack(user_request_id))
+                .await
+                .map_err(|_| CompactNodeError::UserSenderError)?;
 
-            // Send indication to user that the commitment is successful:
-            let response_commit_invoice = ResponseCommitInvoice {
-                invoice_id: commit.invoice_id.clone(),
-                status: CommitInvoiceStatus::Success,
+            // Verify commitment
+            let response_verify_commit = if verify_commit(
+                &request_verify_commit.commit.clone().into(),
+                &request_verify_commit.seller_public_key,
+            ) {
+                // Success:
+                ResponseVerifyCommit {
+                    request_id: request_verify_commit.request_id.clone(),
+                    status: VerifyCommitStatus::Success,
+                }
+            } else {
+                // Failure:
+                ResponseVerifyCommit {
+                    request_id: request_verify_commit.request_id.clone(),
+                    status: VerifyCommitStatus::Failure,
+                }
             };
+
             let compact_to_user =
-                CompactToUser::ResponseCommitInvoice(response_commit_invoice);
+                CompactToUser::ResponseVerifyCommit(response_verify_commit);
             return user_sender
                 .send(CompactToUserAck::CompactToUser(compact_to_user))
                 .await
                 .map_err(|_| CompactNodeError::UserSenderError);
-        }
+        },
     }
     Ok(())
 }
