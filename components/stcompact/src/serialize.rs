@@ -85,7 +85,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ser_deser_server_to_user_ack3() {
+    fn test_ser_deser_server_to_user_ack2() {
         let open_invoice = OpenInvoice {
             currency: Currency::try_from("FST".to_owned()).unwrap(),
             total_dest_payment: 0x1234u128,
@@ -99,7 +99,7 @@ mod tests {
             opt_connected_index_server: None,
             relays: Vec::new(),
             friends: HashMap::new(),
-            open_invoices: open_invoices,
+            open_invoices,
             open_payments: HashMap::new(),
         };
         let compact_to_user = CompactToUser::Report(compact_report);

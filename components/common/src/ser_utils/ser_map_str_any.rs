@@ -8,7 +8,7 @@ use serde::de::{Deserialize, Error, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use serde::Deserializer;
 
-pub fn serialize<'de, K, V, M, S>(input_map: M, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize<K, V, M, S>(input_map: M, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
     K: Serialize + ToString + Eq + Hash,

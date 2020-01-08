@@ -16,12 +16,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use common::conn::BoxFuture;
 use common::mutable_state::MutableState;
 
-/*
-use async_std::fs;
-use async_std::io::prelude::WriteExt;
-use async_std::path::{Path, PathBuf};
-*/
-
 use lockfile::{try_lock_file, LockFileHandle};
 
 use app::common::{derive_public_key, NetAddress, PrivateKey, PublicKey};
@@ -146,8 +140,7 @@ where
         std::io::Result::Ok(())
     })?.await?;
 
-    let store_path_buf_std: std::path::PathBuf = store_path_buf.clone().into();
-    let lockfile_path_buf = store_path_buf_std.join(LOCKFILE);
+    let lockfile_path_buf = store_path_buf.join(LOCKFILE);
     let lock_file_handle = file_spawner
         .spawn_with_handle(async move { try_lock_file(&lockfile_path_buf) })?
         .await
@@ -204,9 +197,8 @@ where
 
         // Read local nodes:
         let local_dir = store_path.join(LOCAL);
-        // TODO: Fix fs:: here
         if let Ok(mut dir) = fs::read_dir(local_dir) {
-            while let Some(res) = dir.next() {
+            for res in dir {
                 let local_node_entry = res?;
                 let node_name =
                     NodeName::new(local_node_entry.file_name().to_string_lossy().to_string());
@@ -222,9 +214,8 @@ where
 
         // Read remote nodes:
         let remote_dir = store_path.join(REMOTE);
-        // TODO: Fix fs:: here
         if let Ok(mut dir) = fs::read_dir(remote_dir) {
-            while let Some(res) = dir.next() {
+            for res in dir {
                 let remote_node_entry = res?;
                 let node_name =
                     NodeName::new(remote_node_entry.file_name().to_string_lossy().to_string());
@@ -299,13 +290,13 @@ where
     let node_public_key =
         derive_public_key(&node_private_key).map_err(|_| FileStoreError::DerivePublicKeyError)?;
     let initial_state = NodeState::<NetAddress>::new(node_public_key);
-    let _ = FileDb::create(node_db_path.into(), initial_state)
+    let _ = FileDb::create(node_db_path, initial_state)
         .map_err(|_| FileStoreError::FileDbError)?;
 
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
     let initial_state = CompactState::new();
-    let _ = FileDb::create(compact_db_path.into(), initial_state)
+    let _ = FileDb::create(compact_db_path, initial_state)
         .map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.ident file:
@@ -357,7 +348,7 @@ where
     // Create compact database file:
     let compact_db_path = node_path.join(COMPACT_DB);
     let initial_state = CompactState::new();
-    let _ = FileDb::create(compact_db_path.into(), initial_state)
+    let _ = FileDb::create(compact_db_path, initial_state)
         .map_err(|_| FileStoreError::FileDbError)?;
 
     // Create node.info:
@@ -427,7 +418,7 @@ where
     // This operation blocks, so we are running it using the file_spawner:
     let atomic_db = file_spawner
         .spawn_with_handle(async move {
-            FileDb::<MS>::load(db_path_buf.into()).map_err(|_| FileStoreError::LoadDbError)
+            FileDb::<MS>::load(db_path_buf).map_err(|_| FileStoreError::LoadDbError)
         })?
         .await?;
 

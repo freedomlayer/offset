@@ -9,7 +9,7 @@ use serde::Deserializer;
 
 use base64::{self, URL_SAFE_NO_PAD};
 
-pub fn serialize<T, S>(input_vec: &Vec<T>, serializer: S) -> Result<S::Ok, S::Error>
+pub fn serialize<T, S>(input_vec: &[T], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
     T: Serialize + AsRef<[u8]>,

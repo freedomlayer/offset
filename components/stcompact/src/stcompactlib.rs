@@ -114,7 +114,7 @@ where
     // Obtain secure cryptographic random:
     let rng = system_random();
 
-    let file_store = open_file_store(store_path.into(), spawner.clone(), file_spawner.clone())
+    let file_store = open_file_store(store_path, spawner.clone(), file_spawner.clone())
         .await
         .map_err(|_| StCompactError::OpenFileStoreError)?;
 

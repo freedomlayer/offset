@@ -32,7 +32,7 @@ pub struct LoadedNodeRemote {
     pub compact_db_client: DatabaseClient<CompactState>,
 }
 
-#[allow(unused)]
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum LoadedNode {
     Local(LoadedNodeLocal),
