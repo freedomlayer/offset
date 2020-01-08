@@ -124,7 +124,7 @@ type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
 */
 
 pub async fn open_file_store<FS, S>(
-    store_path_buf: PathBuf,
+    store_path_buf: PathBuf, 
     spawner: S,
     file_spawner: FS,
 ) -> Result<FileStore<S, FS>, FileStoreError>
@@ -230,12 +230,12 @@ async fn read_all_nodes(store_path: &Path) -> Result<FileStoreNodes, FileStoreEr
 
 async fn remove_node(store_path: &Path, node_name: &NodeName) -> Result<(), FileStoreError> {
     // Attempt to remove from local dir:
-    let node_path = store_path.join(LOCAL).join(node_name.as_str());
-    let is_local_removed = fs::remove_file(&node_path).await.is_ok();
+    let local_path = store_path.join(LOCAL).join(node_name.as_str());
+    let is_local_removed = fs::remove_dir_all(&local_path).await.is_ok();
 
     // Attempt to remove from remote dir:
-    let remote_dir = store_path.join(REMOTE).join(node_name.as_str());
-    let is_remote_removed = fs::remove_file(&node_path).await.is_ok();
+    let remote_path = store_path.join(REMOTE).join(node_name.as_str());
+    let is_remote_removed = fs::remove_dir_all(&remote_path).await.is_ok();
 
     if !(is_local_removed || is_remote_removed) {
         // No removal worked:
@@ -424,7 +424,7 @@ where
 
     // Spawn node database:
     let (node_state, node_db_handle, node_db_client) =
-        spawn_db(local.compact_db.clone(), spawner, file_spawner.clone()).await?;
+        spawn_db(local.node_db.clone(), spawner, file_spawner.clone()).await?;
 
     // When we drop those handles, all servers will be closed:
     let live_node_local = LiveNodeLocal {
