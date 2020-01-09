@@ -1,4 +1,5 @@
-use std::collections::HashMap; use std::convert::TryFrom;
+use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use futures::channel::mpsc;
 use futures::StreamExt;
@@ -206,7 +207,7 @@ async fn make_test_payment(
     opt_receipt_fees
 }
 
-async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
+async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
     let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
     let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
@@ -615,8 +616,8 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
 
 #[test]
 fn test_compact_node_two_nodes_payment() {
-    let _ = env_logger::init();
+    // let _ = env_logger::init();
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_compact_two_nodes_payment(test_executor.clone()));
+    let res = test_executor.run(task_compact_node_two_nodes_payment(test_executor.clone()));
     assert!(res.is_output());
 }
