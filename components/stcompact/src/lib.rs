@@ -26,9 +26,9 @@ extern crate quickcheck_derive;
 pub mod compact_node;
 
 mod gen;
-mod messages;
-mod server_loop;
-mod store;
+pub mod messages;
+pub mod server_loop;
+pub mod store;
 
 mod serialize;
 pub mod stcompactlib;
