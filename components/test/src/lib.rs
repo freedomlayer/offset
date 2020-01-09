@@ -43,6 +43,9 @@ mod app_wrapper;
 mod compact_node_wrapper;
 
 #[cfg(test)]
+mod compact_server_wrapper;
+
+#[cfg(test)]
 mod node_report_service;
 
 #[cfg(test)]
