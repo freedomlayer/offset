@@ -244,6 +244,16 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     .await
     .unwrap();
 
+    // First incoming message should be nodes status:
+    let mut nodes_status0 =
+        if let ServerToUserAck::ServerToUser(ServerToUser::NodesStatus(nodes_status)) =
+            compact0.receiver.next().await.unwrap()
+        {
+            nodes_status
+        } else {
+            unreachable!()
+        };
+
     let mut compact1 = create_compact_server(
         1,
         sim_db.clone(),
@@ -253,6 +263,16 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     )
     .await
     .unwrap();
+
+    // First incoming message should be nodes status:
+    let mut nodes_status1 =
+        if let ServerToUserAck::ServerToUser(ServerToUser::NodesStatus(nodes_status)) =
+            compact1.receiver.next().await.unwrap()
+        {
+            nodes_status
+        } else {
+            unreachable!()
+        };
 
     /*
     // Handle reports:
@@ -316,13 +336,35 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     )
     .await;
 
+    let node0_name = NodeName::new("local_node0".to_owned());
+    let node1_name = NodeName::new("local_node1".to_owned());
+
     // compact0: Create a local node:
     let create_node_local = CreateNodeLocal {
-        node_name: NodeName::new("local_node0".to_owned()),
+        node_name: node0_name.clone(),
     };
     let request_create_node = RequestCreateNode::CreateNodeLocal(create_node_local);
     let user_to_server = UserToServer::RequestCreateNode(request_create_node);
-    send_request(&mut compact0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+
+    // compact1: Create a local node:
+    let create_node_local = CreateNodeLocal {
+        node_name: node1_name.clone(),
+    };
+    let request_create_node = RequestCreateNode::CreateNodeLocal(create_node_local);
+    let user_to_server = UserToServer::RequestCreateNode(request_create_node);
+    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+
+    // compact0: open a local node:
+    let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
+    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    // dbg!(compact0.receiver.next().await.unwrap());
+
+    /*
+    // compact1: open a local node:
+    let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
+    send_request(&mut compact1, user_to_server).await;
+    */
 
     /*
 

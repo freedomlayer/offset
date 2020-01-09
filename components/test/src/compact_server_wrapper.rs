@@ -1,10 +1,14 @@
+use std::mem;
+
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 
 use common::conn::ConnPair;
 
 use app::gen::gen_uid;
-use stcompact::messages::{ServerToUserAck, UserToServer, UserToServerAck};
+use stcompact::messages::{
+    NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+};
 
 #[derive(Debug)]
 pub struct CompactServerWrapperError;
@@ -12,6 +16,7 @@ pub struct CompactServerWrapperError;
 /// Send a request and wait until the request is acked
 pub async fn send_request(
     conn_pair: &mut ConnPair<UserToServerAck, ServerToUserAck>,
+    nodes_status: &mut NodesStatus,
     user_to_server: UserToServer,
 ) -> Result<(), CompactServerWrapperError> {
     let request_id = gen_uid();
@@ -28,6 +33,9 @@ pub async fn send_request(
                 if request_id == in_request_id {
                     break;
                 }
+            }
+            ServerToUserAck::ServerToUser(ServerToUser::NodesStatus(new_nodes_status)) => {
+                let _ = mem::replace(nodes_status, new_nodes_status);
             }
             _ => {}
         }
