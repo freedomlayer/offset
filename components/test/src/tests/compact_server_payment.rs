@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 
 use tempfile::tempdir;
 
@@ -23,8 +23,12 @@ use stcompact::compact_node::messages::{
     RequestVerifyCommit, SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, UserToCompact,
     UserToCompactAck, VerifyCommitStatus,
 };
+use stcompact::messages::{
+    CreateNodeLocal, NodeName, RequestCreateNode, ServerToUser, ServerToUserAck, UserToServer,
+    UserToServerAck,
+};
 
-use crate::compact_node_wrapper::send_request;
+use crate::compact_server_wrapper::send_request;
 use crate::sim_network::create_sim_network;
 use crate::utils::{
     advance_time, create_compact_node, create_compact_server, create_index_server, create_node,
@@ -230,7 +234,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     // A network simulator:
     let sim_net_client = create_sim_network(&mut test_executor);
 
-    let compact0 = create_compact_server(
+    let mut compact0 = create_compact_server(
         0,
         sim_db.clone(),
         sim_net_client.clone(),
@@ -240,7 +244,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     .await
     .unwrap();
 
-    let compact0 = create_compact_server(
+    let mut compact1 = create_compact_server(
         1,
         sim_db.clone(),
         sim_net_client.clone(),
@@ -251,78 +255,6 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     .unwrap();
 
     /*
-
-    // Create initial database for node 0:
-    sim_db.init_node_db(0).unwrap();
-
-    let mut trusted_apps = HashMap::new();
-    trusted_apps.insert(
-        0,
-        AppPermissions {
-            routes: true,
-            buyer: true,
-            seller: true,
-            config: true,
-        },
-    );
-
-    create_node(
-        0,
-        sim_db.clone(),
-        timer_client.clone(),
-        sim_net_client.clone(),
-        trusted_apps,
-        test_executor.clone(),
-    )
-    .await
-    .forget();
-
-    let (compact_node0, compact_report0) = create_compact_node(
-        0,
-        sim_db.clone(),
-        sim_net_client.clone(),
-        timer_client.clone(),
-        0,
-        test_executor.clone(),
-    )
-    .await
-    .unwrap();
-
-    // Create initial database for node 1:
-    sim_db.init_node_db(1).unwrap();
-
-    let mut trusted_apps = HashMap::new();
-    trusted_apps.insert(
-        1,
-        AppPermissions {
-            routes: true,
-            buyer: true,
-            seller: true,
-            config: true,
-        },
-    );
-    create_node(
-        1,
-        sim_db.clone(),
-        timer_client.clone(),
-        sim_net_client.clone(),
-        trusted_apps,
-        test_executor.clone(),
-    )
-    .await
-    .forget();
-
-    let (compact_node1, compact_report1) = create_compact_node(
-        1,
-        sim_db.clone(),
-        sim_net_client.clone(),
-        timer_client.clone(),
-        1,
-        test_executor.clone(),
-    )
-    .await
-    .unwrap();
-
     // Handle reports:
     let (sender0, receiver0) = compact_node0.split();
     let (receiver0, mut compact_report_client0) =
@@ -383,6 +315,14 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         test_executor.clone(),
     )
     .await;
+
+    // compact0: Create a local node:
+    let create_node_local = CreateNodeLocal {
+        node_name: NodeName::new("local_node0".to_owned()),
+    };
+    let request_create_node = RequestCreateNode::CreateNodeLocal(create_node_local);
+    let user_to_server = UserToServer::RequestCreateNode(request_create_node);
+    send_request(&mut compact0, user_to_server).await;
 
     /*
 
