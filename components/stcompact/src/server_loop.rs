@@ -600,7 +600,7 @@ where
 }
 
 async fn build_nodes_status<ST, R, C, S>(
-    server_state: &mut ServerState<ST, R, C, S>,
+    server_state: &ServerState<ST, R, C, S>,
 ) -> Result<NodesStatus, ServerError>
 where
     ST: Store,
@@ -681,7 +681,7 @@ where
 
     // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
     if has_changed {
-        let nodes_status_map = build_nodes_status(server_state).await?;
+        let nodes_status_map = build_nodes_status(&server_state).await?;
         let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
         let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
         user_sender
@@ -733,6 +733,17 @@ where
         connector,
         spawner,
     );
+
+    // Send initial NodesStatus:
+    // TODO: A cleaner way to do this?
+    let nodes_status_map = build_nodes_status(&server_state).await?;
+    let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
+    let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
+    user_sender
+        .send(server_to_user_ack)
+        .await
+        .map_err(|_| ServerError::NodeSenderError)?;
+
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
 
