@@ -88,6 +88,7 @@ pub enum RequestCreateNode {
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
     ResponseOpenNode(ResponseOpenNode),
+    // TODO: Should add a serde hint here?
     /// A map of all nodes and their current status
     NodesStatus(NodesStatus),
     /// A message received from a specific node
