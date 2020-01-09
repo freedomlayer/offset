@@ -338,25 +338,23 @@ where
     ))
 }
 
-#[allow(unused)]
 pub async fn create_compact_server<S>(
     store_index: u8,
     sim_db: SimDb,
     sim_network_client: SimNetworkClient,
     timer_client: TimerClient,
     spawner: S,
-) -> Option<(ConnPair<UserToServerAck, ServerToUserAck>)>
+) -> Option<ConnPair<UserToServerAck, ServerToUserAck>>
 where
     S: Spawn + Clone + Sync + Send + 'static,
 {
-
     let store_path_buf = sim_db.store_path(store_index).unwrap();
 
     let rng = DummyRandom::new(&[0xff, 0x13, 0x3b, store_index]);
 
-    let file_store = open_file_store(store_path_buf, 
-        spawner.clone(), 
-        spawner.clone()).await.unwrap();
+    let file_store = open_file_store(store_path_buf, spawner.clone(), spawner.clone())
+        .await
+        .unwrap();
 
     let (server_sender, user_receiver) = mpsc::channel(1);
     let (user_sender, server_receiver) = mpsc::channel(1);
@@ -372,11 +370,12 @@ where
 
     let user_conn_pair = ConnPair::from_raw(user_sender, user_receiver);
 
-    spawner.spawn(compact_fut.map(|e| error!("compact_server_loop() error: {:?}", e))).unwrap();
+    spawner
+        .spawn(compact_fut.map(|e| error!("compact_server_loop() error: {:?}", e)))
+        .unwrap();
 
     Some(user_conn_pair)
 }
-
 
 #[derive(Debug, Clone)]
 struct DummyTrustedApps {
