@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 
 use tempfile::tempdir;
 
@@ -11,18 +11,12 @@ use common::test_executor::TestExecutor;
 
 use proto::app_server::messages::AppPermissions;
 use proto::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
-use proto::funder::messages::{
-    Currency, FriendsRoute, PaymentStatus, PaymentStatusSuccess, Rate, Receipt,
-};
-
-use crypto::test_utils::DummyRandom;
+use proto::funder::messages::{Currency, Rate, Receipt};
 
 use timer::create_timer_incoming;
 
-use app::conn::{self, ConnPairApp, RequestResult};
 use app::gen::gen_uid;
 
-use stcompact::compact_node::compact_node;
 use stcompact::compact_node::messages::{
     AddFriend, AddInvoice, CompactToUser, CompactToUserAck, ConfirmPaymentFees,
     FriendLivenessReport, InitPayment, OpenFriendCurrency, PaymentDoneStatus, PaymentFeesResponse,
@@ -258,7 +252,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let (mut compact_node0, mut compact_report0) = create_compact_node(
+    let (compact_node0, compact_report0) = create_compact_node(
         0,
         sim_db.clone(),
         sim_net_client.clone(),
@@ -293,7 +287,7 @@ async fn task_compact_two_nodes_payment(mut test_executor: TestExecutor) {
     .await
     .forget();
 
-    let (mut compact_node1, mut compact_report1) = create_compact_node(
+    let (compact_node1, compact_report1) = create_compact_node(
         1,
         sim_db.clone(),
         sim_net_client.clone(),

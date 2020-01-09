@@ -1,5 +1,4 @@
-#[allow(unused)]
-mod compact_node;
+mod compact_node_payment;
 mod handle_error_command;
 mod nodes_chain;
 mod relay_migration;
