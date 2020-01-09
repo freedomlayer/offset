@@ -653,6 +653,8 @@ where
             handle_remove_node(node_name, server_state).await?
         }
         UserToServer::RequestOpenNode(node_name) => {
+            // TODO: BUG: Ack sending order here is incorrect.
+            // ResponseOpenNode should be sent after the ack!
             handle_open_node(node_name, server_state, user_sender).await?
         }
         UserToServer::RequestCloseNode(node_id) => {
