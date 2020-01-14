@@ -49,7 +49,6 @@ async fn make_test_payment(
 ) -> Option<(Receipt, u128)> {
     let payment_id = PaymentId::from(&[4u8; PaymentId::len()]);
     let invoice_id = InvoiceId::from(&[3u8; InvoiceId::len()]);
-    // let request_id = Uid::from(&[5u8; Uid::len()]);
 
     // Node1: Add invoice:
     let add_invoice = AddInvoice {

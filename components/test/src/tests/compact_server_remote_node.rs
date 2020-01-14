@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::channel::mpsc;
-use futures::{SinkExt, StreamExt};
+use futures::StreamExt;
 
 use tempfile::tempdir;
 
@@ -18,22 +18,21 @@ use timer::create_timer_incoming;
 use app::gen::gen_uid;
 
 use stcompact::compact_node::messages::{
-    AddFriend, AddInvoice, CompactToUser, CompactToUserAck, ConfirmPaymentFees,
-    FriendLivenessReport, InitPayment, OpenFriendCurrency, PaymentDoneStatus, PaymentFeesResponse,
-    RequestVerifyCommit, SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, UserToCompact,
-    UserToCompactAck, VerifyCommitStatus,
+    AddFriend, AddInvoice, CompactToUser, ConfirmPaymentFees, InitPayment, OpenFriendCurrency,
+    PaymentDoneStatus, PaymentFeesResponse, RequestVerifyCommit, SetFriendCurrencyMaxDebt,
+    SetFriendCurrencyRate, UserToCompact, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeInfoLocal, NodeName,
-    NodesStatus, ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeName, NodesStatus,
+    ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_server_wrapper::send_request;
 use crate::sim_network::create_sim_network;
 use crate::utils::{
-    advance_time, app_private_key, create_compact_node, create_compact_server, create_index_server,
-    create_node, create_relay, listen_node_address, named_index_server_address,
-    named_relay_address, node_public_key, relay_address, SimDb,
+    advance_time, app_private_key, create_compact_server, create_index_server, create_node,
+    create_relay, listen_node_address, named_index_server_address, named_relay_address,
+    node_public_key, relay_address, SimDb,
 };
 
 const TIMER_CHANNEL_LEN: usize = 0;
@@ -50,8 +49,6 @@ async fn node_request(
         .await
         .unwrap();
 }
-
-use crate::compact_report_service::compact_report_service;
 
 /// Perform a basic payment between a buyer and a seller.
 /// Node0 sends credits to Node1
@@ -144,7 +141,10 @@ async fn make_test_payment(
             ServerToUserAck::ServerToUser(ServerToUser::Node(
                 node_id,
                 CompactToUser::PaymentCommit(payment_commit),
-            )) => payment_commit,
+            )) => {
+                assert_eq!(node_id, node_id0);
+                payment_commit
+            }
             ServerToUserAck::ServerToUser(ServerToUser::Node(
                 node_id,
                 CompactToUser::PaymentDone(payment_done),
@@ -409,7 +409,9 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     };
     let request_create_node = CreateNode::CreateNodeLocal(create_node_local);
     let user_to_server = UserToServer::CreateNode(request_create_node);
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     let pk0 =
         if let NodeInfo::Local(node_info_local) = &nodes_status0.get(&node0_name).unwrap().info {
@@ -427,7 +429,9 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     };
     let request_create_node = CreateNode::CreateNodeRemote(create_node_remote);
     let user_to_server = UserToServer::CreateNode(request_create_node);
-    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+    send_request(&mut compact1, &mut nodes_status1, user_to_server)
+        .await
+        .unwrap();
 
     let pk1 =
         if let NodeInfo::Remote(node_info_remote) = &nodes_status1.get(&node1_name).unwrap().info {
@@ -438,7 +442,9 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     // compact0: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     // Wait for response:
     let server_to_user_ack = compact0.receiver.next().await.unwrap();
@@ -453,7 +459,9 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     // compact1: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
-    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+    send_request(&mut compact1, &mut nodes_status1, user_to_server)
+        .await
+        .unwrap();
 
     // Wait for response:
     let server_to_user_ack = compact1.receiver.next().await.unwrap();
@@ -749,18 +757,24 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     // compact0: close a local node:
     let user_to_server = UserToServer::CloseNode(node_id0.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     advance_time(10, &mut tick_sender, &test_executor).await;
 
     // Close and open node0:
     // compact0: close a local node:
     let user_to_server = UserToServer::CloseNode(node_id0.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     // compact0: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     // Wait for response:
     let server_to_user_ack = compact0.receiver.next().await.unwrap();
@@ -797,20 +811,28 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     // compact0: close a node:
     let user_to_server = UserToServer::CloseNode(node_id0.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
 
     // Remove node0:
     let user_to_server = UserToServer::RemoveNode(node0_name.clone());
-    send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact0, &mut nodes_status0, user_to_server)
+        .await
+        .unwrap();
     assert!(nodes_status0.get(&node0_name).is_none());
 
     // compact1: close a node:
     let user_to_server = UserToServer::CloseNode(node_id1.clone());
-    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+    send_request(&mut compact1, &mut nodes_status1, user_to_server)
+        .await
+        .unwrap();
 
     // Remove node1:
     let user_to_server = UserToServer::RemoveNode(node1_name.clone());
-    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+    send_request(&mut compact1, &mut nodes_status1, user_to_server)
+        .await
+        .unwrap();
     assert!(nodes_status1.get(&node1_name).is_none());
 }
 
