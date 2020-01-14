@@ -771,7 +771,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
     assert!(nodes_status0.get(&node0_name).is_some());
 
-    // compact0: close a local node:
+    // compact0: close a node:
     let user_to_server = UserToServer::CloseNode(node_id0.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
 
@@ -780,7 +780,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
     assert!(nodes_status0.get(&node0_name).is_none());
 
-    // compact1: close a local node:
+    // compact1: close a node:
     let user_to_server = UserToServer::CloseNode(node_id1.clone());
     send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
 
