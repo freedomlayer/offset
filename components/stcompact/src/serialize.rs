@@ -75,13 +75,8 @@ mod tests {
     use proto::funder::messages::Currency;
     use proto::net::messages::NetAddress;
 
-    /*
-    use crate::messages::{ServerToUserAck, UserToServerAck, UserToServer,
-        RequestCreateNode, NodeName, CreateNodeRemote, ServerToUser, NodeId};
-    */
-    use crate::messages::*;
-    // use crate::compact_node::messages::{CompactToUser, PaymentDone, CompactReport, FriendReport, OpenInvoice};
     use crate::compact_node::messages::*;
+    use crate::messages::*;
 
     #[test]
     fn test_ser_deser_server_to_user_ack1() {
@@ -125,10 +120,10 @@ mod tests {
             node_public_key: PublicKey::from(&[0xbb; PublicKey::len()]),
             node_address: NetAddress::try_from("net_address".to_owned()).unwrap(),
         };
-        let request_create_node = RequestCreateNode::CreateNodeRemote(create_node_remote);
+        let request_create_node = CreateNode::CreateNodeRemote(create_node_remote);
         let msg = UserToServerAck {
             request_id: Uid::from(&[1; Uid::len()]),
-            inner: UserToServer::RequestCreateNode(request_create_node),
+            inner: UserToServer::CreateNode(request_create_node),
         };
         let ser_str = serde_json::to_string(&msg).unwrap();
         let msg2 = serde_json::from_str(&ser_str).unwrap();

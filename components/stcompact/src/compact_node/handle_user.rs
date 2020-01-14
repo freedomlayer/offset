@@ -578,6 +578,7 @@ where
                 currency: add_invoice.currency.clone(),
                 total_dest_payment: add_invoice.total_dest_payment,
                 description: add_invoice.description,
+                opt_commit: None,
             };
             compact_state
                 .open_invoices
@@ -646,14 +647,23 @@ where
             // invoice in our persistent database, and we will be able to resend it.
             server_state.update_compact_state(compact_state).await?;
         }
-        UserToCompact::CommitInvoice(commit) => {
+        UserToCompact::CommitInvoice(invoice_id) => {
             // Make sure that the corresponding invoice is open:
             let mut compact_state = server_state.compact_state().clone();
-            if !compact_state.open_invoices.contains_key(&commit.invoice_id) {
-                // Invoice is not open:
+            let opt_commit =
+                if let Some(open_invoice) = compact_state.open_invoices.get(&invoice_id) {
+                    open_invoice.opt_commit.clone()
+                } else {
+                    // Invoice is not open
+                    None
+                };
+
+            let commit = if let Some(commit) = opt_commit {
+                commit
+            } else {
                 warn!(
                     "RequestCommitInvoice: Invoice {:?} is not open!",
-                    commit.invoice_id
+                    invoice_id
                 );
 
                 // Send ack:
@@ -663,11 +673,9 @@ where
                     .map_err(|_| CompactNodeError::UserSenderError);
             };
 
-            let node_commit = commit.clone().into();
-
             // Verify commitment (Just in case):
             if !verify_commit(
-                &node_commit,
+                &commit,
                 &server_state.node_report().funder_report.local_public_key,
             ) {
                 warn!(
@@ -681,7 +689,7 @@ where
             }
 
             // Send commitment to node:
-            let app_request = seller::commit_invoice(node_commit);
+            let app_request = seller::commit_invoice(commit.clone());
 
             let app_to_app_server = AppToAppServer {
                 app_request_id: user_request_id,
@@ -703,11 +711,32 @@ where
                 .await
                 .map_err(|_| CompactNodeError::UserSenderError)?;
 
+            let mut compact_state = server_state.compact_state().clone();
+
+            let open_invoice = if let Some(open_invoice) = compact_state
+                .open_invoices
+                .get(&request_verify_commit.commit.invoice_id)
+            {
+                open_invoice
+            } else {
+                // Invoice is not open. Respond with failure:
+                let response_verify_commit = ResponseVerifyCommit {
+                    request_id: request_verify_commit.request_id.clone(),
+                    status: VerifyCommitStatus::Failure,
+                };
+                let compact_to_user = CompactToUser::ResponseVerifyCommit(response_verify_commit);
+                return user_sender
+                    .send(CompactToUserAck::CompactToUser(compact_to_user))
+                    .await
+                    .map_err(|_| CompactNodeError::UserSenderError);
+            };
+
             // Verify commitment
             let response_verify_commit = if verify_commit(
                 &request_verify_commit.commit.clone().into(),
-                &request_verify_commit.seller_public_key,
-            ) {
+                &server_state.node_report().funder_report.local_public_key,
+            ) && open_invoice.opt_commit.is_none()
+            {
                 // Success:
                 ResponseVerifyCommit {
                     request_id: request_verify_commit.request_id.clone(),
@@ -722,10 +751,18 @@ where
             };
 
             let compact_to_user = CompactToUser::ResponseVerifyCommit(response_verify_commit);
-            return user_sender
+            user_sender
                 .send(CompactToUserAck::CompactToUser(compact_to_user))
                 .await
-                .map_err(|_| CompactNodeError::UserSenderError);
+                .map_err(|_| CompactNodeError::UserSenderError)?;
+
+            // Update local database:
+            let open_invoice = compact_state
+                .open_invoices
+                .get_mut(&request_verify_commit.commit.invoice_id)
+                .unwrap();
+            open_invoice.opt_commit = Some(request_verify_commit.commit.into());
+            server_state.update_compact_state(compact_state).await?;
         }
     }
     Ok(())

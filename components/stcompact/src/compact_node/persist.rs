@@ -19,6 +19,9 @@ pub struct OpenInvoice {
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
+    /// Optional commit that we got for this invoice
+    /// This allows to hold a commit for a while before applying it.
+    pub opt_commit: Option<Commit>,
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

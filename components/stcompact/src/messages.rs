@@ -79,7 +79,7 @@ pub enum ResponseOpenNode {
 pub type NodesStatus = HashMap<NodeName, NodeStatus>;
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RequestCreateNode {
+pub enum CreateNode {
     CreateNodeLocal(CreateNodeLocal),
     CreateNodeRemote(CreateNodeRemote),
 }
@@ -88,6 +88,7 @@ pub enum RequestCreateNode {
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ServerToUser {
     ResponseOpenNode(ResponseOpenNode),
+    // TODO: Should add a serde hint here?
     /// A map of all nodes and their current status
     NodesStatus(NodesStatus),
     /// A message received from a specific node
@@ -105,10 +106,10 @@ pub enum ServerToUserAck {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UserToServer {
-    RequestCreateNode(RequestCreateNode),
-    RequestRemoveNode(NodeName),
+    CreateNode(CreateNode),
+    RemoveNode(NodeName),
     RequestOpenNode(NodeName),
-    RequestCloseNode(NodeId), // node_id
+    CloseNode(NodeId), // node_id
     /// A message sent to a specific node
     Node(NodeId, UserToCompact), // (node_id, user_to_compact)
 }

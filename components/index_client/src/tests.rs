@@ -32,8 +32,10 @@ struct IndexClientControl<ISA> {
     session_receiver: mpsc::Receiver<ConnRequest<IndexServerAddress<ISA>, Option<SessionHandle>>>,
     database_req_receiver: mpsc::Receiver<DatabaseRequest<IndexClientConfigMutation<ISA>>>,
     tick_sender: mpsc::Sender<()>,
+    // TODO: Check: Why is this field unused?
     #[allow(unused)]
     max_open_requests: usize,
+    // TODO: Check: Why is this field unused?
     #[allow(unused)]
     keepalive_ticks: usize,
     backoff_ticks: usize,

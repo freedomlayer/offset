@@ -15,7 +15,7 @@ use common::select_streams::select_streams;
 
 use timer::TimerClient;
 
-use app::common::NetAddress;
+use app::common::{NetAddress, Uid};
 use app::conn::ConnPairApp;
 use app_client::app_connect_to_node;
 
@@ -25,9 +25,8 @@ use node::{node, ConnPairServer, IncomingAppConnection, NodeConfig};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
 use crate::messages::{
-    CreateNodeLocal, CreateNodeRemote, NodeId, NodeName, NodeStatus, NodesStatus,
-    RequestCreateNode, ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer,
-    UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeName, NodeStatus, NodesStatus,
+    ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
@@ -138,6 +137,57 @@ impl<ST, R, C, S> ServerState<ST, R, C, S> {
     }
 }
 
+async fn build_nodes_status<ST, R, C, S>(
+    server_state: &ServerState<ST, R, C, S>,
+) -> Result<NodesStatus, ServerError>
+where
+    ST: Store,
+{
+    let nodes_info = server_state
+        .store
+        .list_nodes()
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+    Ok(nodes_info
+        .into_iter()
+        .map(|(node_name, node_info)| {
+            (
+                node_name.clone(),
+                NodeStatus {
+                    is_open: server_state.is_node_open(&node_name),
+                    info: node_info,
+                },
+            )
+        })
+        .collect())
+}
+
+pub async fn send_nodes_status_ack<US>(
+    opt_nodes_status: Option<NodesStatus>,
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    if let Some(nodes_status) = opt_nodes_status {
+        // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
+        let server_to_user = ServerToUser::NodesStatus(nodes_status);
+        let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
+        user_sender
+            .send(server_to_user_ack)
+            .await
+            .map_err(|_| ServerError::NodeSenderError)?;
+    }
+
+    // Send ack to the user (In the case of UserToServer::Node, another mechanism sends the ack):
+    let server_to_user_ack = ServerToUserAck::Ack(request_id);
+    user_sender
+        .send(server_to_user_ack)
+        .await
+        .map_err(|_| ServerError::NodeSenderError)
+}
+
 pub async fn handle_create_node_local<ST, CG>(
     create_node_local: CreateNodeLocal,
     store: &mut ST,
@@ -188,84 +238,116 @@ where
 }
 
 /// Returns if any change has happened
-async fn handle_create_node<ST, R, C, S, CG>(
-    request_create_node: RequestCreateNode,
+async fn handle_create_node<ST, R, C, S, CG, US>(
+    request_create_node: CreateNode,
     server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
-) -> Result<bool, ServerError>
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
 where
     CG: GenPrivateKey,
     ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
 {
-    Ok(match request_create_node {
-        RequestCreateNode::CreateNodeLocal(local) => {
+    let has_changed = match request_create_node {
+        CreateNode::CreateNodeLocal(local) => {
             if server_state.is_node_open(&local.node_name) {
                 warn!(
                     "handle_create_node: Node {:?} is already open!",
                     local.node_name
                 );
-                return Ok(false);
+                false
+            } else {
+                handle_create_node_local(local, &mut server_state.store, compact_gen).await?
             }
-            handle_create_node_local(local, &mut server_state.store, compact_gen).await?
         }
-        RequestCreateNode::CreateNodeRemote(remote) => {
+        CreateNode::CreateNodeRemote(remote) => {
             if server_state.is_node_open(&remote.node_name) {
                 warn!(
                     "handle_create_node: Node {:?} is already open!",
                     remote.node_name
                 );
-                return Ok(false);
+                false
+            } else {
+                handle_create_node_remote(remote, &mut server_state.store).await?
             }
-            handle_create_node_remote(remote, &mut server_state.store).await?
         }
-    })
-}
-
-pub async fn handle_remove_node<ST, R, C, S>(
-    node_name: NodeName,
-    server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<bool, ServerError>
-where
-    ST: Store,
-{
-    // Make sure that we do not attempt to remove an open node:
-    if server_state.is_node_open(&node_name) {
-        warn!("handle_remove_node(): node {:?} is open", node_name);
-        return Ok(false);
-    }
-
-    let remove_res = server_state.store.remove_node(node_name.clone()).await;
-    Ok(if let Err(e) = remove_res {
-        warn!("handle_remove_node(): store error: {:?}", e);
-        false
-    } else {
-        true
-    })
-}
-
-async fn handle_close_node<ST, R, C, S>(
-    node_id: &NodeId,
-    server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<bool, ServerError>
-where
-    ST: Store,
-{
-    // Remove from open nodes:
-    let open_node = if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
-        open_node
-    } else {
-        return Ok(false);
     };
 
-    // TODO: Make sure we drop everything besides the name:
-    let OpenNode { node_name, .. } = open_node;
+    let nodes_status = build_nodes_status(&server_state).await?;
+    send_nodes_status_ack(
+        Some(nodes_status).filter(|_| has_changed),
+        request_id,
+        user_sender,
+    )
+    .await
+}
 
-    // Unload from store:
-    if let Err(e) = server_state.store.unload_node(&node_name).await {
-        warn!("handle_close_node(): Error in unload_node(): {:?}", e);
-    }
+pub async fn handle_remove_node<ST, R, C, S, US>(
+    node_name: NodeName,
+    server_state: &mut ServerState<ST, R, C, S>,
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    // Make sure that we do not attempt to remove an open node:
+    let has_changed = if server_state.is_node_open(&node_name) {
+        warn!("handle_remove_node(): node {:?} is open", node_name);
+        false
+    } else {
+        let remove_res = server_state.store.remove_node(node_name.clone()).await;
+        if let Err(e) = remove_res {
+            warn!("handle_remove_node(): store error: {:?}", e);
+            false
+        } else {
+            true
+        }
+    };
 
-    Ok(true)
+    let nodes_status = build_nodes_status(&server_state).await?;
+    send_nodes_status_ack(
+        Some(nodes_status).filter(|_| has_changed),
+        request_id,
+        user_sender,
+    )
+    .await
+}
+
+async fn handle_close_node<ST, R, C, S, US>(
+    node_id: &NodeId,
+    server_state: &mut ServerState<ST, R, C, S>,
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    // Remove from open nodes:
+    let has_changed = if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
+        // TODO: Make sure we drop everything besides the name:
+        let OpenNode { node_name, .. } = open_node;
+
+        // Unload from store:
+        if let Err(e) = server_state.store.unload_node(&node_name).await {
+            warn!("handle_close_node(): Error in unload_node(): {:?}", e);
+        }
+        true
+    } else {
+        false
+    };
+
+    let nodes_status = build_nodes_status(&server_state).await?;
+    send_nodes_status_ack(
+        Some(nodes_status).filter(|_| has_changed),
+        request_id,
+        user_sender,
+    )
+    .await
 }
 
 const NODE_CONFIG: NodeConfig = NodeConfig {
@@ -293,15 +375,13 @@ const NODE_CONFIG: NodeConfig = NodeConfig {
     max_node_relays: MAX_NODE_RELAYS,
 };
 
-async fn open_node_local<ST, R, C, S, US>(
+async fn open_node_local<ST, R, C, S>(
     node_name: NodeName,
     local: LoadedNodeLocal,
     server_state: &mut ServerState<ST, R, C, S>,
-    user_sender: &mut US,
-) -> Result<bool, ServerError>
+) -> Result<ResponseOpenNode, ServerError>
 where
     ST: Store,
-    US: Sink<ServerToUserAck> + Unpin,
     R: CryptoRandom + Clone + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
@@ -436,24 +516,16 @@ where
     // Send success message to the user, together with the first NodeReport etc.
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
-    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
-    user_sender
-        .send(ServerToUserAck::ServerToUser(server_to_user))
-        .await
-        .map_err(|_| ServerError::UserSenderError)?;
-    Ok(true)
+    Ok(response_open_node)
 }
 
-#[allow(unused)]
-async fn open_node_remote<ST, R, C, S, US>(
+async fn open_node_remote<ST, R, C, S>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
     server_state: &mut ServerState<ST, R, C, S>,
-    user_sender: &mut US,
-) -> Result<bool, ServerError>
+) -> Result<ResponseOpenNode, ServerError>
 where
     ST: Store,
-    US: Sink<ServerToUserAck> + Unpin,
     R: CryptoRandom + Clone + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
@@ -481,12 +553,7 @@ where
         tup
     } else {
         // Connection failed:
-        let server_to_user = ServerToUser::ResponseOpenNode(ResponseOpenNode::Failure(node_name));
-        user_sender
-            .send(ServerToUserAck::ServerToUser(server_to_user))
-            .await
-            .map_err(|_| ServerError::UserSenderError)?;
-        return Ok(false);
+        return Ok(ResponseOpenNode::Failure(node_name));
     };
 
     let compact_gen = GenCryptoRandom(server_state.rng.clone());
@@ -552,19 +619,15 @@ where
     // Send success message to the user, together with the first NodeReport etc.
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
-    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
-    user_sender
-        .send(ServerToUserAck::ServerToUser(server_to_user))
-        .await
-        .map_err(|_| ServerError::UserSenderError)?;
-    Ok(true)
+    Ok(response_open_node)
 }
 
 async fn handle_open_node<ST, R, C, US, S>(
     node_name: NodeName,
     server_state: &mut ServerState<ST, R, C, S>,
+    request_id: Uid,
     user_sender: &mut US,
-) -> Result<bool, ServerError>
+) -> Result<(), ServerError>
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
@@ -578,50 +641,51 @@ where
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
         Ok(loaded_node) => loaded_node,
         Err(e) => {
+            warn!("handle_open_node: load_node() error: {:?}", e);
+
             let response_open_node = ResponseOpenNode::Failure(node_name);
             let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
             user_sender
                 .send(ServerToUserAck::ServerToUser(server_to_user))
                 .await
                 .map_err(|_| ServerError::UserSenderError)?;
-            warn!("handle_open_node: load_node() error: {:?}", e);
-            return Ok(false);
+
+            let nodes_status = build_nodes_status(&server_state).await?;
+            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
+
+            return Ok(());
         }
     };
 
-    match loaded_node {
-        LoadedNode::Local(local) => {
-            open_node_local(node_name, local, server_state, user_sender).await
-        }
-        LoadedNode::Remote(remote) => {
-            open_node_remote(node_name, remote, server_state, user_sender).await
-        }
-    }
-}
+    let response_open_node = match loaded_node {
+        LoadedNode::Local(local) => open_node_local(node_name, local, server_state).await?,
+        LoadedNode::Remote(remote) => open_node_remote(node_name, remote, server_state).await?,
+    };
 
-async fn build_nodes_status<ST, R, C, S>(
-    server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<NodesStatus, ServerError>
-where
-    ST: Store,
-{
-    let nodes_info = server_state
-        .store
-        .list_nodes()
+    // TODO: A bit hacky solution, possibly find a more elegant way:
+    let has_changed = match response_open_node {
+        ResponseOpenNode::Success(_, _, _, _) => true,
+        ResponseOpenNode::Failure(_) => false,
+    };
+
+    // Send nodes_status + ack:
+    let nodes_status = build_nodes_status(&server_state).await?;
+    send_nodes_status_ack(
+        // TODO: See https://github.com/rust-lang/rfcs/pull/2757
+        // We can possibly use the proposal to make the trick here look nicer.
+        // We also need to update other code that uses this trick.
+        Some(nodes_status).filter(|_| has_changed),
+        request_id,
+        user_sender,
+    )
+    .await?;
+
+    // Send response:
+    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
+    user_sender
+        .send(ServerToUserAck::ServerToUser(server_to_user))
         .await
-        .map_err(|_| ServerError::StoreError)?;
-    Ok(nodes_info
-        .into_iter()
-        .map(|(node_name, node_info)| {
-            (
-                node_name.clone(),
-                NodeStatus {
-                    is_open: server_state.is_node_open(&node_name),
-                    info: node_info,
-                },
-            )
-        })
-        .collect())
+        .map_err(|_| ServerError::UserSenderError)
 }
 
 pub async fn handle_user_to_server<S, ST, R, C, CG, US>(
@@ -645,57 +709,53 @@ where
         inner: user_to_server,
     } = user_to_server_ack;
 
-    let has_changed = match user_to_server {
-        UserToServer::RequestCreateNode(request_create_node) => {
-            handle_create_node(request_create_node, server_state, compact_gen).await?
+    match user_to_server {
+        UserToServer::CreateNode(request_create_node) => {
+            handle_create_node(
+                request_create_node,
+                server_state,
+                compact_gen,
+                request_id,
+                user_sender,
+            )
+            .await?
         }
-        UserToServer::RequestRemoveNode(node_name) => {
-            handle_remove_node(node_name, server_state).await?
+        UserToServer::RemoveNode(node_name) => {
+            handle_remove_node(node_name, server_state, request_id, user_sender).await?
         }
         UserToServer::RequestOpenNode(node_name) => {
-            handle_open_node(node_name, server_state, user_sender).await?
+            // TODO: BUG: Ack sending order here is incorrect.
+            // ResponseOpenNode should be sent after the ack!
+            handle_open_node(node_name, server_state, request_id, user_sender).await?
         }
-        UserToServer::RequestCloseNode(node_id) => {
-            handle_close_node(&node_id, server_state).await?
+        UserToServer::CloseNode(node_id) => {
+            handle_close_node(&node_id, server_state, request_id, user_sender).await?
         }
         UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
                 node_state
             } else {
                 warn!("UserToServer::Node: nonexistent node {:?}", node_id);
+
+                // Send ack:
+                let opt_nodes_status = None;
+                send_nodes_status_ack(opt_nodes_status, request_id, user_sender).await?;
                 return Ok(());
             };
+
             let user_to_compact_ack = UserToCompactAck {
                 user_request_id: request_id,
                 inner: user_to_compact,
             };
-            return node_state
+            node_state
                 .sender
                 .send(user_to_compact_ack)
                 .await
-                .map_err(|_| ServerError::NodeSenderError);
+                .map_err(|_| ServerError::NodeSenderError)?;
         }
     };
 
-    // We get here if not of type UserToServer::Node(...):
-
-    // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
-    if has_changed {
-        let nodes_status_map = build_nodes_status(server_state).await?;
-        let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
-        let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
-        user_sender
-            .send(server_to_user_ack)
-            .await
-            .map_err(|_| ServerError::NodeSenderError)?;
-    }
-
-    // Send ack to the user (In the case of UserToServer::Node, another mechanism sends the ack):
-    let server_to_user_ack = ServerToUserAck::Ack(request_id);
-    user_sender
-        .send(server_to_user_ack)
-        .await
-        .map_err(|_| ServerError::NodeSenderError)
+    Ok(())
 }
 
 async fn inner_server_loop<ST, R, C, S>(
@@ -733,6 +793,17 @@ where
         connector,
         spawner,
     );
+
+    // Send initial NodesStatus:
+    // TODO: A cleaner way to do this?
+    let nodes_status_map = build_nodes_status(&server_state).await?;
+    let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
+    let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
+    user_sender
+        .send(server_to_user_ack)
+        .await
+        .map_err(|_| ServerError::NodeSenderError)?;
+
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
 
