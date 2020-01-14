@@ -25,9 +25,8 @@ use node::{node, ConnPairServer, IncomingAppConnection, NodeConfig};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
 use crate::messages::{
-    CreateNodeLocal, CreateNodeRemote, NodeId, NodeName, NodeStatus, NodesStatus,
-    RequestCreateNode, ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer,
-    UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeName, NodeStatus, NodesStatus,
+    ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
@@ -240,7 +239,7 @@ where
 
 /// Returns if any change has happened
 async fn handle_create_node<ST, R, C, S, CG, US>(
-    request_create_node: RequestCreateNode,
+    request_create_node: CreateNode,
     server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
     request_id: Uid,
@@ -252,7 +251,7 @@ where
     US: Sink<ServerToUserAck> + Unpin,
 {
     let has_changed = match request_create_node {
-        RequestCreateNode::CreateNodeLocal(local) => {
+        CreateNode::CreateNodeLocal(local) => {
             if server_state.is_node_open(&local.node_name) {
                 warn!(
                     "handle_create_node: Node {:?} is already open!",
@@ -263,7 +262,7 @@ where
                 handle_create_node_local(local, &mut server_state.store, compact_gen).await?
             }
         }
-        RequestCreateNode::CreateNodeRemote(remote) => {
+        CreateNode::CreateNodeRemote(remote) => {
             if server_state.is_node_open(&remote.node_name) {
                 warn!(
                     "handle_create_node: Node {:?} is already open!",

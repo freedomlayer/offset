@@ -79,7 +79,7 @@ pub enum ResponseOpenNode {
 pub type NodesStatus = HashMap<NodeName, NodeStatus>;
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RequestCreateNode {
+pub enum CreateNode {
     CreateNodeLocal(CreateNodeLocal),
     CreateNodeRemote(CreateNodeRemote),
 }
@@ -106,7 +106,7 @@ pub enum ServerToUserAck {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum UserToServer {
-    CreateNode(RequestCreateNode),
+    CreateNode(CreateNode),
     RemoveNode(NodeName),
     RequestOpenNode(NodeName),
     CloseNode(NodeId), // node_id

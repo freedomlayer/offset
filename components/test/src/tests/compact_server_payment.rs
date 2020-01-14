@@ -24,7 +24,7 @@ use stcompact::compact_node::messages::{
     UserToCompactAck, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNodeLocal, NodeName, RequestCreateNode, ServerToUser, ServerToUserAck, UserToServer,
+    CreateNode, CreateNodeLocal, NodeName, ServerToUser, ServerToUserAck, UserToServer,
     UserToServerAck,
 };
 
@@ -343,7 +343,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     let create_node_local = CreateNodeLocal {
         node_name: node0_name.clone(),
     };
-    let request_create_node = RequestCreateNode::CreateNodeLocal(create_node_local);
+    let request_create_node = CreateNode::CreateNodeLocal(create_node_local);
     let user_to_server = UserToServer::CreateNode(request_create_node);
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
 
@@ -351,7 +351,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     let create_node_local = CreateNodeLocal {
         node_name: node1_name.clone(),
     };
-    let request_create_node = RequestCreateNode::CreateNodeLocal(create_node_local);
+    let request_create_node = CreateNode::CreateNodeLocal(create_node_local);
     let user_to_server = UserToServer::CreateNode(request_create_node);
     send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
 
