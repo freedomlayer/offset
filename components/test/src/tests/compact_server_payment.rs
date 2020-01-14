@@ -792,7 +792,7 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
 
 #[test]
 fn test_compact_server_two_nodes_payment() {
-    let _ = env_logger::init();
+    // let _ = env_logger::init();
     let test_executor = TestExecutor::new();
     let res = test_executor.run(task_compact_server_two_nodes_payment(test_executor.clone()));
     assert!(res.is_output());
