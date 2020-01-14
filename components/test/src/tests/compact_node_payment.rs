@@ -142,7 +142,7 @@ async fn make_test_payment(
     let verify_request_id = gen_uid();
     let request_verify_commit = RequestVerifyCommit {
         request_id: verify_request_id.clone(),
-        seller_public_key: seller_public_key.clone(),
+        // seller_public_key: seller_public_key.clone(),
         commit: commit.clone(),
     };
     send_request(
@@ -169,9 +169,12 @@ async fn make_test_payment(
     }
 
     // Node1: Apply the commit:
-    send_request(&mut conn_pair1, UserToCompact::CommitInvoice(commit))
-        .await
-        .unwrap();
+    send_request(
+        &mut conn_pair1,
+        UserToCompact::CommitInvoice(commit.invoice_id.clone()),
+    )
+    .await
+    .unwrap();
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;
