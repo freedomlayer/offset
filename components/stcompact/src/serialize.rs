@@ -128,7 +128,7 @@ mod tests {
         let request_create_node = RequestCreateNode::CreateNodeRemote(create_node_remote);
         let msg = UserToServerAck {
             request_id: Uid::from(&[1; Uid::len()]),
-            inner: UserToServer::RequestCreateNode(request_create_node),
+            inner: UserToServer::CreateNode(request_create_node),
         };
         let ser_str = serde_json::to_string(&msg).unwrap();
         let msg2 = serde_json::from_str(&ser_str).unwrap();

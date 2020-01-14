@@ -646,20 +646,16 @@ where
     } = user_to_server_ack;
 
     let has_changed = match user_to_server {
-        UserToServer::RequestCreateNode(request_create_node) => {
+        UserToServer::CreateNode(request_create_node) => {
             handle_create_node(request_create_node, server_state, compact_gen).await?
         }
-        UserToServer::RequestRemoveNode(node_name) => {
-            handle_remove_node(node_name, server_state).await?
-        }
+        UserToServer::RemoveNode(node_name) => handle_remove_node(node_name, server_state).await?,
         UserToServer::RequestOpenNode(node_name) => {
             // TODO: BUG: Ack sending order here is incorrect.
             // ResponseOpenNode should be sent after the ack!
             handle_open_node(node_name, server_state, user_sender).await?
         }
-        UserToServer::RequestCloseNode(node_id) => {
-            handle_close_node(&node_id, server_state).await?
-        }
+        UserToServer::CloseNode(node_id) => handle_close_node(&node_id, server_state).await?,
         UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
                 node_state
