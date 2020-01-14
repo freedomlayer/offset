@@ -24,8 +24,8 @@ use stcompact::compact_node::messages::{
     UserToCompactAck, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNode, CreateNodeLocal, NodeName, ServerToUser, ServerToUserAck, UserToServer,
-    UserToServerAck,
+    CreateNode, CreateNodeLocal, NodeName, ResponseOpenNode, ServerToUser, ServerToUserAck,
+    UserToServer, UserToServerAck,
 };
 
 use crate::compact_server_wrapper::send_request;
@@ -358,14 +358,30 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     // compact0: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
-    dbg!(&nodes_status0);
-    dbg!(compact0.receiver.next().await.unwrap());
 
-    /*
+    // Wait for response:
+    let server_to_user_ack = compact0.receiver.next().await.unwrap();
+    if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
+        ResponseOpenNode::Success(_, _, _, _),
+    )) = server_to_user_ack
+    {
+    } else {
+        unreachable!();
+    }
+
     // compact1: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
     send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
-    */
+
+    // Wait for response:
+    let server_to_user_ack = compact1.receiver.next().await.unwrap();
+    if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
+        ResponseOpenNode::Success(_, _, _, _),
+    )) = server_to_user_ack
+    {
+    } else {
+        unreachable!();
+    }
 
     /*
 
