@@ -517,15 +517,6 @@ where
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
     Ok(response_open_node)
-
-    /*
-    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
-    user_sender
-        .send(ServerToUserAck::ServerToUser(server_to_user))
-        .await
-        .map_err(|_| ServerError::UserSenderError)?;
-    Ok(true)
-    */
 }
 
 async fn open_node_remote<ST, R, C, S>(
@@ -563,14 +554,6 @@ where
     } else {
         // Connection failed:
         return Ok(ResponseOpenNode::Failure(node_name));
-        /*
-        let server_to_user = ServerToUser::ResponseOpenNode(ResponseOpenNode::Failure(node_name));
-        user_sender
-            .send(ServerToUserAck::ServerToUser(server_to_user))
-            .await
-            .map_err(|_| ServerError::UserSenderError)?;
-        return Ok(false);
-        */
     };
 
     let compact_gen = GenCryptoRandom(server_state.rng.clone());
@@ -637,14 +620,6 @@ where
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
     Ok(response_open_node)
-    /*
-    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
-    user_sender
-        .send(ServerToUserAck::ServerToUser(server_to_user))
-        .await
-        .map_err(|_| ServerError::UserSenderError)?;
-    Ok(true)
-    */
 }
 
 async fn handle_open_node<ST, R, C, US, S>(
@@ -696,6 +671,9 @@ where
     // Send nodes_status + ack:
     let nodes_status = build_nodes_status(&server_state).await?;
     send_nodes_status_ack(
+        // TODO: See https://github.com/rust-lang/rfcs/pull/2757
+        // We can possibly use the proposal to make the trick here look nicer.
+        // We also need to update other code that uses this trick.
         Some(nodes_status).filter(|_| has_changed),
         request_id,
         user_sender,
@@ -778,28 +756,6 @@ where
     };
 
     Ok(())
-
-    /*
-    // We get here if not of type UserToServer::Node(...):
-
-    // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
-    if has_changed {
-        let nodes_status_map = build_nodes_status(&server_state).await?;
-        let nodes_status = ServerToUser::NodesStatus(nodes_status_map);
-        let server_to_user_ack = ServerToUserAck::ServerToUser(nodes_status);
-        user_sender
-            .send(server_to_user_ack)
-            .await
-            .map_err(|_| ServerError::NodeSenderError)?;
-    }
-
-    // Send ack to the user (In the case of UserToServer::Node, another mechanism sends the ack):
-    let server_to_user_ack = ServerToUserAck::Ack(request_id);
-    user_sender
-        .send(server_to_user_ack)
-        .await
-        .map_err(|_| ServerError::NodeSenderError)
-    */
 }
 
 async fn inner_server_loop<ST, R, C, S>(
