@@ -123,8 +123,8 @@ pub struct PaymentDone {
 pub struct RequestVerifyCommit {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
-    #[serde(with = "ser_b64")]
-    pub seller_public_key: PublicKey,
+    // #[serde(with = "ser_b64")]
+    // pub seller_public_key: PublicKey,
     pub commit: Commit,
 }
 
@@ -474,9 +474,10 @@ pub enum UserToCompact {
     AddInvoice(AddInvoice),
     #[serde(with = "ser_b64")]
     CancelInvoice(InvoiceId),
-    CommitInvoice(Commit),
-    // ---------------[Verification]------------------------
     RequestVerifyCommit(RequestVerifyCommit),
+    #[serde(with = "ser_b64")]
+    CommitInvoice(InvoiceId),
+    // ---------------[Verification]------------------------
     // TODO: Add API for verification of receipt and last token?
 }
 
