@@ -673,11 +673,9 @@ where
                     .map_err(|_| CompactNodeError::UserSenderError);
             };
 
-            let node_commit = commit.clone().into();
-
             // Verify commitment (Just in case):
             if !verify_commit(
-                &node_commit,
+                &commit,
                 &server_state.node_report().funder_report.local_public_key,
             ) {
                 warn!(
@@ -691,7 +689,7 @@ where
             }
 
             // Send commitment to node:
-            let app_request = seller::commit_invoice(node_commit);
+            let app_request = seller::commit_invoice(commit.clone());
 
             let app_to_app_server = AppToAppServer {
                 app_request_id: user_request_id,
