@@ -24,8 +24,8 @@ use stcompact::compact_node::messages::{
     UserToCompactAck, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNode, CreateNodeLocal, NodeName, ResponseOpenNode, ServerToUser, ServerToUserAck,
-    UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, NodeId, NodeName, NodesStatus, ResponseOpenNode, ServerToUser,
+    ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_server_wrapper::send_request;
@@ -38,15 +38,30 @@ use crate::utils::{
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
-/*
-use crate::compact_report_service::compact_report_service;
+/// Helper function: Send a UserToCompact message to a specific node
+async fn node_request(
+    compact: &mut ConnPair<UserToServerAck, ServerToUserAck>,
+    nodes_status: &mut NodesStatus,
+    node_id: NodeId,
+    user_to_compact: UserToCompact,
+) {
+    let user_to_server = UserToServer::Node(node_id.clone(), user_to_compact);
+    send_request(compact, nodes_status, user_to_server)
+        .await
+        .unwrap();
+}
 
+use crate::compact_report_service::compact_report_service;
 
 /// Perform a basic payment between a buyer and a seller.
 /// Node0 sends credits to Node1
 async fn make_test_payment(
-    mut conn_pair0: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
-    mut conn_pair1: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
+    mut compact0: &mut ConnPair<UserToServerAck, ServerToUserAck>,
+    mut nodes_status0: &mut NodesStatus,
+    node_id0: NodeId,
+    mut compact1: &mut ConnPair<UserToServerAck, ServerToUserAck>,
+    mut nodes_status1: &mut NodesStatus,
+    node_id1: NodeId,
     _buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
@@ -65,9 +80,13 @@ async fn make_test_payment(
         total_dest_payment,
         description: "Example payment".to_owned(),
     };
-    send_request(&mut conn_pair1, UserToCompact::AddInvoice(add_invoice))
-        .await
-        .unwrap();
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
+        UserToCompact::AddInvoice(add_invoice),
+    )
+    .await;
 
     // Node0: Init payment
     let init_payment = InitPayment {
@@ -78,21 +97,27 @@ async fn make_test_payment(
         dest_payment: total_dest_payment,
         description: "Example payment".to_owned(),
     };
-    send_request(&mut conn_pair0, UserToCompact::InitPayment(init_payment))
-        .await
-        .unwrap();
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
+        UserToCompact::InitPayment(init_payment),
+    )
+    .await;
 
     // Node0: Wait for payment fees:
     let (_fees, confirm_id) = loop {
-        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
-        let payment_fees =
-            if let CompactToUserAck::CompactToUser(CompactToUser::PaymentFees(payment_fees)) =
-                compact_to_user_ack
-            {
-                payment_fees
-            } else {
-                continue;
-            };
+        let server_to_user_ack = compact0.receiver.next().await.unwrap();
+        let payment_fees = if let ServerToUserAck::ServerToUser(ServerToUser::Node(
+            node_id,
+            CompactToUser::PaymentFees(payment_fees),
+        )) = server_to_user_ack
+        {
+            assert_eq!(node_id, node_id0);
+            payment_fees
+        } else {
+            continue;
+        };
         assert_eq!(payment_fees.payment_id, payment_id);
         match payment_fees.response {
             PaymentFeesResponse::Fees(fees, confirm_id) => break (fees, confirm_id),
@@ -105,32 +130,39 @@ async fn make_test_payment(
         payment_id: payment_id.clone(),
         confirm_id,
     };
-    send_request(
-        &mut conn_pair0,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::ConfirmPaymentFees(confirm_payment_fees),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Node0: Wait for commit to be created:
     let commit = loop {
-        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
-        let payment_commit = match compact_to_user_ack {
-            CompactToUserAck::CompactToUser(CompactToUser::PaymentCommit(payment_commit)) => {
-                payment_commit
-            }
-            CompactToUserAck::CompactToUser(CompactToUser::PaymentDone(payment_done)) => {
+        let server_to_user_ack = compact0.receiver.next().await.unwrap();
+        let payment_commit = match server_to_user_ack {
+            ServerToUserAck::ServerToUser(ServerToUser::Node(
+                node_id,
+                CompactToUser::PaymentCommit(payment_commit),
+            )) => payment_commit,
+            ServerToUserAck::ServerToUser(ServerToUser::Node(
+                node_id,
+                CompactToUser::PaymentDone(payment_done),
+            )) => {
                 // We get here if the remote side rejects our request for payment:
                 assert_eq!(payment_done.payment_id, payment_id);
+                assert_eq!(node_id, node_id0);
                 match payment_done.status {
                     PaymentDoneStatus::Failure(ack_uid) => {
                         // Node0: AckPaymentDone:
-                        send_request(
-                            &mut conn_pair0,
+                        node_request(
+                            &mut compact0,
+                            &mut nodes_status0,
+                            node_id0.clone(),
                             UserToCompact::AckPaymentDone(payment_id, ack_uid),
                         )
-                        .await
-                        .unwrap();
+                        .await;
 
                         return None;
                     }
@@ -149,23 +181,25 @@ async fn make_test_payment(
     let verify_request_id = gen_uid();
     let request_verify_commit = RequestVerifyCommit {
         request_id: verify_request_id.clone(),
-        seller_public_key: seller_public_key.clone(),
         commit: commit.clone(),
     };
-    send_request(
-        &mut conn_pair1,
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
         UserToCompact::RequestVerifyCommit(request_verify_commit),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Node1: Wait for verification of commit:
     loop {
-        let compact_to_user_ack = conn_pair1.receiver.next().await.unwrap();
-        let response_verify_commit = if let CompactToUserAck::CompactToUser(
+        let compact_to_user_ack = compact1.receiver.next().await.unwrap();
+        let response_verify_commit = if let ServerToUserAck::ServerToUser(ServerToUser::Node(
+            node_id,
             CompactToUser::ResponseVerifyCommit(response_verify_commit),
-        ) = compact_to_user_ack
+        )) = compact_to_user_ack
         {
+            assert_eq!(node_id, node_id1);
             response_verify_commit
         } else {
             continue;
@@ -176,24 +210,30 @@ async fn make_test_payment(
     }
 
     // Node1: Apply the commit:
-    send_request(&mut conn_pair1, UserToCompact::CommitInvoice(commit))
-        .await
-        .unwrap();
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
+        UserToCompact::CommitInvoice(commit.invoice_id.clone()),
+    )
+    .await;
 
     // Wait some time:
     advance_time(5, &mut tick_sender, &test_executor).await;
 
     // Node0: Wait for PaymentDone:
     let (opt_receipt_fees, ack_uid) = loop {
-        let compact_to_user_ack = conn_pair0.receiver.next().await.unwrap();
-        let payment_done =
-            if let CompactToUserAck::CompactToUser(CompactToUser::PaymentDone(payment_done)) =
-                compact_to_user_ack
-            {
-                payment_done
-            } else {
-                continue;
-            };
+        let compact_to_user_ack = compact0.receiver.next().await.unwrap();
+        let payment_done = if let ServerToUserAck::ServerToUser(ServerToUser::Node(
+            node_id,
+            CompactToUser::PaymentDone(payment_done),
+        )) = compact_to_user_ack
+        {
+            assert_eq!(node_id, node_id0);
+            payment_done
+        } else {
+            continue;
+        };
         assert_eq!(payment_done.payment_id, payment_id);
         match payment_done.status {
             PaymentDoneStatus::Success(receipt, fees, ack_uid) => {
@@ -204,16 +244,16 @@ async fn make_test_payment(
     };
 
     // Node0: AckPaymentDone:
-    send_request(
-        &mut conn_pair0,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::AckPaymentDone(payment_id, ack_uid),
     )
-    .await
-    .unwrap();
+    .await;
 
     opt_receipt_fees
 }
-*/
 
 async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -361,13 +401,14 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
 
     // Wait for response:
     let server_to_user_ack = compact0.receiver.next().await.unwrap();
-    if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
-        ResponseOpenNode::Success(_, _, _, _),
+    let node_id0 = if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
+        ResponseOpenNode::Success(_node_name, node_id, _app_permissions, _compact_report),
     )) = server_to_user_ack
     {
+        node_id
     } else {
         unreachable!();
-    }
+    };
 
     // compact1: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
@@ -375,45 +416,48 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
 
     // Wait for response:
     let server_to_user_ack = compact1.receiver.next().await.unwrap();
-    if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
-        ResponseOpenNode::Success(_, _, _, _),
+    let node_id1 = if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
+        ResponseOpenNode::Success(_node_name, node_id, _app_permissions, _compact_report),
     )) = server_to_user_ack
     {
+        node_id
     } else {
         unreachable!();
-    }
-
-    /*
+    };
 
     // Configure relays:
-    send_request(
-        &mut compact_node0,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::AddRelay(named_relay_address(0)),
     )
-    .await
-    .unwrap();
+    .await;
 
-    send_request(
-        &mut compact_node1,
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
         UserToCompact::AddRelay(named_relay_address(1)),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Configure index servers:
-    send_request(
-        &mut compact_node0,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::AddIndexServer(named_index_server_address(0)),
     )
-    .await
-    .unwrap();
+    .await;
 
-    send_request(
-        &mut compact_node1,
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
         UserToCompact::AddIndexServer(named_index_server_address(1)),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Wait some time:
     advance_time(40, &mut tick_sender, &test_executor).await;
@@ -424,9 +468,13 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         relays: vec![relay_address(1)],
         name: "node1".to_owned(),
     };
-    send_request(&mut compact_node0, UserToCompact::AddFriend(add_friend))
-        .await
-        .unwrap();
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
+        UserToCompact::AddFriend(add_friend),
+    )
+    .await;
 
     // Node1: Add Node0 as a friend:
     let add_friend = AddFriend {
@@ -434,27 +482,35 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         relays: vec![relay_address(0)],
         name: "node0".to_owned(),
     };
-    send_request(&mut compact_node1, UserToCompact::AddFriend(add_friend))
-        .await
-        .unwrap();
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
+        UserToCompact::AddFriend(add_friend),
+    )
+    .await;
 
     // Node0: Enable node1:
-    send_request(
-        &mut compact_node0,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::EnableFriend(node_public_key(1)),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Node1: Enable node1:
-    send_request(
-        &mut compact_node1,
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
         UserToCompact::EnableFriend(node_public_key(0)),
     )
-    .await
-    .unwrap();
+    .await;
 
     advance_time(10, &mut tick_sender, &test_executor).await;
+
+    /*
 
     // Wait until both sides see each other as online:
     loop {
@@ -481,6 +537,8 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         advance_time(5, &mut tick_sender, &test_executor).await;
     }
 
+    */
+
     // Node0: Set active currencies for Node1:
     for currency in [&currency1, &currency2, &currency3].into_iter() {
         let set_friend_currency_rate = SetFriendCurrencyRate {
@@ -488,12 +546,14 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
             currency: (*currency).clone(),
             rate: Rate::new(),
         };
-        send_request(
-            &mut compact_node0,
+        // Node0: Enable node1:
+        node_request(
+            &mut compact0,
+            &mut nodes_status0,
+            node_id0.clone(),
             UserToCompact::SetFriendCurrencyRate(set_friend_currency_rate),
         )
-        .await
-        .unwrap();
+        .await;
     }
 
     // Node1: Set active currencies for Node0:
@@ -503,12 +563,13 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
             currency: (*currency).clone(),
             rate: Rate::new(),
         };
-        send_request(
-            &mut compact_node1,
+        node_request(
+            &mut compact1,
+            &mut nodes_status1,
+            node_id1.clone(),
             UserToCompact::SetFriendCurrencyRate(set_friend_currency_rate),
         )
-        .await
-        .unwrap();
+        .await;
     }
 
     // Wait some time, to let the two nodes negotiate currencies:
@@ -520,24 +581,26 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
             friend_public_key: node_public_key(1),
             currency: (*currency).clone(),
         };
-        send_request(
-            &mut compact_node0,
+        node_request(
+            &mut compact0,
+            &mut nodes_status0,
+            node_id0.clone(),
             UserToCompact::OpenFriendCurrency(open_friend_currency),
         )
-        .await
-        .unwrap();
+        .await;
 
         // Node1: Open currency
         let open_friend_currency = OpenFriendCurrency {
             friend_public_key: node_public_key(0),
             currency: (*currency).clone(),
         };
-        send_request(
-            &mut compact_node1,
+        node_request(
+            &mut compact1,
+            &mut nodes_status1,
+            node_id1.clone(),
             UserToCompact::OpenFriendCurrency(open_friend_currency),
         )
-        .await
-        .unwrap();
+        .await;
     }
 
     // Wait some time, to let the index servers exchange information:
@@ -549,12 +612,13 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         currency: currency1.clone(),
         remote_max_debt: 10,
     };
-    send_request(
-        &mut compact_node1,
+    node_request(
+        &mut compact0,
+        &mut nodes_status0,
+        node_id0.clone(),
         UserToCompact::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Node1 allows node0 to have maximum debt of currency2=15
     let set_friend_currency_max_debt = SetFriendCurrencyMaxDebt {
@@ -562,15 +626,18 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
         currency: currency2.clone(),
         remote_max_debt: 15,
     };
-    send_request(
-        &mut compact_node1,
+    node_request(
+        &mut compact1,
+        &mut nodes_status1,
+        node_id1.clone(),
         UserToCompact::SetFriendCurrencyMaxDebt(set_friend_currency_max_debt),
     )
-    .await
-    .unwrap();
+    .await;
 
     // Wait until the max debt was set:
     advance_time(10, &mut tick_sender, &test_executor).await;
+
+    /*
 
     // Send 10 currency1 credits from node0 to node1:
     let opt_receipt_fees = make_test_payment(
