@@ -375,15 +375,13 @@ const NODE_CONFIG: NodeConfig = NodeConfig {
     max_node_relays: MAX_NODE_RELAYS,
 };
 
-async fn open_node_local<ST, R, C, S, US>(
+async fn open_node_local<ST, R, C, S>(
     node_name: NodeName,
     local: LoadedNodeLocal,
     server_state: &mut ServerState<ST, R, C, S>,
-    user_sender: &mut US,
-) -> Result<bool, ServerError>
+) -> Result<ResponseOpenNode, ServerError>
 where
     ST: Store,
-    US: Sink<ServerToUserAck> + Unpin,
     R: CryptoRandom + Clone + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
@@ -518,23 +516,25 @@ where
     // Send success message to the user, together with the first NodeReport etc.
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
+    Ok(response_open_node)
+
+    /*
     let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
     user_sender
         .send(ServerToUserAck::ServerToUser(server_to_user))
         .await
         .map_err(|_| ServerError::UserSenderError)?;
     Ok(true)
+    */
 }
 
-async fn open_node_remote<ST, R, C, S, US>(
+async fn open_node_remote<ST, R, C, S>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
     server_state: &mut ServerState<ST, R, C, S>,
-    user_sender: &mut US,
-) -> Result<bool, ServerError>
+) -> Result<ResponseOpenNode, ServerError>
 where
     ST: Store,
-    US: Sink<ServerToUserAck> + Unpin,
     R: CryptoRandom + Clone + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
@@ -562,12 +562,15 @@ where
         tup
     } else {
         // Connection failed:
+        return Ok(ResponseOpenNode::Failure(node_name));
+        /*
         let server_to_user = ServerToUser::ResponseOpenNode(ResponseOpenNode::Failure(node_name));
         user_sender
             .send(ServerToUserAck::ServerToUser(server_to_user))
             .await
             .map_err(|_| ServerError::UserSenderError)?;
         return Ok(false);
+        */
     };
 
     let compact_gen = GenCryptoRandom(server_state.rng.clone());
@@ -633,12 +636,15 @@ where
     // Send success message to the user, together with the first NodeReport etc.
     let response_open_node =
         ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
+    Ok(response_open_node)
+    /*
     let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
     user_sender
         .send(ServerToUserAck::ServerToUser(server_to_user))
         .await
         .map_err(|_| ServerError::UserSenderError)?;
     Ok(true)
+    */
 }
 
 async fn handle_open_node<ST, R, C, US, S>(
@@ -676,22 +682,32 @@ where
         }
     };
 
-    let has_changed = match loaded_node {
-        LoadedNode::Local(local) => {
-            open_node_local(node_name, local, server_state, user_sender).await?
-        }
-        LoadedNode::Remote(remote) => {
-            open_node_remote(node_name, remote, server_state, user_sender).await?
-        }
+    let response_open_node = match loaded_node {
+        LoadedNode::Local(local) => open_node_local(node_name, local, server_state).await?,
+        LoadedNode::Remote(remote) => open_node_remote(node_name, remote, server_state).await?,
     };
 
+    // TODO: A bit hacky solution, possibly find a more elegant way:
+    let has_changed = match response_open_node {
+        ResponseOpenNode::Success(_, _, _, _) => true,
+        ResponseOpenNode::Failure(_) => false,
+    };
+
+    // Send nodes_status + ack:
     let nodes_status = build_nodes_status(&server_state).await?;
     send_nodes_status_ack(
         Some(nodes_status).filter(|_| has_changed),
         request_id,
         user_sender,
     )
-    .await
+    .await?;
+
+    // Send response:
+    let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
+    user_sender
+        .send(ServerToUserAck::ServerToUser(server_to_user))
+        .await
+        .map_err(|_| ServerError::UserSenderError)
 }
 
 pub async fn handle_user_to_server<S, ST, R, C, CG, US>(

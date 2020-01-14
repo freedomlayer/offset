@@ -358,11 +358,14 @@ async fn task_compact_server_two_nodes_payment(mut test_executor: TestExecutor) 
     // compact0: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server).await;
-    // dbg!(compact0.receiver.next().await.unwrap());
+    dbg!(&nodes_status0);
+    dbg!(compact0.receiver.next().await.unwrap());
 
+    /*
     // compact1: open a local node:
     let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
-    send_request(&mut compact1, &mut nodes_status0, user_to_server).await;
+    send_request(&mut compact1, &mut nodes_status1, user_to_server).await;
+    */
 
     /*
 
