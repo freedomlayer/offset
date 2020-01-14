@@ -1,5 +1,4 @@
 mod compact_node_payment;
-#[allow(unused)]
 mod compact_server_payment;
 #[allow(unused)]
 mod compact_server_remote_node;
