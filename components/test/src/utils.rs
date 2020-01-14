@@ -85,9 +85,13 @@ where
     identity_client
 }
 
-fn get_app_identity(index: u8) -> impl Identity {
+pub fn app_private_key(index: u8) -> PrivateKey {
     let rng = DummyRandom::new(&[0x13, 0x36, index]);
-    gen_identity(&rng)
+    PrivateKey::rand_gen(&rng)
+}
+
+fn get_app_identity(index: u8) -> impl Identity {
+    SoftwareEd25519Identity::from_private_key(&app_private_key(index)).unwrap()
 }
 
 fn get_node_identity(index: u8) -> impl Identity {
@@ -192,7 +196,7 @@ impl SimDb {
     }
 }
 
-fn listen_node_address(index: u8) -> NetAddress {
+pub fn listen_node_address(index: u8) -> NetAddress {
     net_address(&format!("node_{}", index))
 }
 
