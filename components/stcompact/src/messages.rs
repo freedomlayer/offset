@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use common::ser_utils::ser_b64;
+use common::ser_utils::{ser_b64, ser_string};
 
 use app::common::{NetAddress, PrivateKey, PublicKey, Uid};
 use app::conn::AppPermissions;
@@ -14,7 +14,7 @@ use crate::compact_node::messages::{CompactReport, CompactToUser, UserToCompact}
 pub struct NodeName(String);
 
 #[derive(Arbitrary, Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-pub struct NodeId(pub u64);
+pub struct NodeId(#[serde(with = "ser_string")] pub u64);
 
 impl NodeName {
     #[allow(unused)]

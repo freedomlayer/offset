@@ -306,6 +306,7 @@ pub struct McInfo {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
+    #[serde(with = "ser_string")]
     pub inconsistency_counter: u64,
     #[serde(with = "ser_string")]
     pub move_token_counter: u128,
