@@ -11,12 +11,12 @@ common = { path = "../common", version = "0.1.0", package = "offst-common" }
 proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
 
 futures = "0.3.1"
-futures_codec = "0.3.1"
+futures_codec = "0.4.0"
 async-std = "1.2.0"
 
 log = "0.4"
 
-bytes = "0.4"
+bytes = "0.5.4"
 
 [dev-dependencies]
 

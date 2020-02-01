@@ -1,5 +1,4 @@
-use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};
-use bytes::BigEndian;
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 
 use serde::{Deserialize, Serialize};
 

@@ -410,7 +410,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
     }
 
     // Set active currencies for both sides:
-    for currency in [&currency1, &currency2, &currency3].into_iter() {
+    for currency in [&currency1, &currency2, &currency3].iter() {
         send_request(
             &mut conn_pair0,
             conn::config::set_friend_currency_rate(
@@ -422,7 +422,7 @@ async fn task_two_nodes_payment(mut test_executor: TestExecutor) {
         .await
         .unwrap();
     }
-    for currency in [&currency1, &currency2].into_iter() {
+    for currency in [&currency1, &currency2].iter() {
         send_request(
             &mut conn_pair1,
             conn::config::set_friend_currency_rate(
