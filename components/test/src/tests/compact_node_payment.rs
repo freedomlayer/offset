@@ -455,7 +455,7 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     }
 
     // Node0: Set active currencies for Node1:
-    for currency in [&currency1, &currency2, &currency3].into_iter() {
+    for currency in [&currency1, &currency2, &currency3].iter() {
         let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key: node_public_key(1),
             currency: (*currency).clone(),
@@ -470,7 +470,7 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     }
 
     // Node1: Set active currencies for Node0:
-    for currency in [&currency1, &currency2].into_iter() {
+    for currency in [&currency1, &currency2].iter() {
         let set_friend_currency_rate = SetFriendCurrencyRate {
             friend_public_key: node_public_key(0),
             currency: (*currency).clone(),
@@ -487,7 +487,7 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     // Wait some time, to let the two nodes negotiate currencies:
     advance_time(10, &mut tick_sender, &test_executor).await;
 
-    for currency in [&currency1, &currency2].into_iter() {
+    for currency in [&currency1, &currency2].iter() {
         // Node0: Open currency
         let open_friend_currency = OpenFriendCurrency {
             friend_public_key: node_public_key(1),
