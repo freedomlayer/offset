@@ -634,12 +634,10 @@ where
                     index_server.event_sender.clone(),
                 )
                 .map_err(|e| error!("client_handler() error: {:?}", e))
-                .then(|_| {
-                    async move {
-                        let _ = c_event_sender
-                            .send(IndexServerEvent::ClientClosed(c_public_key))
-                            .await;
-                    }
+                .then(|_| async move {
+                    let _ = c_event_sender
+                        .send(IndexServerEvent::ClientClosed(c_public_key))
+                        .await;
                 });
 
                 index_server
