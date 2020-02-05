@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "stcompact"
 path = "src/bin/stcompact.rs"
 
+[[bin]]
+name = "stcompact_ser_gen"
+path = "src/bin/stcompact_ser_gen.rs"
+
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offst-common" }

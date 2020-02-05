@@ -11,6 +11,7 @@ use common::ser_utils::{
 };
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Commit {
     #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
@@ -31,6 +32,7 @@ pub struct Commit {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -39,6 +41,7 @@ pub struct OpenFriendCurrency {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CloseFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -47,6 +50,7 @@ pub struct CloseFriendCurrency {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AddFriend {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -55,6 +59,7 @@ pub struct AddFriend {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetFriendRelays {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -62,6 +67,7 @@ pub struct SetFriendRelays {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetFriendName {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -69,6 +75,7 @@ pub struct SetFriendName {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct InitPayment {
     #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
@@ -85,6 +92,7 @@ pub struct InitPayment {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum PaymentFeesResponse {
     Unreachable,
     Fees(
@@ -94,6 +102,7 @@ pub enum PaymentFeesResponse {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PaymentFees {
     #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
@@ -102,6 +111,7 @@ pub struct PaymentFees {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub enum PaymentDoneStatus {
     #[serde(with = "ser_b64")]
     Failure(Uid), // ack_uid
@@ -113,6 +123,7 @@ pub enum PaymentDoneStatus {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PaymentDone {
     #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
@@ -120,6 +131,7 @@ pub struct PaymentDone {
 }
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RequestVerifyCommit {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
@@ -129,6 +141,7 @@ pub struct RequestVerifyCommit {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ResponseVerifyCommit {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
@@ -136,12 +149,14 @@ pub struct ResponseVerifyCommit {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub enum VerifyCommitStatus {
     Failure,
     Success,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PaymentCommit {
     #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
@@ -149,6 +164,7 @@ pub struct PaymentCommit {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfirmPaymentFees {
     #[serde(with = "ser_b64")]
     pub payment_id: PaymentId,
@@ -157,6 +173,7 @@ pub struct ConfirmPaymentFees {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetFriendCurrencyMaxDebt {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -167,6 +184,7 @@ pub struct SetFriendCurrencyMaxDebt {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoveFriendCurrency {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -175,6 +193,7 @@ pub struct RemoveFriendCurrency {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResetFriendChannel {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -183,6 +202,7 @@ pub struct ResetFriendChannel {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetFriendCurrencyRate {
     #[serde(with = "ser_b64")]
     pub friend_public_key: PublicKey,
@@ -192,6 +212,7 @@ pub struct SetFriendCurrencyRate {
 }
 
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AddInvoice {
     /// Randomly generated invoice_id, allows to refer to this invoice.
     #[serde(with = "ser_b64")]
@@ -208,12 +229,14 @@ pub struct AddInvoice {
 
 // TODO; Who uses this enum?
 #[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfigReport {
     /// Rate of forwarding transactions that arrived from this friend to any other friend
     /// for a certain currency.
@@ -227,12 +250,14 @@ pub struct ConfigReport {
 }
 
 #[derive(Arbitrary, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum FriendLivenessReport {
     Online,
     Offline,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResetTermsReport {
     #[serde(with = "ser_b64")]
     pub reset_token: Signature,
@@ -241,6 +266,7 @@ pub struct ResetTermsReport {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelInconsistentReport {
     #[serde(with = "ser_map_str_str")]
     pub local_reset_terms: HashMap<Currency, i128>,
@@ -248,6 +274,7 @@ pub struct ChannelInconsistentReport {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CurrencyReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
@@ -262,24 +289,28 @@ pub struct CurrencyReport {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChannelConsistentReport {
     #[serde(with = "ser_map_str_any")]
     pub currency_reports: HashMap<Currency, CurrencyReport>,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
     Consistent(ChannelConsistentReport),
 }
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BalanceInfo {
     #[serde(with = "ser_string")]
     pub balance: i128,
@@ -290,6 +321,7 @@ pub struct BalanceInfo {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct McInfo {
     #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
@@ -300,6 +332,7 @@ pub struct McInfo {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CountersInfo {
     #[serde(with = "ser_string")]
     pub inconsistency_counter: u64,
@@ -308,12 +341,14 @@ pub struct CountersInfo {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TokenInfo {
     pub mc: McInfo,
     pub counters: CountersInfo,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoveTokenHashedReport {
     #[serde(with = "ser_b64")]
     pub prefix_hash: HashResult,
@@ -325,6 +360,7 @@ pub struct MoveTokenHashedReport {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FriendReport {
     pub name: String,
     #[serde(with = "ser_map_str_any")]
@@ -340,6 +376,7 @@ pub struct FriendReport {
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenInvoice {
     #[serde(with = "ser_string")]
     pub currency: Currency,
@@ -351,6 +388,7 @@ pub struct OpenInvoice {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum OpenPaymentStatus {
     SearchingRoute(#[serde(with = "ser_b64")] Uid), // request_routes_id
     FoundRoute(
@@ -368,6 +406,7 @@ pub enum OpenPaymentStatus {
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenPayment {
     #[serde(with = "ser_b64")]
     pub invoice_id: InvoiceId,
@@ -384,6 +423,7 @@ pub struct OpenPayment {
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CompactReport {
     #[serde(with = "ser_b64")]
     pub local_public_key: PublicKey,
@@ -403,6 +443,7 @@ pub struct CompactReport {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CompactToUserAck {
     /// Acknowledge the receipt of `UserToCompact`
     /// Should be sent after `Report`, in case any changes occured.
@@ -412,6 +453,7 @@ pub enum CompactToUserAck {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum CompactToUser {
     // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
@@ -429,6 +471,7 @@ pub enum CompactToUser {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum UserToCompact {
     // ----------------[Configuration]-----------------------
     /// Manage locally used relays:
@@ -478,6 +521,7 @@ pub enum UserToCompact {
 }
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserToCompactAck {
     // TODO: Possibly rename to `request_id`?
     #[serde(with = "ser_b64")]

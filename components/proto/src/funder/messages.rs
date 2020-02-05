@@ -407,6 +407,7 @@ pub enum FriendMessage<B = NetAddress> {
 /// It can be used a proof of payment for a specific `invoice_id`.
 #[capnp_conv(crate::common_capnp::receipt)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Receipt {
     #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
@@ -594,6 +595,7 @@ impl RequestsStatus {
 /// `(x * mul) / 2^32 + add`
 #[capnp_conv(crate::common_capnp::rate)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Rate {
     /// Commission
     pub mul: u32,

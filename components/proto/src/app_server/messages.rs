@@ -23,6 +23,7 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 
 #[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NamedRelayAddress<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -32,6 +33,7 @@ pub struct NamedRelayAddress<B = NetAddress> {
 
 #[capnp_conv(crate::common_capnp::relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RelayAddress<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -218,6 +220,7 @@ where
 
 #[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct AppPermissions {
     /// Can request routes
     pub routes: bool,
