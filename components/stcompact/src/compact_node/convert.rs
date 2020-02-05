@@ -3,8 +3,8 @@ use app::common::Currency;
 use crate::compact_node::messages::{
     BalanceInfo, ChannelConsistentReport, ChannelInconsistentReport, ChannelStatusReport, Commit,
     CompactReport, ConfigReport, CountersInfo, CurrencyReport, FriendLivenessReport, FriendReport,
-    FriendStatusReport, McBalanceReport, McInfo, MoveTokenHashedReport, OpenInvoice, OpenPayment,
-    OpenPaymentStatus, RequestsStatusReport, ResetTermsReport, TokenInfo,
+    FriendStatusReport, McInfo, MoveTokenHashedReport, OpenInvoice, OpenPayment, OpenPaymentStatus,
+    RequestsStatusReport, ResetTermsReport, TokenInfo,
 };
 
 use crate::compact_node::persist;
@@ -17,22 +17,14 @@ struct LocalWrapper<T>(pub T);
 
 // ====================[NodeReport]============================
 
-impl From<app::report::McBalanceReport> for McBalanceReport {
-    fn from(from: app::report::McBalanceReport) -> Self {
-        McBalanceReport {
-            balance: from.balance,
-            local_pending_debt: from.local_pending_debt,
-            remote_pending_debt: from.remote_pending_debt,
-        }
-    }
-}
-
 impl From<app::report::CurrencyReport> for LocalWrapper<(Currency, CurrencyReport)> {
     fn from(from: app::report::CurrencyReport) -> Self {
         LocalWrapper((
             from.currency,
             CurrencyReport {
-                balance: from.balance.into(),
+                balance: from.balance.balance,
+                local_pending_debt: from.balance.local_pending_debt,
+                remote_pending_debt: from.balance.remote_pending_debt,
             },
         ))
     }

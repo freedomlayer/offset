@@ -247,8 +247,8 @@ pub struct ChannelInconsistentReport {
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct McBalanceReport {
+#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrencyReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
     #[serde(with = "ser_string")]
@@ -259,11 +259,6 @@ pub struct McBalanceReport {
     /// Frozen credits by the remote side
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
-}
-
-#[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CurrencyReport {
-    pub balance: McBalanceReport,
 }
 
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
