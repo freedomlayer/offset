@@ -202,6 +202,7 @@ pub enum IndexServerToServer {
 
 #[capnp_conv(crate::common_capnp::named_index_server_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NamedIndexServerAddress<ISA = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
