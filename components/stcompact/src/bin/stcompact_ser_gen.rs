@@ -40,7 +40,9 @@ where
     println!("final {} = [", type_name);
     for _ in 0..iters {
         let msg = T::arbitrary(gen);
-        let ser_str = serde_json::to_string_pretty(&msg).unwrap();
+        let ser_str = serde_json::to_string_pretty(&msg)
+            .unwrap()
+            .replace("$", "\\$");
         println!("'''");
         println!("{}", ser_str);
         println!("''',");
