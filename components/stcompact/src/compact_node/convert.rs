@@ -288,6 +288,7 @@ impl From<persist::OpenInvoice> for OpenInvoice {
             currency: from.currency,
             total_dest_payment: from.total_dest_payment,
             description: from.description,
+            is_commited: from.opt_commit.is_some(),
             generation: from.generation,
         }
     }

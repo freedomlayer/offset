@@ -402,6 +402,8 @@ pub struct OpenInvoice {
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
+    /// Do we already have a commitment for this invoice?
+    pub is_commited: bool,
     /// Chronological counter
     pub generation: Generation,
 }
