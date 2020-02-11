@@ -92,6 +92,7 @@ mod tests {
             currency: Currency::try_from("FST".to_owned()).unwrap(),
             total_dest_payment: 0x1234u128,
             description: "description".to_owned(),
+            generation: Generation(5),
         };
         let mut open_invoices = HashMap::new();
         open_invoices.insert(InvoiceId::from(&[0x11; InvoiceId::len()]), open_invoice);

@@ -10,22 +10,7 @@ use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey,
 
 use route::MultiRouteChoice;
 
-#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Generation(#[serde(with = "ser_string")] pub u64);
-
-impl Generation {
-    pub fn new() -> Self {
-        Generation(0)
-    }
-
-    /// Advance generation, and return the current (old) generation value
-    pub fn next(&mut self) -> Self {
-        let current = self.clone();
-        // We crash if we ever issue 2**64 transactions.
-        self.0 = self.0.checked_add(1).unwrap();
-        current
-    }
-}
+use crate::compact_node::messages::Generation;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
