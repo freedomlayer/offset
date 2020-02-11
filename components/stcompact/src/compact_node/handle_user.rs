@@ -326,6 +326,7 @@ where
                 dest_public_key: init_payment.dest_public_key,
                 dest_payment: init_payment.dest_payment,
                 description: init_payment.description,
+                generation: compact_state.generation.next(),
                 status: OpenPaymentStatus::SearchingRoute(request_routes_id),
             };
             compact_state
@@ -579,6 +580,7 @@ where
                 total_dest_payment: add_invoice.total_dest_payment,
                 description: add_invoice.description,
                 opt_commit: None,
+                generation: compact_state.generation.next(),
             };
             compact_state
                 .open_invoices

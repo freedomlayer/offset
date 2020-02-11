@@ -10,6 +10,23 @@ use app::common::{Commit, Currency, InvoiceId, MultiRoute, PaymentId, PublicKey,
 
 use route::MultiRouteChoice;
 
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Generation(#[serde(with = "ser_string")] pub u64);
+
+impl Generation {
+    pub fn new() -> Self {
+        Generation(0)
+    }
+
+    /// Advance generation, and return the current (old) generation value
+    pub fn next(&mut self) -> Self {
+        let current = self.clone();
+        // We crash if we ever issue 2**64 transactions.
+        self.0 = self.0.checked_add(1).unwrap();
+        current
+    }
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OpenInvoice {
@@ -22,6 +39,8 @@ pub struct OpenInvoice {
     /// Optional commit that we got for this invoice
     /// This allows to hold a commit for a while before applying it.
     pub opt_commit: Option<Commit>,
+    /// A counter used to sort items chronologically.
+    pub generation: Generation,
 }
 
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -68,6 +87,8 @@ pub struct OpenPayment {
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,
+    /// A counter used to sort items chronologically.
+    pub generation: Generation,
     /// Current status of open payment
     pub status: OpenPaymentStatus,
 }
@@ -80,6 +101,8 @@ pub struct CompactState {
     /// Buyer's open payments:
     #[serde(with = "ser_map_b64_any")]
     pub open_payments: HashMap<PaymentId, OpenPayment>,
+    /// Next generation value for a newly created item.
+    pub generation: Generation,
 }
 
 impl CompactState {
@@ -87,6 +110,7 @@ impl CompactState {
         Self {
             open_invoices: HashMap::new(),
             open_payments: HashMap::new(),
+            generation: Generation(0),
         }
     }
 }
