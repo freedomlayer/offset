@@ -10,6 +10,24 @@ use common::ser_utils::{
     ser_b64, ser_map_b64_any, ser_map_str_any, ser_map_str_str, ser_option_b64, ser_string,
 };
 
+#[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Generation(#[serde(with = "ser_string")] pub u64);
+
+impl Generation {
+    pub fn new() -> Self {
+        Generation(0)
+    }
+
+    /// Advance generation, and return the current (old) generation value
+    pub fn advance(&mut self) -> Self {
+        let current = self.clone();
+        // We crash if we ever issue 2**64 transactions.
+        self.0 = self.0.checked_add(1).unwrap();
+        current
+    }
+}
+
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Commit {
@@ -384,6 +402,10 @@ pub struct OpenInvoice {
     pub total_dest_payment: u128,
     /// Invoice description
     pub description: String,
+    /// Do we already have a commitment for this invoice?
+    pub is_commited: bool,
+    /// Chronological counter
+    pub generation: Generation,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -418,6 +440,8 @@ pub struct OpenPayment {
     pub dest_payment: u128,
     /// Invoice description (Obtained from the corresponding invoice)
     pub description: String,
+    /// Chronological counter
+    pub generation: Generation,
     /// Current status of open payment
     pub status: OpenPaymentStatus,
 }
