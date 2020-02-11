@@ -20,7 +20,7 @@ impl Generation {
     }
 
     /// Advance generation, and return the current (old) generation value
-    pub fn next(&mut self) -> Self {
+    pub fn advance(&mut self) -> Self {
         let current = self.clone();
         // We crash if we ever issue 2**64 transactions.
         self.0 = self.0.checked_add(1).unwrap();
