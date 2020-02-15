@@ -56,7 +56,6 @@ pub type ConnPairCompactServer = ConnPair<ServerToUserAck, UserToServerAck>;
 #[derive(Debug)]
 pub enum ServerError {
     UserSenderError,
-    NodeSenderError,
     StoreError,
     SpawnError,
     FirstNodeReportError,
@@ -315,6 +314,38 @@ where
         user_sender,
     )
     .await
+}
+
+/// Remove a node from memory, unload it and notify user
+async fn close_node_and_notify_user<ST, R, C, S, US>(
+    node_id: &NodeId,
+    server_state: &mut ServerState<ST, R, C, S>,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    // Remove from open nodes:
+    if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
+        // TODO: Make sure we drop everything besides the name:
+        let OpenNode { node_name, .. } = open_node;
+
+        // Unload from store:
+        if let Err(e) = server_state.store.unload_node(&node_name).await {
+            warn!("handle_close_node(): Error in unload_node(): {:?}", e);
+        }
+
+        // If node was present in memory, notify user that the node was just closed:
+        let nodes_status = build_nodes_status(&server_state).await?;
+        let server_to_user = ServerToUser::NodesStatus(nodes_status);
+        let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
+        user_sender
+            .send(server_to_user_ack)
+            .await
+            .map_err(|_| ServerError::UserSenderError)?;
+    }
+    Ok(())
 }
 
 async fn handle_close_node<ST, R, C, S, US>(
@@ -756,16 +787,20 @@ where
             };
 
             let user_to_compact_ack = UserToCompactAck {
-                user_request_id: request_id,
+                user_request_id: request_id.clone(),
                 inner: user_to_compact,
             };
-            node_state
-                .sender
-                .send(user_to_compact_ack)
-                .await
-                .map_err(|_| ServerError::NodeSenderError)?;
-            // TODO: Possibly handle case of NodeSenderError, which means that the node was closed,
-            // or that we have no interent connection. We should at least return an ack here.
+            if let Err(e) = node_state.sender.send(user_to_compact_ack).await {
+                warn!(
+                    "UserToServer::Node: Failed to send message to node: {:?}",
+                    e
+                );
+                close_node_and_notify_user(&node_id, server_state, user_sender).await?;
+
+                // Finally, acknowledge the request, so that the user will not wait forever:
+                let opt_nodes_status = None;
+                send_nodes_status_ack(opt_nodes_status, request_id, user_sender).await?;
+            }
         }
     };
 
@@ -840,24 +875,7 @@ where
             ServerEvent::CompactNode((node_id, None)) => {
                 // Node was just closed:
                 // Remove from open nodes (If present):
-                if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
-                    // TODO: Make sure we drop everything besides the name:
-                    let OpenNode { node_name, .. } = open_node;
-
-                    // Unload from store:
-                    if let Err(e) = server_state.store.unload_node(&node_name).await {
-                        warn!("inner_server_loop(): Error in unload_node(): {:?}", e);
-                    }
-
-                    // Send update to the user about the current state of nodes:
-                    let nodes_status = build_nodes_status(&server_state).await?;
-                    let server_to_user = ServerToUser::NodesStatus(nodes_status);
-                    let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
-                    user_sender
-                        .send(server_to_user_ack)
-                        .await
-                        .map_err(|_| ServerError::UserSenderError)?;
-                }
+                close_node_and_notify_user(&node_id, &mut server_state, &mut user_sender).await?;
             }
             ServerEvent::CompactNode((node_id, Some(compact_to_user_ack))) => {
                 // A message from a node:
