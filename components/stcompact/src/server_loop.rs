@@ -657,15 +657,15 @@ where
         Err(e) => {
             warn!("handle_open_node: load_node() error: {:?}", e);
 
+            let nodes_status = build_nodes_status(&server_state).await?;
+            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
+
             let response_open_node = ResponseOpenNode::Failure(node_name);
             let server_to_user = ServerToUser::ResponseOpenNode(response_open_node);
             user_sender
                 .send(ServerToUserAck::ServerToUser(server_to_user))
                 .await
                 .map_err(|_| ServerError::UserSenderError)?;
-
-            let nodes_status = build_nodes_status(&server_state).await?;
-            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
 
             return Ok(());
         }
@@ -738,8 +738,6 @@ where
             handle_remove_node(node_name, server_state, request_id, user_sender).await?
         }
         UserToServer::RequestOpenNode(node_name) => {
-            // TODO: BUG: Ack sending order here is incorrect.
-            // ResponseOpenNode should be sent after the ack!
             handle_open_node(node_name, server_state, request_id, user_sender).await?
         }
         UserToServer::CloseNode(node_id) => {
