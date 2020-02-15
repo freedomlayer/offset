@@ -63,7 +63,7 @@ pub enum ServerError {
     SendConnPairError,
 }
 
-type CompactNodeEvent = (NodeId, CompactToUserAck);
+type CompactNodeEvent = (NodeId, Option<CompactToUserAck>);
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
@@ -177,7 +177,7 @@ where
         user_sender
             .send(server_to_user_ack)
             .await
-            .map_err(|_| ServerError::NodeSenderError)?;
+            .map_err(|_| ServerError::UserSenderError)?;
     }
 
     // Send ack to the user (In the case of UserToServer::Node, another mechanism sends the ack):
@@ -185,7 +185,7 @@ where
     user_sender
         .send(server_to_user_ack)
         .await
-        .map_err(|_| ServerError::NodeSenderError)
+        .map_err(|_| ServerError::UserSenderError)
 }
 
 pub async fn handle_create_node_local<ST, CG>(
@@ -503,12 +503,19 @@ where
         .spawn(async move {
             while let Some(compact_node_event) = local_receiver.next().await {
                 if let Err(e) = c_event_sender
-                    .send((c_node_id.clone(), compact_node_event))
+                    .send((c_node_id.clone(), Some(compact_node_event)))
                     .await
                 {
                     warn!("open_node_local(): c_event_sender error! {:?}", e);
                     return;
                 }
+            }
+            // Finally send a close event:
+            if let Err(e) = c_event_sender.send((c_node_id.clone(), None)).await {
+                warn!(
+                    "open_node_local(): c_event_sender send close error! {:?}",
+                    e
+                );
             }
         })
         .map_err(|_| ServerError::SpawnError)?;
@@ -606,12 +613,19 @@ where
         .spawn(async move {
             while let Some(compact_node_event) = local_receiver.next().await {
                 if let Err(e) = c_event_sender
-                    .send((c_node_id.clone(), compact_node_event))
+                    .send((c_node_id.clone(), Some(compact_node_event)))
                     .await
                 {
                     warn!("open_node_remote(): c_event_sender error! {:?}", e);
                     return;
                 }
+            }
+            // Finally send a close event:
+            if let Err(e) = c_event_sender.send((c_node_id.clone(), None)).await {
+                warn!(
+                    "open_node_remote(): c_event_sender send close error! {:?}",
+                    e
+                );
             }
         })
         .map_err(|_| ServerError::SpawnError)?;
@@ -752,12 +766,16 @@ where
                 .send(user_to_compact_ack)
                 .await
                 .map_err(|_| ServerError::NodeSenderError)?;
+            // TODO: Possibly handle case of NodeSenderError, which means that the node was closed,
+            // or that we have no interent connection. We should at least return an ack here.
         }
     };
 
     Ok(())
 }
 
+// TODO: Possibly need to unload all nodes in case of error in this function? (Using `unload_node`).
+// Maybe not important, as we should guarantee recovery from a crash at any time?
 async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
@@ -802,7 +820,7 @@ where
     user_sender
         .send(server_to_user_ack)
         .await
-        .map_err(|_| ServerError::NodeSenderError)?;
+        .map_err(|_| ServerError::UserSenderError)?;
 
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
@@ -821,8 +839,30 @@ where
                 .await?;
             }
             ServerEvent::UserClosed => return Ok(()),
-            ServerEvent::CompactNode(compact_node_event) => {
-                let (node_id, compact_to_user_ack) = compact_node_event;
+            ServerEvent::CompactNode((node_id, None)) => {
+                // Node was just closed:
+                // Remove from open nodes (If present):
+                if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
+                    // TODO: Make sure we drop everything besides the name:
+                    let OpenNode { node_name, .. } = open_node;
+
+                    // Unload from store:
+                    if let Err(e) = server_state.store.unload_node(&node_name).await {
+                        warn!("inner_server_loop(): Error in unload_node(): {:?}", e);
+                    }
+
+                    // Send update to the user about the current state of nodes:
+                    let nodes_status = build_nodes_status(&server_state).await?;
+                    let server_to_user = ServerToUser::NodesStatus(nodes_status);
+                    let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
+                    user_sender
+                        .send(server_to_user_ack)
+                        .await
+                        .map_err(|_| ServerError::UserSenderError)?;
+                }
+            }
+            ServerEvent::CompactNode((node_id, Some(compact_to_user_ack))) => {
+                // A message from a node:
                 match compact_to_user_ack {
                     CompactToUserAck::Ack(request_id) => {
                         user_sender
