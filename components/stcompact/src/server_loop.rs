@@ -422,7 +422,7 @@ async fn open_node_local<ST, R, C, S>(
     node_name: NodeName,
     local: LoadedNodeLocal,
     server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<Option<NodeOpened>, ServerError>
+) -> Result<NodeOpened, ServerError>
 where
     ST: Store,
     R: CryptoRandom + Clone + 'static,
@@ -564,21 +564,19 @@ where
         .map_err(|_| ServerError::SpawnError)?;
 
     // Send success message to the user, together with the first NodeReport etc.
-    Ok(Some(NodeOpened {
+    Ok(NodeOpened {
         node_name,
         node_id,
         app_permissions,
         compact_report,
-    }))
+    })
 }
-
-/*
 
 async fn open_node_remote<ST, R, C, S>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
     server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<ResponseOpenNode, ServerError>
+) -> Result<Option<NodeOpened>, ServerError>
 where
     ST: Store,
     R: CryptoRandom + Clone + 'static,
@@ -608,7 +606,7 @@ where
         tup
     } else {
         // Connection failed:
-        return Ok(ResponseOpenNode::Failure(node_name));
+        return Ok(None);
     };
 
     let compact_gen = GenCryptoRandom(server_state.rng.clone());
@@ -679,10 +677,15 @@ where
         .map_err(|_| ServerError::SpawnError)?;
 
     // Send success message to the user, together with the first NodeReport etc.
-    let response_open_node =
-        ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
-    Ok(response_open_node)
+    Ok(Some(NodeOpened {
+        node_name,
+        node_id,
+        app_permissions,
+        compact_report,
+    }))
 }
+
+/*
 
 async fn handle_open_node<ST, R, C, US, S>(
     node_name: NodeName,
