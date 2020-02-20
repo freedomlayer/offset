@@ -764,6 +764,27 @@ where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
 {
+    // TODO:
+    // - If node is currently in enabled state:
+    //      - Send ack
+    //      - return
+    //
+    // Node must be closed
+    //
+    // - If node is local:
+    //      - Open node
+    //      - Send nodes status list (Node should now be enabled)
+    //      - Send ack
+    //      - Send NodeOpened
+    //
+    // - Else if node is remote:
+    //      - Send nodes status list (Node should now be enabled)
+    //      - Send ack
+    //      - Schedule attempt to open node
+    //
+    // - Schedule periodic attempts to open node
+    // - Attempt to open node
+    // - If unsuccessful, schedule next attempts to open node
     todo!();
 }
 
@@ -777,6 +798,17 @@ where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
 {
+    // TODO:
+    // - If node is already in disabled state:
+    //      - Send ack
+    //      - return
+    //
+    // - If there is a scheduled task to open node:
+    //      - Stop scheduled task
+    // - If node is currently open:
+    //      - close node
+    //      - Send nodes status list (Node should now be disabled)
+    // - Send ack
     todo!();
 }
 
