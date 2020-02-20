@@ -12,7 +12,7 @@ use proto::net::messages::NetAddress;
 
 use crate::messages::NodeName;
 use crate::store::file_store::open_file_store;
-use crate::store::store::{NodeConfig, Store};
+use crate::store::store::{Store, StoredNodeConfig};
 
 use tempfile::tempdir;
 
@@ -61,7 +61,7 @@ where
     file_store
         .config_node(
             NodeName::new("node0".to_owned()),
-            NodeConfig { is_enabled: true },
+            StoredNodeConfig { is_enabled: true },
         )
         .await
         .unwrap();

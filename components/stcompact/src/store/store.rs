@@ -42,14 +42,14 @@ pub enum LoadedNode {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct NodeConfig {
+pub struct StoredNodeConfig {
     pub is_enabled: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct StoredNode {
     pub info: NodeInfo,
-    pub config: NodeConfig,
+    pub config: StoredNodeConfig,
 }
 
 pub type StoredNodes = HashMap<NodeName, StoredNode>;
@@ -79,7 +79,7 @@ pub trait Store {
     fn config_node(
         &mut self,
         node_name: NodeName,
-        node_config: NodeConfig,
+        node_config: StoredNodeConfig,
     ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
     /// List all existing nodes in store

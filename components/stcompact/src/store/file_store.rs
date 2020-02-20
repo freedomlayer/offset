@@ -36,7 +36,7 @@ use crate::store::consts::{
     APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_CONFIG, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
 use crate::store::store::{
-    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, NodeConfig, Store, StoredNode, StoredNodes,
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNode, StoredNodeConfig, StoredNodes,
 };
 
 #[derive(Debug)]
@@ -87,7 +87,7 @@ pub enum FileStoreError {
 #[derive(Debug, Clone)]
 struct FileStoreNodeLocal {
     node_private_key: PrivateKey,
-    node_config: NodeConfig,
+    node_config: StoredNodeConfig,
     node_db: PathBuf,
     compact_db: PathBuf,
 }
@@ -97,7 +97,7 @@ struct FileStoreNodeRemote {
     app_private_key: PrivateKey,
     node_public_key: PublicKey,
     node_address: NetAddress,
-    node_config: NodeConfig,
+    node_config: StoredNodeConfig,
     compact_db: PathBuf,
 }
 
@@ -172,7 +172,7 @@ fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileStoreErro
 
     let node_config_path = node_path.join(NODE_CONFIG);
     let node_config_data = fs::read_to_string(&node_config_path)?;
-    let node_config: NodeConfig = serde_json::from_str(&node_config_data)?;
+    let node_config: StoredNodeConfig = serde_json::from_str(&node_config_data)?;
 
     Ok(FileStoreNodeLocal {
         node_private_key: identity_file.private_key,
@@ -193,7 +193,7 @@ fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileStoreEr
 
     let node_config_path = node_path.join(NODE_CONFIG);
     let node_config_data = fs::read_to_string(&node_config_path)?;
-    let node_config: NodeConfig = serde_json::from_str(&node_config_data)?;
+    let node_config: StoredNodeConfig = serde_json::from_str(&node_config_data)?;
 
     Ok(FileStoreNodeRemote {
         app_private_key: identity_file.private_key,
@@ -325,7 +325,7 @@ where
         FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create initial configuration:
-    let node_config = NodeConfig { is_enabled: false };
+    let node_config = StoredNodeConfig { is_enabled: false };
     let node_config_string = serde_json::to_string(&node_config)?;
     let node_config_path = node_path.join(NODE_CONFIG);
     file_spawner
@@ -392,7 +392,7 @@ where
         FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
     // Create initial configuration:
-    let node_config = NodeConfig { is_enabled: false };
+    let node_config = StoredNodeConfig { is_enabled: false };
     let node_config_string = serde_json::to_string(&node_config)?;
     let node_config_path = node_path.join(NODE_CONFIG);
     file_spawner
@@ -423,7 +423,7 @@ where
 /// Set new configuration for a node
 async fn config_node<FS>(
     node_name: NodeName,
-    node_config: NodeConfig,
+    node_config: StoredNodeConfig,
     store_path: &Path,
     file_spawner: &FS,
 ) -> Result<(), FileStoreError> {
@@ -647,7 +647,7 @@ where
     fn config_node(
         &mut self,
         node_name: NodeName,
-        node_config: NodeConfig,
+        node_config: StoredNodeConfig,
     ) -> BoxFuture<'_, Result<(), Self::Error>> {
         Box::pin(async move {
             config_node(
