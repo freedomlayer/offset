@@ -10,9 +10,9 @@ use node::{NodeMutation, NodeState};
 use identity::IdentityClient;
 
 use crate::compact_node::CompactState;
-use crate::messages::{NodeInfo, NodeName};
+use crate::messages::{NodeConfig, NodeName, StoredNode};
 
-pub type NodesInfo = HashMap<NodeName, NodeInfo>;
+pub type StoredNodes = HashMap<NodeName, StoredNode>;
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
@@ -58,8 +58,15 @@ pub trait Store {
         node_address: NetAddress,
     ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
+    /// Set persistent configuration for a node
+    fn config_node(
+        &mut self,
+        node_name: NodeName,
+        node_config: NodeConfig,
+    ) -> BoxFuture<'_, Result<(), Self::Error>>;
+
     /// List all existing nodes in store
-    fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>>;
+    fn list_nodes(&self) -> BoxFuture<'_, Result<StoredNodes, Self::Error>>;
 
     /// Load (private) information of one node
     fn load_node(&mut self, node_name: NodeName) -> BoxFuture<'_, Result<LoadedNode, Self::Error>>;

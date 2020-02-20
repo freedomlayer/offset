@@ -142,19 +142,20 @@ async fn build_nodes_status<ST, R, C, S>(
 where
     ST: Store,
 {
-    let nodes_info = server_state
+    let stored_nodes = server_state
         .store
         .list_nodes()
         .await
         .map_err(|_| ServerError::StoreError)?;
-    Ok(nodes_info
+    Ok(stored_nodes
         .into_iter()
-        .map(|(node_name, node_info)| {
+        .map(|(node_name, stored_node)| {
             (
                 node_name.clone(),
                 NodeStatus {
                     is_open: server_state.is_node_open(&node_name),
-                    info: node_info,
+                    is_enabled: stored_node.config.is_enabled,
+                    info: stored_node.info,
                 },
             )
         })
