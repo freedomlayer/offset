@@ -61,13 +61,6 @@ pub struct NodeConfig {
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct StoredNode {
-    pub info: NodeInfo,
-    pub config: NodeConfig,
-}
-
-#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct NodeStatus {
     pub is_open: bool,
     pub is_enabled: bool,

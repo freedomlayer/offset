@@ -29,14 +29,15 @@ use database::{database_loop, AtomicDb, DatabaseClient};
 use crypto::identity::SoftwareEd25519Identity;
 use identity::{create_identity, IdentityClient};
 
-use crate::messages::{NodeConfig, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName, StoredNode};
+use crate::messages::{NodeConfig, NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName};
 
 use crate::compact_node::CompactState;
 use crate::store::consts::{
     APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_CONFIG, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
-use crate::store::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
-use crate::store::StoredNodes;
+use crate::store::store::{
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNode, StoredNodes,
+};
 
 #[derive(Debug)]
 struct LiveNodeLocal {

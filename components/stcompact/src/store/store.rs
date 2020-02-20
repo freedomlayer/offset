@@ -10,9 +10,7 @@ use node::{NodeMutation, NodeState};
 use identity::IdentityClient;
 
 use crate::compact_node::CompactState;
-use crate::messages::{NodeConfig, NodeName, StoredNode};
-
-pub type StoredNodes = HashMap<NodeName, StoredNode>;
+use crate::messages::{NodeConfig, NodeInfo, NodeName};
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
@@ -38,6 +36,14 @@ pub enum LoadedNode {
     Local(LoadedNodeLocal),
     Remote(LoadedNodeRemote),
 }
+
+#[derive(Debug, Clone)]
+pub struct StoredNode {
+    pub info: NodeInfo,
+    pub config: NodeConfig,
+}
+
+pub type StoredNodes = HashMap<NodeName, StoredNode>;
 
 // TODO: Possibly implement encryption for nodes' private key here:
 /// Persistent storage manager for nodes' private information.
