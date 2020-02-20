@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -25,8 +27,8 @@ use node::{node, ConnPairServer, IncomingAppConnection, NodeConfig};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
 use crate::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeName, NodeStatus, NodesStatus,
-    ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeMode, NodeName, NodeOpened,
+    NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
@@ -127,6 +129,15 @@ impl<ST, R, C, S> ServerState<ST, R, C, S> {
         false
     }
 
+    fn create_node_mode(&self, node_name: &NodeName) -> NodeMode {
+        for (node_id, open_node) in &self.open_nodes {
+            if &open_node.node_name == node_name {
+                return NodeMode::Open(node_id.clone());
+            }
+        }
+        NodeMode::Closed
+    }
+
     /// Get a new unique node_id
     fn new_node_id(&mut self) -> NodeId {
         let next_node_id = self.next_node_id.clone();
@@ -153,7 +164,7 @@ where
             (
                 node_name.clone(),
                 NodeStatus {
-                    is_open: server_state.is_node_open(&node_name),
+                    mode: server_state.create_node_mode(&node_name),
                     is_enabled: stored_node.config.is_enabled,
                     info: stored_node.info,
                 },
@@ -411,7 +422,7 @@ async fn open_node_local<ST, R, C, S>(
     node_name: NodeName,
     local: LoadedNodeLocal,
     server_state: &mut ServerState<ST, R, C, S>,
-) -> Result<ResponseOpenNode, ServerError>
+) -> Result<Option<NodeOpened>, ServerError>
 where
     ST: Store,
     R: CryptoRandom + Clone + 'static,
@@ -553,10 +564,15 @@ where
         .map_err(|_| ServerError::SpawnError)?;
 
     // Send success message to the user, together with the first NodeReport etc.
-    let response_open_node =
-        ResponseOpenNode::Success(node_name, node_id, app_permissions, compact_report);
-    Ok(response_open_node)
+    Ok(Some(NodeOpened {
+        node_name,
+        node_id,
+        app_permissions,
+        compact_report,
+    }))
 }
+
+/*
 
 async fn open_node_remote<ST, R, C, S>(
     node_name: NodeName,
@@ -733,6 +749,33 @@ where
         .await
         .map_err(|_| ServerError::UserSenderError)
 }
+*/
+
+async fn handle_enable_node<ST, R, C, S, US>(
+    node_name: NodeName,
+    server_state: &mut ServerState<ST, R, C, S>,
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    todo!();
+}
+
+async fn handle_disable_node<ST, R, C, S, US>(
+    node_name: NodeName,
+    server_state: &mut ServerState<ST, R, C, S>,
+    request_id: Uid,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    todo!();
+}
 
 pub async fn handle_user_to_server<S, ST, R, C, CG, US>(
     user_to_server_ack: UserToServerAck,
@@ -769,11 +812,11 @@ where
         UserToServer::RemoveNode(node_name) => {
             handle_remove_node(node_name, server_state, request_id, user_sender).await?
         }
-        UserToServer::RequestOpenNode(node_name) => {
-            handle_open_node(node_name, server_state, request_id, user_sender).await?
+        UserToServer::EnableNode(node_name) => {
+            handle_enable_node(node_name, server_state, request_id, user_sender).await?
         }
-        UserToServer::CloseNode(node_id) => {
-            handle_close_node(&node_id, server_state, request_id, user_sender).await?
+        UserToServer::DisableNode(node_name) => {
+            handle_disable_node(node_name, server_state, request_id, user_sender).await?
         }
         UserToServer::Node(node_id, user_to_compact) => {
             let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {

@@ -10,9 +10,9 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::PrivateKey;
 use proto::net::messages::NetAddress;
 
-use crate::messages::{NodeConfig, NodeName};
+use crate::messages::NodeName;
 use crate::store::file_store::open_file_store;
-use crate::store::store::Store;
+use crate::store::store::{NodeConfig, Store};
 
 use tempfile::tempdir;
 

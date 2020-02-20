@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 use common::conn::BoxFuture;
 use database::DatabaseClient;
 
@@ -10,7 +12,7 @@ use node::{NodeMutation, NodeState};
 use identity::IdentityClient;
 
 use crate::compact_node::CompactState;
-use crate::messages::{NodeConfig, NodeInfo, NodeName};
+use crate::messages::{NodeInfo, NodeName};
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
@@ -35,6 +37,13 @@ pub struct LoadedNodeRemote {
 pub enum LoadedNode {
     Local(LoadedNodeLocal),
     Remote(LoadedNodeRemote),
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeConfig {
+    pub is_enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +73,8 @@ pub trait Store {
         node_address: NetAddress,
     ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
+    // TODO: Possibly become generic over NodeConfig in the future
+    // (Add it as a type to the Store trait?)
     /// Set persistent configuration for a node
     fn config_node(
         &mut self,
