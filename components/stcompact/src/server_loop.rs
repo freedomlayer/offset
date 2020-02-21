@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::mem;
 
 use futures::future::{self, RemoteHandle};
 use futures::task::{Spawn, SpawnExt};
@@ -27,11 +28,12 @@ use node::{node, ConnPairServer, IncomingAppConnection, NodeConfig};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
 use crate::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeMode, NodeName, NodeOpened,
-    NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeMode, NodeName,
+    NodeOpened, NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer,
+    UserToServerAck,
 };
 
-use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
+use crate::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
 use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
 use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNodeConfig};
@@ -69,12 +71,13 @@ type CompactNodeEvent = (NodeId, Option<CompactToUserAck>);
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub enum ServerEvent {
+enum ServerEvent {
     User(UserToServerAck),
     UserClosed,
     CompactNode(CompactNodeEvent),
     TimerTick,
     TimerClosed,
+    NodeConnected(NodeName, Option<RemoteNodeOpened>),
 }
 
 #[derive(Debug)]
@@ -91,22 +94,30 @@ pub struct OpenNode {
 }
 
 #[derive(Debug)]
-pub struct PreOpenNode {
-    /// Information about loaded remote node
-    pub loaded_node_remote: LoadedNodeRemote,
+pub enum PreOpenNodeStatus {
     /// Amount of ticks we wait until we attempt to reconnect
     /// to the remote node:
-    pub ticks_to_connect: usize,
+    Delay(usize),
+    /// Currently attempting a connection
+    Connecting(RemoteHandle<()>),
 }
 
 #[derive(Debug)]
-pub struct ServerState<ST, R, C, S> {
+pub struct PreOpenNode {
+    /// Information about loaded remote node
+    pub loaded_node_remote: LoadedNodeRemote,
+    pub status: PreOpenNodeStatus,
+}
+
+#[derive(Debug)]
+struct ServerState<ST, R, C, S> {
     next_node_id: NodeId,
     /// scheduled attempts to connect to remote nodes:
     pub pre_open_nodes: HashMap<NodeName, PreOpenNode>,
     pub open_nodes: HashMap<NodeId, OpenNode>,
     pub store: ST,
-    pub event_sender: mpsc::Sender<CompactNodeEvent>,
+    pub ticks_to_connect: usize,
+    pub event_sender: mpsc::Sender<ServerEvent>,
     pub rng: R,
     pub timer_client: TimerClient,
     pub connector: C,
@@ -116,7 +127,8 @@ pub struct ServerState<ST, R, C, S> {
 impl<ST, R, C, S> ServerState<ST, R, C, S> {
     pub fn new(
         store: ST,
-        event_sender: mpsc::Sender<CompactNodeEvent>,
+        ticks_to_connect: usize,
+        event_sender: mpsc::Sender<ServerEvent>,
         rng: R,
         timer_client: TimerClient,
         connector: C,
@@ -127,21 +139,13 @@ impl<ST, R, C, S> ServerState<ST, R, C, S> {
             pre_open_nodes: HashMap::new(),
             open_nodes: HashMap::new(),
             store,
+            ticks_to_connect,
             event_sender,
             rng,
             timer_client,
             connector,
             spawner,
         }
-    }
-
-    fn is_node_open(&self, node_name: &NodeName) -> bool {
-        for open_node in self.open_nodes.values() {
-            if &open_node.node_name == node_name {
-                return true;
-            }
-        }
-        false
     }
 
     fn create_node_mode(&self, node_name: &NodeName) -> NodeMode {
@@ -159,6 +163,36 @@ impl<ST, R, C, S> ServerState<ST, R, C, S> {
         // Advance `next_node_id`, to make sure next time we get a different NodeId:
         self.next_node_id.0 = self.next_node_id.0.wrapping_add(1);
         next_node_id
+    }
+}
+
+async fn is_node_enabled<ST>(node_name: &NodeName, store: &ST) -> Result<bool, ServerError>
+where
+    ST: Store,
+{
+    let stored_nodes = store
+        .list_nodes()
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+    if let Some(stored_node) = stored_nodes.get(node_name) {
+        Ok(stored_node.config.is_enabled)
+    } else {
+        Ok(false)
+    }
+}
+
+async fn is_node_exists<ST>(node_name: &NodeName, store: &ST) -> Result<bool, ServerError>
+where
+    ST: Store,
+{
+    let stored_nodes = store
+        .list_nodes()
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+    if let Some(stored_node) = stored_nodes.get(node_name) {
+        Ok(true)
+    } else {
+        Ok(false)
     }
 }
 
@@ -188,7 +222,7 @@ where
         .collect())
 }
 
-pub async fn send_nodes_status_ack<US>(
+async fn send_nodes_status_ack<US>(
     opt_nodes_status: Option<NodesStatus>,
     request_id: Uid,
     user_sender: &mut US,
@@ -197,7 +231,6 @@ where
     US: Sink<ServerToUserAck> + Unpin,
 {
     if let Some(nodes_status) = opt_nodes_status {
-        // If any change happened to NodesStatus, send the new version of NodesStatus to the user:
         let server_to_user = ServerToUser::NodesStatus(nodes_status);
         let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
         user_sender
@@ -214,7 +247,7 @@ where
         .map_err(|_| ServerError::UserSenderError)
 }
 
-pub async fn handle_create_node_local<ST, CG>(
+async fn handle_create_node_local<ST, CG>(
     create_node_local: CreateNodeLocal,
     store: &mut ST,
     compact_gen: &mut CG,
@@ -239,7 +272,7 @@ where
     )
 }
 
-pub async fn handle_create_node_remote<ST>(
+async fn handle_create_node_remote<ST>(
     create_node_remote: CreateNodeRemote,
     store: &mut ST,
 ) -> Result<bool, ServerError>
@@ -278,9 +311,9 @@ where
 {
     let has_changed = match request_create_node {
         CreateNode::CreateNodeLocal(local) => {
-            if server_state.is_node_open(&local.node_name) {
+            if is_node_exists(&local.node_name, &server_state.store).await? {
                 warn!(
-                    "handle_create_node: Node {:?} is already open!",
+                    "handle_create_node: A node named {:?} already exists!",
                     local.node_name
                 );
                 false
@@ -289,9 +322,9 @@ where
             }
         }
         CreateNode::CreateNodeRemote(remote) => {
-            if server_state.is_node_open(&remote.node_name) {
+            if is_node_exists(&remote.node_name, &server_state.store).await? {
                 warn!(
-                    "handle_create_node: Node {:?} is already open!",
+                    "handle_create_node: A node named {:?} already exists!",
                     remote.node_name
                 );
                 false
@@ -310,7 +343,7 @@ where
     .await
 }
 
-pub async fn handle_remove_node<ST, R, C, S, US>(
+async fn handle_remove_node<ST, R, C, S, US>(
     node_name: NodeName,
     server_state: &mut ServerState<ST, R, C, S>,
     request_id: Uid,
@@ -321,8 +354,8 @@ where
     US: Sink<ServerToUserAck> + Unpin,
 {
     // Make sure that we do not attempt to remove an open node:
-    let has_changed = if server_state.is_node_open(&node_name) {
-        warn!("handle_remove_node(): node {:?} is open", node_name);
+    let has_changed = if is_node_enabled(&node_name, &server_state.store).await? {
+        warn!("handle_remove_node(): node {:?} is enabled", node_name);
         false
     } else {
         let remove_res = server_state.store.remove_node(node_name.clone()).await;
@@ -360,7 +393,10 @@ where
 
         // Unload from store:
         if let Err(e) = server_state.store.unload_node(&node_name).await {
-            warn!("handle_close_node(): Error in unload_node(): {:?}", e);
+            warn!(
+                "handle_close_node_and_notify_user(): Error in unload_node(): {:?}",
+                e
+            );
         }
 
         // If node was present in memory, notify user that the node was just closed:
@@ -561,7 +597,10 @@ where
         .spawn(async move {
             while let Some(compact_node_event) = local_receiver.next().await {
                 if let Err(e) = c_event_sender
-                    .send((c_node_id.clone(), Some(compact_node_event)))
+                    .send(ServerEvent::CompactNode((
+                        c_node_id.clone(),
+                        Some(compact_node_event),
+                    )))
                     .await
                 {
                     warn!("open_node_local(): c_event_sender error! {:?}", e);
@@ -569,7 +608,10 @@ where
                 }
             }
             // Finally send a close event:
-            if let Err(e) = c_event_sender.send((c_node_id.clone(), None)).await {
+            if let Err(e) = c_event_sender
+                .send(ServerEvent::CompactNode((c_node_id.clone(), None)))
+                .await
+            {
                 warn!(
                     "open_node_local(): c_event_sender send close error! {:?}",
                     e
@@ -587,6 +629,94 @@ where
     })
 }
 
+#[derive(Debug)]
+struct RemoteNodeOpened {
+    pub node_name: NodeName,
+    pub app_permissions: AppPermissions,
+    pub compact_report: CompactReport,
+    pub local_sender: mpsc::Sender<UserToCompactAck>,
+    pub local_receiver: mpsc::Receiver<CompactToUserAck>,
+    pub compact_node_handle: RemoteHandle<()>,
+}
+
+async fn open_node_remote<R, C, S>(
+    node_name: NodeName,
+    remote: LoadedNodeRemote,
+    connector: C,
+    timer_client: TimerClient,
+    rng: R,
+    spawner: S,
+) -> Result<Option<RemoteNodeOpened>, ServerError>
+where
+    R: CryptoRandom + Clone + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    let secure_connector = create_secure_connector(
+        connector.clone(),
+        timer_client.clone(),
+        remote.app_identity_client.clone(),
+        rng.clone(),
+        spawner.clone(),
+    );
+
+    // Connect to remote node
+    let connect_res = app_connect_to_node(
+        secure_connector,
+        remote.node_public_key,
+        remote.node_address,
+        spawner.clone(),
+    )
+    .await;
+
+    let (app_permissions, node_report, conn_pair) = if let Ok(tup) = connect_res {
+        tup
+    } else {
+        // Connection failed:
+        return Ok(None);
+    };
+
+    let compact_gen = GenCryptoRandom(rng.clone());
+
+    let (local_sender, compact_receiver) = mpsc::channel(1);
+    let (compact_sender, mut local_receiver) = mpsc::channel(1);
+
+    let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
+
+    let compact_report = create_compact_report(remote.compact_state.clone(), node_report.clone());
+
+    let app_conn_tuple = (app_permissions.clone(), node_report, conn_pair);
+
+    let compact_node_fut = compact_node(
+        app_conn_tuple,
+        conn_pair_compact,
+        remote.compact_state,
+        remote.compact_db_client,
+        compact_gen,
+    )
+    .map_err(|e| {
+        error!("open_node_remote(): compact_node() error: {:?}", e);
+    })
+    .map(|_| ());
+
+    let compact_node_handle = spawner
+        .spawn_with_handle(compact_node_fut)
+        .map_err(|_| ServerError::SpawnError)?;
+
+    // Keep things inside the open node struct:
+    Ok(Some(RemoteNodeOpened {
+        node_name: node_name.clone(),
+        app_permissions,
+        compact_report,
+        local_sender,
+        local_receiver,
+        compact_node_handle,
+    }))
+}
+
+/*
 async fn open_node_remote<ST, R, C, S>(
     node_name: NodeName,
     remote: LoadedNodeRemote,
@@ -699,6 +829,7 @@ where
         compact_report,
     }))
 }
+*/
 
 /*
 
@@ -778,29 +909,12 @@ async fn handle_enable_node<ST, R, C, S, US>(
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
+    R: CryptoRandom + Clone + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
-    // TODO:
-    // - If node is currently in enabled state:
-    //      - Send ack
-    //      - return
-    //
-    // Node must be closed
-    //
-    // - If node is local:
-    //      - Open node
-    //      - Send nodes status list (Node should now be enabled)
-    //      - Send ack
-    //      - Send NodeOpened
-    //
-    // - Else if node is remote:
-    //      - Send nodes status list (Node should now be enabled)
-    //      - Send ack
-    //      - Schedule attempt to open node
-    //
-    // - Schedule periodic attempts to open node
-    // - Attempt to open node
-    // - If unsuccessful, schedule next attempts to open node
-
     // Keep `nodes_status` before we make any modifications:
     let stored_nodes = server_state
         .store
@@ -821,7 +935,47 @@ where
         }
     };
 
-    todo!();
+    // Load node from store:
+    let loaded_node = match server_state.store.load_node(node_name.clone()).await {
+        Ok(loaded_node) => loaded_node,
+        Err(e) => {
+            warn!("handle_enable_node: load_node() error: {:?}", e);
+            send_nodes_status_ack(None, request_id, user_sender).await?;
+
+            return Ok(());
+        }
+    };
+
+    match loaded_node {
+        LoadedNode::Local(loaded_node_local) => {
+            // Open node
+            let node_opened = open_node_local(node_name, loaded_node_local, server_state).await?;
+
+            // Send nodes status list and ack:
+            let nodes_status = build_nodes_status(&server_state).await?;
+            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
+
+            // Send NodeOpened:
+            let server_to_user = ServerToUser::NodeOpened(node_opened);
+            user_sender
+                .send(ServerToUserAck::ServerToUser(server_to_user))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        }
+        LoadedNode::Remote(loaded_node_remote) => {
+            // Send nodes status list and ack:
+            let nodes_status = build_nodes_status(&server_state).await?;
+            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
+
+            // Schedule attempt to open node
+            let pre_open_node = PreOpenNode {
+                loaded_node_remote,
+                status: PreOpenNodeStatus::Delay(0),
+            };
+            server_state.pre_open_nodes.insert(node_name, pre_open_node);
+        }
+    }
+    Ok(())
 }
 
 async fn handle_disable_node<ST, R, C, S, US>(
@@ -886,7 +1040,7 @@ where
     Ok(())
 }
 
-pub async fn handle_user_to_server<S, ST, R, C, CG, US>(
+async fn handle_user_to_server<S, ST, R, C, CG, US>(
     user_to_server_ack: UserToServerAck,
     server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
@@ -960,12 +1114,200 @@ where
     Ok(())
 }
 
-pub async fn handle_timer_tick<S, ST, R, C, CG, US>(
+async fn handle_timer_tick<S, ST, R, C, CG, US>(
     server_state: &mut ServerState<ST, R, C, S>,
     compact_gen: &mut CG,
     user_sender: &mut US,
-) -> Result<(), ServerError> {
-    todo!();
+) -> Result<(), ServerError>
+where
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    R: CryptoRandom + Clone + 'static,
+    ST: Store,
+    CG: GenPrivateKey,
+    US: Sink<ServerToUserAck> + Unpin,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    let pre_open_nodes = mem::replace(&mut server_state.pre_open_nodes, HashMap::new());
+
+    for (node_name, pre_open_node) in pre_open_nodes {
+        let status = match pre_open_node.status {
+            PreOpenNodeStatus::Delay(mut ticks_to_connect) => {
+                ticks_to_connect = ticks_to_connect.saturating_sub(1);
+                if ticks_to_connect == 0 {
+                    // Spawn a connection attempt to remote node:
+                    let mut c_event_sender = server_state.event_sender.clone();
+                    let c_connector = server_state.connector.clone();
+                    let c_timer_client = server_state.timer_client.clone();
+                    let c_rng = server_state.rng.clone();
+                    let c_spawner = server_state.spawner.clone();
+                    let c_loaded_node_remote = pre_open_node.loaded_node_remote.clone();
+                    let c_node_name = node_name.clone();
+                    let connect_handle = server_state
+                        .spawner
+                        .spawn_with_handle(async move {
+                            let res = open_node_remote(
+                                c_node_name.clone(),
+                                c_loaded_node_remote,
+                                c_connector,
+                                c_timer_client,
+                                c_rng,
+                                c_spawner,
+                            )
+                            .await;
+
+                            match res {
+                                Ok(Some(remote_node_opened)) => {
+                                    // Send event about successful connection
+                                    if let Err(e) = c_event_sender
+                                        .send(ServerEvent::NodeConnected(
+                                            c_node_name,
+                                            Some(remote_node_opened),
+                                        ))
+                                        .await
+                                    {
+                                        warn!("c_event_sender.send() error: {:?}", e);
+                                    }
+                                }
+                                Ok(None) => {
+                                    // Send event about failure to connect
+                                    if let Err(e) = c_event_sender
+                                        .send(ServerEvent::NodeConnected(c_node_name, None))
+                                        .await
+                                    {
+                                        warn!("c_event_sender.send() error: {:?}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("open_node_remote() error: {:?}", e);
+                                    // Send event about failure to connect
+                                    if let Err(e) = c_event_sender
+                                        .send(ServerEvent::NodeConnected(c_node_name, None))
+                                        .await
+                                    {
+                                        warn!("c_event_sender.send() error: {:?}", e);
+                                    }
+                                }
+                            }
+                        })
+                        .map_err(|_| ServerError::SpawnError)?;
+                    PreOpenNodeStatus::Connecting(connect_handle)
+                } else {
+                    PreOpenNodeStatus::Delay(ticks_to_connect)
+                }
+            }
+            PreOpenNodeStatus::Connecting(remote_handle) => {
+                PreOpenNodeStatus::Connecting(remote_handle)
+            }
+        };
+
+        let pre_open_node = PreOpenNode {
+            loaded_node_remote: pre_open_node.loaded_node_remote,
+            status,
+        };
+
+        server_state.pre_open_nodes.insert(node_name, pre_open_node);
+    }
+
+    Ok(())
+}
+
+async fn handle_node_connected<S, ST, R, C, US>(
+    server_state: &mut ServerState<ST, R, C, S>,
+    node_name: NodeName,
+    opt_remote_node_opened: Option<RemoteNodeOpened>,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    S: Spawn + Clone + Send + Sync + 'static,
+    US: Sink<ServerToUserAck> + Unpin,
+{
+    let pre_open_node = if let Some(pre_open_node) = server_state.pre_open_nodes.remove(&node_name)
+    {
+        pre_open_node
+    } else {
+        warn!("handle_node_opened(): Unrecognized node {:?}", node_name);
+        return Ok(());
+    };
+
+    let remote_node_opened = if let Some(remote_node_opened) = opt_remote_node_opened {
+        // Conection attempt succeeded:
+        remote_node_opened
+    } else {
+        // Conection attempt failed:
+        let mut pre_open_node = pre_open_node;
+        // Reset delay:
+        pre_open_node.status = PreOpenNodeStatus::Delay(server_state.ticks_to_connect);
+
+        let old_value = server_state
+            .pre_open_nodes
+            .insert(node_name.clone(), pre_open_node);
+        assert!(old_value.is_none());
+        return Ok(());
+    };
+
+    // Connection was successful:
+
+    let open_node = OpenNode {
+        node_name: node_name.clone(),
+        sender: remote_node_opened.local_sender,
+        // Remote nodes do not need a node handle:
+        opt_node_handle: None,
+        compact_node_handle: remote_node_opened.compact_node_handle,
+    };
+
+    let node_id = server_state.new_node_id();
+    let old_value = server_state.open_nodes.insert(node_id.clone(), open_node);
+    // It shouldn't be possible to have two identical node_id-s
+    assert!(old_value.is_none());
+
+    // Receiver for messages from node:
+    let mut local_receiver = remote_node_opened.local_receiver;
+
+    // Redirect incoming node messages as events to main loop:
+    let mut c_event_sender = server_state.event_sender.clone();
+    let c_node_id = node_id.clone();
+    server_state
+        .spawner
+        .spawn(async move {
+            while let Some(compact_node_event) = local_receiver.next().await {
+                if let Err(e) = c_event_sender
+                    .send(ServerEvent::CompactNode((
+                        c_node_id.clone(),
+                        Some(compact_node_event),
+                    )))
+                    .await
+                {
+                    warn!("c_event_sender error! {:?}", e);
+                    return;
+                }
+            }
+            // Finally send a close event:
+            if let Err(e) = c_event_sender
+                .send(ServerEvent::CompactNode((c_node_id.clone(), None)))
+                .await
+            {
+                warn!("c_event_sender send close error! {:?}", e);
+            }
+        })
+        .map_err(|_| ServerError::SpawnError)?;
+
+    // Send NodeOpened:
+    let node_opened = NodeOpened {
+        node_name,
+        node_id,
+        app_permissions: remote_node_opened.app_permissions,
+        compact_report: remote_node_opened.compact_report,
+    };
+
+    let server_to_user = ServerToUser::NodeOpened(node_opened);
+    user_sender
+        .send(ServerToUserAck::ServerToUser(server_to_user))
+        .await
+        .map_err(|_| ServerError::UserSenderError)?;
+
+    Ok(())
 }
 
 // TODO: Possibly need to unload all nodes in case of error in this function? (Using `unload_node`).
@@ -973,6 +1315,7 @@ pub async fn handle_timer_tick<S, ST, R, C, CG, US>(
 async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
+    ticks_to_connect: usize,
     mut timer_client: TimerClient,
     rng: R,
     connector: C,
@@ -1002,16 +1345,20 @@ where
         .chain(stream::once(future::ready(ServerEvent::UserClosed)));
 
     let (compact_node_sender, compact_node_receiver) = mpsc::channel(1);
-    let compact_node_receiver = compact_node_receiver.map(ServerEvent::CompactNode);
 
     let mut server_state = ServerState::new(
         store,
+        ticks_to_connect,
         compact_node_sender,
         rng.clone(),
         timer_client,
         connector,
         spawner,
     );
+
+    // TODO: We need to load all remote nodes that are enabled and schedule them for attempts to
+    // connect
+    todo!();
 
     // Send initial NodesStatus:
     // TODO: A cleaner way to do this?
@@ -1069,6 +1416,15 @@ where
                     }
                 }
             }
+            ServerEvent::NodeConnected(node_name, opt_remote_node_opened) => {
+                handle_node_connected(
+                    &mut server_state,
+                    node_name,
+                    opt_remote_node_opened,
+                    &mut user_sender,
+                )
+                .await?;
+            }
             ServerEvent::TimerTick => {
                 handle_timer_tick(&mut server_state, &mut compact_gen, &mut user_sender).await?;
             }
@@ -1085,6 +1441,7 @@ where
 pub async fn compact_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
+    ticks_to_connect: usize,
     timer_client: TimerClient,
     rng: R,
     connector: C,
@@ -1103,6 +1460,7 @@ where
     inner_server_loop(
         conn_pair,
         store,
+        ticks_to_connect,
         timer_client,
         rng,
         connector,
