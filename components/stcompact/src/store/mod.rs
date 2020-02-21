@@ -6,4 +6,6 @@ mod store;
 mod tests;
 
 pub use file_store::{open_file_store, FileStore};
-pub use store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNodes};
+pub use store::{
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNodeConfig, StoredNodes,
+};
