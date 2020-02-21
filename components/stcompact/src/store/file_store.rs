@@ -430,30 +430,38 @@ async fn config_node<FS>(
     node_config: StoredNodeConfig,
     store_path: &Path,
     file_spawner: &FS,
-) -> Result<(), FileStoreError> {
-    // The case of a local node:
-    let node_path = store_path.join(LOCAL).join(node_name.as_str());
-    if node_path.exists() {
-        let node_config_string = serde_json::to_string(&node_config)?;
-        let node_config_path = node_path.join(NODE_CONFIG);
+) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
+    let c_store_path = store_path.to_owned();
+    file_spawner
+        .spawn_with_handle(async move {
+            // The case of a local node:
+            let node_path = c_store_path.join(LOCAL).join(node_name.as_str());
+            if node_path.exists() {
+                let node_config_string = serde_json::to_string(&node_config)?;
+                let node_config_path = node_path.join(NODE_CONFIG);
 
-        let mut file = fs::File::create(node_config_path)?;
-        file.write_all(node_config_string.as_bytes())?;
-        return Ok(());
-    }
+                let mut file = fs::File::create(node_config_path)?;
+                file.write_all(node_config_string.as_bytes())?;
+                return Ok(());
+            }
 
-    // The case of a remote node:
-    let node_path = store_path.join(REMOTE).join(node_name.as_str());
-    if node_path.exists() {
-        let node_config_string = serde_json::to_string(&node_config)?;
-        let node_config_path = node_path.join(NODE_CONFIG);
+            // The case of a remote node:
+            let node_path = c_store_path.join(REMOTE).join(node_name.as_str());
+            if node_path.exists() {
+                let node_config_string = serde_json::to_string(&node_config)?;
+                let node_config_path = node_path.join(NODE_CONFIG);
 
-        let mut file = fs::File::create(node_config_path)?;
-        file.write_all(node_config_string.as_bytes())?;
-        return Ok(());
-    }
+                let mut file = fs::File::create(node_config_path)?;
+                file.write_all(node_config_string.as_bytes())?;
+                return Ok(());
+            }
 
-    return Err(FileStoreError::NodeDoesNotExist);
+            return Err(FileStoreError::NodeDoesNotExist);
+        })?
+        .await
 }
 
 fn file_store_node_to_stored_node(
