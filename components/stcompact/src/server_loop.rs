@@ -34,7 +34,7 @@ use crate::messages::{
 use crate::compact_node::messages::{CompactToUserAck, UserToCompactAck};
 use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
-use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
+use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNodeConfig};
 
 use connection::{create_encrypt_keepalive, create_secure_connector};
 
@@ -62,6 +62,7 @@ pub enum ServerError {
     SpawnError,
     FirstNodeReportError,
     SendConnPairError,
+    CreateTimerError,
 }
 
 type CompactNodeEvent = (NodeId, Option<CompactToUserAck>);
@@ -72,6 +73,8 @@ pub enum ServerEvent {
     User(UserToServerAck),
     UserClosed,
     CompactNode(CompactNodeEvent),
+    TimerTick,
+    TimerClosed,
 }
 
 #[derive(Debug)]
@@ -88,8 +91,19 @@ pub struct OpenNode {
 }
 
 #[derive(Debug)]
+pub struct PreOpenNode {
+    /// Information about loaded remote node
+    pub loaded_node_remote: LoadedNodeRemote,
+    /// Amount of ticks we wait until we attempt to reconnect
+    /// to the remote node:
+    pub ticks_to_connect: usize,
+}
+
+#[derive(Debug)]
 pub struct ServerState<ST, R, C, S> {
     next_node_id: NodeId,
+    /// scheduled attempts to connect to remote nodes:
+    pub pre_open_nodes: HashMap<NodeName, PreOpenNode>,
     pub open_nodes: HashMap<NodeId, OpenNode>,
     pub store: ST,
     pub event_sender: mpsc::Sender<CompactNodeEvent>,
@@ -110,6 +124,7 @@ impl<ST, R, C, S> ServerState<ST, R, C, S> {
     ) -> Self {
         Self {
             next_node_id: NodeId(0),
+            pre_open_nodes: HashMap::new(),
             open_nodes: HashMap::new(),
             store,
             event_sender,
@@ -785,6 +800,27 @@ where
     // - Schedule periodic attempts to open node
     // - Attempt to open node
     // - If unsuccessful, schedule next attempts to open node
+
+    // Keep `nodes_status` before we make any modifications:
+    let stored_nodes = server_state
+        .store
+        .list_nodes()
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+
+    // Check if the node exists and is already enabled:
+    let stored_node = match stored_nodes.get(&node_name) {
+        Some(stored_node) if stored_node.config.is_enabled => stored_node,
+        _ => {
+            // Send ack:
+            user_sender
+                .send(ServerToUserAck::Ack(request_id))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+            return Ok(());
+        }
+    };
+
     todo!();
 }
 
@@ -798,18 +834,56 @@ where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
 {
-    // TODO:
-    // - If node is already in disabled state:
-    //      - Send ack
-    //      - return
-    //
-    // - If there is a scheduled task to open node:
-    //      - Stop scheduled task
-    // - If node is currently open:
-    //      - close node
-    //      - Send nodes status list (Node should now be disabled)
-    // - Send ack
-    todo!();
+    // Keep `nodes_status` before we make any modifications:
+    let old_nodes_status = build_nodes_status(&server_state).await?;
+
+    // Check if the node exists and is already disabled:
+    let node_status = match old_nodes_status.get(&node_name) {
+        Some(node_status) if node_status.is_enabled => node_status,
+        _ => {
+            // Send ack:
+            user_sender
+                .send(ServerToUserAck::Ack(request_id))
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+            return Ok(());
+        }
+    };
+
+    // Configure node to be disabled:
+    server_state
+        .store
+        .config_node(node_name.clone(), StoredNodeConfig { is_enabled: false })
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+
+    // If there is a scheduled task to connect to the node, remove it:
+    let _ = server_state.pre_open_nodes.remove(&node_name);
+
+    // Remove open nodes carrying this node's name, if exist:
+    server_state
+        .open_nodes
+        .retain(|_node_id, open_node| open_node.node_name != node_name);
+
+    let new_nodes_status = build_nodes_status(&server_state).await?;
+
+    // If any change occured to `nodes_status`, we send `new_nodes_status`:
+    if old_nodes_status != new_nodes_status {
+        let server_to_user = ServerToUser::NodesStatus(new_nodes_status);
+        let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
+        user_sender
+            .send(server_to_user_ack)
+            .await
+            .map_err(|_| ServerError::UserSenderError)?;
+    }
+
+    // Send ack:
+    user_sender
+        .send(ServerToUserAck::Ack(request_id))
+        .await
+        .map_err(|_| ServerError::UserSenderError)?;
+
+    Ok(())
 }
 
 pub async fn handle_user_to_server<S, ST, R, C, CG, US>(
@@ -886,12 +960,20 @@ where
     Ok(())
 }
 
+pub async fn handle_timer_tick<S, ST, R, C, CG, US>(
+    server_state: &mut ServerState<ST, R, C, S>,
+    compact_gen: &mut CG,
+    user_sender: &mut US,
+) -> Result<(), ServerError> {
+    todo!();
+}
+
 // TODO: Possibly need to unload all nodes in case of error in this function? (Using `unload_node`).
 // Maybe not important, as we should guarantee recovery from a crash at any time?
 async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
-    timer_client: TimerClient,
+    mut timer_client: TimerClient,
     rng: R,
     connector: C,
     spawner: S,
@@ -906,6 +988,13 @@ where
     R: CryptoRandom + Clone + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
+    let timer_stream = timer_client
+        .request_timer_stream()
+        .await
+        .map_err(|_| ServerError::CreateTimerError)?
+        .map(|_| ServerEvent::TimerTick)
+        .chain(stream::once(future::ready(ServerEvent::TimerClosed)));
+
     let (mut user_sender, user_receiver) = conn_pair.split();
 
     let user_receiver = user_receiver
@@ -937,7 +1026,7 @@ where
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
 
-    let mut incoming_events = select_streams![user_receiver, compact_node_receiver];
+    let mut incoming_events = select_streams![user_receiver, compact_node_receiver, timer_stream];
 
     while let Some(event) = incoming_events.next().await {
         match event {
@@ -980,6 +1069,10 @@ where
                     }
                 }
             }
+            ServerEvent::TimerTick => {
+                handle_timer_tick(&mut server_state, &mut compact_gen, &mut user_sender).await?;
+            }
+            ServerEvent::TimerClosed => return Ok(()),
         }
         // For testing:
         if let Some(ref mut event_sender) = opt_event_sender {
