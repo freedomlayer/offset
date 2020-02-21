@@ -67,6 +67,10 @@ pub struct FileStore<S, FS> {
     live_nodes: HashMap<NodeName, LiveNode>,
 }
 
+// TODO: Set up some separation between fatal and non fatal errors,
+// so that that caller to file_store methods will be able to know if
+// the program should abort as a result of a failure.
+// For example, SpawnError is fatal, but NodeDoesNotExist is not fatal.
 #[derive(Debug, From)]
 pub enum FileStoreError {
     DuplicateNodeName(NodeName),
