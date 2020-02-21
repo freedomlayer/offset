@@ -28,9 +28,8 @@ use node::{node, ConnPairServer, IncomingAppConnection, NodeConfig};
 use proto::app_server::messages::{AppPermissions, NodeReport};
 
 use crate::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeMode, NodeName,
-    NodeOpened, NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer,
-    UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeMode, NodeName, NodeOpened,
+    NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
@@ -1310,8 +1309,7 @@ where
     Ok(())
 }
 
-// TODO: Possibly need to unload all nodes in case of error in this function? (Using `unload_node`).
-// Maybe not important, as we should guarantee recovery from a crash at any time?
+#[allow(unused)]
 async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
