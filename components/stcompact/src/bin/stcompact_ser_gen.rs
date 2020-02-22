@@ -17,7 +17,7 @@ use rand::{self, rngs::StdRng};
 use serde::Serialize;
 use structopt::StructOpt;
 
-use stcompact::messages::{ServerToUser, UserToServer};
+use stcompact::messages::{ServerToUserAck, UserToServerAck};
 
 /// stcompact_ser_gen: Offst Compact serialization generator
 ///
@@ -61,7 +61,15 @@ fn main() {
     let mut gen = quickcheck::StdGen::new(rng, size);
 
     // Print randomly generated instances to console:
-    gen_print_instances::<ServerToUser, _>("serverToUser", st_compact_ser_gen_cmd.iters, &mut gen);
+    gen_print_instances::<ServerToUserAck, _>(
+        "serverToUserAck",
+        st_compact_ser_gen_cmd.iters,
+        &mut gen,
+    );
     println!("// -------------------------------------");
-    gen_print_instances::<UserToServer, _>("userToServer", st_compact_ser_gen_cmd.iters, &mut gen);
+    gen_print_instances::<UserToServerAck, _>(
+        "userToServerAck",
+        st_compact_ser_gen_cmd.iters,
+        &mut gen,
+    );
 }
