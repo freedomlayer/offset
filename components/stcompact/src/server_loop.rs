@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::mem;
@@ -188,7 +186,7 @@ where
         .list_nodes()
         .await
         .map_err(|_| ServerError::StoreError)?;
-    if let Some(stored_node) = stored_nodes.get(node_name) {
+    if stored_nodes.get(node_name).is_some() {
         Ok(true)
     } else {
         Ok(false)
@@ -410,6 +408,7 @@ where
     Ok(())
 }
 
+/*
 async fn handle_close_node<ST, R, C, S, US>(
     node_id: &NodeId,
     server_state: &mut ServerState<ST, R, C, S>,
@@ -442,6 +441,7 @@ where
     )
     .await
 }
+*/
 
 const NODE_CONFIG: NodeConfig = NodeConfig {
     /// Memory allocated to a channel in memory (Used to connect two components)
@@ -680,7 +680,7 @@ where
     let compact_gen = GenCryptoRandom(rng.clone());
 
     let (local_sender, compact_receiver) = mpsc::channel(1);
-    let (compact_sender, mut local_receiver) = mpsc::channel(1);
+    let (compact_sender, local_receiver) = mpsc::channel(1);
 
     let conn_pair_compact = ConnPairCompact::from_raw(compact_sender, compact_receiver);
 
@@ -922,8 +922,8 @@ where
         .map_err(|_| ServerError::StoreError)?;
 
     // Check if the node exists and is already enabled:
-    let stored_node = match stored_nodes.get(&node_name) {
-        Some(stored_node) if stored_node.config.is_enabled => stored_node,
+    match stored_nodes.get(&node_name) {
+        Some(stored_node) if stored_node.config.is_enabled => {}
         _ => {
             // Send ack:
             user_sender
@@ -991,8 +991,8 @@ where
     let old_nodes_status = build_nodes_status(&server_state).await?;
 
     // Check if the node exists and is already disabled:
-    let node_status = match old_nodes_status.get(&node_name) {
-        Some(node_status) if node_status.is_enabled => node_status,
+    match old_nodes_status.get(&node_name) {
+        Some(node_status) if node_status.is_enabled => {}
         _ => {
             // Send ack:
             user_sender
@@ -1113,10 +1113,8 @@ where
     Ok(())
 }
 
-async fn handle_timer_tick<S, ST, R, C, CG, US>(
+async fn handle_timer_tick<S, ST, R, C>(
     server_state: &mut ServerState<ST, R, C, S>,
-    compact_gen: &mut CG,
-    user_sender: &mut US,
 ) -> Result<(), ServerError>
 where
     // TODO: Sync is probably not necessary here.
@@ -1124,8 +1122,6 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
     R: CryptoRandom + Clone + 'static,
     ST: Store,
-    CG: GenPrivateKey,
-    US: Sink<ServerToUserAck> + Unpin,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let pre_open_nodes = mem::replace(&mut server_state.pre_open_nodes, HashMap::new());
@@ -1424,7 +1420,7 @@ where
                 .await?;
             }
             ServerEvent::TimerTick => {
-                handle_timer_tick(&mut server_state, &mut compact_gen, &mut user_sender).await?;
+                handle_timer_tick(&mut server_state).await?;
             }
             ServerEvent::TimerClosed => return Ok(()),
         }
