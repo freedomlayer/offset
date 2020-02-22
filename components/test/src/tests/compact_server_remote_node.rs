@@ -23,8 +23,8 @@ use stcompact::compact_node::messages::{
     SetFriendCurrencyRate, UserToCompact, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeName, NodeOpened,
-    NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeMode, NodeName,
+    NodeOpened, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_server_wrapper::send_request;
@@ -307,16 +307,15 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
             config: true,
         },
     );
-    create_node(
+    let node1_handle = create_node(
         1,
         sim_db.clone(),
         timer_client.clone(),
         sim_net_client.clone(),
-        trusted_apps,
+        trusted_apps.clone(),
         test_executor.clone(),
     )
-    .await
-    .forget();
+    .await;
 
     let mut compact1 = create_compact_server(
         1,
@@ -814,6 +813,51 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     .await;
 
     assert!(opt_receipt_fees.is_none());
+
+    // Make sure that stcompact will attempt reconnecting if connectivity to the remote node
+    // (node1) is lost:
+    drop(node1_handle);
+
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    // Wait until we can see that node1 is offline:
+    while let Some(server_to_user_ack) = compact1.receiver.next().await {
+        match server_to_user_ack {
+            ServerToUserAck::ServerToUser(ServerToUser::NodesStatus(nodes_status)) => {
+                let node1_status = nodes_status.get(&node1_name).unwrap();
+                if let NodeMode::Closed = node1_status.mode {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    create_node(
+        1,
+        sim_db.clone(),
+        timer_client.clone(),
+        sim_net_client.clone(),
+        trusted_apps.clone(),
+        test_executor.clone(),
+    )
+    .await
+    .forget();
+
+    // Reconnect should happen during this period of time:
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    // Wait until we can see that node1 is online:
+    while let Some(server_to_user_ack) = compact1.receiver.next().await {
+        match server_to_user_ack {
+            ServerToUserAck::ServerToUser(ServerToUser::NodeOpened(node_opened)) => {
+                if node_opened.node_name == node1_name {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
 
     // compact0: close a node:
     let user_to_server = UserToServer::DisableNode(node0_name.clone());

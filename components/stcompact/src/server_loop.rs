@@ -392,7 +392,7 @@ where
     US: Sink<ServerToUserAck> + Unpin,
 {
     // Remove from open nodes:
-    if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
+    let node_name = if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
         // TODO: Make sure we drop everything besides the name:
         let OpenNode { node_name, .. } = open_node;
 
@@ -407,7 +407,7 @@ where
             }
         }
 
-        // If node was present in memory, notify user that the node was just closed:
+        // Notify user about changes:
         let nodes_status = build_nodes_status(&server_state).await?;
         let server_to_user = ServerToUser::NodesStatus(nodes_status);
         let server_to_user_ack = ServerToUserAck::ServerToUser(server_to_user);
@@ -415,6 +415,46 @@ where
             .send(server_to_user_ack)
             .await
             .map_err(|_| ServerError::UserSenderError)?;
+
+        node_name
+    } else {
+        // We don't know which node was closed.
+        // We don't have a record of this node anymore.
+        return Ok(());
+    };
+
+    // Load node from store:
+    let loaded_node = match server_state.store.load_node(node_name.clone()).await {
+        Ok(loaded_node) => loaded_node,
+        Err(e) => {
+            warn!("close_node_and_notify_user(): load_node() error: {:?}", e);
+            if e.is_fatal() {
+                return Err(ServerError::StoreError);
+            }
+            return Ok(());
+        }
+    };
+
+    match loaded_node {
+        LoadedNode::Local(_loaded_node_local) => {
+            // Local nodes should only be closed intentionaly
+            // We unload the node.
+            // TODO: Possibly make this more efficient. Maybe we can detect earlier that this is a
+            // local node, instead of loading and unloading it.
+            server_state
+                .store
+                .unload_node(&node_name)
+                .await
+                .map_err(|_| ServerError::StoreError)?;
+        }
+        LoadedNode::Remote(loaded_node_remote) => {
+            // Schedule attempt to open node
+            let pre_open_node = PreOpenNode {
+                loaded_node_remote,
+                status: PreOpenNodeStatus::Delay(0),
+            };
+            server_state.pre_open_nodes.insert(node_name, pre_open_node);
+        }
     }
     Ok(())
 }
@@ -746,14 +786,14 @@ where
         }
     };
 
+    // Send nodes status list and ack:
+    let nodes_status = build_nodes_status(&server_state).await?;
+    send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
+
     match loaded_node {
         LoadedNode::Local(loaded_node_local) => {
             // Open node
             let node_opened = open_node_local(node_name, loaded_node_local, server_state).await?;
-
-            // Send nodes status list and ack:
-            let nodes_status = build_nodes_status(&server_state).await?;
-            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
 
             // Send NodeOpened:
             let server_to_user = ServerToUser::NodeOpened(node_opened);
@@ -763,10 +803,6 @@ where
                 .map_err(|_| ServerError::UserSenderError)?;
         }
         LoadedNode::Remote(loaded_node_remote) => {
-            // Send nodes status list and ack:
-            let nodes_status = build_nodes_status(&server_state).await?;
-            send_nodes_status_ack(Some(nodes_status), request_id, user_sender).await?;
-
             // Schedule attempt to open node
             let pre_open_node = PreOpenNode {
                 loaded_node_remote,
