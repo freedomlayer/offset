@@ -366,6 +366,7 @@ where
     let compact_fut = compact_server_loop(
         ConnPair::from_raw(server_sender, server_receiver),
         file_store,
+        ticks_to_connect,
         timer_client,
         rng,
         sim_network_client,
