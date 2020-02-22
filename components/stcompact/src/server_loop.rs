@@ -714,7 +714,7 @@ where
 
     // Check if the node exists and is already enabled:
     match stored_nodes.get(&node_name) {
-        Some(stored_node) if stored_node.config.is_enabled => {}
+        Some(stored_node) if !stored_node.config.is_enabled => {}
         _ => {
             // Send ack:
             user_sender
@@ -724,6 +724,13 @@ where
             return Ok(());
         }
     };
+
+    // Configure node to be enabled:
+    server_state
+        .store
+        .config_node(node_name.clone(), StoredNodeConfig { is_enabled: true })
+        .await
+        .map_err(|_| ServerError::StoreError)?;
 
     // Load node from store:
     let loaded_node = match server_state.store.load_node(node_name.clone()).await {
@@ -848,6 +855,7 @@ where
     match old_nodes_status.get(&node_name) {
         Some(node_status) if node_status.is_enabled => {}
         _ => {
+            // Node is already disabled:
             // Send ack:
             user_sender
                 .send(ServerToUserAck::Ack(request_id))
@@ -856,6 +864,14 @@ where
             return Ok(());
         }
     };
+
+    // Unload node:
+    if let Err(e) = server_state.store.unload_node(&node_name).await {
+        warn!("handle_disable_node(): Error in unload_node(): {:?}", e);
+        if e.is_fatal() {
+            return Err(ServerError::StoreError);
+        }
+    }
 
     // Configure node to be disabled:
     server_state
