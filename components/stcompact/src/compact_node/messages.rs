@@ -479,6 +479,8 @@ pub enum CompactToUserAck {
 #[derive(Arbitrary, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CompactToUser {
+    // TODO: Maybe in the future we will not need most of the message here,
+    // and can keep only `Report` and `ResponseVerifyCommit`?
     // ------------[Buyer]------------------
     /// Response: Shows required fees, or states that the destination is unreachable:
     PaymentFees(PaymentFees),
