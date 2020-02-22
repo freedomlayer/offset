@@ -26,6 +26,9 @@ use crate::serialize::{serialize_conn_pair, SerializeConnError};
 use crate::server_loop::{compact_server_loop, ServerError};
 use crate::store::open_file_store;
 
+/// Amount of ticks to wait for the next attempt to reconnect to a remote node
+const TICKS_TO_CONNECT: usize = 8;
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
 pub enum StCompactError {
@@ -131,6 +134,7 @@ where
     Ok(compact_server_loop(
         conn_pair,
         file_store,
+        TICKS_TO_CONNECT,
         timer_client,
         rng,
         tcp_connector,

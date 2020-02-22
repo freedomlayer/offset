@@ -360,12 +360,17 @@ where
         .await
         .unwrap();
 
-    let (server_sender, user_receiver) = mpsc::channel(1);
-    let (user_sender, server_receiver) = mpsc::channel(1);
+    // We use a bigger than 0 length for the channels here to leave room
+    // for not collecting incoming messages immediately as we pass time forward.
+    let (server_sender, user_receiver) = mpsc::channel(0x40);
+    let (user_sender, server_receiver) = mpsc::channel(0x40);
+
+    let ticks_to_connect: usize = 8;
 
     let compact_fut = compact_server_loop(
         ConnPair::from_raw(server_sender, server_receiver),
         file_store,
+        ticks_to_connect,
         timer_client,
         rng,
         sim_network_client,

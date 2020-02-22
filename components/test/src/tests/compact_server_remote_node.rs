@@ -23,8 +23,8 @@ use stcompact::compact_node::messages::{
     SetFriendCurrencyRate, UserToCompact, VerifyCommitStatus,
 };
 use stcompact::messages::{
-    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeName, NodesStatus,
-    ResponseOpenNode, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
+    CreateNode, CreateNodeLocal, CreateNodeRemote, NodeId, NodeInfo, NodeMode, NodeName,
+    NodeOpened, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
 use crate::compact_server_wrapper::send_request;
@@ -307,16 +307,15 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
             config: true,
         },
     );
-    create_node(
+    let node1_handle = create_node(
         1,
         sim_db.clone(),
         timer_client.clone(),
         sim_net_client.clone(),
-        trusted_apps,
+        trusted_apps.clone(),
         test_executor.clone(),
     )
-    .await
-    .forget();
+    .await;
 
     let mut compact1 = create_compact_server(
         1,
@@ -401,7 +400,7 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     .await;
 
     let node0_name = NodeName::new("local_node0".to_owned());
-    let node1_name = NodeName::new("local_node1".to_owned());
+    let node1_name = NodeName::new("remote_node1".to_owned());
 
     // compact0: Create a local node:
     let create_node_local = CreateNodeLocal {
@@ -441,33 +440,38 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
         };
 
     // compact0: open a local node:
-    let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
+    let user_to_server = UserToServer::EnableNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server)
         .await
         .unwrap();
 
     // Wait for response:
     let server_to_user_ack = compact0.receiver.next().await.unwrap();
-    let node_id0 = if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
-        ResponseOpenNode::Success(_node_name, node_id, _app_permissions, _compact_report),
-    )) = server_to_user_ack
+    let node_id0 = if let ServerToUserAck::ServerToUser(ServerToUser::NodeOpened(NodeOpened {
+        node_id,
+        ..
+    })) = server_to_user_ack
     {
         node_id
     } else {
         unreachable!();
     };
 
-    // compact1: open a local node:
-    let user_to_server = UserToServer::RequestOpenNode(node1_name.clone());
+    // compact1: open a remote node:
+    let user_to_server = UserToServer::EnableNode(node1_name.clone());
     send_request(&mut compact1, &mut nodes_status1, user_to_server)
         .await
         .unwrap();
 
+    // Wait some time for the node to be opened:
+    advance_time(1, &mut tick_sender, &test_executor).await;
+
     // Wait for response:
     let server_to_user_ack = compact1.receiver.next().await.unwrap();
-    let node_id1 = if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
-        ResponseOpenNode::Success(_node_name, node_id, _app_permissions, _compact_report),
-    )) = server_to_user_ack
+    let node_id1 = if let ServerToUserAck::ServerToUser(ServerToUser::NodeOpened(NodeOpened {
+        node_id,
+        ..
+    })) = server_to_user_ack
     {
         node_id
     } else {
@@ -548,7 +552,7 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     )
     .await;
 
-    // Node1: Enable node0:
+    // Node1: Enable friend node0:
     node_request(
         &mut compact1,
         &mut nodes_status1,
@@ -756,7 +760,7 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     advance_time(10, &mut tick_sender, &test_executor).await;
 
     // compact0: close a local node:
-    let user_to_server = UserToServer::CloseNode(node_id0.clone());
+    let user_to_server = UserToServer::DisableNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server)
         .await
         .unwrap();
@@ -765,22 +769,23 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     // Close and open node0:
     // compact0: close a local node:
-    let user_to_server = UserToServer::CloseNode(node_id0.clone());
+    let user_to_server = UserToServer::DisableNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server)
         .await
         .unwrap();
 
     // compact0: open a local node:
-    let user_to_server = UserToServer::RequestOpenNode(node0_name.clone());
+    let user_to_server = UserToServer::EnableNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server)
         .await
         .unwrap();
 
     // Wait for response:
     let server_to_user_ack = compact0.receiver.next().await.unwrap();
-    let node_id0 = if let ServerToUserAck::ServerToUser(ServerToUser::ResponseOpenNode(
-        ResponseOpenNode::Success(_node_name, node_id, _app_permissions, _compact_report),
-    )) = server_to_user_ack
+    let node_id0 = if let ServerToUserAck::ServerToUser(ServerToUser::NodeOpened(NodeOpened {
+        node_id,
+        ..
+    })) = server_to_user_ack
     {
         node_id
     } else {
@@ -809,8 +814,53 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
     assert!(opt_receipt_fees.is_none());
 
+    // Make sure that stcompact will attempt reconnecting if connectivity to the remote node
+    // (node1) is lost:
+    drop(node1_handle);
+
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    // Wait until we can see that node1 is offline:
+    while let Some(server_to_user_ack) = compact1.receiver.next().await {
+        match server_to_user_ack {
+            ServerToUserAck::ServerToUser(ServerToUser::NodesStatus(nodes_status)) => {
+                let node1_status = nodes_status.get(&node1_name).unwrap();
+                if let NodeMode::Closed = node1_status.mode {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    create_node(
+        1,
+        sim_db.clone(),
+        timer_client.clone(),
+        sim_net_client.clone(),
+        trusted_apps.clone(),
+        test_executor.clone(),
+    )
+    .await
+    .forget();
+
+    // Reconnect should happen during this period of time:
+    advance_time(10, &mut tick_sender, &test_executor).await;
+
+    // Wait until we can see that node1 is online:
+    while let Some(server_to_user_ack) = compact1.receiver.next().await {
+        match server_to_user_ack {
+            ServerToUserAck::ServerToUser(ServerToUser::NodeOpened(node_opened)) => {
+                if node_opened.node_name == node1_name {
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
     // compact0: close a node:
-    let user_to_server = UserToServer::CloseNode(node_id0.clone());
+    let user_to_server = UserToServer::DisableNode(node0_name.clone());
     send_request(&mut compact0, &mut nodes_status0, user_to_server)
         .await
         .unwrap();
@@ -823,7 +873,7 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
     assert!(nodes_status0.get(&node0_name).is_none());
 
     // compact1: close a node:
-    let user_to_server = UserToServer::CloseNode(node_id1.clone());
+    let user_to_server = UserToServer::DisableNode(node1_name.clone());
     send_request(&mut compact1, &mut nodes_status1, user_to_server)
         .await
         .unwrap();
@@ -838,7 +888,6 @@ async fn task_compact_server_remote_node(mut test_executor: TestExecutor) {
 
 #[test]
 fn test_compact_server_remote_node() {
-    // let _ = env_logger::init();
     let test_executor = TestExecutor::new();
     let res = test_executor.run(task_compact_server_remote_node(test_executor.clone()));
     assert!(res.is_output());

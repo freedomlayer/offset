@@ -12,7 +12,7 @@ use proto::net::messages::NetAddress;
 
 use crate::messages::NodeName;
 use crate::store::file_store::open_file_store;
-use crate::store::store::Store;
+use crate::store::store::{Store, StoredNodeConfig};
 
 use tempfile::tempdir;
 
@@ -26,8 +26,8 @@ where
         .await
         .unwrap();
 
-    let nodes_info = file_store.list_nodes().await.unwrap();
-    assert!(nodes_info.is_empty());
+    let stored_nodes = file_store.list_nodes().await.unwrap();
+    assert!(stored_nodes.is_empty());
 
     let rng = DummyRandom::new(&[1u8]);
     let node0_private_key = PrivateKey::rand_gen(&rng);
@@ -47,8 +47,34 @@ where
         .await
         .unwrap();
 
-    let nodes_info = file_store.list_nodes().await.unwrap();
-    assert_eq!(nodes_info.len(), 3);
+    let stored_nodes = file_store.list_nodes().await.unwrap();
+    assert_eq!(stored_nodes.len(), 3);
+
+    assert!(
+        !stored_nodes
+            .get(&NodeName::new("node0".to_owned()))
+            .unwrap()
+            .config
+            .is_enabled
+    );
+
+    file_store
+        .config_node(
+            NodeName::new("node0".to_owned()),
+            StoredNodeConfig { is_enabled: true },
+        )
+        .await
+        .unwrap();
+
+    let stored_nodes = file_store.list_nodes().await.unwrap();
+
+    assert!(
+        stored_nodes
+            .get(&NodeName::new("node0".to_owned()))
+            .unwrap()
+            .config
+            .is_enabled
+    );
 
     let app_private_key = PrivateKey::rand_gen(&rng);
     let node_public_key = derive_public_key(&PrivateKey::rand_gen(&rng)).unwrap();
@@ -64,16 +90,16 @@ where
         .await
         .unwrap();
 
-    let nodes_info = file_store.list_nodes().await.unwrap();
-    assert_eq!(nodes_info.len(), 4);
+    let stored_nodes = file_store.list_nodes().await.unwrap();
+    assert_eq!(stored_nodes.len(), 4);
 
     file_store
         .remove_node(NodeName::new("node0".to_owned()))
         .await
         .unwrap();
 
-    let nodes_info = file_store.list_nodes().await.unwrap();
-    assert_eq!(nodes_info.len(), 3);
+    let stored_nodes = file_store.list_nodes().await.unwrap();
+    assert_eq!(stored_nodes.len(), 3);
 
     // Load/unload local node:
     let loaded_node = file_store

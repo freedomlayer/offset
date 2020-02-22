@@ -53,10 +53,19 @@ pub enum NodeInfo {
     Remote(NodeInfoRemote),
 }
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum NodeMode {
+    Open(NodeId),
+    Closed,
+}
+
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStatus {
-    pub is_open: bool,
+    pub mode: NodeMode,
+    pub is_enabled: bool,
     pub info: NodeInfo,
 }
 
@@ -77,14 +86,6 @@ pub struct CreateNodeRemote {
     pub node_address: NetAddress,
 }
 
-#[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum ResponseOpenNode {
-    Success(NodeName, NodeId, AppPermissions, CompactReport), // (node_name, node_id, compact_report)
-    Failure(NodeName),
-}
-
 pub type NodesStatus = HashMap<NodeName, NodeStatus>;
 
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -97,9 +98,19 @@ pub enum CreateNode {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct NodeOpened {
+    pub node_name: NodeName,
+    pub node_id: NodeId,
+    pub app_permissions: AppPermissions,
+    pub compact_report: CompactReport,
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum ServerToUser {
-    ResponseOpenNode(ResponseOpenNode),
-    // TODO: Should add a serde hint here?
+    /// Node was just opened
+    NodeOpened(NodeOpened),
     /// A map of all nodes and their current status
     NodesStatus(NodesStatus),
     /// A message received from a specific node
@@ -121,8 +132,10 @@ pub enum ServerToUserAck {
 pub enum UserToServer {
     CreateNode(CreateNode),
     RemoveNode(NodeName),
-    RequestOpenNode(NodeName),
-    CloseNode(NodeId), // node_id
+    EnableNode(NodeName),
+    DisableNode(NodeName),
+    // RequestOpenNode(NodeName),
+    // CloseNode(NodeId), // node_id
     /// A message sent to a specific node
     Node(NodeId, UserToCompact), // (node_id, user_to_compact)
 }

@@ -33,10 +33,12 @@ use crate::messages::{NodeInfo, NodeInfoLocal, NodeInfoRemote, NodeName};
 
 use crate::compact_node::CompactState;
 use crate::store::consts::{
-    APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
+    APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_CONFIG, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
-use crate::store::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store};
-use crate::store::NodesInfo;
+use crate::store::store::{
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoreError, StoredNode, StoredNodeConfig,
+    StoredNodes,
+};
 
 #[derive(Debug)]
 struct LiveNodeLocal {
@@ -66,6 +68,10 @@ pub struct FileStore<S, FS> {
     live_nodes: HashMap<NodeName, LiveNode>,
 }
 
+// TODO: Set up some separation between fatal and non fatal errors,
+// so that that caller to file_store methods will be able to know if
+// the program should abort as a result of a failure.
+// For example, SpawnError is fatal, but NodeDoesNotExist is not fatal.
 #[derive(Debug, From)]
 pub enum FileStoreError {
     DuplicateNodeName(NodeName),
@@ -83,9 +89,30 @@ pub enum FileStoreError {
     LoadDbError,
 }
 
+impl StoreError for FileStoreError {
+    fn is_fatal(&self) -> bool {
+        match self {
+            FileStoreError::DuplicateNodeName(_)
+            | FileStoreError::NodeIsLoaded
+            | FileStoreError::NodeNotLoaded
+            | FileStoreError::NodeDoesNotExist
+            | FileStoreError::RemoveNodeError => false,
+            FileStoreError::SpawnError(_)
+            | FileStoreError::LockError
+            | FileStoreError::SerdeError(_)
+            | FileStoreError::DerivePublicKeyError
+            | FileStoreError::FileDbError
+            | FileStoreError::IoError(_)
+            | FileStoreError::LoadIdentityError
+            | FileStoreError::LoadDbError => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FileStoreNodeLocal {
     node_private_key: PrivateKey,
+    node_config: StoredNodeConfig,
     node_db: PathBuf,
     compact_db: PathBuf,
 }
@@ -95,6 +122,7 @@ struct FileStoreNodeRemote {
     app_private_key: PrivateKey,
     node_public_key: PublicKey,
     node_address: NetAddress,
+    node_config: StoredNodeConfig,
     compact_db: PathBuf,
 }
 
@@ -113,11 +141,13 @@ type FileStoreNodes = HashMap<NodeName, FileStoreNode>;
  * - local [dir]
  *      - node_name1
  *          - node.ident
+ *          - node.config
  *          - node.db
  *          - compact.db
  * - remote [dir]
  *      - node_name2
  *          - app.ident
+ *          - node.config
  *          - node.info (public_key + address)
  *          - compact.db
 */
@@ -165,8 +195,13 @@ fn read_local_node(node_path: &Path) -> Result<FileStoreNodeLocal, FileStoreErro
     let ident_data = fs::read_to_string(&node_ident_path)?;
     let identity_file: IdentityFile = serde_json::from_str(&ident_data)?;
 
+    let node_config_path = node_path.join(NODE_CONFIG);
+    let node_config_data = fs::read_to_string(&node_config_path)?;
+    let node_config: StoredNodeConfig = serde_json::from_str(&node_config_data)?;
+
     Ok(FileStoreNodeLocal {
         node_private_key: identity_file.private_key,
+        node_config,
         node_db: node_path.join(NODE_DB),
         compact_db: node_path.join(COMPACT_DB),
     })
@@ -181,10 +216,15 @@ fn read_remote_node(node_path: &Path) -> Result<FileStoreNodeRemote, FileStoreEr
     let node_info_data = fs::read_to_string(&node_info_path)?;
     let node_address_file: NodeAddressFile = serde_json::from_str(&node_info_data)?;
 
+    let node_config_path = node_path.join(NODE_CONFIG);
+    let node_config_data = fs::read_to_string(&node_config_path)?;
+    let node_config: StoredNodeConfig = serde_json::from_str(&node_config_data)?;
+
     Ok(FileStoreNodeRemote {
         app_private_key: identity_file.private_key,
         node_public_key: node_address_file.public_key,
         node_address: node_address_file.address,
+        node_config,
         compact_db: node_path.join(COMPACT_DB),
     })
 }
@@ -309,6 +349,17 @@ where
     let _ =
         FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
+    // Create initial configuration:
+    let node_config = StoredNodeConfig { is_enabled: false };
+    let node_config_string = serde_json::to_string(&node_config)?;
+    let node_config_path = node_path.join(NODE_CONFIG);
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file = fs::File::create(node_config_path)?;
+            file.write_all(node_config_string.as_bytes())
+        })?
+        .await?;
+
     // Create node.ident file:
     let identity_file = IdentityFile {
         private_key: node_private_key,
@@ -365,6 +416,17 @@ where
     let _ =
         FileDb::create(compact_db_path, initial_state).map_err(|_| FileStoreError::FileDbError)?;
 
+    // Create initial configuration:
+    let node_config = StoredNodeConfig { is_enabled: false };
+    let node_config_string = serde_json::to_string(&node_config)?;
+    let node_config_path = node_path.join(NODE_CONFIG);
+    file_spawner
+        .spawn_with_handle(async move {
+            let mut file = fs::File::create(node_config_path)?;
+            file.write_all(node_config_string.as_bytes())
+        })?
+        .await?;
+
     // Create node.info:
     let node_address_file = NodeAddressFile {
         public_key: node_public_key,
@@ -383,21 +445,69 @@ where
     Ok(())
 }
 
-fn file_store_node_to_node_info(
+/// Set new configuration for a node
+async fn config_node<FS>(
+    node_name: NodeName,
+    node_config: StoredNodeConfig,
+    store_path: &Path,
+    file_spawner: &FS,
+) -> Result<(), FileStoreError>
+where
+    FS: Spawn,
+{
+    let c_store_path = store_path.to_owned();
+    file_spawner
+        .spawn_with_handle(async move {
+            // The case of a local node:
+            let node_path = c_store_path.join(LOCAL).join(node_name.as_str());
+            if node_path.exists() {
+                let node_config_string = serde_json::to_string(&node_config)?;
+                let node_config_path = node_path.join(NODE_CONFIG);
+
+                let mut file = fs::File::create(node_config_path)?;
+                file.write_all(node_config_string.as_bytes())?;
+                return Ok(());
+            }
+
+            // The case of a remote node:
+            let node_path = c_store_path.join(REMOTE).join(node_name.as_str());
+            if node_path.exists() {
+                let node_config_string = serde_json::to_string(&node_config)?;
+                let node_config_path = node_path.join(NODE_CONFIG);
+
+                let mut file = fs::File::create(node_config_path)?;
+                file.write_all(node_config_string.as_bytes())?;
+                return Ok(());
+            }
+
+            return Err(FileStoreError::NodeDoesNotExist);
+        })?
+        .await
+}
+
+fn file_store_node_to_stored_node(
     file_store_node: FileStoreNode,
-) -> Result<NodeInfo, FileStoreError> {
-    Ok(match file_store_node {
-        FileStoreNode::Local(local) => NodeInfo::Local(NodeInfoLocal {
-            node_public_key: derive_public_key(&local.node_private_key)
-                .map_err(|_| FileStoreError::DerivePublicKeyError)?,
-        }),
-        FileStoreNode::Remote(remote) => NodeInfo::Remote(NodeInfoRemote {
-            app_public_key: derive_public_key(&remote.app_private_key)
-                .map_err(|_| FileStoreError::DerivePublicKeyError)?,
-            node_public_key: remote.node_public_key,
-            node_address: remote.node_address,
-        }),
-    })
+) -> Result<StoredNode, FileStoreError> {
+    let (info, config) = match file_store_node {
+        FileStoreNode::Local(local) => (
+            NodeInfo::Local(NodeInfoLocal {
+                node_public_key: derive_public_key(&local.node_private_key)
+                    .map_err(|_| FileStoreError::DerivePublicKeyError)?,
+            }),
+            local.node_config,
+        ),
+        FileStoreNode::Remote(remote) => (
+            NodeInfo::Remote(NodeInfoRemote {
+                app_public_key: derive_public_key(&remote.app_private_key)
+                    .map_err(|_| FileStoreError::DerivePublicKeyError)?,
+                node_public_key: remote.node_public_key,
+                node_address: remote.node_address,
+            }),
+            remote.node_config,
+        ),
+    };
+
+    Ok(StoredNode { info, config })
 }
 
 fn create_identity_server<S>(
@@ -567,16 +677,32 @@ where
         })
     }
 
-    fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>> {
+    fn config_node(
+        &mut self,
+        node_name: NodeName,
+        node_config: StoredNodeConfig,
+    ) -> BoxFuture<'_, Result<(), Self::Error>> {
         Box::pin(async move {
-            let mut nodes_info = HashMap::new();
+            config_node(
+                node_name,
+                node_config,
+                &self.store_path_buf,
+                &self.file_spawner,
+            )
+            .await
+        })
+    }
+
+    fn list_nodes(&self) -> BoxFuture<'_, Result<StoredNodes, Self::Error>> {
+        Box::pin(async move {
+            let mut stored_nodes = HashMap::new();
             for (node_name, file_store_node) in
                 read_all_nodes(self.store_path_buf.clone(), &self.file_spawner).await?
             {
-                let node_info = file_store_node_to_node_info(file_store_node)?;
-                let _ = nodes_info.insert(node_name, node_info);
+                let stored_node = file_store_node_to_stored_node(file_store_node)?;
+                let _ = stored_nodes.insert(node_name, stored_node);
             }
-            Ok(nodes_info)
+            Ok(stored_nodes)
         })
     }
 

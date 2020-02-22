@@ -1,5 +1,4 @@
 mod compact_node_payment;
-mod compact_server_payment;
 mod compact_server_remote_node;
 mod handle_error_command;
 mod nodes_chain;

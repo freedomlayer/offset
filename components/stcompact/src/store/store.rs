@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+use serde::{Deserialize, Serialize};
+
 use common::conn::BoxFuture;
 use database::DatabaseClient;
 
@@ -11,8 +13,6 @@ use identity::IdentityClient;
 
 use crate::compact_node::CompactState;
 use crate::messages::{NodeInfo, NodeName};
-
-pub type NodesInfo = HashMap<NodeName, NodeInfo>;
 
 #[derive(Debug, Clone)]
 pub struct LoadedNodeLocal {
@@ -39,10 +39,29 @@ pub enum LoadedNode {
     Remote(LoadedNodeRemote),
 }
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredNodeConfig {
+    pub is_enabled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct StoredNode {
+    pub info: NodeInfo,
+    pub config: StoredNodeConfig,
+}
+
+pub type StoredNodes = HashMap<NodeName, StoredNode>;
+
+pub trait StoreError: Debug {
+    fn is_fatal(&self) -> bool;
+}
+
 // TODO: Possibly implement encryption for nodes' private key here:
 /// Persistent storage manager for nodes' private information.
 pub trait Store {
-    type Error: Debug;
+    type Error: StoreError;
 
     fn create_local_node(
         &mut self,
@@ -58,8 +77,17 @@ pub trait Store {
         node_address: NetAddress,
     ) -> BoxFuture<'_, Result<(), Self::Error>>;
 
+    // TODO: Possibly become generic over NodeConfig in the future
+    // (Add it as a type to the Store trait?)
+    /// Set persistent configuration for a node
+    fn config_node(
+        &mut self,
+        node_name: NodeName,
+        node_config: StoredNodeConfig,
+    ) -> BoxFuture<'_, Result<(), Self::Error>>;
+
     /// List all existing nodes in store
-    fn list_nodes(&self) -> BoxFuture<'_, Result<NodesInfo, Self::Error>>;
+    fn list_nodes(&self) -> BoxFuture<'_, Result<StoredNodes, Self::Error>>;
 
     /// Load (private) information of one node
     fn load_node(&mut self, node_name: NodeName) -> BoxFuture<'_, Result<LoadedNode, Self::Error>>;
