@@ -33,7 +33,9 @@ use crate::messages::{
 use crate::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
 use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
-use crate::store::{LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNodeConfig};
+use crate::store::{
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoreError, StoredNodeConfig,
+};
 
 use connection::{create_encrypt_keepalive, create_secure_connector};
 
@@ -262,6 +264,9 @@ where
             .await
         {
             warn!("handle_create_node_local: store error: {:?}", e);
+            if e.is_fatal() {
+                return Err(ServerError::StoreError);
+            }
             false
         } else {
             true
@@ -358,6 +363,9 @@ where
         let remove_res = server_state.store.remove_node(node_name.clone()).await;
         if let Err(e) = remove_res {
             warn!("handle_remove_node(): store error: {:?}", e);
+            if e.is_fatal() {
+                return Err(ServerError::StoreError);
+            }
             false
         } else {
             true
@@ -394,6 +402,9 @@ where
                 "handle_close_node_and_notify_user(): Error in unload_node(): {:?}",
                 e
             );
+            if e.is_fatal() {
+                return Err(ServerError::StoreError);
+            }
         }
 
         // If node was present in memory, notify user that the node was just closed:
@@ -719,6 +730,9 @@ where
         Ok(loaded_node) => loaded_node,
         Err(e) => {
             warn!("handle_enable_node: load_node() error: {:?}", e);
+            if e.is_fatal() {
+                return Err(ServerError::StoreError);
+            }
             send_nodes_status_ack(None, request_id, user_sender).await?;
 
             return Ok(());

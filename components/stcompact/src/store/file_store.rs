@@ -36,7 +36,8 @@ use crate::store::consts::{
     APP_IDENT, COMPACT_DB, LOCAL, LOCKFILE, NODE_CONFIG, NODE_DB, NODE_IDENT, NODE_INFO, REMOTE,
 };
 use crate::store::store::{
-    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoredNode, StoredNodeConfig, StoredNodes,
+    LoadedNode, LoadedNodeLocal, LoadedNodeRemote, Store, StoreError, StoredNode, StoredNodeConfig,
+    StoredNodes,
 };
 
 #[derive(Debug)]
@@ -86,6 +87,26 @@ pub enum FileStoreError {
     NodeDoesNotExist,
     LoadIdentityError,
     LoadDbError,
+}
+
+impl StoreError for FileStoreError {
+    fn is_fatal(&self) -> bool {
+        match self {
+            FileStoreError::DuplicateNodeName(_)
+            | FileStoreError::NodeIsLoaded
+            | FileStoreError::NodeNotLoaded
+            | FileStoreError::NodeDoesNotExist
+            | FileStoreError::RemoveNodeError => false,
+            FileStoreError::SpawnError(_)
+            | FileStoreError::LockError
+            | FileStoreError::SerdeError(_)
+            | FileStoreError::DerivePublicKeyError
+            | FileStoreError::FileDbError
+            | FileStoreError::IoError(_)
+            | FileStoreError::LoadIdentityError
+            | FileStoreError::LoadDbError => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

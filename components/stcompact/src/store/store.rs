@@ -54,10 +54,14 @@ pub struct StoredNode {
 
 pub type StoredNodes = HashMap<NodeName, StoredNode>;
 
+pub trait StoreError: Debug {
+    fn is_fatal(&self) -> bool;
+}
+
 // TODO: Possibly implement encryption for nodes' private key here:
 /// Persistent storage manager for nodes' private information.
 pub trait Store {
-    type Error: Debug;
+    type Error: StoreError;
 
     fn create_local_node(
         &mut self,
