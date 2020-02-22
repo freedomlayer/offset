@@ -1,7 +1,6 @@
 #![crate_type = "lib"]
 #![type_length_limit = "20844883"]
 #![deny(trivial_numeric_casts, warnings)]
-#![allow(intra_doc_link_resolution_failure)]
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
