@@ -695,7 +695,6 @@ where
     S: Spawn + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
-    // Keep `nodes_status` before we make any modifications:
     let stored_nodes = server_state
         .store
         .list_nodes()
@@ -753,6 +752,66 @@ where
                 status: PreOpenNodeStatus::Delay(0),
             };
             server_state.pre_open_nodes.insert(node_name, pre_open_node);
+        }
+    }
+    Ok(())
+}
+
+/// Open all enabled nodes (Enabled according to configuration).
+/// This will usually happen during startup.
+async fn open_enabled_nodes<ST, R, C, S, US>(
+    server_state: &mut ServerState<ST, R, C, S>,
+    user_sender: &mut US,
+) -> Result<(), ServerError>
+where
+    ST: Store,
+    US: Sink<ServerToUserAck> + Unpin,
+    R: CryptoRandom + Clone + 'static,
+    // TODO: Sync is probably not necessary here.
+    // See https://github.com/rust-lang/rust/issues/57017
+    S: Spawn + Clone + Send + Sync + 'static,
+    C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
+{
+    let stored_nodes = server_state
+        .store
+        .list_nodes()
+        .await
+        .map_err(|_| ServerError::StoreError)?;
+
+    for (node_name, stored_node) in stored_nodes {
+        // Only open enabled nodes:
+        if !stored_node.config.is_enabled {
+            continue;
+        }
+
+        // Load node from store:
+        let loaded_node = server_state
+            .store
+            .load_node(node_name.clone())
+            .await
+            .map_err(|_| ServerError::StoreError)?;
+
+        match loaded_node {
+            LoadedNode::Local(loaded_node_local) => {
+                // Open node
+                let node_opened =
+                    open_node_local(node_name, loaded_node_local, server_state).await?;
+
+                // Send NodeOpened:
+                let server_to_user = ServerToUser::NodeOpened(node_opened);
+                user_sender
+                    .send(ServerToUserAck::ServerToUser(server_to_user))
+                    .await
+                    .map_err(|_| ServerError::UserSenderError)?;
+            }
+            LoadedNode::Remote(loaded_node_remote) => {
+                // Schedule attempt to open node
+                let pre_open_node = PreOpenNode {
+                    loaded_node_remote,
+                    status: PreOpenNodeStatus::Delay(0),
+                };
+                server_state.pre_open_nodes.insert(node_name, pre_open_node);
+            }
         }
     }
     Ok(())
@@ -1086,7 +1145,6 @@ where
     Ok(())
 }
 
-#[allow(unused)]
 async fn inner_server_loop<ST, R, C, S>(
     conn_pair: ConnPairCompactServer,
     store: ST,
@@ -1131,10 +1189,6 @@ where
         spawner,
     );
 
-    // TODO: We need to load all remote nodes that are enabled and schedule them for attempts to
-    // connect
-    todo!();
-
     // Send initial NodesStatus:
     // TODO: A cleaner way to do this?
     let nodes_status_map = build_nodes_status(&server_state).await?;
@@ -1144,6 +1198,9 @@ where
         .send(server_to_user_ack)
         .await
         .map_err(|_| ServerError::UserSenderError)?;
+
+    // Load all nodes that are enabled by configuration:
+    open_enabled_nodes(&mut server_state, &mut user_sender).await?;
 
     // TODO: This is a hack, find a better solution later:
     let mut compact_gen = GenCryptoRandom(rng);
