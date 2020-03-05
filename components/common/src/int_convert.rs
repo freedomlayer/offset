@@ -6,7 +6,7 @@ use std::u32;
     target_pointer_width = "32"
 ))]
 pub fn usize_to_u32(num: usize) -> Option<u32> {
-    Some(a as u32)
+    Some(num as u32)
 }
 
 #[cfg(target_pointer_width = "64")]
