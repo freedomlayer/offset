@@ -6,8 +6,6 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
-// TODO; Remove this hint:
-#![allow(unused)]
 
 // Workaround for issue: https://github.com/rust-lang/rust/issues/64450
 extern crate offst_mutual_from as mutual_from;

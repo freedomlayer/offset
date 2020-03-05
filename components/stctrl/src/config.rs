@@ -272,7 +272,7 @@ async fn config_request(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| ConfigError::AppConfigError);
+        .map_err(|_| ConfigError::AppConfigError)?;
 
     // Wait until we get an ack for our request:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {

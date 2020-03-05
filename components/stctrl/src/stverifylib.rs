@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 
 use derive_more::From;
@@ -109,7 +109,7 @@ fn stverify_verify_token(
         )
         .map_err(|_| StVerifyError::WriteError)?;
 
-        writeln!(writer, "balances:\n");
+        writeln!(writer, "balances:\n").map_err(|_| StVerifyError::WriteError)?;
 
         for currency_balance_info in move_token_hashed_report.token_info.mc.balances {
             let balance_info = &currency_balance_info.balance_info;

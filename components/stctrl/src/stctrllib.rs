@@ -69,7 +69,7 @@ pub struct StCtrlCmd {
 }
 
 pub fn stctrl(st_ctrl_cmd: StCtrlCmd, writer: &mut impl io::Write) -> Result<(), StCtrlError> {
-    let mut thread_pool = ThreadPool::new().map_err(|_| StCtrlError::CreateThreadPoolError)?;
+    let thread_pool = ThreadPool::new().map_err(|_| StCtrlError::CreateThreadPoolError)?;
 
     let StCtrlCmd {
         idfile,
