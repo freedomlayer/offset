@@ -100,7 +100,7 @@ async fn seller_request(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| SellerError::SellerRequestError);
+        .map_err(|_| SellerError::SellerRequestError)?;
 
     // Wait until we get an ack for our request:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {

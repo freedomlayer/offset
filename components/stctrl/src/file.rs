@@ -5,7 +5,6 @@ use app::common::{
     RandValue, Receipt, Signature,
 };
 use app::report::{MoveTokenHashedReport, TokenInfo};
-use app::ser_utils::serialize_to_string;
 
 use mutual_from::mutual_from;
 
@@ -93,6 +92,7 @@ mod test {
     use std::convert::TryFrom;
 
     use app::report::{BalanceInfo, CountersInfo, CurrencyBalanceInfo, McInfo};
+    use app::ser_utils::serialize_to_string;
 
     #[test]
     fn test_serialize_invoice_file() {

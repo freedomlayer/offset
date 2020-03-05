@@ -10,12 +10,10 @@ use derive_more::From;
 use app::common::RelayAddress;
 use app::report::{
     ChannelStatusReport, CurrencyReport, FriendReport, FriendStatusReport, NodeReport,
-    RequestsStatusReport,
 };
 use app::ser_utils::public_key_to_string;
 
-use app::conn::ConnPairApp;
-use app::file::{FriendAddressFile, FriendFile, RelayAddressFile};
+use app::file::{FriendAddressFile, RelayAddressFile};
 use app::ser_utils::{serialize_to_string, StringSerdeError};
 
 use crate::file::TokenFile;
@@ -190,6 +188,7 @@ pub async fn info_index(
     Ok(())
 }
 
+/*
 /// Return a string that represents requests status.
 /// "+" means open, "-" means closed
 fn requests_status_str(requests_status_report: &RequestsStatusReport) -> String {
@@ -200,6 +199,7 @@ fn requests_status_str(requests_status_report: &RequestsStatusReport) -> String 
     }
     .to_owned()
 }
+*/
 
 /*
 /// Check if a friend state is consistent

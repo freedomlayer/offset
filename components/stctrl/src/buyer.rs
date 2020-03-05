@@ -5,19 +5,16 @@ use std::path::PathBuf;
 
 use derive_more::From;
 
-use futures::future::select_all;
 use futures::sink::SinkExt;
 use futures::stream::StreamExt;
 
 use structopt::StructOpt;
 
 use app::common::{
-    Commit, Currency, InvoiceId, MultiRoute, PaymentId, PaymentStatus, PaymentStatusSuccess,
-    PublicKey, Uid,
+    Currency, InvoiceId, MultiRoute, PaymentId, PaymentStatus, PaymentStatusSuccess, PublicKey, Uid,
 };
 use app::conn::{
-    self, buyer, routes, AppServerToApp, AppToAppServer, ConnPairApp, RequestResult,
-    ResponseRoutesResult,
+    self, AppServerToApp, AppToAppServer, ConnPairApp, RequestResult, ResponseRoutesResult,
 };
 use app::gen::{gen_payment_id, gen_uid};
 use app::report::NodeReport;
@@ -122,7 +119,7 @@ async fn request_routes(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| BuyerError::AppRoutesError);
+        .map_err(|_| BuyerError::AppRoutesError)?;
 
     // Wait until we get back response routes:
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
@@ -163,7 +160,7 @@ async fn create_payment(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| BuyerError::CreatePaymentFailed);
+        .map_err(|_| BuyerError::CreatePaymentFailed)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
@@ -196,7 +193,7 @@ async fn request_close_payment_nowait(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| BuyerError::RequestClosePaymentError);
+        .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
@@ -229,7 +226,7 @@ async fn request_close_payment(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| BuyerError::RequestClosePaymentError);
+        .map_err(|_| BuyerError::RequestClosePaymentError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ResponseClosePayment(response_close_payment) = app_server_to_app {
@@ -261,7 +258,7 @@ async fn ack_close_payment(
         .sender
         .send(app_to_app_server)
         .await
-        .map_err(|_| BuyerError::AckClosePaymentError);
+        .map_err(|_| BuyerError::AckClosePaymentError)?;
 
     while let Some(app_server_to_app) = conn_pair.receiver.next().await {
         if let AppServerToApp::ReportMutations(report_mutations) = app_server_to_app {
@@ -377,7 +374,7 @@ async fn buyer_pay_invoice(
             .sender
             .send(app_to_app_server)
             .await
-            .map_err(|_| BuyerError::CreateTransactionFailed);
+            .map_err(|_| BuyerError::CreateTransactionFailed)?;
     }
 
     // Signal that no new transactions will be created:
@@ -482,7 +479,7 @@ async fn buyer_payment_status(
 pub async fn buyer(
     buyer_cmd: BuyerCmd,
     node_report: &NodeReport,
-    mut conn_pair: ConnPairApp,
+    conn_pair: ConnPairApp,
     writer: &mut impl io::Write,
 ) -> Result<(), BuyerError> {
     // Get our local public key:
