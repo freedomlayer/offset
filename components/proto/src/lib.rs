@@ -10,6 +10,9 @@
 #[macro_use]
 extern crate quickcheck_derive;
 
+// Workaround for issue: https://github.com/rust-lang/rust/issues/64450
+extern crate offst_mutual_from as mutual_from;
+
 #[macro_use]
 pub mod macros;
 pub mod app_server;

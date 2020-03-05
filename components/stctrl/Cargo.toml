@@ -22,7 +22,7 @@ path = "src/bin/stverify.rs"
 
 route = { path = "../route", version = "0.1.0", package = "offst-route" }
 app = { path = "../app", version = "0.1.0", package = "offst-app" }
-mutual_from = { path = "../mutual_from", version = "0.1.0", package = "offst-mutual-from" }
+offst-mutual-from = { path = "../mutual_from", version = "0.1.0"}
 
 log = "0.4"
 

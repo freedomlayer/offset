@@ -8,6 +8,9 @@
     clippy::new_without_default
 )]
 
+// Workaround for issue: https://github.com/rust-lang/rust/issues/64450
+extern crate offst_capnp_conv_derive as capnp_conv_derive;
+
 use std::io;
 
 use capnp;
