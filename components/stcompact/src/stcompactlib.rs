@@ -79,9 +79,9 @@ where
 
     let recv_fut = async move {
         // Receive data from stdin:
-        let mut line = String::new();
         loop {
             // Read line from shell:
+            let mut line = String::new();
             stdin.read_line(&mut line).await.ok()?;
             // Note: The line contains an extra newline:
             // TODO: Should we remove the trailing newline?
