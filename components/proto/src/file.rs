@@ -11,6 +11,7 @@ use crate::net::messages::NetAddress;
 
 /// A helper structure for serialize and deserializing IndexServerAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct TrustedAppFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -18,6 +19,7 @@ pub struct TrustedAppFile {
 }
 
 #[derive(Arbitrary, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct FriendAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -27,6 +29,7 @@ pub struct FriendAddressFile {
 /// A helper structure for serialize and deserializing RelayAddress.
 #[mutual_from(RelayAddress)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct RelayAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -36,6 +39,7 @@ pub struct RelayAddressFile {
 
 /// A helper structure for serialize and deserializing FriendAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct FriendFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -44,6 +48,7 @@ pub struct FriendFile {
 
 /// A helper structure for serialize and deserializing IdentityAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentityFile {
     #[serde(with = "ser_b64")]
     pub private_key: PrivateKey,
@@ -51,6 +56,7 @@ pub struct IdentityFile {
 
 /// A helper structure for serialize and deserializing IndexServer.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct IndexServerFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
@@ -59,6 +65,7 @@ pub struct IndexServerFile {
 
 /// A helper structure for serialize and deserializing NodeAddress.
 #[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct NodeAddressFile {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
