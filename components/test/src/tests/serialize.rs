@@ -1,10 +1,12 @@
 use rand::{self, rngs::StdRng};
+use std::convert::TryFrom;
 
 use funder::FunderState;
 use proto::file::{
     FriendAddressFile, FriendFile, IdentityFile, IndexServerFile, NodeAddressFile,
     RelayAddressFile, TrustedAppFile,
 };
+use proto::funder::messages::Currency;
 use proto::net::messages::NetAddress;
 use stcompact::compact_node::CompactState;
 
@@ -43,6 +45,20 @@ ser_de_test!(qc_ser_de_relay_address_file, RelayAddressFile);
 ser_de_test!(qc_ser_de_trusted_app_file, TrustedAppFile);
 
 ser_de_test!(qc_ser_de_compact_state, CompactState);
+
+#[test]
+fn test_ser_net_address() {
+    let net_address = NetAddress::try_from("test_address:1234".to_owned()).unwrap();
+    let ser_str = serde_json::to_string_pretty(&net_address).unwrap();
+    assert_eq!(ser_str, "\"test_address:1234\"");
+}
+
+#[test]
+fn test_ser_currency() {
+    let currency = Currency::try_from("currency".to_owned()).unwrap();
+    let ser_str = serde_json::to_string_pretty(&currency).unwrap();
+    assert_eq!(ser_str, "\"currency\"");
+}
 
 /*
 #[test]

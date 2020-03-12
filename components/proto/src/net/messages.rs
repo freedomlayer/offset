@@ -1,21 +1,20 @@
 use std::convert::TryFrom;
+use std::fmt;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use derive_more::Display;
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_utils::ser_string;
-
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
 #[capnp_conv(crate::common_capnp::net_address)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[display(fmt = "{}", address)]
 pub struct NetAddress {
-    #[serde(with = "ser_string")]
     address: String,
 }
 
@@ -44,6 +43,43 @@ impl quickcheck::Arbitrary for NetAddress {
         Box::new(chars.shrink().map(|x| NetAddress {
             address: x.into_iter().collect::<String>(),
         }))
+    }
+}
+
+impl Serialize for NetAddress {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.address)
+    }
+}
+
+struct NetAddressVisitor;
+
+impl<'de> Visitor<'de> for NetAddressVisitor {
+    type Value = NetAddress;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("NetAddress string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let net_address = NetAddress::try_from(value.to_owned())
+            .map_err(|e| E::custom(format!("Invalid NetAddress string {:?}: {}", e, value)))?;
+        Ok(net_address)
+    }
+}
+
+impl<'de> Deserialize<'de> for NetAddress {
+    fn deserialize<D>(deserializer: D) -> Result<NetAddress, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(NetAddressVisitor)
     }
 }
 
