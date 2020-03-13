@@ -1,10 +1,12 @@
 use std::cmp::Eq;
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::fmt;
 use std::hash::Hash;
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use derive_more::Display;
 
@@ -340,11 +342,47 @@ impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
 }
 
 #[capnp_conv(crate::common_capnp::currency)]
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[display(fmt = "{}", currency)]
 pub struct Currency {
-    #[serde(with = "ser_string")]
     currency: String,
+}
+
+impl Serialize for Currency {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.currency)
+    }
+}
+
+struct CurrencyVisitor;
+
+impl<'de> Visitor<'de> for CurrencyVisitor {
+    type Value = Currency;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("Currency string")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let currency = Currency::try_from(value.to_owned())
+            .map_err(|e| E::custom(format!("Invalid Currency string {:?}: {}", e, value)))?;
+        Ok(currency)
+    }
+}
+
+impl<'de> Deserialize<'de> for Currency {
+    fn deserialize<D>(deserializer: D) -> Result<Currency, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(CurrencyVisitor)
+    }
 }
 
 impl quickcheck::Arbitrary for Currency {
