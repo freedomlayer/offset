@@ -229,6 +229,16 @@ async fn task_funder_inconsistency_basic(test_executor: TestExecutor) {
     };
     node_controls[0].recv_until(pred).await;
 
+    // Disconnect and connect (Tests mixing inconsistency with liveness changes):
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Disabled)
+        .await;
+    test_executor.wait().await;
+    node_controls[0]
+        .set_friend_status(&public_keys[1], FriendStatus::Enabled)
+        .await;
+    test_executor.wait().await;
+
     // Resolve inconsistency
     // ---------------------
 
