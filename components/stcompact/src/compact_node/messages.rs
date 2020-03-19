@@ -403,7 +403,7 @@ pub struct OpenInvoice {
     /// Invoice description
     pub description: String,
     /// Do we already have a commitment for this invoice?
-    pub is_commited: bool,
+    pub is_committed: bool,
     /// Chronological counter
     pub generation: Generation,
 }
