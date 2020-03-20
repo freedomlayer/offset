@@ -260,8 +260,16 @@ fn control_add_friend<B>(m_state: &mut MutableFunderState<B>, add_friend: AddFri
 where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
 {
-    let funder_mutation = FunderMutation::AddFriend(add_friend);
-    m_state.mutate(funder_mutation);
+    if !m_state
+        .state()
+        .friends
+        .contains_key(&add_friend.friend_public_key)
+    {
+        let funder_mutation = FunderMutation::AddFriend(add_friend);
+        m_state.mutate(funder_mutation);
+    } else {
+        warn!("control_add_friend(): Attempt to add the same friend twice!");
+    }
 }
 
 /// This is a violent operation, as it removes all the known state with the remote friend.
