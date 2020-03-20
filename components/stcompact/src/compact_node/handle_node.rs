@@ -13,7 +13,7 @@ use crate::compact_node::messages::{
     CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus, PaymentFees,
     PaymentFeesResponse,
 };
-use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
+use crate::compact_node::persist::{CompactState, OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::compact_node::types::{CompactNodeError, CompactServerState};
 use crate::gen::GenUid;
 
@@ -84,6 +84,32 @@ where
     Ok(())
 }
 
+/// Update compact state, and send compate report to user if necessary
+async fn update_send_compact_state<US>(
+    compact_state: CompactState,
+    server_state: &mut CompactServerState,
+    user_sender: &mut US,
+) -> Result<(), CompactNodeError>
+where
+    US: Sink<CompactToUserAck> + Unpin,
+{
+    // Check if the old compact state is not the same as the new one
+    if server_state.compact_state() != &compact_state {
+        server_state.update_compact_state(compact_state).await?;
+        let new_compact_report = create_compact_report(
+            server_state.compact_state().clone(),
+            server_state.node_report().clone(),
+        );
+
+        let compact_to_user = CompactToUser::Report(new_compact_report);
+        user_sender
+            .send(CompactToUserAck::CompactToUser(compact_to_user))
+            .await
+            .map_err(|_| CompactNodeError::UserSenderError)?;
+    }
+    Ok(())
+}
+
 #[allow(clippy::cognitive_complexity)]
 pub async fn handle_node<CG, US, AS>(
     app_server_to_app: AppServerToApp,
@@ -137,7 +163,7 @@ where
                 (RequestResult::Complete(commit), _) => {
                     // Set payment status to Commit:
                     open_payment.status = OpenPaymentStatus::Commit(commit.clone(), sending.fees);
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Send commit to user:
                     let payment_commit = PaymentCommit {
@@ -154,7 +180,7 @@ where
                     // Set payment as failed:
                     let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Inform the user about failure.
                     // Send a message about payment done:
@@ -199,7 +225,7 @@ where
                     // we never got a commit to hand to the seller.
                     let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Inform the user about failure.
                     // Send a message about payment done:
@@ -222,7 +248,8 @@ where
                             // Set payment to failure:
                             let ack_uid = compact_gen.gen_uid();
                             open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                            server_state.update_compact_state(compact_state).await?;
+                            update_send_compact_state(compact_state, server_state, user_sender)
+                                .await?;
 
                             // Inform the user about failure.
                             // Send a message about payment done:
@@ -244,7 +271,8 @@ where
                                 fees,
                                 ack_uid.clone(),
                             );
-                            server_state.update_compact_state(compact_state).await?;
+                            update_send_compact_state(compact_state, server_state, user_sender)
+                                .await?;
 
                             // Inform the user about success.
                             // Send a message about payment done:
@@ -345,7 +373,7 @@ where
 
                 // Close the payment.
                 let _ = compact_state.open_payments.remove(&payment_id).unwrap();
-                server_state.update_compact_state(compact_state).await?;
+                update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                 // Notify user that the payment has failed:
                 let payment_fees = PaymentFees {
@@ -368,7 +396,7 @@ where
                 fees,
             };
             open_payment.status = OpenPaymentStatus::FoundRoute(found_route);
-            server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
 
             // Notify user that a route was found (Send required fees):
             let payment_fees = PaymentFees {
