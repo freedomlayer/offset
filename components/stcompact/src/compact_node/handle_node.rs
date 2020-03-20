@@ -84,7 +84,7 @@ where
     Ok(())
 }
 
-/// Update compact state, and send compate report to user if necessary
+/// Update compact state, and send compact report to user if necessary
 async fn update_send_compact_state<US>(
     compact_state: CompactState,
     server_state: &mut CompactServerState,
@@ -371,8 +371,10 @@ where
             } else {
                 // A suitable route was not found.
 
-                // Close the payment.
-                let _ = compact_state.open_payments.remove(&payment_id).unwrap();
+                // Set payment as failure:
+                let open_payment = compact_state.open_payments.get_mut(&payment_id).unwrap();
+                let ack_uid = compact_gen.gen_uid();
+                open_payment.status = OpenPaymentStatus::Failure(ack_uid);
                 update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                 // Notify user that the payment has failed:
