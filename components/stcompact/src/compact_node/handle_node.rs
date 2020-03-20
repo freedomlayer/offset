@@ -13,9 +13,11 @@ use crate::compact_node::messages::{
     CompactToUser, CompactToUserAck, PaymentCommit, PaymentDone, PaymentDoneStatus, PaymentFees,
     PaymentFeesResponse,
 };
-use crate::compact_node::persist::{CompactState, OpenPaymentStatus, OpenPaymentStatusFoundRoute};
+use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRoute};
 use crate::compact_node::types::{CompactNodeError, CompactServerState};
 use crate::gen::GenUid;
+
+use crate::compact_node::utils::update_send_compact_state;
 
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
@@ -80,32 +82,6 @@ where
             .send(app_to_app_server)
             .await
             .map_err(|_| CompactNodeError::AppSenderError)?;
-    }
-    Ok(())
-}
-
-/// Update compact state, and send compact report to user if necessary
-async fn update_send_compact_state<US>(
-    compact_state: CompactState,
-    server_state: &mut CompactServerState,
-    user_sender: &mut US,
-) -> Result<(), CompactNodeError>
-where
-    US: Sink<CompactToUserAck> + Unpin,
-{
-    // Check if the old compact state is not the same as the new one
-    if server_state.compact_state() != &compact_state {
-        server_state.update_compact_state(compact_state).await?;
-        let new_compact_report = create_compact_report(
-            server_state.compact_state().clone(),
-            server_state.node_report().clone(),
-        );
-
-        let compact_to_user = CompactToUser::Report(new_compact_report);
-        user_sender
-            .send(CompactToUserAck::CompactToUser(compact_to_user))
-            .await
-            .map_err(|_| CompactNodeError::UserSenderError)?;
     }
     Ok(())
 }
