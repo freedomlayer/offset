@@ -4,7 +4,7 @@ use app::common::Uid;
 use app::conn::{buyer, config, routes, seller, AppPermissions, AppToAppServer};
 use app::verify::verify_commit;
 
-use crate::compact_node::create_compact_report;
+// use crate::compact_node::create_compact_report;
 use crate::compact_node::messages::{
     CompactToUser, CompactToUserAck, PaymentDone, PaymentDoneStatus, PaymentFees,
     PaymentFeesResponse, ResponseVerifyCommit, UserToCompact, UserToCompactAck, VerifyCommitStatus,
@@ -15,11 +15,13 @@ use crate::compact_node::persist::{
 use crate::compact_node::types::{CompactNodeError, CompactServerState};
 use crate::gen::GenUid;
 
+use crate::compact_node::utils::update_send_compact_state;
+
 // TODO: Should we check permissions here in the future?
 // Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
 // permissions.
 #[allow(clippy::cognitive_complexity)]
-async fn handle_user_inner<CG, US, AS>(
+pub async fn handle_user<CG, US, AS>(
     from_user: UserToCompactAck,
     _app_permissions: &AppPermissions,
     server_state: &mut CompactServerState,
@@ -333,7 +335,8 @@ where
                 .open_payments
                 .insert(init_payment.payment_id.clone(), open_payment);
 
-            server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
+            // server_state.update_compact_state(compact_state).await?;
         }
         UserToCompact::ConfirmPaymentFees(confirm_payment_fees) => {
             let mut compact_state = server_state.compact_state().clone();
@@ -399,7 +402,8 @@ where
             open_payment.status = OpenPaymentStatus::Sending(sending);
             let c_open_payment = open_payment.clone();
 
-            server_state.update_compact_state(compact_state).await?;
+            // server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
 
             // Create a new payment:
             let app_request = buyer::create_payment(
@@ -480,7 +484,8 @@ where
                     // Set failure status:
                     let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                    server_state.update_compact_state(compact_state).await?;
+                    // server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Send ack:
                     user_sender
@@ -548,7 +553,8 @@ where
                 | OpenPaymentStatus::Failure(stored_ack_uid) => {
                     if stored_ack_uid == &ack_uid {
                         let _ = compact_state.open_payments.remove(&payment_id).unwrap();
-                        server_state.update_compact_state(compact_state).await?;
+                        // server_state.update_compact_state(compact_state).await?;
+                        update_send_compact_state(compact_state, server_state, user_sender).await?;
                     }
                     return user_sender
                         .send(CompactToUserAck::Ack(user_request_id))
@@ -592,7 +598,8 @@ where
             // Note that we first update our local persistent database, and only then send a
             // message to the node. The order here is crucial: If a crash happens, we will the open
             // invoice in our persistent database, and we will be able to resend it.
-            server_state.update_compact_state(compact_state).await?;
+            // server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
 
             let app_request = seller::add_invoice(
                 add_invoice.invoice_id,
@@ -647,7 +654,8 @@ where
             // Note that we first update our local persistent database, and only then send a
             // message to the node. The order here is crucial: If a crash happens, we will the open
             // invoice in our persistent database, and we will be able to resend it.
-            server_state.update_compact_state(compact_state).await?;
+            // server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
         }
         UserToCompact::CommitInvoice(invoice_id) => {
             // Make sure that the corresponding invoice is open:
@@ -704,7 +712,8 @@ where
 
             // Update local database:
             compact_state.open_invoices.remove(&commit.invoice_id);
-            server_state.update_compact_state(compact_state).await?;
+            // server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
         }
         UserToCompact::RequestVerifyCommit(request_verify_commit) => {
             // Send ack:
@@ -764,55 +773,9 @@ where
                 .get_mut(&request_verify_commit.commit.invoice_id)
                 .unwrap();
             open_invoice.opt_commit = Some(request_verify_commit.commit.into());
-            server_state.update_compact_state(compact_state).await?;
+            // server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
         }
     }
-    Ok(())
-}
-
-pub async fn handle_user<CG, US, AS>(
-    from_user: UserToCompactAck,
-    app_permissions: &AppPermissions,
-    server_state: &mut CompactServerState,
-    compact_gen: &mut CG,
-    user_sender: &mut US,
-    app_sender: &mut AS,
-) -> Result<(), CompactNodeError>
-where
-    US: Sink<CompactToUserAck> + Unpin,
-    AS: Sink<AppToAppServer> + Unpin,
-    CG: GenUid,
-{
-    // Save original compact report:
-    let orig_compact_report = create_compact_report(
-        server_state.compact_state().clone(),
-        server_state.node_report().clone(),
-    );
-
-    handle_user_inner(
-        from_user,
-        app_permissions,
-        server_state,
-        compact_gen,
-        user_sender,
-        app_sender,
-    )
-    .await?;
-
-    // Get compact report after handle_user_inner:
-    let cur_compact_report = create_compact_report(
-        server_state.compact_state().clone(),
-        server_state.node_report().clone(),
-    );
-
-    // If any change occured, we send the new compact report to the user:
-    if cur_compact_report != orig_compact_report {
-        let compact_to_user = CompactToUser::Report(cur_compact_report);
-        user_sender
-            .send(CompactToUserAck::CompactToUser(compact_to_user))
-            .await
-            .map_err(|_| CompactNodeError::UserSenderError)?;
-    }
-
     Ok(())
 }

@@ -19,9 +19,9 @@ use app::gen::gen_uid;
 
 use stcompact::compact_node::messages::{
     AddFriend, AddInvoice, CompactToUser, CompactToUserAck, ConfirmPaymentFees,
-    FriendLivenessReport, InitPayment, OpenFriendCurrency, PaymentDoneStatus, PaymentFeesResponse,
-    RequestVerifyCommit, SetFriendCurrencyMaxDebt, SetFriendCurrencyRate, UserToCompact,
-    UserToCompactAck, VerifyCommitStatus,
+    FriendLivenessReport, InitPayment, OpenFriendCurrency, OpenPaymentStatus, PaymentDoneStatus,
+    PaymentFeesResponse, RequestVerifyCommit, SetFriendCurrencyMaxDebt, SetFriendCurrencyRate,
+    UserToCompact, UserToCompactAck, VerifyCommitStatus,
 };
 
 use crate::compact_node_wrapper::send_request;
@@ -31,7 +31,7 @@ use crate::utils::{
     named_index_server_address, named_relay_address, node_public_key, relay_address, SimDb,
 };
 
-use crate::compact_report_service::compact_report_service;
+use crate::compact_report_service::{compact_report_service, CompactReportClient};
 
 const TIMER_CHANNEL_LEN: usize = 0;
 
@@ -39,7 +39,9 @@ const TIMER_CHANNEL_LEN: usize = 0;
 /// Node0 sends credits to Node1
 async fn make_test_payment(
     mut conn_pair0: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
+    compact_report_client0: &mut CompactReportClient,
     mut conn_pair1: &mut ConnPair<UserToCompactAck, CompactToUserAck>,
+    _compact_report_client1: &mut CompactReportClient,
     _buyer_public_key: PublicKey,
     seller_public_key: PublicKey,
     currency: Currency,
@@ -91,6 +93,18 @@ async fn make_test_payment(
             _ => unreachable!(),
         };
     };
+
+    // Make sure that `compact_report` contains the information about the found route:
+    let compact_report = compact_report_client0.request_report().await;
+    match compact_report
+        .open_payments
+        .get(&payment_id)
+        .unwrap()
+        .status
+    {
+        OpenPaymentStatus::FoundRoute(_, _) => {}
+        _ => unreachable!(),
+    }
 
     // Node0: Confirm payment fees:
     let confirm_payment_fees = ConfirmPaymentFees {
@@ -548,7 +562,9 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     // Send 10 currency1 credits from node0 to node1:
     let opt_receipt_fees = make_test_payment(
         &mut compact_node0,
+        &mut compact_report_client0,
         &mut compact_node1,
+        &mut compact_report_client1,
         node_public_key(0),
         node_public_key(1),
         currency1.clone(),
@@ -566,7 +582,9 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     // Send 11 currency2 credits from node0 to node1:
     let opt_receipt_fees = make_test_payment(
         &mut compact_node0,
+        &mut compact_report_client0,
         &mut compact_node1,
+        &mut compact_report_client1,
         node_public_key(0),
         node_public_key(1),
         currency2.clone(),
@@ -584,7 +602,9 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     // Node1: Send 5 credits to Node0:
     let opt_receipt_fees = make_test_payment(
         &mut compact_node1,
+        &mut compact_report_client1,
         &mut compact_node0,
+        &mut compact_report_client0,
         node_public_key(1),
         node_public_key(0),
         currency1.clone(),
@@ -603,7 +623,9 @@ async fn task_compact_node_two_nodes_payment(mut test_executor: TestExecutor) {
     // This should not work, because 6 + 5 = 11 > 10
     let opt_receipt_fees = make_test_payment(
         &mut compact_node1,
+        &mut compact_report_client1,
         &mut compact_node0,
+        &mut compact_report_client0,
         node_public_key(1),
         node_public_key(0),
         currency1.clone(),

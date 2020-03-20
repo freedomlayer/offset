@@ -17,6 +17,8 @@ use crate::compact_node::persist::{OpenPaymentStatus, OpenPaymentStatusFoundRout
 use crate::compact_node::types::{CompactNodeError, CompactServerState};
 use crate::gen::GenUid;
 
+use crate::compact_node::utils::update_send_compact_state;
+
 /// Calculate fees if we send credits through the given MultiRoute with the MultiRouteChoice
 /// strategy
 fn calc_multi_route_fees(
@@ -137,7 +139,7 @@ where
                 (RequestResult::Complete(commit), _) => {
                     // Set payment status to Commit:
                     open_payment.status = OpenPaymentStatus::Commit(commit.clone(), sending.fees);
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Send commit to user:
                     let payment_commit = PaymentCommit {
@@ -154,7 +156,7 @@ where
                     // Set payment as failed:
                     let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Inform the user about failure.
                     // Send a message about payment done:
@@ -199,7 +201,7 @@ where
                     // we never got a commit to hand to the seller.
                     let ack_uid = compact_gen.gen_uid();
                     open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                    server_state.update_compact_state(compact_state).await?;
+                    update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                     // Inform the user about failure.
                     // Send a message about payment done:
@@ -222,7 +224,8 @@ where
                             // Set payment to failure:
                             let ack_uid = compact_gen.gen_uid();
                             open_payment.status = OpenPaymentStatus::Failure(ack_uid.clone());
-                            server_state.update_compact_state(compact_state).await?;
+                            update_send_compact_state(compact_state, server_state, user_sender)
+                                .await?;
 
                             // Inform the user about failure.
                             // Send a message about payment done:
@@ -244,7 +247,8 @@ where
                                 fees,
                                 ack_uid.clone(),
                             );
-                            server_state.update_compact_state(compact_state).await?;
+                            update_send_compact_state(compact_state, server_state, user_sender)
+                                .await?;
 
                             // Inform the user about success.
                             // Send a message about payment done:
@@ -343,9 +347,11 @@ where
             } else {
                 // A suitable route was not found.
 
-                // Close the payment.
-                let _ = compact_state.open_payments.remove(&payment_id).unwrap();
-                server_state.update_compact_state(compact_state).await?;
+                // Set payment as failure:
+                let open_payment = compact_state.open_payments.get_mut(&payment_id).unwrap();
+                let ack_uid = compact_gen.gen_uid();
+                open_payment.status = OpenPaymentStatus::Failure(ack_uid);
+                update_send_compact_state(compact_state, server_state, user_sender).await?;
 
                 // Notify user that the payment has failed:
                 let payment_fees = PaymentFees {
@@ -368,7 +374,7 @@ where
                 fees,
             };
             open_payment.status = OpenPaymentStatus::FoundRoute(found_route);
-            server_state.update_compact_state(compact_state).await?;
+            update_send_compact_state(compact_state, server_state, user_sender).await?;
 
             // Notify user that a route was found (Send required fees):
             let payment_fees = PaymentFees {
