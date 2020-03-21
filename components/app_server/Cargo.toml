@@ -1,5 +1,5 @@
 [package]
-name = "offst-app-server"
+name = "offset-app-server"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "AGPL-3.0"
@@ -7,11 +7,11 @@ edition = "2018"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
-identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
-timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offset-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offset-identity" }
+timer = { path = "../timer", version = "0.1.0" , package = "offset-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
 
 log = "0.4"
 futures = "0.3.1"

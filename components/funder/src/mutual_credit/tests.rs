@@ -45,7 +45,7 @@ fn apply_incoming(
 
 #[test]
 fn test_request_response_collect_send_funds() {
-    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+    let currency = Currency::try_from("OFFSET".to_owned()).unwrap();
 
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
@@ -147,7 +147,7 @@ fn test_request_response_collect_send_funds() {
 
 #[test]
 fn test_request_cancel_send_funds() {
-    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+    let currency = Currency::try_from("OFFSET".to_owned()).unwrap();
 
     let rng = DummyRandom::new(&[1u8]);
     let private_key = PrivateKey::rand_gen(&rng);
@@ -211,7 +211,7 @@ fn test_request_cancel_send_funds() {
 
 #[test]
 fn test_request_response_cancel_send_funds() {
-    let currency = Currency::try_from("OFFST".to_owned()).unwrap();
+    let currency = Currency::try_from("OFFSET".to_owned()).unwrap();
 
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);

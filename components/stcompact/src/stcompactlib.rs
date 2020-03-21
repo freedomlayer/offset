@@ -39,7 +39,7 @@ pub enum StCompactError {
     SpawnError,
 }
 
-/// stcompact: Offst Compact
+/// stcompact: Offset Compact
 /// The decentralized credit payment engine
 ///
 ///『將欲奪之，必固與之』

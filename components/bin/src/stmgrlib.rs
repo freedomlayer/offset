@@ -109,8 +109,8 @@ pub struct NodeTicketCmd {
     pub address: String,
 }
 
-/// stmgr: offST ManaGeR
-/// A util for managing Offst entities and files
+/// stmgr: offSeT ManaGeR
+/// A util for managing Offset entities and files
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stmgr")]
 pub enum StMgrCmd {
@@ -253,7 +253,7 @@ pub enum RelayTicketError {
 }
 
 /// Create a public relay ticket
-/// The ticket can be fed into a running offst node
+/// The ticket can be fed into a running offset node
 fn relay_ticket(
     RelayTicketCmd {
         idfile_path,
@@ -294,7 +294,7 @@ pub enum IndexTicketError {
 }
 
 /// Create a public index ticket
-/// The ticket can be fed into a running offst node
+/// The ticket can be fed into a running offset node
 fn index_ticket(
     IndexTicketCmd {
         idfile_path,

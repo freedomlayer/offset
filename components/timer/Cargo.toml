@@ -1,5 +1,5 @@
 [package]
-name = "offst-timer"
+name = "offset-timer"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ futures = "0.3.1"
 
 async-std = {version = "1.2.0", features=["unstable"]}
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
 
 [dev-dependencies]
 

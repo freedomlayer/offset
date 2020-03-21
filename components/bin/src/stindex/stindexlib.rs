@@ -38,8 +38,8 @@ pub const MAX_CONCURRENT_ENCRYPT: usize = 0x200;
 /// Amount of ticks we wait before attempting to reconnect to a remote index server.
 pub const BACKOFF_TICKS: usize = 0x8;
 
-/// stindex: Offst Index Server
-/// A server used to index the Offst network. Collects topology information from nodes, and serves
+/// stindex: Offset Index Server
+/// A server used to index the Offset network. Collects topology information from nodes, and serves
 /// nodes requests for routes
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stindex")]

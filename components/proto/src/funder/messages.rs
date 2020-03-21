@@ -987,7 +987,7 @@ mod tests {
         assert_eq!(is_route_valid(&Vec::<u8>::new()), false); // empty route is invalid
         assert_eq!(is_route_part_valid(&Vec::<u8>::new()), true); // partial routes may be empty
 
-        // Test cases taken from https://github.com/freedomlayer/offst/pull/215#discussion_r292327613
+        // Test cases taken from https://github.com/freedomlayer/offset/pull/215#discussion_r292327613
         assert_eq!(is_route_valid(&[1, 2, 3, 4]), true); // usual route
         assert_eq!(is_route_valid(&[1, 2, 3, 4, 1]), true); // cyclic route that is at least 3 nodes long, having first item equal the last item
         assert_eq!(is_route_valid(&[1, 1]), false); // cyclic route that is too short (only 2 nodes long)

@@ -1,14 +1,14 @@
 # Contributing guide
 
-## Offst Code guidelines
+## Offset Code guidelines
 
-This document contains the main values and priorities when writing Offst
+This document contains the main values and priorities when writing Offset
 code. If you are unsure about a design or technical decision, this document
 might be able to help you reach a decision.
 
 ### Priorities
 
-The main priorities to consider when writing code in Offst are as follows (In
+The main priorities to consider when writing code in Offset are as follows (In
 this order):
 
 1. Security and safety
@@ -18,7 +18,7 @@ this order):
 
 ### Security and Safety
 
-Offst is used for passing funds between people. Therefore safety is of
+Offset is used for passing funds between people. Therefore safety is of
 highest priority.
 
 - When two possible designs are possible, always choose the safer design.

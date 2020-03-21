@@ -52,8 +52,8 @@ pub enum StCtrlSubcommand {
     Seller(SellerCmd),
 }
 
-/// stctrl: offST ConTRoL
-/// An application used to interface with the Offst node
+/// stctrl: offSeT ConTRoL
+/// An application used to interface with the Offset node
 /// Allows to view node's state information, configure node's state and send funds to remote nodes.
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(name = "stctrl")]

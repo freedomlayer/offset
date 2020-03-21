@@ -33,11 +33,11 @@ impl FriendFreezeGuard {
 #[derive(Clone)]
 pub struct FreezeGuard {
     local_public_key: PublicKey,
-    // Total amount of credits frozen from A to B through this Offst node.
+    // Total amount of credits frozen from A to B through this Offset node.
     // ```
     // A --> ... --> X --> B
     // ```
-    // A could be any node, B must be a friend of this Offst node.
+    // A could be any node, B must be a friend of this Offset node.
     frozen_to: ImHashMap<PublicKey, FriendFreezeGuard>,
     //                         ^ B
 }
@@ -204,7 +204,7 @@ impl FreezeGuard {
     }
 
     /// Get the amount of credits frozen from <from_pk> to <to_pk> going through this sub-route,
-    /// where <to_pk> is a friend of this Offst node.
+    /// where <to_pk> is a friend of this Offset node.
     fn get_frozen(&self, subroute: &[PublicKey]) -> u128 {
         if subroute.len() < 2 {
             unreachable!();

@@ -1,5 +1,5 @@
 [package]
-name = "offst-node"
+name = "offset-node"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "AGPL-3.0"
@@ -7,19 +7,19 @@ edition = "2018"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
-identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
-timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
-signature = { path = "../signature", version = "0.1.0" , package = "offst-signature" }
-database = { path = "../database", version = "0.1.0" , package = "offst-database" }
-funder = { path = "../funder", version = "0.1.0" , package = "offst-funder" }
-index_client = { path = "../index_client", version = "0.1.0" , package = "offst-index-client" }
-app_server = { path = "../app_server", version = "0.1.0" , package = "offst-app-server" }
-channeler = { path = "../channeler", version = "0.1.0" , package = "offst-channeler" }
-relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
-net = { path = "../net", version = "0.1.0" , package = "offst-net" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offset-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offset-identity" }
+timer = { path = "../timer", version = "0.1.0" , package = "offset-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
+signature = { path = "../signature", version = "0.1.0" , package = "offset-signature" }
+database = { path = "../database", version = "0.1.0" , package = "offset-database" }
+funder = { path = "../funder", version = "0.1.0" , package = "offset-funder" }
+index_client = { path = "../index_client", version = "0.1.0" , package = "offset-index-client" }
+app_server = { path = "../app_server", version = "0.1.0" , package = "offset-app-server" }
+channeler = { path = "../channeler", version = "0.1.0" , package = "offset-channeler" }
+relay = { path = "../relay", version = "0.1.0" , package = "offset-relay" }
+net = { path = "../net", version = "0.1.0" , package = "offset-net" }
 
 
 log = "0.4"

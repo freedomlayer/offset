@@ -1,4 +1,4 @@
-# Offst tutorial
+# Offset tutorial
 
 ## The core idea
 
@@ -32,14 +32,14 @@ If Bob and Charli perform these kinds of transactions very often, it is
 reasonable for Alice to charge for forwarding the transactions. For example,
 Alice could charge 1 dollar for every transaction she forwards.
 
-Offst is a system that works this way. People or organizations can set up
+Offset is a system that works this way. People or organizations can set up
 mutual credit with each other, and leverage those mutual credits to send
 payments to anyone in the network. A participant that mediates a transaction
 earns 1 credit.
 
 ## Initial setup
 
-Offst is a network of nodes with mutual credit relationship between
+Offset is a network of nodes with mutual credit relationship between
 them. Therefore the first thing we are going to do is to set up a node.
 To be able to talk with our node we will also set up an application.
 
@@ -53,18 +53,18 @@ The Node is the part that does most of the hard work: processing transactions.
 You can leave it to work in the background.
 
 The Application is a way to communicate and control the node operation.
-Some things that offst applications can do:
+Some things that offset applications can do:
 
 - Configure mutual credits with other nodes (Called: friends)
 - View the current balance
 - Find routes between nodes
 - Send credits to a remote node
 
-We start by creating a directory for our first experiment. Let's call it my_offst.
+We start by creating a directory for our first experiment. Let's call it my_offset.
 
 ```bash
-$ mkdir my_offst
-$ cd my_offst
+$ mkdir my_offset
+$ cd my_offset
 ```
 
 Next, we create a directory for our first node:
@@ -81,21 +81,21 @@ And a directory for our first app:
 $ mkdir app0
 ```
 
-At this point, this is what your directory tree (inside `my_offst/`) should look like:
+At this point, this is what your directory tree (inside `my_offset/`) should look like:
 
 ```text
-my_offst/
+my_offset/
 ├── app0
 ├── node0
 │   └── trusted
 ```
 
-All following commands will be run from the root directory (`my_offst/`).
+All following commands will be run from the root directory (`my_offset/`).
 
 ### Cryptographic identity
 
 Next, we create an cryptographic identity for our node and application. In
-offst, every entity has a cryptographic identity which allows it to talk
+offset, every entity has a cryptographic identity which allows it to talk
 securely with other entities.
 
 ```bash
@@ -123,7 +123,7 @@ $ stmgr node-ticket --address 127.0.0.1:9500 --idfile node0/node0.ident --output
 
 ### Application ticket
 
-An offst node is a program that manages your credits, so we can't let any
+An offset node is a program that manages your credits, so we can't let any
 application connect to the node and perform operations. Therefore for every
 application that we want to allow to connect to the node, we need to create a
 ticket with specific permissions. Let's create a ticket for our application:
@@ -274,7 +274,7 @@ $ stctrl -I app0/app0.ident -T node0/node0.ticket info index
 +-------------------+---------------------------------------------+----------------+
 ```
 
-In this version of offst a node connects to only one index server at a
+In this version of offset a node connects to only one index server at a
 time. If the index server is down, an attempt is made to connect to the next
 one on the list. (This behaviour might change in the future)
 

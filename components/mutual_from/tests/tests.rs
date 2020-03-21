@@ -1,4 +1,4 @@
-use offst_mutual_from::mutual_from;
+use offset_mutual_from::mutual_from;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 struct Hello1 {

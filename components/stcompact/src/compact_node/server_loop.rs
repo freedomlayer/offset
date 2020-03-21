@@ -32,7 +32,7 @@ where
     // Interaction with the user:
     let (mut user_sender, user_receiver) = conn_pair_compact.split();
     let (app_permissions, node_report, conn_pair_app) = app_conn_tuple;
-    // Interaction with the offst node:
+    // Interaction with the offset node:
     let (mut app_sender, app_receiver) = conn_pair_app.split();
 
     let user_receiver = user_receiver

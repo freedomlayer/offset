@@ -19,7 +19,7 @@ use crate::index_server::messages::{NamedIndexServerAddress, RequestRoutes};
 use crate::net::messages::NetAddress;
 use crate::report::messages::{FunderReport, FunderReportMutation};
 
-// TODO: Move NamedRelayAddress and RelayAddress to another place in offst-proto?
+// TODO: Move NamedRelayAddress and RelayAddress to another place in offset-proto?
 
 #[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

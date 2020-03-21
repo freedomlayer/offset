@@ -1,6 +1,6 @@
 # Network structure
 
-Offst network consists of a few entities:
+Offset network consists of a few entities:
 
 - Relay server (`strelay`)
 - Index server (`stindex`)
@@ -44,7 +44,7 @@ All lines in the diagram above represent TCP connections.
 
 ## Node
 
-The core payment logic happens inside the offst node.
+The core payment logic happens inside the offset node.
 
 To operate, a node needs the following information:
 
@@ -70,7 +70,7 @@ In a perfect world nodes should have been able to directly communicate with
 each other. However, currently many of the Internet users are not able to
 receive connections directly.
 
-As a workaround, the offst network uses Relay servers.
+As a workaround, the offset network uses Relay servers.
 A Relay server is a server that is used as a meeting point for communication between
 two nodes. A node connects to a relay server in one of two modes:
 
@@ -88,7 +88,7 @@ relay servers. Instead, it is possible to use the services of a public relay.
 
 ## Index server
 
-Payments in offst rely on pushing credits along a routes of nodes.
+Payments in offset rely on pushing credits along a routes of nodes.
 We did not manage to find a fully decentralized solution for finding capacity
 routes between nodes. As a workaround, we use Index servers.
 

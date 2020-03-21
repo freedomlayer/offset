@@ -1,5 +1,5 @@
 [package]
-name = "offst-stcompact"
+name = "offset-stcompact"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "AGPL-3.0"
@@ -19,19 +19,19 @@ path = "src/bin/stcompact_ser_gen.rs"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-timer = { path = "../timer", version = "0.1.0", package = "offst-timer" }
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
-lockfile = { path = "../lockfile", version = "0.1.0", package = "offst-lockfile" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
-route = { path = "../route", version = "0.1.0", package = "offst-route" }
-database = { path = "../database", version = "0.1.0", package = "offst-database" }
-identity = { path = "../identity", version = "0.1.0", package = "offst-identity" }
-node = { path = "../node", version = "0.1.0" , package = "offst-node" }
-net = { path = "../net", version = "0.1.0", package = "offst-net" }
-connection = { path = "../connection", version = "0.1.0", package = "offst-connection" }
-app = { path = "../app", version = "0.1.0", package = "offst-app" }
-app_client = { path = "../app_client", version = "0.1.0", package = "offst-app-client" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+timer = { path = "../timer", version = "0.1.0", package = "offset-timer" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offset-crypto" }
+lockfile = { path = "../lockfile", version = "0.1.0", package = "offset-lockfile" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
+route = { path = "../route", version = "0.1.0", package = "offset-route" }
+database = { path = "../database", version = "0.1.0", package = "offset-database" }
+identity = { path = "../identity", version = "0.1.0", package = "offset-identity" }
+node = { path = "../node", version = "0.1.0" , package = "offset-node" }
+net = { path = "../net", version = "0.1.0", package = "offset-net" }
+connection = { path = "../connection", version = "0.1.0", package = "offset-connection" }
+app = { path = "../app", version = "0.1.0", package = "offset-app" }
+app_client = { path = "../app_client", version = "0.1.0", package = "offset-app-client" }
 
 serde = {version = "1.0.104", features = ["derive"]}
 

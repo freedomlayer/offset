@@ -19,7 +19,7 @@ use crate::report::messages::{
 // ----------------------------------------------
 
 // This code is used as glue between FunderReport structure and input mutations given to
-// `index_client`. This allows the offst-index-client crate to not depend on the offst-funder
+// `index_client`. This allows the offset-index-client crate to not depend on the offset-funder
 // crate.
 
 // TODO: Maybe this logic shouldn't be here? Where should we move it to?

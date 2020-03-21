@@ -1,6 +1,6 @@
-# How Offst works
+# How Offset works
 
-The offst protocol is a protocol that allows secure exchange of funds, based on
+The offset protocol is a protocol that allows secure exchange of funds, based on
 mutual trust.
 
 ## Mutual credit clearing
@@ -80,7 +80,7 @@ From the point of view of B, the picture looks as follows:
   -md{AB}          0         md{BA}
 ```
 
-In the context of offst, we call such a pair of identities A and B
+In the context of offset, we call such a pair of identities A and B
 **friends**.  A pair of friends represents a trust relationship in the real
 world between two people.
 
@@ -165,7 +165,7 @@ greater benefit to B to keep the full 14 credits to himself and not pass any
 credits to C.
 
 We solve this problem using the idea of **backwards payment of credits**. This idea
-is crucial to the operation of the offst protocol.
+is crucial to the operation of the offset protocol.
 
 When A wants to send funds to D, instead of directly passing all the 14 credits
 to B, A will send B a promise for credit, in the future, given a proof that D
@@ -388,7 +388,7 @@ will be chosen instead.
 
 [^1]:
     We might consider to add a feature for setting a transaction fee in future
-    versions of offst. Currently the profit for mediating a transaction is
+    versions of offset. Currently the profit for mediating a transaction is
     fixed to be 1 credit.
 
 Analyzing the cases above does not mean that the backwards credit payment is

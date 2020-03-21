@@ -47,10 +47,10 @@ impl<R> Deref for RngContainer<R> {
     }
 }
 
-pub type OffstSystemRandom = RngContainer<SystemRandom>;
+pub type OffsetSystemRandom = RngContainer<SystemRandom>;
 
 /// Returns a secure cryptographic random generator
-pub fn system_random() -> OffstSystemRandom {
+pub fn system_random() -> OffsetSystemRandom {
     RngContainer::new(SystemRandom::new())
 }
 

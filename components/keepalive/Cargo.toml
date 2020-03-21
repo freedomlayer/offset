@@ -1,5 +1,5 @@
 [package]
-name = "offst-keepalive"
+name = "offset-keepalive"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
@@ -7,10 +7,10 @@ edition = "2018"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
-timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offset-crypto" }
+timer = { path = "../timer", version = "0.1.0" , package = "offset-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
 
 log = "0.4"
 futures = "0.3.1"

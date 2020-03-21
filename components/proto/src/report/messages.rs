@@ -234,11 +234,9 @@ impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
         PkFriendReportList {
             list: hash_map
                 .into_iter()
-                .map(|(friend_public_key, friend_report)| {
-                    (PkFriendReport {
-                        friend_public_key,
-                        friend_report,
-                    })
+                .map(|(friend_public_key, friend_report)| PkFriendReport {
+                    friend_public_key,
+                    friend_report,
                 })
                 .collect(),
         }
@@ -246,7 +244,7 @@ impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
 }
 
 /// A FunderReport is a summary of a FunderState.
-/// It contains the information the Funder exposes to the user apps of the Offst node.
+/// It contains the information the Funder exposes to the user apps of the Offset node.
 #[capnp_conv(crate::report_capnp::funder_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?

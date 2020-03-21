@@ -8,7 +8,7 @@
 )]
 
 // Workaround for issue: https://github.com/rust-lang/rust/issues/64450
-extern crate offst_mutual_from as mutual_from;
+extern crate offset_mutual_from as mutual_from;
 
 #[macro_use]
 extern crate prettytable;

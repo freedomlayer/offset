@@ -5,19 +5,19 @@
 
 ## Abstract
 
-This is a proposal for a new design for the core credit system for Offst,
+This is a proposal for a new design for the core credit system for Offset,
 allowing for atomic transactions.
 
 
 ## Current design
 
-The current Offst design allows parties in a decentralized credit graph to push
+The current Offset design allows parties in a decentralized credit graph to push
 payments along routes. In the current design, payments are guaranteed to
 eventually resolve (To either success or failure). However, it is not known how
 long it could take for payments to eventually resolve. 
 
-We shortly describe the current Offst design. To see a more detailed
-explanation, see: ["How offst works?"](theory.md).
+We shortly describe the current Offset design. To see a more detailed
+explanation, see: ["How offset works?"](theory.md).
 
 Consider the following route:
 
@@ -95,7 +95,7 @@ doesn't happen at all.
 
 The current design (two trips: request message and response message) has the
 advantage of allowing the seller to be disconnected from the Internet (And from
-the Offst network).
+the Offset network).
 
 We describe a full buying story:
 
@@ -177,7 +177,7 @@ The following operations occur:
 6. B receives the Collect message, prepares a Receipt and keeps it.
 
 
-From the point of view of Offst users, this is how a transaction looks like:
+From the point of view of Offset users, this is how a transaction looks like:
 
 ```text
 Invoice        <=====[inv]========    (Out of band)
@@ -576,7 +576,7 @@ Response message, signed by the seller.
 
 Only the seller can issue a Cancel message (Sent from the
 destination along a path to the source). A Cancel message will be sent by the
-Offst node automatically for any incoming Request message that contains a non
+Offset node automatically for any incoming Request message that contains a non
 recognized InvoiceId (TODO: Can this cause any issues?)
 
 In addition, cancellation can be issued for a certain `invoiceId` from the
@@ -665,7 +665,7 @@ Note: We can not use this for multi-route payments.
 
 ## Application interface
 
-We describe here Offst nodes' interface with an Application.
+We describe here Offset nodes' interface with an Application.
 (Unrelated interface messages are not mentioned here for clarity).
 
 The interface is split here between Buyer and Seller for clarity, however note

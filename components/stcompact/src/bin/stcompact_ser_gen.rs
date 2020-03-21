@@ -19,7 +19,7 @@ use structopt::StructOpt;
 
 use stcompact::messages::{ServerToUserAck, UserToServerAck};
 
-/// stcompact_ser_gen: Offst Compact serialization generator
+/// stcompact_ser_gen: Offset Compact serialization generator
 ///
 /// Generates example serialized messages, for integration tests
 /// with a user application
