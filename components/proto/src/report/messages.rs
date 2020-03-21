@@ -234,11 +234,9 @@ impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
         PkFriendReportList {
             list: hash_map
                 .into_iter()
-                .map(|(friend_public_key, friend_report)| {
-                    (PkFriendReport {
-                        friend_public_key,
-                        friend_report,
-                    })
+                .map(|(friend_public_key, friend_report)| PkFriendReport {
+                    friend_public_key,
+                    friend_report,
                 })
                 .collect(),
         }
