@@ -1,5 +1,5 @@
 [package]
-name = "offst-bin"
+name = "offset-bin"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "AGPL-3.0"
@@ -28,17 +28,17 @@ path = "src/bin/stmgr.rs"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-crypto = { path = "../crypto", version = "0.1.0", package = "offst-crypto" }
-identity = { path = "../identity", version = "0.1.0" , package = "offst-identity" }
-timer = { path = "../timer", version = "0.1.0" , package = "offst-timer" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
-relay = { path = "../relay", version = "0.1.0" , package = "offst-relay" }
-net = { path = "../net", version = "0.1.0" , package = "offst-net" }
-index_server = { path = "../index_server", version = "0.1.0" , package = "offst-index-server" }
-node = { path = "../node", version = "0.1.0" , package = "offst-node" }
-database = { path = "../database", version = "0.1.0" , package = "offst-database" }
-connection = { path = "../connection", version = "0.1.0" , package = "offst-connection" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+crypto = { path = "../crypto", version = "0.1.0", package = "offset-crypto" }
+identity = { path = "../identity", version = "0.1.0" , package = "offset-identity" }
+timer = { path = "../timer", version = "0.1.0" , package = "offset-timer" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
+relay = { path = "../relay", version = "0.1.0" , package = "offset-relay" }
+net = { path = "../net", version = "0.1.0" , package = "offset-net" }
+index_server = { path = "../index_server", version = "0.1.0" , package = "offset-index-server" }
+node = { path = "../node", version = "0.1.0" , package = "offset-node" }
+database = { path = "../database", version = "0.1.0" , package = "offset-database" }
+connection = { path = "../connection", version = "0.1.0" , package = "offset-connection" }
 
 serde = {version = "1.0.104", features = ["derive"]}
 base64 = "0.10.1"

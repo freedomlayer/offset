@@ -2,7 +2,7 @@
 use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use proto::net::messages::{TcpAddress, TcpAddressV4, TcpAddressV6};
 
-/// Convert offst's TcpAddress to SocketAddr
+/// Convert offset's TcpAddress to SocketAddr
 pub fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {
     match tcp_address {
         TcpAddress::V4(tcp_address_v4) => {
@@ -20,7 +20,7 @@ pub fn tcp_address_to_socket_addr(tcp_address: &TcpAddress) -> SocketAddr {
 }
 
 
-/// Convert SocketAddr to offst's TcpAddress
+/// Convert SocketAddr to offset's TcpAddress
 pub fn socket_addr_to_tcp_address(socket_addr: &SocketAddr) -> TcpAddress {
     let port = socket_addr.port();
     match socket_addr.ip() {

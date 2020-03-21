@@ -40,10 +40,10 @@ pub mod common {
     pub use proto::net::messages::NetAddress;
 }
 
-/// Common Offst files:
+/// Common Offset files:
 pub use proto::file;
 
-/// Offst connection
+/// Offset connection
 pub mod conn {
     pub use super::app_conn::{buyer, config, routes, seller};
     pub use super::connect::{connect, AppConnTuple, ConnPairApp, ConnectError};

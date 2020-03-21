@@ -1,4 +1,4 @@
-# Legacy Offst research
+# Legacy Offset research
 
 ## Proportional credit freezing allocation (Legacy)
 

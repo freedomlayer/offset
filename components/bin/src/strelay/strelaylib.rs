@@ -44,7 +44,7 @@ pub enum RelayServerBinError {
     StringSerdeError(StringSerdeError),
 }
 
-/// strelay: Offst Relay Server
+/// strelay: Offset Relay Server
 /// A server used to relay communication between nodes
 #[derive(Debug, StructOpt)]
 #[structopt(name = "strelay")]

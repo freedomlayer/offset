@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use offst_capnp_conv::{
+use offset_capnp_conv::{
     capnp_conv, CapnpConvError, FromCapnpBytes, ReadCapnp, ToCapnpBytes, WriteCapnp,
 };
 

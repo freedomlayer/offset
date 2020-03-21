@@ -1,5 +1,5 @@
 [package]
-name = "offst-lockfile"
+name = "offset-lockfile"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"

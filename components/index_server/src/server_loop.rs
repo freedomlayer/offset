@@ -1230,7 +1230,7 @@ mod tests {
     #[test]
     fn test_index_server_loop_multi_server() {
         // Example of how to run with logs:
-        // RUST_LOG=offst_index_server=info cargo test -p offst-index-server multi  -- --nocapture
+        // RUST_LOG=offset_index_server=info cargo test -p offset-index-server multi  -- --nocapture
         let _ = env_logger::init();
         let thread_pool = ThreadPool::new().unwrap();
         block_on(task_index_server_loop_multi_server(thread_pool.clone()));

@@ -28,7 +28,7 @@ pub type AppConnTuple = (AppPermissions, NodeReport, ConnPairApp);
 #[derive(Debug)]
 pub struct ConnectError;
 
-/// Connect to a remote offst-node.
+/// Connect to a remote offset-node.
 pub async fn connect<S>(
     node_public_key: PublicKey,
     node_net_address: NetAddress,

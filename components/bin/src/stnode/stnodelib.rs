@@ -74,7 +74,7 @@ pub enum NodeBinError {
     IoError(std::io::Error),
 }
 
-/// stnode: Offst Node
+/// stnode: Offset Node
 /// The decentralized credit payment engine
 ///
 ///『將欲奪之，必固與之』

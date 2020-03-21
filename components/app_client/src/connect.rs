@@ -25,7 +25,7 @@ pub enum SetupConnectionError {
     FirstMessageNotNodeReport,
 }
 
-/// Connect to an offst-node
+/// Connect to an offset-node
 async fn setup_connection<S>(
     conn_pair: ConnPairVec,
     spawner: S,
@@ -96,7 +96,7 @@ pub enum AppConnectError {
     SetupConnectionError(SetupConnectionError),
 }
 
-/// Connect to an offst node as an app
+/// Connect to an offset node as an app
 pub async fn app_connect_to_node<C, S>(
     mut connector: C,
     node_public_key: PublicKey,

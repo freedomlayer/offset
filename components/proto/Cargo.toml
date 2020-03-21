@@ -1,5 +1,5 @@
 [package]
-name = "offst-proto"
+name = "offset-proto"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-offst-mutual-from = { path = "../mutual_from", version = "0.1.0"}
-capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offst-capnp-conv" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+offset-mutual-from = { path = "../mutual_from", version = "0.1.0"}
+capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offset-capnp-conv" }
 
 capnp = "0.10.0"
 

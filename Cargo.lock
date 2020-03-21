@@ -790,49 +790,49 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-app"
+name = "offset-app"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app-client 0.1.0",
- "offst-common 0.1.0",
- "offst-connection 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-net 0.1.0",
- "offst-proto 0.1.0",
- "offst-signature 0.1.0",
- "offst-timer 0.1.0",
+ "offset-app-client 0.1.0",
+ "offset-common 0.1.0",
+ "offset-connection 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-net 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-signature 0.1.0",
+ "offset-timer 0.1.0",
  "simple_logger 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-app-client"
+name = "offset-app-client"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-proto 0.1.0",
 ]
 
 [[package]]
-name = "offst-app-server"
+name = "offset-app-server"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 14.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-timer 0.1.0",
 ]
 
 [[package]]
-name = "offst-bin"
+name = "offset-bin"
 version = "0.1.0"
 dependencies = [
  "async-std 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -841,24 +841,24 @@ dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-connection 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-server 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-connection 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-index-server 0.1.0",
+ "offset-net 0.1.0",
+ "offset-node 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-relay 0.1.0",
+ "offset-timer 0.1.0",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-capnp-conv"
+name = "offset-capnp-conv"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -866,12 +866,12 @@ dependencies = [
  "capnpc 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-capnp-conv-derive 0.1.0",
+ "offset-capnp-conv-derive 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-capnp-conv-derive"
+name = "offset-capnp-conv-derive"
 version = "0.1.0"
 dependencies = [
  "heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -881,21 +881,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-channeler"
+name = "offset-channeler"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-relay 0.1.0",
+ "offset-timer 0.1.0",
 ]
 
 [[package]]
-name = "offst-common"
+name = "offset-common"
 version = "0.1.0"
 dependencies = [
  "backtrace 0.3.43 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -908,35 +908,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-connection"
+name = "offset-connection"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-keepalive 0.1.0",
- "offst-net 0.1.0",
- "offst-proto 0.1.0",
- "offst-secure-channel 0.1.0",
- "offst-signature 0.1.0",
- "offst-timer 0.1.0",
- "offst-version 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-keepalive 0.1.0",
+ "offset-net 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-secure-channel 0.1.0",
+ "offset-signature 0.1.0",
+ "offset-timer 0.1.0",
+ "offset-version 0.1.0",
  "simple_logger 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-crypto"
+name = "offset-crypto"
 version = "0.1.0"
 dependencies = [
  "base64 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-proto 0.1.0",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -946,7 +946,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-database"
+name = "offset-database"
 version = "0.1.0"
 dependencies = [
  "atomicwrites 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -954,14 +954,14 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 14.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offset-common 0.1.0",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-funder"
+name = "offset-funder"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -969,12 +969,12 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "im 14.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-signature 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-signature 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -984,29 +984,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-identity"
+name = "offset-identity"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-proto 0.1.0",
 ]
 
 [[package]]
-name = "offst-index-client"
+name = "offset-index-client"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-signature 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-signature 0.1.0",
+ "offset-timer 0.1.0",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1015,35 +1015,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-index-server"
+name = "offset-index-server"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-signature 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-signature 0.1.0",
+ "offset-timer 0.1.0",
 ]
 
 [[package]]
-name = "offst-keepalive"
+name = "offset-keepalive"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-timer 0.1.0",
 ]
 
 [[package]]
-name = "offst-lockfile"
+name = "offset-lockfile"
 version = "0.1.0"
 dependencies = [
  "cluFlock 1.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1051,7 +1051,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-mutual-from"
+name = "offset-mutual-from"
 version = "0.1.0"
 dependencies = [
  "proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1060,7 +1060,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-net"
+name = "offset-net"
 version = "0.1.0"
 dependencies = [
  "async-std 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1069,30 +1069,30 @@ dependencies = [
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures_codec 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-proto 0.1.0",
 ]
 
 [[package]]
-name = "offst-node"
+name = "offset-node"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app-server 0.1.0",
- "offst-channeler 0.1.0",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-funder 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-client 0.1.0",
- "offst-net 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-signature 0.1.0",
- "offst-timer 0.1.0",
+ "offset-app-server 0.1.0",
+ "offset-channeler 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-funder 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-index-client 0.1.0",
+ "offset-net 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-relay 0.1.0",
+ "offset-signature 0.1.0",
+ "offset-timer 0.1.0",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1101,7 +1101,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-proto"
+name = "offset-proto"
 version = "0.1.0"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1113,9 +1113,9 @@ dependencies = [
  "im 14.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-capnp-conv 0.1.0",
- "offst-common 0.1.0",
- "offst-mutual-from 0.1.0",
+ "offset-capnp-conv 0.1.0",
+ "offset-common 0.1.0",
+ "offset-mutual-from 0.1.0",
  "paste 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1126,58 +1126,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-relay"
+name = "offset-relay"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-timer 0.1.0",
 ]
 
 [[package]]
-name = "offst-route"
+name = "offset-route"
 version = "0.1.0"
 dependencies = [
  "num-bigint 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-traits 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-proto 0.1.0",
 ]
 
 [[package]]
-name = "offst-secure-channel"
+name = "offset-secure-channel"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-identity 0.1.0",
- "offst-proto 0.1.0",
- "offst-timer 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-timer 0.1.0",
  "pretty_env_logger 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
-name = "offst-signature"
+name = "offset-signature"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
- "offst-crypto 0.1.0",
- "offst-proto 0.1.0",
+ "offset-common 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-proto 0.1.0",
 ]
 
 [[package]]
-name = "offst-stcompact"
+name = "offset-stcompact"
 version = "0.1.0"
 dependencies = [
  "async-std 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1186,19 +1186,19 @@ dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app 0.1.0",
- "offst-app-client 0.1.0",
- "offst-common 0.1.0",
- "offst-connection 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-identity 0.1.0",
- "offst-lockfile 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-route 0.1.0",
- "offst-timer 0.1.0",
+ "offset-app 0.1.0",
+ "offset-app-client 0.1.0",
+ "offset-common 0.1.0",
+ "offset-connection 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-lockfile 0.1.0",
+ "offset-net 0.1.0",
+ "offset-node 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-route 0.1.0",
+ "offset-timer 0.1.0",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1210,16 +1210,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-stctrl"
+name = "offset-stctrl"
 version = "0.1.0"
 dependencies = [
  "derive_more 0.14.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app 0.1.0",
- "offst-mutual-from 0.1.0",
- "offst-route 0.1.0",
+ "offset-app 0.1.0",
+ "offset-mutual-from 0.1.0",
+ "offset-route 0.1.0",
  "prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_derive 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1231,29 +1231,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-test"
+name = "offset-test"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-app 0.1.0",
- "offst-app-client 0.1.0",
- "offst-bin 0.1.0",
- "offst-common 0.1.0",
- "offst-connection 0.1.0",
- "offst-crypto 0.1.0",
- "offst-database 0.1.0",
- "offst-funder 0.1.0",
- "offst-identity 0.1.0",
- "offst-index-server 0.1.0",
- "offst-net 0.1.0",
- "offst-node 0.1.0",
- "offst-proto 0.1.0",
- "offst-relay 0.1.0",
- "offst-stcompact 0.1.0",
- "offst-stctrl 0.1.0",
- "offst-timer 0.1.0",
+ "offset-app 0.1.0",
+ "offset-app-client 0.1.0",
+ "offset-bin 0.1.0",
+ "offset-common 0.1.0",
+ "offset-connection 0.1.0",
+ "offset-crypto 0.1.0",
+ "offset-database 0.1.0",
+ "offset-funder 0.1.0",
+ "offset-identity 0.1.0",
+ "offset-index-server 0.1.0",
+ "offset-net 0.1.0",
+ "offset-node 0.1.0",
+ "offset-proto 0.1.0",
+ "offset-relay 0.1.0",
+ "offset-stcompact 0.1.0",
+ "offset-stctrl 0.1.0",
+ "offset-timer 0.1.0",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck_macros 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1262,24 +1262,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "offst-timer"
+name = "offset-timer"
 version = "0.1.0"
 dependencies = [
  "async-std 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offset-common 0.1.0",
 ]
 
 [[package]]
-name = "offst-version"
+name = "offset-version"
 version = "0.1.0"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "offst-common 0.1.0",
+ "offset-common 0.1.0",
 ]
 
 [[package]]

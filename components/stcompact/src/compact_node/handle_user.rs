@@ -18,7 +18,7 @@ use crate::gen::GenUid;
 use crate::compact_node::utils::update_send_compact_state;
 
 // TODO: Should we check permissions here in the future?
-// Permissions are already checked on the node side (offst-app-server). I don't want to have code duplication here for
+// Permissions are already checked on the node side (offset-app-server). I don't want to have code duplication here for
 // permissions.
 #[allow(clippy::cognitive_complexity)]
 pub async fn handle_user<CG, US, AS>(

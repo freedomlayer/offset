@@ -2,7 +2,7 @@
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt, WriteBytesExt};
 #[allow(unused)]
-use offst_capnp_conv::{
+use offset_capnp_conv::{
     capnp_conv, CapnpConvError, FromCapnpBytes, ReadCapnp, ToCapnpBytes, WriteCapnp,
 };
 

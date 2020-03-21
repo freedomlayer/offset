@@ -1,5 +1,5 @@
 [package]
-name = "offst-net"
+name = "offset-net"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
@@ -7,8 +7,8 @@ edition = "2018"
 
 [dependencies]
 
-common = { path = "../common", version = "0.1.0", package = "offst-common" }
-proto = { path = "../proto", version = "0.1.0" , package = "offst-proto" }
+common = { path = "../common", version = "0.1.0", package = "offset-common" }
+proto = { path = "../proto", version = "0.1.0" , package = "offset-proto" }
 
 futures = "0.3.1"
 futures_codec = "0.4.0"

@@ -1,5 +1,5 @@
 [package]
-name = "offst-stctrl"
+name = "offset-stctrl"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "AGPL-3.0"
@@ -20,9 +20,9 @@ path = "src/bin/stverify.rs"
 
 [dependencies]
 
-route = { path = "../route", version = "0.1.0", package = "offst-route" }
-app = { path = "../app", version = "0.1.0", package = "offst-app" }
-offst-mutual-from = { path = "../mutual_from", version = "0.1.0"}
+route = { path = "../route", version = "0.1.0", package = "offset-route" }
+app = { path = "../app", version = "0.1.0", package = "offset-app" }
+offset-mutual-from = { path = "../mutual_from", version = "0.1.0"}
 
 log = "0.4"
 
