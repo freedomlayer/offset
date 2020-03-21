@@ -22,7 +22,6 @@ name = "stnode"
 path = "src/bin/stnode.rs"
 
 [[bin]]
-# OffST ManaGeR
 name = "stmgr"
 path = "src/bin/stmgr.rs"
 

@@ -109,7 +109,7 @@ pub struct NodeTicketCmd {
     pub address: String,
 }
 
-/// stmgr: offST ManaGeR
+/// stmgr: offSeT ManaGeR
 /// A util for managing Offset entities and files
 #[derive(Debug, StructOpt)]
 #[structopt(name = "stmgr")]
