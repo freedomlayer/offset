@@ -18,12 +18,16 @@ cache:
   directories:
     - $HOME/.cargo
     - $HOME/install
+    # Android SDK
+    - $HOME/android-sdk-dl
+    - $HOME/android-sdk
 
 matrix:
   fast_finish: true
   include:
 
-  - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
+  - name: Linux
+    env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
     os: linux
     dist: trusty
     rust: none
@@ -38,14 +42,14 @@ matrix:
     - travis/trusty/pre/cargo-config.sh
     - travis/trusty/pre/capnp.sh
     - cargo fmt --all -- --check
-      # TODO: Enable these lints when clippy bugs are solved:
-    - cargo clippy -- -A clippy::needless_lifetimes
+    - cargo clippy
       # We add target dir so that kcov can find the test files to run:
     - cargo test --target ${TARGET}
     - travis/trusty/post/kcov/try-install.sh
     - travis/trusty/post/kcov/run.sh
 
-  - env: TARGET=x86_64-apple-darwin
+  - name: macOS
+    env: TARGET=x86_64-apple-darwin
     os: osx
     rust: none
     osx_image: xcode9.4.1
@@ -55,7 +59,8 @@ matrix:
     script:
     - cargo test
 
-  - env: TARGET=x86_64-pc-windows-msvc
+  - name: Windows
+    env: TARGET=x86_64-pc-windows-msvc
     os: windows
     # Used as a temporary fix for windows CI issue in travis.
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
@@ -71,6 +76,44 @@ matrix:
     - rustup target add x86_64-pc-windows-msvc
     script:
         - cargo test
+
+    # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
+  - name: Android
+    os: linux
+    dist: trusty
+    rust: none
+    env:
+      # Get revision number from https://dl.google.com/android/repository/repository2-1.xml
+      # Look for the string 'sdk-tools-linux-'.
+      - ANDROID_SDK_VERSION=4333796
+    before_install:
+      - >
+        export ANDROID_HOME="${HOME}/android-sdk";
+        export PATH=$PATH:"${ANDROID_HOME}/tools/bin";
+        mkdir $ANDROID_HOME
+
+    install:
+      # Download and unzip the Android SDK tools (if not already there thanks to the cache mechanism)
+      # Latest version available here: https://developer.android.com/studio/#command-tools
+      - > 
+        if test ! -e $HOME/android-sdk-dl/sdk-tools.zip ; then 
+          curl https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip > $HOME/android-sdk-dl/sdk-tools.zip ; 
+        fi
+        unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME
+
+      # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
+      - echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-29' 'build-tools;29.0.0' 'ndk-bundle' > /dev/null
+      # Add rust targets:
+      - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
+
+      - > 
+        export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk-bundle"
+        cat travis/cargo_config_template | envsubst > $HOME/.cargo/config
+
+    script:
+      - cargo build --target aarch64-linux-android
+      - cargo build --target armv7-linux-androideabi
+      - cargo build --target i686-linux-android
 
 before_deploy: travis/before_deploy.sh
 deploy:
