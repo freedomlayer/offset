@@ -116,9 +116,9 @@ jobs:
       # Add symlinks for clang compilers:
       - > 
         cd "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin" &&
-        ln -s "./aarch64-linux-android${ANDROID_VERSION}-clang" aarch64-linux-android-clang &&
-        ln -s "./arm-linux-androideabi${ANDROID_VERSION}-clang" arm-linux-androideabi-clang &&
-        ln -s "./i686-linux-android${ANDROID_VERSION}-clang" i686-linux-android-clang && 
+        ln -sf "./aarch64-linux-android${ANDROID_VERSION}-clang" aarch64-linux-android-clang &&
+        ln -sf "./arm-linux-androideabi${ANDROID_VERSION}-clang" arm-linux-androideabi-clang &&
+        ln -sf "./i686-linux-android${ANDROID_VERSION}-clang" i686-linux-android-clang && 
         cd -
 
       # Make sure rust stable is installed
