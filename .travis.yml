@@ -88,20 +88,21 @@ matrix:
       - ANDROID_SDK_VERSION=4333796
       - ANDROID_VERSION=26
     before_install:
-      - >
-        export ANDROID_HOME="${HOME}/android-sdk";
-        # mkdir -p $ANDROID_HOME;
-        export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk-bundle";
-        export PATH=$PATH:"${ANDROID_HOME}/tools/bin:${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin";
+      - export ANDROID_HOME="${HOME}/android-sdk"
+      - mkdir -p $ANDROID_HOME;
+      - export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk-bundle"
+      - export PATH=$PATH:"${ANDROID_HOME}/tools/bin:${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 
     install:
+      # For debugging:
+      - tree $HOME
       # Download and unzip the Android SDK tools (if not already there thanks to the cache mechanism)
       # Latest version available here: https://developer.android.com/studio/#command-tools
       - > 
         if test ! -e $HOME/android-sdk-dl/sdk-tools.zip ; then 
           curl https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip > $HOME/android-sdk-dl/sdk-tools.zip ; 
-        fi && 
-        unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME;
+        fi
+      - unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME;
 
       # Create repositories.cfg ahead of time, see: 
       # https://stackoverflow.com/questions/43433542/stuck-at-android-repositories-cfg-could-not-be-loaded
