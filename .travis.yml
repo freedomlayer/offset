@@ -18,8 +18,8 @@ cache:
     - $HOME/.cargo
     - $HOME/install
     # Android SDK
-    # - $HOME/android-sdk-dl
-    # - $HOME/android-sdk
+    - $HOME/android-sdk-dl
+    - $HOME/android-sdk
 
 jobs:
   fast_finish: true
