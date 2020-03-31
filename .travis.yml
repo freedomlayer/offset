@@ -86,7 +86,7 @@ matrix:
       # Get revision number from https://dl.google.com/android/repository/repository2-1.xml
       # Look for the string 'sdk-tools-linux-'.
       - ANDROID_SDK_VERSION=4333796
-      - ANDROID_VERSION=29
+      - ANDROID_VERSION=26
     before_install:
       - export ANDROID_HOME="${HOME}/android-sdk"
       - mkdir -p $ANDROID_HOME
