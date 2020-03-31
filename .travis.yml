@@ -113,16 +113,18 @@ jobs:
       # Create $HOME/.cargo/config (from template):
       - cat travis/cargo_config_template | envsubst > $HOME/.cargo/config
 
-      # Show contents of directory, for debugging:
-      - pwd
-      - ls ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/
-
       # Add symlinks for clang compilers:
       - > 
         cd "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin" &&
         ln -s "./aarch64-linux-android${ANDROID_VERSION}-clang" aarch64-linux-android-clang &&
         ln -s "./arm-linux-androideabi${ANDROID_VERSION}-clang" arm-linux-androideabi-clang &&
         ln -s "./i686-linux-android${ANDROID_VERSION}-clang" i686-linux-android-clang
+
+      # Show contents of directory, for debugging:
+      - pwd
+
+      # Make sure rust stable is installed
+      - rustup install stable
 
     script:
       - cargo build --target aarch64-linux-android
