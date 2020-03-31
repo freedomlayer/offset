@@ -118,9 +118,9 @@ jobs:
       - yes | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses > /dev/null
 
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
-      - > 
-        $ANDROID_HOME/tools/bin/sdkmanager 
-          --sdk_root=${ANDROID_HOME} "platforms;android-${ANDROID_VERSION}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" 'ndk-bundle' > /dev/null
+      - >  
+        $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} 
+        "platforms;android-${ANDROID_VERSION}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" 'ndk-bundle' > /dev/null
       # Add rust targets:
       - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
