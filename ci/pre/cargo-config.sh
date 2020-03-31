@@ -15,4 +15,4 @@ set -eux -o pipefail
 rustup update
 rustup component add clippy rustfmt
 
-cat .cargo/config
+# cat .cargo/config
