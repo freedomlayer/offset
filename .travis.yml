@@ -81,6 +81,13 @@ jobs:
     os: linux
     dist: trusty
     rust: none
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
     env:
       # Get revision number from https://dl.google.com/android/repository/repository2-1.xml
       # Look for the string 'sdk-tools-linux-'.
