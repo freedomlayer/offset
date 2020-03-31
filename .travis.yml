@@ -28,7 +28,7 @@ jobs:
   - name: Linux
     env: TARGET=x86_64-unknown-linux-gnu
     os: linux
-    dist: trusty
+    dist: xenial
     rust: none
     addons:
       apt:
@@ -82,7 +82,7 @@ jobs:
   - name: aarch64-linux-android
     env: TARGET="aarch64-linux-android"
     os: linux
-    dist: trusty
+    dist: xenial
     rust: none
     addons:
       apt:
@@ -101,7 +101,7 @@ jobs:
   - name: armv7-linux-androideabi
     env: TARGET="armv7-linux-androideabi"
     os: linux
-    dist: trusty
+    dist: xenial
     rust: none
     addons:
       apt:
@@ -120,7 +120,7 @@ jobs:
   - name: i686-linux-android
     env: TARGET="i686-linux-android"
     os: linux
-    dist: trusty
+    dist: xenial
     rust: none
     addons:
       apt:
