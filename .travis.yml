@@ -1,5 +1,4 @@
 language: rust
-sudo: required
 env:
   global:
     - PROJECT_NAME: offset
@@ -22,7 +21,7 @@ cache:
     # - $HOME/android-sdk-dl
     # - $HOME/android-sdk
 
-matrix:
+jobs:
   fast_finish: true
   include:
 
