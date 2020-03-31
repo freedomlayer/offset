@@ -7,6 +7,11 @@ CAPNP_INSTALL_PREFIX="${HOME}/install/capnp"
 
 CAPNP_VERSION="0.7.0"
 
+export CC="gcc-6"
+export CXX="g++-6" 
+export CPPFLAGS="-std=c++14" 
+export CXXFLAGS="-std=c++14"
+
 # Build only if we don't have a cached installation:
 if [ ! -d "$CAPNP_INSTALL_PREFIX/lib" ]; then
   curl -L https://capnproto.org/capnproto-c++-${CAPNP_VERSION}.tar.gz | tar -zxf -
