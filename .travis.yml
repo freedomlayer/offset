@@ -78,6 +78,7 @@ jobs:
 
     # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
   - name: Android
+    env: CC=gcc-6 CXX=g++-6
     os: linux
     dist: trusty
     rust: none
