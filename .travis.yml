@@ -115,7 +115,7 @@ jobs:
       - mkdir -p $HOME/.android && touch $HOME/.android/repositories.cfg
 
       # Accept the license:
-      - yes | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses
+      - yes | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses > /dev/null
 
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
       - > 
