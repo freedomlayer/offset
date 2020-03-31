@@ -114,9 +114,12 @@ jobs:
       # https://stackoverflow.com/questions/43433542/stuck-at-android-repositories-cfg-could-not-be-loaded
       - mkdir -p $HOME/.android && touch $HOME/.android/repositories.cfg
 
+      # Accept the license:
+      - yes | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses
+
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
       - > 
-        echo y | $ANDROID_HOME/tools/bin/sdkmanager 
+        $ANDROID_HOME/tools/bin/sdkmanager 
           --sdk_root=${ANDROID_HOME} "platforms;android-${ANDROID_VERSION}" "build-tools;${ANDROID_BUILD_TOOLS_VERSION}" 'ndk-bundle' > /dev/null
       # Add rust targets:
       - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
