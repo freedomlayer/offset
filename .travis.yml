@@ -38,7 +38,10 @@ jobs:
         sources:
         - ubuntu-toolchain-r-test
     script:
-    - ci/pre/cargo-config.sh
+      # Add clippy and rustfmt:
+    - rustup update
+    - rustup component add clippy rustfmt
+      # Install capnp:
     - ci/pre/capnp.sh
       # Check formatting:
     - cargo fmt --all -- --check
