@@ -3,6 +3,13 @@
 # See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
 set -eux -o pipefail
 
+# Android versions:
+# See: https://developer.android.com/studio/index.html 
+# (commandline-tools)
+export ANDROID_SDK_VERSION=6200805
+export ANDROID_BUILD_TOOLS_VERSION="26.0.2"
+export ANDROID_VERSION=26
+
 # Early setup:
 export ANDROID_HOME="${HOME}/android-sdk"
 mkdir -p $ANDROID_HOME
