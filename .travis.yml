@@ -91,6 +91,8 @@ jobs:
         - g++-6
         sources:
         - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
     install:
       - ./ci/android_install.sh
     script:
@@ -108,6 +110,8 @@ jobs:
         - g++-6
         sources:
         - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
     install:
       - ./ci/android_install.sh
     script:
@@ -125,6 +129,8 @@ jobs:
         - g++-6
         sources:
         - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
     install:
       - ./ci/android_install.sh
     script:
