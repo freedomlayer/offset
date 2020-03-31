@@ -78,7 +78,6 @@ jobs:
 
     # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
   - name: Android
-    env: CC="gcc-6" CXX="g++-6" CPPFLAGS="-std=c++14" CXXFLAGS="-std=c++14"
     os: linux
     dist: trusty
     rust: none
@@ -132,14 +131,13 @@ jobs:
       # Make sure rust stable is installed
       - rustup install stable
 
+      # - echo $CPPFLAGS
+      # - echo $CXXFLAGS
+      # - gcc -v
+      # - g++ -v
+
       # Install capnp:
       - travis/trusty/pre/capnp.sh
-
-      - echo $CPPFLAGS
-      - echo $CXXFLAGS
-      - gcc -v
-      - g++ -v
-
 
     script:
       - cargo build --target aarch64-linux-android
