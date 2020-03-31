@@ -90,7 +90,7 @@ matrix:
       - >
         export ANDROID_HOME="${HOME}/android-sdk";
         export PATH=$PATH:"${ANDROID_HOME}/tools/bin";
-        mkdir $ANDROID_HOME
+        mkdir -p $ANDROID_HOME
 
     install:
       # Download and unzip the Android SDK tools (if not already there thanks to the cache mechanism)
