@@ -114,6 +114,7 @@ jobs:
       - cat travis/cargo_config_template | envsubst > $HOME/.cargo/config
 
       # Show contents of directory, for debugging:
+      - pwd
       - ls ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/
 
       # Add symlinks for clang compilers:
