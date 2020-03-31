@@ -124,7 +124,7 @@ jobs:
       - > 
         cd "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin" &&
         ln -sf "./aarch64-linux-android${ANDROID_VERSION}-clang" aarch64-linux-android-clang &&
-        ln -sf "./arm-linux-androideabi${ANDROID_VERSION}-clang" arm-linux-androideabi-clang &&
+        ln -sf "./arm7a-linux-androideabi${ANDROID_VERSION}-clang" arm-linux-androideabi-clang &&
         ln -sf "./i686-linux-android${ANDROID_VERSION}-clang" i686-linux-android-clang && 
         cd -
 
