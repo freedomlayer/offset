@@ -39,7 +39,7 @@ $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} \
 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
 # Create $HOME/.cargo/config (from template):
-cat travis/cargo_config_template | envsubst > $HOME/.cargo/config
+cat ci/cargo_config_template | envsubst > $HOME/.cargo/config
 
 # Add symlinks for clang compilers:
 cd "${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
@@ -52,4 +52,4 @@ cd -
 rustup install stable
 
 # Install capnp:
-travis/trusty/pre/capnp.sh
+ci/pre/capnp.sh
