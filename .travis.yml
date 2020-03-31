@@ -138,11 +138,6 @@ jobs:
       # Make sure rust stable is installed
       - rustup install stable
 
-      # - echo $CPPFLAGS
-      # - echo $CXXFLAGS
-      # - gcc -v
-      # - g++ -v
-
       # Install capnp:
       - travis/trusty/pre/capnp.sh
 
