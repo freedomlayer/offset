@@ -105,7 +105,7 @@ matrix:
 
       # Create repositories.cfg ahead of time, see: 
       # https://stackoverflow.com/questions/43433542/stuck-at-android-repositories-cfg-could-not-be-loaded
-      - mkdir -p .android && touch ~/.android/repositories.cfg
+      - mkdir -p $HOME/.android && touch $HOME/.android/repositories.cfg
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
       - echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-${ANDROID_VERSION}' 'build-tools;${ANDROID_VERSION}.0.0' 'ndk-bundle' > /dev/null
       # Add rust targets:
