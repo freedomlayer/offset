@@ -94,8 +94,6 @@ matrix:
       - export PATH=$PATH:"${ANDROID_HOME}/tools/bin:${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 
     install:
-      # For debugging:
-      - tree $HOME
       # Download and unzip the Android SDK tools (if not already there thanks to the cache mechanism)
       # Latest version available here: https://developer.android.com/studio/#command-tools
       - > 
