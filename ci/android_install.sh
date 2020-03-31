@@ -29,7 +29,8 @@ unzip -qq -n $HOME/android-sdk-dl/commandlinetools.zip -d $ANDROID_HOME;
 mkdir -p $HOME/.android && touch $HOME/.android/repositories.cfg
 
 # Accept the license:
-yes | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses > /dev/null
+# See https://stackoverflow.com/a/57797492 for (yes || true) trick explanation:
+(yes || true) | $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} --licenses > /dev/null
 
 # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
 $ANDROID_HOME/tools/bin/sdkmanager --sdk_root=${ANDROID_HOME} \
