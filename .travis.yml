@@ -146,7 +146,6 @@ deploy:
   api_key:
     secure: MpKcz5y3DQGkZYpekopOAHkErw8RoJSsnLDWzTQg+bxDD4+30Q+aZ21EK6BIvOgNTcGZCpxKAr1iobr9IVv9tlEZVGeV3eiCeAUCq52uQmDfYf5VkckwF5DLBcKN7FLZZVgKq8m30OLXDyxuwogd39LcKzTKyHURQAa7DHSjomUf+Yu+/+PFMxCisvFKl0Etp/qMbPXuoZya19qH5zDNupf4BsB00qJo0SMF8pPZ/p+m+BGotBNNwLWGrfDt5Pv460/0H8MixkrVnt3/tKmZ3MvhQ42bMgMR5vg+j/Ioeiq2jiUjoLaC0HixL8wyOKyiXiuvAE812P5MEeCA6RrjG2q6CaOM+b4+Az5q/PbM5zzmhjT6wWVmNfIb7hqin7k63cAL5BBAmqcWO9LYazk3/8Eqv+/CVGvZyVixz7/qhbBzA/J5sJiu4O5IHYgtchXUcyZh+YIPwQpfwbHhyUl55wIRqMiOohaBxufYBKGUoe5pH26U/acaY4xSzRKCbXTej5bW+pY3OkeUKZFEETDAPdGcGjrD12CFbSaY5ikYmkFSDKluMcbvXpWCRXvPo+D+c1RPJ6xxxYKA/+6AH3nhQEwX6viEYD/XtxPYUEdbgYcImz/HL5clo6j0uiP/gHmrdGY+tg8btOozNvkNXMKJyEffYMFyuDbPrjWOK712/pU=
   file: $HOME/deployment/${PROJECT_NAME}-${TRAVIS_TAG}-${TARGET}.tar.gz
-  skip_cleanup: true
   on:
     tags: true
     repo: freedomlayer/offset
