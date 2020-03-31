@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-set -ex
+# See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
+set -eux -o pipefail
 
 KCOV_INSTALL_PREFIX="${HOME}/install/kcov-${TARGET}"
 KCOV_MINIMUM_REQUIRED=${KCOV_MINIMUM_REQUIRED:-34}

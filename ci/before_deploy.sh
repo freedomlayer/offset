@@ -3,7 +3,8 @@
 # package the build artifacts
 # Based on https://github.com/BurntSushi/ripgrep/blob/master/.travis.yml
 
-set -ex
+# See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
+set -eux -o pipefail
 
 # Generate artifacts for release
 mk_artifacts() {
@@ -33,6 +34,7 @@ mk_tarball() {
         cp "target/$TARGET/release/stindex" "$staging/bin/stindex"
         cp "target/$TARGET/release/stnode" "$staging/bin/stnode"
         cp "target/$TARGET/release/stctrl" "$staging/bin/stctrl"
+        cp "target/$TARGET/release/stcompact" "$staging/bin/stcompact"
 
         # Copy README file:
         cp README.md "$staging/"
