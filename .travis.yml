@@ -99,7 +99,7 @@ matrix:
       # Latest version available here: https://developer.android.com/studio/#command-tools
       - > 
         if test ! -e $HOME/android-sdk-dl/sdk-tools.zip ; then 
-          curl https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip > $HOME/android-sdk-dl/sdk-tools.zip ; 
+          curl "https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip" > "$HOME/android-sdk-dl/sdk-tools.zip" ; 
         fi
       - unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME;
 
@@ -107,7 +107,7 @@ matrix:
       # https://stackoverflow.com/questions/43433542/stuck-at-android-repositories-cfg-could-not-be-loaded
       - mkdir -p $HOME/.android && touch $HOME/.android/repositories.cfg
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
-      - echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-${ANDROID_VERSION}' 'build-tools;${ANDROID_VERSION}.0.0' 'ndk-bundle' > /dev/null
+      - echo y | $ANDROID_HOME/tools/bin/sdkmanager "platforms;android-${ANDROID_VERSION}" "build-tools;${ANDROID_VERSION}.0.0" 'ndk-bundle' > /dev/null
       # Add rust targets:
       - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
