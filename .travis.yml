@@ -101,6 +101,9 @@ matrix:
         fi && 
         unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME;
 
+      # Create repositories.cfg ahead of time, see: 
+      # https://stackoverflow.com/questions/43433542/stuck-at-android-repositories-cfg-could-not-be-loaded
+      - mkdir -p .android && touch ~/.android/repositories.cfg
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
       - echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-29' 'build-tools;29.0.0' 'ndk-bundle' > /dev/null
       # Add rust targets:
