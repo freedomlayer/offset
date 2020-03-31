@@ -98,8 +98,8 @@ matrix:
       - > 
         if test ! -e $HOME/android-sdk-dl/sdk-tools.zip ; then 
           curl https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip > $HOME/android-sdk-dl/sdk-tools.zip ; 
-        fi
-        unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME
+        fi && 
+        unzip -qq -n $HOME/android-sdk-dl/sdk-tools.zip -d $ANDROID_HOME;
 
       # Install or update Android SDK components (will not do anything if already up to date thanks to the cache mechanism)
       - echo y | $ANDROID_HOME/tools/bin/sdkmanager 'platforms;android-29' 'build-tools;29.0.0' 'ndk-bundle' > /dev/null
