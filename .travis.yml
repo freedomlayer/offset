@@ -124,6 +124,9 @@ jobs:
       # Make sure rust stable is installed
       - rustup install stable
 
+      # Install capnp:
+      - travis/trusty/pre/capnp.sh
+
     script:
       - cargo build --target aarch64-linux-android
       - cargo build --target armv7-linux-androideabi
