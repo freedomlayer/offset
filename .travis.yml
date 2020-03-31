@@ -111,7 +111,7 @@ matrix:
       # Add rust targets:
       - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
 
-      # Create ~/.cargo/config (from template):
+      # Create $HOME/.cargo/config (from template):
       - cat travis/cargo_config_template | envsubst > $HOME/.cargo/config
 
       # Add symlinks for clang compilers:
