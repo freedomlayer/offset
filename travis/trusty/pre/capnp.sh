@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
+set -eux -o pipefail
+
 CAPNP_INSTALL_PREFIX="${HOME}/install/capnp"
 
 CAPNP_VERSION="0.7.0"
