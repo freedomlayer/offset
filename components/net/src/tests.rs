@@ -38,7 +38,7 @@ where
     // This is done to make tests more stable. It seems like sometimes listening will not work,
     // possibly because timing issues with vacant local ports.
     for _ in 0..10usize {
-        let available_port = dbg!(get_available_port_v4().await);
+        let available_port = get_available_port_v4().await;
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
         let net_address = NetAddress::try_from(format!("127.0.0.1:{}", available_port)).unwrap();
@@ -48,13 +48,15 @@ where
 
         let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
-        dbg!("Try to connect");
+        // TODO: This is a hack to overcome the fact the listen() is not async, and we might try to
+        // connect before the port was bound (This happens when we run this test with kcov)
+        // Possibly fix listen() in the future.
+        sleep(Duration::from_millis(200)).await;
+
         // Try to connect:
         if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
-            dbg!("Free connection");
             // Free connection from the other side:
             if let Some(_incoming_conn) = incoming_connections.next().await {
-                dbg!("Inside");
                 return (tcp_connector, incoming_connections, net_address);
             }
             // If we get here, it probably means that we connected to some other server.
@@ -91,7 +93,7 @@ where
 
 #[test]
 fn test_tcp_client_server_v4() {
-    env_logger::init();
+    // env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
