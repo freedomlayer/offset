@@ -47,8 +47,8 @@ jobs:
     - cargo fmt --all -- --check
       # Run clippy check:
     - cargo clippy
-      # DEBUG: Make sure that offset-net passes tests correctly:
-    - cargo test -p offset-net
+      # Clean before test:
+    - cargo clean
       # We add target dir so that kcov can find the test files to run:
     - RUSTFLAGS="-C link-dead-code" cargo test --target ${TARGET}
     - ci/post/kcov/try-install.sh
