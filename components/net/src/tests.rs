@@ -48,6 +48,11 @@ where
 
         let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
+        // TODO: This is a hack to overcome the fact the listen() is not async, and we might try to
+        // connect before the port was bound (This happens when we run this test with kcov)
+        // Possibly fix listen() in the future.
+        sleep(Duration::from_millis(200)).await;
+
         // Try to connect:
         if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
             // Free connection from the other side:
@@ -88,6 +93,7 @@ where
 
 #[test]
 fn test_tcp_client_server_v4() {
+    // env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
@@ -116,7 +122,6 @@ where
 
 #[test]
 fn test_net_connector_v4_drop_sender() {
-    env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }

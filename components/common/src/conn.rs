@@ -105,6 +105,8 @@ pub trait Listener {
     type Config;
     type Arg;
 
+    // TODO: Possibly change this to be async, as binding to the given address is an async event
+    // too.
     fn listen(
         self,
         arg: Self::Arg,

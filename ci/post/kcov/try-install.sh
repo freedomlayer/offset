@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 
-set -ex
+# See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
+set -eux -o pipefail
+
+export CC=gcc-6 
+export CXX=g++-6 
 
 KCOV_INSTALL_PREFIX="${HOME}/install/kcov-${TARGET}"
-KCOV_MINIMUM_REQUIRED=${KCOV_MINIMUM_REQUIRED:-34}
+# KCOV_VERSION=${KCOV_VERSION:-34}
+KCOV_VERSION="38"
 
 sudo apt-get install -y libdw-dev
 
@@ -11,7 +16,7 @@ if [[ -f "$KCOV_INSTALL_PREFIX/bin/kcov" ]]; then
     KCOV_INSTALLED_VERSION=$(${KCOV_INSTALL_PREFIX}/bin/kcov --version)
     KCOV_INSTALLED_VERSION=${KCOV_INSTALLED_VERSION#*\ }
 
-    if (( $KCOV_INSTALLED_VERSION >= $KCOV_MINIMUM_REQUIRED )); then
+    if (( $KCOV_INSTALLED_VERSION >= $KCOV_VERSION )); then
         echo "Using cached kcov, version: $KCOV_INSTALLED_VERSION"
         exit 0
     else
@@ -23,9 +28,9 @@ fi
 sudo apt-get install -y cmake binutils-dev libcurl4-openssl-dev \
                         zlib1g-dev libiberty-dev
 
-curl -L https://github.com/SimonKagstrom/kcov/archive/v${KCOV_MINIMUM_REQUIRED}.tar.gz | tar -zxf -
+curl -L https://github.com/SimonKagstrom/kcov/archive/v${KCOV_VERSION}.tar.gz | tar -zxf -
 
-pushd kcov-${KCOV_MINIMUM_REQUIRED}
+pushd kcov-${KCOV_VERSION}
 
 mkdir build
 

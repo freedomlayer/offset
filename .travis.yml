@@ -1,8 +1,7 @@
 language: rust
-sudo: required
 env:
   global:
-    - PROJECT_NAME: offst
+    - PROJECT_NAME: offset
     - RUST_BACKTRACE: full
 
 git:
@@ -11,21 +10,25 @@ git:
 # Don't cache the cargo registry:
 # See: https://levans.fr/rust_travis_cache.html
 before_cache:
-    - travis/trusty/post/cargo-sweep.sh
+    - ci/post/cargo-sweep.sh
     - rm -rf $HOME/.cargo/registry
 
 cache:
   directories:
     - $HOME/.cargo
     - $HOME/install
+    # Android SDK
+    - $HOME/android-sdk-dl
+    - $HOME/android-sdk
 
-matrix:
+jobs:
   fast_finish: true
   include:
 
-  - env: TARGET=x86_64-unknown-linux-gnu CC=gcc-6 CXX=g++-6 RUSTFLAGS="-C link-dead-code"
+  - name: x86_64-unknown-linux-gnu
+    env: TARGET=x86_64-unknown-linux-gnu
     os: linux
-    dist: trusty
+    dist: bionic
     rust: none
     addons:
       apt:
@@ -35,27 +38,33 @@ matrix:
         sources:
         - ubuntu-toolchain-r-test
     script:
-    - travis/trusty/pre/cargo-config.sh
-    - travis/trusty/pre/capnp.sh
+      # Add clippy and rustfmt:
+    - rustup update
+    - rustup component add clippy rustfmt
+      # Install capnp:
+    - ci/pre/capnp.sh
+      # Check formatting:
     - cargo fmt --all -- --check
-      # TODO: Enable these lints when clippy bugs are solved:
-    - cargo clippy -- -A clippy::needless_lifetimes
+      # Run clippy check:
+    - cargo clippy
       # We add target dir so that kcov can find the test files to run:
-    - cargo test --target ${TARGET}
-    - travis/trusty/post/kcov/try-install.sh
-    - travis/trusty/post/kcov/run.sh
+    - RUSTFLAGS="-C link-dead-code" cargo test --target ${TARGET}
+    - ci/post/kcov/try-install.sh
+    - ci/post/kcov/run.sh
 
-  - env: TARGET=x86_64-apple-darwin
+  - name: x86_64-apple-darwin
+    env: TARGET=x86_64-apple-darwin
     os: osx
     rust: none
-    osx_image: xcode9.4.1
+    osx_image: xcode11.3
     # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
     before_script:
     - HOMEBREW_NO_AUTO_UPDATE=1 brew install capnp
     script:
     - cargo test
 
-  - env: TARGET=x86_64-pc-windows-msvc
+  - name: x86_64-pc-windows-msvc
+    env: TARGET=x86_64-pc-windows-msvc
     os: windows
     # Used as a temporary fix for windows CI issue in travis.
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
@@ -72,16 +81,74 @@ matrix:
     script:
         - cargo test
 
-before_deploy: travis/before_deploy.sh
+    # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
+  - name: aarch64-linux-android
+    env: TARGET="aarch64-linux-android"
+    os: linux
+    dist: bionic
+    rust: none
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
+    install:
+      - ./ci/android_install.sh
+    script:
+      - cargo build --target ${TARGET}
+
+  - name: armv7-linux-androideabi
+    env: TARGET="armv7-linux-androideabi"
+    os: linux
+    dist: bionic
+    rust: none
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
+    install:
+      - ./ci/android_install.sh
+    script:
+      - cargo build --target ${TARGET}
+
+  - name: i686-linux-android
+    env: TARGET="i686-linux-android"
+    os: linux
+    dist: bionic
+    rust: none
+    addons:
+      apt:
+        packages:
+        - gcc-6
+        - g++-6
+        sources:
+        - ubuntu-toolchain-r-test
+    before_install:
+      - source ./ci/android_before_install.sh
+    install:
+      - ./ci/android_install.sh
+    script:
+      - cargo build --target ${TARGET}
+
+
+before_deploy: ci/before_deploy.sh
 deploy:
   provider: releases
-  api_key:
+  token:
     secure: MpKcz5y3DQGkZYpekopOAHkErw8RoJSsnLDWzTQg+bxDD4+30Q+aZ21EK6BIvOgNTcGZCpxKAr1iobr9IVv9tlEZVGeV3eiCeAUCq52uQmDfYf5VkckwF5DLBcKN7FLZZVgKq8m30OLXDyxuwogd39LcKzTKyHURQAa7DHSjomUf+Yu+/+PFMxCisvFKl0Etp/qMbPXuoZya19qH5zDNupf4BsB00qJo0SMF8pPZ/p+m+BGotBNNwLWGrfDt5Pv460/0H8MixkrVnt3/tKmZ3MvhQ42bMgMR5vg+j/Ioeiq2jiUjoLaC0HixL8wyOKyiXiuvAE812P5MEeCA6RrjG2q6CaOM+b4+Az5q/PbM5zzmhjT6wWVmNfIb7hqin7k63cAL5BBAmqcWO9LYazk3/8Eqv+/CVGvZyVixz7/qhbBzA/J5sJiu4O5IHYgtchXUcyZh+YIPwQpfwbHhyUl55wIRqMiOohaBxufYBKGUoe5pH26U/acaY4xSzRKCbXTej5bW+pY3OkeUKZFEETDAPdGcGjrD12CFbSaY5ikYmkFSDKluMcbvXpWCRXvPo+D+c1RPJ6xxxYKA/+6AH3nhQEwX6viEYD/XtxPYUEdbgYcImz/HL5clo6j0uiP/gHmrdGY+tg8btOozNvkNXMKJyEffYMFyuDbPrjWOK712/pU=
   file: $HOME/deployment/${PROJECT_NAME}-${TRAVIS_TAG}-${TARGET}.tar.gz
-  skip_cleanup: true
   on:
     tags: true
-    repo: freedomlayer/offst
+    repo: freedomlayer/offset
     branch: master
 branches:
   only:
