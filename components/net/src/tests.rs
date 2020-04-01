@@ -88,6 +88,7 @@ where
 
 #[test]
 fn test_tcp_client_server_v4() {
+    env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
@@ -116,7 +117,6 @@ where
 
 #[test]
 fn test_net_connector_v4_drop_sender() {
-    env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
     block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
