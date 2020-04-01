@@ -15,5 +15,6 @@ for exe in ${exes}; do
         ${exe}
 done
 
+# TODO: Change to something safer:
 # Automatically reads from CODECOV_TOKEN environment variable:
 bash <(curl -s https://codecov.io/bash)
