@@ -47,99 +47,97 @@ jobs:
     - cargo fmt --all -- --check
       # Run clippy check:
     - cargo clippy
-      # Clean before test:
-    - cargo clean
       # We add target dir so that kcov can find the test files to run:
     - RUSTFLAGS="-C link-dead-code" cargo test --target ${TARGET}
     - ci/post/kcov/try-install.sh
     - ci/post/kcov/run.sh
 
-  - name: x86_64-apple-darwin
-    env: TARGET=x86_64-apple-darwin
-    os: osx
-    rust: none
-    osx_image: xcode9.4.1
-    # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
-    before_script:
-    - HOMEBREW_NO_AUTO_UPDATE=1 brew install capnp
-    script:
-    - cargo test
+# - name: x86_64-apple-darwin
+#   env: TARGET=x86_64-apple-darwin
+#   os: osx
+#   rust: none
+#   osx_image: xcode9.4.1
+#   # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
+#   before_script:
+#   - HOMEBREW_NO_AUTO_UPDATE=1 brew install capnp
+#   script:
+#   - cargo test
 
-  - name: x86_64-pc-windows-msvc
-    env: TARGET=x86_64-pc-windows-msvc
-    os: windows
-    # Used as a temporary fix for windows CI issue in travis.
-    # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
-    filter_secrets: false
-    rust: none
-    before_script:
-    # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
-    - choco install vcredist2010 capnproto strawberryperl
-    - mkdir -p $HOME/install/yasm
-    - curl -o $HOME/install/yasm/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
-    - export PATH=$HOME/install/yasm:$PATH
-    - echo $PATH
-    - rustup target add x86_64-pc-windows-msvc
-    script:
-        - cargo test
+# - name: x86_64-pc-windows-msvc
+#   env: TARGET=x86_64-pc-windows-msvc
+#   os: windows
+#   # Used as a temporary fix for windows CI issue in travis.
+#   # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
+#   filter_secrets: false
+#   rust: none
+#   before_script:
+#   # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
+#   - choco install vcredist2010 capnproto strawberryperl
+#   - mkdir -p $HOME/install/yasm
+#   - curl -o $HOME/install/yasm/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
+#   - export PATH=$HOME/install/yasm:$PATH
+#   - echo $PATH
+#   - rustup target add x86_64-pc-windows-msvc
+#   script:
+#       - cargo test
 
-    # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
-  - name: aarch64-linux-android
-    env: TARGET="aarch64-linux-android"
-    os: linux
-    dist: bionic
-    rust: none
-    addons:
-      apt:
-        packages:
-        - gcc-6
-        - g++-6
-        sources:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - source ./ci/android_before_install.sh
-    install:
-      - ./ci/android_install.sh
-    script:
-      - cargo build --target ${TARGET}
+#   # Based on: https://github.com/kennytm/rust-ios-android/blob/master/.travis.yml
+# - name: aarch64-linux-android
+#   env: TARGET="aarch64-linux-android"
+#   os: linux
+#   dist: bionic
+#   rust: none
+#   addons:
+#     apt:
+#       packages:
+#       - gcc-6
+#       - g++-6
+#       sources:
+#       - ubuntu-toolchain-r-test
+#   before_install:
+#     - source ./ci/android_before_install.sh
+#   install:
+#     - ./ci/android_install.sh
+#   script:
+#     - cargo build --target ${TARGET}
 
-  - name: armv7-linux-androideabi
-    env: TARGET="armv7-linux-androideabi"
-    os: linux
-    dist: bionic
-    rust: none
-    addons:
-      apt:
-        packages:
-        - gcc-6
-        - g++-6
-        sources:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - source ./ci/android_before_install.sh
-    install:
-      - ./ci/android_install.sh
-    script:
-      - cargo build --target ${TARGET}
+# - name: armv7-linux-androideabi
+#   env: TARGET="armv7-linux-androideabi"
+#   os: linux
+#   dist: bionic
+#   rust: none
+#   addons:
+#     apt:
+#       packages:
+#       - gcc-6
+#       - g++-6
+#       sources:
+#       - ubuntu-toolchain-r-test
+#   before_install:
+#     - source ./ci/android_before_install.sh
+#   install:
+#     - ./ci/android_install.sh
+#   script:
+#     - cargo build --target ${TARGET}
 
-  - name: i686-linux-android
-    env: TARGET="i686-linux-android"
-    os: linux
-    dist: bionic
-    rust: none
-    addons:
-      apt:
-        packages:
-        - gcc-6
-        - g++-6
-        sources:
-        - ubuntu-toolchain-r-test
-    before_install:
-      - source ./ci/android_before_install.sh
-    install:
-      - ./ci/android_install.sh
-    script:
-      - cargo build --target ${TARGET}
+# - name: i686-linux-android
+#   env: TARGET="i686-linux-android"
+#   os: linux
+#   dist: bionic
+#   rust: none
+#   addons:
+#     apt:
+#       packages:
+#       - gcc-6
+#       - g++-6
+#       sources:
+#       - ubuntu-toolchain-r-test
+#   before_install:
+#     - source ./ci/android_before_install.sh
+#   install:
+#     - ./ci/android_install.sh
+#   script:
+#     - cargo build --target ${TARGET}
 
 
 before_deploy: ci/before_deploy.sh
