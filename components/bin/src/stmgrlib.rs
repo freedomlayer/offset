@@ -75,12 +75,12 @@ pub struct RelayTicketCmd {
     /// StCtrl relay identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Relay ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the relay
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Relay ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -88,12 +88,12 @@ pub struct IndexTicketCmd {
     /// StCtrl index identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Index server ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the index server
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Index server ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -101,12 +101,12 @@ pub struct NodeTicketCmd {
     /// StCtrl node identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Node server ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the node server
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Node server ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
@@ -277,8 +277,8 @@ pub enum RelayTicketError {
 fn relay_ticket(
     RelayTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: RelayTicketCmd,
 ) -> Result<(), RelayTicketError> {
     // Make sure that output does not exist.
@@ -318,8 +318,8 @@ pub enum IndexTicketError {
 fn index_ticket(
     IndexTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: IndexTicketCmd,
 ) -> Result<(), IndexTicketError> {
     // Make sure that output does not exist.
@@ -357,8 +357,8 @@ pub enum NodeTicketError {
 fn node_ticket(
     NodeTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: NodeTicketCmd,
 ) -> Result<(), NodeTicketError> {
     // Make sure that output does not exist.
