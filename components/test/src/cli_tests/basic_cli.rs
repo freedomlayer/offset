@@ -3,6 +3,7 @@ use std::{str, thread, time};
 use tempfile::tempdir;
 
 use bin::stindex::{stindex, StIndexCmd};
+use bin::stmgrlib::{stmgr, NodeEntryCmd, StMgrCmd};
 use bin::stnode::{stnode, StNodeCmd};
 use bin::strelay::{strelay, StRelayCmd};
 
@@ -390,6 +391,18 @@ fn configure_mutual_credit(stctrl_setup: &StCtrlSetup) {
         };
         stctrl(st_ctrl_cmd, &mut Vec::new()).unwrap();
     }
+}
+
+/// Create a node entry file, just to make sure the command works.
+fn create_node_entry(stctrl_setup: &StCtrlSetup) {
+    let node_entry_cmd = NodeEntryCmd {
+        node_idfile_path: stctrl_setup.temp_dir_path.join("node1").join("node1.ident"),
+        app_idfile_path: stctrl_setup.temp_dir_path.join("app1").join("app1.ident"),
+        address: stctrl_setup.node1_addr.clone(),
+        output_path: stctrl_setup.temp_dir_path.join("node1").join("node1.entry"),
+    };
+
+    stmgr(StMgrCmd::NodeEntry(node_entry_cmd)).unwrap();
 }
 
 /// Close requests and disable friends
@@ -855,6 +868,7 @@ fn basic_cli() {
     thread::sleep(time::Duration::from_millis(500));
 
     configure_mutual_credit(&stctrl_setup);
+    create_node_entry(&stctrl_setup);
     add_remove_currency(&stctrl_setup);
     set_max_debt(&stctrl_setup);
     create_cancel_invoice(&stctrl_setup);
