@@ -1,7 +1,0 @@
-{
-    "rust": {
-        "wait_to_build": 500,
-        "clippy_preference": "on",
-        "cfg_test": true
-    }
-}
