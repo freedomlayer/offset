@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem;
 
@@ -30,7 +30,9 @@ use crate::messages::{
     NodeStatus, NodesStatus, ServerToUser, ServerToUserAck, UserToServer, UserToServerAck,
 };
 
-use crate::compact_node::messages::{CompactReport, CompactToUserAck, UserToCompactAck};
+use crate::compact_node::messages::{
+    CompactReport, CompactToUserAck, UserToCompact, UserToCompactAck,
+};
 use crate::compact_node::{compact_node, create_compact_report, ConnPairCompact};
 use crate::gen::{GenCryptoRandom, GenPrivateKey};
 use crate::store::{
@@ -83,13 +85,39 @@ enum ServerEvent {
 pub struct OpenNode {
     pub node_name: NodeName,
     /// A sender, allowing to send messages to compact node
-    pub sender: mpsc::Sender<UserToCompactAck>,
+    sender: mpsc::Sender<UserToCompactAck>,
     /// A handle for a spawned node. Will close node when dropped.
     /// Exists only if this is a local node.
     opt_node_handle: Option<RemoteHandle<()>>,
     /// A handle for a spawned compact node.
     /// Will close compact node when dropped.
     compact_node_handle: RemoteHandle<()>,
+    /// Request sent to this node but were not yet acked
+    pending_requests: HashSet<Uid>,
+}
+
+impl OpenNode {
+    /// Send a request to compact node, and keep track of unacked requests.
+    /// Returns true if successful
+    pub async fn send_to_compact(
+        &mut self,
+        request_id: Uid,
+        user_to_compact: UserToCompact,
+    ) -> bool {
+        let user_to_compact_ack = UserToCompactAck {
+            user_request_id: request_id.clone(),
+            inner: user_to_compact,
+        };
+
+        if self.sender.send(user_to_compact_ack).await.is_err() {
+            return false;
+        }
+
+        // Add pending request:
+        self.pending_requests.insert(dbg!(request_id));
+
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -394,7 +422,11 @@ where
     // Remove from open nodes:
     let node_name = if let Some(open_node) = server_state.open_nodes.remove(&node_id) {
         // TODO: Make sure we drop everything besides the name:
-        let OpenNode { node_name, .. } = open_node;
+        let OpenNode {
+            node_name,
+            pending_requests,
+            ..
+        } = open_node;
 
         // Unload from store:
         if let Err(e) = server_state.store.unload_node(&node_name).await {
@@ -415,6 +447,15 @@ where
             .send(server_to_user_ack)
             .await
             .map_err(|_| ServerError::UserSenderError)?;
+
+        // Send acks for all open the requests that were left un-acked:
+        for request_id in pending_requests {
+            let server_to_user_ack = ServerToUserAck::Ack(request_id);
+            user_sender
+                .send(server_to_user_ack)
+                .await
+                .map_err(|_| ServerError::UserSenderError)?;
+        }
 
         node_name
     } else {
@@ -598,6 +639,7 @@ where
         sender: local_sender,
         opt_node_handle: Some(node_handle),
         compact_node_handle,
+        pending_requests: HashSet::new(),
     };
 
     let old_value = server_state.open_nodes.insert(node_id.clone(), open_node);
@@ -987,8 +1029,8 @@ where
             handle_disable_node(node_name, server_state, request_id, user_sender).await?
         }
         UserToServer::Node(node_id, user_to_compact) => {
-            let node_state = if let Some(node_state) = server_state.open_nodes.get_mut(&node_id) {
-                node_state
+            let open_node = if let Some(open_node) = server_state.open_nodes.get_mut(&node_id) {
+                open_node
             } else {
                 warn!("UserToServer::Node: nonexistent node {:?}", node_id);
 
@@ -998,14 +1040,19 @@ where
                 return Ok(());
             };
 
+            /*
             let user_to_compact_ack = UserToCompactAck {
                 user_request_id: request_id.clone(),
                 inner: user_to_compact,
             };
-            if let Err(e) = node_state.sender.send(user_to_compact_ack).await {
+            */
+            if !open_node
+                .send_to_compact(request_id.clone(), user_to_compact)
+                .await
+            {
                 warn!(
-                    "UserToServer::Node: Failed to send message to node: {:?}",
-                    e
+                    "UserToServer::Node: Failed to send a message to node {}",
+                    open_node.node_name.as_str()
                 );
                 close_node_and_notify_user(&node_id, server_state, user_sender).await?;
 
@@ -1156,6 +1203,7 @@ where
         // Remote nodes do not need a node handle:
         opt_node_handle: None,
         compact_node_handle: remote_node_opened.compact_node_handle,
+        pending_requests: HashSet::new(),
     };
 
     let node_id = server_state.new_node_id();
@@ -1294,6 +1342,14 @@ where
                 // A message from a node:
                 match compact_to_user_ack {
                     CompactToUserAck::Ack(request_id) => {
+                        if let Some(open_node) = server_state.open_nodes.get_mut(&node_id) {
+                            let res = open_node.pending_requests.remove(dbg!(&request_id));
+                            // Make sure that we had this `request_id`:
+                            assert!(res);
+                        } else {
+                            warn!("An ack from unidentified node_id: {:?}", node_id);
+                        }
+
                         user_sender
                             .send(ServerToUserAck::Ack(request_id))
                             .await
