@@ -39,6 +39,11 @@ where
         inner: user_to_compact,
     } = from_user;
 
+    // Keep the request id:
+    server_state
+        .pending_user_requests
+        .insert(user_request_id.clone());
+
     match user_to_compact {
         // ==================[Configuration]==============================
         UserToCompact::AddRelay(named_relay_address) => {

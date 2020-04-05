@@ -1,5 +1,8 @@
+use std::collections::HashSet;
+
 use common::conn::ConnPair;
 
+use app::common::Uid;
 use app::conn::AppServerToApp;
 use database::DatabaseClient;
 
@@ -29,6 +32,9 @@ pub struct CompactServerState {
     node_report: app::report::NodeReport,
     compact_state: CompactState,
     database_client: DatabaseClient<CompactState>,
+    /// Ids of requests that were initiated directly by the user,
+    /// and were not acked yet.
+    pub pending_user_requests: HashSet<Uid>,
 }
 
 impl CompactServerState {
@@ -41,6 +47,7 @@ impl CompactServerState {
             node_report,
             compact_state,
             database_client,
+            pending_user_requests: HashSet::new(),
         }
     }
 
