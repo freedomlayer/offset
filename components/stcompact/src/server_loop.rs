@@ -114,7 +114,7 @@ impl OpenNode {
         }
 
         // Add pending request:
-        self.pending_requests.insert(dbg!(request_id));
+        self.pending_requests.insert(request_id);
 
         true
     }
@@ -1343,7 +1343,7 @@ where
                 match compact_to_user_ack {
                     CompactToUserAck::Ack(request_id) => {
                         if let Some(open_node) = server_state.open_nodes.get_mut(&node_id) {
-                            let res = open_node.pending_requests.remove(dbg!(&request_id));
+                            let res = open_node.pending_requests.remove(&request_id);
                             // Make sure that we had this `request_id`:
                             assert!(res);
                         } else {
