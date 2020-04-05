@@ -18,7 +18,7 @@ use database::file_db::FileDb;
 use node::NodeState;
 
 use proto::file::{
-    IdentityFile, IndexServerFile, NodeAddressFile, RelayAddressFile, TrustedAppFile,
+    IdentityFile, IndexServerFile, NodeAddressFile, NodeEntryFile, RelayAddressFile, TrustedAppFile,
 };
 use proto::ser_string::{deserialize_from_string, serialize_to_string, StringSerdeError};
 
@@ -72,41 +72,57 @@ pub struct AppTicketCmd {
 
 #[derive(Debug, StructOpt)]
 pub struct RelayTicketCmd {
-    /// StCtrl app identity file path
+    /// StCtrl relay identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Relay ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the relay
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Relay ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct IndexTicketCmd {
-    /// StCtrl app identity file path
+    /// StCtrl index identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Index server ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the index server
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Index server ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 #[derive(Debug, StructOpt)]
 pub struct NodeTicketCmd {
-    /// StCtrl app identity file path
+    /// StCtrl node identity file path
     #[structopt(parse(from_os_str), short = "i", long = "idfile")]
     pub idfile_path: PathBuf,
-    /// Node server ticket output file path
-    #[structopt(parse(from_os_str), short = "o", long = "output")]
-    pub output_path: PathBuf,
     /// Public address of the node server
     #[structopt(short = "a", long = "address")]
     pub address: String,
+    /// Node server ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct NodeEntryCmd {
+    /// StCtrl node identity file path
+    #[structopt(parse(from_os_str), short = "n", long = "nodeid")]
+    pub node_idfile_path: PathBuf,
+    /// StCtrl app identity file path
+    #[structopt(parse(from_os_str), short = "p", long = "appid")]
+    pub app_idfile_path: PathBuf,
+    /// Public address of the node server
+    #[structopt(short = "a", long = "address")]
+    pub address: String,
+    /// Node server ticket output file path
+    #[structopt(parse(from_os_str), short = "o", long = "output")]
+    pub output_path: PathBuf,
 }
 
 /// stmgr: offSeT ManaGeR
@@ -132,6 +148,10 @@ pub enum StMgrCmd {
     /// Create a node server ticket
     #[structopt(name = "node-ticket")]
     NodeTicket(NodeTicketCmd),
+    /// Create a remote node server entry.
+    /// A node entry allows to remotely log into a node.
+    #[structopt(name = "node-entry")]
+    NodeEntry(NodeEntryCmd),
 }
 
 fn init_node_db(
@@ -257,8 +277,8 @@ pub enum RelayTicketError {
 fn relay_ticket(
     RelayTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: RelayTicketCmd,
 ) -> Result<(), RelayTicketError> {
     // Make sure that output does not exist.
@@ -298,8 +318,8 @@ pub enum IndexTicketError {
 fn index_ticket(
     IndexTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: IndexTicketCmd,
 ) -> Result<(), IndexTicketError> {
     // Make sure that output does not exist.
@@ -337,8 +357,8 @@ pub enum NodeTicketError {
 fn node_ticket(
     NodeTicketCmd {
         idfile_path,
-        output_path,
         address,
+        output_path,
     }: NodeTicketCmd,
 ) -> Result<(), NodeTicketError> {
     // Make sure that output does not exist.
@@ -362,6 +382,42 @@ fn node_ticket(
     Ok(())
 }
 
+/// Create a remote node entry
+/// The ticket can be used to log into a node
+fn node_entry(
+    NodeEntryCmd {
+        node_idfile_path,
+        app_idfile_path,
+        address,
+        output_path,
+    }: NodeEntryCmd,
+) -> Result<(), NodeTicketError> {
+    // Make sure that output does not exist.
+    if output_path.exists() {
+        return Err(NodeTicketError::OutputAlreadyExists);
+    }
+
+    // Parse identity file:
+    let node_identity_file: IdentityFile =
+        deserialize_from_string(&fs::read_to_string(&node_idfile_path)?)?;
+    let node_identity = SoftwareEd25519Identity::from_private_key(&node_identity_file.private_key)
+        .map_err(|_| NodeTicketError::LoadIdentityError)?;
+    let node_public_key = node_identity.get_public_key();
+
+    let app_identity_file: IdentityFile =
+        deserialize_from_string(&fs::read_to_string(&app_idfile_path)?)?;
+
+    let node_entry_file = NodeEntryFile {
+        node_public_key,
+        node_address: address.try_into()?,
+        app_private_key: app_identity_file.private_key,
+    };
+
+    let mut file = File::create(output_path)?;
+    file.write_all(&serialize_to_string(&node_entry_file)?.as_bytes())?;
+    Ok(())
+}
+
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, From)]
 pub enum StmError {
@@ -381,6 +437,7 @@ pub fn stmgr(st_mgr_cmd: StMgrCmd) -> Result<(), StmError> {
         StMgrCmd::RelayTicket(i) => relay_ticket(i)?,
         StMgrCmd::IndexTicket(i) => index_ticket(i)?,
         StMgrCmd::NodeTicket(i) => node_ticket(i)?,
+        StMgrCmd::NodeEntry(i) => node_entry(i)?,
     }
 
     Ok(())

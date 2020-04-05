@@ -72,24 +72,13 @@ pub struct NodeAddressFile {
     pub address: NetAddress,
 }
 
-/*
-
-// TODO: Turn this construct to be a macro (procedural?)
-impl From<NodeFile> for NodeAddress {
-    fn from(node_file: NodeFile) -> Self {
-        NodeAddress {
-            public_key: node_file.public_key,
-            address: node_file.address,
-        }
-    }
+/// A file with information used to connect to a remote node.
+#[derive(Arbitrary, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeEntryFile {
+    #[serde(with = "ser_b64")]
+    pub node_public_key: PublicKey,
+    pub node_address: NetAddress,
+    #[serde(with = "ser_b64")]
+    pub app_private_key: PrivateKey,
 }
-
-impl From<NodeAddress> for NodeFile {
-    fn from(node_address: NodeAddress) -> Self {
-        NodeFile {
-            public_key: node_address.public_key,
-            address: node_address.address,
-        }
-    }
-}
-*/
