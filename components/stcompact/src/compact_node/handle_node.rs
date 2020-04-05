@@ -308,10 +308,14 @@ where
 
             // Possibly send acknowledgement for a completed command:
             if let Some(app_request_id) = report_mutations.opt_app_request_id {
-                user_sender
-                    .send(CompactToUserAck::Ack(app_request_id))
-                    .await
-                    .map_err(|_| CompactNodeError::UserSenderError)?;
+                // We only ack if the `request_id` arrived from the user itself.
+                // We don't want to leak internal `request_id`-s outside.
+                if server_state.pending_user_requests.remove(&app_request_id) {
+                    user_sender
+                        .send(CompactToUserAck::Ack(app_request_id))
+                        .await
+                        .map_err(|_| CompactNodeError::UserSenderError)?;
+                }
             }
         }
         AppServerToApp::ResponseRoutes(mut client_response_routes) => {
