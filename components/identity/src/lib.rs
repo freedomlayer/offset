@@ -14,5 +14,5 @@ mod client;
 mod identity;
 mod messages;
 
-pub use crate::client::IdentityClient;
+pub use crate::client::{IdentityClient, IdentityClientError};
 pub use crate::identity::create_identity;
