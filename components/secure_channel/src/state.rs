@@ -12,7 +12,7 @@ use crypto::sym_encrypt::{Decryptor, Encryptor};
 use proto::crypto::{PublicKey, RandValue, Salt, Signature};
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize, ProtoSerializeError};
 
-use identity::IdentityClient;
+use identity::{IdentityClient, IdentityClientError};
 use proto::secure_channel::messages::{
     ChannelContent, ChannelMessage, ExchangeDh, ExchangeRandNonce, Rekey,
 };
@@ -33,6 +33,7 @@ pub enum ScStateError {
     CreateDecryptorFailure,
     DecryptionFailure,
     ProtoSerializeError(ProtoSerializeError),
+    IdentityClientError(IdentityClientError),
     // DeserializeError,
     RekeyInProgress,
 }
@@ -126,8 +127,7 @@ impl ScStateInitial {
         };
         exchange_dh.signature = identity_client
             .request_signature(exchange_dh.signature_buffer())
-            .await
-            .unwrap();
+            .await?;
 
         Ok((sc_state_half, exchange_dh))
     }
