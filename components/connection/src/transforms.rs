@@ -59,7 +59,7 @@ where
             Some((public_key, conn_pair_vec))
         })
     });
-    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
+    TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS)
 }
 
 /// Turn a regular connector into a secure connector.
@@ -102,7 +102,7 @@ where
             Some((public_key, conn_pair))
         })
     });
-    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
+    TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS)
 }
 
 // TODO: Possibly remove in favour of create_version_encrypt_keepalive
@@ -134,5 +134,5 @@ where
             Some(conn_pair)
         })
     });
-    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
+    TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS)
 }
