@@ -384,7 +384,6 @@ where
             outgoing_conns,
             c_encrypt_transform,
             c_max_concurrent_encrypt,
-            c_spawner.clone(),
         )
         .map_err(|e| error!("transform_pool_loop: {:?}", e))
         .map(|_| ());

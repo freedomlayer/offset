@@ -1,32 +1,20 @@
-use futures::channel::mpsc;
-use futures::stream::select;
-use futures::task::{Spawn, SpawnExt};
-use futures::{future, stream, Sink, SinkExt, Stream, StreamExt};
+use futures::{Sink, SinkExt, Stream, StreamExt};
 
 use crate::conn::FutTransform;
 
 #[derive(Debug)]
-pub enum TransformPoolLoopError {
-    SpawnError,
-}
-
-enum TransformPoolEvent<I> {
-    Incoming(I),
-    IncomingClosed,
-    TransformDone,
-}
+pub enum TransformPoolLoopError {}
 
 /// Transform a stream of incoming items to outgoing items.
 /// The transformation is asynchronous, therefore outgoing items
 /// might not be in the same order in which the incoming items entered.
 ///
 /// max_concurrent is the maximum amount of concurrent transformations.
-pub async fn transform_pool_loop<IN, OUT, I, O, T, S>(
+pub async fn transform_pool_loop<IN, OUT, I, O, T>(
     incoming: I,
     outgoing: O,
     transform: T,
     max_concurrent: usize,
-    spawner: S,
 ) -> Result<(), TransformPoolLoopError>
 where
     IN: Send + 'static,
@@ -34,53 +22,18 @@ where
     T: FutTransform<Input = IN, Output = Option<OUT>> + Clone + Send + 'static,
     I: Stream<Item = IN> + Unpin,
     O: Sink<OUT> + Clone + Send + Unpin + 'static,
-    S: Spawn,
 {
-    let incoming = incoming
-        .map(TransformPoolEvent::Incoming)
-        .chain(stream::once(future::ready(
-            TransformPoolEvent::IncomingClosed,
-        )));
-
-    let (close_sender, close_receiver) = mpsc::channel::<()>(0);
-    let close_receiver = close_receiver.map(|()| TransformPoolEvent::TransformDone);
-
-    let mut incoming_events = select(incoming, close_receiver);
-    let mut num_concurrent: usize = 0;
-    let mut incoming_closed = false;
-    while let Some(event) = incoming_events.next().await {
-        match event {
-            TransformPoolEvent::Incoming(input_value) => {
-                if num_concurrent >= max_concurrent {
-                    warn!("transform_pool_loop: Dropping connection: max_concurrent exceeded");
-                    // We drop the input value because we don't have any room to process it.
-                    continue;
+    incoming
+        .for_each_concurrent(Some(max_concurrent), move |input_value| {
+            let mut c_outgoing = outgoing.clone();
+            let mut c_transform = transform.clone();
+            async move {
+                if let Some(output_value) = c_transform.transform(input_value).await {
+                    let _ = c_outgoing.send(output_value).await;
                 }
-                num_concurrent = num_concurrent.checked_add(1).unwrap();
-                let mut c_outgoing = outgoing.clone();
-                let mut c_transform = transform.clone();
-                let mut c_close_sender = close_sender.clone();
-                let fut = async move {
-                    if let Some(output_value) = c_transform.transform(input_value).await {
-                        let _ = c_outgoing.send(output_value).await;
-                    }
-                    let _ = c_close_sender.send(()).await;
-                };
-                spawner
-                    .spawn(fut)
-                    .map_err(|_| TransformPoolLoopError::SpawnError)?;
             }
-            TransformPoolEvent::IncomingClosed => {
-                incoming_closed = true;
-            }
-            TransformPoolEvent::TransformDone => {
-                num_concurrent = num_concurrent.checked_sub(1).unwrap();
-            }
-        }
-        if incoming_closed && num_concurrent == 0 {
-            break;
-        }
-    }
+        })
+        .await;
     Ok(())
 }
 

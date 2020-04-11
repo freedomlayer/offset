@@ -177,7 +177,6 @@ where
         incoming_apps_sender,
         app_conn_transform,
         max_concurrent_incoming_apps,
-        spawner.clone(),
     )
     .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
     .map(|_| ());

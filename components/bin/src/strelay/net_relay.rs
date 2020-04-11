@@ -103,7 +103,6 @@ where
         enc_conns_sender,
         transform,
         max_concurrent_encrypt,
-        spawner.clone(),
     )
     .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
     .map(|_| ());
