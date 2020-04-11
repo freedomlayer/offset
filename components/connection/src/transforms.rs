@@ -15,6 +15,11 @@ use keepalive::KeepAliveChannel;
 use secure_channel::SecureChannel;
 use version::VersionPrefix;
 
+use crate::timeout::TimeoutFutTransform;
+
+/// Amount of ticks we allocate to perform a complete handshake.
+pub const CONN_TIMEOUT_TICKS: usize = 8;
+
 /// Create an encrypt-keepalive transformation:
 /// Composes: Encryption * Keepalive
 pub fn create_encrypt_keepalive<R, S>(
@@ -39,11 +44,11 @@ where
         TICKS_TO_REKEY,
         spawner.clone(),
     );
-    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
+    let keepalive_transform = KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner);
 
     // Note that this transform does not contain the version prefix, as it is applied to a
     // connection between two nodes, relayed using a relay server.
-    FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
+    let fut_transform = FuncFutTransform::new(move |(opt_public_key, conn_pair_vec)| {
         let mut c_encrypt_transform = encrypt_transform.clone();
         let mut c_keepalive_transform = keepalive_transform.clone();
         Box::pin(async move {
@@ -53,7 +58,8 @@ where
             let conn_pair_vec = c_keepalive_transform.transform(conn_pair_vec).await;
             Some((public_key, conn_pair_vec))
         })
-    })
+    });
+    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
 }
 
 /// Turn a regular connector into a secure connector.
@@ -81,9 +87,9 @@ where
         TICKS_TO_REKEY,
         spawner.clone(),
     );
-    let keepalive_transform = KeepAliveChannel::new(timer_client, KEEPALIVE_TICKS, spawner);
+    let keepalive_transform = KeepAliveChannel::new(timer_client.clone(), KEEPALIVE_TICKS, spawner);
 
-    FuncFutTransform::new(move |(opt_public_key, conn_pair)| {
+    let fut_transform = FuncFutTransform::new(move |(opt_public_key, conn_pair)| {
         let mut c_version_transform = version_transform.clone();
         let mut c_encrypt_transform = encrypt_transform.clone();
         let mut c_keepalive_transform = keepalive_transform.clone();
@@ -95,7 +101,8 @@ where
             let conn_pair = c_keepalive_transform.transform(conn_pair).await;
             Some((public_key, conn_pair))
         })
-    })
+    });
+    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
 }
 
 // TODO: Possibly remove in favour of create_version_encrypt_keepalive
@@ -114,9 +121,9 @@ where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let conn_transform =
-        create_version_encrypt_keepalive(timer_client, identity_client, rng, spawner);
+        create_version_encrypt_keepalive(timer_client.clone(), identity_client, rng, spawner);
 
-    FuncFutTransform::new(move |(public_key, net_address)| {
+    let fut_transform = FuncFutTransform::new(move |(public_key, net_address)| {
         let mut c_connector = connector.clone();
         let mut c_conn_transform = conn_transform.clone();
         Box::pin(async move {
@@ -126,5 +133,6 @@ where
                 .await?;
             Some(conn_pair)
         })
-    })
+    });
+    return TimeoutFutTransform::new(fut_transform, timer_client, CONN_TIMEOUT_TICKS);
 }

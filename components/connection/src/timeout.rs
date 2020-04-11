@@ -4,14 +4,14 @@ use common::conn::{BoxFuture, FutTransform};
 use timer::TimerClient;
 
 /// A future transform's wrapper, adding timeout
-#[derive(Debug)]
-pub struct TimeoutTransform<FT> {
+#[derive(Debug, Clone)]
+pub struct TimeoutFutTransform<FT> {
     fut_transform: FT,
     timer_client: TimerClient,
     timeout_ticks: usize,
 }
 
-impl<FT> TimeoutTransform<FT> {
+impl<FT> TimeoutFutTransform<FT> {
     pub fn new(fut_transform: FT, timer_client: TimerClient, timeout_ticks: usize) -> Self {
         Self {
             fut_transform,
@@ -21,13 +21,14 @@ impl<FT> TimeoutTransform<FT> {
     }
 }
 
-impl<FT> FutTransform for TimeoutTransform<FT>
+impl<FT, I, O> FutTransform for TimeoutFutTransform<FT>
 where
-    FT: FutTransform + Send,
-    FT::Input: Send,
+    FT: FutTransform<Input = I, Output = Option<O>> + Send,
+    I: Send + 'static,
+    O: Send,
 {
-    type Input = FT::Input;
-    type Output = Option<FT::Output>;
+    type Input = I;
+    type Output = Option<O>;
 
     fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
@@ -48,7 +49,7 @@ where
             // Race execution of `fut_transform` against the timer:
             select! {
                 _fut_timeout = fut_timeout.fuse() => None,
-                fut_output = fut_output.fuse() => Some(fut_output),
+                fut_output = fut_output.fuse() => fut_output,
             }
         })
     }
