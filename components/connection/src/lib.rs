@@ -7,8 +7,10 @@
     clippy::new_without_default
 )]
 
+#[macro_use]
 extern crate log;
 
+mod timeout;
 mod transforms;
 
 pub use self::transforms::{

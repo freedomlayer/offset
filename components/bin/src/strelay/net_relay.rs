@@ -9,7 +9,7 @@ use derive_more::*;
 use common::conn::{BoxFuture, ConnPairVec, FutTransform};
 use common::transform_pool::transform_pool_loop;
 
-use proto::consts::{CONN_TIMEOUT_TICKS, KEEPALIVE_TICKS};
+use proto::consts::{KEEPALIVE_TICKS, RELAY_CONN_TIMEOUT_TICKS};
 use proto::crypto::PublicKey;
 
 use crypto::rand::CryptoRandom;
@@ -103,7 +103,6 @@ where
         enc_conns_sender,
         transform,
         max_concurrent_encrypt,
-        spawner.clone(),
     )
     .map_err(|e| error!("transform_pool_loop() error: {:?}", e))
     .map(|_| ());
@@ -115,7 +114,7 @@ where
     relay_server(
         incoming_enc_conns,
         timer_client,
-        CONN_TIMEOUT_TICKS,
+        RELAY_CONN_TIMEOUT_TICKS,
         KEEPALIVE_TICKS,
         spawner.clone(),
     )

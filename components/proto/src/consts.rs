@@ -22,7 +22,7 @@ pub const KEEPALIVE_TICKS: usize = 0x20;
 
 /// Relay server: The amount of ticks to wait before a relay connection from a client
 /// sends identification of which type of connection it is.
-pub const CONN_TIMEOUT_TICKS: usize = 4;
+pub const RELAY_CONN_TIMEOUT_TICKS: usize = 4;
 
 /// The stream TCP connection is split into prefix length frames. This is the maximum allowed
 /// length for such frame, measured in bytes.

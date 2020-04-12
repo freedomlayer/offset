@@ -274,7 +274,6 @@ where
         client_conns_sender,
         incoming_client_transform,
         max_concurrent_encrypt,
-        spawner.clone(),
     )
     .map_err(|e| error!("client incoming transform_pool_loop() error: {:?}", e))
     .map(|_| ());
@@ -298,7 +297,6 @@ where
         server_conns_sender,
         incoming_server_transform,
         max_concurrent_encrypt,
-        spawner.clone(),
     )
     .map_err(|e| error!("server incoming transform_pool_loop() error: {:?}", e))
     .map(|_| ());
