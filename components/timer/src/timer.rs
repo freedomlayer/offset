@@ -22,7 +22,11 @@
 
 // #![deny(warnings)]
 #![allow(intra_doc_link_resolution_failure)]
-#![allow(clippy::too_many_arguments, clippy::implicit_hasher, clippy::module_inception)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
 // TODO: disallow clippy::too_many_arguments
 
 // use common::futures_compat::create_interval;
@@ -99,6 +103,8 @@ enum TimerEvent {
     RequestsDone,
 }
 
+const TIMER_TICK_BUFFER: usize = 16;
+
 async fn timer_loop<M>(
     incoming: M,
     from_client: mpsc::Receiver<TimerRequest>,
@@ -124,13 +130,13 @@ where
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for mut tick_sender in temp_tick_senders {
-                    if let Ok(()) = tick_sender.send(TimerTick).await {
+                    if let Ok(()) = tick_sender.try_send(TimerTick) {
                         tick_senders.push(tick_sender);
                     }
                 }
             }
             TimerEvent::Request(timer_request) => {
-                let (tick_sender, tick_receiver) = mpsc::channel(0);
+                let (tick_sender, tick_receiver) = mpsc::channel(TIMER_TICK_BUFFER);
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             }
