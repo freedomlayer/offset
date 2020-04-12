@@ -103,7 +103,11 @@ enum TimerEvent {
     RequestsDone,
 }
 
-const TIMER_TICK_BUFFER: usize = 16;
+// TODO: Possibly give to timer_loop as an argument?
+/// Size of queue for pending ticks for a single client.
+/// After `TICK_QUEUE_LEN` ticks, the timer will not be able to queue more ticks to a nonresponsive
+/// client.
+const TICK_QUEUE_LEN: usize = 8;
 
 async fn timer_loop<M>(
     incoming: M,
@@ -144,7 +148,7 @@ where
                 }
             }
             TimerEvent::Request(timer_request) => {
-                let (tick_sender, tick_receiver) = mpsc::channel(TIMER_TICK_BUFFER);
+                let (tick_sender, tick_receiver) = mpsc::channel(TICK_QUEUE_LEN);
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             }
