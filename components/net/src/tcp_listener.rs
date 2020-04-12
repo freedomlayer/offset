@@ -52,6 +52,10 @@ where
             let mut incoming_conns = listener.incoming();
 
             while let Some(Ok(tcp_stream)) = incoming_conns.next().await {
+                info!(
+                    "TcpListener: Incoming connection from: {:?}",
+                    tcp_stream.peer_addr(),
+                );
                 let conn_pair =
                     tcp_stream_to_conn_pair(tcp_stream, c_max_frame_length, &mut c_spawner);
                 if let Err(e) = conn_receiver_sender.send(conn_pair).await {

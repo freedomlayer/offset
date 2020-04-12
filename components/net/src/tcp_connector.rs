@@ -33,6 +33,7 @@ where
 
     fn transform(&mut self, net_address: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
+            info!("TcpConnector: Connecting to {:?}", net_address.as_str());
             let tcp_stream = TcpStream::connect(net_address.as_str()).await.ok()?;
 
             Some(tcp_stream_to_conn_pair(
