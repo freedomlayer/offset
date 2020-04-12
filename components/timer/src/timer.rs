@@ -130,8 +130,16 @@ where
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for mut tick_sender in temp_tick_senders {
-                    if let Ok(()) = tick_sender.try_send(TimerTick) {
-                        tick_senders.push(tick_sender);
+                    match tick_sender.try_send(TimerTick) {
+                        Ok(()) => tick_senders.push(tick_sender),
+                        Err(e) => {
+                            // In case of error, we disconnect client
+                            if !e.is_disconnected() {
+                                // Error trying to send a tick to client.
+                                // Client might be too busy?
+                                error!("timer_loop(): try_send() error: {:?}", e);
+                            }
+                        }
                     }
                 }
             }
