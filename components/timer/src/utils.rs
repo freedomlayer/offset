@@ -53,20 +53,23 @@ mod tests {
     use futures::task::{Spawn, SpawnExt};
     use futures::SinkExt;
 
-    async fn task_future_timeout_on_time(spawner: impl Spawn + Clone + Send + 'static) {
+    use common::test_executor::TestExecutor;
+
+    async fn task_future_timeout_on_time(test_executor: TestExecutor) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let mut timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
         let (sender, receiver) = oneshot::channel::<()>();
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
         let receiver = receiver.map(|res| res.unwrap());
-        let timeout_fut = spawner
+        let timeout_fut = test_executor
             .spawn_with_handle(future_timeout(receiver, timer_stream, 8))
             .unwrap();
 
         for _ in 0..7usize {
             tick_sender.send(()).await.unwrap();
+            test_executor.wait().await;
         }
 
         sender.send(()).unwrap();
@@ -75,8 +78,9 @@ mod tests {
 
     #[test]
     fn test_future_timeout_on_time() {
-        let thread_pool = ThreadPool::new().unwrap();
-        LocalPool::new().run_until(task_future_timeout_on_time(thread_pool.clone()));
+        let test_executor = TestExecutor::new();
+        let res = test_executor.run(task_future_timeout_on_time(test_executor.clone()));
+        assert!(res.is_output());
     }
 
     async fn task_future_timeout_late(spawner: impl Spawn + Clone + Send + 'static) {

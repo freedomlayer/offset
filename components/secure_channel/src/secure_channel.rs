@@ -337,7 +337,7 @@ mod tests {
     use super::*;
 
     use futures::channel::oneshot;
-    use futures::executor::{LocalPool, ThreadPool};
+    // use futures::executor::LocalPool;
     use futures::task::SpawnExt;
     use futures::Future;
 
@@ -350,10 +350,13 @@ mod tests {
 
     use proto::crypto::PrivateKey;
 
+    use common::test_executor::TestExecutor;
+
     async fn secure_channel1(
         fut_sc: impl Future<Output = Result<(PublicKey, ConnPairVec), SecureChannelError>> + 'static,
         mut tick_sender: mpsc::Sender<()>,
         output_sender: oneshot::Sender<bool>,
+        test_executor: TestExecutor,
     ) {
         let (_public_key, conn_pair_vec) = fut_sc.await.unwrap();
         let (mut sender, mut receiver) = conn_pair_vec.split();
@@ -364,6 +367,7 @@ mod tests {
         // Move time forward, to cause rekeying:
         for _ in 0_usize..20 {
             tick_sender.send(()).await.unwrap();
+            test_executor.wait().await;
         }
         sender.send(vec![0, 1, 2]).await.unwrap();
 
@@ -390,11 +394,11 @@ mod tests {
     #[test]
     fn test_secure_channel_basic() {
         // Start the Identity service:
-        let thread_pool = ThreadPool::new().unwrap();
+        let test_executor = TestExecutor::new();
 
         // Create a mock time service:
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
+        let timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
         let rng1 = DummyRandom::new(&[1u8]);
         let pkcs8 = PrivateKey::rand_gen(&rng1);
@@ -410,10 +414,10 @@ mod tests {
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);
 
-        thread_pool
+        test_executor
             .spawn(identity_server1.then(|_| future::ready(())))
             .unwrap();
-        thread_pool
+        test_executor
             .spawn(identity_server2.then(|_| future::ready(())))
             .unwrap();
 
@@ -430,7 +434,7 @@ mod tests {
             rng1.clone(),
             timer_client.clone(),
             ticks_to_rekey,
-            thread_pool.clone(),
+            test_executor.clone(),
         );
 
         let fut_sc2 = create_secure_channel(
@@ -441,20 +445,22 @@ mod tests {
             rng2.clone(),
             timer_client.clone(),
             ticks_to_rekey,
-            thread_pool.clone(),
+            test_executor.clone(),
         );
 
         let (output_sender1, output_receiver1) = oneshot::channel::<bool>();
         let (output_sender2, output_receiver2) = oneshot::channel::<bool>();
 
-        thread_pool
+        test_executor
             .spawn(secure_channel1(
                 fut_sc1,
                 tick_sender.clone(),
                 output_sender1,
+                test_executor.clone(),
             ))
             .unwrap();
-        thread_pool
+
+        test_executor
             .spawn(secure_channel2(
                 fut_sc2,
                 tick_sender.clone(),
@@ -462,7 +468,10 @@ mod tests {
             ))
             .unwrap();
 
-        assert_eq!(true, LocalPool::new().run_until(output_receiver1).unwrap());
-        assert_eq!(true, LocalPool::new().run_until(output_receiver2).unwrap());
+        assert_eq!(test_executor.run(output_receiver1).output(), Some(Ok(true)));
+        assert_eq!(test_executor.run(output_receiver2).output(), Some(Ok(true)));
+
+        // assert_eq!(true, LocalPool::new().run_until(output_receiver1).unwrap());
+        // assert_eq!(true, LocalPool::new().run_until(output_receiver2).unwrap());
     }
 }

@@ -222,6 +222,8 @@ mod tests {
     use futures::executor::{LocalPool, ThreadPool};
     use futures::task::{Spawn, SpawnExt};
     use futures::FutureExt;
+
+    use common::test_executor::TestExecutor;
     use timer::create_timer_incoming;
 
     /// Util function for tests
@@ -339,10 +341,10 @@ mod tests {
         LocalPool::new().run_until(task_keepalive_loop_basic(thread_pool.clone()));
     }
 
-    async fn task_keepalive_channel_basic(spawner: impl Spawn + Clone) {
+    async fn task_keepalive_channel_basic(test_executor: TestExecutor) {
         // Create a mock time service:
         let (mut tick_sender, tick_receiver) = mpsc::channel::<()>(0);
-        let mut timer_client = create_timer_incoming(tick_receiver, spawner.clone()).unwrap();
+        let mut timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
         let keepalive_ticks = 16;
 
@@ -361,7 +363,7 @@ mod tests {
             a_receiver,
             timer_stream,
             keepalive_ticks,
-            spawner.clone(),
+            test_executor.clone(),
         );
 
         let timer_stream = timer_client.request_timer_stream().await.unwrap();
@@ -370,7 +372,7 @@ mod tests {
             b_receiver,
             timer_stream,
             keepalive_ticks,
-            spawner.clone(),
+            test_executor.clone(),
         );
 
         a_sender.send(vec![1, 2, 3]).await.unwrap();
@@ -382,6 +384,7 @@ mod tests {
         // Move some time forward
         for _ in 0..(keepalive_ticks / 2) + 1 {
             tick_sender.send(()).await.unwrap();
+            test_executor.wait().await;
         }
 
         a_sender.send(vec![1, 2, 3]).await.unwrap();
@@ -393,7 +396,8 @@ mod tests {
 
     #[test]
     fn test_keepalive_channel_basic() {
-        let thread_pool = ThreadPool::new().unwrap();
-        LocalPool::new().run_until(task_keepalive_channel_basic(thread_pool.clone()));
+        let test_executor = TestExecutor::new();
+        let res = test_executor.run(task_keepalive_channel_basic(test_executor.clone()));
+        assert!(res.is_output());
     }
 }

@@ -22,7 +22,11 @@
 
 // #![deny(warnings)]
 #![allow(intra_doc_link_resolution_failure)]
-#![allow(clippy::too_many_arguments, clippy::implicit_hasher, clippy::module_inception)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::implicit_hasher,
+    clippy::module_inception
+)]
 // TODO: disallow clippy::too_many_arguments
 
 // use common::futures_compat::create_interval;
@@ -99,6 +103,12 @@ enum TimerEvent {
     RequestsDone,
 }
 
+// TODO: Possibly give to timer_loop as an argument?
+/// Size of queue for pending ticks for a single client.
+/// After `TICK_QUEUE_LEN` ticks, the timer will not be able to queue more ticks to a nonresponsive
+/// client.
+const TICK_QUEUE_LEN: usize = 8;
+
 async fn timer_loop<M>(
     incoming: M,
     from_client: mpsc::Receiver<TimerRequest>,
@@ -124,13 +134,21 @@ where
                 let mut temp_tick_senders = Vec::new();
                 temp_tick_senders.append(&mut tick_senders);
                 for mut tick_sender in temp_tick_senders {
-                    if let Ok(()) = tick_sender.send(TimerTick).await {
-                        tick_senders.push(tick_sender);
+                    match tick_sender.try_send(TimerTick) {
+                        Ok(()) => tick_senders.push(tick_sender),
+                        Err(e) => {
+                            // In case of error, we disconnect client
+                            if !e.is_disconnected() {
+                                // Error trying to send a tick to client.
+                                // Client might be too busy?
+                                error!("timer_loop(): try_send() error: {:?}", e);
+                            }
+                        }
                     }
                 }
             }
             TimerEvent::Request(timer_request) => {
-                let (tick_sender, tick_receiver) = mpsc::channel(0);
+                let (tick_sender, tick_receiver) = mpsc::channel(TICK_QUEUE_LEN);
                 tick_senders.push(tick_sender);
                 let _ = timer_request.response_sender.send(tick_receiver);
             }
