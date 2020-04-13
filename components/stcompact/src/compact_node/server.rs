@@ -11,7 +11,7 @@ use crate::compact_node::{
 use crate::compact_node::{server_init::compact_node_init, server_loop::compact_node_loop};
 
 pub async fn compact_node<CG>(
-    app_conn_tuple: AppConnTuple,
+    mut app_conn_tuple: AppConnTuple,
     mut conn_pair_compact: ConnPairCompact,
     mut compact_state: CompactState,
     mut database_client: DatabaseClient<CompactState>,
@@ -21,6 +21,7 @@ where
     CG: GenUid,
 {
     compact_node_init(
+        &mut app_conn_tuple,
         &mut conn_pair_compact,
         &mut compact_state,
         &mut database_client,
