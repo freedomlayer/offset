@@ -177,7 +177,7 @@ pub fn cancel_local_pending_transactions<B, R>(
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
 
     let token_channel = match &friend.channel_status {
-        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Inconsistent(_) => return,
         ChannelStatus::Consistent(channel_consistent) => &channel_consistent.token_channel,
     };
 
@@ -386,7 +386,7 @@ pub fn cancel_nonuser_pending_requests<B, R>(
 {
     let friend = m_state.state().friends.get(friend_public_key).unwrap();
     let channel_consistent = match &friend.channel_status {
-        ChannelStatus::Inconsistent(_) => unreachable!(),
+        ChannelStatus::Inconsistent(_) => return,
         ChannelStatus::Consistent(channel_consistent) => channel_consistent,
     };
     let mut channel_consistent = channel_consistent.clone();
