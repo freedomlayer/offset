@@ -328,11 +328,11 @@ where
 /// Basic verification to make sure node_name can be used as a filename.
 fn is_node_name_valid(node_name: &NodeName) -> bool {
     if node_name.as_str().is_empty()
-        || node_name.as_str().contains("\\")
-        || node_name.as_str().contains("/")
-        || node_name.as_str().contains(":")
-        || node_name.as_str().contains("$")
-        || node_name.as_str().contains(".")
+        || node_name.as_str().contains('\\')
+        || node_name.as_str().contains('/')
+        || node_name.as_str().contains(':')
+        || node_name.as_str().contains('$')
+        || node_name.as_str().contains('.')
     {
         false
     } else {
