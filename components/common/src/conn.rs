@@ -72,12 +72,13 @@ pub type ConnPairString = ConnPair<String, String>;
 /// This is useful because mpsc::Sender is cloneable.
 pub fn sink_to_sender<T>(
     mut sink: impl Sink<T> + Unpin + Send + 'static,
+    buffer: usize,
     spawner: &impl Spawn,
 ) -> mpsc::Sender<T>
 where
     T: Send + 'static,
 {
-    let (sender, receiver) = mpsc::channel(0);
+    let (sender, receiver) = mpsc::channel(buffer);
     spawner
         .spawn(async move {
             let _ = sink.send_all(&mut receiver.map(Ok)).await;

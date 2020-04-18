@@ -29,6 +29,9 @@ use crate::verifier::Verifier;
 pub type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 pub type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
 
+const SERVER_SENDER_BUFFER: usize = 0x20;
+const CLIENT_SENDER_BUFFER: usize = 0x20;
+
 impl LinearRate for Rate {
     /// Type used to count credits
     type K = u128;
@@ -566,7 +569,7 @@ where
                 };
 
                 let (sender, receiver) = server_conn.split();
-                let sender = sink_to_sender(sender, &spawner);
+                let sender = sink_to_sender(sender, SERVER_SENDER_BUFFER, &spawner);
 
                 remote_server.state = RemoteServerState::Connected(Connected::new(sender));
 
@@ -620,7 +623,7 @@ where
 
                 // Duplicate the client sender:
                 let (sender, receiver) = client_conn.split();
-                let sender = sink_to_sender(sender, &spawner);
+                let sender = sink_to_sender(sender, CLIENT_SENDER_BUFFER, &spawner);
                 // TODO: Possibly use channel redirection here:
                 let c_sender = sender.clone();
 

@@ -25,6 +25,8 @@ use proto::index_client::messages::{
     AppServerToIndexClient, IndexClientRequest, IndexClientToAppServer,
 };
 
+const APP_SENDER_BUFFER: usize = 0x20;
+
 pub type ConnPairServer<B> = ConnPair<AppServerToApp<B>, AppToAppServer<B>>;
 
 /*
@@ -213,7 +215,7 @@ where
             .spawn(send_all_fut)
             .map_err(|_| AppServerError::SpawnError)?;
 
-        let sender = sink_to_sender(sender, &self.spawner);
+        let sender = sink_to_sender(sender, APP_SENDER_BUFFER, &self.spawner);
         let app = App::new(app_permissions, sender);
 
         self.apps.insert(self.app_counter, app);
