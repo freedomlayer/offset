@@ -87,6 +87,7 @@ pub enum FileStoreError {
     NodeDoesNotExist,
     LoadIdentityError,
     LoadDbError,
+    InvalidNodeName,
 }
 
 impl StoreError for FileStoreError {
@@ -96,6 +97,7 @@ impl StoreError for FileStoreError {
             | FileStoreError::NodeIsLoaded
             | FileStoreError::NodeNotLoaded
             | FileStoreError::NodeDoesNotExist
+            | FileStoreError::InvalidNodeName
             | FileStoreError::RemoveNodeError => false,
             FileStoreError::SpawnError(_)
             | FileStoreError::LockError
@@ -319,6 +321,25 @@ where
     Ok(())
 }
 
+// TODO:
+// - Make checks more serious here, there might be a way around this
+// function's checks.
+// - Possibly encode node name in hex/base64 instead? In that case, how to deal with empty name?
+/// Basic verification to make sure node_name can be used as a filename.
+fn is_node_name_valid(node_name: &NodeName) -> bool {
+    if node_name.as_str().is_empty()
+        || node_name.as_str().contains("\\")
+        || node_name.as_str().contains("/")
+        || node_name.as_str().contains(":")
+        || node_name.as_str().contains("$")
+        || node_name.as_str().contains(".")
+    {
+        false
+    } else {
+        true
+    }
+}
+
 async fn create_local_node<FS>(
     node_name: NodeName,
     node_private_key: PrivateKey,
@@ -328,6 +349,10 @@ async fn create_local_node<FS>(
 where
     FS: Spawn,
 {
+    if !is_node_name_valid(&node_name) {
+        return Err(FileStoreError::InvalidNodeName);
+    }
+
     let node_path = store_path.join(LOCAL).join(&node_name.as_str());
 
     // Create node's dir. Should fail if the directory already exists:
@@ -388,6 +413,10 @@ async fn create_remote_node<FS>(
 where
     FS: Spawn,
 {
+    if !is_node_name_valid(&node_name) {
+        return Err(FileStoreError::InvalidNodeName);
+    }
+
     let node_path = store_path.join(REMOTE).join(&node_name.as_str());
 
     // Create node's dir. Should fail if the directory already exists:
