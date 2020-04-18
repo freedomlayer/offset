@@ -327,17 +327,12 @@ where
 // - Possibly encode node name in hex/base64 instead? In that case, how to deal with empty name?
 /// Basic verification to make sure node_name can be used as a filename.
 fn is_node_name_valid(node_name: &NodeName) -> bool {
-    if node_name.as_str().is_empty()
+    !(node_name.as_str().is_empty()
         || node_name.as_str().contains('\\')
         || node_name.as_str().contains('/')
         || node_name.as_str().contains(':')
         || node_name.as_str().contains('$')
-        || node_name.as_str().contains('.')
-    {
-        false
-    } else {
-        true
-    }
+        || node_name.as_str().contains('.'))
 }
 
 async fn create_local_node<FS>(
