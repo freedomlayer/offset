@@ -79,11 +79,10 @@ impl<T> Connected<T> {
     pub fn try_send(&mut self, t: T) -> Result<(), ServerLoopError> {
         if let Some(mut sender) = self.opt_sender.take() {
             if let Err(e) = sender.try_send(t) {
-                if e.is_full() {
-                    warn!("try_send() failed: {:?}", e);
-                    self.opt_sender = Some(sender);
+                warn!("try_send() failed: {:?}", e);
+                if !e.is_full() {
+                    return Err(ServerLoopError::RemoteSendError);
                 }
-                return Err(ServerLoopError::RemoteSendError);
             }
             self.opt_sender = Some(sender);
         }
