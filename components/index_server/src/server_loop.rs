@@ -29,6 +29,10 @@ use crate::verifier::Verifier;
 pub type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 pub type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
 
+// TODO: Find a more scalable solution to the EVENT_BUFFER issue.
+// It might be true that a deadlock could happen to the event buffer
+// in case where there are too many messages from other index servers?
+const EVENT_BUFFER: usize = 0x100;
 const SERVER_SENDER_BUFFER: usize = 0x20;
 const CLIENT_SENDER_BUFFER: usize = 0x20;
 
@@ -139,6 +143,7 @@ enum IndexServerEvent {
     ClientClosed(PublicKey),
     ClientMutationsUpdate(MutationsUpdate),
     TimerTick,
+    TimerClosed,
     ClientListenerClosed,
     ServerListenerClosed,
 }
@@ -500,7 +505,7 @@ where
     // ticks to all servers). For example, every 16 incoming ticks will translate into one hash
     // tick.
 
-    let (event_sender, event_receiver) = mpsc::channel(0);
+    let (event_sender, event_receiver) = mpsc::channel(EVENT_BUFFER);
 
     let mut index_server = IndexServer::new(
         local_public_key,
@@ -534,7 +539,9 @@ where
             IndexServerEvent::ClientListenerClosed,
         )));
 
-    let timer_stream = timer_stream.map(|_| IndexServerEvent::TimerTick);
+    let timer_stream = timer_stream
+        .map(|_| IndexServerEvent::TimerTick)
+        .chain(stream::once(future::ready(IndexServerEvent::TimerClosed)));
 
     let mut events = select_streams![
         event_receiver,
@@ -586,6 +593,10 @@ where
                 index_server
                     .spawner
                     .spawn(async move {
+                        // TODO: Possibly send to a different sender (Instead of into event_sender)
+                        // to avoid possible deadlock.
+                        // TODO: Are there any other servers/services with this issue? Check all
+                        // other services with the event_sender pattern.
                         let _ = c_event_sender.send_all(&mut receiver.map(Ok)).await;
                     })
                     .map_err(|_| ServerLoopError::SpawnError)?;
@@ -667,6 +678,10 @@ where
                 }
             }
             IndexServerEvent::TimerTick => index_server.handle_timer_tick().await?,
+            IndexServerEvent::TimerClosed => {
+                warn!("server_loop() timer closed!");
+                break;
+            }
             IndexServerEvent::ClientListenerClosed => {
                 warn!("server_loop() client listener closed!");
                 break;
