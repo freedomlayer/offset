@@ -29,6 +29,10 @@ use crate::verifier::Verifier;
 pub type ServerConn = ConnPair<IndexServerToServer, IndexServerToServer>;
 pub type ClientConn = ConnPair<IndexServerToClient, IndexClientToServer>;
 
+// TODO: Find a more scalable solution to the EVENT_BUFFER issue.
+// It might be true that a deadlock could happen to the event buffer
+// in case where there are too many messages from other index servers?
+const EVENT_BUFFER: usize = 0x100;
 const SERVER_SENDER_BUFFER: usize = 0x20;
 const CLIENT_SENDER_BUFFER: usize = 0x20;
 
@@ -501,7 +505,7 @@ where
     // ticks to all servers). For example, every 16 incoming ticks will translate into one hash
     // tick.
 
-    let (event_sender, event_receiver) = mpsc::channel(0);
+    let (event_sender, event_receiver) = mpsc::channel(EVENT_BUFFER);
 
     let mut index_server = IndexServer::new(
         local_public_key,
