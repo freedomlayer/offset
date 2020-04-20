@@ -139,6 +139,7 @@ enum IndexServerEvent {
     ClientClosed(PublicKey),
     ClientMutationsUpdate(MutationsUpdate),
     TimerTick,
+    TimerClosed,
     ClientListenerClosed,
     ServerListenerClosed,
 }
@@ -534,7 +535,9 @@ where
             IndexServerEvent::ClientListenerClosed,
         )));
 
-    let timer_stream = timer_stream.map(|_| IndexServerEvent::TimerTick);
+    let timer_stream = timer_stream
+        .map(|_| IndexServerEvent::TimerTick)
+        .chain(stream::once(future::ready(IndexServerEvent::TimerClosed)));
 
     let mut events = select_streams![
         event_receiver,
@@ -667,6 +670,10 @@ where
                 }
             }
             IndexServerEvent::TimerTick => index_server.handle_timer_tick().await?,
+            IndexServerEvent::TimerClosed => {
+                warn!("server_loop() timer closed!");
+                break;
+            }
             IndexServerEvent::ClientListenerClosed => {
                 warn!("server_loop() client listener closed!");
                 break;
