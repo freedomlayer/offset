@@ -593,6 +593,10 @@ where
                 index_server
                     .spawner
                     .spawn(async move {
+                        // TODO: Possibly send to a different sender (Instead of into event_sender)
+                        // to avoid possible deadlock.
+                        // TODO: Are there any other servers/services with this issue? Check all
+                        // other services with the event_sender pattern.
                         let _ = c_event_sender.send_all(&mut receiver.map(Ok)).await;
                     })
                     .map_err(|_| ServerLoopError::SpawnError)?;
