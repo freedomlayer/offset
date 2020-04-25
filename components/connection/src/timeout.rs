@@ -32,7 +32,11 @@ where
 
     fn transform(&mut self, input: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
-            let timer_stream = match self.timer_client.request_timer_stream().await {
+            let timer_stream = match self
+                .timer_client
+                .request_timer_stream("TimeoutFutTransform::transform".to_owned())
+                .await
+            {
                 Ok(timer_stream) => timer_stream,
                 Err(e) => {
                     error!("TimeoutTransform: request_timer_stream() error: {:?}", e);

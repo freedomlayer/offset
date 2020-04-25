@@ -146,7 +146,7 @@ where
     S: Stream<Item = IncomingConn> + Unpin + Send,
 {
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("relay_server_loop".to_owned())
         .await
         .map_err(|_| RelayServerError::RequestTimerStreamError)?;
     let timer_stream = timer_stream

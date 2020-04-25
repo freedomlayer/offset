@@ -20,16 +20,9 @@
 //! [futures]: https://github.com/alexcrichton/futures
 //! [futures-timer]: https://github.com/alexcrichton/futures-timer
 
-// #![deny(warnings)]
 #![allow(intra_doc_link_resolution_failure)]
-#![allow(
-    clippy::too_many_arguments,
-    clippy::implicit_hasher,
-    clippy::module_inception
-)]
-// TODO: disallow clippy::too_many_arguments
+#![allow(clippy::implicit_hasher, clippy::module_inception)]
 
-// use common::futures_compat::create_interval;
 use common::conn::BoxStream;
 use common::select_streams::select_streams;
 
@@ -59,12 +52,14 @@ pub enum TimerClientError {
 }
 
 struct TimerRequest {
+    /// Name of requesting task, used for debugging purposes
+    task_name: String,
     response_sender: oneshot::Sender<mpsc::Receiver<TimerTick>>,
 }
 
 impl std::fmt::Debug for TimerRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "TimerRequest")
+        write!(f, "TimerRequest{{task_name: {}}}", self.task_name)
     }
 }
 
@@ -80,9 +75,13 @@ impl TimerClient {
 
     pub async fn request_timer_stream(
         &mut self,
+        task_name: String,
     ) -> Result<mpsc::Receiver<TimerTick>, TimerClientError> {
         let (response_sender, response_receiver) = oneshot::channel();
-        let timer_request = TimerRequest { response_sender };
+        let timer_request = TimerRequest {
+            task_name,
+            response_sender,
+        };
         self.sender
             .send(timer_request)
             .await
@@ -109,6 +108,12 @@ enum TimerEvent {
 /// client.
 const TICK_QUEUE_LEN: usize = 8;
 
+#[derive(Debug)]
+struct ClientEntry {
+    task_name: String,
+    sender: mpsc::Sender<TimerTick>,
+}
+
 async fn timer_loop<M>(
     incoming: M,
     from_client: mpsc::Receiver<TimerRequest>,
@@ -125,23 +130,27 @@ where
 
     // TODO: What happens if one of the two streams (incoming, from_client) is closed?
     let mut events = select_streams![incoming, from_client];
-    let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
+    // let mut tick_senders: Vec<mpsc::Sender<TimerTick>> = Vec::new();
+    let mut client_entries: Vec<ClientEntry> = Vec::new();
     let mut requests_done = false;
 
     while let Some(event) = events.next().await {
         match event {
             TimerEvent::Incoming => {
-                let mut temp_tick_senders = Vec::new();
-                temp_tick_senders.append(&mut tick_senders);
-                for mut tick_sender in temp_tick_senders {
-                    match tick_sender.try_send(TimerTick) {
-                        Ok(()) => tick_senders.push(tick_sender),
+                let mut temp_client_entries = Vec::new();
+                temp_client_entries.append(&mut client_entries);
+                for mut client_entry in temp_client_entries {
+                    match client_entry.sender.try_send(TimerTick) {
+                        Ok(()) => client_entries.push(client_entry),
                         Err(e) => {
                             // In case of error, we disconnect client
                             if !e.is_disconnected() {
                                 // Error trying to send a tick to client.
                                 // Client might be too busy?
-                                error!("timer_loop(): try_send() error: {:?}", e);
+                                error!(
+                                    "timer_loop(): try_send() error. task_name: {}, error: {:?}",
+                                    client_entry.task_name, e
+                                );
                             }
                         }
                     }
@@ -149,7 +158,10 @@ where
             }
             TimerEvent::Request(timer_request) => {
                 let (tick_sender, tick_receiver) = mpsc::channel(TICK_QUEUE_LEN);
-                tick_senders.push(tick_sender);
+                client_entries.push(ClientEntry {
+                    task_name: timer_request.task_name,
+                    sender: tick_sender,
+                });
                 let _ = timer_request.response_sender.send(tick_receiver);
             }
             TimerEvent::IncomingDone => {
@@ -159,7 +171,7 @@ where
                 requests_done = true;
             }
         };
-        if requests_done && tick_senders.is_empty() {
+        if requests_done && client_entries.is_empty() {
             break;
         }
     }
@@ -225,7 +237,11 @@ mod tests {
         let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
         let timer_stream = LocalPool::new()
-            .run_until(timer_client.clone().request_timer_stream())
+            .run_until(
+                timer_client
+                    .clone()
+                    .request_timer_stream("test_timer_single".to_owned()),
+            )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
         LocalPool::new().run_until(wait_fut);
@@ -239,13 +255,21 @@ mod tests {
         let timer_client = create_timer(dur, thread_pool.clone()).unwrap();
 
         let timer_stream = LocalPool::new()
-            .run_until(timer_client.clone().request_timer_stream())
+            .run_until(
+                timer_client
+                    .clone()
+                    .request_timer_stream("test_timer_twice_0".to_owned()),
+            )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
         LocalPool::new().run_until(wait_fut);
 
         let timer_stream = LocalPool::new()
-            .run_until(timer_client.clone().request_timer_stream())
+            .run_until(
+                timer_client
+                    .clone()
+                    .request_timer_stream("test_timer_twice_1".to_owned()),
+            )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
         LocalPool::new().run_until(wait_fut);
@@ -262,7 +286,11 @@ mod tests {
         let mut timer_streams = Vec::new();
         for _ in 0..10 {
             let timer_stream = LocalPool::new()
-                .run_until(timer_client.clone().request_timer_stream())
+                .run_until(
+                    timer_client
+                        .clone()
+                        .request_timer_stream("test_timer_create_multiple_streams".to_owned()),
+                )
                 .unwrap();
             timer_streams.push(timer_stream);
         }
@@ -302,7 +330,11 @@ mod tests {
         for _ in 0..TIMER_CLIENT_NUM {
             let sender = senders.pop().unwrap();
             let new_client = LocalPool::new()
-                .run_until(timer_client.clone().request_timer_stream())
+                .run_until(
+                    timer_client
+                        .clone()
+                        .request_timer_stream("test_timer_multiple".to_owned()),
+                )
                 .unwrap();
             let client_wait = new_client.take(TICKS as usize).collect::<Vec<TimerTick>>();
             let client_fut = client_wait.map(move |_| {
@@ -347,7 +379,10 @@ mod tests {
     where
         S: Sink<(), Error = ()> + std::marker::Unpin + 'static,
     {
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_ticks_receiver".to_owned())
+            .await
+            .unwrap();
         let mut timer_stream = timer_stream.map(|_| CustomTick);
         for _ in 0..8usize {
             tick_sender.send(()).await.unwrap();
@@ -381,7 +416,10 @@ mod tests {
         let (mut tick_sender_receiver, mut timer_client) = dummy_timer_multi_sender(spawner);
 
         let timer_stream_fut = async {
-            let mut timer_stream = timer_client.request_timer_stream().await.unwrap();
+            let mut timer_stream = timer_client
+                .request_timer_stream("task_dummy_timer_multi_sender".to_owned())
+                .await
+                .unwrap();
             for _ in 0..16usize {
                 assert_eq!(timer_stream.next().await, Some(TimerTick));
             }

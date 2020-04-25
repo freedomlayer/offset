@@ -393,7 +393,9 @@ where
         }
 
         let loop_fut = async move {
-            let res_timer_stream = c_timer_client.request_timer_stream().await;
+            let res_timer_stream = c_timer_client
+                .request_timer_stream("PoolListener::listen".to_owned())
+                .await;
             let timer_stream = match res_timer_stream {
                 Ok(timer_stream) => timer_stream,
                 Err(_) => {
@@ -444,7 +446,10 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_listen_pool_loop_set_local_addresses".to_owned())
+            .await
+            .unwrap();
         let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
@@ -543,7 +548,10 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_listen_pool_loop_backoff_ticks".to_owned())
+            .await
+            .unwrap();
         let mut tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(0);
@@ -612,7 +620,10 @@ mod tests {
             dummy_timer_multi_sender(spawner.clone());
         let backoff_ticks = 2;
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_listen_pool_loop_update_remove_friend".to_owned())
+            .await
+            .unwrap();
         let _tick_sender = tick_sender_receiver.next().await.unwrap();
 
         let (mut config_sender, incoming_config) = mpsc::channel(1);

@@ -1279,7 +1279,7 @@ where
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("inner_server_loop".to_owned())
         .await
         .map_err(|_| ServerError::CreateTimerError)?
         .map(|_| ServerEvent::TimerTick)

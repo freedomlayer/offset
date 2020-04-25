@@ -114,7 +114,7 @@ where
     CS: Sink<(PublicKey, ConnPairVec), Error = CSE> + Unpin + 'static,
 {
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("accept_connection".to_owned())
         .await
         .map_err(|_| AcceptConnectionError::RequestTimerStreamError)?;
     let opt_conn_pair = connect_with_timeout(connector, conn_timeout_ticks, timer_stream).await;

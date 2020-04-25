@@ -19,11 +19,6 @@ use proto::index_client::messages::{
 };
 
 use proto::index_server::messages::{IndexClientToServer, IndexServerAddress, IndexServerToClient};
-/*
-use proto::index_server::serialize::{
-    deserialize_index_server_to_client, serialize_index_client_to_server,
-};
-*/
 
 use crate::client_session::IndexClientSession;
 use crate::index_client::{
@@ -138,7 +133,7 @@ where
     S: Spawn + Clone + Send + 'static,
 {
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("spawn_index_client".to_owned())
         .await
         .map_err(|_| SpawnIndexClientError::RequestTimerStreamError)?;
 

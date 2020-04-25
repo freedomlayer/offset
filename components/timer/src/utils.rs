@@ -15,7 +15,7 @@ pub async fn sleep_ticks(
     mut timer_client: TimerClient,
 ) -> Result<(), SleepTicksError> {
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("sleep_ticks".to_owned())
         .await
         .map_err(|_| SleepTicksError::RequestTimerStreamError)?;
     let fut = timer_stream.take(ticks).for_each(|_| future::ready(()));
@@ -61,7 +61,10 @@ mod tests {
         let mut timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
         let (sender, receiver) = oneshot::channel::<()>();
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_future_timeout_on_time".to_owned())
+            .await
+            .unwrap();
         let receiver = receiver.map(|res| res.unwrap());
         let timeout_fut = test_executor
             .spawn_with_handle(future_timeout(receiver, timer_stream, 8))

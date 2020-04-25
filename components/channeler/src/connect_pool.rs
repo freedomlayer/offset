@@ -500,7 +500,11 @@ where
     fn transform(&mut self, friend_public_key: Self::Input) -> BoxFuture<'_, Self::Output> {
         Box::pin(async move {
             // TODO: Should we keep the unwrap()-s here?
-            let timer_stream = self.timer_client.request_timer_stream().await.unwrap();
+            let timer_stream = self
+                .timer_client
+                .request_timer_stream("PoolConnector::transform".to_owned())
+                .await
+                .unwrap();
             create_connect_pool(
                 timer_stream,
                 self.encrypt_transform.clone(),
@@ -672,7 +676,10 @@ mod tests {
             Box::pin(future::ready(Some(conn_pair)))
         });
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_pool_connector_backoff_ticks".to_owned())
+            .await
+            .unwrap();
         let mut tick_sender = tick_sender_receiver.next().await.unwrap();
 
         // Used for debugging the loop:
