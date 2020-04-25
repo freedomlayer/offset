@@ -2,6 +2,9 @@
 *_capnp.rs
 target/
 
+## Sphinx documentation build
+doc/docs/build
+
 ## IntelliJ IDEA
 *.iml
 *.ipr
