@@ -174,7 +174,11 @@ where
         let (user_sender, from_user) = mpsc::channel::<Vec<u8>>(1);
 
         Box::pin(async move {
-            if let Ok(timer_stream) = self.timer_client.request_timer_stream().await {
+            if let Ok(timer_stream) = self
+                .timer_client
+                .request_timer_stream("transform_keepalive".to_owned())
+                .await
+            {
                 let keepalive_fut = inner_keepalive_loop(
                     to_remote,
                     from_remote,
@@ -274,7 +278,10 @@ mod tests {
         let (to_user, mut user_receiver) = mpsc::channel::<Vec<u8>>(0);
         let (mut user_sender, from_user) = mpsc::channel::<Vec<u8>>(0);
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_keepalive_loop_basic".to_owned())
+            .await
+            .unwrap();
         let keepalive_ticks = 16;
         let fut_keepalive_loop = inner_keepalive_loop(
             to_remote,
@@ -357,7 +364,10 @@ mod tests {
         let (a_sender, b_receiver) = mpsc::channel(1);
         let (b_sender, a_receiver) = mpsc::channel(1);
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_keepalive_channel_basic_0".to_owned())
+            .await
+            .unwrap();
         let (mut a_sender, mut a_receiver) = keepalive_channel(
             a_sender,
             a_receiver,
@@ -366,7 +376,10 @@ mod tests {
             test_executor.clone(),
         );
 
-        let timer_stream = timer_client.request_timer_stream().await.unwrap();
+        let timer_stream = timer_client
+            .request_timer_stream("task_keepalive_channel_basic_1".to_owned())
+            .await
+            .unwrap();
         let (mut b_sender, mut b_receiver) = keepalive_channel(
             b_sender,
             b_receiver,

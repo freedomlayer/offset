@@ -122,7 +122,7 @@ where
     // Is there a way to do it?
 
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("secure_channel_loop".to_owned())
         .await
         .map_err(|_| SecureChannelError::RequestTimerStreamError)?;
     let timer_stream = timer_stream

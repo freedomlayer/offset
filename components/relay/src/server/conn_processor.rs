@@ -75,7 +75,10 @@ async fn process_conn(
         }
     });
 
-    let timer_stream = timer_client.request_timer_stream().await.unwrap();
+    let timer_stream = timer_client
+        .request_timer_stream("process_conn".to_owned())
+        .await
+        .unwrap();
     let res = future_timeout(fut_receiver, timer_stream, conn_timeout_ticks).await?;
     if res.is_none() {
         warn!("process_conn(): timeout occurred");

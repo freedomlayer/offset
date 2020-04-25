@@ -61,7 +61,7 @@ where
     .map_err(|_| IndexServerError::CreateGraphServiceError)?;
 
     let timer_stream = timer_client
-        .request_timer_stream()
+        .request_timer_stream("index_server".to_owned())
         .await
         .map_err(|_| IndexServerError::RequestTimerStreamError)?;
 
