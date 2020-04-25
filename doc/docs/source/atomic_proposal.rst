@@ -689,7 +689,7 @@ Buyer and the Seller use this implementation.
 Buyer interface
 ~~~~~~~~~~~~~~~
 
-.. code:: markdown
+.. code:: text
 
     CreatePayment [App -> Node]
     =============
@@ -750,7 +750,7 @@ After a while:
 Seller interface
 ~~~~~~~~~~~~~~~~
 
-.. code:: markdown
+.. code:: text
 
     AddInvoice [App -> Node]
     ===========
