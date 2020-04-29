@@ -10,6 +10,7 @@ payments efficiently and safely.
 
    offset_idea
    economic
+   inflation
    tutorial
    theory
    network

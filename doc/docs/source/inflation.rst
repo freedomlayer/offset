@@ -1,0 +1,2 @@
+Inflation resistence
+====================
