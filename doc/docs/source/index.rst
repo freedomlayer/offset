@@ -8,6 +8,7 @@ payments efficiently and safely.
    :maxdepth: 2
    :caption: Contents:
 
+   offset_idea
    tutorial
    theory
    network
