@@ -9,6 +9,7 @@ payments efficiently and safely.
    :caption: Contents:
 
    offset_idea
+   economic
    tutorial
    theory
    network
