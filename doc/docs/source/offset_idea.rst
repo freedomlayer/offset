@@ -1,10 +1,5 @@
 The Offset idea
 ===============
-..
-   Important points to convey:
-   - What is offset in a very short sentence.
-   - What can I do with Offset?
-   - How is offset different from other known things (Credit cards, banks, bitcoin)
 
 What is Offset?
 ----------------
@@ -26,10 +21,6 @@ only one having control over those credits.
 This means, for example, that you can open as many Offset cards as you like
 without having to pay any fees. It also means that no one can track your
 transactions [3]_ or freeze your account.
-
-
-
-
 
 .. [1] Licensed under the AGPL license
 .. [2] Or your desktop computer. In fact, you can even run your Offset card at your favourite cloud provider.
