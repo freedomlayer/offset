@@ -215,7 +215,8 @@ Earlier we described how Bob can buy from Daniel, through a route along Charli.
 With Offset, Charli's phone (or computer) will mediate the transaction
 automatically, without any human intervention. In some cases Charli might
 decide to collect fees for mediating the transaction. This could be to mitigate
-risk, or due to expenses of running an Offset instance [6]_.
+risk, or for example, due to expenses of running an Offset card in the cloud.
+The default value for fees in Offset is ``0``.
 
 Offset allows setting up fee in the form of ``a% + b``, where ``a`` is the amount
 of percents taken from the transaction, and ``b`` is a constant amount. For
@@ -248,9 +249,6 @@ fees.
    that one party trusts the other party more than the other way around. In
    might also be true that certain businesses might have different turnover,
    and therefore might need different amount of credit to operate.
-.. [6] 
-   For example, if Charli is an organization running an Offset cloud
-   instance.
 
 .. _`interest rate`: https://en.wikipedia.org/wiki/Interest_rate
 .. _barter: https://en.wikipedia.org/wiki/Barter
