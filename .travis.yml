@@ -139,19 +139,6 @@ jobs:
     script:
       - cargo build --target ${TARGET}
 
-  - name: Documentation
-    language: python
-    python: 3.8
-    os: linux
-    dist: bionic
-    install:
-    - pip install -r doc/requirements.txt
-    script:
-    - cd doc/docs
-    # See: https://coderwall.com/p/wws2uq/have-travis-ci-test-your-sphinx-docs
-    - sphinx-build -nW -b html source build
-    - cd -
-
 before_deploy: ci/before_deploy.sh
 deploy:
   provider: releases

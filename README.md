@@ -2,7 +2,6 @@
 
 [![Build Status](https://travis-ci.com/freedomlayer/offset.svg?branch=master)](https://travis-ci.com/freedomlayer/offset)
 [![codecov](https://codecov.io/gh/freedomlayer/offset/branch/master/graph/badge.svg)](https://codecov.io/gh/freedomlayer/offset)
-[![Documentation Status](https://readthedocs.org/projects/offset/badge/?version=latest)](https://offset.readthedocs.io/en/latest/?badge=latest)
 
 **Offset** is a decentralized payment system, allowing to pay and process
 payments efficiently and safely.
