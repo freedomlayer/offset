@@ -126,6 +126,7 @@ struct NamedIndexServerAddress {
 # A single commit, commiting to a transaction along a certain route.
 struct Commit {
         responseHash @0: HashResult;
+        # = sha512/256(requestId || randNonce)
         srcPlainLock @1: PlainLock;
         destHashedLock @2: HashedLock;
         destPayment @3: CustomUInt128;
@@ -142,7 +143,7 @@ struct Commit {
         #   destPayment ||
         #   totalDestPayment ||
         #   invoiceId ||
-        #   currency [Implicitly known by the mutual credit]
+        #   currency
         # )
 }
 
