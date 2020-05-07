@@ -17,7 +17,7 @@ mk_tarball() {
         local tmpdir="$(mktemp -d)"
         local name="${PROJECT_NAME}-${TRAVIS_TAG}-${TARGET}"
         local staging="$tmpdir/$name"
-        mkdir -p "$staging"/{bin,doc}
+        mkdir -p "$staging"/bin
         # The deployment directory is where the final archive will reside.
         # This path is known by the .travis.yml configuration.
         local out_dir="$HOME/deployment"
@@ -41,9 +41,6 @@ mk_tarball() {
 
         # Copy all licenses:
         cp LICENSE-* "$staging/"
-
-        # Copy mkdocs documentation:
-        cp -R "doc/." "$staging/doc/"
 
         # TODO: Copy man pages?
         # TODO: Copy shell completion files.
