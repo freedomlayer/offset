@@ -3,9 +3,6 @@
 [![Build Status](https://travis-ci.com/freedomlayer/offset.svg?branch=master)](https://travis-ci.com/freedomlayer/offset)
 [![codecov](https://codecov.io/gh/freedomlayer/offset/branch/master/graph/badge.svg)](https://codecov.io/gh/freedomlayer/offset)
 
-**Offset** is a decentralized payment system, allowing to pay and process
-payments efficiently and safely.
-
 **Offset** is a credit card powered by trust between people. 
 
 Warning: Offset is still a work in progress, and is not yet ready for use in
