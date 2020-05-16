@@ -6,11 +6,14 @@
 **Offset** is a decentralized payment system, allowing to pay and process
 payments efficiently and safely.
 
-Warning: Offset is still a work in progress, and is not yet ready for use in production.
+**Offset** is a credit card powered by trust between people. 
+
+Warning: Offset is still a work in progress, and is not yet ready for use in
+production.
 
 ## Info
 
-- [Documentation](https://offset.readthedocs.io/en/latest/?badge=latest)
+- [Documentation](https://docs.offsetcredit.org)
 - [Blog](https://www.freedomlayer.org/offset/)
 
 ## License
