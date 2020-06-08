@@ -39,7 +39,7 @@ the crate's `Cargo.toml`.
 - Install [Rust](https://www.rust-lang.org/tools/install).
 - Install [capnproto](https://capnproto.org):
   - On Ubuntu, run: `sudo apt install capnproto`
-  - On MacOS, run: `brew install canpnp` 
+  - On macOS, run: `brew install canpnp` 
 
 ### Rust toolchain version
 
