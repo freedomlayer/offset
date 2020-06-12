@@ -13,8 +13,6 @@ extern crate offset_capnp_conv_derive as capnp_conv_derive;
 
 use std::io;
 
-use capnp;
-
 use derive_more::From;
 
 pub use capnp_conv_derive::capnp_conv;

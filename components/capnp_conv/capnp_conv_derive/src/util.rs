@@ -1,6 +1,3 @@
-// use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Index};
-use syn;
-
 use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
