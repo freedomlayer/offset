@@ -5,7 +5,8 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use futures::executor::{block_on, ThreadPool};
+use async_std::task;
+use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
@@ -149,7 +150,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         thread_pool,
     );
 
-    block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;
+    task::block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;
 
     Ok(())
 }
