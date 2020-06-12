@@ -14,6 +14,8 @@ proto = { path = "../proto", version = "0.1.0", package = "offset-proto" }
 ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
 untrusted = "0.6"
 
+sha2 = "0.9.0"
+
 serde = {version = "1.0.104", features = ["derive"]}
 bytes = "0.5.4"
 base64 = "0.9"
