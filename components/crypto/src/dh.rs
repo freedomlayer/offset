@@ -1,8 +1,13 @@
+/*
 use ring::agreement::{self, EphemeralPrivateKey};
 use ring::digest;
 use ring::hkdf::extract_and_expand;
 use ring::hmac::SigningKey;
 use ring::rand::SecureRandom;
+*/
+
+use x25519_dalek::EphemeralSecret;
+use x25519_dalek::PublicKey;
 
 use proto::crypto::{DhPublicKey, Salt};
 
