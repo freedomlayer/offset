@@ -1,6 +1,8 @@
-use ring::digest::{digest, SHA512_256};
+use sha2::{Digest, Sha512Trunc256};
 
 use proto::crypto::{HashedLock, PlainLock};
+
+use crate::hash::sha_512_256;
 
 pub trait HashLock {
     /// Lock the plain hash
@@ -8,11 +10,15 @@ pub trait HashLock {
 }
 
 impl HashLock for PlainLock {
-    // TODO: Use bcrypt instead here (As suggested by @spolu)
+    // TODO: Use bcrypt instead here? (As suggested by @spolu)
     fn hash_lock(&self) -> HashedLock {
         let mut hashed_lock = HashedLock::default();
         let inner = &mut hashed_lock;
-        let digest_res = digest(&SHA512_256, &self);
+
+        let mut hasher = Sha512Trunc256::new();
+        hasher.update(&self);
+        let digest_res = hasher.finalize();
+
         inner.copy_from_slice(digest_res.as_ref());
         hashed_lock
     }
