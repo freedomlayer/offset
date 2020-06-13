@@ -14,10 +14,6 @@ const ENC_NONCE_LEN: usize = 12;
 
 define_fixed_bytes!(SymmetricKey, SYMMETRIC_KEY_LEN);
 
-/*
-
-TODO:
-
 #[derive(Clone)]
 pub struct EncryptNonce(pub [u8; ENC_NONCE_LEN]);
 
@@ -63,6 +59,7 @@ impl Default for EncryptNonceCounter {
         Self::new()
     }
 }
+/*
 
 /// A structure used for encrypting messages with a given symmetric key.
 /// Maintains internal state of an increasing nonce counter.
