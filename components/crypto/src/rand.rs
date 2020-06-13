@@ -173,15 +173,6 @@ impl RandGen for PaymentId {
 
 /*
  * TODO:
-impl RandGen for PrivateKey {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
-        PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(crypt_rng).unwrap())
-    }
-}
-*/
-
-/*
- * TODO:
  *
 #[cfg(test)]
 mod tests {
