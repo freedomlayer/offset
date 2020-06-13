@@ -14,6 +14,10 @@ const ENC_NONCE_LEN: usize = 12;
 
 define_fixed_bytes!(SymmetricKey, SYMMETRIC_KEY_LEN);
 
+/*
+
+TODO:
+
 #[derive(Clone)]
 pub struct EncryptNonce(pub [u8; ENC_NONCE_LEN]);
 
@@ -174,3 +178,4 @@ mod tests {
         assert_eq!(plain_msg, &decrypted_msg[..]);
     }
 }
+*/
