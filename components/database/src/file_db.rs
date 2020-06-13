@@ -8,8 +8,6 @@ use std::fs::File;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use atomicwrites;
-
 use crate::atomic_db::AtomicDb;
 use common::mutable_state::MutableState;
 

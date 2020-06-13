@@ -12,7 +12,8 @@ extern crate log;
 
 use structopt::StructOpt;
 
-use futures::executor::{block_on, ThreadPool};
+use async_std::task;
+use futures::executor::ThreadPool;
 
 use stcompact::stcompactlib::{stcompact, StCompactCmd, StCompactError};
 
@@ -21,7 +22,7 @@ fn run() -> Result<(), StCompactError> {
     let st_compact_cmd = StCompactCmd::from_args();
     let thread_pool = ThreadPool::new().map_err(|_| StCompactError::SpawnError)?;
     let file_thread_pool = ThreadPool::new().map_err(|_| StCompactError::SpawnError)?;
-    block_on(stcompact(st_compact_cmd, thread_pool, file_thread_pool))
+    task::block_on(stcompact(st_compact_cmd, thread_pool, file_thread_pool))
 }
 
 fn main() {

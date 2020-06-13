@@ -7,9 +7,11 @@ use std::time::Duration;
 use derive_more::From;
 
 use futures::channel::mpsc;
-use futures::executor::{block_on, ThreadPool};
+use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
 use futures::{FutureExt, TryFutureExt};
+
+use async_std::task;
 
 use structopt::StructOpt;
 
@@ -203,5 +205,5 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         thread_pool,
     );
 
-    block_on(node_fut).map_err(NodeBinError::NetNodeError)
+    task::block_on(node_fut).map_err(NodeBinError::NetNodeError)
 }

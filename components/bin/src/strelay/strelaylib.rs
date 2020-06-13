@@ -5,8 +5,10 @@ use std::time::Duration;
 
 use derive_more::From;
 
-use futures::executor::{block_on, ThreadPool};
+use futures::executor::ThreadPool;
 use futures::task::SpawnExt;
+
+use async_std::task;
 
 use structopt::StructOpt;
 
@@ -93,5 +95,5 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         thread_pool,
     );
 
-    block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)
+    task::block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)
 }

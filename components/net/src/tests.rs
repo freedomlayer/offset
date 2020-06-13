@@ -3,19 +3,18 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use futures::channel::mpsc;
-use futures::executor::{block_on, ThreadPool};
+use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
 use common::conn::{ConnPairVec, FutTransform, Listener};
 use proto::net::messages::NetAddress;
 
-// use crate::net_connector::NetConnector;
 use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
 use async_std::net::TcpListener as AsyncStdTcpListener;
-use async_std::task::sleep;
+use async_std::task;
 
 /// Get an available port we can listen on
 async fn get_available_port_v4() -> u16 {
@@ -38,7 +37,7 @@ where
     // This is done to make tests more stable. It seems like sometimes listening will not work,
     // possibly because timing issues with vacant local ports.
     for _ in 0..10usize {
-        let available_port = get_available_port_v4().await;
+        let available_port = dbg!(get_available_port_v4().await);
         let loopback = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
         let net_address = NetAddress::try_from(format!("127.0.0.1:{}", available_port)).unwrap();
@@ -48,11 +47,13 @@ where
 
         let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
 
+        dbg!("try to connect1");
         // TODO: This is a hack to overcome the fact the listen() is not async, and we might try to
         // connect before the port was bound (This happens when we run this test with kcov)
         // Possibly fix listen() in the future.
-        sleep(Duration::from_millis(200)).await;
+        task::sleep(Duration::from_millis(200)).await;
 
+        dbg!("try to connect2");
         // Try to connect:
         if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
             // Free connection from the other side:
@@ -62,7 +63,7 @@ where
             // If we get here, it probably means that we connected to some other server.
             // In that case we need to close the connection iterate again.
         }
-        sleep(Duration::from_millis(100)).await;
+        task::sleep(Duration::from_millis(100)).await;
     }
     // Give up after a certain amount of attempts:
     unreachable!();
@@ -74,12 +75,14 @@ where
 {
     let (mut tcp_connector, mut incoming_connections, net_address) =
         get_conn(spawner.clone()).await;
+
     for _ in 0..5usize {
         let (mut client_sender, mut client_receiver) = tcp_connector
             .transform(net_address.clone())
             .await
             .unwrap()
             .split();
+
         let (mut server_sender, mut server_receiver) =
             incoming_connections.next().await.unwrap().split();
 
@@ -95,7 +98,10 @@ where
 fn test_tcp_client_server_v4() {
     // env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
-    block_on(task_tcp_client_server_v4(thread_pool.clone()));
+    // TODO: We have to use `task::block_on` here, otherwise the sleep() calls don't work.
+    // When we remove the sleep() calls, we will be able to remove the task::block_on and use
+    // `futures` block_on instead.
+    task::block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
@@ -123,5 +129,8 @@ where
 #[test]
 fn test_net_connector_v4_drop_sender() {
     let thread_pool = ThreadPool::new().unwrap();
-    block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
+    // TODO: We have to use `task::block_on` here, otherwise the sleep() calls don't work.
+    // When we remove the sleep() calls, we will be able to remove the task::block_on and use
+    // `futures` block_on instead.
+    task::block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
