@@ -21,4 +21,4 @@ pub mod hash_lock;
 // pub mod nonce_window;
 pub mod rand;
 // pub mod sym_encrypt;
-// pub mod test_utils;
+pub mod test_utils;
