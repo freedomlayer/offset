@@ -1,19 +1,39 @@
 use std::collections::VecDeque;
-use std::ops::Deref;
-use std::sync::Arc;
+// use std::ops::Deref;
+// use std::sync::Arc;
 
-use ring::error::Unspecified;
-use ring::rand::{SecureRandom, SystemRandom};
-use ring::test::rand::FixedByteRandom;
+// use ring::error::Unspecified;
+// use ring::rand::{SecureRandom, SystemRandom};
+// use ring::test::rand::FixedByteRandom;
+
+use rand::rngs::OsRng;
+use rand::RngCore;
+
+use crate::error::CryptoError;
 
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PrivateKey, RandValue, Salt, Uid};
 
-pub trait CryptoRandom: SecureRandom + Sync + Send {}
+pub trait CryptoRandom: Sync + Send {
+    fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError>;
+}
 
+pub struct SystemRandom {
+    inner: OsRng,
+}
+
+/*
 pub struct RngContainer<R> {
     arc_rng: Arc<R>,
 }
+*/
 
+impl SystemRandom {
+    pub fn new() -> Self {
+        SystemRandom { inner: OsRng }
+    }
+}
+
+/*
 impl<R> RngContainer<R> {
     pub fn new(rng: R) -> RngContainer<R> {
         RngContainer {
@@ -30,15 +50,28 @@ impl<R> Clone for RngContainer<R> {
     }
 }
 
+*/
+/*
 impl<R: SecureRandom> SecureRandom for RngContainer<R> {
-    fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
+
+fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
         (*self.arc_rng).fill(dest)
     }
 }
+*/
 
-impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
-impl CryptoRandom for FixedByteRandom {}
+impl CryptoRandom for SystemRandom {
+    fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
+        self.inner.fill_bytes(dest);
+        Ok(())
+    }
+}
 
+// impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
+
+// impl CryptoRandom for FixedByteRandom {}
+
+/*
 impl<R> Deref for RngContainer<R> {
     type Target = R;
 
@@ -46,12 +79,13 @@ impl<R> Deref for RngContainer<R> {
         &*self.arc_rng
     }
 }
+*/
 
-pub type OffsetSystemRandom = RngContainer<SystemRandom>;
+// pub type OffsetSystemRandom = RngContainer<SystemRandom>;
 
 /// Returns a secure cryptographic random generator
-pub fn system_random() -> OffsetSystemRandom {
-    RngContainer::new(SystemRandom::new())
+pub fn system_random() -> SystemRandom {
+    SystemRandom::new()
 }
 
 /// `RandValuesStore` is a storage and generation structure of random values.
@@ -67,7 +101,7 @@ pub struct RandValuesStore {
 
 impl RandValuesStore {
     pub fn new<R: CryptoRandom>(
-        crypt_rng: &R,
+        crypt_rng: &mut R,
         rand_value_ticks: usize,
         num_rand_values: usize,
     ) -> Self {
@@ -95,7 +129,7 @@ impl RandValuesStore {
     /// Apply a time tick over the store.
     /// If enough time ticks have occurred, a new rand value will be generated.
     #[inline]
-    pub fn time_tick<R: CryptoRandom>(&mut self, crypt_rng: &R) {
+    pub fn time_tick<R: CryptoRandom>(&mut self, crypt_rng: &mut R) {
         self.ticks_left_to_next_rand_value -= 1;
         if self.ticks_left_to_next_rand_value == 0 {
             self.ticks_left_to_next_rand_value = self.rand_value_ticks;
@@ -118,12 +152,12 @@ impl RandValuesStore {
 }
 
 pub trait RandGen: Sized {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self;
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self;
 }
 
 // TODO: Possibly use a macro here:
 impl RandGen for Salt {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -131,7 +165,7 @@ impl RandGen for Salt {
 }
 
 impl RandGen for InvoiceId {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -139,7 +173,7 @@ impl RandGen for InvoiceId {
 }
 
 impl RandGen for RandValue {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -147,7 +181,7 @@ impl RandGen for RandValue {
 }
 
 impl RandGen for PlainLock {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -155,7 +189,7 @@ impl RandGen for PlainLock {
 }
 
 impl RandGen for Uid {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -163,19 +197,25 @@ impl RandGen for Uid {
 }
 
 impl RandGen for PaymentId {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
     }
 }
 
+/*
+ * TODO:
 impl RandGen for PrivateKey {
     fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
         PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(crypt_rng).unwrap())
     }
 }
+*/
 
+/*
+ * TODO:
+ *
 #[cfg(test)]
 mod tests {
     use super::super::test_utils::DummyRandom;
@@ -201,3 +241,4 @@ mod tests {
         assert!(!rand_values_store.contains(&rand_value0));
     }
 }
+*/

@@ -25,7 +25,7 @@ derive_more = "0.14.0"
 # Quickcheck:
 quickcheck = {version = "0.9"}
 quickcheck_derive = {version = "0.2.1"}
-rand = {version = "0.7.2"}
+rand = "0.7.3"
 
 [dependencies.byteorder]
 version = "1.1"
