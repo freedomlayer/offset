@@ -1,20 +1,14 @@
 use std::collections::VecDeque;
-// use std::ops::Deref;
-// use std::sync::Arc;
 
-// use ring::error::Unspecified;
-// use ring::rand::{SecureRandom, SystemRandom};
-// use ring::test::rand::FixedByteRandom;
-
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand_core::impls;
 
 use crate::error::CryptoError;
 
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, PrivateKey, RandValue, Salt, Uid};
 
 // TODO: Maybe we shouldn't have Sync + Send here as bounds?
-pub trait CryptoRandom: Sync + Send {
+pub trait CryptoRandom: RngCore + CryptoRng + Sync + Send {
     fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError>;
 }
 
@@ -22,44 +16,32 @@ pub struct SystemRandom {
     inner: OsRng,
 }
 
-/*
-pub struct RngContainer<R> {
-    arc_rng: Arc<R>,
-}
-*/
-
 impl SystemRandom {
     pub fn new() -> Self {
         SystemRandom { inner: OsRng }
     }
 }
 
-/*
-impl<R> RngContainer<R> {
-    pub fn new(rng: R) -> RngContainer<R> {
-        RngContainer {
-            arc_rng: Arc::new(rng),
-        }
+impl RngCore for SystemRandom {
+    fn next_u32(&mut self) -> u32 {
+        impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        // Rely on inner random generator:
+        self.inner.fill_bytes(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        Ok(self.fill_bytes(dest))
     }
 }
 
-impl<R> Clone for RngContainer<R> {
-    fn clone(&self) -> Self {
-        RngContainer {
-            arc_rng: self.arc_rng.clone(),
-        }
-    }
-}
-
-*/
-/*
-impl<R: SecureRandom> SecureRandom for RngContainer<R> {
-
-fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
-        (*self.arc_rng).fill(dest)
-    }
-}
-*/
+impl CryptoRng for SystemRandom {}
 
 impl CryptoRandom for SystemRandom {
     fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
@@ -67,22 +49,6 @@ impl CryptoRandom for SystemRandom {
         Ok(())
     }
 }
-
-// impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
-
-// impl CryptoRandom for FixedByteRandom {}
-
-/*
-impl<R> Deref for RngContainer<R> {
-    type Target = R;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.arc_rng
-    }
-}
-*/
-
-// pub type OffsetSystemRandom = RngContainer<SystemRandom>;
 
 /// Returns a secure cryptographic random generator
 pub fn system_random() -> SystemRandom {
