@@ -11,7 +11,7 @@ common = { path = "../common", version = "0.1.0", package = "offset-common" }
 proto = { path = "../proto", version = "0.1.0", package = "offset-proto" }
 
 # ring = "=0.13.0-alpha"
-ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
+# ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
 # untrusted = "0.6"
 #
 x25519-dalek = "0.6.0"
