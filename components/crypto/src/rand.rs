@@ -171,9 +171,6 @@ impl RandGen for PaymentId {
     }
 }
 
-/*
- * TODO:
- *
 #[cfg(test)]
 mod tests {
     use super::super::test_utils::DummyRandom;
@@ -181,22 +178,21 @@ mod tests {
 
     #[test]
     fn test_rand_values_store() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let mut rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
 
         // Generate some unrelated rand value:
-        let rand_value0 = RandValue::rand_gen(&rng);
+        let rand_value0 = RandValue::rand_gen(&mut rng);
 
-        let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
+        let mut rand_values_store = RandValuesStore::new(&mut rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();
 
         for _ in 0..(5 * 50) {
             assert!(rand_values_store.contains(&rand_value));
             assert!(!rand_values_store.contains(&rand_value0));
-            rand_values_store.time_tick(&rng);
+            rand_values_store.time_tick(&mut rng);
         }
 
         assert!(!rand_values_store.contains(&rand_value));
         assert!(!rand_values_store.contains(&rand_value0));
     }
 }
-*/
