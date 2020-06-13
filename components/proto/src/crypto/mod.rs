@@ -35,7 +35,7 @@ define_fixed_bytes!(PublicKey, 32);
 type_capnp_serde!(PublicKey, common_capnp::public_key, (x0, x1, x2, x3));
 
 // PKCS8 key pair
-define_fixed_bytes!(PrivateKey, 85);
+define_fixed_bytes!(PrivateKey, 32);
 
 define_fixed_bytes!(Signature, 64);
 type_capnp_serde!(
