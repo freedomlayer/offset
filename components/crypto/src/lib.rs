@@ -17,7 +17,7 @@ pub mod dh;
 pub mod error;
 pub mod hash;
 pub mod hash_lock;
-// pub mod identity;
+pub mod identity;
 // pub mod nonce_window;
 pub mod rand;
 pub mod sym_encrypt;
