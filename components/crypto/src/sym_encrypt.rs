@@ -118,11 +118,14 @@ impl Decryptor {
         }
         let nonce = chacha::Nonce::from_slice(&enc_nonce);
 
-        // let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
-
-        self.cipher
+        let ciphertext = self
+            .cipher
             .decrypt(nonce, &cipher_msg[ENC_NONCE_LEN..])
-            .map_err(|_| CryptoError)
+            .map_err(|_| CryptoError)?;
+
+        // In case of success, advance nonce:
+        let _ = self.nonce_counter.next_nonce();
+        Ok(ciphertext)
     }
 }
 
@@ -153,12 +156,18 @@ mod tests {
     fn test_encryptor_decryptor() {
         let symmetric_key = SymmetricKey::from(&[1; SYMMETRIC_KEY_LEN]);
 
-        // let rng_seed: &[_] = &[1,2,3,4,5,6];
-        // let mut rng: StdRng = rand::SeedableRng::from_seed(rng_seed);
         let mut encryptor = Encryptor::new(&symmetric_key).unwrap();
         let mut decryptor = Decryptor::new(&symmetric_key).unwrap();
 
-        let plain_msg = b"Hello world!";
+        // First message:
+        let plain_msg = b"Hello world1!";
+        let cipher_msg = encryptor.encrypt(plain_msg).unwrap();
+        let decrypted_msg = decryptor.decrypt(&cipher_msg).unwrap();
+
+        assert_eq!(plain_msg, &decrypted_msg[..]);
+
+        // Second message:
+        let plain_msg = b"Hello world12";
         let cipher_msg = encryptor.encrypt(plain_msg).unwrap();
         let decrypted_msg = decryptor.decrypt(&cipher_msg).unwrap();
 
