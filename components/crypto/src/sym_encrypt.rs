@@ -8,9 +8,8 @@ use crate::error::CryptoError;
 
 use common::big_array::BigArray;
 
+// Length of secret key for CHACHA20_POLY1305
 pub const SYMMETRIC_KEY_LEN: usize = 32;
-// Length of tag for CHACHA20_POLY1305
-const TAG_LEN: usize = 16;
 // Length of nonce for CHACHA20_POLY1305
 const ENC_NONCE_LEN: usize = 12;
 
