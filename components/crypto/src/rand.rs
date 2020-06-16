@@ -12,6 +12,7 @@ pub trait CryptoRandom: RngCore + CryptoRng + Sync + Send {
     fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError>;
 }
 
+#[derive(Debug, Clone)]
 pub struct SystemRandom {
     inner: OsRng,
 }
