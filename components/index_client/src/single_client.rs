@@ -143,7 +143,7 @@ where
                     time_hash: self.server_time_hash.clone(),
                     session_id: self.session_id.clone(),
                     counter: self.counter,
-                    rand_nonce: RandValue::rand_gen(&self.rng),
+                    rand_nonce: RandValue::rand_gen(&mut self.rng),
                     signature: Signature::default(),
                 };
 
@@ -195,7 +195,7 @@ pub async fn single_client_loop<IC, R>(
     incoming_control: IC,
     local_public_key: PublicKey,
     identity_client: IdentityClient,
-    rng: R,
+    mut rng: R,
     first_server_time_hash: HashResult,
 ) -> Result<(), SingleClientError>
 where
@@ -204,7 +204,7 @@ where
 {
     let (to_server, from_server) = server_conn.split();
 
-    let session_id = Uid::rand_gen(&rng);
+    let session_id = Uid::rand_gen(&mut rng);
     let mut single_client = SingleClient::new(
         local_public_key,
         identity_client,
@@ -312,8 +312,8 @@ mod tests {
         let (mut control_sender, incoming_control) = mpsc::channel(0);
 
         // Create identity_client:
-        let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng);
+        let mut rng = DummyRandom::new(&[1u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let local_public_key = identity.get_public_key();
         let (requests_sender, identity_server) = create_identity(identity);
