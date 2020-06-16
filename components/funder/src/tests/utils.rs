@@ -546,8 +546,8 @@ where
     let mut node_controls = Vec::new();
 
     for i in 0..num_nodes {
-        let rng = DummyRandom::new(&[i as u8]);
-        let private_key = PrivateKey::rand_gen(&rng);
+        let mut rng = DummyRandom::new(&[i as u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender, identity_server) = create_identity(identity1);
         let identity_client = IdentityClient::new(requests_sender);

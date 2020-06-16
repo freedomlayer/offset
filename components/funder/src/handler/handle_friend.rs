@@ -52,7 +52,7 @@ pub enum HandleFriendError {
 }
 
 /// Generate a random token to be used for resetting the channel.
-fn gen_channel_reset_token<R>(rng: &R) -> Signature
+fn gen_channel_reset_token<R>(rng: &mut R) -> Signature
 where
     R: CryptoRandom,
 {
@@ -61,7 +61,7 @@ where
     Signature::from(&buff)
 }
 
-pub fn gen_reset_terms<B, R>(token_channel: &TokenChannel<B>, rng: &R) -> ResetTerms
+pub fn gen_reset_terms<B, R>(token_channel: &TokenChannel<B>, rng: &mut R) -> ResetTerms
 where
     R: CryptoRandom,
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -542,7 +542,7 @@ fn handle_cancel_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     currency: &Currency,
     cancel_send_funds: CancelSendFundsOp,
     pending_transaction: PendingTransaction,
@@ -588,7 +588,7 @@ fn handle_collect_send_funds<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     currency: &Currency,
     collect_send_funds: CollectSendFundsOp,
     pending_transaction: PendingTransaction,
@@ -732,7 +732,7 @@ fn handle_move_token_output<B, R>(
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
     currency: &Currency,
     incoming_messages: Vec<IncomingMessage>,
@@ -811,7 +811,7 @@ fn handle_move_token_error<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -865,7 +865,7 @@ fn handle_move_token_success<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
     receive_move_token_output: ReceiveMoveTokenOutput<B>,
     token_wanted: bool,
@@ -976,7 +976,7 @@ fn handle_move_token_request<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
     friend_move_token_request: MoveTokenRequest<B>,
 ) -> Result<(), HandleFriendError>
@@ -1051,7 +1051,7 @@ fn handle_inconsistency_error<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
     remote_reset_terms: ResetTerms,
 ) -> Result<(), HandleFriendError>
@@ -1126,7 +1126,7 @@ pub fn handle_friend_message<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     remote_public_key: &PublicKey,
     friend_message: FriendMessage<B>,
 ) -> Result<(), HandleFriendError>

@@ -165,7 +165,7 @@ fn disable_friend<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     friend_public_key: &PublicKey,
 ) where
     B: Clone + PartialEq + Eq + CanonicalSerialize + Debug,
@@ -279,7 +279,7 @@ fn control_remove_friend<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     remove_friend: RemoveFriend,
 ) -> Result<(), HandleControlError>
 where
@@ -321,7 +321,7 @@ fn control_set_friend_status<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     set_friend_status: SetFriendStatus,
 ) -> Result<(), HandleControlError>
 where
@@ -376,7 +376,7 @@ fn control_set_friend_currency_requests_status<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     // TODO: rng might not be required here.
-    rng: &R,
+    rng: &mut R,
     set_friend_currency_requests_status: SetFriendCurrencyRequestsStatus,
 ) -> Result<(), HandleControlError>
 where
@@ -604,7 +604,7 @@ where
 
 fn control_create_payment<B, R>(
     m_state: &mut MutableFunderState<B>,
-    rng: &R,
+    rng: &mut R,
     create_payment: CreatePayment,
 ) -> Result<(), HandleControlError>
 where
@@ -879,7 +879,7 @@ where
 fn control_request_close_payment<B, R>(
     m_state: &mut MutableFunderState<B>,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     payment_id: PaymentId,
 ) -> Result<(), HandleControlError>
 where
@@ -1020,7 +1020,7 @@ where
 
 fn control_add_invoice<B, R>(
     m_state: &mut MutableFunderState<B>,
-    rng: &R,
+    rng: &mut R,
     add_invoice: AddInvoice,
 ) -> Result<(), HandleControlError>
 where
@@ -1157,7 +1157,7 @@ pub fn handle_control_message<B, R>(
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
     outgoing_channeler_config: &mut Vec<ChannelerConfig<RelayAddress<B>>>,
-    rng: &R,
+    rng: &mut R,
     max_node_relays: usize,
     max_pending_user_requests: usize,
     incoming_control: FunderControl<B>,

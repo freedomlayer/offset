@@ -9,7 +9,7 @@ use futures::{future, FutureExt};
 use identity::{create_identity, IdentityClient};
 
 use crypto::identity::{compare_public_key, SoftwareEd25519Identity};
-use crypto::rand::{RandGen, RngContainer};
+use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{PrivateKey, Uid};
@@ -50,7 +50,7 @@ async fn task_handler_change_address(
     let mut state2 = FunderState::<u32>::new(pk2.clone(), relays2);
     let mut ephemeral2 = Ephemeral::new();
 
-    let mut rng = RngContainer::new(DummyRandom::new(&[3u8]));
+    let mut rng = DummyRandom::new(&[3u8]);
 
     // Initialize 1:
     let funder_incoming = FunderIncoming::Init;
@@ -455,8 +455,8 @@ async fn task_handler_change_address(
 fn test_handler_change_address() {
     let thread_pool = ThreadPool::new().unwrap();
 
-    let rng1 = DummyRandom::new(&[1u8]);
-    let pkcs8 = PrivateKey::rand_gen(&rng1);
+    let mut rng1 = DummyRandom::new(&[1u8]);
+    let pkcs8 = PrivateKey::rand_gen(&mut rng1);
     let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let (requests_sender1, identity_server1) = create_identity(identity1);
     let identity_client1 = IdentityClient::new(requests_sender1);
@@ -464,8 +464,8 @@ fn test_handler_change_address() {
         .spawn(identity_server1.then(|_| future::ready(())))
         .unwrap();
 
-    let rng2 = DummyRandom::new(&[2u8]);
-    let pkcs8 = PrivateKey::rand_gen(&rng2);
+    let mut rng2 = DummyRandom::new(&[2u8]);
+    let pkcs8 = PrivateKey::rand_gen(&mut rng2);
     let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let (requests_sender2, identity_server2) = create_identity(identity2);
     let identity_client2 = IdentityClient::new(requests_sender2);

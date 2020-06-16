@@ -38,7 +38,7 @@ pub enum FunderEvent<B> {
 
 pub async fn inner_funder_loop<B, R>(
     mut identity_client: IdentityClient,
-    rng: R,
+    mut rng: R,
     incoming_control: mpsc::Receiver<FunderIncomingControl<B>>,
     incoming_comm: mpsc::Receiver<FunderIncomingComm<B>>,
     control_sender: mpsc::Sender<FunderOutgoingControl<B>>,
@@ -90,7 +90,7 @@ where
 
         let res = funder_handle_message(
             &mut identity_client,
-            &rng,
+            &mut rng,
             funder_state.clone(),
             ephemeral.clone(),
             max_node_relays,

@@ -75,7 +75,7 @@ where
     pub async fn sign_responses<'a, R>(
         &'a mut self,
         identity_client: &'a mut IdentityClient,
-        rng: &'a R,
+        rng: &'a mut R,
     ) where
         R: CryptoRandom,
     {

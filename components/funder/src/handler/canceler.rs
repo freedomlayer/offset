@@ -51,7 +51,7 @@ pub fn reply_with_cancel<B>(
 pub fn remove_transaction<B, R>(
     m_state: &mut MutableFunderState<B>,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     request_id: &Uid,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -168,7 +168,7 @@ pub fn cancel_local_pending_transactions<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     friend_public_key: &PublicKey,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -235,7 +235,7 @@ pub fn cancel_request<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     currency: &Currency,
     pending_request: &RequestSendFundsOp,
 ) where
@@ -297,7 +297,7 @@ pub fn cancel_pending_requests<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     friend_public_key: &PublicKey,
     currency_choice: &CurrencyChoice,
 ) where
@@ -377,7 +377,7 @@ pub fn cancel_nonuser_pending_requests<B, R>(
     m_state: &mut MutableFunderState<B>,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     friend_public_key: &PublicKey,
     currency_choice: &CurrencyChoice,
 ) where

@@ -1177,12 +1177,12 @@ mod tests {
     fn test_simulate_receive_move_token_basic() {
         let currency = Currency::try_from("FST".to_owned()).unwrap();
 
-        let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng1);
+        let mut rng1 = DummyRandom::new(&[1u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
 
-        let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng2);
+        let mut rng2 = DummyRandom::new(&[2u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
 
         let (identity1, identity2) = sort_sides(identity1, identity2);
