@@ -5,7 +5,7 @@ use rand_core::impls;
 
 use crate::error::CryptoError;
 
-use proto::crypto::{InvoiceId, PaymentId, PlainLock, PrivateKey, RandValue, Salt, Uid};
+use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
 
 // TODO: Maybe we shouldn't have Sync + Send here as bounds?
 pub trait CryptoRandom: RngCore + CryptoRng + Sync + Send {

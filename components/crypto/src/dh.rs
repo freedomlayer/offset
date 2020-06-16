@@ -5,7 +5,7 @@ use sha2::Sha512Trunc256;
 
 use crate::error::CryptoError;
 use crate::rand::CryptoRandom;
-use crate::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
+use crate::sym_encrypt::SymmetricKey;
 
 pub const SHARED_SECRET_LEN: usize = 32;
 
@@ -20,7 +20,6 @@ impl DhPrivateKey {
     /// Compute public key from our private key.
     /// The public key will be sent to remote side.
     pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
-        let mut public_key = DhPublicKey::default();
         Ok(DhPublicKey::from(
             x25519_dalek::PublicKey::from(&self.0).as_bytes(),
         ))

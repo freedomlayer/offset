@@ -2,8 +2,6 @@ use sha2::{Digest, Sha512Trunc256};
 
 use proto::crypto::{HashedLock, PlainLock};
 
-use crate::hash::sha_512_256;
-
 pub trait HashLock {
     /// Lock the plain hash
     fn hash_lock(&self) -> HashedLock;

@@ -2,7 +2,6 @@ use chacha20poly1305::{
     self as chacha,
     aead::{Aead, NewAead},
 };
-use std::iter;
 
 use crate::error::CryptoError;
 
