@@ -10,16 +10,10 @@ edition = "2018"
 common = { path = "../common", version = "0.1.0", package = "offset-common" }
 proto = { path = "../proto", version = "0.1.0", package = "offset-proto" }
 
-# ring = "=0.13.0-alpha"
-# ring = { git = "https://github.com/freedomlayer/ring", branch = "real/version-0.13.0-alpha4" }
-# untrusted = "0.6"
-#
 x25519-dalek = "0.6.0"
 ed25519-dalek = "1.0.0-pre.3"
 
-
 sha2 = "0.9.0"
-# hkdf = "0.8.0"
 hkdf = "0.9.0-alpha.0"
 chacha20poly1305 = "0.5.1"
 

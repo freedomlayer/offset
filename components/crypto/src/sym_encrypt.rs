@@ -1,6 +1,8 @@
+use chacha20poly1305::{
+    self as chacha,
+    aead::{Aead, NewAead},
+};
 use std::iter;
-
-// use ring::aead::{open_in_place, seal_in_place, OpeningKey, SealingKey, CHACHA20_POLY1305};
 
 use crate::error::CryptoError;
 
@@ -59,58 +61,52 @@ impl Default for EncryptNonceCounter {
         Self::new()
     }
 }
-/*
 
 /// A structure used for encrypting messages with a given symmetric key.
 /// Maintains internal state of an increasing nonce counter.
 pub struct Encryptor {
-    sealing_key: SealingKey,
+    cipher: chacha::ChaCha20Poly1305,
     nonce_counter: EncryptNonceCounter,
 }
 
 impl Encryptor {
     /// Create a new encryptor object. This object can encrypt messages.
     pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
+        let chacha_key = chacha::Key::from_slice(symmetric_key.as_array_ref());
         Ok(Encryptor {
-            sealing_key: SealingKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+            cipher: chacha::ChaCha20Poly1305::new(chacha_key),
             nonce_counter: EncryptNonceCounter::new(),
         })
     }
 
     /// Encrypt a message. The nonce must be unique.
     pub fn encrypt(&mut self, plain_msg: &[u8]) -> Result<Vec<u8>, CryptoError> {
-        // Put the nonce in the beginning of the resulting buffer:
-        let enc_nonce = self.nonce_counter.next_nonce();
-        let mut msg_buffer = enc_nonce.0.to_vec();
-        msg_buffer.extend(plain_msg);
-        // Extend the message with TAG_LEN zeroes. This leaves space for the tag:
-        msg_buffer.extend(iter::repeat(0).take(TAG_LEN).collect::<Vec<u8>>());
-        let ad: [u8; 0] = [];
+        let nonce_vec = self.nonce_counter.next_nonce().0.to_vec();
+        let nonce = chacha::Nonce::from_slice(&nonce_vec);
 
-        match seal_in_place(
-            &self.sealing_key,
-            &enc_nonce.0,
-            &ad,
-            &mut msg_buffer[ENC_NONCE_LEN..],
-            TAG_LEN,
-        ) {
-            Err(ring::error::Unspecified) => Err(CryptoError),
-            Ok(length) => Ok(msg_buffer[..ENC_NONCE_LEN + length].to_vec()),
-        }
+        let raw_ciphertext = self
+            .cipher
+            .encrypt(nonce, plain_msg)
+            .map_err(|_| CryptoError)?;
+
+        let mut ciphertext = nonce_vec;
+        ciphertext.extend(raw_ciphertext);
+        Ok(ciphertext)
     }
 }
 
 /// A structure used for decrypting messages with a given symmetric key.
 pub struct Decryptor {
-    opening_key: OpeningKey,
+    cipher: chacha::ChaCha20Poly1305,
     nonce_counter: EncryptNonceCounter,
 }
 
 impl Decryptor {
     /// Create a new decryptor object. This object can decrypt messages.
     pub fn new(symmetric_key: &SymmetricKey) -> Result<Self, CryptoError> {
+        let chacha_key = chacha::Key::from_slice(symmetric_key.as_array_ref());
         Ok(Decryptor {
-            opening_key: OpeningKey::new(&CHACHA20_POLY1305, symmetric_key)?,
+            cipher: chacha::ChaCha20Poly1305::new(chacha_key),
             nonce_counter: EncryptNonceCounter::new(),
         })
     }
@@ -122,17 +118,13 @@ impl Decryptor {
             // Nonce doesn't match!
             return Err(CryptoError);
         }
+        let nonce = chacha::Nonce::from_slice(&enc_nonce);
 
-        let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
-        let ad: [u8; 0] = [];
+        // let mut msg_buffer = cipher_msg[ENC_NONCE_LEN..].to_vec();
 
-        match open_in_place(&self.opening_key, enc_nonce, &ad, 0, &mut msg_buffer) {
-            Ok(slice) => {
-                let _ = self.nonce_counter.next_nonce();
-                Ok(slice.to_vec())
-            }
-            Err(ring::error::Unspecified) => Err(CryptoError),
-        }
+        self.cipher
+            .decrypt(nonce, &cipher_msg[ENC_NONCE_LEN..])
+            .map_err(|_| CryptoError)
     }
 }
 
@@ -175,4 +167,3 @@ mod tests {
         assert_eq!(plain_msg, &decrypted_msg[..]);
     }
 }
-*/
