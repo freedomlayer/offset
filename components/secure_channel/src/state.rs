@@ -74,7 +74,7 @@ impl ScStateInitial {
     pub fn new<R: CryptoRandom>(
         local_public_key: PublicKey,
         opt_remote_public_key: Option<PublicKey>,
-        rng: &R,
+        rng: &mut R,
     ) -> (ScStateInitial, ExchangeRandNonce) {
         let local_rand_nonce = RandValue::rand_gen(rng);
 
@@ -95,7 +95,7 @@ impl ScStateInitial {
         self,
         exchange_rand_nonce: ExchangeRandNonce,
         identity_client: IdentityClient,
-        rng: R,
+        mut rng: R,
     ) -> Result<(ScStateHalf, ExchangeDh), ScStateError> {
         // In case we expect a specific remote public key, verify it first:
         if let Some(expected_remote_public_key) = &self.opt_remote_public_key {
@@ -105,11 +105,11 @@ impl ScStateInitial {
         }
 
         let dh_private_key =
-            DhPrivateKey::new(&rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
+            DhPrivateKey::new(&mut rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
         let dh_public_key = dh_private_key
             .compute_public_key()
             .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;
-        let local_salt = Salt::rand_gen(&rng);
+        let local_salt = Salt::rand_gen(&mut rng);
 
         let sc_state_half = ScStateHalf {
             remote_public_key: exchange_rand_nonce.src_public_key,
@@ -182,7 +182,7 @@ impl ScState {
     fn encrypt_outgoing<R: CryptoRandom>(
         &mut self,
         channel_content: ChannelContent,
-        rng: &R,
+        rng: &mut R,
     ) -> EncryptedData {
         let channel_message = ChannelMessage {
             rand_padding: self.gen_rand_padding(rng),
@@ -226,7 +226,7 @@ impl ScState {
     pub fn create_outgoing<R: CryptoRandom>(
         &mut self,
         plain_data: &PlainData,
-        rng: &R,
+        rng: &mut R,
     ) -> EncryptedData {
         let content = ChannelContent::User(plain_data.0.clone());
         self.encrypt_outgoing(content, rng)
@@ -234,7 +234,7 @@ impl ScState {
 
     /// Generate random padding of random variable length
     /// Done to make it harder to collect metadata over lengths of messages
-    fn gen_rand_padding<R: CryptoRandom>(&self, rng: &R) -> Vec<u8> {
+    fn gen_rand_padding<R: CryptoRandom>(&self, rng: &mut R) -> Vec<u8> {
         assert_eq!(MAX_RAND_PADDING & 0xff, 0);
 
         // Randomize the length of the random padding:
@@ -252,7 +252,7 @@ impl ScState {
     /// Initiate rekeying. Outputs an encrypted message to send to remote side.
     pub fn create_rekey<R: CryptoRandom>(
         &mut self,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<EncryptedData, ScStateError> {
         if self.opt_pending_rekey.is_some() {
             return Err(ScStateError::RekeyInProgress);
@@ -276,7 +276,7 @@ impl ScState {
     fn handle_incoming_rekey<R: CryptoRandom>(
         &mut self,
         rekey: Rekey,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<HandleIncomingOutput, ScStateError> {
         match self.opt_pending_rekey.take() {
             None => {
@@ -336,7 +336,7 @@ impl ScState {
     pub fn handle_incoming<R: CryptoRandom>(
         &mut self,
         enc_data: &EncryptedData,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<HandleIncomingOutput, ScStateError> {
         match self.decrypt_incoming(enc_data)? {
             ChannelContent::Rekey(rekey) => self.handle_incoming_rekey(rekey, rng),
@@ -374,16 +374,16 @@ mod tests {
         identity_client1: IdentityClient,
         identity_client2: IdentityClient,
     ) -> Result<(ScState, ScState), ()> {
-        let rng1 = DummyRandom::new(&[1u8]);
-        let rng2 = DummyRandom::new(&[2u8]);
+        let mut rng1 = DummyRandom::new(&[1u8]);
+        let mut rng2 = DummyRandom::new(&[2u8]);
         let local_public_key1 = identity_client1.request_public_key().await.unwrap();
         let local_public_key2 = identity_client2.request_public_key().await.unwrap();
         let opt_dest_public_key1 = Some(local_public_key2.clone());
         let opt_dest_public_key2 = None;
         let (sc_state_initial1, exchange_rand_nonce1) =
-            ScStateInitial::new(local_public_key1.clone(), opt_dest_public_key1, &rng1);
+            ScStateInitial::new(local_public_key1.clone(), opt_dest_public_key1, &mut rng1);
         let (sc_state_initial2, exchange_rand_nonce2) =
-            ScStateInitial::new(local_public_key2.clone(), opt_dest_public_key2, &rng2);
+            ScStateInitial::new(local_public_key2.clone(), opt_dest_public_key2, &mut rng2);
 
         let (sc_state_half1, exchange_dh1) = sc_state_initial1
             .handle_exchange_rand_nonce(
@@ -410,8 +410,8 @@ mod tests {
     fn send_recv_messages<R: CryptoRandom>(
         sc_state1: &mut ScState,
         sc_state2: &mut ScState,
-        rng1: &R,
-        rng2: &R,
+        rng1: &mut R,
+        rng2: &mut R,
     ) {
         // Send a few messages 1 -> 2
         for i in 0..5 {
@@ -437,8 +437,8 @@ mod tests {
     fn rekey_sequential<R: CryptoRandom>(
         sc_state1: &mut ScState,
         sc_state2: &mut ScState,
-        rng1: &R,
-        rng2: &R,
+        rng1: &mut R,
+        rng2: &mut R,
     ) {
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
         let incoming_output = sc_state2.handle_incoming(&rekey_enc_data1, rng2).unwrap();
@@ -455,8 +455,8 @@ mod tests {
     fn rekey_simultaneous<R: CryptoRandom>(
         sc_state1: &mut ScState,
         sc_state2: &mut ScState,
-        rng1: &R,
-        rng2: &R,
+        rng1: &mut R,
+        rng2: &mut R,
     ) {
         let rekey_enc_data1 = sc_state1.create_rekey(rng1).unwrap();
         let rekey_enc_data2 = sc_state2.create_rekey(rng2).unwrap();
@@ -474,14 +474,14 @@ mod tests {
     }
 
     fn prepare_dh_test() -> (ScState, ScState, DummyRandom, DummyRandom) {
-        let rng1 = DummyRandom::new(&[1u8]);
-        let private_key = PrivateKey::rand_gen(&rng1);
+        let mut rng1 = DummyRandom::new(&[1u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
-        let rng2 = DummyRandom::new(&[2u8]);
-        let private_key = PrivateKey::rand_gen(&rng2);
+        let mut rng2 = DummyRandom::new(&[2u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let (requests_sender2, identity_server2) = create_identity(identity2);
         let identity_client2 = IdentityClient::new(requests_sender2);
@@ -504,12 +504,12 @@ mod tests {
 
     #[test]
     fn test_basic_sc_state() {
-        let (mut sc_state1, mut sc_state2, rng1, rng2) = prepare_dh_test();
-        send_recv_messages(&mut sc_state1, &mut sc_state2, &rng1, &rng2);
-        rekey_sequential(&mut sc_state1, &mut sc_state2, &rng1, &rng2);
-        send_recv_messages(&mut sc_state1, &mut sc_state2, &rng1, &rng2);
-        rekey_simultaneous(&mut sc_state1, &mut sc_state2, &rng1, &rng2);
-        send_recv_messages(&mut sc_state1, &mut sc_state2, &rng1, &rng2);
+        let (mut sc_state1, mut sc_state2, mut rng1, mut rng2) = prepare_dh_test();
+        send_recv_messages(&mut sc_state1, &mut sc_state2, &mut rng1, &mut rng2);
+        rekey_sequential(&mut sc_state1, &mut sc_state2, &mut rng1, &mut rng2);
+        send_recv_messages(&mut sc_state1, &mut sc_state2, &mut rng1, &mut rng2);
+        rekey_simultaneous(&mut sc_state1, &mut sc_state2, &mut rng1, &mut rng2);
+        send_recv_messages(&mut sc_state1, &mut sc_state2, &mut rng1, &mut rng2);
     }
     // TODO: Add tests:
     // - Test the usage of old receiver
