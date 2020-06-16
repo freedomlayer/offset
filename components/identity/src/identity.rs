@@ -58,8 +58,8 @@ mod tests {
 
     #[test]
     fn test_identity_consistent_public_key() {
-        let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let mut rng = DummyRandom::new(&[3u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         let actual_public_key = identity.get_public_key();
         let (requests_sender, sm) = create_identity(identity);
@@ -93,8 +93,8 @@ mod tests {
 
     #[test]
     fn test_identity_request_signature_against_identity() {
-        let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let mut rng = DummyRandom::new(&[3u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
         // Get the public key straight from the Identity
         let public_key = identity.get_public_key();
@@ -130,8 +130,8 @@ mod tests {
 
     #[test]
     fn test_identity_request_signature() {
-        let secure_rand = DummyRandom::new(&[3u8]);
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let mut rng = DummyRandom::new(&[3u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         // Start the Identity service:
