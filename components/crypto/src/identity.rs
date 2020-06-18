@@ -1,11 +1,10 @@
-// use derive_more::*;
-use ring::signature;
 use std::cmp::Ordering;
 
 use proto::crypto::{PrivateKey, PublicKey, Signature};
 
 use crate::error::CryptoError;
 use crate::hash::sha_512_256;
+use crate::rand::{CryptoRandom, RandGen};
 
 /// Check if one public key is "lower" than another.
 /// This is used to decide which side begins the token channel.
@@ -13,19 +12,14 @@ pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
     sha_512_256(pk1).cmp(&sha_512_256(pk2))
 }
 
-/*
-// TODO: Could implement RandGen instead:
-/// Generate a pkcs8 key pair
-pub fn generate_private_key<R: CryptoRandom>(rng: &R) -> PrivateKey {
-    PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(rng).unwrap())
+impl RandGen for PrivateKey {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
+        PrivateKey::from(ed25519_dalek::SecretKey::generate(crypt_rng).to_bytes())
+    }
 }
-*/
 
 /// A generic interface for signing and verifying messages.
 pub trait Identity {
-    /// Verify a signature of a given message
-    // fn verify_signature(&self, message: &[u8],
-    //                     public_key: &PublicKey, signature: &Signature) -> bool;
     /// Create a signature for a given message using private key.
     fn sign(&self, message: &[u8]) -> Signature;
     /// Get our public identity
@@ -33,78 +27,70 @@ pub trait Identity {
 }
 
 pub struct SoftwareEd25519Identity {
-    key_pair: signature::Ed25519KeyPair,
+    key_pair: ed25519_dalek::Keypair,
 }
 
 /// Derive a PublicKey from a PrivateKey
 pub fn derive_public_key(private_key: &PrivateKey) -> Result<PublicKey, CryptoError> {
-    let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(&private_key))?;
+    let dalek_secret_key =
+        ed25519_dalek::SecretKey::from_bytes(&private_key).map_err(|_| CryptoError)?;
 
-    let mut public_key = PublicKey::default();
-    let public_key_array = &mut public_key;
+    let dalek_public_key: ed25519_dalek::PublicKey =
+        ed25519_dalek::PublicKey::from(&dalek_secret_key);
 
-    let public_key_ref = key_pair.public_key_bytes();
-    public_key_array.clone_from_slice(public_key_ref);
-
-    Ok(public_key)
+    Ok(PublicKey::from(dalek_public_key.to_bytes()))
 }
 
 impl SoftwareEd25519Identity {
     pub fn from_private_key(private_key: &PrivateKey) -> Result<Self, CryptoError> {
-        // TODO: Possibly use as_ref() for private_key later.
-        // Currently we have no blanket implementation that includes PrivateKey, because it is too
-        // large (85 bytes!)
-        let key_pair = signature::Ed25519KeyPair::from_pkcs8(untrusted::Input::from(&private_key))?;
+        let secret = ed25519_dalek::SecretKey::from_bytes(&private_key).map_err(|_| CryptoError)?;
+        let public = ed25519_dalek::PublicKey::from(&secret);
 
+        let key_pair = ed25519_dalek::Keypair { secret, public };
         Ok(SoftwareEd25519Identity { key_pair })
     }
 }
 
 pub fn verify_signature(message: &[u8], public_key: &PublicKey, signature: &Signature) -> bool {
-    let public_key = untrusted::Input::from(&public_key);
-    let message = untrusted::Input::from(message);
-    let signature = untrusted::Input::from(&signature);
+    let dalek_public_key =
+        if let Ok(dalek_public_key) = ed25519_dalek::PublicKey::from_bytes(&public_key) {
+            dalek_public_key
+        } else {
+            return false;
+        };
 
-    signature::verify(&signature::ED25519, public_key, message, signature).is_ok()
+    let dalek_signature =
+        if let Ok(dalek_signature) = ed25519_dalek::Signature::from_bytes(&signature) {
+            dalek_signature
+        } else {
+            return false;
+        };
+
+    dalek_public_key.verify(message, &dalek_signature).is_ok()
 }
 
 impl Identity for SoftwareEd25519Identity {
     fn sign(&self, message: &[u8]) -> Signature {
-        let mut signature = Signature::default();
-
-        // let mut sig_array = [0; Signature::len()];
-        let sig_array = &mut signature;
-        let sig = self.key_pair.sign(message);
-        let sig_ref = sig.as_ref();
-        // assert_eq!(sig_ref.len(), Signature::len());
-        sig_array.clone_from_slice(sig_ref);
-        signature
+        let dalek_signature = self.key_pair.sign(message);
+        Signature::from(dalek_signature.to_bytes())
     }
 
     fn get_public_key(&self) -> PublicKey {
-        let mut public_key = PublicKey::default();
-        let public_key_array = &mut public_key;
-
-        // let mut public_key_array = [0; PublicKey::len()];
-        let public_key_ref = self.key_pair.public_key_bytes();
-        // assert_eq!(public_key_ref.len(), PublicKey::len());
-        public_key_array.clone_from_slice(public_key_ref);
-        public_key
-        // PublicKey(public_key_array)
+        PublicKey::from(self.key_pair.public.to_bytes())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ring::test::rand::FixedByteRandom;
+    use crate::test_utils::DummyRandom;
 
     use crate::rand::RandGen;
 
     #[test]
     fn test_get_public_key_sanity() {
-        let secure_rand = FixedByteRandom { byte: 0x1 };
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let mut secure_rand = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let private_key = PrivateKey::rand_gen(&mut secure_rand);
         let public_key0 = derive_public_key(&private_key).unwrap();
         let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
@@ -117,8 +103,8 @@ mod tests {
 
     #[test]
     fn test_sign_verify_self() {
-        let secure_rand = FixedByteRandom { byte: 0x1 };
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let mut secure_rand = DummyRandom::new(&[1, 2, 3, 4, 6]);
+        let private_key = PrivateKey::rand_gen(&mut secure_rand);
         let id = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";
@@ -131,14 +117,14 @@ mod tests {
 
     #[test]
     fn test_sign_verify_other() {
-        let secure_rand = FixedByteRandom { byte: 0x2 };
+        let mut secure_rand = DummyRandom::new(&[1, 2, 3, 4, 7]);
         // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&mut secure_rand);
         let id1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
-        let secure_rand = FixedByteRandom { byte: 0x3 };
+        let mut secure_rand = DummyRandom::new(&[1, 2, 3, 4, 8]);
         // let pkcs8 = signature::Ed25519KeyPair::generate_pkcs8(&secure_rand).unwrap();
-        let private_key = PrivateKey::rand_gen(&secure_rand);
+        let private_key = PrivateKey::rand_gen(&mut secure_rand);
         let id2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let message = b"This is a message";

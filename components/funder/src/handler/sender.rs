@@ -198,7 +198,7 @@ pub async fn apply_local_reset<'a, B, R>(
     friend_public_key: &'a PublicKey,
     channel_inconsistent: &'a ChannelInconsistent,
     identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+    rng: &'a mut R,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug + Hash,
     R: CryptoRandom,
@@ -332,7 +332,7 @@ async fn send_friend_iter1<'a, B, R>(
     friend_send_commands: &'a FriendSendCommands,
     pending_move_tokens: &'a mut HashMap<PublicKey, PendingMoveToken<B>>,
     identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+    rng: &'a mut R,
     max_operations_in_batch: usize,
     mut outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
     outgoing_channeler_config: &'a mut Vec<ChannelerConfig<RelayAddress<B>>>,
@@ -729,7 +729,7 @@ async fn send_move_token<'a, B, R>(
     friend_public_key: PublicKey,
     pending_move_token: PendingMoveToken<B>,
     identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+    rng: &'a mut R,
     outgoing_messages: &'a mut Vec<OutgoingMessage<B>>,
 ) where
     B: Clone + CanonicalSerialize + PartialEq + Eq + Debug,
@@ -861,7 +861,7 @@ pub async fn create_friend_messages<'a, B, R>(
     send_commands: &'a SendCommands,
     max_operations_in_batch: usize,
     identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+    rng: &'a mut R,
 ) -> (
     Vec<OutgoingMessage<B>>,
     Vec<ChannelerConfig<RelayAddress<B>>>,

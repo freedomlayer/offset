@@ -1,25 +1,12 @@
-use std::cell::RefCell;
-use std::clone::Clone;
-use std::sync::Mutex;
+use rand::{self, rngs::StdRng, CryptoRng, RngCore};
+use rand_core::impls;
 
-use rand::rngs::StdRng;
-use rand::{self, RngCore};
-use ring::{error::Unspecified, rand::SecureRandom};
-
+use crate::error::CryptoError;
 use crate::rand::CryptoRandom;
 
+#[derive(Debug, Clone)]
 pub struct DummyRandom {
-    inner: Mutex<RefCell<StdRng>>,
-}
-
-impl Clone for DummyRandom {
-    fn clone(&self) -> Self {
-        let guard = self.inner.lock().unwrap();
-        let rng = (*guard).clone();
-        DummyRandom {
-            inner: Mutex::new(rng),
-        }
-    }
+    inner: StdRng,
 }
 
 impl DummyRandom {
@@ -30,19 +17,35 @@ impl DummyRandom {
         rng_seed[..seed.len()].clone_from_slice(seed);
         let rng = rand::SeedableRng::from_seed(rng_seed);
 
-        DummyRandom {
-            inner: Mutex::new(RefCell::new(rng)),
-        }
+        DummyRandom { inner: rng }
     }
 }
 
-impl SecureRandom for DummyRandom {
-    fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
-        let guard = self.inner.lock().unwrap();
-        let ref_cell = &*guard;
-        ref_cell.borrow_mut().fill_bytes(dest);
+impl RngCore for DummyRandom {
+    fn next_u32(&mut self) -> u32 {
+        impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        // Rely on inner random generator:
+        self.inner.fill_bytes(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(dest);
         Ok(())
     }
 }
 
-impl CryptoRandom for DummyRandom {}
+impl CryptoRng for DummyRandom {}
+
+impl CryptoRandom for DummyRandom {
+    fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
+        self.inner.fill_bytes(dest);
+        Ok(())
+    }
+}

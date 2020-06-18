@@ -34,7 +34,7 @@ pub fn create_encrypt_keepalive<R, S>(
        + Send
 where
     S: Spawn + Clone + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
 {
     // Wrap the connection (Version * Encrypt * Keepalive):
     let encrypt_transform = SecureChannel::new(
@@ -76,7 +76,7 @@ pub fn create_version_encrypt_keepalive<R, S>(
        + Send
 where
     S: Spawn + Clone + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
 {
     // Wrap the connection (Version * Encrypt * Keepalive):
     let version_transform = VersionPrefix::new(PROTOCOL_VERSION, spawner.clone());
@@ -117,7 +117,7 @@ pub fn create_secure_connector<C, R, S>(
 ) -> impl FutTransform<Input = (PublicKey, NetAddress), Output = Option<ConnPairVec>> + Clone
 where
     S: Spawn + Clone + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let conn_transform =

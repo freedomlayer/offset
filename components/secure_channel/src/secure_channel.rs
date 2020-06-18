@@ -40,10 +40,10 @@ async fn initial_exchange<EK, M: 'static, K: 'static, R: CryptoRandom + 'static>
     mut reader: M,
     identity_client: IdentityClient,
     opt_expected_remote: Option<PublicKey>,
-    rng: R,
+    mut rng: R,
 ) -> Result<(ScState, K, M), SecureChannelError>
 where
-    R: CryptoRandom + Clone,
+    R: CryptoRandom + Clone + Send,
     M: Stream<Item = Vec<u8>> + Unpin,
     K: Sink<Vec<u8>, Error = EK> + Unpin,
 {
@@ -53,7 +53,7 @@ where
         .map_err(|_| SecureChannelError::IdentityFailure)?;
 
     let (dh_state_initial, exchange_rand_nonce) =
-        ScStateInitial::new(local_public_key, opt_expected_remote.clone(), &rng);
+        ScStateInitial::new(local_public_key, opt_expected_remote.clone(), &mut rng);
     let ser_exchange_rand_nonce = exchange_rand_nonce.proto_serialize();
     writer
         .send(ser_exchange_rand_nonce)
@@ -109,7 +109,7 @@ async fn secure_channel_loop<EK, M: 'static, K: 'static, R: CryptoRandom + 'stat
     reader: M,
     from_user: mpsc::Receiver<Vec<u8>>,
     mut to_user: mpsc::Sender<Vec<u8>>,
-    rng: R,
+    mut rng: R,
     ticks_to_rekey: usize,
     mut timer_client: TimerClient,
 ) -> Result<(), SecureChannelError>
@@ -149,7 +149,7 @@ where
         match event {
             SecureChannelEvent::Reader(data) => {
                 let hi_output = dh_state
-                    .handle_incoming(&EncryptedData(data), &rng)
+                    .handle_incoming(&EncryptedData(data), &mut rng)
                     .map_err(|_| SecureChannelError::HandleIncomingError)?;
                 if hi_output.rekey_occurred {
                     cur_ticks_to_rekey = ticks_to_rekey;
@@ -168,7 +168,7 @@ where
                 }
             }
             SecureChannelEvent::User(data) => {
-                let enc_data = dh_state.create_outgoing(&PlainData(data), &rng);
+                let enc_data = dh_state.create_outgoing(&PlainData(data), &mut rng);
                 writer
                     .send(enc_data.0)
                     .await
@@ -179,7 +179,7 @@ where
                     cur_ticks_to_rekey = new_cur_ticks_to_rekey;
                     continue;
                 }
-                let enc_data = match dh_state.create_rekey(&rng) {
+                let enc_data = match dh_state.create_rekey(&mut rng) {
                     Ok(enc_data) => enc_data,
                     Err(ScStateError::RekeyInProgress) => continue,
                     Err(_) => unreachable!(),
@@ -222,7 +222,7 @@ where
     EK: 'static,
     M: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
     K: Sink<Vec<u8>, Error = EK> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
     S: Spawn,
 {
     let (dh_state, writer, reader) = initial_exchange(
@@ -294,7 +294,7 @@ impl<R, S> SecureChannel<R, S> {
 
 impl<R, S> FutTransform for SecureChannel<R, S>
 where
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send,
 {
     /// Input:
@@ -315,6 +315,7 @@ where
         let (sender, receiver) = conn_pair.split();
 
         let c_spawner = self.spawner.clone();
+
         Box::pin(async move {
             create_secure_channel(
                 sender,
@@ -400,15 +401,15 @@ mod tests {
         let (tick_sender, tick_receiver) = mpsc::channel::<()>(0);
         let timer_client = create_timer_incoming(tick_receiver, test_executor.clone()).unwrap();
 
-        let rng1 = DummyRandom::new(&[1u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng1);
+        let mut rng1 = DummyRandom::new(&[1u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let public_key1 = identity1.get_public_key();
         let (requests_sender1, identity_server1) = create_identity(identity1);
         let identity_client1 = IdentityClient::new(requests_sender1);
 
-        let rng2 = DummyRandom::new(&[2u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng2);
+        let mut rng2 = DummyRandom::new(&[2u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let public_key2 = identity2.get_public_key();
         let (requests_sender2, identity_server2) = create_identity(identity2);

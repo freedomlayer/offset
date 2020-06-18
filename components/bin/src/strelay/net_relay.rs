@@ -55,7 +55,7 @@ impl<R, S> AnonSecureChannel<R, S> {
 
 impl<R, S> FutTransform for AnonSecureChannel<R, S>
 where
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     type Input = ConnPairVec;
@@ -86,7 +86,7 @@ pub async fn net_relay_server<IRC, R, S>(
 ) -> Result<(), NetRelayServerError>
 where
     IRC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {
     let (enc_conns_sender, incoming_enc_conns) = mpsc::channel::<(PublicKey, ConnPairVec)>(0);

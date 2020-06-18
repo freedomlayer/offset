@@ -52,7 +52,7 @@ type FunderHandleIncomingOutput<B> = (
 pub fn funder_handle_incoming<B, R>(
     mut m_state: &mut MutableFunderState<B>,
     mut m_ephemeral: &mut MutableEphemeral,
-    rng: &R,
+    rng: &mut R,
     max_node_relays: usize,
     max_pending_user_requests: usize,
     funder_incoming: FunderIncoming<B>,
@@ -161,7 +161,7 @@ where
 
 pub async fn funder_handle_message<'a, B, R>(
     identity_client: &'a mut IdentityClient,
-    rng: &'a R,
+    rng: &'a mut R,
     funder_state: FunderState<B>,
     funder_ephemeral: Ephemeral,
     max_node_relays: usize,

@@ -32,7 +32,7 @@ where
     ISA: Send + 'static,
     C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
 {
     #[allow(unused)]
     pub fn new(
@@ -87,7 +87,7 @@ where
     ISA: Send + 'static,
     C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
 {
     /// Address of an index server
     type Input = ISA;
@@ -124,8 +124,8 @@ mod tests {
         S: Spawn + Clone + Send,
     {
         // Create identity_client:
-        let rng = DummyRandom::new(&[1u8]);
-        let pkcs8 = PrivateKey::rand_gen(&rng);
+        let mut rng = DummyRandom::new(&[1u8]);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let local_public_key = identity.get_public_key();
         let (requests_sender, identity_server) = create_identity(identity);

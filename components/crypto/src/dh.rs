@@ -1,85 +1,60 @@
-use ring::agreement::{self, EphemeralPrivateKey};
-use ring::digest;
-use ring::hkdf::extract_and_expand;
-use ring::hmac::SigningKey;
-use ring::rand::SecureRandom;
-
 use proto::crypto::{DhPublicKey, Salt};
 
+use hkdf::Hkdf;
+use sha2::Sha512Trunc256;
+
 use crate::error::CryptoError;
-use crate::sym_encrypt::{SymmetricKey, SYMMETRIC_KEY_LEN};
+use crate::rand::CryptoRandom;
+use crate::sym_encrypt::SymmetricKey;
 
 pub const SHARED_SECRET_LEN: usize = 32;
 
-/*
-impl Salt {
-    pub fn new<R: SecureRandom>(crypt_rng: &R) -> Result<Salt, CryptoError> {
-        let mut salt = Salt::default();
-
-        if crypt_rng.fill(&mut salt).is_ok() {
-            Ok(salt)
-        } else {
-            Err(CryptoError)
-        }
-    }
-}
-*/
-
-pub struct DhPrivateKey(EphemeralPrivateKey);
+pub struct DhPrivateKey(x25519_dalek::EphemeralSecret);
 
 impl DhPrivateKey {
     /// Create a new ephemeral private key.
-    pub fn new<R: SecureRandom>(rng: &R) -> Result<DhPrivateKey, CryptoError> {
-        Ok(DhPrivateKey(EphemeralPrivateKey::generate(
-            &agreement::X25519,
-            rng,
-        )?))
+    pub fn new<R: CryptoRandom>(rng: &mut R) -> Result<DhPrivateKey, CryptoError> {
+        Ok(DhPrivateKey(x25519_dalek::EphemeralSecret::new(rng)))
     }
 
     /// Compute public key from our private key.
     /// The public key will be sent to remote side.
     pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
-        let mut public_key = DhPublicKey::default();
-
-        if self.0.compute_public_key(&mut public_key).is_ok() {
-            Ok(public_key)
-        } else {
-            Err(CryptoError)
-        }
+        Ok(DhPublicKey::from(
+            x25519_dalek::PublicKey::from(&self.0).as_bytes(),
+        ))
     }
 
     /// Derive a symmetric key from our private key and remote's public key.
     pub fn derive_symmetric_key(
         self,
         remote_public_key: DhPublicKey,
-        sent_salt: Salt,
+        send_salt: Salt,
         recv_salt: Salt,
     ) -> Result<(SymmetricKey, SymmetricKey), CryptoError> {
-        let u_remote_public_key = untrusted::Input::from(&remote_public_key);
+        let dalek_remote_public_key =
+            x25519_dalek::PublicKey::from(*remote_public_key.as_array_ref());
+        let shared_secret = self.0.diffie_hellman(&dalek_remote_public_key);
 
-        let kdf = |shared_key: &[u8]| -> Result<(SymmetricKey, SymmetricKey), CryptoError> {
-            if shared_key.len() != SHARED_SECRET_LEN {
-                Err(CryptoError)
-            } else {
-                let sent_sk = SigningKey::new(&digest::SHA512_256, &sent_salt);
-                let recv_sk = SigningKey::new(&digest::SHA512_256, &recv_salt);
+        let send_h = Hkdf::<Sha512Trunc256>::new(Some(&send_salt), shared_secret.as_bytes());
+        let recv_h = Hkdf::<Sha512Trunc256>::new(Some(&recv_salt), shared_secret.as_bytes());
 
-                let mut send_key = [0x00u8; SYMMETRIC_KEY_LEN];
-                let mut recv_key = [0x00u8; SYMMETRIC_KEY_LEN];
-                extract_and_expand(&sent_sk, shared_key, &[], &mut send_key);
-                extract_and_expand(&recv_sk, shared_key, &[], &mut recv_key);
+        let mut send_key_raw = [0u8; SymmetricKey::len()];
+        let mut recv_key_raw = [0u8; SymmetricKey::len()];
 
-                Ok((SymmetricKey::from(&send_key), SymmetricKey::from(&recv_key)))
-            }
-        };
+        let empty_info: [u8; 0] = [];
 
-        agreement::agree_ephemeral(
-            self.0,
-            &agreement::X25519,
-            u_remote_public_key,
-            CryptoError,
-            kdf,
-        )
+        send_h
+            .expand(&empty_info, &mut send_key_raw)
+            .map_err(|_| CryptoError)?;
+        recv_h
+            .expand(&empty_info, &mut recv_key_raw)
+            .map_err(|_| CryptoError)?;
+
+        Ok((
+            SymmetricKey::from(&send_key_raw),
+            SymmetricKey::from(&recv_key_raw),
+        ))
     }
 }
 
@@ -92,24 +67,24 @@ mod tests {
 
     #[test]
     fn test_new_salt() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
-        let salt1 = Salt::rand_gen(&rng);
-        let salt2 = Salt::rand_gen(&rng);
+        let mut rng = DummyRandom::new(&[1, 2, 3, 4, 6]);
+        let salt1 = Salt::rand_gen(&mut rng);
+        let salt2 = Salt::rand_gen(&mut rng);
 
         assert_ne!(salt1, salt2);
     }
 
     #[test]
     fn test_derive_symmetric_key() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
-        let dh_private_a = DhPrivateKey::new(&rng).unwrap();
-        let dh_private_b = DhPrivateKey::new(&rng).unwrap();
+        let mut rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let dh_private_a = DhPrivateKey::new(&mut rng).unwrap();
+        let dh_private_b = DhPrivateKey::new(&mut rng).unwrap();
 
         let public_key_a = dh_private_a.compute_public_key().unwrap();
         let public_key_b = dh_private_b.compute_public_key().unwrap();
 
-        let salt_a = Salt::rand_gen(&rng);
-        let salt_b = Salt::rand_gen(&rng);
+        let salt_a = Salt::rand_gen(&mut rng);
+        let salt_b = Salt::rand_gen(&mut rng);
 
         // Each side derives the symmetric key from the remote's public key
         // and the salt:

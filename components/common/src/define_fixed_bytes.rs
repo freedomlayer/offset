@@ -62,6 +62,13 @@ macro_rules! define_fixed_bytes {
                 &mut self.0
             }
         }
+        impl ::std::convert::From<[u8; $len]> for $name {
+            #[inline]
+            fn from(src: [u8; $len]) -> $name {
+                $name(src)
+            }
+        }
+
         impl<'a> ::std::convert::From<&'a [u8; $len]> for $name {
             #[inline]
             fn from(src: &'a [u8; $len]) -> $name {

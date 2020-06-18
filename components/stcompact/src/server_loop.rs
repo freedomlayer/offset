@@ -532,7 +532,7 @@ async fn open_node_local<ST, R, C, S>(
 ) -> Result<NodeOpened, ServerError>
 where
     ST: Store,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -705,7 +705,7 @@ async fn open_node_remote<R, C, S>(
     spawner: S,
 ) -> Result<Option<RemoteNodeOpened>, ServerError>
 where
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -782,7 +782,7 @@ async fn handle_enable_node<ST, R, C, S, US>(
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -865,7 +865,7 @@ async fn open_enabled_nodes<ST, R, C, S, US>(
 where
     ST: Store,
     US: Sink<ServerToUserAck> + Unpin,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
@@ -997,7 +997,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     ST: Store,
     CG: GenPrivateKey,
     US: Sink<ServerToUserAck> + Unpin,
@@ -1073,7 +1073,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     ST: Store,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
@@ -1275,7 +1275,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     let timer_stream = timer_client
@@ -1406,7 +1406,7 @@ where
     // TODO: Sync is probably not necessary here.
     // See https://github.com/rust-lang/rust/issues/57017
     S: Spawn + Clone + Send + Sync + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
 {
     // `opt_event_sender` is not needed in production:

@@ -55,8 +55,8 @@ fn test_request_response_collect_send_funds() {
 
     // -----[RequestSendFunds]--------
     // -----------------------------
-    let rng = DummyRandom::new(&[1u8]);
-    let private_key = PrivateKey::rand_gen(&rng);
+    let mut rng = DummyRandom::new(&[1u8]);
+    let private_key = PrivateKey::rand_gen(&mut rng);
     let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_c = identity.get_public_key();
 
@@ -149,8 +149,8 @@ fn test_request_response_collect_send_funds() {
 fn test_request_cancel_send_funds() {
     let currency = Currency::try_from("OFFSET".to_owned()).unwrap();
 
-    let rng = DummyRandom::new(&[1u8]);
-    let private_key = PrivateKey::rand_gen(&rng);
+    let mut rng = DummyRandom::new(&[1u8]);
+    let private_key = PrivateKey::rand_gen(&mut rng);
     let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_b = identity.get_public_key();
 
@@ -221,8 +221,8 @@ fn test_request_response_cancel_send_funds() {
 
     // -----[RequestSendFunds]--------
     // -----------------------------
-    let rng = DummyRandom::new(&[1u8]);
-    let private_key = PrivateKey::rand_gen(&rng);
+    let mut rng = DummyRandom::new(&[1u8]);
+    let private_key = PrivateKey::rand_gen(&mut rng);
     let identity = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
     let public_key_c = identity.get_public_key();
 

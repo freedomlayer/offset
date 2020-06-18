@@ -110,7 +110,7 @@ fn node_spawn_funder<R, S>(
     spawner: S,
 ) -> Result<impl Future<Output = Result<(), FunderError>>, NodeError>
 where
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     // TODO: Should we give a length > 0 for this adapter's channel?
@@ -241,7 +241,7 @@ where
         + Clone
         + Send
         + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     let initial_node_report = create_node_report(&node_state);
@@ -356,7 +356,7 @@ where
         + Send
         + 'static,
     IA: Stream<Item = IncomingAppConnection<NetAddress>> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
     // Get local public key:

@@ -27,7 +27,7 @@ pub fn handle_liveness_message<B, R>(
     m_ephemeral: &mut MutableEphemeral,
     send_commands: &mut SendCommands,
     outgoing_control: &mut Vec<FunderOutgoingControl<B>>,
-    rng: &R,
+    rng: &mut R,
     liveness_message: IncomingLivenessMessage,
 ) -> Result<(), HandleLivenessError>
 where
@@ -113,12 +113,12 @@ mod tests {
 
     #[test]
     fn test_handle_liveness_basic() {
-        let rng1 = DummyRandom::new(&[1u8]);
-        let private_key = PrivateKey::rand_gen(&rng1);
+        let mut rng1 = DummyRandom::new(&[1u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng1);
         let identity1 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
-        let rng2 = DummyRandom::new(&[2u8]);
-        let private_key = PrivateKey::rand_gen(&rng2);
+        let mut rng2 = DummyRandom::new(&[2u8]);
+        let private_key = PrivateKey::rand_gen(&mut rng2);
         let identity2 = SoftwareEd25519Identity::from_private_key(&private_key).unwrap();
 
         let pk1 = identity1.get_public_key();
@@ -169,7 +169,7 @@ mod tests {
             &mut m_ephemeral,
             &mut send_commands,
             &mut outgoing_control,
-            &rng1,
+            &mut rng1,
             liveness_message,
         )
         .unwrap();

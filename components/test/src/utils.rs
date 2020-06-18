@@ -64,7 +64,7 @@ const MAX_OPEN_INDEX_CLIENT_REQUESTS: usize = 0x8;
 /// the relay)
 const CONN_TIMEOUT_TICKS: usize = 0x8;
 
-fn gen_identity<R>(rng: &R) -> impl Identity
+fn gen_identity<R>(rng: &mut R) -> impl Identity
 where
     R: CryptoRandom,
 {
@@ -86,8 +86,8 @@ where
 }
 
 pub fn app_private_key(index: u8) -> PrivateKey {
-    let rng = DummyRandom::new(&[0x13, 0x36, index]);
-    PrivateKey::rand_gen(&rng)
+    let mut rng = DummyRandom::new(&[0x13, 0x36, index]);
+    PrivateKey::rand_gen(&mut rng)
 }
 
 fn get_app_identity(index: u8) -> impl Identity {
@@ -95,18 +95,18 @@ fn get_app_identity(index: u8) -> impl Identity {
 }
 
 fn get_node_identity(index: u8) -> impl Identity {
-    let rng = DummyRandom::new(&[0x13, 0x37, index]);
-    gen_identity(&rng)
+    let mut rng = DummyRandom::new(&[0x13, 0x37, index]);
+    gen_identity(&mut rng)
 }
 
 fn get_index_server_identity(index: u8) -> impl Identity {
-    let rng = DummyRandom::new(&[0x13, 0x38, index]);
-    gen_identity(&rng)
+    let mut rng = DummyRandom::new(&[0x13, 0x38, index]);
+    gen_identity(&mut rng)
 }
 
 fn get_relay_identity(index: u8) -> impl Identity {
-    let rng = DummyRandom::new(&[0x13, 0x39, index]);
-    gen_identity(&rng)
+    let mut rng = DummyRandom::new(&[0x13, 0x39, index]);
+    gen_identity(&mut rng)
 }
 
 fn default_node_config() -> NodeConfig {

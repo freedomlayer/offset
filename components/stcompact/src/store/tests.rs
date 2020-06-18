@@ -29,10 +29,10 @@ where
     let stored_nodes = file_store.list_nodes().await.unwrap();
     assert!(stored_nodes.is_empty());
 
-    let rng = DummyRandom::new(&[1u8]);
-    let node0_private_key = PrivateKey::rand_gen(&rng);
-    let node1_private_key = PrivateKey::rand_gen(&rng);
-    let node2_private_key = PrivateKey::rand_gen(&rng);
+    let mut rng = DummyRandom::new(&[1u8]);
+    let node0_private_key = PrivateKey::rand_gen(&mut rng);
+    let node1_private_key = PrivateKey::rand_gen(&mut rng);
+    let node2_private_key = PrivateKey::rand_gen(&mut rng);
 
     file_store
         .create_local_node(NodeName::new("node0".to_owned()), node0_private_key)
@@ -76,8 +76,8 @@ where
             .is_enabled
     );
 
-    let app_private_key = PrivateKey::rand_gen(&rng);
-    let node_public_key = derive_public_key(&PrivateKey::rand_gen(&rng)).unwrap();
+    let app_private_key = PrivateKey::rand_gen(&mut rng);
+    let node_public_key = derive_public_key(&PrivateKey::rand_gen(&mut rng)).unwrap();
     let node_address = NetAddress::try_from("node_address".to_owned()).unwrap();
 
     file_store

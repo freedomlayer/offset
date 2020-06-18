@@ -240,7 +240,7 @@ where
     SC: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     ICC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     ISC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     GS: Spawn + Send + 'static,
     S: Spawn + Clone + Send + Sync + 'static,
 {

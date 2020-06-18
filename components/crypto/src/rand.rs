@@ -1,57 +1,60 @@
 use std::collections::VecDeque;
-use std::ops::Deref;
-use std::sync::Arc;
 
-use ring::error::Unspecified;
-use ring::rand::{SecureRandom, SystemRandom};
-use ring::test::rand::FixedByteRandom;
+use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand_core::impls;
 
-use proto::crypto::{InvoiceId, PaymentId, PlainLock, PrivateKey, RandValue, Salt, Uid};
+use crate::error::CryptoError;
 
-pub trait CryptoRandom: SecureRandom + Sync + Send {}
+use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
 
-pub struct RngContainer<R> {
-    arc_rng: Arc<R>,
+// TODO: Maybe we shouldn't have Sync + Send here as bounds?
+pub trait CryptoRandom: RngCore + CryptoRng {
+    fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError>;
 }
 
-impl<R> RngContainer<R> {
-    pub fn new(rng: R) -> RngContainer<R> {
-        RngContainer {
-            arc_rng: Arc::new(rng),
-        }
+#[derive(Debug, Clone)]
+pub struct SystemRandom {
+    inner: OsRng,
+}
+
+impl SystemRandom {
+    pub fn new() -> Self {
+        SystemRandom { inner: OsRng }
     }
 }
 
-impl<R> Clone for RngContainer<R> {
-    fn clone(&self) -> Self {
-        RngContainer {
-            arc_rng: self.arc_rng.clone(),
-        }
+impl RngCore for SystemRandom {
+    fn next_u32(&mut self) -> u32 {
+        impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        // Rely on inner random generator:
+        self.inner.fill_bytes(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand::Error> {
+        self.fill_bytes(dest);
+        Ok(())
     }
 }
 
-impl<R: SecureRandom> SecureRandom for RngContainer<R> {
-    fn fill(&self, dest: &mut [u8]) -> Result<(), Unspecified> {
-        (*self.arc_rng).fill(dest)
+impl CryptoRng for SystemRandom {}
+
+impl CryptoRandom for SystemRandom {
+    fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError> {
+        self.inner.fill_bytes(dest);
+        Ok(())
     }
 }
-
-impl<R: SecureRandom> CryptoRandom for RngContainer<R> where R: Sync + Send {}
-impl CryptoRandom for FixedByteRandom {}
-
-impl<R> Deref for RngContainer<R> {
-    type Target = R;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.arc_rng
-    }
-}
-
-pub type OffsetSystemRandom = RngContainer<SystemRandom>;
 
 /// Returns a secure cryptographic random generator
-pub fn system_random() -> OffsetSystemRandom {
-    RngContainer::new(SystemRandom::new())
+pub fn system_random() -> SystemRandom {
+    SystemRandom::new()
 }
 
 /// `RandValuesStore` is a storage and generation structure of random values.
@@ -67,7 +70,7 @@ pub struct RandValuesStore {
 
 impl RandValuesStore {
     pub fn new<R: CryptoRandom>(
-        crypt_rng: &R,
+        crypt_rng: &mut R,
         rand_value_ticks: usize,
         num_rand_values: usize,
     ) -> Self {
@@ -95,7 +98,7 @@ impl RandValuesStore {
     /// Apply a time tick over the store.
     /// If enough time ticks have occurred, a new rand value will be generated.
     #[inline]
-    pub fn time_tick<R: CryptoRandom>(&mut self, crypt_rng: &R) {
+    pub fn time_tick<R: CryptoRandom>(&mut self, crypt_rng: &mut R) {
         self.ticks_left_to_next_rand_value -= 1;
         if self.ticks_left_to_next_rand_value == 0 {
             self.ticks_left_to_next_rand_value = self.rand_value_ticks;
@@ -118,12 +121,12 @@ impl RandValuesStore {
 }
 
 pub trait RandGen: Sized {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self;
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self;
 }
 
 // TODO: Possibly use a macro here:
 impl RandGen for Salt {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -131,7 +134,7 @@ impl RandGen for Salt {
 }
 
 impl RandGen for InvoiceId {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -139,7 +142,7 @@ impl RandGen for InvoiceId {
 }
 
 impl RandGen for RandValue {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -147,7 +150,7 @@ impl RandGen for RandValue {
 }
 
 impl RandGen for PlainLock {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -155,7 +158,7 @@ impl RandGen for PlainLock {
 }
 
 impl RandGen for Uid {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
@@ -163,16 +166,10 @@ impl RandGen for Uid {
 }
 
 impl RandGen for PaymentId {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();
         res
-    }
-}
-
-impl RandGen for PrivateKey {
-    fn rand_gen(crypt_rng: &impl CryptoRandom) -> Self {
-        PrivateKey::from(&ring::signature::Ed25519KeyPair::generate_pkcs8(crypt_rng).unwrap())
     }
 }
 
@@ -183,18 +180,18 @@ mod tests {
 
     #[test]
     fn test_rand_values_store() {
-        let rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
+        let mut rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
 
         // Generate some unrelated rand value:
-        let rand_value0 = RandValue::rand_gen(&rng);
+        let rand_value0 = RandValue::rand_gen(&mut rng);
 
-        let mut rand_values_store = RandValuesStore::new(&rng, 50, 5);
+        let mut rand_values_store = RandValuesStore::new(&mut rng, 50, 5);
         let rand_value = rand_values_store.last_rand_value();
 
         for _ in 0..(5 * 50) {
             assert!(rand_values_store.contains(&rand_value));
             assert!(!rand_values_store.contains(&rand_value0));
-            rand_values_store.time_tick(&rng);
+            rand_values_store.time_tick(&mut rng);
         }
 
         assert!(!rand_values_store.contains(&rand_value));

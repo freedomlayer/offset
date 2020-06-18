@@ -735,8 +735,8 @@ mod tests {
     where
         S: Spawn,
     {
-        let rng = DummyRandom::new(seed);
-        let pkcs8 = PrivateKey::rand_gen(&rng);
+        let mut rng = DummyRandom::new(seed);
+        let pkcs8 = PrivateKey::rand_gen(&mut rng);
         let identity = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
         let (requests_sender, identity_server) = create_identity(identity);
         let identity_client = IdentityClient::new(requests_sender);
