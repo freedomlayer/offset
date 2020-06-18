@@ -52,6 +52,16 @@ jobs:
     - ci/post/kcov/try-install.sh
     - ci/post/kcov/run.sh
 
+    # https://github.com/RustSec/cargo-audit
+    # Check for known vulnerabilities and issues in dependencies tree.
+  - name: cargo-audit
+    before_script:
+    - cargo install --force cargo-audit
+    - cargo generate-lockfile
+    script:
+    - cargo audit
+
+
   - name: x86_64-apple-darwin
     env: TARGET=x86_64-apple-darwin
     os: osx
