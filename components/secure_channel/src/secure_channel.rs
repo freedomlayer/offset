@@ -43,7 +43,7 @@ async fn initial_exchange<EK, M: 'static, K: 'static, R: CryptoRandom + 'static>
     mut rng: R,
 ) -> Result<(ScState, K, M), SecureChannelError>
 where
-    R: CryptoRandom + Clone,
+    R: CryptoRandom + Clone + Send,
     M: Stream<Item = Vec<u8>> + Unpin,
     K: Sink<Vec<u8>, Error = EK> + Unpin,
 {
@@ -222,7 +222,7 @@ where
     EK: 'static,
     M: Stream<Item = Vec<u8>> + Unpin + Send + 'static,
     K: Sink<Vec<u8>, Error = EK> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
     S: Spawn,
 {
     let (dh_state, writer, reader) = initial_exchange(
@@ -294,7 +294,7 @@ impl<R, S> SecureChannel<R, S> {
 
 impl<R, S> FutTransform for SecureChannel<R, S>
 where
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     S: Spawn + Clone + Send,
 {
     /// Input:
@@ -315,6 +315,7 @@ where
         let (sender, receiver) = conn_pair.split();
 
         let c_spawner = self.spawner.clone();
+
         Box::pin(async move {
             create_secure_channel(
                 sender,

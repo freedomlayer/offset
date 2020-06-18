@@ -8,7 +8,7 @@ use crate::error::CryptoError;
 use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
 
 // TODO: Maybe we shouldn't have Sync + Send here as bounds?
-pub trait CryptoRandom: RngCore + CryptoRng + Sync + Send {
+pub trait CryptoRandom: RngCore + CryptoRng {
     fn fill(&mut self, dest: &mut [u8]) -> Result<(), CryptoError>;
 }
 

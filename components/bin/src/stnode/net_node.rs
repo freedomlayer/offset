@@ -160,7 +160,7 @@ fn transform_incoming_apps<IAC, R, TA, S>(
 >
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {
@@ -213,7 +213,7 @@ pub async fn net_node<IAC, C, R, TA, S>(
 where
     IAC: Stream<Item = ConnPairVec> + Unpin + Send + 'static,
     C: FutTransform<Input = NetAddress, Output = Option<ConnPairVec>> + Clone + Send + 'static,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + Sync + 'static,
     TA: TrustedApps + Send + Clone + 'static,
     S: Spawn + Clone + Send + 'static,
 {

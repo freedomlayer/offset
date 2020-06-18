@@ -32,7 +32,7 @@ where
     ISA: Send + 'static,
     C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
 {
     #[allow(unused)]
     pub fn new(
@@ -87,7 +87,7 @@ where
     ISA: Send + 'static,
     C: FutTransform<Input = ISA, Output = Option<ServerConn>> + Send,
     S: Spawn + Send,
-    R: CryptoRandom + Clone + 'static,
+    R: CryptoRandom + Clone + Send + 'static,
 {
     /// Address of an index server
     type Input = ISA;
