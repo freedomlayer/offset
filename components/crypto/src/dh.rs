@@ -33,7 +33,7 @@ impl DhPrivateKey {
         recv_salt: Salt,
     ) -> Result<(SymmetricKey, SymmetricKey), CryptoError> {
         let dalek_remote_public_key =
-            x25519_dalek::PublicKey::from(remote_public_key.as_array_ref().clone());
+            x25519_dalek::PublicKey::from(*remote_public_key.as_array_ref());
         let shared_secret = self.0.diffie_hellman(&dalek_remote_public_key);
 
         let send_h = Hkdf::<Sha512Trunc256>::new(Some(&send_salt), shared_secret.as_bytes());
