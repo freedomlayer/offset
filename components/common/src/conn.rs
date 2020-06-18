@@ -100,18 +100,27 @@ pub trait Connector {
 }
 */
 
+/// A client for a spanwed listener
+pub struct ListenClient<CF, CN> {
+    /// A channel for sending configurations
+    pub config_sender: mpsc::Sender<CF>,
+    /// A receiver for incoming connections
+    pub conn_receiver: mpsc::Receiver<CN>,
+}
+
 /// Listen to connections from remote entities
 pub trait Listener {
-    type Connection;
+    /// Configuration message
     type Config;
-    type Arg;
+    /// A new incoming connection
+    type Conn;
+    /// Listen error
+    type Error;
 
-    // TODO: Possibly change this to be async, as binding to the given address is an async event
-    // too.
+    /// Start listening for new connections
     fn listen(
         self,
-        arg: Self::Arg,
-    ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>);
+    ) -> BoxFuture<'static, Result<ListenClient<Self::Config, Self::Conn>, Self::Error>>;
 }
 
 /// Apply a futuristic function over an input. Returns a boxed future that resolves
