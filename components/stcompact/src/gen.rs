@@ -30,7 +30,7 @@ where
     R: CryptoRandom,
 {
     fn gen_private_key(&mut self) -> PrivateKey {
-        PrivateKey::rand_gen(&self.0)
+        PrivateKey::rand_gen(&mut self.0)
     }
 }
 
@@ -39,6 +39,6 @@ where
     R: CryptoRandom,
 {
     fn gen_uid(&mut self) -> Uid {
-        Uid::rand_gen(&self.0)
+        Uid::rand_gen(&mut self.0)
     }
 }
