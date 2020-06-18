@@ -29,7 +29,6 @@ jobs:
     env: TARGET=x86_64-unknown-linux-gnu
     os: linux
     dist: bionic
-    rust: none
     addons:
       apt:
         packages:
@@ -65,7 +64,6 @@ jobs:
   - name: x86_64-apple-darwin
     env: TARGET=x86_64-apple-darwin
     os: osx
-    rust: none
     osx_image: xcode11.3
     # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
     before_script:
@@ -79,7 +77,6 @@ jobs:
     # Used as a temporary fix for windows CI issue in travis.
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
     filter_secrets: false
-    rust: none
     before_script:
     # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
     - choco install vcredist2010 capnproto strawberryperl
@@ -96,7 +93,6 @@ jobs:
     env: TARGET="aarch64-linux-android"
     os: linux
     dist: bionic
-    rust: none
     addons:
       apt:
         packages:
@@ -115,7 +111,6 @@ jobs:
     env: TARGET="armv7-linux-androideabi"
     os: linux
     dist: bionic
-    rust: none
     addons:
       apt:
         packages:
@@ -134,7 +129,6 @@ jobs:
     env: TARGET="i686-linux-android"
     os: linux
     dist: bionic
-    rust: none
     addons:
       apt:
         packages:
