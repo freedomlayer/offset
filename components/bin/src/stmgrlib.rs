@@ -191,8 +191,8 @@ pub enum GenIdentityError {
 /// Randomly generate an identity file (private-public key pair)
 fn gen_identity(GenIdentCmd { output_path }: GenIdentCmd) -> Result<(), GenIdentityError> {
     // Generate a new random keypair:
-    let rng = system_random();
-    let private_key = PrivateKey::rand_gen(&rng);
+    let mut rng = system_random();
+    let private_key = PrivateKey::rand_gen(&mut rng);
 
     let identity_file = IdentityFile { private_key };
 
