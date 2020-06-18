@@ -78,12 +78,7 @@ jobs:
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
     filter_secrets: false
     before_script:
-    # We install vcredist2010 as a requirement for the yasm assembler (Used for ring compilation)
-    - choco install vcredist2010 capnproto strawberryperl
-    - mkdir -p $HOME/install/yasm
-    - curl -o $HOME/install/yasm/yasm.exe https://www.tortall.net/projects/yasm/releases/yasm-1.3.0-win64.exe
-    - export PATH=$HOME/install/yasm:$PATH
-    - echo $PATH
+    - choco install capnproto 
     - rustup target add x86_64-pc-windows-msvc
     script:
         - cargo test
