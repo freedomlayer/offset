@@ -4,7 +4,9 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener};
+use common::conn::{
+    BoxFuture, BoxStream, ConnPairVec, ConstFutTransform, FutTransform, ListenClient, Listener,
+};
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
@@ -279,21 +281,27 @@ where
 }
 
 #[derive(Clone)]
-pub struct ClientListener<C, S> {
+pub struct ClientListener<A, C, S> {
+    relay_address: A,
+    access_control: AccessControlPk,
     connector: C,
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
 }
 
-impl<C, S> ClientListener<C, S> {
+impl<A, C, S> ClientListener<A, C, S> {
     pub fn new(
+        relay_address: A,
+        access_control: AccessControlPk,
         connector: C,
         conn_timeout_ticks: usize,
         timer_client: TimerClient,
         spawner: S,
-    ) -> ClientListener<C, S> {
+    ) -> ClientListener<A, C, S> {
         ClientListener {
+            relay_address,
+            access_control,
             connector,
             conn_timeout_ticks,
             timer_client,
@@ -302,35 +310,35 @@ impl<C, S> ClientListener<C, S> {
     }
 }
 
-impl<A, C, S> Listener for ClientListener<C, S>
+impl<A, C, S> Listener for ClientListener<A, C, S>
 where
     A: Clone + Send + 'static,
     C: FutTransform<Input = A, Output = Option<ConnPairVec>> + Clone + Send + 'static,
     S: Spawn + Clone + Send + 'static,
 {
-    type Connection = (PublicKey, ConnPairVec);
+    type Conn = (PublicKey, ConnPairVec);
     type Config = AccessControlOpPk;
-    type Arg = (A, AccessControlPk);
+    type Error = ClientListenerError;
+    // type Arg = (A, AccessControlPk);
 
     fn listen(
-        self,
-        arg: (A, AccessControlPk),
-    ) -> (
-        mpsc::Sender<AccessControlOp<PublicKey>>,
-        mpsc::Receiver<(PublicKey, ConnPairVec)>,
-    ) {
-        let (relay_address, mut access_control) = arg;
+        mut self,
+        // arg: (A, AccessControlPk),
+    ) -> BoxFuture<'static, Result<ListenClient<Self::Config, Self::Conn>, Self::Error>> {
+        // let (relay_address, mut access_control) = arg;
 
         let c_spawner = self.spawner.clone();
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
 
-        let const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
+        let const_connector =
+            ConstFutTransform::new(self.connector.clone(), self.relay_address.clone());
 
+        // TODO: Possibly split logic here to allow early failure for listener:
         let fut = async move {
             inner_client_listener(
                 const_connector,
-                &mut access_control,
+                &mut self.access_control,
                 &mut access_control_receiver,
                 connections_sender,
                 self.conn_timeout_ticks,
@@ -345,7 +353,10 @@ where
 
         let _ = c_spawner.spawn(fut);
 
-        (access_control_sender, connections_receiver)
+        Box::pin(future::ready(Ok(ListenClient {
+            config_sender: access_control_sender,
+            conn_receiver: connections_receiver,
+        })))
     }
 }
 
