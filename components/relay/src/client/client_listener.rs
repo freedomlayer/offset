@@ -319,14 +319,10 @@ where
     type Conn = (PublicKey, ConnPairVec);
     type Config = AccessControlOpPk;
     type Error = ClientListenerError;
-    // type Arg = (A, AccessControlPk);
 
     fn listen(
         mut self,
-        // arg: (A, AccessControlPk),
     ) -> BoxFuture<'static, Result<ListenClient<Self::Config, Self::Conn>, Self::Error>> {
-        // let (relay_address, mut access_control) = arg;
-
         let c_spawner = self.spawner.clone();
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
