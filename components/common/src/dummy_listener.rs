@@ -1,29 +1,29 @@
-use crate::conn::Listener;
+use crate::conn::{BoxFuture, ListenClient, Listener};
 use futures::channel::mpsc;
+use futures::future;
 use futures::task::{Spawn, SpawnExt};
 use futures::SinkExt;
 
 #[allow(unused)]
-pub struct ListenRequest<CONN, CONF, AR> {
+pub struct ListenRequest<CONN, CONF> {
     pub conn_sender: mpsc::Sender<CONN>,
     pub config_receiver: mpsc::Receiver<CONF>,
-    pub arg: AR,
 }
 
 /// A test util: A mock Listener.
-pub struct DummyListener<S, CONN, CONF, AR> {
-    req_sender: mpsc::Sender<ListenRequest<CONN, CONF, AR>>,
+pub struct DummyListener<S, CONN, CONF> {
+    req_sender: mpsc::Sender<ListenRequest<CONN, CONF>>,
     spawner: S,
 }
 
 // TODO: Why didn't the automatic #[derive(Clone)] works for DummyListener?
 // Seemed like it had a problem with having config_receiver inside ListenRequest.
 // This is a workaround for this issue:
-impl<S, CONN, CONF, AR> Clone for DummyListener<S, CONN, CONF, AR>
+impl<S, CONN, CONF> Clone for DummyListener<S, CONN, CONF>
 where
     S: Clone,
 {
-    fn clone(&self) -> DummyListener<S, CONN, CONF, AR> {
+    fn clone(&self) -> DummyListener<S, CONN, CONF> {
         DummyListener {
             req_sender: self.req_sender.clone(),
             spawner: self.spawner.clone(),
@@ -31,17 +31,16 @@ where
     }
 }
 
-impl<S, CONN, CONF, AR> DummyListener<S, CONN, CONF, AR>
+impl<S, CONN, CONF> DummyListener<S, CONN, CONF>
 where
     S: Spawn,
     CONN: Send + 'static,
     CONF: Send + 'static,
-    AR: Send + 'static,
 {
     pub fn new(
-        req_sender: mpsc::Sender<ListenRequest<CONN, CONF, AR>>,
+        req_sender: mpsc::Sender<ListenRequest<CONN, CONF>>,
         spawner: S,
-    ) -> DummyListener<S, CONN, CONF, AR> {
+    ) -> DummyListener<S, CONN, CONF> {
         DummyListener {
             req_sender,
             spawner,
@@ -49,25 +48,28 @@ where
     }
 }
 
-impl<S, CONN, CONF, AR> Listener for DummyListener<S, CONN, CONF, AR>
+#[derive(Debug)]
+pub struct DummyListenerError;
+
+impl<S, CONN, CONF> Listener for DummyListener<S, CONN, CONF>
 where
     S: Spawn,
     CONN: Send + 'static,
     CONF: Send + 'static,
-    AR: Send + 'static,
 {
-    type Connection = CONN;
+    type Conn = CONN;
     type Config = CONF;
-    type Arg = AR;
+    type Error = DummyListenerError;
 
-    fn listen(self, arg: AR) -> (mpsc::Sender<CONF>, mpsc::Receiver<CONN>) {
+    fn listen(
+        self,
+    ) -> BoxFuture<'static, Result<ListenClient<Self::Config, Self::Conn>, Self::Error>> {
         let (conn_sender, conn_receiver) = mpsc::channel(1);
         let (config_sender, config_receiver) = mpsc::channel(1);
 
         let listen_request = ListenRequest {
             conn_sender,
             config_receiver,
-            arg,
         };
 
         let DummyListener {
@@ -84,6 +86,9 @@ where
             })
             .unwrap();
 
-        (config_sender, conn_receiver)
+        Box::pin(future::ready(Ok(ListenClient {
+            config_sender,
+            conn_receiver,
+        })))
     }
 }
