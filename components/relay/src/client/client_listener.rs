@@ -281,6 +281,7 @@ where
 #[derive(Clone)]
 pub struct ClientListener<C, S> {
     connector: C,
+    /// Amount of ticks to wait before we give up on connecting to a relay
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
