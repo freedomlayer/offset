@@ -284,6 +284,8 @@ where
     Ok(())
 }
 
+/// PoolListener Manages incoming connections through relays.
+/// Can be configured by sending config messages.
 #[derive(Clone)]
 pub struct PoolListener<RA, L, ET, S> {
     listener: L,
