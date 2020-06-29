@@ -8,7 +8,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::access_control::AccessControlOp;
-use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::conn::{BoxFuture, BoxStream, ConnPairVec, FutTransform, Listener, ListenerClient};
 use common::select_streams::select_streams;
 use common::transform_pool::transform_pool_loop;
 
@@ -318,6 +318,9 @@ impl<RA, L, ET, S> PoolListener<RA, L, ET, S> {
     }
 }
 
+#[derive(Debug)]
+pub struct PoolListenerError;
+
 impl<RA, L, ET, S> Listener for PoolListener<RA, L, ET, S>
 where
     RA: Clone + Eq + Hash + Send + Sync + Debug + 'static,
@@ -336,12 +339,14 @@ where
 {
     type Connection = (PublicKey, ConnPairVec);
     type Config = LpConfig<RA>;
+    type Error = PoolListenerError;
     type Arg = ();
 
     fn listen(
         self,
-        _arg: Self::Arg,
-    ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
+        arg: Self::Arg,
+    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
+    {
         let (config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_conns, incoming_conns) = mpsc::channel(0);
 
