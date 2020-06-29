@@ -14,14 +14,14 @@ extern crate log;
 #[macro_use]
 extern crate common;
 
-mod channeler;
 mod connect_pool;
+mod inner_loop;
 // mod connector_utils;
+mod channeler;
 mod listen_pool;
 mod listen_pool_state;
 mod overwrite_channel;
-mod spawn;
 mod types;
 
-pub use self::channeler::ChannelerError;
-pub use self::spawn::{spawn_channeler, SpawnChannelerError};
+pub use self::channeler::{channeler_loop, SpawnChannelerError};
+pub use self::inner_loop::ChannelerError;
