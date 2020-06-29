@@ -26,35 +26,8 @@ pub enum LpConfig<RA> {
     RemoveFriend(PublicKey),
 }
 
-/*
-
-#[derive(Debug)]
-struct ListenPoolClientError;
-
-
-pub struct LpConfigClient<RA> {
-    request_sender: mpsc::Sender<LpConfig<RA>>,
-}
-
-impl<RA> LpConfigClient<RA> {
-    pub fn new(request_sender: mpsc::Sender<LpConfig<RA>>) -> Self {
-        LpConfigClient {
-            request_sender,
-        }
-    }
-
-    pub async fn config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolClientError> {
-        self.request_sender.send(config).await
-            .map_err(|_| ListenPoolClientError)?;
-        Ok(())
-    }
-}
-*/
-
 #[derive(Debug)]
 enum ListenPoolError {
-    // ConfigClosed,
-    // TimerClosed,
     SpawnError,
 }
 
