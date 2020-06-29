@@ -1,7 +1,6 @@
 use crate::conn::{BoxFuture, Listener, ListenerClient};
 use futures::{channel::mpsc, SinkExt};
 
-#[allow(unused)]
 pub struct ListenRequest<CONN, CONF, AR> {
     pub conn_sender: mpsc::Sender<CONN>,
     pub config_receiver: mpsc::Receiver<CONF>,
