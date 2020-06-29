@@ -4,7 +4,9 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener};
+use common::conn::{
+    BoxFuture, BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener, ListenerClient,
+};
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
@@ -311,15 +313,14 @@ where
 {
     type Connection = (PublicKey, ConnPairVec);
     type Config = AccessControlOpPk;
+    type Error = ClientListenerError;
     type Arg = (A, AccessControlPk);
 
     fn listen(
         self,
-        arg: (A, AccessControlPk),
-    ) -> (
-        mpsc::Sender<AccessControlOp<PublicKey>>,
-        mpsc::Receiver<(PublicKey, ConnPairVec)>,
-    ) {
+        arg: Self::Arg,
+    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
+    {
         let (relay_address, mut access_control) = arg;
 
         let c_spawner = self.spawner.clone();
@@ -328,6 +329,9 @@ where
 
         let const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
 
+        // TODO: We currently spawn too much logic here.
+        // We should be able to perform block on the connection part inside listen invocation,
+        // and spawn the rest of the logic later:
         let fut = async move {
             inner_client_listener(
                 const_connector,
@@ -346,7 +350,10 @@ where
 
         let _ = c_spawner.spawn(fut);
 
-        (access_control_sender, connections_receiver)
+        Box::pin(future::ready(Ok(ListenerClient {
+            config_sender: access_control_sender,
+            conn_receiver: connections_receiver,
+        })))
     }
 }
 
@@ -579,6 +586,5 @@ mod tests {
         let thread_pool = ThreadPool::new().unwrap();
         LocalPool::new().run_until(task_client_listener_basic(thread_pool.clone()));
     }
-
     // TODO: Add a test for ClientListener.
 }
