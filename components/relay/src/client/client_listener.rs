@@ -342,7 +342,6 @@ where
         let mut const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
         Box::pin(async move {
             let conn_pair = init_listener_conn(&mut const_connector).await?;
-
             let fut = async move {
                 inner_client_listener(
                     const_connector,
