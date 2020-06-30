@@ -11,7 +11,7 @@ use futures::task::SpawnExt;
 
 use structopt::StructOpt;
 
-use common::conn::Listener;
+use common::conn::{Listener, ListenerClient};
 use common::int_convert::usize_to_u64;
 
 use crypto::identity::SoftwareEd25519Identity;
@@ -69,6 +69,7 @@ pub enum IndexServerBinError {
     CreateIdentityError,
     // LoadTrustedServersError(IndexServerDirectoryError),
     IoError(std::io::Error),
+    ListenError,
     StringSerdeError(StringSerdeError),
 }
 
@@ -125,11 +126,21 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
 
     // Start listening to clients:
     let client_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_client_raw_conns) = client_tcp_listener.listen(lclient);
+
+    let ListenerClient {
+        config_sender: _,
+        conn_receiver: incoming_client_raw_conns,
+    } = task::block_on(client_tcp_listener.listen(lclient))
+        .map_err(|_| IndexServerBinError::ListenError)?;
 
     // Start listening to servers:
     let server_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_server_raw_conns) = server_tcp_listener.listen(lserver);
+
+    let ListenerClient {
+        config_sender: _,
+        conn_receiver: incoming_server_raw_conns,
+    } = task::block_on(server_tcp_listener.listen(lserver))
+        .map_err(|_| IndexServerBinError::ListenError)?;
 
     // A tcp connector, Used to connect to remote servers:
     let raw_server_net_connector = TcpConnector::new(MAX_FRAME_LENGTH, thread_pool.clone());

@@ -12,7 +12,7 @@ use async_std::task;
 
 use structopt::StructOpt;
 
-use common::conn::Listener;
+use common::conn::{Listener, ListenerClient};
 
 use crypto::identity::SoftwareEd25519Identity;
 use crypto::rand::system_random;
@@ -41,6 +41,7 @@ pub enum RelayServerBinError {
     LoadIdentityError,
     CreateIdentityError,
     CreateTimerError,
+    ListenError,
     NetRelayServerError(NetRelayServerError),
     IoError(std::io::Error),
     StringSerdeError(StringSerdeError),
@@ -84,7 +85,11 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
     let rng = system_random();
 
     let tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_raw_conns) = tcp_listener.listen(laddr);
+
+    let ListenerClient {
+        config_sender: _config_sender,
+        conn_receiver: incoming_raw_conns,
+    } = task::block_on(tcp_listener.listen(laddr)).map_err(|_| RelayServerBinError::ListenError)?;
 
     let relay_server_fut = net_relay_server(
         incoming_raw_conns,
