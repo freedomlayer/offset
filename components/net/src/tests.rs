@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use futures::channel::mpsc;
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
@@ -13,7 +13,6 @@ use crate::tcp_connector::TcpConnector;
 use crate::tcp_listener::TcpListener;
 
 use async_std::net::TcpListener as AsyncStdTcpListener;
-use async_std::task;
 
 /// Get an available port we can listen on
 async fn get_available_port_v4() -> u16 {
@@ -90,10 +89,7 @@ where
 fn test_tcp_client_server_v4() {
     // env_logger::init();
     let thread_pool = ThreadPool::new().unwrap();
-    // TODO: We have to use `task::block_on` here, otherwise the sleep() calls don't work.
-    // When we remove the sleep() calls, we will be able to remove the task::block_on and use
-    // `futures` block_on instead.
-    task::block_on(task_tcp_client_server_v4(thread_pool.clone()));
+    block_on(task_tcp_client_server_v4(thread_pool.clone()));
 }
 
 async fn task_net_connector_v4_drop_sender<S>(spawner: S)
@@ -121,8 +117,5 @@ where
 #[test]
 fn test_net_connector_v4_drop_sender() {
     let thread_pool = ThreadPool::new().unwrap();
-    // TODO: We have to use `task::block_on` here, otherwise the sleep() calls don't work.
-    // When we remove the sleep() calls, we will be able to remove the task::block_on and use
-    // `futures` block_on instead.
-    task::block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
+    block_on(task_net_connector_v4_drop_sender(thread_pool.clone()));
 }
