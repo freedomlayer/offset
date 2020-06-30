@@ -568,7 +568,7 @@ mod tests {
         let (conn_request_sender, mut conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
-        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(1);
         let listener = DummyListener::new(listener_req_sender);
 
         spawner
@@ -774,7 +774,7 @@ mod tests {
         let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
-        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(1);
         let listener = DummyListener::new(listener_req_sender);
 
         spawner
@@ -909,7 +909,7 @@ mod tests {
         let (conn_request_sender, _conn_request_receiver) = mpsc::channel(0);
         let connector = DummyConnector::new(conn_request_sender);
 
-        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
+        let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(1);
         let listener = DummyListener::new(listener_req_sender);
 
         spawner
