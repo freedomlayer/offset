@@ -225,11 +225,9 @@ pub fn create_timer(dur: Duration, spawner: impl Spawn) -> Result<TimerClient, T
 mod tests {
     use super::*;
     use core::pin::Pin;
-    use futures::executor::{LocalPool, ThreadPool};
+    use futures::executor::{block_on, LocalPool, ThreadPool};
     use futures::future::join;
     use std::time::{Duration, Instant};
-
-    use async_std::task;
 
     #[test]
     fn test_timer_single() {
@@ -246,7 +244,7 @@ mod tests {
             )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        task::block_on(wait_fut);
+        block_on(wait_fut);
     }
 
     #[test]
@@ -264,7 +262,7 @@ mod tests {
             )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        task::block_on(wait_fut);
+        block_on(wait_fut);
 
         let timer_stream = LocalPool::new()
             .run_until(
@@ -274,7 +272,7 @@ mod tests {
             )
             .unwrap();
         let wait_fut = timer_stream.take(10).collect::<Vec<TimerTick>>();
-        task::block_on(wait_fut);
+        block_on(wait_fut);
     }
 
     #[test]
@@ -287,7 +285,7 @@ mod tests {
 
         let mut timer_streams = Vec::new();
         for _ in 0..10 {
-            let timer_stream = task::block_on(
+            let timer_stream = block_on(
                 timer_client
                     .clone()
                     .request_timer_stream("test_timer_create_multiple_streams".to_owned()),
@@ -349,7 +347,7 @@ mod tests {
             thread_pool.spawn(client_fut).unwrap();
         }
 
-        task::block_on(receiver_done).unwrap();
+        block_on(receiver_done).unwrap();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////
@@ -408,7 +406,7 @@ mod tests {
         let timer_client = create_timer_incoming(tick_receiver, thread_pool.clone()).unwrap();
 
         let tick_sender = tick_sender.sink_map_err(|_| ());
-        task::block_on(task_ticks_receiver(tick_sender, timer_client)).unwrap();
+        block_on(task_ticks_receiver(tick_sender, timer_client)).unwrap();
     }
 
     async fn task_dummy_timer_multi_sender(spawner: impl Spawn) {
@@ -437,6 +435,6 @@ mod tests {
     #[test]
     fn test_dummy_timer_multi_sender() {
         let thread_pool = ThreadPool::new().unwrap();
-        task::block_on(task_dummy_timer_multi_sender(thread_pool.clone()));
+        block_on(task_dummy_timer_multi_sender(thread_pool.clone()));
     }
 }
