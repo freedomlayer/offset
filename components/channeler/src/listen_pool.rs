@@ -62,7 +62,7 @@ where
             Arg = (RA, AccessControlPk),
         > + Clone
         + 'static,
-    S: Spawn + Clone,
+    S: Spawn + Clone + Send + 'static,
 {
     pub fn new(
         plain_conn_sender: mpsc::Sender<(PublicKey, ConnPairVec)>,
@@ -93,28 +93,53 @@ where
             access_control.apply_op(AccessControlOp::Add(friend_public_key.clone()));
         }
 
-        let (access_control_sender, connections_receiver) = self
-            .listener
-            .clone()
-            .listen((address.clone(), access_control));
-        // TODO: Do we need the listener.clone() here? Maybe Listen doesn't need to take ownership
-        // over self?
+        let (user_access_control_sender, user_incoming_access_control) = mpsc::channel(0);
 
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
+        let mut c_spawner = self.spawner.clone();
+
+        let listen_fut = self.listener.listen((address.clone(), access_control));
+
         let send_fut = async move {
-            let _ = c_plain_conn_sender
-                .send_all(&mut connections_receiver.map(Ok))
-                .await;
-            // Notify that this listener was closed:
+            // We use an extra async block here to always be sure to notify a listener was closed
+            // (See below).
+            let _ = async move {
+                // Start listening to relay:
+                let ListenerClient {
+                    config_sender: access_control_sender,
+                    conn_receiver: connections_receiver,
+                } = listen_fut.await.map_err(|_| ())?;
+
+                // Forward all user control messages:
+                // Should be dropped when this future is dropped.
+                let _control_forward_handle = c_spawner
+                    .spawn_with_handle(
+                        user_incoming_access_control
+                            .map(Ok)
+                            .forward(access_control_sender),
+                    )
+                    .map_err(|_| ())?;
+
+                // Forward incoming connections to user:
+                let _ = c_plain_conn_sender
+                    .send_all(&mut connections_receiver.map(Ok))
+                    .await;
+
+                Ok::<_, ()>(())
+            }
+            .await;
+
+            // Finally, notify that this listener was closed:
             let _ = c_relay_closed_sender.send(address).await;
         };
+
         self.spawner
             .clone()
             .spawn(send_fut)
             .map_err(|_| ListenPoolError::SpawnError)?;
 
-        Ok(access_control_sender)
+        Ok(user_access_control_sender)
     }
 
     pub async fn handle_config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolError> {
