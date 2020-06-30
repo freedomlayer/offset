@@ -7,7 +7,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener, ListenerClient};
 use common::select_streams::select_streams;
 use crypto::identity::compare_public_key;
 
@@ -36,6 +36,7 @@ pub enum FriendEvent {
 #[derive(Debug)]
 pub enum ChannelerError {
     SpawnError,
+    ListenerError,
     SendToFunderFailed,
     AddressSendFailed,
     SendConnectionEstablishedFailed,
@@ -480,7 +481,14 @@ where
 {
     let (event_sender, event_receiver) = mpsc::channel(0);
 
-    let (listen_config, incoming_listen_conns) = listener.listen(());
+    // Pool Listener should never fail:
+    let ListenerClient {
+        config_sender: listen_config,
+        conn_receiver: incoming_listen_conns,
+    } = listener
+        .listen(())
+        .await
+        .map_err(|_| ChannelerError::ListenerError)?;
 
     let mut channeler = Channeler::new(
         local_public_key,
@@ -561,7 +569,7 @@ mod tests {
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+        let listener = DummyListener::new(listener_req_sender);
 
         spawner
             .spawn(
@@ -767,7 +775,7 @@ mod tests {
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+        let listener = DummyListener::new(listener_req_sender);
 
         spawner
             .spawn(
@@ -902,7 +910,7 @@ mod tests {
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+        let listener = DummyListener::new(listener_req_sender);
 
         spawner
             .spawn(
@@ -1012,7 +1020,7 @@ mod tests {
         let connector = DummyConnector::new(conn_request_sender);
 
         let (listener_req_sender, mut listener_req_receiver) = mpsc::channel(1);
-        let listener = DummyListener::new(listener_req_sender, spawner.clone());
+        let listener = DummyListener::new(listener_req_sender);
 
         spawner
             .spawn(
