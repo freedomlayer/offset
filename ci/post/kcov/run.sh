@@ -5,7 +5,7 @@
 # See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
 set -eux -o pipefail
 
-exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
+exes=$(find target/${TARGET}/debug/deps/ -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
     ${HOME}/install/kcov-${TARGET}/bin/kcov \
         --verify \
