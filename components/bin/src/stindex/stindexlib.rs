@@ -5,8 +5,7 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use async_std::task;
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
 
 use structopt::StructOpt;
@@ -27,8 +26,6 @@ use timer::create_timer;
 
 use net::{TcpConnector, TcpListener};
 
-// use proto::file::identity::load_identity_from_file;
-// use proto::file::index_server::{load_trusted_servers, IndexServerDirectoryError};
 use proto::file::{IdentityFile, IndexServerFile};
 use proto::ser_string::{deserialize_from_string, StringSerdeError};
 
@@ -130,7 +127,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
     let ListenerClient {
         config_sender: _,
         conn_receiver: incoming_client_raw_conns,
-    } = task::block_on(client_tcp_listener.listen(lclient))
+    } = block_on(client_tcp_listener.listen(lclient))
         .map_err(|_| IndexServerBinError::ListenError)?;
 
     // Start listening to servers:
@@ -139,7 +136,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
     let ListenerClient {
         config_sender: _,
         conn_receiver: incoming_server_raw_conns,
-    } = task::block_on(server_tcp_listener.listen(lserver))
+    } = block_on(server_tcp_listener.listen(lserver))
         .map_err(|_| IndexServerBinError::ListenError)?;
 
     // A tcp connector, Used to connect to remote servers:
@@ -161,7 +158,7 @@ pub fn stindex(st_index_cmd: StIndexCmd) -> Result<(), IndexServerBinError> {
         thread_pool,
     );
 
-    task::block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;
+    block_on(index_server_fut).map_err(IndexServerBinError::NetIndexServerError)?;
 
     Ok(())
 }

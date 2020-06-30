@@ -5,7 +5,7 @@
 # See: https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/
 set -eux -o pipefail
 
-exes=$(find target/${TARGET}/debug -maxdepth 1 -executable -type f)
+exes=$(find target/${TARGET}/debug/deps/ -maxdepth 1 -executable -type f)
 for exe in ${exes}; do
     ${HOME}/install/kcov-${TARGET}/bin/kcov \
         --verify \
@@ -14,6 +14,10 @@ for exe in ${exes}; do
         target/kcov \
         ${exe}
 done
+
+# DEBUG: Show contents of directory, to see if a report was created:
+pwd
+ls -la
 
 # TODO: Change to something safer:
 # Automatically reads from CODECOV_TOKEN environment variable:

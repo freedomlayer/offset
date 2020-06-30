@@ -5,10 +5,8 @@ use std::time::Duration;
 
 use derive_more::From;
 
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
-
-use async_std::task;
 
 use structopt::StructOpt;
 
@@ -89,7 +87,7 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
     let ListenerClient {
         config_sender: _config_sender,
         conn_receiver: incoming_raw_conns,
-    } = task::block_on(tcp_listener.listen(laddr)).map_err(|_| RelayServerBinError::ListenError)?;
+    } = block_on(tcp_listener.listen(laddr)).map_err(|_| RelayServerBinError::ListenError)?;
 
     let relay_server_fut = net_relay_server(
         incoming_raw_conns,
@@ -100,5 +98,5 @@ pub fn strelay(st_relay_cmd: StRelayCmd) -> Result<(), RelayServerBinError> {
         thread_pool,
     );
 
-    task::block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)
+    block_on(relay_server_fut).map_err(RelayServerBinError::NetRelayServerError)
 }
