@@ -38,7 +38,7 @@ jobs:
         - ubuntu-toolchain-r-test
     install:
       # Fix according to https://github.com/codecov/codecov-bash/issues/94#issuecomment-349216688
-    - pip install codecov
+    - pip install --user codecov
     script:
       # Add clippy and rustfmt:
     - rustup update
