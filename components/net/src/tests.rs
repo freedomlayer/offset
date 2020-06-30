@@ -1,13 +1,12 @@
 use std::convert::TryFrom;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::Duration;
 
 use futures::channel::mpsc;
 use futures::executor::ThreadPool;
 use futures::task::Spawn;
 use futures::{SinkExt, StreamExt};
 
-use common::conn::{ConnPairVec, FutTransform, Listener};
+use common::conn::{ConnPairVec, FutTransform, Listener, ListenerClient};
 use proto::net::messages::NetAddress;
 
 use crate::tcp_connector::TcpConnector;
@@ -36,34 +35,27 @@ where
     // Keep looping until we manage to listen successfuly.
     // This is done to make tests more stable. It seems like sometimes listening will not work,
     // possibly because timing issues with vacant local ports.
-    for _ in 0..10usize {
-        let available_port = dbg!(get_available_port_v4().await);
-        let loopback = Ipv4Addr::new(127, 0, 0, 1);
-        let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
-        let net_address = NetAddress::try_from(format!("127.0.0.1:{}", available_port)).unwrap();
+    let available_port = get_available_port_v4().await;
+    let loopback = Ipv4Addr::new(127, 0, 0, 1);
+    let socket_addr = SocketAddr::new(IpAddr::V4(loopback), available_port);
+    let net_address = NetAddress::try_from(format!("127.0.0.1:{}", available_port)).unwrap();
 
-        let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
-        let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
+    let tcp_listener = TcpListener::new(TEST_MAX_FRAME_LEN, spawner.clone());
+    let mut tcp_connector = TcpConnector::new(TEST_MAX_FRAME_LEN, spawner.clone());
 
-        let (_config_sender, mut incoming_connections) = tcp_listener.listen(socket_addr.clone());
+    let ListenerClient {
+        config_sender: _config_sender,
+        conn_receiver: mut incoming_connections,
+    } = tcp_listener.listen(socket_addr.clone()).await.unwrap();
 
-        dbg!("try to connect1");
-        // TODO: This is a hack to overcome the fact the listen() is not async, and we might try to
-        // connect before the port was bound (This happens when we run this test with kcov)
-        // Possibly fix listen() in the future.
-        task::sleep(Duration::from_millis(200)).await;
-
-        dbg!("try to connect2");
-        // Try to connect:
-        if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
-            // Free connection from the other side:
-            if let Some(_incoming_conn) = incoming_connections.next().await {
-                return (tcp_connector, incoming_connections, net_address);
-            }
-            // If we get here, it probably means that we connected to some other server.
-            // In that case we need to close the connection iterate again.
+    // Try to connect:
+    if let Some(_client_conn) = tcp_connector.transform(net_address.clone()).await {
+        // Free connection from the other side:
+        if let Some(_incoming_conn) = incoming_connections.next().await {
+            return (tcp_connector, incoming_connections, net_address);
         }
-        task::sleep(Duration::from_millis(100)).await;
+        // If we get here, it probably means that we connected to some other server.
+        // In that case we need to close the connection iterate again.
     }
     // Give up after a certain amount of attempts:
     unreachable!();

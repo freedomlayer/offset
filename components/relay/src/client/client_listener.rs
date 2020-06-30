@@ -4,7 +4,10 @@ use futures::channel::mpsc;
 use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
-use common::conn::{BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener};
+use common::conn::{
+    BoxStream, ConnPairVec, ConstFutTransform, FutListenerClient, FutTransform, Listener,
+    ListenerClient,
+};
 
 use proto::crypto::PublicKey;
 use proto::proto_ser::{ProtoDeserialize, ProtoSerialize};
@@ -22,9 +25,7 @@ type AccessControlOpPk = AccessControlOp<PublicKey>;
 pub enum ClientListenerError {
     SendInitConnectionError,
     ConnectionFailure,
-    // AccessControlClosed,
     SendToServerError,
-    // ServerClosed,
     SpawnError,
 }
 
@@ -45,38 +46,6 @@ enum AcceptConnectionError {
     SendConnPairError,
     RequestTimerStreamError,
 }
-
-/*
-/// Convert a Sink to an mpsc::Sender<T>
-/// This is done to overcome some compiler type limitations.
-fn to_mpsc_sender<T,SI,SE>(mut sink: SI, spawner: impl Spawn) -> mpsc::Sender<T>
-where
-    SI: Sink<T, Error=SE> + Unpin + Send + 'static,
-    T: Send + 'static,
-{
-    let (sender, mut receiver) = mpsc::channel::<T>(0);
-    let fut = async move {
-        sink.send_all(&mut receiver).await
-    }.map(|_| ());
-    spawner.spawn(fut).unwrap();
-    sender
-}
-
-/// Convert a Stream to an mpsc::Receiver<T>
-/// This is done to overcome some compiler type limitations.
-fn to_mpsc_receiver<T,ST,SE>(mut stream: ST, spawner: impl Spawn) -> mpsc::Receiver<T>
-where
-    ST: Stream<Item=T> + Unpin + Send + 'static,
-    T: Send + 'static,
-{
-    let (mut sender, receiver) = mpsc::channel::<T>(0);
-    let fut = async move {
-        sender.send_all(&mut stream).await
-    }.map(|_| ());
-    spawner.spawn(fut).unwrap();
-    receiver
-}
-*/
 
 async fn connect_with_timeout<C, TS>(
     mut connector: C,
@@ -155,8 +124,31 @@ where
     Ok(())
 }
 
+/// Connect to a remote relay, and send a `Listen` packet.
+async fn init_listener_conn<C>(connector: &mut C) -> Result<ConnPairVec, ClientListenerError>
+where
+    C: FutTransform<Input = (), Output = Option<ConnPairVec>> + Send + Clone + 'static,
+{
+    let mut conn_pair = match connector.transform(()).await {
+        Some(conn_pair) => conn_pair,
+        None => return Err(ClientListenerError::ConnectionFailure),
+    };
+
+    let ser_init_connection = InitConnection::Listen.proto_serialize();
+    conn_pair
+        .sender
+        .send(ser_init_connection)
+        .await
+        .map_err(|_| ClientListenerError::SendInitConnectionError)?;
+
+    Ok(conn_pair)
+}
+
+/// Should only be called after a call to init_listener_conn()
 async fn inner_client_listener<'a, C, IAC, CS, CSE>(
-    mut connector: C,
+    connector: C,
+    // An established relay connection, after `Listen` message was already sent:
+    conn_pair: ConnPairVec,
     access_control: &'a mut AccessControlPk,
     incoming_access_control: &'a mut IAC,
     connections_sender: CS,
@@ -171,23 +163,7 @@ where
     CS: Sink<(PublicKey, ConnPairVec), Error = CSE> + Unpin + Clone + Send + 'static,
     CSE: 'static,
 {
-    let conn_pair = match connector.transform(()).await {
-        Some(conn_pair) => conn_pair,
-        None => return Err(ClientListenerError::ConnectionFailure),
-    };
-
-    // A channel used by the accept_connection.
-    // In case of failure to accept a connection, the public key of the rejected remote host will
-    // be received at pending_reject_receiver
-    let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
-
-    let (mut sender, receiver) = conn_pair.split();
-    let ser_init_connection = InitConnection::Listen.proto_serialize();
-
-    sender
-        .send(ser_init_connection)
-        .await
-        .map_err(|_| ClientListenerError::SendInitConnectionError)?;
+    let (sender, receiver) = conn_pair.split();
 
     // Add serialization for sender:
     let mut sender =
@@ -222,6 +198,11 @@ where
         .chain(stream::once(future::ready(
             ClientListenerEvent::ServerClosed,
         )));
+
+    // A channel used by the accept_connection.
+    // In case of failure to accept a connection, the public key of the rejected remote host will
+    // be received at pending_reject_receiver
+    let (pending_reject_sender, pending_reject_receiver) = mpsc::channel::<PublicKey>(0);
 
     let pending_reject_receiver = pending_reject_receiver.map(ClientListenerEvent::PendingReject);
 
@@ -281,6 +262,7 @@ where
 #[derive(Clone)]
 pub struct ClientListener<C, S> {
     connector: C,
+    /// Amount of ticks to wait before we give up on connecting to a relay
     conn_timeout_ticks: usize,
     timer_client: TimerClient,
     spawner: S,
@@ -310,42 +292,46 @@ where
 {
     type Connection = (PublicKey, ConnPairVec);
     type Config = AccessControlOpPk;
+    type Error = ClientListenerError;
     type Arg = (A, AccessControlPk);
 
     fn listen(
         self,
-        arg: (A, AccessControlPk),
-    ) -> (
-        mpsc::Sender<AccessControlOp<PublicKey>>,
-        mpsc::Receiver<(PublicKey, ConnPairVec)>,
-    ) {
+        arg: Self::Arg,
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (relay_address, mut access_control) = arg;
 
         let c_spawner = self.spawner.clone();
         let (access_control_sender, mut access_control_receiver) = mpsc::channel(0);
         let (connections_sender, connections_receiver) = mpsc::channel(0);
 
-        let const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
+        let mut const_connector = ConstFutTransform::new(self.connector.clone(), relay_address);
+        Box::pin(async move {
+            let conn_pair = init_listener_conn(&mut const_connector).await?;
+            let fut = async move {
+                inner_client_listener(
+                    const_connector,
+                    conn_pair,
+                    &mut access_control,
+                    &mut access_control_receiver,
+                    connections_sender,
+                    self.conn_timeout_ticks,
+                    self.timer_client,
+                    self.spawner,
+                    None,
+                )
+                .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
+                .map(|_| ())
+                .await
+            };
 
-        let fut = async move {
-            inner_client_listener(
-                const_connector,
-                &mut access_control,
-                &mut access_control_receiver,
-                connections_sender,
-                self.conn_timeout_ticks,
-                self.timer_client,
-                self.spawner,
-                None,
-            )
-            .map_err(|e| warn!("inner_client_listener() error: {:?}", e))
-            .map(|_| ())
-            .await
-        };
+            let _ = c_spawner.spawn(fut);
 
-        let _ = c_spawner.spawn(fut);
-
-        (access_control_sender, connections_receiver)
+            Ok(ListenerClient {
+                config_sender: access_control_sender,
+                conn_receiver: connections_receiver,
+            })
+        })
     }
 }
 
@@ -477,7 +463,7 @@ mod tests {
 
     async fn task_client_listener_basic(spawner: impl Spawn + Clone + Send + 'static) {
         let (req_sender, mut req_receiver) = mpsc::channel(0);
-        let connector = DummyConnector::new(req_sender);
+        let mut connector = DummyConnector::new(req_sender);
         let (connections_sender, _connections_receiver) = mpsc::channel(0);
         let conn_timeout_ticks = 8;
         let (_tick_sender, tick_receiver) = mpsc::channel(0);
@@ -490,8 +476,10 @@ mod tests {
         let fut_listener = async move {
             let mut access_control = AccessControlPk::new();
             // HACK: Saving temp value in res to make the compiler happy.
+            let conn_pair = init_listener_conn(&mut connector).await?;
             let res = inner_client_listener(
                 connector,
+                conn_pair,
                 &mut access_control,
                 &mut incoming_access_control,
                 connections_sender,
@@ -578,6 +566,5 @@ mod tests {
         let thread_pool = ThreadPool::new().unwrap();
         LocalPool::new().run_until(task_client_listener_basic(thread_pool.clone()));
     }
-
     // TODO: Add a test for ClientListener.
 }

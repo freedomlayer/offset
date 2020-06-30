@@ -8,7 +8,9 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::access_control::AccessControlOp;
-use common::conn::{BoxStream, ConnPairVec, FutTransform, Listener};
+use common::conn::{
+    BoxStream, ConnPairVec, FutListenerClient, FutTransform, Listener, ListenerClient,
+};
 use common::select_streams::select_streams;
 use common::transform_pool::transform_pool_loop;
 
@@ -26,35 +28,8 @@ pub enum LpConfig<RA> {
     RemoveFriend(PublicKey),
 }
 
-/*
-
-#[derive(Debug)]
-struct ListenPoolClientError;
-
-
-pub struct LpConfigClient<RA> {
-    request_sender: mpsc::Sender<LpConfig<RA>>,
-}
-
-impl<RA> LpConfigClient<RA> {
-    pub fn new(request_sender: mpsc::Sender<LpConfig<RA>>) -> Self {
-        LpConfigClient {
-            request_sender,
-        }
-    }
-
-    pub async fn config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolClientError> {
-        self.request_sender.send(config).await
-            .map_err(|_| ListenPoolClientError)?;
-        Ok(())
-    }
-}
-*/
-
 #[derive(Debug)]
 enum ListenPoolError {
-    // ConfigClosed,
-    // TimerClosed,
     SpawnError,
 }
 
@@ -89,7 +64,7 @@ where
             Arg = (RA, AccessControlPk),
         > + Clone
         + 'static,
-    S: Spawn + Clone,
+    S: Spawn + Clone + Send + 'static,
 {
     pub fn new(
         plain_conn_sender: mpsc::Sender<(PublicKey, ConnPairVec)>,
@@ -120,28 +95,56 @@ where
             access_control.apply_op(AccessControlOp::Add(friend_public_key.clone()));
         }
 
-        let (access_control_sender, connections_receiver) = self
-            .listener
-            .clone()
-            .listen((address.clone(), access_control));
-        // TODO: Do we need the listener.clone() here? Maybe Listen doesn't need to take ownership
-        // over self?
+        let (user_access_control_sender, user_incoming_access_control) = mpsc::channel(0);
 
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
+        let c_spawner = self.spawner.clone();
+
+        let listen_fut = self
+            .listener
+            .clone()
+            .listen((address.clone(), access_control));
+
         let send_fut = async move {
-            let _ = c_plain_conn_sender
-                .send_all(&mut connections_receiver.map(Ok))
-                .await;
-            // Notify that this listener was closed:
+            // We use an extra async block here to always be sure to notify a listener was closed
+            // (See below).
+            let _ = async move {
+                // Start listening to relay:
+                let ListenerClient {
+                    config_sender: access_control_sender,
+                    conn_receiver: connections_receiver,
+                } = listen_fut.await.map_err(|_| ())?;
+
+                // Forward all user control messages:
+                // Should be dropped when this future is dropped.
+                let _control_forward_handle = c_spawner
+                    .spawn_with_handle(
+                        user_incoming_access_control
+                            .map(Ok)
+                            .forward(access_control_sender),
+                    )
+                    .map_err(|_| ())?;
+
+                // Forward incoming connections to user:
+                let _ = c_plain_conn_sender
+                    .send_all(&mut connections_receiver.map(Ok))
+                    .await;
+
+                Ok::<_, ()>(())
+            }
+            .await;
+
+            // Finally, notify that this listener was closed:
             let _ = c_relay_closed_sender.send(address).await;
         };
+
         self.spawner
             .clone()
             .spawn(send_fut)
             .map_err(|_| ListenPoolError::SpawnError)?;
 
-        Ok(access_control_sender)
+        Ok(user_access_control_sender)
     }
 
     pub async fn handle_config(&mut self, config: LpConfig<RA>) -> Result<(), ListenPoolError> {
@@ -311,6 +314,8 @@ where
     Ok(())
 }
 
+/// PoolListener Manages incoming connections through relays.
+/// Can be configured by sending config messages.
 #[derive(Clone)]
 pub struct PoolListener<RA, L, ET, S> {
     listener: L,
@@ -343,6 +348,9 @@ impl<RA, L, ET, S> PoolListener<RA, L, ET, S> {
     }
 }
 
+#[derive(Debug)]
+pub struct PoolListenerError;
+
 impl<RA, L, ET, S> Listener for PoolListener<RA, L, ET, S>
 where
     RA: Clone + Eq + Hash + Send + Sync + Debug + 'static,
@@ -361,12 +369,13 @@ where
 {
     type Connection = (PublicKey, ConnPairVec);
     type Config = LpConfig<RA>;
+    type Error = PoolListenerError;
     type Arg = ();
 
     fn listen(
         self,
         _arg: Self::Arg,
-    ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>) {
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_conns, incoming_conns) = mpsc::channel(0);
 
@@ -389,7 +398,7 @@ where
         .map(|_| ());
 
         if c_spawner.spawn(enc_loop_fut).is_err() {
-            return (config_sender, incoming_conns);
+            return Box::pin(future::ready(Err(PoolListenerError)));
         }
 
         let loop_fut = async move {
@@ -420,11 +429,15 @@ where
             }
         };
 
-        // If the spawn didn't work, incoming_conns will be closed (because outgoing_conns is
-        // dropped) and the user of this listener will find out about it.
-        let _ = self.spawner.spawn(loop_fut);
+        if self.spawner.spawn(loop_fut).is_err() {
+            // Fail early if spawning failed
+            return Box::pin(future::ready(Err(PoolListenerError)));
+        }
 
-        (config_sender, incoming_conns)
+        Box::pin(future::ready(Ok(ListenerClient {
+            config_sender,
+            conn_receiver: incoming_conns,
+        })))
     }
 }
 
@@ -456,7 +469,7 @@ mod tests {
         let (outgoing_plain_conns, mut incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(
@@ -558,7 +571,7 @@ mod tests {
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(
@@ -630,7 +643,7 @@ mod tests {
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(

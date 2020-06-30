@@ -14,7 +14,7 @@ use identity::IdentityClient;
 use timer::TimerClient;
 
 use app_server::{app_server_loop, AppServerError, IncomingAppConnection};
-use channeler::{spawn_channeler, ChannelerError};
+use channeler::{channeler_loop, ChannelerError};
 use funder::types::{
     ChannelerConfig, FunderIncomingComm, FunderOutgoingComm, IncomingLivenessMessage,
 };
@@ -82,7 +82,7 @@ where
     });
 
     spawner
-        .spawn_with_handle(spawn_channeler(
+        .spawn_with_handle(channeler_loop(
             local_public_key,
             timer_client,
             node_config.backoff_ticks,

@@ -15,7 +15,7 @@ use async_std::task;
 
 use structopt::StructOpt;
 
-use common::conn::Listener;
+use common::conn::{Listener, ListenerClient};
 use common::int_convert::usize_to_u64;
 
 use crypto::identity::SoftwareEd25519Identity;
@@ -70,6 +70,7 @@ pub enum NodeBinError {
     CreateTimerError,
     LoadDbError,
     SpawnError,
+    ListenError,
     NetNodeError(NetNodeError),
     // SerializeError(SerializeError),
     StringSerdeError(StringSerdeError),
@@ -172,7 +173,11 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
 
     // Start listening to apps:
     let app_tcp_listener = TcpListener::new(MAX_FRAME_LENGTH, thread_pool.clone());
-    let (_config_sender, incoming_app_raw_conns) = app_tcp_listener.listen(laddr);
+    let ListenerClient {
+        config_sender: _config_sender,
+        conn_receiver: incoming_app_raw_conns,
+    } = task::block_on(app_tcp_listener.listen(laddr)).map_err(|_| NodeBinError::ListenError)?;
+    // ^ TODO: Can we possibly use future's agnostic block_on instead?
 
     let trusted_apps = FileTrustedApps::new(trusted.into());
 

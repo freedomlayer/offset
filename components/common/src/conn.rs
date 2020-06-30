@@ -100,18 +100,34 @@ pub trait Connector {
 }
 */
 
+/// A listener client, created during a call to `listen()`.
+/// Used to control the behaviour of the listener (using configuration messages), and to receive
+/// incoming connections.
+pub struct ListenerClient<CNF, CONN> {
+    pub config_sender: mpsc::Sender<CNF>,
+    pub conn_receiver: mpsc::Receiver<CONN>,
+}
+
+/// Futuristic output of a listening attempt
+pub type FutListenerClient<CNF, CONN, E> = BoxFuture<'static, Result<ListenerClient<CNF, CONN>, E>>;
+
 /// Listen to connections from remote entities
 pub trait Listener {
+    /// Incoming connection
     type Connection;
+    /// Configuration message sent to the listener
     type Config;
+    /// Error that occurs during setup.
+    /// If an error occured later, the server will close the remote side of `conn_receiver`, so
+    /// that the client will be notified.
+    type Error;
+    /// Argument provided at the `listen()` invocation.
     type Arg;
 
-    // TODO: Possibly change this to be async, as binding to the given address is an async event
-    // too.
     fn listen(
         self,
         arg: Self::Arg,
-    ) -> (mpsc::Sender<Self::Config>, mpsc::Receiver<Self::Connection>);
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error>;
 }
 
 /// Apply a futuristic function over an input. Returns a boxed future that resolves
