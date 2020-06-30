@@ -8,7 +8,7 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{SinkExt, StreamExt};
 
 use crate::utils::tcp_stream_to_conn_pair;
-use common::conn::{BoxFuture, ConnPairVec, Listener, ListenerClient};
+use common::conn::{ConnPairVec, FutListenerClient, Listener, ListenerClient};
 
 /// Listen for incoming TCP connections
 pub struct TcpListener<S> {
@@ -43,8 +43,7 @@ where
     fn listen(
         self,
         socket_addr: Self::Arg,
-    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
-    {
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (config_sender, _config_sender_receiver) = mpsc::channel(0);
         let (mut conn_receiver_sender, conn_receiver) = mpsc::channel(0);
 

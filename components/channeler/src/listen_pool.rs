@@ -8,7 +8,9 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, stream, FutureExt, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::access_control::AccessControlOp;
-use common::conn::{BoxFuture, BoxStream, ConnPairVec, FutTransform, Listener, ListenerClient};
+use common::conn::{
+    BoxStream, ConnPairVec, FutListenerClient, FutTransform, Listener, ListenerClient,
+};
 use common::select_streams::select_streams;
 use common::transform_pool::transform_pool_loop;
 
@@ -373,8 +375,7 @@ where
     fn listen(
         self,
         _arg: Self::Arg,
-    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
-    {
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (config_sender, incoming_config) = mpsc::channel(0);
         let (outgoing_conns, incoming_conns) = mpsc::channel(0);
 
@@ -428,9 +429,8 @@ where
             }
         };
 
-        // If the spawn didn't work, incoming_conns will be closed (because outgoing_conns is
-        // dropped) and the user of this listener will find out about it.
-        if let Err(_) = self.spawner.spawn(loop_fut) {
+        if self.spawner.spawn(loop_fut).is_err() {
+            // Fail early if spawning failed
             return Box::pin(future::ready(Err(PoolListenerError)));
         }
 

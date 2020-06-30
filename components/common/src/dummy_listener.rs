@@ -1,4 +1,4 @@
-use crate::conn::{BoxFuture, Listener, ListenerClient};
+use crate::conn::{FutListenerClient, Listener, ListenerClient};
 use futures::{channel::mpsc, SinkExt};
 
 pub struct ListenRequest<CONN, CONF, AR> {
@@ -13,7 +13,6 @@ pub struct DummyListener<CONN, CONF, AR> {
 }
 
 // TODO: Why didn't the automatic #[derive(Clone)] works for DummyListener?
-// Seemed like it had a problem with having config_receiver inside ListenRequest.
 // This is a workaround for this issue:
 impl<CONN, CONF, AR> Clone for DummyListener<CONN, CONF, AR> {
     fn clone(&self) -> DummyListener<CONN, CONF, AR> {
@@ -53,8 +52,7 @@ where
     fn listen(
         self,
         arg: Self::Arg,
-    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
-    {
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (conn_sender, conn_receiver) = mpsc::channel(1);
         let (config_sender, config_receiver) = mpsc::channel(1);
 

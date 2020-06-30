@@ -108,6 +108,9 @@ pub struct ListenerClient<CNF, CONN> {
     pub conn_receiver: mpsc::Receiver<CONN>,
 }
 
+/// Futuristic output of a listening attempt
+pub type FutListenerClient<CNF, CONN, E> = BoxFuture<'static, Result<ListenerClient<CNF, CONN>, E>>;
+
 /// Listen to connections from remote entities
 pub trait Listener {
     /// Incoming connection
@@ -124,7 +127,7 @@ pub trait Listener {
     fn listen(
         self,
         arg: Self::Arg,
-    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>;
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error>;
 }
 
 /// Apply a futuristic function over an input. Returns a boxed future that resolves

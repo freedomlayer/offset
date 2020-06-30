@@ -5,7 +5,8 @@ use futures::task::{Spawn, SpawnExt};
 use futures::{future, select, stream, FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt};
 
 use common::conn::{
-    BoxFuture, BoxStream, ConnPairVec, ConstFutTransform, FutTransform, Listener, ListenerClient,
+    BoxStream, ConnPairVec, ConstFutTransform, FutListenerClient, FutTransform, Listener,
+    ListenerClient,
 };
 
 use proto::crypto::PublicKey;
@@ -297,8 +298,7 @@ where
     fn listen(
         self,
         arg: Self::Arg,
-    ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
-    {
+    ) -> FutListenerClient<Self::Config, Self::Connection, Self::Error> {
         let (relay_address, mut access_control) = arg;
 
         let c_spawner = self.spawner.clone();
