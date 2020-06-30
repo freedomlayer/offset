@@ -7,11 +7,9 @@ use std::time::Duration;
 use derive_more::From;
 
 use futures::channel::mpsc;
-use futures::executor::ThreadPool;
+use futures::executor::{block_on, ThreadPool};
 use futures::task::SpawnExt;
 use futures::{FutureExt, TryFutureExt};
-
-use async_std::task;
 
 use structopt::StructOpt;
 
@@ -176,8 +174,7 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
     let ListenerClient {
         config_sender: _config_sender,
         conn_receiver: incoming_app_raw_conns,
-    } = task::block_on(app_tcp_listener.listen(laddr)).map_err(|_| NodeBinError::ListenError)?;
-    // ^ TODO: Can we possibly use future's agnostic block_on instead?
+    } = block_on(app_tcp_listener.listen(laddr)).map_err(|_| NodeBinError::ListenError)?;
 
     let trusted_apps = FileTrustedApps::new(trusted.into());
 
@@ -210,5 +207,5 @@ pub fn stnode(st_node_cmd: StNodeCmd) -> Result<(), NodeBinError> {
         thread_pool,
     );
 
-    task::block_on(node_fut).map_err(NodeBinError::NetNodeError)
+    block_on(node_fut).map_err(NodeBinError::NetNodeError)
 }
