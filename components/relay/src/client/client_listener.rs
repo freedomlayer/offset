@@ -24,9 +24,7 @@ type AccessControlOpPk = AccessControlOp<PublicKey>;
 pub enum ClientListenerError {
     SendInitConnectionError,
     ConnectionFailure,
-    // AccessControlClosed,
     SendToServerError,
-    // ServerClosed,
     SpawnError,
 }
 
@@ -47,38 +45,6 @@ enum AcceptConnectionError {
     SendConnPairError,
     RequestTimerStreamError,
 }
-
-/*
-/// Convert a Sink to an mpsc::Sender<T>
-/// This is done to overcome some compiler type limitations.
-fn to_mpsc_sender<T,SI,SE>(mut sink: SI, spawner: impl Spawn) -> mpsc::Sender<T>
-where
-    SI: Sink<T, Error=SE> + Unpin + Send + 'static,
-    T: Send + 'static,
-{
-    let (sender, mut receiver) = mpsc::channel::<T>(0);
-    let fut = async move {
-        sink.send_all(&mut receiver).await
-    }.map(|_| ());
-    spawner.spawn(fut).unwrap();
-    sender
-}
-
-/// Convert a Stream to an mpsc::Receiver<T>
-/// This is done to overcome some compiler type limitations.
-fn to_mpsc_receiver<T,ST,SE>(mut stream: ST, spawner: impl Spawn) -> mpsc::Receiver<T>
-where
-    ST: Stream<Item=T> + Unpin + Send + 'static,
-    T: Send + 'static,
-{
-    let (mut sender, receiver) = mpsc::channel::<T>(0);
-    let fut = async move {
-        sender.send_all(&mut stream).await
-    }.map(|_| ());
-    spawner.spawn(fut).unwrap();
-    receiver
-}
-*/
 
 async fn connect_with_timeout<C, TS>(
     mut connector: C,
