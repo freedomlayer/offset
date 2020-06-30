@@ -17,7 +17,7 @@ done
 
 # DEBUG: Show contents of directory, to see if a report was created:
 pwd
-ls
+ls -la
 
 # TODO: Change to something safer:
 # Automatically reads from CODECOV_TOKEN environment variable:
