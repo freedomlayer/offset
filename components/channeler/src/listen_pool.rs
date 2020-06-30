@@ -97,9 +97,12 @@ where
 
         let mut c_plain_conn_sender = self.plain_conn_sender.clone();
         let mut c_relay_closed_sender = self.relay_closed_sender.clone();
-        let mut c_spawner = self.spawner.clone();
+        let c_spawner = self.spawner.clone();
 
-        let listen_fut = self.listener.listen((address.clone(), access_control));
+        let listen_fut = self
+            .listener
+            .clone()
+            .listen((address.clone(), access_control));
 
         let send_fut = async move {
             // We use an extra async block here to always be sure to notify a listener was closed
@@ -369,7 +372,7 @@ where
 
     fn listen(
         self,
-        arg: Self::Arg,
+        _arg: Self::Arg,
     ) -> BoxFuture<'static, Result<ListenerClient<Self::Config, Self::Connection>, Self::Error>>
     {
         let (config_sender, incoming_config) = mpsc::channel(0);
@@ -394,7 +397,7 @@ where
         .map(|_| ());
 
         if c_spawner.spawn(enc_loop_fut).is_err() {
-            return (config_sender, incoming_conns);
+            return Box::pin(future::ready(Err(PoolListenerError)));
         }
 
         let loop_fut = async move {
@@ -427,9 +430,14 @@ where
 
         // If the spawn didn't work, incoming_conns will be closed (because outgoing_conns is
         // dropped) and the user of this listener will find out about it.
-        let _ = self.spawner.spawn(loop_fut);
+        if let Err(_) = self.spawner.spawn(loop_fut) {
+            return Box::pin(future::ready(Err(PoolListenerError)));
+        }
 
-        (config_sender, incoming_conns)
+        Box::pin(future::ready(Ok(ListenerClient {
+            config_sender,
+            conn_receiver: incoming_conns,
+        })))
     }
 }
 
@@ -461,7 +469,7 @@ mod tests {
         let (outgoing_plain_conns, mut incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(
@@ -563,7 +571,7 @@ mod tests {
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(
@@ -635,7 +643,7 @@ mod tests {
         let (outgoing_plain_conns, _incoming_plain_conns) = mpsc::channel(0);
 
         let (listen_req_sender, mut listen_req_receiver) = mpsc::channel(0);
-        let listener = DummyListener::new(listen_req_sender, spawner.clone());
+        let listener = DummyListener::new(listen_req_sender);
 
         let (event_sender, mut event_receiver) = mpsc::channel(0);
         let fut_loop = listen_pool_loop::<u32, _, _, _>(
