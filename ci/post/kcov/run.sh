@@ -15,6 +15,10 @@ for exe in ${exes}; do
         ${exe}
 done
 
+# DEBUG: Show contents of directory, to see if a report was created:
+pwd
+ls
+
 # TODO: Change to something safer:
 # Automatically reads from CODECOV_TOKEN environment variable:
 bash <(curl -s https://codecov.io/bash)
