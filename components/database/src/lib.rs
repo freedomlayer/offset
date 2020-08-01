@@ -14,6 +14,7 @@ extern crate serde;
 
 mod atomic_db;
 mod database;
+mod db_check;
 pub mod file_db;
 
 pub use self::atomic_db::AtomicDb;
