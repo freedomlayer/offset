@@ -51,10 +51,10 @@ fn create_database(conn: &Connection) -> rusqlite::Result<()> {
              currency                 TEXT NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES local_active_currencies(friend_public_key, currency)
-                ON DELETE CASCADE
+                ON DELETE RESTRICT
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES remote_active_currencies(friend_public_key, currency)
-                ON DELETE CASCADE
+                ON DELETE RESTRICT
             );",
         params![],
     )?;
