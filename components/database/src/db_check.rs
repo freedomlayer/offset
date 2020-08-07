@@ -6,7 +6,8 @@ fn create_database(conn: &Connection) -> rusqlite::Result<()> {
     // See also: https://stackoverflow.com/questions/2300356/using-a-single-row-configuration-table-in-sql-server-database-bad-idea
     conn.execute(
         "CREATE TABLE funder(
-             local_public_key         BLOB NOT NULL PRIMARY KEY
+             id                       INTEGER PRIMARY KEY CHECK (id = 0), -- enforce single row
+             local_public_key         BLOB NOT NULL
             );",
         params![],
     )?;
