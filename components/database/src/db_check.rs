@@ -1,15 +1,12 @@
 use rusqlite::{self, params, Connection};
 
-const TC_CONSISTENT_IN: &str = &"C-IN";
-const TC_CONSISTENT_OUT: &str = &"C-OUT";
-const TC_INCONSISTENT: &str = &"I";
-
 #[allow(unused)]
 fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
     // TODO: A better way to do this?
     tx.execute("PRAGMA foreign_keys = ON;", params![])?;
 
+    /*
     // Single row is enforced in this table according to https://stackoverflow.com/a/33104119
     tx.execute(
         "CREATE TABLE funder(
@@ -18,21 +15,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             );",
         params![],
     )?;
-
-    tx.execute(
-        "CREATE TABLE token_channel_statuses(
-            status                      TEXT PRIMARY KEY
-        );",
-        params![],
-    )?;
-
-    // Initialize token_channel_status table:
-    for value in &[TC_CONSISTENT_IN, TC_CONSISTENT_OUT, TC_INCONSISTENT] {
-        tx.execute(
-            "INSERT INTO token_channel_statuses VALUES (?1);",
-            params![value],
-        )?;
-    }
+    */
 
     // TODO: Add index on primary key?
     tx.execute(
@@ -48,45 +31,44 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              -- Do we allow connectivity with this friend?
              is_consistent              BOOL NOT NULL,
              -- Is the channel with this friend consistent?
-             token_channel_status       TEXT NOT NULL,
-             -- Current status of the token channel
-             FOREIGN KEY(token_channel_status)
-                REFERENCES token_channel_statuses(status)
+             token_channel_status       TEXT NOT NULL
             );",
         params![],
     )?;
 
-    // TODO: Make sure that consistent and inconsistent channels tables are disjoint, but still
-    // refer to the friends table. Add constraints to make sure that when an item is removed from
-    // the consistent_channels table, active currencies will also be affected.
-
     tx.execute(
         "CREATE TABLE consistent_channels(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
+             is_consistent              BOOL NOT NULL CHECK (is_consistent = true),
              is_incoming                BOOL NOT NULL,
-             FOREIGN KEY(friend_public_key)
-                REFERENCES friends(friend_public_key)
+             FOREIGN KEY(friend_public_key, is_consistent) 
+                REFERENCES friends(friend_public_key, is_consistent)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
 
     tx.execute(
         "CREATE TABLE inconsistent_channels(
-             friend_public_key          BLOB NOT NULL PRIMARY KEY,
-             is_incoming                BOOL NOT NULL,
-             FOREIGN KEY(friend_public_key)
-                REFERENCES friends(friend_public_key)
+             friend_public_key              BLOB NOT NULL PRIMARY KEY,
+             is_consistent                  BOOL NOT NULL CHECK (is_consistent = false),
+             opt_last_incoming_move_token   BLOB,
+             local_reset_terms              BLOB NOT NULL,
+             opt_remote_reset_terms         BLOB,
+             FOREIGN KEY(friend_public_key, is_consistent) 
+                REFERENCES friends(friend_public_key, is_consistent)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
 
     // Should only exist if relevant token channel is alive
     tx.execute(
-        "CREATE TABLE local_active_currencies(
+        "CREATE TABLE local_currencies(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              FOREIGN KEY(friend_public_key) 
-                REFERENCES friends(friend_public_key)
+                REFERENCES consistent_channels(friend_public_key)
                 ON DELETE CASCADE,
              PRIMARY KEY(friend_public_key, currency)
             );",
@@ -94,55 +76,78 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE remote_active_currencies(
+        "CREATE TABLE remote_currencies(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              FOREIGN KEY(friend_public_key) 
-                REFERENCES friends(friend_public_key)
+                REFERENCES consistent_channels(friend_public_key)
                 ON DELETE CASCADE,
              PRIMARY KEY(friend_public_key, currency)
             );",
         params![],
     )?;
 
-    // TODO:
     tx.execute(
-        "CREATE TABLE active_currencies(
+        "CREATE TABLE mutual_credits(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
+             balance                  BLOB NOT NULL,
+             local_pending_debt       BLOB NOT NULL,
+             remote_pending_debt      BLOB NOT NULL,
+             PRIMARY KEY(friend_public_key, currency)
              FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES local_active_currencies(friend_public_key, currency)
-                ON DELETE RESTRICT
+                REFERENCES local_currencies(friend_public_key, currency)
+                ON DELETE CASCADE
              FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES remote_active_currencies(friend_public_key, currency)
-                ON DELETE RESTRICT
+                REFERENCES remote_currencies(friend_public_key, currency)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
 
-    // TODO:
+    dbg!("4");
+
     tx.execute(
         "CREATE TABLE local_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL,
+             route                    BLOB NOT NULL,
+             dest_payment             BLOB NOT NULL,
+             total_dest_payment       BLOB NOT NULL,
+             invoice_id               BLOB NOT NULL,
+             left_fees                BLOB NOT NULL,
+             src_hashed_lock          BLOB NOT NULL,
+             transaction_stage        BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES active_currencies(friend_public_key, currency)
+                REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
         params![],
     )?;
 
-    // TODO:
+    dbg!("5");
+
     tx.execute(
         "CREATE TABLE remote_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL,
+             route                    BLOB NOT NULL,
+             dest_payment             BLOB NOT NULL,
+             total_dest_payment       BLOB NOT NULL,
+             invoice_id               BLOB NOT NULL,
+             left_fees                BLOB NOT NULL,
+             src_hashed_lock          BLOB NOT NULL,
+             transaction_stage        BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES active_currencies(friend_public_key, currency)
+                REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
         params![],
     )?;
+
+    dbg!("6");
 
     tx.execute(
         "CREATE TABLE currency_configs(
@@ -158,16 +163,32 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO:
     tx.execute(
         "CREATE TABLE pending_user_requests(
-             friend_public_key        BLOB NOT NULL PRIMARY KEY
+             friend_public_key        BLOB NOT NULL,
+             currency                 TEXT NOT NULL,
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES active_currencies(friend_public_key)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
+
+    dbg!("8");
 
     // TODO:
     tx.execute(
         "CREATE TABLE pending_requests(
              friend_public_key        BLOB NOT NULL,
-             currency                 BLOB NOT NULL PRIMARY KEY
+             currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL,
+             src_hashed_lock          BLOB NOT NULL,
+             route                    BLOB NOT NULL,
+             dest_payment             BLOB NOT NULL,
+             total_dest_payment       BLOB NOT NULL,
+             invoice_id               BLOB NOT NULL,
+             left_fees                BLOB NOT NULL,
+             FOREIGN KEY(friend_public_key, currency) 
+                REFERENCES mutual_credits(friend_public_key, currency)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
@@ -175,7 +196,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO:
     tx.execute(
         "CREATE TABLE pending_responses(
-             friend_public_key        BLOB NOT NULL PRIMARY KEY
+             friend_public_key        BLOB NOT NULL PRIMARY KEY,
+             currency                 TEXT NOT NULL,
+             FOREIGN KEY(friend_public_key, currency) 
+                REFERENCES mutual_credits(friend_public_key, currency)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
@@ -203,14 +228,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              index_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
              name                     TEXT
-            );",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE TABLE currencies(
-             friend_public_key         BLOB NOT NULL PRIMARY KEY
-
             );",
         params![],
     )?;
