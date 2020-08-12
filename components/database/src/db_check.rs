@@ -205,6 +205,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Set up primary key?
     tx.execute(
         "CREATE TABLE friend_relays(
              friend_public_key        BLOB NOT NULL,
