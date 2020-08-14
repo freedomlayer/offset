@@ -103,6 +103,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE local_pending_transactions(
              friend_public_key        BLOB NOT NULL,
@@ -122,6 +123,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE remote_pending_transactions(
              friend_public_key        BLOB NOT NULL,
@@ -152,6 +154,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE pending_user_requests(
              friend_public_key        BLOB NOT NULL,
@@ -170,6 +173,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE pending_requests(
              friend_public_key        BLOB NOT NULL,
@@ -268,7 +272,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE payments(
              counter         BLOB NOT NULL PRIMARY KEY
-
             );",
         params![],
     )?;
@@ -277,7 +280,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE invoices (
              counter         BLOB NOT NULL PRIMARY KEY
-
             );",
         params![],
     )?;
