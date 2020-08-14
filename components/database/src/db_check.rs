@@ -6,7 +6,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO: A better way to do this?
     tx.execute("PRAGMA foreign_keys = ON;", params![])?;
 
-    /*
     // Single row is enforced in this table according to https://stackoverflow.com/a/33104119
     tx.execute(
         "CREATE TABLE funder(
@@ -15,7 +14,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             );",
         params![],
     )?;
-    */
 
     // TODO: Add index on primary key?
     tx.execute(
@@ -190,13 +188,46 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
     tx.execute(
-        "CREATE TABLE pending_responses(
-             friend_public_key        BLOB NOT NULL PRIMARY KEY,
+        "CREATE TABLE pending_backwards(
+             friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             backwards_type           TEXT CHECK (backwards_type IN ('R', 'C')) NOT NULL,
+             -- R: Response, C: Cancel
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
+                ON DELETE CASCADE,
+             FOREIGN KEY(request_id) 
+                REFERENCES pending_requests(request_id)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    // TODO: Fill in according to new response design:
+    tx.execute(
+        "CREATE TABLE pending_backwards_responses(
+             friend_public_key        BLOB NOT NULL,
+             currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             backwards_type           TEXT NOT NULL CHECK (backwards_type = 'R'),
+             -- TODO
+             FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
+                REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE pending_backwards_cancels(
+             friend_public_key        BLOB NOT NULL,
+             currency                 TEXT NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             backwards_type           TEXT NOT NULL CHECK (backwards_type = 'C'),
+             FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
+                REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
                 ON DELETE CASCADE
             );",
         params![],
