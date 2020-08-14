@@ -105,8 +105,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    dbg!("4");
-
     tx.execute(
         "CREATE TABLE local_pending_transactions(
              friend_public_key        BLOB NOT NULL,
@@ -126,8 +124,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    dbg!("5");
-
     tx.execute(
         "CREATE TABLE remote_pending_transactions(
              friend_public_key        BLOB NOT NULL,
@@ -146,8 +142,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             );",
         params![],
     )?;
-
-    dbg!("6");
 
     tx.execute(
         "CREATE TABLE currency_configs(
@@ -171,8 +165,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             );",
         params![],
     )?;
-
-    dbg!("8");
 
     // TODO:
     tx.execute(
