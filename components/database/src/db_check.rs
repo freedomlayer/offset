@@ -103,19 +103,18 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE local_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL,
+             src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
              total_dest_payment       BLOB NOT NULL,
-             invoice_id               BLOB NOT NULL,
+             invoice_hash             BLOB NOT NULL,
+             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
-             src_hashed_lock          BLOB NOT NULL,
-             transaction_stage        BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
@@ -123,19 +122,18 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE remote_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL,
+             src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
              total_dest_payment       BLOB NOT NULL,
-             invoice_id               BLOB NOT NULL,
+             invoice_hash             BLOB NOT NULL,
+             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
-             src_hashed_lock          BLOB NOT NULL,
-             transaction_stage        BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
@@ -154,7 +152,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE pending_user_requests(
              friend_public_key        BLOB NOT NULL,
@@ -164,7 +161,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
              total_dest_payment       BLOB NOT NULL,
-             invoice_id               BLOB NOT NULL,
+             invoice_hash             BLOB NOT NULL,
+             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
@@ -173,7 +171,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Update according to new request design:
     tx.execute(
         "CREATE TABLE pending_requests(
              friend_public_key        BLOB NOT NULL,
@@ -183,7 +180,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
              total_dest_payment       BLOB NOT NULL,
-             invoice_id               BLOB NOT NULL,
+             invoice_hash             BLOB NOT NULL,
+             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
@@ -209,14 +207,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Fill in according to new response design:
     tx.execute(
         "CREATE TABLE pending_backwards_responses(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
              backwards_type           TEXT NOT NULL CHECK (backwards_type = 'R'),
-             -- TODO
+             src_hashed_lock          BLOB NOT NULL,
+             serial_num               BLOB NOT NULL,
+             signature                BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
                 REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
                 ON DELETE CASCADE
