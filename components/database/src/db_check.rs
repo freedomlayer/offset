@@ -233,12 +233,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Set up primary key?
     tx.execute(
         "CREATE TABLE friend_relays(
              friend_public_key        BLOB NOT NULL,
              relay_public_key         BLOB NOT NULL,
-             address                  TEXT
+             address                  TEXT,
+             PRIMARY KEY(friend_public_key, relay_public_key),
+             FOREIGN KEY(friend_public_key)
+                REFERENCES friends(friend_public_key)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
