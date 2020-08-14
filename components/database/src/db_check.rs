@@ -365,17 +365,31 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     // TODO:
+    // - Reconsider primary key
+    // - Add a new table for pending requests?
+    // - Add indices
     tx.execute(
         "CREATE TABLE payments(
-             counter         BLOB NOT NULL PRIMARY KEY
+             counter         BLOB NOT NULL PRIMARY KEY,
+             payment_id      BLOB NOT NULL,
+             amount          BLOB NOT NULL
             );",
         params![],
     )?;
 
     // TODO:
+    // - Reconsider primary key
+    // - Add fields for total amount paid?
+    // - Add indices
     tx.execute(
         "CREATE TABLE invoices (
-             counter         BLOB NOT NULL PRIMARY KEY
+             counter         BLOB NOT NULL PRIMARY KEY,
+             invoice_id      BLOB NOT NULL,
+             currency        TEXT NOT NULL,
+             amount          BLOB NOT NULL,
+             -- TODO: Possibly pick a different name to 'summary'
+             summary         TEXT NOT NULL,
+             status          BLOB NOT NULL
             );",
         params![],
     )?;
