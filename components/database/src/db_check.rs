@@ -154,24 +154,29 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
     tx.execute(
         "CREATE TABLE pending_user_requests(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             FOREIGN KEY(friend_public_key) 
-                REFERENCES active_currencies(friend_public_key)
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             src_hashed_lock          BLOB NOT NULL,
+             route                    BLOB NOT NULL,
+             dest_payment             BLOB NOT NULL,
+             total_dest_payment       BLOB NOT NULL,
+             invoice_id               BLOB NOT NULL,
+             left_fees                BLOB NOT NULL,
+             FOREIGN KEY(friend_public_key, currency) 
+                REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
         params![],
     )?;
 
-    // TODO:
     tx.execute(
         "CREATE TABLE pending_requests(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
