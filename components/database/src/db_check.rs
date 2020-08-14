@@ -15,7 +15,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Add index on primary key?
     tx.execute(
         "CREATE TABLE friends(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
@@ -23,14 +22,44 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              -- Last local relays we have sent to the friend
              remote_relays              BLOB NOT NULL,
              -- Friend's relays
-             name                       TEXT NOT NULL,
+             name                       TEXT NOT NULL UNIQUE,
              -- Friend's name
              is_enabled                 BOOL NOT NULL,
              -- Do we allow connectivity with this friend?
-             is_consistent              BOOL NOT NULL,
+             is_consistent              BOOL NOT NULL
              -- Is the channel with this friend consistent?
-             token_channel_status       TEXT NOT NULL
             );",
+        params![],
+    )?;
+
+    // friend public key index:
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_friends_friend_public_key ON friends(friend_public_key);",
+        params![],
+    )?;
+
+    // public name index:
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_friends_name ON friends(name);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE currency_configs(
+             friend_public_key          BLOB NOT NULL,
+             currency                   TEXT NOT NULL,
+             rate                       BLOB NOT NULL,
+             remote_max_debt            BLOB NOT NULL,
+             is_open                    BOOL NOT NULL,
+             FOREIGN KEY(friend_public_key, currency) 
+                REFERENCES friends(friend_public_key, currency)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_currency_configs ON currency_configs(friend_public_key, currency);",
         params![],
     )?;
 
@@ -43,6 +72,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES friends(friend_public_key, is_consistent)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    // friend public key index:
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_consistent_channels ON consistent_channels(friend_public_key);",
         params![],
     )?;
 
@@ -60,7 +95,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // Should only exist if relevant token channel is alive
+    // friend public key index:
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_inconsistent_channels ON inconsistent_channels(friend_public_key);",
+        params![],
+    )?;
+
     tx.execute(
         "CREATE TABLE local_currencies(
              friend_public_key        BLOB NOT NULL,
@@ -68,8 +108,16 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              FOREIGN KEY(friend_public_key) 
                 REFERENCES consistent_channels(friend_public_key)
                 ON DELETE CASCADE,
+             FOREIGN KEY(friend_public_key, currency) 
+                REFERENCES currency_configs(friend_public_key, currency)
+                ON DELETE CASCADE,
              PRIMARY KEY(friend_public_key, currency)
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_local_currencies ON local_currencies(friend_public_key, currency);",
         params![],
     )?;
 
@@ -82,6 +130,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 ON DELETE CASCADE,
              PRIMARY KEY(friend_public_key, currency)
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_remote_currencies ON remote_currencies(friend_public_key, currency);",
         params![],
     )?;
 
@@ -104,10 +157,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_mutual_credits ON mutual_credits(friend_public_key, currency);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE local_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -119,6 +177,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_local_pending_transactions ON local_pending_transactions(request_id);",
         params![],
     )?;
 
@@ -126,7 +189,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE remote_pending_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -142,13 +205,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE currency_configs(
-             friend_public_key          BLOB NOT NULL PRIMARY KEY,
-             currency                   TEXT NOT NULL,
-             rate                       BLOB NOT NULL,
-             remote_max_debt            BLOB NOT NULL,
-             is_open                    BOOL NOT NULL
-            );",
+        "CREATE UNIQUE INDEX idx_remote_pending_transactions ON remote_pending_transactions(request_id);",
         params![],
     )?;
 
@@ -172,6 +229,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_pending_user_requests ON pending_user_requests(request_id);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE pending_requests(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
@@ -187,6 +249,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_pending_requests ON pending_requests(request_id);",
         params![],
     )?;
 
@@ -208,6 +275,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_pending_backwards ON pending_backwards(request_id);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE pending_backwards_responses(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
@@ -220,6 +292,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_pending_backwards_responses ON pending_backwards_responses(request_id);",
         params![],
     )?;
 
@@ -237,6 +314,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_pending_backwards_cancels ON pending_backwards_cancels(request_id);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE friend_relays(
              friend_public_key        BLOB NOT NULL,
              relay_public_key         BLOB NOT NULL,
@@ -250,6 +332,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_friend_relays ON friend_relays(friend_public_key, relay_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE relays(
              relay_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
@@ -259,11 +346,21 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_relays ON relays(relay_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE index_servers(
              index_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
              name                     TEXT
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_index_servers ON index_servers(index_public_key);",
         params![],
     )?;
 
