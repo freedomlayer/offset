@@ -23,7 +23,7 @@ pub mod crypto;
 // pub mod funder;
 // pub mod index_client;
 // pub mod index_server;
-// pub mod keepalive;
+pub mod keepalive;
 pub mod net;
 pub mod proto_ser;
 pub mod relay;
