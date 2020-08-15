@@ -21,34 +21,6 @@ use crate::report::messages::{FunderReport, FunderReportMutation};
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offset-proto?
 
-#[capnp_conv(crate::common_capnp::named_relay_address)]
-#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NamedRelayAddress<B = NetAddress> {
-    #[serde(with = "ser_b64")]
-    pub public_key: PublicKey,
-    pub address: B,
-    pub name: String,
-}
-
-#[capnp_conv(crate::common_capnp::relay_address)]
-#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RelayAddress<B = NetAddress> {
-    #[serde(with = "ser_b64")]
-    pub public_key: PublicKey,
-    pub address: B,
-}
-
-impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
-    fn from(from: NamedRelayAddress<B>) -> Self {
-        RelayAddress {
-            public_key: from.public_key,
-            address: from.address,
-        }
-    }
-}
-
 #[capnp_conv(crate::report_capnp::node_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReport<B = NetAddress> {

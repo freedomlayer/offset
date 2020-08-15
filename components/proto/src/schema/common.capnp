@@ -57,6 +57,10 @@ struct HashResult {
         inner @0: Buffer256;
 }
 
+struct Hmac {
+        inner @0: Buffer256;
+}
+
 struct InvoiceId {
         inner @0: Buffer256;
 }
@@ -123,51 +127,48 @@ struct NamedIndexServerAddress {
 # Common payment primitives
 ############################
 
-# A single commit, commiting to a transaction along a certain route.
-struct Commit {
-        responseHash @0: HashResult;
-        # = sha512/256(requestId || randNonce)
-        srcPlainLock @1: PlainLock;
-        destHashedLock @2: HashedLock;
-        destPayment @3: CustomUInt128;
-        totalDestPayment @4: CustomUInt128;
-        invoiceId @5: InvoiceId;
-        currency @6: Currency;
-        signature @7: Signature;
-        # Signature{key=destinationKey}(
-        #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || randNonce) ||
-        #   srcHashedLock ||
-        #   destHashedLock ||
-        #   isComplete ||       (Assumed to be True)
-        #   destPayment ||
-        #   totalDestPayment ||
-        #   invoiceId ||
-        #   currency
-        # )
-}
+# Legacy:
+# 
+#       # A single commit, commiting to a transaction along a certain route.
+#       struct Commit {
+#               responseHash @0: HashResult;
+#               # = sha512/256(requestId || randNonce)
+#               srcPlainLock @1: PlainLock;
+#               destHashedLock @2: HashedLock;
+#               destPayment @3: CustomUInt128;
+#               totalDestPayment @4: CustomUInt128;
+#               invoiceId @5: InvoiceId;
+#               currency @6: Currency;
+#               signature @7: Signature;
+#               # Signature{key=destinationKey}(
+#               #   sha512/256("FUNDS_RESPONSE") ||
+#               #   sha512/256(requestId || randNonce) ||
+#               #   srcHashedLock ||
+#               #   destHashedLock ||
+#               #   isComplete ||       (Assumed to be True)
+#               #   destPayment ||
+#               #   totalDestPayment ||
+#               #   invoiceId ||
+#               #   currency
+#               # )
+#       }
 
 # A receipt for payment to the Funder
 struct Receipt {
         responseHash @0: HashResult;
-        # = sha512/256(requestId || randNonce)
-        invoiceId @1: InvoiceId;
-        currency @2: Currency;
-        srcPlainLock @3: PlainLock;
-        destPlainLock @4: PlainLock;
-        isComplete @5: Bool;
-        destPayment @6: CustomUInt128;
-        totalDestPayment @7: CustomUInt128;
-        signature @8: Signature;
+        # = sha512/256(request_id || hmac || srcPlainLock || destPayment)
+        serialNum @1: CustomUInt128;
+        invoiceHash @2: HashResult;
+        currency @3: Currency;
+        totalDestPayment @4: CustomUInt128;
+        signature @5: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || sha512/256(route) || randNonce) ||
-        #   srcHashedLock ||
-        #   dstHashedLock ||
-        #   isComplete ||       (Assumed to be True)
-        #   destPayment ||
+        #   sha512/256(hmac || srcPlainLock || destPayment)
+        #   requestId ||
+        #   serialNum ||
         #   totalDestPayment ||
-        #   invoiceId || 
-        #   currency
+        #   invoiceHash ||
+        #   currency [Implicitly known by the mutual credit]
         # )
 }

@@ -11,6 +11,7 @@ using import "common.capnp".RelayAddress;
 using import "common.capnp".HashedLock;
 using import "common.capnp".PlainLock;
 using import "common.capnp".HashResult;
+using import "common.capnp".Hmac;
 using import "common.capnp".Currency;
 
 
@@ -107,9 +108,15 @@ struct RequestSendFundsOp {
         route @2: FriendsRoute;
         destPayment @3: CustomUInt128;
         totalDestPayment @4: CustomUInt128;
-        invoiceId @5: InvoiceId;
-        # Id number of the invoice we are attempting to pay
-        leftFees @6: CustomUInt128;
+        invoiceHash @5: HashResult;
+        # A hash of the contents of the invoice (Including text etc)
+        # Possibly a hash over a random invoiceId, and text hash
+        hmac @6: Hmac;
+        # An HMAC signature over the whole message, not including "leftFees"
+        # and "route" (as they change when the message is passed).
+        # The shared secret for the HMAC algorithm was received through
+        # "direct" relay communication with the seller.
+        leftFees @7: CustomUInt128;
         # Amount of fees left to give to mediators
         # Every mediator takes the amount of fees he wants and subtracts this
         # value accordingly.
@@ -117,43 +124,31 @@ struct RequestSendFundsOp {
 
 struct ResponseSendFundsOp {
         requestId @0: Uid;
-        destHashedLock @1: HashedLock;
-        isComplete @2: Bool;
-        # Has the destination received all the funds he asked for at the invoice?
-        # Mostly meaningful in the case of multi-path payments.
-        # isComplete == True means that no more requests should be sent.
-        # The isComplete field is crucial for the construction of a Commit message.
-        randNonce @3: RandValue;
-        signature @4: Signature;
+        srcPlainLock @1: PlainLock;
+        serialNum @2: CustomUInt128;
+        # Serial number used for this collection of invoice money.
+        # This should be a u128 counter, increased by 1 for every collected
+        # invoice.
+        signature @3: Signature;
         # Signature{key=destinationKey}(
         #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || randNonce) ||
-        #   srcHashedLock ||
-        #   destHashedLock ||
-        #   isComplete ||
-        #   destPayment ||
+        #   sha512/256(requestId || hmac || srcPlainLock || destPayment)
+        #   serialNum ||
         #   totalDestPayment ||
-        #   invoiceId ||
+        #   invoiceHash ||
         #   currency [Implicitly known by the mutual credit]
         # )
 }
 
+
 struct CancelSendFundsOp {
         requestId @0: Uid;
 }
-
-struct CollectSendFundsOp {
-        requestId @0: Uid;
-        srcPlainLock @1: PlainLock;
-        destPlainLock @2: PlainLock;
-}
-
 
 struct FriendTcOp {
         union {
                 requestSendFunds @0: RequestSendFundsOp;
                 responseSendFunds @1: ResponseSendFundsOp;
                 cancelSendFunds @2: CancelSendFundsOp;
-                collectSendFunds @3: CollectSendFundsOp;
         }
 }

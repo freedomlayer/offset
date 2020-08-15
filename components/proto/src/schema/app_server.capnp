@@ -10,7 +10,6 @@ using import "common.capnp".Signature;
 using import "common.capnp".PaymentId;
 using import "common.capnp".Rate;
 using import "common.capnp".Receipt;
-using import "common.capnp".Commit;
 using import "common.capnp".RelayAddress;
 using import "common.capnp".NamedRelayAddress;
 using import "common.capnp".NetAddress;
@@ -169,9 +168,9 @@ struct ReportMutations {
 
 struct RequestResult {
         union {
-                complete @0: Commit;
-                success @1: Void;
-                failure @2: Void;
+                # complete @0: Commit;
+                success @0: Void;
+                failure @1: Void;
         }
 }
 
@@ -230,28 +229,28 @@ struct AppRequest {
         # Seller (Receiving funds):
         addInvoice @6: AddInvoice;
         cancelInvoice @7: InvoiceId;
-        commitInvoice @8: Commit;
+        # commitInvoice @8: Commit;
 
         # Friends management
-        addFriend @9: AddFriend;
-        setFriendRelays @10: SetFriendRelays;
-        setFriendName @11: SetFriendName;
-        removeFriend @12: PublicKey;
-        enableFriend @13: PublicKey;
-        disableFriend @14: PublicKey;
-        openFriendCurrency @15: OpenFriendCurrency;
-        closeFriendCurrency @16: CloseFriendCurrency;
-        setFriendCurrencyMaxDebt @17: SetFriendCurrencyMaxDebt;
-        setFriendCurrencyRate @18: SetFriendCurrencyRate;
-        removeFriendCurrency @19: RemoveFriendCurrency;
-        resetFriendChannel @20: ResetFriendChannel;
+        addFriend @8: AddFriend;
+        setFriendRelays @9: SetFriendRelays;
+        setFriendName @10: SetFriendName;
+        removeFriend @11: PublicKey;
+        enableFriend @12: PublicKey;
+        disableFriend @13: PublicKey;
+        openFriendCurrency @14: OpenFriendCurrency;
+        closeFriendCurrency @15: CloseFriendCurrency;
+        setFriendCurrencyMaxDebt @16: SetFriendCurrencyMaxDebt;
+        setFriendCurrencyRate @17: SetFriendCurrencyRate;
+        removeFriendCurrency @18: RemoveFriendCurrency;
+        resetFriendChannel @19: ResetFriendChannel;
 
         # Routes:
-        requestRoutes @21: RequestRoutes;
+        requestRoutes @20: RequestRoutes;
 
         # Index servers management:
-        addIndexServer @22: NamedIndexServerAddress;
-        removeIndexServer @23: PublicKey;
+        addIndexServer @21: NamedIndexServerAddress;
+        removeIndexServer @22: PublicKey;
     }
 }
 

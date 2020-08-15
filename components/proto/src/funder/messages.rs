@@ -19,14 +19,40 @@ use crate::crypto::{
     HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature, Uid,
 };
 
-use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
-use crate::report::messages::FunderReportMutations;
 
 use common::ser_utils::{ser_b64, ser_seq_str, ser_string, ser_vec_b64};
 
 use crate::wrapper::Wrapper;
+
+#[capnp_conv(crate::common_capnp::named_relay_address)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedRelayAddress<B = NetAddress> {
+    #[serde(with = "ser_b64")]
+    pub public_key: PublicKey,
+    pub address: B,
+    pub name: String,
+}
+
+#[capnp_conv(crate::common_capnp::relay_address)]
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayAddress<B = NetAddress> {
+    #[serde(with = "ser_b64")]
+    pub public_key: PublicKey,
+    pub address: B,
+}
+
+impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
+    fn from(from: NamedRelayAddress<B>) -> Self {
+        RelayAddress {
+            public_key: from.public_key,
+            address: from.address,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ChannelerUpdateFriend<RA> {
@@ -84,12 +110,15 @@ pub struct RequestSendFundsOp {
     pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
     #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
-    pub invoice_id: InvoiceId,
+    pub invoice_hash: HashResult,
+    #[serde(with = "ser_b64")]
+    pub hmac: Hmac,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub left_fees: u128,
@@ -101,10 +130,10 @@ pub struct ResponseSendFundsOp {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
-    pub dest_hashed_lock: HashedLock,
-    pub is_complete: bool,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
+    pub src_plain_lock: PlainLock,
+    #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
+    pub serial_num: u128,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
@@ -114,10 +143,9 @@ pub struct UnsignedResponseSendFundsOp {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
-    pub dest_hashed_lock: HashedLock,
-    pub is_complete: bool,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
+    pub src_plain_lock: PlainLock,
+    #[serde(with = "ser_string")]
+    pub serial_num: u128,
 }
 
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
@@ -127,6 +155,7 @@ pub struct CancelSendFundsOp {
     pub request_id: Uid,
 }
 
+/*
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::common_capnp::commit)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -150,17 +179,7 @@ pub struct Commit {
     #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
-
-#[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
-#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CollectSendFundsOp {
-    #[serde(with = "ser_b64")]
-    pub request_id: Uid,
-    #[serde(with = "ser_b64")]
-    pub src_plain_lock: PlainLock,
-    #[serde(with = "ser_b64")]
-    pub dest_plain_lock: PlainLock,
-}
+*/
 
 #[capnp_conv(crate::funder_capnp::friend_tc_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -168,7 +187,6 @@ pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
-    CollectSendFunds(CollectSendFundsOp),
 }
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
@@ -449,35 +467,28 @@ pub enum FriendMessage<B = NetAddress> {
 pub struct Receipt {
     #[serde(with = "ser_b64")]
     pub response_hash: HashResult,
-    // = sha512/256(requestId || randNonce)
-    #[serde(with = "ser_b64")]
-    pub invoice_id: InvoiceId,
-    pub currency: Currency,
-    #[serde(with = "ser_b64")]
-    pub src_plain_lock: PlainLock,
-    #[serde(with = "ser_b64")]
-    pub dest_plain_lock: PlainLock,
-    pub is_complete: bool,
+    // # = sha512/256(request_id || hmac || srcPlainLock || destPayment)
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
-    pub dest_payment: u128,
+    pub serial_num: u128,
+    #[serde(with = "ser_b64")]
+    pub invoice_hash: HashResult,
+    pub currency: Currency,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
     /*
-    # Signature{key=destinationKey}(
-    #   sha512/256("FUNDS_RESPONSE") ||
-    #   sha512/256(requestId || sha512/256(route) || randNonce) ||
-    #   srcHashedLock ||
-    #   dstHashedLock ||
-    #   isComplete ||       (Assumed to be True)
-    #   destPayment ||
-    #   totalDestPayment ||
-    #   invoiceId ||
-    #   currency
-    # )
+        # Signature{key=destinationKey}(
+        #   sha512/256("FUNDS_RESPONSE") ||
+        #   sha512/256(hmac || srcPlainLock || destPayment)
+        #   requestId ||
+        #   serialNum ||
+        #   totalDestPayment ||
+        #   invoiceHash ||
+        #   currency [Implicitly known by the mutual credit]
+        # )
     */
 }
 
@@ -866,6 +877,7 @@ pub enum RequestResult {
     Failure,
 }
 
+/*
 #[capnp_conv(crate::app_server_capnp::transaction_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransactionResult {
@@ -901,8 +913,8 @@ pub struct ResponseClosePayment {
 pub enum FunderOutgoingControl<B: Clone> {
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
-    ReportMutations(FunderReportMutations<B>),
 }
+*/
 
 impl Currency {
     pub fn as_str(&self) -> &str {

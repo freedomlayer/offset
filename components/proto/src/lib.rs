@@ -6,6 +6,7 @@
     clippy::module_inception,
     clippy::new_without_default
 )]
+#![allow(unused)]
 
 #[macro_use]
 extern crate quickcheck_derive;
@@ -15,24 +16,24 @@ extern crate offset_mutual_from as mutual_from;
 
 #[macro_use]
 pub mod macros;
-pub mod app_server;
+// pub mod app_server;
 pub mod consts;
 pub mod crypto;
-pub mod file;
-pub mod funder;
-pub mod index_client;
-pub mod index_server;
-pub mod keepalive;
+// pub mod file;
+// pub mod funder;
+// pub mod index_client;
+// pub mod index_server;
+// pub mod keepalive;
 pub mod net;
 pub mod proto_ser;
 pub mod relay;
-pub mod report;
+// pub mod report;
 pub mod secure_channel;
 pub mod ser_string;
 pub mod wrapper;
 
-include_schema!(report_capnp, "report_capnp");
-include_schema!(app_server_capnp, "app_server_capnp");
+// include_schema!(report_capnp, "report_capnp");
+// include_schema!(app_server_capnp, "app_server_capnp");
 include_schema!(common_capnp, "common_capnp");
 include_schema!(dh_capnp, "dh_capnp");
 include_schema!(relay_capnp, "relay_capnp");
