@@ -66,7 +66,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE consistent_channels(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
-             is_consistent              BOOL NOT NULL CHECK (is_consistent = true),
+             is_consistent              BOOL NOT NULL 
+                                        CHECK (is_consistent = true)
+                                        DEFAULT true,
              is_incoming                BOOL NOT NULL,
              FOREIGN KEY(friend_public_key, is_consistent) 
                 REFERENCES friends(friend_public_key, is_consistent)
@@ -84,7 +86,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE inconsistent_channels(
              friend_public_key              BLOB NOT NULL PRIMARY KEY,
-             is_consistent                  BOOL NOT NULL CHECK (is_consistent = false),
+             is_consistent                  BOOL NOT NULL 
+                                            CHECK (is_consistent = false)
+                                            DEFAULT false,
              opt_last_incoming_move_token   BLOB,
              local_reset_terms              BLOB NOT NULL,
              opt_remote_reset_terms         BLOB,
@@ -284,7 +288,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             backwards_type           TEXT NOT NULL CHECK (backwards_type = 'R'),
+             backwards_type           TEXT NOT NULL 
+                                      CHECK (backwards_type = 'R')
+                                      DEFAULT 'R',
              src_hashed_lock          BLOB NOT NULL,
              serial_num               BLOB NOT NULL,
              signature                BLOB NOT NULL,
@@ -305,7 +311,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             backwards_type           TEXT NOT NULL CHECK (backwards_type = 'C'),
+             backwards_type           TEXT NOT NULL 
+                                      CHECK (backwards_type = 'C')
+                                      DEFAULT 'C',
              FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
                 REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
                 ON DELETE CASCADE
@@ -364,31 +372,50 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
-    // - Reconsider primary key
-    // - Add a new table for pending requests?
-    // - Add indices
+    // Chronological items table, allows total order on all items payments and invoices
     tx.execute(
-        "CREATE TABLE payments(
+        "CREATE TABLE chrono(
              counter         BLOB NOT NULL PRIMARY KEY,
-             payment_id      BLOB NOT NULL,
-             amount          BLOB NOT NULL
+             chrono_type     TEXT CHECK (chrono_type IN ('P', 'I')) NOT NULL
             );",
         params![],
     )?;
 
     // TODO:
-    // - Reconsider primary key
+    // - Add a new table for pending requests?
+    // - Add indices
+    tx.execute(
+        "CREATE TABLE payments(
+             counter         BLOB NOT NULL,
+             chrono_type     TEXT CHECK (chrono_type = 'P') 
+                             DEFAULT 'P' 
+                             NOT NULL,
+             payment_id      BLOB NOT NULL PRIMARY KEY,
+             amount          BLOB NOT NULL,
+             FOREIGN KEY(counter, chrono_type) 
+                REFERENCES chrono(counter, chrono_type)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    // TODO:
     // - Add fields for total amount paid?
     // - Add indices
     tx.execute(
         "CREATE TABLE invoices (
-             counter         BLOB NOT NULL PRIMARY KEY,
-             invoice_id      BLOB NOT NULL,
+             counter         BLOB NOT NULL,
+             chrono_type     TEXT CHECK (chrono_type = 'I') 
+                             DEFAULT 'I'
+                             NOT NULL,
+             invoice_id      BLOB NOT NULL PRIMARY KEY,
              currency        TEXT NOT NULL,
              amount          BLOB NOT NULL,
-             desription      TEXT NOT NULL,
-             status          BLOB NOT NULL
+             description     TEXT NOT NULL,
+             status          BLOB NOT NULL,
+             FOREIGN KEY(counter, chrono_type) 
+                REFERENCES chrono(counter, chrono_type)
+                ON DELETE CASCADE
             );",
         params![],
     )?;
