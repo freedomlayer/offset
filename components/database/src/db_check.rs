@@ -387,8 +387,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              invoice_id      BLOB NOT NULL,
              currency        TEXT NOT NULL,
              amount          BLOB NOT NULL,
-             -- TODO: Possibly pick a different name to 'summary'
-             summary         TEXT NOT NULL,
+             desription      TEXT NOT NULL,
              status          BLOB NOT NULL
             );",
         params![],
