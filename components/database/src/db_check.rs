@@ -386,14 +386,17 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO:
     // - Add a new table for pending requests?
     // - Add indices
+    // More work needed here:
     tx.execute(
         "CREATE TABLE payments(
-             counter         BLOB NOT NULL,
-             doc_type        TEXT CHECK (doc_type = 'P') 
-                             DEFAULT 'P' 
-                             NOT NULL,
-             payment_id      BLOB NOT NULL PRIMARY KEY,
-             amount          BLOB NOT NULL,
+             counter             BLOB NOT NULL,
+             doc_type            TEXT CHECK (doc_type = 'P') 
+                                 DEFAULT 'P' 
+                                 NOT NULL,
+             payment_id          BLOB NOT NULL PRIMARY KEY,
+             currency            TEXT NOT NULL,
+             total_dest_payment  BLOB NOT NULL,
+             amount              BLOB NOT NULL,
              FOREIGN KEY(counter, doc_type) 
                 REFERENCES documents(counter, doc_type)
                 ON DELETE CASCADE
@@ -404,6 +407,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO:
     // - Add fields for total amount paid?
     // - Add indices
+    // More work needed here:
     tx.execute(
         "CREATE TABLE invoices (
              counter         BLOB NOT NULL,
