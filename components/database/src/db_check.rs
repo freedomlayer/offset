@@ -372,11 +372,13 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // Chronological items table, allows total order on all items payments and invoices
+    // Documents table, allowing total order on all items payments and invoices
     tx.execute(
-        "CREATE TABLE chrono(
-             counter         BLOB NOT NULL PRIMARY KEY,
-             chrono_type     TEXT CHECK (chrono_type IN ('P', 'I')) NOT NULL
+        "CREATE TABLE documents(
+             counter      BLOB NOT NULL PRIMARY KEY,
+             time         INTEGER NOT NULL,
+             doc_type     TEXT CHECK (doc_type IN ('P', 'I')) NOT NULL
+             -- Document type: P: Payment, I: Invoice
             );",
         params![],
     )?;
@@ -387,13 +389,13 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE payments(
              counter         BLOB NOT NULL,
-             chrono_type     TEXT CHECK (chrono_type = 'P') 
+             doc_type        TEXT CHECK (doc_type = 'P') 
                              DEFAULT 'P' 
                              NOT NULL,
              payment_id      BLOB NOT NULL PRIMARY KEY,
              amount          BLOB NOT NULL,
-             FOREIGN KEY(counter, chrono_type) 
-                REFERENCES chrono(counter, chrono_type)
+             FOREIGN KEY(counter, doc_type) 
+                REFERENCES documents(counter, doc_type)
                 ON DELETE CASCADE
             );",
         params![],
@@ -405,7 +407,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE invoices (
              counter         BLOB NOT NULL,
-             chrono_type     TEXT CHECK (chrono_type = 'I') 
+             doc_type        TEXT CHECK (doc_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
              invoice_id      BLOB NOT NULL PRIMARY KEY,
@@ -413,8 +415,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
              status          BLOB NOT NULL,
-             FOREIGN KEY(counter, chrono_type) 
-                REFERENCES chrono(counter, chrono_type)
+             FOREIGN KEY(counter, doc_type) 
+                REFERENCES documents(counter, doc_type)
                 ON DELETE CASCADE
             );",
         params![],
