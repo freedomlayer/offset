@@ -186,6 +186,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              balance                  BLOB NOT NULL,
              local_pending_debt       BLOB NOT NULL,
              remote_pending_debt      BLOB NOT NULL,
+             in_fees                  BLOB NOT NULL,
+             out_fees                 BLOB NOT NULL,
              PRIMARY KEY(friend_public_key, currency)
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES local_currencies(friend_public_key, currency)
