@@ -23,6 +23,13 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE TABLE currencies (
+             currency        TEXT NOT NULL PRIMARY KEY
+            );",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE active_applications (
              app_public_key             BLOB NOT NULL PRIMARY KEY,
              last_online                INTEGER NOT NULL,
@@ -88,9 +95,13 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              rate                       BLOB NOT NULL,
              remote_max_debt            BLOB NOT NULL,
              is_open                    BOOL NOT NULL,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES friends(friend_public_key, currency)
-                ON DELETE CASCADE
+             PRIMARY KEY(friend_public_key, currency),
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES friends(friend_public_key)
+                ON DELETE CASCADE,
+             FOREIGN KEY(currency) 
+                REFERENCES currencies(currency)
+                ON DELETE RESTRICT
             );",
         params![],
     )?;
@@ -435,7 +446,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              PRIMARY KEY(counter, currency)
              FOREIGN KEY(counter) 
                 REFERENCES documents(counter)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
+             FOREIGN KEY(currency) 
+                REFERENCES currencies(currency)
+                ON DELETE RESTRICT
             );",
         params![],
     )?;
@@ -456,7 +470,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              amount              BLOB NOT NULL,
              FOREIGN KEY(counter, doc_type) 
                 REFERENCES documents(counter, doc_type)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
+             FOREIGN KEY(currency) 
+                REFERENCES currencies(currency)
+                ON DELETE RESTRICT
             );",
         params![],
     )?;
@@ -478,7 +495,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              status          BLOB NOT NULL,
              FOREIGN KEY(counter, doc_type) 
                 REFERENCES documents(counter, doc_type)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
+             FOREIGN KEY(currency) 
+                REFERENCES currencies(currency)
+                ON DELETE RESTRICT
             );",
         params![],
     )?;
