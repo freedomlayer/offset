@@ -8,7 +8,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     // This table serves as an "archive" table, containing active and non active applications.
     // Some applications can not be removed from the database, because they might be still used in
-    // the documents table (As part of an invoice or payment document)
+    // the events table (As part of an invoice or payment event)
     tx.execute(
         "CREATE TABLE applications (
              app_public_key  BLOB NOT NULL PRIMARY KEY,
@@ -424,19 +424,19 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     // Documents table, allowing total order on all items payments and invoices
     tx.execute(
-        "CREATE TABLE documents(
+        "CREATE TABLE events(
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
-             doc_type     TEXT CHECK (doc_type IN ('P', 'I', 'R')) NOT NULL
-             -- Document type: P: Payment, I: Invoice, R: Friend removal
+             event_type     TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL
+             -- Event type: P: Payment, I: Invoice, R: Friend removal
             );",
         params![],
     )?;
 
-    // Balances table, showing the exact balance for every document.
-    // The numbers shown represent the numbers right after the document occured.
+    // Balances table, showing the exact balance for every event.
+    // The numbers shown represent the numbers right after the event occured.
     tx.execute(
-        "CREATE TABLE documents_balances(
+        "CREATE TABLE event_balances(
              counter      BLOB NOT NULL, 
              currency     TEXT NOT NULL,
              amount       BLOB NOT NULL,
@@ -445,7 +445,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
              PRIMARY KEY(counter, currency)
              FOREIGN KEY(counter) 
-                REFERENCES documents(counter)
+                REFERENCES events(counter)
                 ON DELETE CASCADE,
              FOREIGN KEY(currency) 
                 REFERENCES currencies(currency)
@@ -461,15 +461,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE payments(
              counter             BLOB NOT NULL,
-             doc_type            TEXT CHECK (doc_type = 'P') 
+             event_type            TEXT CHECK (event_type = 'P') 
                                  DEFAULT 'P' 
                                  NOT NULL,
              payment_id          BLOB NOT NULL PRIMARY KEY,
              currency            TEXT NOT NULL,
              total_dest_payment  BLOB NOT NULL,
              amount              BLOB NOT NULL,
-             FOREIGN KEY(counter, doc_type) 
-                REFERENCES documents(counter, doc_type)
+             FOREIGN KEY(counter, event_type) 
+                REFERENCES events(counter, event_type)
                 ON DELETE CASCADE,
              FOREIGN KEY(currency) 
                 REFERENCES currencies(currency)
@@ -485,7 +485,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE invoices (
              counter         BLOB NOT NULL,
-             doc_type        TEXT CHECK (doc_type = 'I') 
+             event_type        TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
              invoice_id      BLOB NOT NULL PRIMARY KEY,
@@ -493,8 +493,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
              status          BLOB NOT NULL,
-             FOREIGN KEY(counter, doc_type) 
-                REFERENCES documents(counter, doc_type)
+             FOREIGN KEY(counter, event_type) 
+                REFERENCES events(counter, event_type)
                 ON DELETE CASCADE,
              FOREIGN KEY(currency) 
                 REFERENCES currencies(currency)
@@ -506,11 +506,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_removals (
              counter         BLOB NOT NULL,
-             doc_type        TEXT CHECK (doc_type = 'R') 
+             event_type      TEXT CHECK (event_type = 'R') 
                              DEFAULT 'R'
                              NOT NULL,
-             FOREIGN KEY(counter, doc_type) 
-                REFERENCES documents(counter, doc_type)
+             FOREIGN KEY(counter, event_type) 
+                REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
             );",
         params![],
