@@ -420,6 +420,28 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // Balances table, showing the exact balance for every document.
+    // The numbers shown represent the numbers right after the document occured.
+    tx.execute(
+        "CREATE TABLE documents_balances(
+             counter      BLOB NOT NULL, 
+             currency     TEXT NOT NULL,
+             amount       BLOB NOT NULL,
+             in_fees      BLOB NOT NULL,
+             out_fees     BLOB NOT NULL,
+
+             PRIMARY KEY(counter, currency)
+             FOREIGN KEY(counter) 
+                REFERENCES documents(counter)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    // TODO: Add friend removal document?
+    // This is important for accounting purposes,
+    // because friend removal might suddenly change balances.
+
     // TODO:
     // - Add a new table for pending requests?
     // - Add indices
