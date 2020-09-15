@@ -416,8 +416,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE documents(
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
-             doc_type     TEXT CHECK (doc_type IN ('P', 'I')) NOT NULL
-             -- Document type: P: Payment, I: Invoice
+             doc_type     TEXT CHECK (doc_type IN ('P', 'I', 'R')) NOT NULL
+             -- Document type: P: Payment, I: Invoice, R: Friend removal
             );",
         params![],
     )?;
@@ -439,10 +439,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             );",
         params![],
     )?;
-
-    // TODO: Add friend removal document?
-    // This is important for accounting purposes,
-    // because friend removal might suddenly change balances.
 
     // TODO:
     // - Add a new table for pending requests?
@@ -480,6 +476,19 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
              status          BLOB NOT NULL,
+             FOREIGN KEY(counter, doc_type) 
+                REFERENCES documents(counter, doc_type)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE friend_removals (
+             counter         BLOB NOT NULL,
+             doc_type        TEXT CHECK (doc_type = 'R') 
+                             DEFAULT 'R'
+                             NOT NULL,
              FOREIGN KEY(counter, doc_type) 
                 REFERENCES documents(counter, doc_type)
                 ON DELETE CASCADE
