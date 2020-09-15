@@ -6,6 +6,43 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO: A better way to do this?
     tx.execute("PRAGMA foreign_keys = ON;", params![])?;
 
+    // This table serves as an "archive" table, containing active and non active applications.
+    // Some applications can not be removed from the database, because they might be still used in
+    // the documents table (As part of an invoice or payment document)
+    tx.execute(
+        "CREATE TABLE applications (
+             app_public_key  BLOB NOT NULL PRIMARY KEY,
+             name            TEXT NOT NULL UNIQUE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_applications ON applications(app_public_key, name);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE active_applications (
+             app_public_key             BLOB NOT NULL PRIMARY KEY,
+             last_online                INTEGER NOT NULL,
+             is_enabled                 BOOL NOT NULL,
+
+             perm_info_docs             BOOL NOT NULL,
+             perm_info_friends          BOOL NOT NULL,
+             perm_routes                BOOL NOT NULL,
+             perm_buy                   BOOL NOT NULL,
+             perm_sell                  BOOL NOT NULL,
+             perm_config_card           BOOL NOT NULL,
+             perm_config_access         BOOL NOT NULL,
+
+             FOREIGN KEY(app_public_key) 
+                REFERENCES applications(app_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
     // Single row is enforced in this table according to https://stackoverflow.com/a/33104119
     tx.execute(
         "CREATE TABLE funder(
