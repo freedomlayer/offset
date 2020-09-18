@@ -47,6 +47,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE funder(
              id                       INTEGER PRIMARY KEY CHECK (id = 0), -- enforce single row
+             version                  INTEGER NOT NULL,  -- Database version
              local_public_key         BLOB NOT NULL
             );",
         params![],
