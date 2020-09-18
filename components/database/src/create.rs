@@ -420,7 +420,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
              event_type     TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL
-             -- Event type: P: Payment, I: Invoice, R: Friend removal
+             -- Event type: P: Payment, I: Invoice, R: Friend Removal
             );",
         params![],
     )?;
@@ -450,7 +450,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE payments(
              counter             BLOB NOT NULL,
-             event_type            TEXT CHECK (event_type = 'P') 
+             event_type          TEXT CHECK (event_type = 'P') 
                                  DEFAULT 'P' 
                                  NOT NULL,
              payment_id          BLOB NOT NULL PRIMARY KEY,
@@ -471,7 +471,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE invoices (
              counter         BLOB NOT NULL,
-             event_type        TEXT CHECK (event_type = 'I') 
+             event_type      TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
              invoice_id      BLOB NOT NULL PRIMARY KEY,
