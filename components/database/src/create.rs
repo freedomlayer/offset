@@ -116,7 +116,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // friend public key index:
     tx.execute(
         "CREATE UNIQUE INDEX idx_consistent_channels ON consistent_channels(friend_public_key);",
         params![],
