@@ -456,7 +456,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              payment_id          BLOB NOT NULL PRIMARY KEY,
              currency            TEXT NOT NULL,
              total_dest_payment  BLOB NOT NULL,
-             amount              BLOB NOT NULL,
+             dest_payment        BLOB NOT NULL,
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
