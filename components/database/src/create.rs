@@ -164,7 +164,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Where does the currency field here comes from?
     tx.execute(
         "CREATE TABLE remote_currencies(
              friend_public_key        BLOB NOT NULL,
