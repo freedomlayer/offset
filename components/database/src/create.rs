@@ -140,6 +140,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX idx_inconsistent_channels ON inconsistent_channels(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE local_reset_terms(
              friend_public_key              BLOB NOT NULL,
              currency                       TEXT NOT NULL,
@@ -151,6 +156,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES inconsistent_channels(friend_public_key)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX local_reset_terms_idx ON local_reset_terms(friend_public_key);",
         params![],
     )?;
 
@@ -168,6 +178,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE UNIQUE INDEX inconsistent_channels_with_remote_idx ON 
+        inconsistent_channels_with_remote(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE remote_reset_terms(
              friend_public_key              BLOB NOT NULL,
              currency                       TEXT NOT NULL,
@@ -179,6 +195,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES inconsistent_channels_with_remote(friend_public_key)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX remote_reset_terms_idx ON remote_reset_terms(friend_public_key);",
         params![],
     )?;
 
