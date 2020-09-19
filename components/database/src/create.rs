@@ -436,26 +436,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE events(
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
-             event_type     TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL
-             -- Event type: P: Payment, I: Invoice, R: Friend Removal
-            );",
-        params![],
-    )?;
-
-    // Balances table, showing the exact balance for every event.
-    // The numbers shown represent the numbers right after the event occured.
-    tx.execute(
-        "CREATE TABLE event_balances(
-             counter      BLOB NOT NULL, 
-             currency     TEXT NOT NULL,
              amount       BLOB NOT NULL,
              in_fees      BLOB NOT NULL,
              out_fees     BLOB NOT NULL,
-
-             PRIMARY KEY(counter, currency)
-             FOREIGN KEY(counter) 
-                REFERENCES events(counter)
-                ON DELETE CASCADE
+             event_type   TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL
+             -- Event type: P: Payment, I: Invoice, R: Friend Removal
             );",
         params![],
     )?;
