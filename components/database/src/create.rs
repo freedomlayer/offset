@@ -6,25 +6,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // TODO: A better way to do this?
     tx.execute("PRAGMA foreign_keys = ON;", params![])?;
 
-    // This table serves as an "archive" table, containing active and non active applications.
-    // Some applications can not be removed from the database, because they might be still used in
-    // the events table (As part of an invoice or payment event)
     tx.execute(
         "CREATE TABLE applications (
-             app_public_key  BLOB NOT NULL PRIMARY KEY,
-             name            TEXT NOT NULL UNIQUE
-            );",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE UNIQUE INDEX idx_applications ON applications(app_public_key, name);",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE TABLE active_applications (
              app_public_key             BLOB NOT NULL PRIMARY KEY,
+             app_name                   TEXT NOT NULL UNIQUE,
              last_online                INTEGER NOT NULL,
              is_enabled                 BOOL NOT NULL,
 
@@ -40,6 +25,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                 REFERENCES applications(app_public_key)
                 ON DELETE CASCADE
             );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_applications ON applications(app_public_key, app_name);",
         params![],
     )?;
 
@@ -60,7 +50,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              -- Last local relays we have sent to the friend
              remote_relays              BLOB NOT NULL,
              -- Friend's relays
-             name                       TEXT NOT NULL UNIQUE,
+             friend_name                TEXT NOT NULL UNIQUE,
              -- Friend's name
              is_enabled                 BOOL NOT NULL,
              -- Do we allow connectivity with this friend?
@@ -78,7 +68,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     // public name index:
     tx.execute(
-        "CREATE UNIQUE INDEX idx_friends_name ON friends(name);",
+        "CREATE UNIQUE INDEX idx_friends_name ON friends(friend_name);",
         params![],
     )?;
 
@@ -409,7 +399,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE relays(
              relay_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
-             name                     TEXT
+             relay_name                     TEXT
             );",
         params![],
     )?;
@@ -423,7 +413,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE index_servers(
              index_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
-             name                     TEXT
+             index_name                     TEXT
             );",
         params![],
     )?;
@@ -438,12 +428,32 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE events(
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
-             amount       BLOB NOT NULL,
-             in_fees      BLOB NOT NULL,
-             out_fees     BLOB NOT NULL,
-             event_type   TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL
+             event_type   TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL,
              -- Event type: P: Payment, I: Invoice, R: Friend Removal
+             -- Information about the application that trigerred this event:
+             app_public_key             BLOB NOT NULL,
+             app_name                   TEXT NOT NULL
             );",
+        params![],
+    )?;
+
+    // Balances table, showing the exact balance for every event.
+    // The numbers shown represent the numbers right after the event occurred.
+    tx.execute(
+        "CREATE TABLE event_balances(
+              counter      BLOB NOT NULL, 
+              currency     TEXT NOT NULL,
+              amount       BLOB NOT NULL,
+              in_fees      BLOB NOT NULL,
+              out_fees     BLOB NOT NULL,
+              event_type   TEXT CHECK (event_type IN ('P', 'I', 'F')) NOT NULL,
+              -- Event type: P: Payment, I: Invoice, F: Friend inconsistency
+ 
+              PRIMARY KEY(counter, currency)
+              FOREIGN KEY(counter) 
+                 REFERENCES events(counter)
+                 ON DELETE CASCADE
+             );",
         params![],
     )?;
 
@@ -453,11 +463,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // More work needed here:
     tx.execute(
         "CREATE TABLE payment_events(
-             counter             BLOB NOT NULL,
+             counter             BLOB NOT NULL PRIMARY KEY,
              event_type          TEXT CHECK (event_type = 'P') 
                                  DEFAULT 'P' 
                                  NOT NULL,
-             payment_id          BLOB NOT NULL PRIMARY KEY,
+             payment_id          BLOB NOT NULL UNIQUE,
              currency            TEXT NOT NULL,
              total_dest_payment  BLOB NOT NULL,
              dest_payment        BLOB NOT NULL,
@@ -474,11 +484,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // More work needed here:
     tx.execute(
         "CREATE TABLE invoice_events (
-             counter         BLOB NOT NULL,
+             counter         BLOB NOT NULL PRIMARY KEY,
              event_type      TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
-             invoice_id      BLOB NOT NULL PRIMARY KEY,
+             invoice_id      BLOB NOT NULL UNIQUE,
              currency        TEXT NOT NULL,
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
@@ -491,13 +501,33 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE friend_removal_events (
-             counter         BLOB NOT NULL,
-             event_type      TEXT CHECK (event_type = 'R') 
-                             DEFAULT 'R'
-                             NOT NULL,
+        "CREATE TABLE friend_inconsistency_events (
+             counter                BLOB NOT NULL PRIMARY KEY,
+             event_type             TEXT CHECK (event_type = 'F') 
+                                    DEFAULT 'F'
+                                    NOT NULL,
+             friend_public_key      BLOB NOT NULL,
+             friend_name            TEXT NOT NULL,
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE friend_inconsistency_event_balances (
+             counter                BLOB NOT NULL,
+             currency               TEXT NOT NULL,
+             old_balance            BLOB NOT NULL,
+             old_in_fees            BLOB NOT NULL,
+             old_out_fees           BLOB NOT NULL,
+             new_balance            BLOB NOT NULL,
+             new_in_fees            BLOB NOT NULL,
+             new_out_fees           BLOB NOT NULL,
+             PRIMARY KEY(counter, currency),
+             FOREIGN KEY(counter) 
+                REFERENCES friend_inconsistency_events(counter)
                 ON DELETE CASCADE
             );",
         params![],
