@@ -515,6 +515,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: What should we do in case of friend inconsistency resolve?
+    // Should we zero the in_fees and out_fees fields?
     tx.execute(
         "CREATE TABLE friend_inconsistency_event_balances (
              counter                BLOB NOT NULL,
