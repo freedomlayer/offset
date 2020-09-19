@@ -100,7 +100,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              is_consistent              BOOL NOT NULL 
                                         CHECK (is_consistent = true)
                                         DEFAULT true,
-             is_incoming                BOOL NOT NULL,
+             move_token_counter         BLOB NOT NULL,
+             opt_move_token_out         BLOB,
+             opt_move_token_in          BLOB,
+             -- Two options:
+             -- 1. Incoming mode: No outgoing token, there is incoming token.
+             -- 2. Outgoing mode: We keep the last incoming token if exists, 
+             --    and there is a pending outgoing token.
+             CHECK ((opt_move_token_out IS NULL AND opt_move_token_in IS NOT NULL) 
+                OR  (opt_move_token_out IS NOT NULL)),
              FOREIGN KEY(friend_public_key, is_consistent) 
                 REFERENCES friends(friend_public_key, is_consistent)
                 ON DELETE CASCADE
@@ -116,15 +124,60 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE TABLE inconsistent_channels(
-             friend_public_key              BLOB NOT NULL PRIMARY KEY,
-             is_consistent                  BOOL NOT NULL 
-                                            CHECK (is_consistent = false)
-                                            DEFAULT false,
-             opt_last_incoming_move_token   BLOB,
-             local_reset_terms              BLOB NOT NULL,
-             opt_remote_reset_terms         BLOB,
+             friend_public_key                      BLOB NOT NULL PRIMARY KEY,
+             is_consistent                          BOOL NOT NULL 
+                                                    CHECK (is_consistent = false)
+                                                    DEFAULT false,
+             -- Last seen incoming move token:
+             opt_move_token_in                      BLOB,
+             -- Local reset terms:
+             local_reset_token                      BLOB NOT NULL,
+             local_reset_move_token_counter         BLOB NOT NULL,
              FOREIGN KEY(friend_public_key, is_consistent) 
                 REFERENCES friends(friend_public_key, is_consistent)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE local_reset_terms(
+             friend_public_key              BLOB NOT NULL,
+             currency                       TEXT NOT NULL,
+             balance                        BLOB NOT NULL,
+             in_fees                        BLOB NOT NULL,
+             out_fees                       BLOB NOT NULL,
+             PRIMARY KEY(friend_public_key, currency),
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES inconsistent_channels(friend_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE inconsistent_channels_with_remote(
+             friend_public_key                      BLOB NOT NULL PRIMARY KEY,
+             -- Remote reset terms:
+             remote_reset_token                     BLOB NOT NULL,
+             remote_reset_move_token_counter        BLOB NOT NULL,
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES inconsistent_channels(friend_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE remote_reset_terms(
+             friend_public_key              BLOB NOT NULL,
+             currency                       TEXT NOT NULL,
+             balance                        BLOB NOT NULL,
+             in_fees                        BLOB NOT NULL,
+             out_fees                       BLOB NOT NULL,
+             PRIMARY KEY(friend_public_key, currency),
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES inconsistent_channels_with_remote(friend_public_key)
                 ON DELETE CASCADE
             );",
         params![],
@@ -500,6 +553,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // A case of friend inconsistency or friend removal
     tx.execute(
         "CREATE TABLE friend_inconsistency_events (
              counter                BLOB NOT NULL PRIMARY KEY,
@@ -515,8 +569,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: What should we do in case of friend inconsistency resolve?
-    // Should we zero the in_fees and out_fees fields?
+    // Balances (per currency) in case of friend inconsistency event.
     tx.execute(
         "CREATE TABLE friend_inconsistency_event_balances (
              counter                BLOB NOT NULL,
