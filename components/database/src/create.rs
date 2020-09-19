@@ -207,7 +207,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE local_pending_transactions(
+        "CREATE TABLE local_open_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
@@ -226,12 +226,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_local_pending_transactions ON local_pending_transactions(request_id);",
+        "CREATE UNIQUE INDEX idx_local_open_transactions ON local_open_transactions(request_id);",
         params![],
     )?;
 
     tx.execute(
-        "CREATE TABLE remote_pending_transactions(
+        "CREATE TABLE remote_open_transactions(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
@@ -250,7 +250,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_remote_pending_transactions ON remote_pending_transactions(request_id);",
+        "CREATE UNIQUE INDEX idx_remote_open_transactions ON remote_open_transactions(request_id);",
         params![],
     )?;
 
