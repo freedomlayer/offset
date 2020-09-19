@@ -450,7 +450,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // - Add indices
     // More work needed here:
     tx.execute(
-        "CREATE TABLE payments(
+        "CREATE TABLE payment_events(
              counter             BLOB NOT NULL,
              event_type          TEXT CHECK (event_type = 'P') 
                                  DEFAULT 'P' 
@@ -471,7 +471,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // - Add indices
     // More work needed here:
     tx.execute(
-        "CREATE TABLE invoices (
+        "CREATE TABLE invoice_events (
              counter         BLOB NOT NULL,
              event_type      TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
@@ -489,7 +489,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE friend_removals (
+        "CREATE TABLE friend_removal_events (
              counter         BLOB NOT NULL,
              event_type      TEXT CHECK (event_type = 'R') 
                              DEFAULT 'R'
