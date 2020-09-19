@@ -102,6 +102,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // TODO: Add last incoming/outgoing move token?
+    // Maybe we should add to friends table directly?
     tx.execute(
         "CREATE TABLE consistent_channels(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
