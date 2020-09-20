@@ -499,7 +499,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             dest_public_key     BLOB NOT NULL,
             currency            TEXT NOT NULL,
             amount              BLOB NOT NULL,
-            description         TEXT NOT NULL
+            description         TEXT NOT NULL,
+            src_plain_lock      BLOB NOT NULL
             );",
         params![],
     )?;
