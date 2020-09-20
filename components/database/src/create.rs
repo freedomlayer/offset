@@ -158,7 +158,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX local_reset_terms_idx ON local_reset_terms(friend_public_key);",
+        "CREATE UNIQUE INDEX local_reset_terms_idx ON local_reset_terms(friend_public_key, currency);",
         params![],
     )?;
 
@@ -198,7 +198,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX remote_reset_terms_idx ON remote_reset_terms(friend_public_key);",
+        "CREATE UNIQUE INDEX remote_reset_terms_idx ON remote_reset_terms(friend_public_key, currency);",
         params![],
     )?;
 
@@ -465,7 +465,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE relays(
              relay_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
-             relay_name                     TEXT
+             relay_name               TEXT
             );",
         params![],
     )?;
@@ -479,13 +479,110 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE index_servers(
              index_public_key         BLOB NOT NULL PRIMARY KEY,
              address                  TEXT,
-             index_name                     TEXT
+             index_name               TEXT
             );",
         params![],
     )?;
 
     tx.execute(
         "CREATE UNIQUE INDEX idx_index_servers ON index_servers(index_public_key);",
+        params![],
+    )?;
+
+    // Ongoing payments that were not yet finalized
+    tx.execute(
+        "CREATE TABLE open_payments(
+            payment_id          BLOB NOT NULL PRIMARY KEY,
+            dest_public_key     BLOB NOT NULL,
+            currency            TEXT NOT NULL,
+            amount              BLOB NOT NULL,
+            description         TEXT NOT NULL
+            -- TODO
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_open_payments ON open_payments(payment_id);",
+        params![],
+    )?;
+
+    // TODO:
+    tx.execute(
+        "CREATE TABLE open_invoices(
+             invoice_id      BLOB NOT NULL PRIMARY KEY,
+             description     TEXT NOT NULL,
+             currency        TEXT NOT NULL,
+             opt_amount      BLOB
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_open_invoices ON open_invoices(invoice_id);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE open_invoices_relays(
+             invoice_id      BLOB NOT NULL,
+             relay_address   TEXT NOT NULL,
+             relay_port      BLOB NOT NULL,
+             PRIMARY KEY(invoice_id, relay_address),
+             FOREIGN KEY(invoice_id) 
+                 REFERENCES open_invoices(invoice_id)
+                 ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_open_invoices_relays ON open_invoices_relays(invoice_id, relay_address);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE invoice_instances(
+             invoice_id             BLOB NOT NULL,
+             invoice_instance       BLOB NOT NULL,
+             description            TEXT NOT NULL,
+             payload_hash           BLOB NOT NULL UNIQUE,
+             -- hash(invoice_instance, description, payload_hash)
+             invoice_hash           BLOB NOT NULL UNIQUE,
+             opt_src_hashed_lock    BLOB,
+             PRIMARY KEY(invoice_id, invoice_instance),
+             FOREIGN KEY(invoice_id) 
+                 REFERENCES open_invoices(invoice_id)
+                 ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_invoice_instances ON invoice_instances(invoice_id, invoice_instance);",
+        params![],
+    )?;
+
+    // TODO: Possibly add full request information here:
+    tx.execute(
+        "CREATE TABLE invoice_instances_requests(
+             invoice_id             BLOB NOT NULL,
+             invoice_instance       BLOB NOT NULL,
+             request_id             BLOB NOT NULL PRIMARY KEY,
+             FOREIGN KEY(invoice_id, invoice_instance) 
+                 REFERENCES invoice_instances(invoice_id, invoice_instance)
+                 ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE INDEX idx_instances_requests ON invoice_instances_requests(invoice_id, invoice_instance);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_instances_requests_request_id ON invoice_instances_requests(request_id);",
         params![],
     )?;
 
@@ -523,10 +620,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
-    // - Add a new table for pending requests?
-    // - Add indices
-    // More work needed here:
     tx.execute(
         "CREATE TABLE payment_events(
              counter             BLOB NOT NULL PRIMARY KEY,
@@ -535,8 +628,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                                  NOT NULL,
              payment_id          BLOB NOT NULL UNIQUE,
              currency            TEXT NOT NULL,
-             total_dest_payment  BLOB NOT NULL,
-             dest_payment        BLOB NOT NULL,
+             total_amount        BLOB NOT NULL,
+             amount              BLOB NOT NULL,
+             description         TEXT NOT NULL,
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
@@ -544,21 +638,16 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
-    // - Add fields for total amount paid?
-    // - Add indices
-    // More work needed here:
     tx.execute(
         "CREATE TABLE invoice_events (
              counter         BLOB NOT NULL PRIMARY KEY,
              event_type      TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
-             invoice_id      BLOB NOT NULL UNIQUE,
              currency        TEXT NOT NULL,
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
-             status          BLOB NOT NULL,
+             serial_num      BLOB NOT NULL UNIQUE,
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
