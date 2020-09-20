@@ -162,6 +162,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // Inconsistent channels that contain remote reset terms.
     tx.execute(
         "CREATE TABLE inconsistent_channels_with_remote(
              friend_public_key                      BLOB NOT NULL PRIMARY KEY,
