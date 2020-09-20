@@ -583,6 +583,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     // Balances (per currency) in case of friend inconsistency event.
+    // Friend inconsistency can be one of: 1. Channel reset, 2. Friend removal
     tx.execute(
         "CREATE TABLE friend_inconsistency_event_balances (
              counter                BLOB NOT NULL,
