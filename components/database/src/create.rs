@@ -570,6 +570,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              invoice_id             BLOB NOT NULL,
              invoice_instance       BLOB NOT NULL,
              request_id             BLOB NOT NULL PRIMARY KEY,
+             FOREIGN KEY(request_id) 
+                 REFERENCES remote_open_transactions(request_id)
+                 ON DELETE RESTRICT,
              FOREIGN KEY(invoice_id, invoice_instance) 
                  REFERENCES invoice_instances(invoice_id, invoice_instance)
                  ON DELETE CASCADE
