@@ -490,6 +490,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     // Ongoing payments that were not yet finalized
+    // TODO: Complete open payments information:
+    // - Pending requests/responses?
+    // - Stage information? (See state.rs in funder)
     tx.execute(
         "CREATE TABLE open_payments(
             payment_id          BLOB NOT NULL PRIMARY KEY,
@@ -497,7 +500,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             currency            TEXT NOT NULL,
             amount              BLOB NOT NULL,
             description         TEXT NOT NULL
-            -- TODO
             );",
         params![],
     )?;
@@ -507,7 +509,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO:
     tx.execute(
         "CREATE TABLE open_invoices(
              invoice_id      BLOB NOT NULL PRIMARY KEY,
@@ -563,7 +564,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Possibly add full request information here:
     tx.execute(
         "CREATE TABLE invoice_instances_requests(
              invoice_id             BLOB NOT NULL,
