@@ -202,12 +202,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // friend public key index:
-    tx.execute(
-        "CREATE UNIQUE INDEX idx_inconsistent_channels ON inconsistent_channels(friend_public_key);",
-        params![],
-    )?;
-
     tx.execute(
         "CREATE TABLE local_currencies(
              friend_public_key        BLOB NOT NULL,
