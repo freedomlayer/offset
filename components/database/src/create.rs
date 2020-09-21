@@ -551,6 +551,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              payload_hash           BLOB NOT NULL UNIQUE,
              -- hash(invoice_instance, description, payload_hash)
              invoice_hash           BLOB NOT NULL UNIQUE,
+             -- src_hashed_lock is provided by the buyer/payer during the commitment.
              opt_src_hashed_lock    BLOB,
              PRIMARY KEY(invoice_id, invoice_instance),
              FOREIGN KEY(invoice_id) 
