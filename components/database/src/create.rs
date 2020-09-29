@@ -15,7 +15,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
              perm_info_docs             BOOL NOT NULL,
              perm_info_friends          BOOL NOT NULL,
-             perm_routes                BOOL NOT NULL,
              perm_buy                   BOOL NOT NULL,
              perm_sell                  BOOL NOT NULL,
              perm_config_card           BOOL NOT NULL,
