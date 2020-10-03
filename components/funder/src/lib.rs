@@ -9,8 +9,8 @@
     clippy::new_without_default
 )]
 
-#[macro_use]
-extern crate log;
+// #[macro_use]
+// extern crate log;
 
 #[macro_use]
 extern crate serde;
@@ -18,19 +18,19 @@ extern crate serde;
 #[macro_use]
 extern crate quickcheck_derive;
 
-mod ephemeral;
-mod friend;
-mod funder;
-mod handler;
-mod liveness;
+// mod ephemeral;
+// mod friend;
+// mod funder;
+// mod handler;
+// mod liveness;
 mod mutual_credit;
-pub mod report;
-mod state;
-mod token_channel;
+// pub mod report;
+// mod state;
+// mod token_channel;
 pub mod types;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
-pub use self::funder::{funder_loop, FunderError};
-pub use self::state::{FunderMutation, FunderState};
+// pub use self::funder::{funder_loop, FunderError};
+// pub use self::state::{FunderMutation, FunderState};

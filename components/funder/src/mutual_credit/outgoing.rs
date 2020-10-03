@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
@@ -36,6 +38,7 @@ pub enum QueueOperationError {
     DestPaymentExceedsTotal,
 }
 
+#[allow(unused)]
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 impl OutgoingMc {
     // TODO: Take MutualCredit instead of &MutualCredit?

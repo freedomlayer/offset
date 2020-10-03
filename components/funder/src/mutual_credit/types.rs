@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -119,6 +121,7 @@ impl MutualCredit {
         }
     }
 
+    #[allow(unused)]
     /// Calculate required balance for reset.
     /// This would be current balance plus additional future profits.
     pub fn balance_for_reset(&self) -> i128 {

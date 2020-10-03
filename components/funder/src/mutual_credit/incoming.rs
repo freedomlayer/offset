@@ -67,6 +67,7 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessOperationError,
 }
 
+#[allow(unused)]
 pub fn process_operations_list(
     mutual_credit: &mut MutualCredit,
     operations: Vec<FriendTcOp>,
