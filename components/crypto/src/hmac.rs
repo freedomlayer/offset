@@ -7,6 +7,9 @@ use sha2::Sha512Trunc256;
 // Create alias for HMAC-SHA512-256
 type HmacSha512Trunc256 = Hmac<Sha512Trunc256>;
 
+// TODO: Possibly add a more efficient version, with a struct and update() method.
+// This might allow us to save allocation in the rest of the code.
+
 pub fn create_hmac(data: &[u8], hmac_key: &HmacKey) -> HmacResult {
     let mut mac = HmacSha512Trunc256::new_varkey(&*hmac_key).expect("Invalid key length");
     mac.update(data);
