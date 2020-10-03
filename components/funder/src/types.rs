@@ -1,11 +1,8 @@
-// TODO: Remove this hint:
-#![allow(unused)]
-
 use signature::canonical::CanonicalSerialize;
 
 use common::ser_utils::ser_b64;
 
-use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid};
+use proto::crypto::{HashResult, PlainLock, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -48,18 +45,14 @@ where
 pub async fn create_response_send_funds<'a>(
     currency: &Currency,
     pending_transaction: &'a PendingTransaction,
-    dest_hashed_lock: HashedLock,
-    is_complete: bool,
-    rand_nonce: RandValue,
+    src_plain_lock: PlainLock,
+    serial_num: u128,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
-    unimplemented!();
-    /*
     let u_response_send_funds = UnsignedResponseSendFundsOp {
         request_id: pending_transaction.request_id.clone(),
-        dest_hashed_lock,
-        is_complete,
-        rand_nonce,
+        src_plain_lock: src_plain_lock.clone(),
+        serial_num,
     };
 
     let signature_buff = create_response_signature_buffer(
@@ -74,12 +67,10 @@ pub async fn create_response_send_funds<'a>(
 
     ResponseSendFundsOp {
         request_id: u_response_send_funds.request_id,
-        dest_hashed_lock: u_response_send_funds.dest_hashed_lock,
-        is_complete: u_response_send_funds.is_complete,
-        rand_nonce: u_response_send_funds.rand_nonce,
+        src_plain_lock,
+        serial_num,
         signature,
     }
-    */
 }
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
