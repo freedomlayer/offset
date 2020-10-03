@@ -480,18 +480,18 @@ pub enum TransactionStage {
 pub struct PendingTransaction {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
+    #[serde(with = "ser_b64")]
+    pub src_hashed_lock: HashedLock,
     pub route: FriendsRoute,
-    #[serde(with = "ser_string")]
     pub dest_payment: u128,
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
-    pub invoice_id: InvoiceId,
+    pub invoice_hash: HashResult,
+    #[serde(with = "ser_b64")]
+    pub hmac: HmacResult,
     #[serde(with = "ser_string")]
     pub left_fees: u128,
-    #[serde(with = "ser_b64")]
-    pub src_hashed_lock: HashedLock,
-    pub stage: TransactionStage,
 }
 
 // ==================================================================
