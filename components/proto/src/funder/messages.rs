@@ -16,7 +16,8 @@ use num_traits::cast::ToPrimitive;
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{
-    HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue, Signature, Uid,
+    HashResult, HashedLock, HmacResult, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue,
+    Signature, Uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -89,7 +90,9 @@ pub struct RequestSendFundsOp {
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
-    pub invoice_id: InvoiceId,
+    pub invoice_hash: HashResult,
+    #[serde(with = "ser_b64")]
+    pub hmac: HmacResult,
     #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub left_fees: u128,
@@ -101,10 +104,10 @@ pub struct ResponseSendFundsOp {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
-    pub dest_hashed_lock: HashedLock,
-    pub is_complete: bool,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
+    pub src_plain_lock: PlainLock,
+    #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_string")]
+    pub serial_num: u128,
     #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
@@ -114,10 +117,9 @@ pub struct UnsignedResponseSendFundsOp {
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
-    pub dest_hashed_lock: HashedLock,
-    pub is_complete: bool,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
+    pub src_plain_lock: PlainLock,
+    #[serde(with = "ser_string")]
+    pub serial_num: u128,
 }
 
 #[capnp_conv(crate::funder_capnp::cancel_send_funds_op)]
@@ -151,24 +153,12 @@ pub struct Commit {
     pub signature: Signature,
 }
 
-#[capnp_conv(crate::funder_capnp::collect_send_funds_op)]
-#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub struct CollectSendFundsOp {
-    #[serde(with = "ser_b64")]
-    pub request_id: Uid,
-    #[serde(with = "ser_b64")]
-    pub src_plain_lock: PlainLock,
-    #[serde(with = "ser_b64")]
-    pub dest_plain_lock: PlainLock,
-}
-
 #[capnp_conv(crate::funder_capnp::friend_tc_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
-    CollectSendFunds(CollectSendFundsOp),
 }
 
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
@@ -190,9 +180,8 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
     fn into(self) -> UnsignedResponseSendFundsOp {
         UnsignedResponseSendFundsOp {
             request_id: self.request_id,
-            dest_hashed_lock: self.dest_hashed_lock,
-            is_complete: self.is_complete,
-            rand_nonce: self.rand_nonce,
+            src_plain_lock: self.src_plain_lock,
+            serial_num: self.serial_num,
         }
     }
 }
