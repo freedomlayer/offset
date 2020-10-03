@@ -1,6 +1,7 @@
 use proto::crypto::HashResult;
 use sha2::{Digest, Sha512Trunc256};
 
+// TODO: Possibly choose a more generic name, to allow changes in the future?
 /// Calculate SHA512/256 over the given data.
 pub fn sha_512_256(data: &[u8]) -> HashResult {
     let mut hasher = Sha512Trunc256::new();
