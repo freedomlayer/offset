@@ -57,6 +57,14 @@ struct HashResult {
         inner @0: Buffer256;
 }
 
+struct HmacResult {
+        inner @0: Buffer256;
+}
+
+struct HmacKey {
+        inner @0: Buffer256;
+}
+
 struct InvoiceId {
         inner @0: Buffer256;
 }

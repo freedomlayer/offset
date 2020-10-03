@@ -15,6 +15,12 @@ use crate::common_capnp;
 mod serialize;
 
 // use self::serialize::{type_capnp_serde128, type_capnp_serde256, type_capnp_serde512};
+//
+define_fixed_bytes!(HmacResult, 32);
+type_capnp_serde!(HmacResult, common_capnp::hmac_result, (x0, x1, x2, x3));
+
+define_fixed_bytes!(HmacKey, 32);
+type_capnp_serde!(HmacKey, common_capnp::hmac_key, (x0, x1, x2, x3));
 
 define_fixed_bytes!(HashResult, 32);
 type_capnp_serde!(HashResult, common_capnp::hash_result, (x0, x1, x2, x3));
