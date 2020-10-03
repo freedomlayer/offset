@@ -1,3 +1,6 @@
+// TODO: Remove this hint:
+#![allow(unused)]
+
 use signature::canonical::CanonicalSerialize;
 
 use common::ser_utils::ser_b64;
@@ -8,7 +11,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations, FriendMessage,
     FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedMoveToken,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, UnsignedMoveToken,
     UnsignedResponseSendFundsOp,
 };
 
@@ -50,6 +53,8 @@ pub async fn create_response_send_funds<'a>(
     rand_nonce: RandValue,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
+    unimplemented!();
+    /*
     let u_response_send_funds = UnsignedResponseSendFundsOp {
         request_id: pending_transaction.request_id.clone(),
         dest_hashed_lock,
@@ -74,6 +79,7 @@ pub async fn create_response_send_funds<'a>(
         rand_nonce: u_response_send_funds.rand_nonce,
         signature,
     }
+    */
 }
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
@@ -83,13 +89,13 @@ pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
     PendingTransaction {
         request_id: request_send_funds.request_id.clone(),
+        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
         total_dest_payment: request_send_funds.total_dest_payment,
-        invoice_id: request_send_funds.invoice_id.clone(),
+        invoice_hash: request_send_funds.invoice_hash.clone(),
+        hmac: request_send_funds.hmac.clone(),
         left_fees: request_send_funds.left_fees,
-        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
-        stage: TransactionStage::Request,
     }
 }
 
