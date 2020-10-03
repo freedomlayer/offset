@@ -27,6 +27,17 @@ pub fn create_response_signature_buffer<RSF>(
 where
     RSF: Into<UnsignedResponseSendFundsOp>,
 {
+    /*
+        # Signature{key=destinationKey}(
+        #   sha512/256("FUNDS_RESPONSE") ||
+        #   sha512/256(requestId || hmac || srcPlainLock || destPayment)
+        #   serialNum ||
+        #   totalDestPayment ||
+        #   invoiceHash ||
+        #   currency [Implicitly known by the mutual credit]
+        # )
+    */
+
     let response_send_funds: UnsignedResponseSendFundsOp = response_send_funds.into();
     let mut sbuffer = Vec::new();
 
@@ -34,19 +45,20 @@ where
 
     let mut inner_blob = Vec::new();
     inner_blob.extend_from_slice(&pending_transaction.request_id);
-    inner_blob.extend_from_slice(&response_send_funds.rand_nonce);
+    inner_blob.extend_from_slice(&pending_transaction.hmac);
+    inner_blob.extend_from_slice(&response_send_funds.src_plain_lock);
+    inner_blob
+        .write_u128::<BigEndian>(pending_transaction.dest_payment)
+        .unwrap();
 
     sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
-    sbuffer.extend_from_slice(&pending_transaction.src_hashed_lock);
-    sbuffer.extend_from_slice(&response_send_funds.dest_hashed_lock);
-    sbuffer.extend_from_slice(&response_send_funds.is_complete.canonical_serialize());
     sbuffer
-        .write_u128::<BigEndian>(pending_transaction.dest_payment)
+        .write_u128::<BigEndian>(response_send_funds.serial_num)
         .unwrap();
     sbuffer
         .write_u128::<BigEndian>(pending_transaction.total_dest_payment)
         .unwrap();
-    sbuffer.extend_from_slice(&pending_transaction.invoice_id);
+    sbuffer.extend_from_slice(&pending_transaction.invoice_hash);
     sbuffer.extend_from_slice(&currency.canonical_serialize());
 
     sbuffer
