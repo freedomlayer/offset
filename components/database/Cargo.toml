@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offset-common" }
+proto = { path = "../proto", version = "0.1.0", package = "offset-proto" }
 
 log = "0.4"
 futures = "0.3.1"
