@@ -6,7 +6,7 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
+use proto::funder::messages::{Currency, PendingTransaction};
 
 /*
 // TODO: Where do we need to check this value?

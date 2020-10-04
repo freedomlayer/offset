@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 

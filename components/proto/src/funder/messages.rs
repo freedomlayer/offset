@@ -470,12 +470,6 @@ pub struct Receipt {
     */
 }
 
-#[derive(Arbitrary, Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub enum TransactionStage {
-    Request,
-    Response(#[serde(with = "ser_b64")] HashedLock, bool), // inner: (dest_hashed_lock, is_complete)
-}
-
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingTransaction {
     #[serde(with = "ser_b64")]
