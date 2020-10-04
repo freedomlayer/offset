@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::collections::HashMap as ImHashMap;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -42,6 +40,8 @@ pub struct McBalance {
 }
 
 impl McBalance {
+    // TODO: Remove unused hint
+    #[allow(unused)]
     fn new(balance: i128) -> McBalance {
         McBalance {
             balance,
@@ -99,6 +99,8 @@ pub enum McMutation {
 }
 
 impl MutualCredit {
+    // TODO: Remove unused hint
+    #[allow(unused)]
     pub fn new(
         // TODO: Should we move instead of take a reference here?
         local_public_key: &PublicKey,

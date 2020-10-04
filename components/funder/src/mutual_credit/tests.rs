@@ -5,9 +5,7 @@ use crypto::identity::{Identity, SoftwareEd25519Identity};
 use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{
-    HashResult, HmacResult, InvoiceId, PlainLock, PrivateKey, PublicKey, RandValue, Signature, Uid,
-};
+use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResponseSendFundsOp,
 };
@@ -97,8 +95,6 @@ fn test_request_response_send_funds() {
 
     // -----[ResponseSendFunds]--------
     // --------------------------------
-    let rand_nonce = RandValue::from(&[5; RandValue::len()]);
-    let dest_plain_lock = PlainLock::from(&[2; PlainLock::len()]);
     let serial_num: u128 = 0;
 
     let mut response_send_funds = ResponseSendFundsOp {
