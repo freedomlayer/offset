@@ -34,7 +34,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     // Single row is enforced in this table according to https://stackoverflow.com/a/33104119
     tx.execute(
-        "CREATE TABLE funder(
+        "CREATE TABLE node(
              id                       INTEGER PRIMARY KEY CHECK (id = 0), -- enforce single row
              version                  INTEGER NOT NULL,  -- Database version
              local_public_key         BLOB NOT NULL
