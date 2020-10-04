@@ -128,7 +128,6 @@ fn test_request_response_send_funds() {
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
 
-/*
 #[test]
 fn test_request_cancel_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
@@ -154,8 +153,9 @@ fn test_request_cancel_send_funds() {
             PublicKey::from(&[0xcc; PublicKey::len()]),
         ],
     };
-    let invoice_id = InvoiceId::from(&[0; InvoiceId::len()]);
+    let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
+    let hmac = HmacResult::from(&[2; HmacResult::len()]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
@@ -163,7 +163,8 @@ fn test_request_cancel_send_funds() {
         route,
         dest_payment: 10,
         total_dest_payment: 10,
-        invoice_id,
+        invoice_hash,
+        hmac,
         left_fees: 5,
     };
 
@@ -193,6 +194,7 @@ fn test_request_cancel_send_funds() {
     assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
 }
 
+/*
 #[test]
 fn test_request_response_cancel_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
