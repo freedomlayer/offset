@@ -99,8 +99,6 @@ pub enum McMutation {
 }
 
 impl MutualCredit {
-    // TODO: Remove unused hint
-    #[allow(unused)]
     pub fn new(
         // TODO: Should we move instead of take a reference here?
         local_public_key: &PublicKey,
@@ -121,6 +119,7 @@ impl MutualCredit {
         }
     }
 
+    // TODO: Remove unused hint
     #[allow(unused)]
     /// Calculate required balance for reset.
     /// This would be current balance plus additional future profits.

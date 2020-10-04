@@ -32,8 +32,6 @@ pub enum QueueOperationError {
     DestPaymentExceedsTotal,
 }
 
-// TODO: Remove unused hint here:
-#[allow(unused)]
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 impl OutgoingMc {
     // TODO: Take MutualCredit instead of &MutualCredit?
