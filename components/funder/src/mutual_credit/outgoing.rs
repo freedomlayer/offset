@@ -10,7 +10,7 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McMutation, MutualCredit};
+use super::types::{McMutationOld, MutualCredit};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
@@ -44,7 +44,7 @@ impl OutgoingMc {
     pub fn queue_operation(
         &mut self,
         operation: &FriendTcOp,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
+    ) -> Result<Vec<McMutationOld>, QueueOperationError> {
         // TODO: Maybe remove clone from here later:
         match operation.clone() {
             FriendTcOp::RequestSendFunds(request_send_funds) => {
@@ -62,7 +62,7 @@ impl OutgoingMc {
     fn queue_request_send_funds(
         &mut self,
         request_send_funds: RequestSendFundsOp,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
+    ) -> Result<Vec<McMutationOld>, QueueOperationError> {
         if !request_send_funds.route.is_part_valid() {
             return Err(QueueOperationError::InvalidRoute);
         }
@@ -96,12 +96,12 @@ impl OutgoingMc {
         let pending_transaction = create_pending_transaction(&request_send_funds);
 
         let mut mc_mutations = Vec::new();
-        let mc_mutation = McMutation::InsertLocalPendingTransaction(pending_transaction);
+        let mc_mutation = McMutationOld::InsertLocalPendingTransaction(pending_transaction);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
         // If we are here, we can freeze the credits:
-        let mc_mutation = McMutation::SetLocalPendingDebt(new_local_pending_debt);
+        let mc_mutation = McMutationOld::SetLocalPendingDebt(new_local_pending_debt);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -111,7 +111,7 @@ impl OutgoingMc {
     fn queue_response_send_funds(
         &mut self,
         response_send_funds: ResponseSendFundsOp,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
+    ) -> Result<Vec<McMutationOld>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
         let remote_pending_transactions = &self.mutual_credit.state().pending_transactions.remote;
@@ -159,7 +159,7 @@ impl OutgoingMc {
         // Remove entry from remote_pending hashmap:
         let mut mc_mutations = Vec::new();
         let mc_mutation =
-            McMutation::RemoveRemotePendingTransaction(response_send_funds.request_id);
+            McMutationOld::RemoveRemotePendingTransaction(response_send_funds.request_id);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -174,7 +174,7 @@ impl OutgoingMc {
         // Above unwrap() should never fail. This was already checked when a request message was
         // received.
 
-        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        let mc_mutation = McMutationOld::SetRemotePendingDebt(new_remote_pending_debt);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -188,7 +188,7 @@ impl OutgoingMc {
         // Above unwrap() should never fail. This was already checked when a request message was
         // received.
 
-        let mc_mutation = McMutation::SetBalance(new_balance);
+        let mc_mutation = McMutationOld::SetBalance(new_balance);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -198,7 +198,7 @@ impl OutgoingMc {
     fn queue_cancel_send_funds(
         &mut self,
         cancel_send_funds: CancelSendFundsOp,
-    ) -> Result<Vec<McMutation>, QueueOperationError> {
+    ) -> Result<Vec<McMutationOld>, QueueOperationError> {
         // Make sure that id exists in remote_pending hashmap,
         // and access saved request details.
         let remote_pending_transactions = &self.mutual_credit.state().pending_transactions.remote;
@@ -216,7 +216,8 @@ impl OutgoingMc {
         // Remove entry from remote hashmap:
         let mut mc_mutations = Vec::new();
 
-        let mc_mutation = McMutation::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
+        let mc_mutation =
+            McMutationOld::RemoveRemotePendingTransaction(cancel_send_funds.request_id);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 
@@ -229,7 +230,7 @@ impl OutgoingMc {
             .checked_sub(freeze_credits)
             .unwrap();
 
-        let mc_mutation = McMutation::SetRemotePendingDebt(new_remote_pending_debt);
+        let mc_mutation = McMutationOld::SetRemotePendingDebt(new_remote_pending_debt);
         self.mutual_credit.mutate(&mc_mutation);
         mc_mutations.push(mc_mutation);
 

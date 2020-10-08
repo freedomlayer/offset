@@ -6,6 +6,9 @@ use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, PendingTransaction};
 
+use futures::channel::{mpsc, oneshot};
+use futures::SinkExt;
+
 /*
 // TODO: Where do we need to check this value?
 /// The maximum possible funder debt.
@@ -88,7 +91,7 @@ pub struct MutualCredit {
 }
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone)]
-pub enum McMutation {
+pub enum McMutationOld {
     SetBalance(i128),
     InsertLocalPendingTransaction(PendingTransaction),
     RemoveLocalPendingTransaction(Uid),
@@ -96,6 +99,155 @@ pub enum McMutation {
     RemoveRemotePendingTransaction(Uid),
     SetLocalPendingDebt(u128),
     SetRemotePendingDebt(u128),
+}
+
+#[derive(Debug)]
+pub enum McOpError {
+    SendOpFailed,
+    ResponseOpFailed(oneshot::Canceled),
+}
+
+pub type McOpResult<T> = Result<T, McOpError>;
+pub type McOpSenderResult<T> = oneshot::Sender<McOpResult<T>>;
+
+#[derive(Debug)]
+pub enum McOp {
+    GetBalance(McOpSenderResult<McBalance>),
+    SetBalance(i128, McOpSenderResult<()>),
+    SetLocalPendingDebt(u128, McOpSenderResult<()>),
+    SetRemotePendingDebt(u128, McOpSenderResult<()>),
+    GetLocalPendingTransaction(Uid, McOpSenderResult<Option<PendingTransaction>>),
+    InsertLocalPendingTransaction(PendingTransaction, McOpSenderResult<()>),
+    RemoveLocalPendingTransaction(Uid, McOpSenderResult<()>),
+    GetRemotePendingTransaction(Uid, McOpSenderResult<Option<PendingTransaction>>),
+    InsertRemotePendingTransaction(PendingTransaction, McOpSenderResult<()>),
+    RemoveRemotePendingTransaction(Uid, McOpSenderResult<()>),
+    // Commit(McOpSenderResult<()>),
+}
+
+// TODO: Remove:
+#[allow(unused)]
+struct McTransaction {
+    sender: mpsc::Sender<McOp>,
+}
+
+// TODO: Remove:
+#[allow(unused)]
+impl McTransaction {
+    async fn get_balance(&mut self) -> McOpResult<McBalance> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::GetBalance(op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn set_balance(&mut self, balance: i128) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::SetBalance(balance, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn set_local_pending_debt(&mut self, local_pending_debt: u128) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::SetLocalPendingDebt(local_pending_debt, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::SetRemotePendingDebt(remote_pending_debt, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn get_local_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> McOpResult<Option<PendingTransaction>> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::GetLocalPendingTransaction(request_id, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn insert_local_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::InsertLocalPendingTransaction(pending_transaction, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn remove_local_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::RemoveLocalPendingTransaction(request_id, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn get_remote_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> McOpResult<Option<PendingTransaction>> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::GetRemotePendingTransaction(request_id, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn insert_remote_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::InsertRemotePendingTransaction(pending_transaction, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    async fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::RemoveRemotePendingTransaction(request_id, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+
+    /*
+    async fn commit(mut self) -> McOpResult<()> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = McOp::Commit(op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| McOpError::SendOpFailed)?;
+        op_receiver.await.map_err(McOpError::ResponseOpFailed)?
+    }
+    */
 }
 
 impl MutualCredit {
@@ -139,25 +291,25 @@ impl MutualCredit {
         &self.state
     }
 
-    pub fn mutate(&mut self, mc_mutation: &McMutation) {
+    pub fn mutate(&mut self, mc_mutation: &McMutationOld) {
         match mc_mutation {
-            McMutation::SetBalance(balance) => self.set_balance(*balance),
-            McMutation::InsertLocalPendingTransaction(pending_friend_request) => {
+            McMutationOld::SetBalance(balance) => self.set_balance(*balance),
+            McMutationOld::InsertLocalPendingTransaction(pending_friend_request) => {
                 self.insert_local_pending_transaction(pending_friend_request)
             }
-            McMutation::RemoveLocalPendingTransaction(request_id) => {
+            McMutationOld::RemoveLocalPendingTransaction(request_id) => {
                 self.remove_local_pending_transaction(request_id)
             }
-            McMutation::InsertRemotePendingTransaction(pending_friend_request) => {
+            McMutationOld::InsertRemotePendingTransaction(pending_friend_request) => {
                 self.insert_remote_pending_transaction(pending_friend_request)
             }
-            McMutation::RemoveRemotePendingTransaction(request_id) => {
+            McMutationOld::RemoveRemotePendingTransaction(request_id) => {
                 self.remove_remote_pending_transaction(request_id)
             }
-            McMutation::SetLocalPendingDebt(local_pending_debt) => {
+            McMutationOld::SetLocalPendingDebt(local_pending_debt) => {
                 self.set_local_pending_debt(*local_pending_debt)
             }
-            McMutation::SetRemotePendingDebt(remote_pending_debt) => {
+            McMutationOld::SetRemotePendingDebt(remote_pending_debt) => {
                 self.set_remote_pending_debt(*remote_pending_debt)
             }
         }

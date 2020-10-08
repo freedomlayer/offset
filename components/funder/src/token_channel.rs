@@ -25,7 +25,7 @@ use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessOperationOutput, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::OutgoingMc;
-use crate::mutual_credit::types::{McMutation, MutualCredit};
+use crate::mutual_credit::types::{McMutationOld, MutualCredit};
 
 use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
 
@@ -38,7 +38,7 @@ pub enum SetDirection<B> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Arbitrary, Debug, Clone)]
 pub enum TcMutation<B> {
-    McMutation((Currency, McMutation)),
+    McMutation((Currency, McMutationOld)),
     SetLocalActiveCurrencies(Vec<Currency>),
     SetRemoteActiveCurrencies(Vec<Currency>),
     AddMutualCredit(Currency),
