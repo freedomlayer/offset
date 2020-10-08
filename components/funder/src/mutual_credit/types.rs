@@ -127,6 +127,7 @@ pub enum McOp {
 
 // TODO: Remove:
 #[allow(unused)]
+#[derive(Debug)]
 pub struct McTransaction {
     sender: mpsc::Sender<McOp>,
 }
