@@ -38,9 +38,11 @@ pub enum QueueOperationError {
     McOpError(McOpError),
 }
 
+#[allow(unused)]
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 impl OutgoingMc {
-    // TODO: Take MutualCredit instead of &MutualCredit?
+    // TODO: Remove later:
+    #[allow(unused)]
     pub fn new(mc: McTransaction, currency: Currency, local_public_key: PublicKey) -> OutgoingMc {
         OutgoingMc {
             mc,
@@ -49,6 +51,8 @@ impl OutgoingMc {
         }
     }
 
+    // TODO: Remove later:
+    #[allow(unused)]
     pub async fn queue_operation(
         &mut self,
         operation: &FriendTcOp,
