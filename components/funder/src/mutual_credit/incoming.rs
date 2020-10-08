@@ -56,7 +56,7 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessOperationError,
 }
 
-pub fn process_operations_list(
+pub async fn process_operations_list(
     mutual_credit: &mut MutualCredit,
     operations: Vec<FriendTcOp>,
     remote_max_debt: u128,
@@ -69,7 +69,7 @@ pub fn process_operations_list(
     // (specifically, HashMaps).
 
     for (index, friend_tc_op) in operations.into_iter().enumerate() {
-        match process_operation(mutual_credit, friend_tc_op, remote_max_debt) {
+        match process_operation(mutual_credit, friend_tc_op, remote_max_debt).await {
             Err(e) => {
                 return Err(ProcessTransListError {
                     index,
@@ -82,26 +82,26 @@ pub fn process_operations_list(
     Ok(outputs)
 }
 
-pub fn process_operation(
+pub async fn process_operation(
     mutual_credit: &mut MutualCredit,
     friend_tc_op: FriendTcOp,
     remote_max_debt: u128,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
     match friend_tc_op {
         FriendTcOp::RequestSendFunds(request_send_funds) => {
-            process_request_send_funds(mutual_credit, request_send_funds, remote_max_debt)
+            process_request_send_funds(mutual_credit, request_send_funds, remote_max_debt).await
         }
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            process_response_send_funds(mutual_credit, response_send_funds)
+            process_response_send_funds(mutual_credit, response_send_funds).await
         }
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            process_cancel_send_funds(mutual_credit, cancel_send_funds)
+            process_cancel_send_funds(mutual_credit, cancel_send_funds).await
         }
     }
 }
 
 /// Process an incoming RequestSendFundsOp
-fn process_request_send_funds(
+async fn process_request_send_funds(
     mutual_credit: &mut MutualCredit,
     request_send_funds: RequestSendFundsOp,
     remote_max_debt: u128,
@@ -171,7 +171,7 @@ fn process_request_send_funds(
     Ok(op_output)
 }
 
-fn process_response_send_funds(
+async fn process_response_send_funds(
     mutual_credit: &mut MutualCredit,
     response_send_funds: ResponseSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {
@@ -262,7 +262,7 @@ fn process_response_send_funds(
     })
 }
 
-fn process_cancel_send_funds(
+async fn process_cancel_send_funds(
     mutual_credit: &mut MutualCredit,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<ProcessOperationOutput, ProcessOperationError> {

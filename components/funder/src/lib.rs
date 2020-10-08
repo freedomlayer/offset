@@ -23,11 +23,11 @@ extern crate quickcheck_derive;
 // mod funder;
 // mod handler;
 // mod liveness;
+#[allow(unused)]
 mod mutual_credit;
 // pub mod report;
 // mod state;
-#[allow(unused)]
-mod token_channel;
+// mod token_channel;
 pub mod types;
 
 // #[cfg(test)]
