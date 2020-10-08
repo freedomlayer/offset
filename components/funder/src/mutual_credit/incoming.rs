@@ -1,16 +1,21 @@
+use derive_more::From;
+
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
 use common::safe_arithmetic::SafeSignedArithmetic;
 
+use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, FriendTcOp, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendTcOp, PendingTransaction, RequestSendFundsOp,
+    ResponseSendFundsOp,
 };
+
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McMutationOld, MutualCredit};
+use super::types::{McMutationOld, McOpError, McTransaction};
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -32,13 +37,7 @@ pub enum IncomingMessage {
     Cancel(IncomingCancelSendFundsOp),
 }
 
-/// Resulting tasks to perform after processing an incoming operation.
-pub struct ProcessOperationOutput {
-    pub incoming_message: Option<IncomingMessage>,
-    pub mc_mutations: Vec<McMutationOld>,
-}
-
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum ProcessOperationError {
     /// The Route contains some public key twice.
     InvalidRoute,
@@ -48,6 +47,7 @@ pub enum ProcessOperationError {
     InvalidResponseSignature,
     InvalidSrcPlainLock,
     DestPaymentExceedsTotal,
+    McOpError(McOpError),
 }
 
 #[derive(Debug)]
@@ -57,55 +57,62 @@ pub struct ProcessTransListError {
 }
 
 pub async fn process_operations_list(
-    mutual_credit: &mut MutualCredit,
+    mc: &mut McTransaction,
     operations: Vec<FriendTcOp>,
+    currency: &Currency,
+    remote_public_key: &PublicKey,
     remote_max_debt: u128,
-) -> Result<Vec<ProcessOperationOutput>, ProcessTransListError> {
+) -> Result<Vec<IncomingMessage>, ProcessTransListError> {
     let mut outputs = Vec::new();
 
-    // We do not change the original MutualCredit.
-    // Instead, we are operating over a clone:
-    // This operation is not very expensive, because we are using immutable data structures
-    // (specifically, HashMaps).
-
     for (index, friend_tc_op) in operations.into_iter().enumerate() {
-        match process_operation(mutual_credit, friend_tc_op, remote_max_debt).await {
+        match process_operation(
+            mc,
+            friend_tc_op,
+            currency,
+            remote_public_key,
+            remote_max_debt,
+        )
+        .await
+        {
             Err(e) => {
                 return Err(ProcessTransListError {
                     index,
                     process_trans_error: e,
                 })
             }
-            Ok(trans_output) => outputs.push(trans_output),
+            Ok(incoming_message) => outputs.push(incoming_message),
         }
     }
     Ok(outputs)
 }
 
 pub async fn process_operation(
-    mutual_credit: &mut MutualCredit,
+    mc: &mut McTransaction,
     friend_tc_op: FriendTcOp,
+    currency: &Currency,
+    remote_public_key: &PublicKey,
     remote_max_debt: u128,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
+) -> Result<IncomingMessage, ProcessOperationError> {
     match friend_tc_op {
         FriendTcOp::RequestSendFunds(request_send_funds) => {
-            process_request_send_funds(mutual_credit, request_send_funds, remote_max_debt).await
+            process_request_send_funds(mc, request_send_funds, remote_max_debt).await
         }
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            process_response_send_funds(mutual_credit, response_send_funds).await
+            process_response_send_funds(mc, response_send_funds, currency, remote_public_key).await
         }
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            process_cancel_send_funds(mutual_credit, cancel_send_funds).await
+            process_cancel_send_funds(mc, cancel_send_funds).await
         }
     }
 }
 
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
-    mutual_credit: &mut MutualCredit,
+    mc: &mut McTransaction,
     request_send_funds: RequestSendFundsOp,
     remote_max_debt: u128,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
+) -> Result<IncomingMessage, ProcessOperationError> {
     if !request_send_funds.route.is_part_valid() {
         return Err(ProcessOperationError::InvalidRoute);
     }
@@ -115,8 +122,10 @@ async fn process_request_send_funds(
     }
 
     // Make sure that we don't have this request as a pending request already:
-    let p_remote_requests = &mutual_credit.state().pending_transactions.remote;
-    if p_remote_requests.contains_key(&request_send_funds.request_id) {
+    let opt_remote_pending_transaction = mc
+        .get_remote_pending_transaction(request_send_funds.request_id.clone())
+        .await?;
+    if opt_remote_pending_transaction.is_some() {
         return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
@@ -127,15 +136,15 @@ async fn process_request_send_funds(
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
     // Make sure we can freeze the credits
-    let balance = &mutual_credit.state().balance;
+    let mc_balance = mc.get_balance().await?;
 
-    let new_remote_pending_debt = balance
+    let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_add(own_freeze_credits)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
     // Check that local_pending_debt - balance <= local_max_debt:
-    let add = balance
+    let add = mc_balance
         .balance
         .checked_add_unsigned(new_remote_pending_debt)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
@@ -154,37 +163,28 @@ async fn process_request_send_funds(
     // Add pending transaction:
     let pending_transaction = create_pending_transaction(&request_send_funds);
 
-    let mut op_output = ProcessOperationOutput {
-        incoming_message: Some(incoming_message),
-        mc_mutations: Vec::new(),
-    };
-
-    let mc_mutation = McMutationOld::InsertRemotePendingTransaction(pending_transaction);
-    mutual_credit.mutate(&mc_mutation);
-    op_output.mc_mutations.push(mc_mutation);
-
+    mc.insert_remote_pending_transaction(pending_transaction)
+        .await?;
     // If we are here, we can freeze the credits:
-    let mc_mutation = McMutationOld::SetRemotePendingDebt(new_remote_pending_debt);
-    mutual_credit.mutate(&mc_mutation);
-    op_output.mc_mutations.push(mc_mutation);
+    mc.set_remote_pending_debt(new_remote_pending_debt).await?;
 
-    Ok(op_output)
+    Ok(incoming_message)
 }
 
 async fn process_response_send_funds(
-    mutual_credit: &mut MutualCredit,
+    mc: &mut McTransaction,
     response_send_funds: ResponseSendFundsOp,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
+    currency: &Currency,
+    remote_public_key: &PublicKey,
+) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_transactions = &mutual_credit.state().pending_transactions.local;
 
     // Obtain pending request:
-    // TODO: Possibly get rid of clone() here for optimization later
-    let pending_transaction = local_pending_transactions
-        .get(&response_send_funds.request_id)
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?
-        .clone();
+    let pending_transaction = mc
+        .get_local_pending_transaction(response_send_funds.request_id.clone())
+        .await?
+        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
     // Verify src_plain_lock and dest_plain_lock:
     if response_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
@@ -192,13 +192,13 @@ async fn process_response_send_funds(
     }
 
     let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
-        &mutual_credit.state().idents.remote_public_key
+        remote_public_key
     } else {
         pending_transaction.route.public_keys.last().unwrap()
     };
 
     let response_signature_buffer = create_response_signature_buffer(
-        &mutual_credit.state().currency,
+        currency,
         response_send_funds.clone(),
         &pending_transaction,
     );
@@ -220,96 +220,65 @@ async fn process_response_send_funds(
     // Note: The unwrap() above should never fail, because this was already checked during the
     // request message processing.
 
-    let mut mc_mutations = Vec::new();
-
     // Remove entry from local_pending hashmap:
-    let mc_mutation =
-        McMutationOld::RemoveLocalPendingTransaction(response_send_funds.request_id.clone());
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
+    mc.remove_local_pending_transaction(response_send_funds.request_id.clone())
+        .await?;
 
-    // Decrease frozen credits and decrease balance:
-    let new_local_pending_debt = mutual_credit
-        .state()
-        .balance
+    // Decrease frozen credits:
+    let mc_balance = mc.get_balance().await?;
+    let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
+    mc.set_local_pending_debt(new_local_pending_debt).await?;
 
-    let mc_mutation = McMutationOld::SetLocalPendingDebt(new_local_pending_debt);
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
-
-    let new_balance = mutual_credit
-        .state()
-        .balance
+    // Decrease balance:
+    let mc_balance = mc.get_balance().await?;
+    let new_balance = mc_balance
         .balance
         .checked_sub_unsigned(freeze_credits)
         .unwrap();
+    mc.set_balance(new_balance).await?;
 
-    let mc_mutation = McMutationOld::SetBalance(new_balance);
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
-
-    let incoming_message = Some(IncomingMessage::Response(IncomingResponseSendFundsOp {
+    Ok(IncomingMessage::Response(IncomingResponseSendFundsOp {
         pending_transaction,
         incoming_response: response_send_funds,
-    }));
-
-    Ok(ProcessOperationOutput {
-        incoming_message,
-        mc_mutations,
-    })
+    }))
 }
 
 async fn process_cancel_send_funds(
-    mutual_credit: &mut MutualCredit,
+    mc: &mut McTransaction,
     cancel_send_funds: CancelSendFundsOp,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
+) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
-    let local_pending_transactions = &mutual_credit.state().pending_transactions.local;
 
     // Obtain pending request:
-    let pending_transaction = local_pending_transactions
-        .get(&cancel_send_funds.request_id)
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?
-        .clone();
-    // TODO: Possibly get rid of clone() here for optimization later
+    let pending_transaction = mc
+        .get_local_pending_transaction(cancel_send_funds.request_id.clone())
+        .await?
+        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
-    let mut mc_mutations = Vec::new();
-
-    // Remove entry from local_pending hashmap:
-    let mc_mutation =
-        McMutationOld::RemoveLocalPendingTransaction(cancel_send_funds.request_id.clone());
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
+    mc.remove_local_pending_transaction(cancel_send_funds.request_id.clone())
+        .await?;
 
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
         .unwrap();
 
+    let mc_balance = mc.get_balance().await?;
     // Decrease frozen credits:
-    let new_local_pending_debt = mutual_credit
-        .state()
-        .balance
+    let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
 
-    let mc_mutation = McMutationOld::SetLocalPendingDebt(new_local_pending_debt);
-    mutual_credit.mutate(&mc_mutation);
-    mc_mutations.push(mc_mutation);
+    mc.set_local_pending_debt(new_local_pending_debt).await?;
 
     // Return cancel_send_funds:
-    let incoming_message = Some(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
+    Ok(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
         pending_transaction,
         incoming_cancel: cancel_send_funds,
-    }));
-
-    Ok(ProcessOperationOutput {
-        incoming_message,
-        mc_mutations,
-    })
+    }))
 }

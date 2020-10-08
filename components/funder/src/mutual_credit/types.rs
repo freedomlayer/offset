@@ -127,14 +127,17 @@ pub enum McOp {
 
 // TODO: Remove:
 #[allow(unused)]
-struct McTransaction {
+pub struct McTransaction {
     sender: mpsc::Sender<McOp>,
 }
 
 // TODO: Remove:
 #[allow(unused)]
 impl McTransaction {
-    async fn get_balance(&mut self) -> McOpResult<McBalance> {
+    pub fn new(sender: mpsc::Sender<McOp>) -> Self {
+        Self { sender }
+    }
+    pub async fn get_balance(&mut self) -> McOpResult<McBalance> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::GetBalance(op_sender);
         self.sender
@@ -143,7 +146,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn set_balance(&mut self, balance: i128) -> McOpResult<()> {
+    pub async fn set_balance(&mut self, balance: i128) -> McOpResult<()> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::SetBalance(balance, op_sender);
         self.sender
@@ -152,7 +155,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn set_local_pending_debt(&mut self, local_pending_debt: u128) -> McOpResult<()> {
+    pub async fn set_local_pending_debt(&mut self, local_pending_debt: u128) -> McOpResult<()> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::SetLocalPendingDebt(local_pending_debt, op_sender);
         self.sender
@@ -161,7 +164,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) -> McOpResult<()> {
+    pub async fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) -> McOpResult<()> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::SetRemotePendingDebt(remote_pending_debt, op_sender);
         self.sender
@@ -170,7 +173,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn get_local_pending_transaction(
+    pub async fn get_local_pending_transaction(
         &mut self,
         request_id: Uid,
     ) -> McOpResult<Option<PendingTransaction>> {
@@ -182,7 +185,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn insert_local_pending_transaction(
+    pub async fn insert_local_pending_transaction(
         &mut self,
         pending_transaction: PendingTransaction,
     ) -> McOpResult<()> {
@@ -194,7 +197,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn remove_local_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
+    pub async fn remove_local_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::RemoveLocalPendingTransaction(request_id, op_sender);
         self.sender
@@ -203,7 +206,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn get_remote_pending_transaction(
+    pub async fn get_remote_pending_transaction(
         &mut self,
         request_id: Uid,
     ) -> McOpResult<Option<PendingTransaction>> {
@@ -215,7 +218,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn insert_remote_pending_transaction(
+    pub async fn insert_remote_pending_transaction(
         &mut self,
         pending_transaction: PendingTransaction,
     ) -> McOpResult<()> {
@@ -227,7 +230,7 @@ impl McTransaction {
             .map_err(|_| McOpError::SendOpFailed)?;
         op_receiver.await.map_err(McOpError::ResponseOpFailed)?
     }
-    async fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
+    pub async fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> McOpResult<()> {
         let (op_sender, op_receiver) = oneshot::channel();
         let op = McOp::RemoveRemotePendingTransaction(request_id, op_sender);
         self.sender
