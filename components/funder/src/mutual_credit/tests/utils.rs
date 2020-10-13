@@ -4,50 +4,10 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::StreamExt;
 
-use crypto::hash_lock::HashLock;
-use crypto::identity::{Identity, SoftwareEd25519Identity};
-use crypto::rand::RandGen;
-use crypto::test_utils::DummyRandom;
+use proto::crypto::{PublicKey, Uid};
+use proto::funder::messages::{Currency, PendingTransaction};
 
-use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
-use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, PendingTransaction, RequestSendFundsOp,
-    ResponseSendFundsOp,
-};
-use signature::signature_buff::create_response_signature_buffer;
-
-use crate::types::create_pending_transaction;
-
-use crate::mutual_credit::incoming::{
-    process_operation, ProcessOperationError, /*ProcessOperationOutput,*/
-};
-use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
-use crate::mutual_credit::types::{McBalance, McOp, McOpResult, McTransaction};
-
-/*
-/// Helper function for applying an outgoing operation over a token channel.
-fn apply_outgoing(
-    mc_transaction: &mut McTransaction,
-    friend_tc_op: &FriendTcOp,
-) -> Result<(), QueueOperationError> {
-    let mut outgoing = OutgoingMc::new(mutual_credit);
-    let mutations = outgoing.queue_operation(friend_tc_op)?;
-
-    for mutation in mutations {
-        mutual_credit.mutate(&mutation);
-    }
-    Ok(())
-}
-
-/// Helper function for applying an incoming operation over a token channel.
-fn apply_incoming(
-    mut mutual_credit: &mut MutualCredit,
-    friend_tc_op: FriendTcOp,
-    remote_max_debt: u128,
-) -> Result<ProcessOperationOutput, ProcessOperationError> {
-    process_operation(&mut mutual_credit, friend_tc_op, remote_max_debt)
-}
-*/
+use crate::mutual_credit::types::{McBalance, McOp};
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
