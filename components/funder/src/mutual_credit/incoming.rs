@@ -59,7 +59,7 @@ pub struct ProcessTransListError {
 // TODO: Remove later:
 #[allow(unused)]
 pub async fn process_operations_list(
-    mc: &mut McTransaction,
+    mc_transaction: &mut McTransaction,
     operations: Vec<FriendTcOp>,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -69,7 +69,7 @@ pub async fn process_operations_list(
 
     for (index, friend_tc_op) in operations.into_iter().enumerate() {
         match process_operation(
-            mc,
+            mc_transaction,
             friend_tc_op,
             currency,
             remote_public_key,
@@ -90,7 +90,7 @@ pub async fn process_operations_list(
 }
 
 pub async fn process_operation(
-    mc: &mut McTransaction,
+    mc_transaction: &mut McTransaction,
     friend_tc_op: FriendTcOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -98,20 +98,26 @@ pub async fn process_operation(
 ) -> Result<IncomingMessage, ProcessOperationError> {
     match friend_tc_op {
         FriendTcOp::RequestSendFunds(request_send_funds) => {
-            process_request_send_funds(mc, request_send_funds, remote_max_debt).await
+            process_request_send_funds(mc_transaction, request_send_funds, remote_max_debt).await
         }
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            process_response_send_funds(mc, response_send_funds, currency, remote_public_key).await
+            process_response_send_funds(
+                mc_transaction,
+                response_send_funds,
+                currency,
+                remote_public_key,
+            )
+            .await
         }
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            process_cancel_send_funds(mc, cancel_send_funds).await
+            process_cancel_send_funds(mc_transaction, cancel_send_funds).await
         }
     }
 }
 
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
-    mc: &mut McTransaction,
+    mc_transaction: &mut McTransaction,
     request_send_funds: RequestSendFundsOp,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
@@ -124,7 +130,7 @@ async fn process_request_send_funds(
     }
 
     // Make sure that we don't have this request as a pending request already:
-    let opt_remote_pending_transaction = mc
+    let opt_remote_pending_transaction = mc_transaction
         .get_remote_pending_transaction(request_send_funds.request_id.clone())
         .await?;
     if opt_remote_pending_transaction.is_some() {
@@ -138,7 +144,7 @@ async fn process_request_send_funds(
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
     // Make sure we can freeze the credits
-    let mc_balance = mc.get_balance().await?;
+    let mc_balance = mc_transaction.get_balance().await?;
 
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
@@ -165,16 +171,19 @@ async fn process_request_send_funds(
     // Add pending transaction:
     let pending_transaction = create_pending_transaction(&request_send_funds);
 
-    mc.insert_remote_pending_transaction(pending_transaction)
+    mc_transaction
+        .insert_remote_pending_transaction(pending_transaction)
         .await?;
     // If we are here, we can freeze the credits:
-    mc.set_remote_pending_debt(new_remote_pending_debt).await?;
+    mc_transaction
+        .set_remote_pending_debt(new_remote_pending_debt)
+        .await?;
 
     Ok(incoming_message)
 }
 
 async fn process_response_send_funds(
-    mc: &mut McTransaction,
+    mc_transaction: &mut McTransaction,
     response_send_funds: ResponseSendFundsOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -183,7 +192,7 @@ async fn process_response_send_funds(
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc
+    let pending_transaction = mc_transaction
         .get_local_pending_transaction(response_send_funds.request_id.clone())
         .await?
         .ok_or(ProcessOperationError::RequestDoesNotExist)?;
@@ -223,24 +232,27 @@ async fn process_response_send_funds(
     // request message processing.
 
     // Remove entry from local_pending hashmap:
-    mc.remove_local_pending_transaction(response_send_funds.request_id.clone())
+    mc_transaction
+        .remove_local_pending_transaction(response_send_funds.request_id.clone())
         .await?;
 
     // Decrease frozen credits:
-    let mc_balance = mc.get_balance().await?;
+    let mc_balance = mc_transaction.get_balance().await?;
     let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
-    mc.set_local_pending_debt(new_local_pending_debt).await?;
+    mc_transaction
+        .set_local_pending_debt(new_local_pending_debt)
+        .await?;
 
     // Decrease balance:
-    let mc_balance = mc.get_balance().await?;
+    let mc_balance = mc_transaction.get_balance().await?;
     let new_balance = mc_balance
         .balance
         .checked_sub_unsigned(freeze_credits)
         .unwrap();
-    mc.set_balance(new_balance).await?;
+    mc_transaction.set_balance(new_balance).await?;
 
     Ok(IncomingMessage::Response(IncomingResponseSendFundsOp {
         pending_transaction,
@@ -249,19 +261,20 @@ async fn process_response_send_funds(
 }
 
 async fn process_cancel_send_funds(
-    mc: &mut McTransaction,
+    mc_transaction: &mut McTransaction,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc
+    let pending_transaction = mc_transaction
         .get_local_pending_transaction(cancel_send_funds.request_id.clone())
         .await?
         .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
-    mc.remove_local_pending_transaction(cancel_send_funds.request_id.clone())
+    mc_transaction
+        .remove_local_pending_transaction(cancel_send_funds.request_id.clone())
         .await?;
 
     let freeze_credits = pending_transaction
@@ -269,14 +282,16 @@ async fn process_cancel_send_funds(
         .checked_add(pending_transaction.left_fees)
         .unwrap();
 
-    let mc_balance = mc.get_balance().await?;
+    let mc_balance = mc_transaction.get_balance().await?;
     // Decrease frozen credits:
     let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
 
-    mc.set_local_pending_debt(new_local_pending_debt).await?;
+    mc_transaction
+        .set_local_pending_debt(new_local_pending_debt)
+        .await?;
 
     // Return cancel_send_funds:
     Ok(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
