@@ -1,10 +1,8 @@
-use std::collections::HashMap as ImHashMap;
+// use common::safe_arithmetic::SafeSignedArithmetic;
+use common::ser_utils::ser_string;
 
-use common::safe_arithmetic::SafeSignedArithmetic;
-use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
-
-use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, PendingTransaction};
+use proto::crypto::Uid;
+use proto::funder::messages::PendingTransaction;
 
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
