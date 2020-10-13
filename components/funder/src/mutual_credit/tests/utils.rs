@@ -1,6 +1,8 @@
 // use std::convert::TryFrom;
-
 use std::collections::HashMap;
+
+use futures::channel::mpsc;
+use futures::StreamExt;
 
 use crypto::hash_lock::HashLock;
 use crypto::identity::{Identity, SoftwareEd25519Identity};
@@ -20,12 +22,12 @@ use crate::mutual_credit::incoming::{
     process_operation, ProcessOperationError, /*ProcessOperationOutput,*/
 };
 use crate::mutual_credit::outgoing::{OutgoingMc, QueueOperationError};
-use crate::mutual_credit::types::{McBalance, McOp};
+use crate::mutual_credit::types::{McBalance, McOp, McOpResult, McTransaction};
 
 /*
 /// Helper function for applying an outgoing operation over a token channel.
 fn apply_outgoing(
-    mutual_credit: &mut MutualCredit,
+    mc_transaction: &mut McTransaction,
     friend_tc_op: &FriendTcOp,
 ) -> Result<(), QueueOperationError> {
     let mut outgoing = OutgoingMc::new(mutual_credit);
@@ -93,22 +95,20 @@ impl MutualCredit {
         self.balance.balance = balance;
     }
 
-    fn insert_remote_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.pending_transactions.remote.insert(
-            pending_friend_request.request_id.clone(),
-            pending_friend_request.clone(),
-        );
+    fn insert_remote_pending_transaction(&mut self, pending_transaction: PendingTransaction) {
+        self.pending_transactions
+            .remote
+            .insert(pending_transaction.request_id.clone(), pending_transaction);
     }
 
     fn remove_remote_pending_transaction(&mut self, request_id: &Uid) {
         let _ = self.pending_transactions.remote.remove(request_id);
     }
 
-    fn insert_local_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.pending_transactions.local.insert(
-            pending_friend_request.request_id.clone(),
-            pending_friend_request.clone(),
-        );
+    fn insert_local_pending_transaction(&mut self, pending_transaction: PendingTransaction) {
+        self.pending_transactions
+            .local
+            .insert(pending_transaction.request_id.clone(), pending_transaction);
     }
 
     fn remove_local_pending_transaction(&mut self, request_id: &Uid) {
@@ -121,5 +121,57 @@ impl MutualCredit {
 
     fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
         self.balance.local_pending_debt = local_pending_debt;
+    }
+}
+
+async fn mc_server(mut mc: MutualCredit, mut incoming_ops: mpsc::Receiver<McOp>) {
+    while let Some(mc_op) = incoming_ops.next().await {
+        match mc_op {
+            McOp::GetBalance(mc_balance_sender) => {
+                mc_balance_sender.send(Ok(mc.balance.clone())).unwrap();
+            }
+            McOp::SetBalance(new_balance, sender) => {
+                mc.set_balance(new_balance);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::SetLocalPendingDebt(new_pending_debt, sender) => {
+                mc.set_local_pending_debt(new_pending_debt);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::SetRemotePendingDebt(new_pending_debt, sender) => {
+                mc.set_remote_pending_debt(new_pending_debt);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::GetLocalPendingTransaction(request_id, pending_transaction_sender) => {
+                let opt_pending_transaction =
+                    mc.pending_transactions.local.get(&request_id).cloned();
+                pending_transaction_sender
+                    .send(Ok(opt_pending_transaction))
+                    .unwrap();
+            }
+            McOp::InsertLocalPendingTransaction(pending_transaction, sender) => {
+                mc.insert_local_pending_transaction(pending_transaction);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::RemoveLocalPendingTransaction(request_id, sender) => {
+                mc.remove_local_pending_transaction(&request_id);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::GetRemotePendingTransaction(request_id, pending_transaction_sender) => {
+                let opt_pending_transaction =
+                    mc.pending_transactions.remote.get(&request_id).cloned();
+                pending_transaction_sender
+                    .send(Ok(opt_pending_transaction))
+                    .unwrap();
+            }
+            McOp::InsertRemotePendingTransaction(pending_transaction, sender) => {
+                mc.insert_remote_pending_transaction(pending_transaction);
+                sender.send(Ok(())).unwrap();
+            }
+            McOp::RemoveRemotePendingTransaction(request_id, sender) => {
+                mc.remove_remote_pending_transaction(&request_id);
+                sender.send(Ok(())).unwrap();
+            }
+        }
     }
 }
