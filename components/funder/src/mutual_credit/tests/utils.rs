@@ -124,54 +124,65 @@ impl MutualCredit {
     }
 }
 
-async fn mc_server(mut mc: MutualCredit, mut incoming_ops: mpsc::Receiver<McOp>) {
+#[derive(Debug)]
+pub enum McServerError {
+    SendError,
+}
+
+pub async fn mc_server(
+    mut mc: MutualCredit,
+    mut incoming_ops: mpsc::Receiver<McOp>,
+) -> Result<(), McServerError> {
     while let Some(mc_op) = incoming_ops.next().await {
         match mc_op {
             McOp::GetBalance(mc_balance_sender) => {
-                mc_balance_sender.send(Ok(mc.balance.clone())).unwrap();
+                mc_balance_sender
+                    .send(Ok(mc.balance.clone()))
+                    .map_err(|_| McServerError::SendError)?;
             }
             McOp::SetBalance(new_balance, sender) => {
                 mc.set_balance(new_balance);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::SetLocalPendingDebt(new_pending_debt, sender) => {
                 mc.set_local_pending_debt(new_pending_debt);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::SetRemotePendingDebt(new_pending_debt, sender) => {
                 mc.set_remote_pending_debt(new_pending_debt);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::GetLocalPendingTransaction(request_id, pending_transaction_sender) => {
                 let opt_pending_transaction =
                     mc.pending_transactions.local.get(&request_id).cloned();
                 pending_transaction_sender
                     .send(Ok(opt_pending_transaction))
-                    .unwrap();
+                    .map_err(|_| McServerError::SendError)?;
             }
             McOp::InsertLocalPendingTransaction(pending_transaction, sender) => {
                 mc.insert_local_pending_transaction(pending_transaction);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::RemoveLocalPendingTransaction(request_id, sender) => {
                 mc.remove_local_pending_transaction(&request_id);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::GetRemotePendingTransaction(request_id, pending_transaction_sender) => {
                 let opt_pending_transaction =
                     mc.pending_transactions.remote.get(&request_id).cloned();
                 pending_transaction_sender
                     .send(Ok(opt_pending_transaction))
-                    .unwrap();
+                    .map_err(|_| McServerError::SendError)?;
             }
             McOp::InsertRemotePendingTransaction(pending_transaction, sender) => {
                 mc.insert_remote_pending_transaction(pending_transaction);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
             McOp::RemoveRemotePendingTransaction(request_id, sender) => {
                 mc.remove_remote_pending_transaction(&request_id);
-                sender.send(Ok(())).unwrap();
+                sender.send(Ok(())).map_err(|_| McServerError::SendError)?;
             }
         }
     }
+    Ok(())
 }
