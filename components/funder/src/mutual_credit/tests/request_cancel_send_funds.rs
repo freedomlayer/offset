@@ -1,5 +1,28 @@
-#[test]
-fn test_request_cancel_send_funds() {
+use std::convert::TryFrom;
+
+use futures::channel::mpsc;
+use futures::task::SpawnExt;
+use futures::{FutureExt, TryFutureExt};
+
+use common::test_executor::TestExecutor;
+
+use crypto::hash_lock::HashLock;
+use crypto::identity::{Identity, SoftwareEd25519Identity};
+use crypto::rand::RandGen;
+use crypto::test_utils::DummyRandom;
+
+use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Uid};
+use proto::funder::messages::{
+    CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
+};
+
+use crate::mutual_credit::tests::utils::{mc_server, MutualCredit};
+use crate::mutual_credit::types::McTransaction;
+
+use crate::mutual_credit::incoming::process_operations_list;
+use crate::mutual_credit::outgoing::queue_operation;
+
+async fn task_request_cancel_send_funds(test_executor: TestExecutor) {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     let mut rng = DummyRandom::new(&[1u8]);
@@ -10,8 +33,18 @@ fn test_request_cancel_send_funds() {
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = public_key_b.clone();
     let balance = 0;
-    let mut mutual_credit =
+
+    let mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
+    let (sender, receiver) = mpsc::channel(0);
+    test_executor
+        .spawn(
+            mc_server(mutual_credit, receiver)
+                .map_err(|e| warn!("mc_server closed with error: {:?}", e))
+                .map(|_| ()),
+        )
+        .unwrap();
+    let mut mc_transaction = McTransaction::new(sender);
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -38,28 +71,43 @@ fn test_request_cancel_send_funds() {
         left_fees: 5,
     };
 
-    apply_outgoing(
-        &mut mutual_credit,
-        &FriendTcOp::RequestSendFunds(request_send_funds),
+    queue_operation(
+        &mut mc_transaction,
+        FriendTcOp::RequestSendFunds(request_send_funds),
+        &currency,
+        &local_public_key,
     )
+    .await
     .unwrap();
 
-    assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_pending_debt, 10 + 5);
-    assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
+    let mc_balance = mc_transaction.get_balance().await.unwrap();
+    assert_eq!(mc_balance.balance, 0);
+    assert_eq!(mc_balance.local_pending_debt, 10 + 5);
+    assert_eq!(mc_balance.remote_pending_debt, 0);
 
     // -----[CancelSendFunds]--------
     // ------------------------------
     let cancel_send_funds = CancelSendFundsOp { request_id };
 
-    apply_incoming(
-        &mut mutual_credit,
-        FriendTcOp::CancelSendFunds(cancel_send_funds),
+    process_operations_list(
+        &mut mc_transaction,
+        vec![FriendTcOp::CancelSendFunds(cancel_send_funds)],
+        &currency,
+        &remote_public_key,
         100,
     )
+    .await
     .unwrap();
 
-    assert_eq!(mutual_credit.state().balance.balance, 0);
-    assert_eq!(mutual_credit.state().balance.local_pending_debt, 0);
-    assert_eq!(mutual_credit.state().balance.remote_pending_debt, 0);
+    let mc_balance = mc_transaction.get_balance().await.unwrap();
+    assert_eq!(mc_balance.balance, 0);
+    assert_eq!(mc_balance.local_pending_debt, 0);
+    assert_eq!(mc_balance.remote_pending_debt, 0);
+}
+
+#[test]
+fn test_request_cancel_send_funds() {
+    let test_executor = TestExecutor::new();
+    let res = test_executor.run(task_request_cancel_send_funds(test_executor.clone()));
+    assert!(res.is_output());
 }
