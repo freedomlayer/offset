@@ -23,7 +23,6 @@ use crate::types::create_pending_transaction;
 
 use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;
-// use crate::mutual_credit::types::{McBalance, McOp, McOpResult, McTransaction};
 
 async fn task_request_response_send_funds(test_executor: TestExecutor) {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
@@ -31,8 +30,8 @@ async fn task_request_response_send_funds(test_executor: TestExecutor) {
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
-    let (sender, receiver) = mpsc::channel(0);
 
+    let (sender, receiver) = mpsc::channel(0);
     let mutual_credit =
         MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
     test_executor
@@ -42,7 +41,6 @@ async fn task_request_response_send_funds(test_executor: TestExecutor) {
                 .map(|_| ()),
         )
         .unwrap();
-
     let mut mc_transaction = McTransaction::new(sender);
 
     // -----[RequestSendFunds]--------
