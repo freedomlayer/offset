@@ -11,15 +11,14 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::create_response_signature_buffer;
 
+use crate::mutual_credit::types::{McOpError, McTransaction};
 use crate::types::create_pending_transaction;
-
-use super::types::{McOpError, McTransaction};
 
 /// Processes outgoing funds for a token channel.
 /// Used to batch as many funds as possible.
 #[derive(Debug)]
 pub struct OutgoingMc {
-    mc: McTransaction,
+    mc_transaction: McTransaction,
     currency: Currency,
     local_public_key: PublicKey,
 }
@@ -38,204 +37,198 @@ pub enum QueueOperationError {
     McOpError(McOpError),
 }
 
-#[allow(unused)]
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
-impl OutgoingMc {
-    // TODO: Remove later:
-    #[allow(unused)]
-    pub fn new(mc: McTransaction, currency: Currency, local_public_key: PublicKey) -> OutgoingMc {
-        OutgoingMc {
-            mc,
-            currency,
-            local_public_key,
+// TODO: Remove later:
+#[allow(unused)]
+pub async fn queue_operation(
+    mc_transaction: &mut McTransaction,
+    operation: &FriendTcOp,
+    currency: &Currency,
+    local_public_key: &PublicKey,
+) -> Result<(), QueueOperationError> {
+    // TODO: Maybe remove clone from here later:
+    match operation.clone() {
+        FriendTcOp::RequestSendFunds(request_send_funds) => {
+            queue_request_send_funds(mc_transaction, request_send_funds).await
+        }
+        FriendTcOp::ResponseSendFunds(response_send_funds) => {
+            queue_response_send_funds(
+                mc_transaction,
+                response_send_funds,
+                currency,
+                local_public_key,
+            )
+            .await
+        }
+        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
+            queue_cancel_send_funds(mc_transaction, cancel_send_funds).await
         }
     }
+}
 
-    // TODO: Remove later:
-    #[allow(unused)]
-    pub async fn queue_operation(
-        &mut self,
-        operation: &FriendTcOp,
-    ) -> Result<(), QueueOperationError> {
-        // TODO: Maybe remove clone from here later:
-        match operation.clone() {
-            FriendTcOp::RequestSendFunds(request_send_funds) => {
-                self.queue_request_send_funds(request_send_funds).await
-            }
-            FriendTcOp::ResponseSendFunds(response_send_funds) => {
-                self.queue_response_send_funds(response_send_funds).await
-            }
-            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-                self.queue_cancel_send_funds(cancel_send_funds).await
-            }
-        }
+async fn queue_request_send_funds(
+    mc_transaction: &mut McTransaction,
+    request_send_funds: RequestSendFundsOp,
+) -> Result<(), QueueOperationError> {
+    if !request_send_funds.route.is_part_valid() {
+        return Err(QueueOperationError::InvalidRoute);
     }
 
-    async fn queue_request_send_funds(
-        &mut self,
-        request_send_funds: RequestSendFundsOp,
-    ) -> Result<(), QueueOperationError> {
-        if !request_send_funds.route.is_part_valid() {
-            return Err(QueueOperationError::InvalidRoute);
-        }
-
-        if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
-            return Err(QueueOperationError::DestPaymentExceedsTotal);
-        }
-
-        // Calculate amount of credits to freeze
-        let own_freeze_credits = request_send_funds
-            .dest_payment
-            .checked_add(request_send_funds.left_fees)
-            .ok_or(QueueOperationError::CreditsCalcOverflow)?;
-
-        let mc_balance = self.mc.get_balance().await?;
-
-        // Make sure we can freeze the credits
-        let new_local_pending_debt = mc_balance
-            .local_pending_debt
-            .checked_add(own_freeze_credits)
-            .ok_or(QueueOperationError::CreditsCalcOverflow)?;
-
-        // Make sure that we don't have this request as a pending request already:
-        if self
-            .mc
-            .get_local_pending_transaction(request_send_funds.request_id.clone())
-            .await?
-            .is_some()
-        {
-            return Err(QueueOperationError::RequestAlreadyExists);
-        }
-
-        // Add pending transaction:
-        let pending_transaction = create_pending_transaction(&request_send_funds);
-        self.mc
-            .insert_local_pending_transaction(pending_transaction)
-            .await?;
-
-        // If we are here, we can freeze the credits:
-        self.mc
-            .set_local_pending_debt(new_local_pending_debt)
-            .await?;
-
-        Ok(())
+    if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
+        return Err(QueueOperationError::DestPaymentExceedsTotal);
     }
 
-    async fn queue_response_send_funds(
-        &mut self,
-        response_send_funds: ResponseSendFundsOp,
-    ) -> Result<(), QueueOperationError> {
-        // Make sure that id exists in remote_pending hashmap,
-        // and access saved request details.
+    // Calculate amount of credits to freeze
+    let own_freeze_credits = request_send_funds
+        .dest_payment
+        .checked_add(request_send_funds.left_fees)
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        // Obtain pending request:
-        let pending_transaction = self
-            .mc
-            .get_remote_pending_transaction(response_send_funds.request_id.clone())
-            .await?
-            .ok_or(QueueOperationError::RequestDoesNotExist)?;
-        // TODO: Possibly get rid of clone() here for optimization later
+    let mc_balance = mc_transaction.get_balance().await?;
 
-        // Verify src_plain_lock and dest_plain_lock:
-        if response_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
-            return Err(QueueOperationError::InvalidSrcPlainLock);
-        }
+    // Make sure we can freeze the credits
+    let new_local_pending_debt = mc_balance
+        .local_pending_debt
+        .checked_add(own_freeze_credits)
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-        // verify signature:
-        let response_signature_buffer = create_response_signature_buffer(
-            &self.currency,
-            response_send_funds.clone(),
-            &pending_transaction,
-        );
-        // The response was signed by the destination node:
-        let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
-            &self.local_public_key
-        } else {
-            pending_transaction.route.public_keys.last().unwrap()
-        };
-
-        // Verify response funds signature:
-        if !verify_signature(
-            &response_signature_buffer,
-            dest_public_key,
-            &response_send_funds.signature,
-        ) {
-            return Err(QueueOperationError::InvalidResponseSignature);
-        }
-
-        // Calculate amount of credits that were frozen:
-        let freeze_credits = pending_transaction
-            .dest_payment
-            .checked_add(pending_transaction.left_fees)
-            .unwrap();
-
-        // Remove entry from remote_pending hashmap:
-        self.mc
-            .remove_remote_pending_transaction(response_send_funds.request_id)
-            .await?;
-
-        // Decrease frozen credits
-        let mc_balance = self.mc.get_balance().await?;
-        let new_remote_pending_debt = mc_balance
-            .remote_pending_debt
-            .checked_sub(freeze_credits)
-            .unwrap();
-        // Above unwrap() should never fail. This was already checked when a request message was
-        // received.
-
-        self.mc
-            .set_remote_pending_debt(new_remote_pending_debt)
-            .await?;
-
-        // Increase balance:
-        let mc_balance = self.mc.get_balance().await?;
-        let new_balance = mc_balance
-            .balance
-            .checked_add_unsigned(freeze_credits)
-            .unwrap();
-        // Above unwrap() should never fail. This was already checked when a request message was
-        // received.
-
-        self.mc.set_balance(new_balance).await?;
-
-        Ok(())
+    // Make sure that we don't have this request as a pending request already:
+    if mc_transaction
+        .get_local_pending_transaction(request_send_funds.request_id.clone())
+        .await?
+        .is_some()
+    {
+        return Err(QueueOperationError::RequestAlreadyExists);
     }
 
-    async fn queue_cancel_send_funds(
-        &mut self,
-        cancel_send_funds: CancelSendFundsOp,
-    ) -> Result<(), QueueOperationError> {
-        // Make sure that id exists in remote_pending hashmap,
-        // and access saved request details.
+    // Add pending transaction:
+    let pending_transaction = create_pending_transaction(&request_send_funds);
+    mc_transaction
+        .insert_local_pending_transaction(pending_transaction)
+        .await?;
 
-        // Obtain pending request:
-        let pending_transaction = self
-            .mc
-            .get_remote_pending_transaction(cancel_send_funds.request_id.clone())
-            .await?
-            .ok_or(QueueOperationError::RequestDoesNotExist)?;
+    // If we are here, we can freeze the credits:
+    mc_transaction
+        .set_local_pending_debt(new_local_pending_debt)
+        .await?;
 
-        let freeze_credits = pending_transaction
-            .dest_payment
-            .checked_add(pending_transaction.left_fees)
-            .unwrap();
+    Ok(())
+}
 
-        // Remove entry from remote hashmap:
-        self.mc
-            .remove_remote_pending_transaction(cancel_send_funds.request_id.clone())
-            .await?;
+async fn queue_response_send_funds(
+    mc_transaction: &mut McTransaction,
+    response_send_funds: ResponseSendFundsOp,
+    currency: &Currency,
+    local_public_key: &PublicKey,
+) -> Result<(), QueueOperationError> {
+    // Make sure that id exists in remote_pending hashmap,
+    // and access saved request details.
 
-        // Decrease frozen credits:
-        let mc_balance = self.mc.get_balance().await?;
-        let new_remote_pending_debt = mc_balance
-            .remote_pending_debt
-            .checked_sub(freeze_credits)
-            .unwrap();
+    // Obtain pending request:
+    let pending_transaction = mc_transaction
+        .get_remote_pending_transaction(response_send_funds.request_id.clone())
+        .await?
+        .ok_or(QueueOperationError::RequestDoesNotExist)?;
+    // TODO: Possibly get rid of clone() here for optimization later
 
-        self.mc
-            .set_remote_pending_debt(new_remote_pending_debt)
-            .await?;
-
-        Ok(())
+    // Verify src_plain_lock and dest_plain_lock:
+    if response_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
+        return Err(QueueOperationError::InvalidSrcPlainLock);
     }
+
+    // verify signature:
+    let response_signature_buffer = create_response_signature_buffer(
+        currency,
+        response_send_funds.clone(),
+        &pending_transaction,
+    );
+    // The response was signed by the destination node:
+    let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+        local_public_key
+    } else {
+        pending_transaction.route.public_keys.last().unwrap()
+    };
+
+    // Verify response funds signature:
+    if !verify_signature(
+        &response_signature_buffer,
+        dest_public_key,
+        &response_send_funds.signature,
+    ) {
+        return Err(QueueOperationError::InvalidResponseSignature);
+    }
+
+    // Calculate amount of credits that were frozen:
+    let freeze_credits = pending_transaction
+        .dest_payment
+        .checked_add(pending_transaction.left_fees)
+        .unwrap();
+
+    // Remove entry from remote_pending hashmap:
+    mc_transaction
+        .remove_remote_pending_transaction(response_send_funds.request_id)
+        .await?;
+
+    // Decrease frozen credits
+    let mc_balance = mc_transaction.get_balance().await?;
+    let new_remote_pending_debt = mc_balance
+        .remote_pending_debt
+        .checked_sub(freeze_credits)
+        .unwrap();
+    // Above unwrap() should never fail. This was already checked when a request message was
+    // received.
+
+    mc_transaction
+        .set_remote_pending_debt(new_remote_pending_debt)
+        .await?;
+
+    // Increase balance:
+    let mc_balance = mc_transaction.get_balance().await?;
+    let new_balance = mc_balance
+        .balance
+        .checked_add_unsigned(freeze_credits)
+        .unwrap();
+    // Above unwrap() should never fail. This was already checked when a request message was
+    // received.
+
+    mc_transaction.set_balance(new_balance).await?;
+
+    Ok(())
+}
+
+async fn queue_cancel_send_funds(
+    mc_transaction: &mut McTransaction,
+    cancel_send_funds: CancelSendFundsOp,
+) -> Result<(), QueueOperationError> {
+    // Make sure that id exists in remote_pending hashmap,
+    // and access saved request details.
+
+    // Obtain pending request:
+    let pending_transaction = mc_transaction
+        .get_remote_pending_transaction(cancel_send_funds.request_id.clone())
+        .await?
+        .ok_or(QueueOperationError::RequestDoesNotExist)?;
+
+    let freeze_credits = pending_transaction
+        .dest_payment
+        .checked_add(pending_transaction.left_fees)
+        .unwrap();
+
+    // Remove entry from remote hashmap:
+    mc_transaction
+        .remove_remote_pending_transaction(cancel_send_funds.request_id.clone())
+        .await?;
+
+    // Decrease frozen credits:
+    let mc_balance = mc_transaction.get_balance().await?;
+    let new_remote_pending_debt = mc_balance
+        .remote_pending_debt
+        .checked_sub(freeze_credits)
+        .unwrap();
+
+    mc_transaction
+        .set_remote_pending_debt(new_remote_pending_debt)
+        .await?;
+
+    Ok(())
 }
