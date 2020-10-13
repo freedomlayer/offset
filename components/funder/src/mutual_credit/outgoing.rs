@@ -14,15 +14,6 @@ use signature::signature_buff::create_response_signature_buffer;
 use crate::mutual_credit::types::{McOpError, McTransaction};
 use crate::types::create_pending_transaction;
 
-/// Processes outgoing funds for a token channel.
-/// Used to batch as many funds as possible.
-#[derive(Debug)]
-pub struct OutgoingMc {
-    mc_transaction: McTransaction,
-    currency: Currency,
-    local_public_key: PublicKey,
-}
-
 #[derive(Debug, From)]
 pub enum QueueOperationError {
     // RemoteMaxDebtTooLarge,
