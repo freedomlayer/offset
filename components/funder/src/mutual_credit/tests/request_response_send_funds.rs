@@ -32,8 +32,7 @@ async fn task_request_response_send_funds(test_executor: TestExecutor) {
     let balance = 0;
 
     let (sender, receiver) = mpsc::channel(0);
-    let mutual_credit =
-        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
+    let mutual_credit = MutualCredit::new(&currency, balance);
     test_executor
         .spawn(
             mc_server(mutual_credit, receiver)

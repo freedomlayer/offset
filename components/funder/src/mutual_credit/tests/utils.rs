@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use futures::channel::mpsc;
 use futures::StreamExt;
 
-use proto::crypto::{PublicKey, Uid};
+use proto::crypto::Uid;
 use proto::funder::messages::{Currency, PendingTransaction};
 
 use crate::mutual_credit::types::{McBalance, McOp};
@@ -39,8 +39,6 @@ pub struct MutualCredit {
 impl MutualCredit {
     pub fn new(
         // TODO: Should we move instead of take a reference here?
-        local_public_key: &PublicKey,
-        remote_public_key: &PublicKey,
         currency: &Currency,
         balance: i128,
     ) -> MutualCredit {

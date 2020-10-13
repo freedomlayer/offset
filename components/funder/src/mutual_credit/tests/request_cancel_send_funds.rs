@@ -34,8 +34,7 @@ async fn task_request_cancel_send_funds(test_executor: TestExecutor) {
     let remote_public_key = public_key_b.clone();
     let balance = 0;
 
-    let mutual_credit =
-        MutualCredit::new(&local_public_key, &remote_public_key, &currency, balance);
+    let mutual_credit = MutualCredit::new(&currency, balance);
     let (sender, receiver) = mpsc::channel(0);
     test_executor
         .spawn(
