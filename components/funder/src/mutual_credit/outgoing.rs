@@ -42,12 +42,12 @@ pub enum QueueOperationError {
 #[allow(unused)]
 pub async fn queue_operation(
     mc_transaction: &mut McTransaction,
-    operation: &FriendTcOp,
+    operation: FriendTcOp,
     currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
     // TODO: Maybe remove clone from here later:
-    match operation.clone() {
+    match operation {
         FriendTcOp::RequestSendFunds(request_send_funds) => {
             queue_request_send_funds(mc_transaction, request_send_funds).await
         }
