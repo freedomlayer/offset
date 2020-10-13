@@ -1,10 +1,12 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
+use futures::channel::{mpsc, oneshot};
+
 use im::hashset::HashSet as ImHashSet;
 use std::collections::HashMap as ImHashMap;
 
-use common::ser_utils::ser_map_str_any;
+// use common::ser_utils::ser_map_str_any;
 
 use signature::canonical::CanonicalSerialize;
 
@@ -22,27 +24,134 @@ use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
 
 use crate::mutual_credit::incoming::{
-    process_operations_list, IncomingMessage, ProcessOperationOutput, ProcessTransListError,
+    process_operations_list, IncomingMessage, ProcessTransListError,
 };
-use crate::mutual_credit::outgoing::OutgoingMc;
-use crate::mutual_credit::types::{McMutationOld, MutualCredit};
+use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::types::{McOp, McTransaction};
 
 use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
 
+/*
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
 pub enum SetDirection<B> {
     Incoming(MoveTokenHashed),
     Outgoing((MoveToken<B>, TokenInfo)),
 }
+*/
+
+#[derive(Debug)]
+pub enum TcOpError {
+    SendOpFailed,
+    ResponseOpFailed(oneshot::Canceled),
+}
+
+pub type TcOpResult<T> = Result<T, TcOpError>;
+pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Arbitrary, Debug, Clone)]
-pub enum TcMutation<B> {
-    McMutation((Currency, McMutationOld)),
-    SetLocalActiveCurrencies(Vec<Currency>),
-    SetRemoteActiveCurrencies(Vec<Currency>),
-    AddMutualCredit(Currency),
-    SetDirection(SetDirection<B>),
+#[derive(Debug, Clone)]
+pub enum TcOp<B> {
+    // Internal mutual credit operations:
+    McGetBalance(Currency, TcOpSenderResult<McBalance>),
+    McSetBalance(Currency, i128, TcOpSenderResult<()>),
+    McSetLocalPendingDebt(Currency, u128, TcOpSenderResult<()>),
+    McSetRemotePendingDebt(Currency, u128, TcOpSenderResult<()>),
+    McGetLocalPendingTransaction(Currency, Uid, TcOpSenderResult<Option<PendingTransaction>>),
+    McInsertLocalPendingTransaction(Currency, PendingTransaction, TcOpSenderResult<()>),
+    McRemoveLocalPendingTransaction(Currency, Uid, TcOpSenderResult<()>),
+    McGetRemotePendingTransaction(Currency, Uid, TcOpSenderResult<Option<PendingTransaction>>),
+    McInsertRemotePendingTransaction(Currency, PendingTransaction, TcOpSenderResult<()>),
+    McRemoveRemotePendingTransaction(Currency, Uid, TcOpSenderResult<()>),
+
+    // Token channel operations:
+    SetLocalActiveCurrencies(Vec<Currency>, TcOpSenderResult<()>),
+    SetRemoteActiveCurrencies(Vec<Currency>, TcOpSenderResult<()>),
+    AddMutualCredit(Currency, TcOpSenderResult<()>),
+    SetDirectionIncoming(MoveTokenHashed, TcOpSenderResult<()>),
+    SetDirectionOutgoing(MoveToken<B>, TokenInfo, TcOpSenderResult<()>),
+}
+
+macro_rules! ops_enum {
+    (($op_enum:ident <$($ty:ident),*>, $op_error:ident, $transaction:ident),
+    $(
+        {
+            ($variant_camel:ident, $variant_snake:ident),
+            ($(($arg_name:ident, $arg_type:ident)),*),
+            $ret_type:ident
+        }
+    ),*
+
+    ) => {
+        /// Enum for all possible operations
+        pub enum $op_enum<$(ty),*> {
+            $(
+                $variant_camel($($arg_type),* , oneshot::Sender<Result<$ret_type, $op_error>>)
+            )*
+        }
+
+
+        /// A transaction client
+        pub struct $transaction {
+            sender: mpsc::Sender<$op_enum<$(ty),*>,
+        }
+
+        impl<$(ty),*> $transaction<$(ty),*> {
+            $(
+                async fn $variant_snake($($arg_name: $arg_type),*) -> Result<$ret_type, $op_error> {
+                    let (op_sender, op_receiver) = oneshot::channel();
+                    let op = $op_enum::$variant_camel($($arg_name),*, op_sender);
+                    self.sender
+                        .send(op)
+                        .await
+                        .map_err(|_| TcOpError::SendOpFailed)?;
+                    op_receiver.await.map_err(TcOpError::ResponseOpFailed)?
+                }
+            )*
+        }
+    };
+}
+
+ops_enum!((TcOp<B>, TcOpError, TcTransaction),
+{
+    (McGetBalance, mc_get_balance),
+    (currency, Currency),
+    McBalance
+});
+
+pub struct TcTransaction<B> {
+    sender: mpsc::Sender<TcOp<B>>,
+}
+
+impl<B> TcTransaction<B> {
+    async fn mc_get_balance(currency: Currency) -> TcOpResult<McBalance> {
+        let (op_sender, op_receiver) = oneshot::channel();
+        let op = TcOp::McGetBalance(balance, op_sender);
+        self.sender
+            .send(op)
+            .await
+            .map_err(|_| TcOpError::SendOpFailed)?;
+        op_receiver.await.map_err(TcOpError::ResponseOpFailed)?
+    }
+
+    async fn set_local_active_currencies(currencies: Vec<Currency>) {
+        todo!();
+    }
+
+    async fn set_remote_active_currencies(currencies: Vec<Currency>) {
+        todo!();
+    }
+
+    async fn add_mutual_credit(currency: Currency) {
+        todo!();
+    }
+
+    async fn set_direction_incoming(move_token_hashed: MoveTokenHashed) {
+        todo!();
+    }
+
+    async fn set_direction_outgoing(move_token: MoveToken<B>, token_info: TokenInfo) {
+        todo!();
+    }
 }
 
 /// The currencies set to be active by two sides of the token channel.
@@ -107,10 +216,9 @@ pub enum TcDirectionBorrow<'a, B> {
     Out(TcOutBorrow<'a, B>),
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TokenChannel<B> {
     direction: TcDirection<B>,
-    #[serde(with = "ser_map_str_any")]
     mutual_credits: ImHashMap<Currency, MutualCredit>,
     active_currencies: ActiveCurrencies,
 }
@@ -1227,4 +1335,5 @@ mod tests {
 
     // TODO: Add more tests.
     // - Test behaviour of Duplicate, ChainInconsistency
+}
 }

@@ -27,7 +27,13 @@ extern crate quickcheck_derive;
 mod mutual_credit;
 // pub mod report;
 // mod state;
+// #[allow(unused)]
 // mod token_channel;
+//
+// For testing:
+#[allow(dead_code)]
+mod token_channel_macro;
+
 pub mod types;
 
 // #[cfg(test)]
