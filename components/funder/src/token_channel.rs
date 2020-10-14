@@ -79,11 +79,18 @@ ops_enum!((TcOp<B>, TcTransaction) => {
     get_move_token_in() -> Option<MoveTokenHashed>;
     get_move_token_out() -> Option<MoveToken<B>>;
 
-    get_local_active_currencies() -> Option<Vec<Currency>>;
-    set_local_active_currencies(currencies: Vec<Currency>);
+    add_local_currency(currency: Currency);
+    // TODO: Possibly add boolean result here? And to other remove commands?
+    remove_local_currency(currency: Currency);
+    is_local_currency(currency: Currency) -> bool;
+
+    add_remote_currency(currency: Currency);
+    remove_remote_currency(currency: Currency);
+    is_remote_currency(currency: Currency) -> bool;
 
     // get_remote_active_currencies() ->
     set_remote_active_currencies(currencies: Vec<Currency>);
+    is_active_currency(currency: Currency) -> bool;
 
     add_mutual_credit(currency: Currency);
     set_direction_incoming(move_token_hashed: MoveTokenHashed);
@@ -191,7 +198,7 @@ pub struct MoveTokenReceivedCurrency {
 pub struct MoveTokenReceived<B> {
     // pub mutations: Vec<TcMutation<B>>,
     pub currencies: Vec<MoveTokenReceivedCurrency>,
-    pub local_relays_diff: Option<Vec<RelayAddress<B>>>,
+    pub relays_diff: Vec<RelayAddress<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -265,10 +272,9 @@ fn initial_move_token<B>(
     let move_token = MoveToken {
         old_token: token_from_public_key(&low_public_key),
         currencies_operations: Vec::new(),
-        opt_local_relays: None,
-        opt_active_currencies: None,
+        relays_diff: Vec::new(),
+        currencies_diff: Vec::new(),
         info_hash: hash_token_info(&token_info),
-        rand_nonce: rand_nonce_from_public_key(&high_public_key),
         new_token: token_from_public_key(&high_public_key),
     };
 
@@ -361,41 +367,54 @@ where
     // Aggregate results for every currency:
     let mut move_token_received = MoveTokenReceived {
         currencies: Vec::new(),
-        opt_local_relays: new_move_token.opt_local_relays.clone(),
+        relays_diff: new_move_token.relays_diff.clone(),
     };
 
-    // Handle active_currencies:
-    if let Some(active_currencies) = new_move_token.opt_active_currencies.as_ref() {
-        for mutual_credit_currency in tc_out_borrow.mutual_credits.keys() {
-            if !active_currencies.contains(&mutual_credit_currency) {
-                return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
-            }
+    // Handle active currencies:
+
+    // First, make sure that nobody removed a currency that is already active:
+    // TODO: We might allow to do this in the future, in the special case of zero balance and zero
+    // pending debt?
+
+    // TODO: Possibly unite this code with the code below:
+    for diff_currency in new_move_token.currencies_diff.as_ref() {
+        if tc_transaction.is_active_currency(diff_currency).await? {
+            return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
         }
+    }
 
-        let mutation = TcMutation::SetRemoteActiveCurrencies(active_currencies.clone());
-        token_channel.mutate(&mutation);
-        move_token_received.mutations.push(mutation);
-
-        let tc_out_borrow = token_channel.get_outgoing().unwrap();
-        let active_currencies = &tc_out_borrow.active_currencies;
-
-        // Find the new currencies we need to initialize.
-        // Calculate:
-        // (local ^ remote) \ mutual_credit_currencies:
-        let intersection = active_currencies
-            .remote
-            .clone()
-            .intersection(active_currencies.local.clone());
-
-        let mutual_credit_currencies: ImHashSet<_> =
-            tc_out_borrow.mutual_credits.keys().cloned().collect();
-
-        let new_currencies = intersection.relative_complement(mutual_credit_currencies);
-
-        for new_currency in new_currencies {
-            let mutation = TcMutation::AddMutualCredit(new_currency.clone());
+    for diff_currency in new_move_token.currencies_diff.as_ref() {
+        if tc_transaction.is_remote_currency(diff_currency) {
+            // We need to remove this currency
+            // TODO: continue here.
+            //
+            let mutation = TcMutation::SetRemoteActiveCurrencies(active_currencies.clone());
             token_channel.mutate(&mutation);
             move_token_received.mutations.push(mutation);
+
+            let tc_out_borrow = token_channel.get_outgoing().unwrap();
+            let active_currencies = &tc_out_borrow.active_currencies;
+
+            // Find the new currencies we need to initialize.
+            // Calculate:
+            // (local ^ remote) \ mutual_credit_currencies:
+            let intersection = active_currencies
+                .remote
+                .clone()
+                .intersection(active_currencies.local.clone());
+
+            let mutual_credit_currencies: ImHashSet<_> =
+                tc_out_borrow.mutual_credits.keys().cloned().collect();
+
+            let new_currencies = intersection.relative_complement(mutual_credit_currencies);
+
+            for new_currency in new_currencies {
+                let mutation = TcMutation::AddMutualCredit(new_currency.clone());
+                token_channel.mutate(&mutation);
+                move_token_received.mutations.push(mutation);
+            }
+        } else {
+            // TODO: Possibly add a new currency (If both remote and local have this currency):
         }
     }
 
@@ -778,6 +797,8 @@ where
 }
 */
 
+/*
+// TODO: Reimplement later
 impl<'a> TcInBorrow<'a> {
     /// Create a full TokenChannel (Incoming direction)
     fn create_token_channel<B>(&self) -> TokenChannel<B> {
@@ -976,6 +997,8 @@ where
         self.tc_outgoing.move_token_out.clone()
     }
 }
+*/
+
 // TODO: Restore tests
 /*
 
