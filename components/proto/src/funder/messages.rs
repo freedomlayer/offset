@@ -16,8 +16,7 @@ use num_traits::cast::ToPrimitive;
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
 use crate::crypto::{
-    HashResult, HashedLock, HmacResult, InvoiceId, PaymentId, PlainLock, PublicKey, RandValue,
-    Signature, Uid,
+    HashResult, HashedLock, HmacResult, InvoiceId, PaymentId, PlainLock, PublicKey, Signature, Uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -25,7 +24,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 use crate::report::messages::FunderReportMutations;
 
-use common::ser_utils::{ser_b64, ser_seq_str, ser_string, ser_vec_b64};
+use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
 
 use crate::wrapper::Wrapper;
 
@@ -161,20 +160,14 @@ pub enum FriendTcOp {
     CancelSendFunds(CancelSendFundsOp),
 }
 
+/*
 #[capnp_conv(crate::funder_capnp::move_token::opt_local_relays)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum OptLocalRelays<B = NetAddress> {
     Empty,
     Relays(Vec<RelayAddress<B>>),
 }
-
-#[capnp_conv(crate::funder_capnp::move_token::opt_active_currencies)]
-#[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
-pub enum OptActiveCurrencies {
-    Empty,
-    #[serde(with = "ser_seq_str")]
-    Currencies(Vec<Currency>),
-}
+*/
 
 impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
     fn into(self) -> UnsignedResponseSendFundsOp {
@@ -182,43 +175,6 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
             request_id: self.request_id,
             src_plain_lock: self.src_plain_lock,
             serial_num: self.serial_num,
-        }
-    }
-}
-
-// TODO: Create a macro that does this:
-impl<B> From<Option<Vec<RelayAddress<B>>>> for OptLocalRelays<B> {
-    fn from(opt: Option<Vec<RelayAddress<B>>>) -> Self {
-        match opt {
-            Some(relays) => OptLocalRelays::Relays(relays),
-            None => OptLocalRelays::Empty,
-        }
-    }
-}
-
-impl From<OptLocalRelays<NetAddress>> for Option<Vec<RelayAddress<NetAddress>>> {
-    fn from(opt: OptLocalRelays<NetAddress>) -> Self {
-        match opt {
-            OptLocalRelays::Relays(relays) => Some(relays),
-            OptLocalRelays::Empty => None,
-        }
-    }
-}
-
-impl From<Option<Vec<Currency>>> for OptActiveCurrencies {
-    fn from(opt: Option<Vec<Currency>>) -> Self {
-        match opt {
-            Some(currencies) => OptActiveCurrencies::Currencies(currencies),
-            None => OptActiveCurrencies::Empty,
-        }
-    }
-}
-
-impl From<OptActiveCurrencies> for Option<Vec<Currency>> {
-    fn from(opt: OptActiveCurrencies) -> Self {
-        match opt {
-            OptActiveCurrencies::Currencies(currencies) => Some(currencies),
-            OptActiveCurrencies::Empty => None,
         }
     }
 }
@@ -292,14 +248,11 @@ pub struct MoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
-    #[capnp_conv(with = OptLocalRelays<NetAddress>)]
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    #[capnp_conv(with = OptActiveCurrencies)]
-    pub opt_active_currencies: Option<Vec<Currency>>,
+    pub remove_relays: Vec<PublicKey>,
+    pub add_relays: Vec<RelayAddress<B>>,
+    pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
     #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
@@ -309,12 +262,11 @@ pub struct UnsignedMoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    pub opt_active_currencies: Option<Vec<Currency>>,
+    pub remove_relays: Vec<PublicKey>,
+    pub add_relays: Vec<RelayAddress<B>>,
+    pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
 }
 
 impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
@@ -322,10 +274,10 @@ impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
         UnsignedMoveToken {
             old_token: self.old_token,
             currencies_operations: self.currencies_operations,
-            opt_local_relays: self.opt_local_relays,
-            opt_active_currencies: self.opt_active_currencies,
+            remove_relays: self.remove_relays,
+            add_relays: self.add_relays,
+            currencies_diff: self.currencies_diff,
             info_hash: self.info_hash,
-            rand_nonce: self.rand_nonce,
         }
     }
 }
