@@ -3,6 +3,7 @@ use derive_more::From;
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
+use common::async_rpc::OpError;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::PublicKey;
@@ -11,7 +12,7 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::types::{McOpError, McTransaction};
+use crate::mutual_credit::types::McTransaction;
 use crate::types::create_pending_transaction;
 
 #[derive(Debug, From)]
@@ -25,7 +26,7 @@ pub enum QueueOperationError {
     InvalidResponseSignature,
     InvalidSrcPlainLock,
     DestPaymentExceedsTotal,
-    McOpError(McOpError),
+    OpError(OpError),
 }
 
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.

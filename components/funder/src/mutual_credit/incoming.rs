@@ -3,6 +3,7 @@ use derive_more::From;
 use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
+use common::async_rpc::OpError;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::PublicKey;
@@ -15,7 +16,7 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::{McOpError, McTransaction};
+use super::types::McTransaction;
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -47,7 +48,7 @@ pub enum ProcessOperationError {
     InvalidResponseSignature,
     InvalidSrcPlainLock,
     DestPaymentExceedsTotal,
-    McOpError(McOpError),
+    OpError(OpError),
 }
 
 #[derive(Debug)]
