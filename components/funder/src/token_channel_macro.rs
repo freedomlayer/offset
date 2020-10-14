@@ -8,18 +8,14 @@ pub enum OpError {
 }
 
 macro_rules! ops_enum {
-    // Enum without type arguments:
-    (($op_enum:ident, $transaction:ident),
+    // Enum with type arguments:
+    ({$op_enum:ident, $transaction:ident},
     $(
-        {
-            ($variant_camel:ident, $variant_snake:ident),
-            ($(($arg_name:ident, $arg_type:path)),*),
-            $ret_type:ident
-        }
+        $variant_snake:ident, $variant_camel:ident($($arg_name:ident: $arg_type:path),*) -> $ret_type:ident
     ),*
 
     ) => {
-        /// Enum for all possible operations
+        // Enum for all possible operations
         pub enum $op_enum {
             $(
                 $variant_camel($($arg_type),* , oneshot::Sender<Result<$ret_type, OpError>>)
@@ -27,7 +23,7 @@ macro_rules! ops_enum {
         }
 
 
-        /// A transaction client
+        // A transaction client
         pub struct $transaction {
             sender: mpsc::Sender<$op_enum>,
         }
@@ -48,17 +44,13 @@ macro_rules! ops_enum {
     };
 
     // Enum with type arguments:
-    (($op_enum:ident <$($ty:ident),*>, $transaction:ident),
+    ({$op_enum:ident <$($ty:ident),*>, $transaction:ident},
     $(
-        {
-            ($variant_camel:ident, $variant_snake:ident),
-            ($(($arg_name:ident, $arg_type:path)),*),
-            $ret_type:ident
-        }
+        $variant_snake:ident, $variant_camel:ident($($arg_name:ident: $arg_type:path),*) -> $ret_type:ident
     ),*
 
     ) => {
-        /// Enum for all possible operations
+        // Enum for all possible operations
         pub enum $op_enum<$($ty),*> {
             $(
                 $variant_camel($($arg_type),* , oneshot::Sender<Result<$ret_type, OpError>>)
@@ -66,7 +58,7 @@ macro_rules! ops_enum {
         }
 
 
-        /// A transaction client
+        // A transaction client
         pub struct $transaction<$($ty),*> {
             sender: mpsc::Sender<$op_enum<$($ty),*>>,
         }
@@ -88,16 +80,10 @@ macro_rules! ops_enum {
 
 }
 
-ops_enum!((TcOp<B>, TcTransaction),
-{
-    (McGetBalance, mc_get_balance),
-    ((hello, Option::<B>)),
-    u32
-});
+ops_enum!({TcOp<B>, TcTransaction},
+    mc_get_balance, McGetBalance(hello: Option::<B>) -> u32
+);
 
-ops_enum!((TcOp2, TcTransaction2),
-{
-    (McGetBalance, mc_get_balance),
-    ((hello, String)),
-    u32
-});
+ops_enum!({TcOp2, TcTransaction2},
+    mc_get_balance, McGetBalance(hello: String) -> u32
+);
