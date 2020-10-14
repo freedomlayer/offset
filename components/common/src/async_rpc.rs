@@ -77,6 +77,9 @@ macro_rules! ops_enum {
         }
 
         impl$(<$($ty),*>)? $transaction$(<$($ty),*>)? {
+            pub fn new(sender: mpsc::Sender<$op_enum$(<$($ty),*>)?>) -> Self {
+                Self { sender }
+            }
             $(
                 paste! {
                     async fn $variant_snake(&mut self $(, $($arg_name: $arg_type),+)?) -> Result< get_out_type!($($ret_type)?) , OpError> {
