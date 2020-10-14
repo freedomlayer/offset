@@ -34,19 +34,17 @@ struct MoveToken {
         # Operations that should be applied to various currencies.
         # For every currency, ordered batched operations are provided.
         # First operation should be applied first.
-        removeRelays @2: List(PublicKey);
-        # A list of relays to remove
-        addRelays @3: List(RelayAddress);
-        # A list of relays to add
-        # Should have no intersection with the removeRelays list.
-        # TODO: We might be able to have a similar xor based diff here if we use
-        # a map, mapping PublicKey to NetAddress.
-        currenciesDiff @4: List(Currency);
-        # Exclusive-Or difference of previous list of currencies and new list of currencies.
+        relaysDiff @2: List(RelayAddress);
+        # Exclusive-Or difference between previous list of relays and new list of relays.
         # Should be empty if nothing has changed.
-        infoHash @5: HashResult;
+        # TODO: We might be able to make this more efficient, as RelayAddress
+        # might be too much information for removing an entry.
+        currenciesDiff @3: List(Currency);
+        # Exclusive-Or difference between previous list of currencies and new list of currencies.
+        # Should be empty if nothing has changed.
+        infoHash @4: HashResult;
         # Current information about the channel that both sides implicitly agree upon.
-        newToken @6 : Signature;
+        newToken @5 : Signature;
         # A signature over all the previous fields.
 }
 

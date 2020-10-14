@@ -35,6 +35,8 @@ pub struct RelayAddressFile {
     pub public_key: PublicKey,
     #[serde(with = "ser_string")]
     pub address: NetAddress,
+    #[serde(with = "ser_string")]
+    pub port: u128,
 }
 
 /// A helper structure for serialize and deserializing FriendAddress.

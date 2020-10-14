@@ -34,8 +34,7 @@ where
     MoveToken {
         old_token: unsigned_move_token.old_token,
         currencies_operations: unsigned_move_token.currencies_operations,
-        remove_relays: unsigned_move_token.remove_relays,
-        add_relays: unsigned_move_token.add_relays,
+        relays_diff: unsigned_move_token.relays_diff,
         currencies_diff: unsigned_move_token.currencies_diff,
         info_hash: unsigned_move_token.info_hash,
         new_token,
@@ -116,8 +115,7 @@ pub struct MoveTokenHashed {
 
 pub fn create_unsigned_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
-    remove_relays: Vec<PublicKey>,
-    add_relays: Vec<RelayAddress<B>>,
+    relays_diff: Vec<RelayAddress<B>>,
     currencies_diff: Vec<Currency>,
     token_info: &TokenInfo,
     old_token: Signature,
@@ -125,8 +123,7 @@ pub fn create_unsigned_move_token<B>(
     UnsignedMoveToken {
         old_token,
         currencies_operations,
-        remove_relays,
-        add_relays,
+        relays_diff,
         currencies_diff,
         info_hash: hash_token_info(token_info),
     }

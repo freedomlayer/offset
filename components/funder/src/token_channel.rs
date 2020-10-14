@@ -191,7 +191,7 @@ pub struct MoveTokenReceivedCurrency {
 pub struct MoveTokenReceived<B> {
     // pub mutations: Vec<TcMutation<B>>,
     pub currencies: Vec<MoveTokenReceivedCurrency>,
-    pub opt_local_relays: Option<Vec<RelayAddress<B>>>,
+    pub local_relays_diff: Option<Vec<RelayAddress<B>>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -520,8 +520,11 @@ where
     Ok(move_token_received)
 }
 
-fn handle_out_move_token<B>(tc_transaction: &mut TcTransaction<B>) {}
+fn handle_out_move_token<B>(tc_transaction: &mut TcTransaction<B>) {
+    todo!();
+}
 
+/*
 impl<B> TokenChannel<B>
 where
     B: Clone + CanonicalSerialize,
@@ -773,6 +776,7 @@ where
         }
     }
 }
+*/
 
 impl<'a> TcInBorrow<'a> {
     /// Create a full TokenChannel (Incoming direction)

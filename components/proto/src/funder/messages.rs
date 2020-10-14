@@ -248,8 +248,7 @@ pub struct MoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
-    pub remove_relays: Vec<PublicKey>,
-    pub add_relays: Vec<RelayAddress<B>>,
+    pub relays_diff: Vec<RelayAddress<B>>,
     pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
@@ -262,8 +261,7 @@ pub struct UnsignedMoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
-    pub remove_relays: Vec<PublicKey>,
-    pub add_relays: Vec<RelayAddress<B>>,
+    pub relays_diff: Vec<RelayAddress<B>>,
     pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
@@ -274,8 +272,7 @@ impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
         UnsignedMoveToken {
             old_token: self.old_token,
             currencies_operations: self.currencies_operations,
-            remove_relays: self.remove_relays,
-            add_relays: self.add_relays,
+            relays_diff: self.relays_diff,
             currencies_diff: self.currencies_diff,
             info_hash: self.info_hash,
         }
