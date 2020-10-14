@@ -68,6 +68,7 @@ where
 // NEXT is used for hashing for the next move token funds.
 pub const TOKEN_NEXT: &[u8] = b"NEXT";
 
+/*
 /// Combine all operations into one hash value.
 pub fn operations_hash<B, MT>(move_token: MT) -> HashResult
 where
@@ -77,7 +78,9 @@ where
     let operations_data = move_token.currencies_operations.canonical_serialize();
     sha_512_256(&operations_data)
 }
+*/
 
+/*
 pub fn local_address_hash<B, MT>(move_token: MT) -> HashResult
 where
     B: CanonicalSerialize + Clone,
@@ -86,11 +89,13 @@ where
     let move_token: UnsignedMoveToken<B> = move_token.into();
     sha_512_256(&move_token.opt_local_relays.canonical_serialize())
 }
+*/
 
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
     sha_512_256(&token_info.canonical_serialize())
 }
 
+/*
 /// Hash operations and local_address:
 pub fn prefix_hash<B, MT>(move_token: MT) -> HashResult
 where
@@ -101,12 +106,13 @@ where
     let mut hash_buff = Vec::new();
 
     hash_buff.extend_from_slice(&move_token.old_token);
-    hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
-    hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
-    hash_buff.extend_from_slice(&move_token.opt_active_currencies.canonical_serialize());
+    // hash_buff.extend_from_slice(&move_token.currencies_operations.canonical_serialize());
+    // hash_buff.extend_from_slice(&move_token.opt_local_relays.canonical_serialize());
+    //hash_buff.extend_from_slice(&move_token.opt_active_currencies.canonical_serialize());
 
     sha_512_256(&hash_buff)
 }
+*/
 
 pub fn move_token_signature_buff<B, MT>(move_token: MT) -> Vec<u8>
 where
@@ -116,9 +122,8 @@ where
     let move_token: UnsignedMoveToken<B> = move_token.into();
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&prefix_hash(move_token.clone()));
+    sig_buffer.extend_from_slice(&move_token.old_token);
     sig_buffer.extend_from_slice(&move_token.info_hash);
-    sig_buffer.extend_from_slice(&move_token.rand_nonce);
     sig_buffer
 }
 
