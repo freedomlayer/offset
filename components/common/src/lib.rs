@@ -14,9 +14,9 @@ extern crate log;
 #[cfg(test)]
 extern crate serde;
 
+pub mod async_rpc;
 pub mod int_convert;
 pub mod never;
-pub mod ops_enum;
 pub mod safe_arithmetic;
 
 // TODO: Big array might not be needed:
