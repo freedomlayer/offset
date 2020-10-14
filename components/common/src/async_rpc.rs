@@ -82,7 +82,7 @@ macro_rules! ops_enum {
             }
             $(
                 paste! {
-                    async fn $variant_snake(&mut self $(, $($arg_name: $arg_type),+)?) -> Result< get_out_type!($($ret_type)?) , OpError> {
+                    pub async fn $variant_snake(&mut self $(, $($arg_name: $arg_type),+)?) -> Result< get_out_type!($($ret_type)?) , OpError> {
                         let (op_sender, op_receiver) = oneshot::channel();
                         let op = $op_enum::[<$variant_snake:camel>]($($($arg_name),+,)? op_sender);
                         self.sender
