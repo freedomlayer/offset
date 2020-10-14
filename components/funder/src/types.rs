@@ -2,7 +2,7 @@ use signature::canonical::CanonicalSerialize;
 
 use common::ser_utils::ser_b64;
 
-use proto::crypto::{HashResult, PlainLock, PublicKey, RandValue, Signature, Uid};
+use proto::crypto::{PlainLock, PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -13,7 +13,7 @@ use proto::funder::messages::{
 };
 
 use signature::signature_buff::{
-    create_response_signature_buffer, hash_token_info, move_token_signature_buff, prefix_hash,
+    create_response_signature_buffer, hash_token_info, move_token_signature_buff,
 };
 
 use identity::IdentityClient;
@@ -34,10 +34,10 @@ where
     MoveToken {
         old_token: unsigned_move_token.old_token,
         currencies_operations: unsigned_move_token.currencies_operations,
-        opt_local_relays: unsigned_move_token.opt_local_relays,
-        opt_active_currencies: unsigned_move_token.opt_active_currencies,
+        remove_relays: unsigned_move_token.remove_relays,
+        add_relays: unsigned_move_token.add_relays,
+        currencies_diff: unsigned_move_token.currencies_diff,
         info_hash: unsigned_move_token.info_hash,
-        rand_nonce: unsigned_move_token.rand_nonce,
         new_token,
     }
 }
@@ -108,29 +108,27 @@ pub enum UnsignedFriendTcOp {
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     #[serde(with = "ser_b64")]
-    pub prefix_hash: HashResult,
+    pub old_token: Signature,
     pub token_info: TokenInfo,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
     #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
 
 pub fn create_unsigned_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
-    opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    opt_active_currencies: Option<Vec<Currency>>,
+    remove_relays: Vec<PublicKey>,
+    add_relays: Vec<RelayAddress<B>>,
+    currencies_diff: Vec<Currency>,
     token_info: &TokenInfo,
     old_token: Signature,
-    rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     UnsignedMoveToken {
         old_token,
         currencies_operations,
-        opt_local_relays,
-        opt_active_currencies,
+        remove_relays,
+        add_relays,
+        currencies_diff,
         info_hash: hash_token_info(token_info),
-        rand_nonce,
     }
 }
 
@@ -176,9 +174,8 @@ where
     B: CanonicalSerialize + Clone,
 {
     MoveTokenHashed {
-        prefix_hash: prefix_hash(move_token.clone()),
+        old_token: move_token.old_token.clone(),
         token_info: token_info.clone(),
-        rand_nonce: move_token.rand_nonce.clone(),
         new_token: move_token.new_token.clone(),
     }
 }
