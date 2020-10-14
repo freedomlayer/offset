@@ -57,7 +57,7 @@ macro_rules! get_out_type {
 macro_rules! ops_enum {
     (($op_enum:ident $(<$($ty:ident),*>)?, $transaction:ident) => {
         $(
-            $variant_snake:ident ($($arg_name:ident: $arg_type:path),*) $(-> $ret_type:path)?
+            $variant_snake:ident ($($($arg_name:ident: $arg_type:path),+)?) $(-> $ret_type:path)?
         );*
         // Possibly an extra semicolon:
         $(;)?
@@ -66,7 +66,7 @@ macro_rules! ops_enum {
             // Enum for all possible operations
             pub enum $op_enum$(<$($ty),*>)? {
                 $(
-                    [<$variant_snake:camel>]($($arg_type),* , oneshot::Sender<Result< get_out_type!($($ret_type)?) , OpError>>)
+                    [<$variant_snake:camel>]($($($arg_type),+ ,)? oneshot::Sender<Result< get_out_type!($($ret_type)?) , OpError>>)
                 ),*
             }
         }
@@ -79,9 +79,9 @@ macro_rules! ops_enum {
         impl$(<$($ty),*>)? $transaction$(<$($ty),*>)? {
             $(
                 paste! {
-                    async fn $variant_snake(&mut self, $($arg_name: $arg_type),*) -> Result< get_out_type!($($ret_type)?) , OpError> {
+                    async fn $variant_snake(&mut self $(, $($arg_name: $arg_type),+)?) -> Result< get_out_type!($($ret_type)?) , OpError> {
                         let (op_sender, op_receiver) = oneshot::channel();
-                        let op = $op_enum::[<$variant_snake:camel>]($($arg_name),*, op_sender);
+                        let op = $op_enum::[<$variant_snake:camel>]($($($arg_name),+,)? op_sender);
                         self.sender
                             .send(op)
                             .await
@@ -108,8 +108,10 @@ mod tests {
     fn test_rpc_enums() {
         ops_enum!((TcOp1<B>, TcTransaction1) => {
             func1(hello: Option<B>) -> u32;
-            func2(world: u64) -> u32;
-            func3(world: u64);
+            func2() -> u8;
+            func3();
+            func4(world: u64) -> u32;
+            func5(world: u64);
         });
 
         ops_enum!((TcOp2, TcTransaction2) => {
