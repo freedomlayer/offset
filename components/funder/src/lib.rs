@@ -31,8 +31,6 @@ mod mutual_credit;
 // mod token_channel;
 //
 // For testing:
-#[allow(dead_code)]
-mod token_channel_macro;
 
 pub mod types;
 
