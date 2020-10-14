@@ -1,7 +1,13 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 
+use paste::paste;
+
+use common::async_rpc::OpError;
+use common::{get_out_type, ops_enum};
+
 use futures::channel::{mpsc, oneshot};
+use futures::SinkExt;
 
 use im::hashset::HashSet as ImHashSet;
 use std::collections::HashMap as ImHashMap;
@@ -13,12 +19,12 @@ use signature::canonical::CanonicalSerialize;
 use crypto::hash::sha_512_256;
 use crypto::identity::compare_public_key;
 
-use proto::crypto::{PublicKey, RandValue, Signature};
+use proto::crypto::{PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McInfo,
-    MoveToken, TokenInfo, UnsignedMoveToken,
+    MoveToken, PendingTransaction, TokenInfo, UnsignedMoveToken,
 };
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
@@ -27,7 +33,7 @@ use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::queue_operation;
-use crate::mutual_credit::types::{McOp, McTransaction};
+use crate::mutual_credit::types::{McBalance, McOp, McTransaction};
 
 use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
 
@@ -48,111 +54,24 @@ pub enum TcOpError {
 pub type TcOpResult<T> = Result<T, TcOpError>;
 pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone)]
-pub enum TcOp<B> {
-    // Internal mutual credit operations:
-    McGetBalance(Currency, TcOpSenderResult<McBalance>),
-    McSetBalance(Currency, i128, TcOpSenderResult<()>),
-    McSetLocalPendingDebt(Currency, u128, TcOpSenderResult<()>),
-    McSetRemotePendingDebt(Currency, u128, TcOpSenderResult<()>),
-    McGetLocalPendingTransaction(Currency, Uid, TcOpSenderResult<Option<PendingTransaction>>),
-    McInsertLocalPendingTransaction(Currency, PendingTransaction, TcOpSenderResult<()>),
-    McRemoveLocalPendingTransaction(Currency, Uid, TcOpSenderResult<()>),
-    McGetRemotePendingTransaction(Currency, Uid, TcOpSenderResult<Option<PendingTransaction>>),
-    McInsertRemotePendingTransaction(Currency, PendingTransaction, TcOpSenderResult<()>),
-    McRemoveRemotePendingTransaction(Currency, Uid, TcOpSenderResult<()>),
+ops_enum!((TcOp<B>, TcTransaction) => {
+    mc_get_balance(currency: Currency) -> McBalance;
+    mc_set_balance(currency: Currency, balance: i128);
+    mc_set_local_pending_debt(currency: Currency, debt: u128);
+    mc_set_remote_pending_debt(currency: Currency, debt: u128);
+    mc_get_local_pending_transaction(currency: Currency, request_id: Uid) -> Option<PendingTransaction>;
+    mc_insert_local_pending_transaction(currency: Currency, pending_transaction: PendingTransaction);
+    mc_remove_local_pending_transaction(currency: Currency, request_id: Uid);
+    mc_get_remote_pending_transaction(currency: Currency, request_id: Uid) -> Option<PendingTransaction>;
+    mc_insert_remote_pending_transaction(currency: Currency, pending_transaction: PendingTransaction);
+    mc_remove_remote_pending_transaction(currency: Currency, request_id: Uid);
 
-    // Token channel operations:
-    SetLocalActiveCurrencies(Vec<Currency>, TcOpSenderResult<()>),
-    SetRemoteActiveCurrencies(Vec<Currency>, TcOpSenderResult<()>),
-    AddMutualCredit(Currency, TcOpSenderResult<()>),
-    SetDirectionIncoming(MoveTokenHashed, TcOpSenderResult<()>),
-    SetDirectionOutgoing(MoveToken<B>, TokenInfo, TcOpSenderResult<()>),
-}
-
-macro_rules! ops_enum {
-    (($op_enum:ident <$($ty:ident),*>, $op_error:ident, $transaction:ident),
-    $(
-        {
-            ($variant_camel:ident, $variant_snake:ident),
-            ($(($arg_name:ident, $arg_type:ident)),*),
-            $ret_type:ident
-        }
-    ),*
-
-    ) => {
-        /// Enum for all possible operations
-        pub enum $op_enum<$(ty),*> {
-            $(
-                $variant_camel($($arg_type),* , oneshot::Sender<Result<$ret_type, $op_error>>)
-            )*
-        }
-
-
-        /// A transaction client
-        pub struct $transaction {
-            sender: mpsc::Sender<$op_enum<$(ty),*>,
-        }
-
-        impl<$(ty),*> $transaction<$(ty),*> {
-            $(
-                async fn $variant_snake($($arg_name: $arg_type),*) -> Result<$ret_type, $op_error> {
-                    let (op_sender, op_receiver) = oneshot::channel();
-                    let op = $op_enum::$variant_camel($($arg_name),*, op_sender);
-                    self.sender
-                        .send(op)
-                        .await
-                        .map_err(|_| TcOpError::SendOpFailed)?;
-                    op_receiver.await.map_err(TcOpError::ResponseOpFailed)?
-                }
-            )*
-        }
-    };
-}
-
-ops_enum!((TcOp<B>, TcOpError, TcTransaction),
-{
-    (McGetBalance, mc_get_balance),
-    (currency, Currency),
-    McBalance
+    set_local_active_currencies(currencies: Vec<Currency>);
+    set_remote_active_currencies(currencies: Vec<Currency>);
+    add_mutual_credit(currency: Currency);
+    set_direction_incoming(move_token_hashed: MoveTokenHashed);
+    set_direction_outgoing(move_token: MoveToken<B>);
 });
-
-pub struct TcTransaction<B> {
-    sender: mpsc::Sender<TcOp<B>>,
-}
-
-impl<B> TcTransaction<B> {
-    async fn mc_get_balance(currency: Currency) -> TcOpResult<McBalance> {
-        let (op_sender, op_receiver) = oneshot::channel();
-        let op = TcOp::McGetBalance(balance, op_sender);
-        self.sender
-            .send(op)
-            .await
-            .map_err(|_| TcOpError::SendOpFailed)?;
-        op_receiver.await.map_err(TcOpError::ResponseOpFailed)?
-    }
-
-    async fn set_local_active_currencies(currencies: Vec<Currency>) {
-        todo!();
-    }
-
-    async fn set_remote_active_currencies(currencies: Vec<Currency>) {
-        todo!();
-    }
-
-    async fn add_mutual_credit(currency: Currency) {
-        todo!();
-    }
-
-    async fn set_direction_incoming(move_token_hashed: MoveTokenHashed) {
-        todo!();
-    }
-
-    async fn set_direction_outgoing(move_token: MoveToken<B>, token_info: TokenInfo) {
-        todo!();
-    }
-}
 
 /// The currencies set to be active by two sides of the token channel.
 /// Only currencies that are active on both sides (Intersection) can be used for trading.
@@ -1335,5 +1254,4 @@ mod tests {
 
     // TODO: Add more tests.
     // - Test behaviour of Duplicate, ChainInconsistency
-}
 }
