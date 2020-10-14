@@ -16,7 +16,10 @@ extern crate serde;
 
 pub mod int_convert;
 pub mod never;
+pub mod ops_enum;
 pub mod safe_arithmetic;
+
+// TODO: Big array might not be needed:
 #[macro_use]
 pub mod big_array;
 #[macro_use]
