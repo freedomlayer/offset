@@ -55,7 +55,7 @@ macro_rules! get_out_type {
 /// Generates an enum of all possible RPC messages, and an async interface that knows how to send
 /// those RPC messages.
 macro_rules! ops_enum {
-    (($op_enum:ident $(<$($ty:ident),*>)?, $transaction:ident) => {
+    (($op_enum:ident $(<$($ty:ident),*>)?, $transaction_trait:ident) => {
         $(
             $variant_snake:ident ($($($arg_name:ident: $arg_type:path),+)?) $(-> $ret_type:path)?
         );*
@@ -72,11 +72,22 @@ macro_rules! ops_enum {
         }
 
         // A transaction client
+        /*
         pub struct $transaction$(<$($ty),*>)? {
             sender: mpsc::Sender<$op_enum$(<$($ty),*>)?>,
         }
+        */
 
-        impl$(<$($ty),*>)? $transaction$(<$($ty),*>)? {
+        pub trait $transaction_trait$(<$($ty),*>)? {
+            $(
+                paste! {
+                    fn $variant_snake(&mut self $(, $($arg_name: $arg_type),+)?) -> BoxFuture<'static, Result< get_out_type!($($ret_type)?) , OpError>>;
+                }
+            )*
+        }
+
+        /*
+        impl$(<$($ty),*>)? $transaction_trait$(<$($ty),*>)? {
             pub fn new(sender: mpsc::Sender<$op_enum$(<$($ty),*>)?>) -> Self {
                 Self { sender }
             }
@@ -94,6 +105,7 @@ macro_rules! ops_enum {
                 }
             )*
         }
+        */
     };
 
 }
@@ -103,9 +115,11 @@ macro_rules! ops_enum {
 mod tests {
     use super::*;
 
-    use futures::channel::mpsc;
-    use futures::SinkExt;
+    // use futures::channel::mpsc;
+    // use futures::SinkExt;
     use paste::paste;
+
+    use crate::conn::BoxFuture;
 
     #[test]
     fn test_rpc_enums() {
