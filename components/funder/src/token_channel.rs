@@ -5,11 +5,12 @@ use derive_more::From;
 
 use paste::paste;
 
-use common::async_rpc::OpError;
-use common::{get_out_type, ops_enum};
-
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
+
+use common::async_rpc::OpError;
+use common::conn::BoxFuture;
+use common::{get_out_type, ops_enum};
 
 use im::hashset::HashSet as ImHashSet;
 use std::collections::HashMap as ImHashMap;
@@ -282,7 +283,7 @@ fn initial_move_token<B>(
 }
 
 async fn handle_in_move_token<B>(
-    tc_transaction: &mut TcTransaction<B>,
+    tc_transaction: &mut impl TcTransaction<B>,
     new_move_token: MoveToken<B>,
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
@@ -299,7 +300,7 @@ where
 }
 
 async fn handle_in_move_token_dir_in<B>(
-    tc_transaction: &mut TcTransaction<B>,
+    tc_transaction: &mut impl TcTransaction<B>,
     new_move_token: MoveToken<B>,
 ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
 where
@@ -317,7 +318,7 @@ where
 }
 
 async fn handle_in_move_token_dir_out<B>(
-    tc_transaction: &mut TcTransaction<B>,
+    tc_transaction: &mut impl TcTransaction<B>,
     new_move_token: MoveToken<B>,
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
@@ -342,7 +343,7 @@ where
 }
 
 async fn handle_incoming_token_match<B>(
-    tc_transaction: &mut TcTransaction<B>,
+    tc_transaction: &mut impl TcTransaction<B>,
     new_move_token: MoveToken<B>, // remote_max_debts: &ImHashMap<Currency, u128>,
     remote_public_key: &PublicKey,
 ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError>
@@ -372,49 +373,63 @@ where
 
     // Handle active currencies:
 
-    // First, make sure that nobody removed a currency that is already active:
-    // TODO: We might allow to do this in the future, in the special case of zero balance and zero
-    // pending debt?
-
-    // TODO: Possibly unite this code with the code below:
+    // currencies_diff represents a "xor" between the previous set of currencies and the new set of
+    // currencies.
+    //
+    // TODO:
+    // - Add to remote currencies every currency that is in the xor set, but not in the current
+    // set.
+    // - Remove from remote currencies currencies that satisfy the following requirements:
+    // - (1) in the xor set.
+    // - (2) in the remote
+    // - (3) (Not in the local set) or (in the local set with balance zero and zero pending debts)
     for diff_currency in new_move_token.currencies_diff.as_ref() {
-        if tc_transaction.is_active_currency(diff_currency).await? {
-            return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
-        }
-    }
+        // Check if we need to add currency:
+        if !tc_transaction
+            .is_remote_currency(diff_currency.clone())
+            .await?
+        {
+            // Add a new remote currency.
+            tc_transaction
+                .add_remote_currency(diff_currency.clone())
+                .await?;
 
-    for diff_currency in new_move_token.currencies_diff.as_ref() {
-        if tc_transaction.is_remote_currency(diff_currency) {
-            // We need to remove this currency
-            // TODO: continue here.
-            //
-            let mutation = TcMutation::SetRemoteActiveCurrencies(active_currencies.clone());
-            token_channel.mutate(&mutation);
-            move_token_received.mutations.push(mutation);
-
-            let tc_out_borrow = token_channel.get_outgoing().unwrap();
-            let active_currencies = &tc_out_borrow.active_currencies;
-
-            // Find the new currencies we need to initialize.
-            // Calculate:
-            // (local ^ remote) \ mutual_credit_currencies:
-            let intersection = active_currencies
-                .remote
-                .clone()
-                .intersection(active_currencies.local.clone());
-
-            let mutual_credit_currencies: ImHashSet<_> =
-                tc_out_borrow.mutual_credits.keys().cloned().collect();
-
-            let new_currencies = intersection.relative_complement(mutual_credit_currencies);
-
-            for new_currency in new_currencies {
-                let mutation = TcMutation::AddMutualCredit(new_currency.clone());
-                token_channel.mutate(&mutation);
-                move_token_received.mutations.push(mutation);
+            // If we also have this currency as a local currency, add a new mutual credit:
+            if tc_transaction
+                .is_local_currency(diff_currency.clone())
+                .await?
+            {
+                tc_transaction.add_mutual_credit(diff_currency.clone());
             }
         } else {
-            // TODO: Possibly add a new currency (If both remote and local have this currency):
+            let is_local_currency = tc_transaction
+                .is_local_currency(diff_currency.clone())
+                .await?;
+            if is_local_currency {
+                let mc_balance = tc_transaction.mc_get_balance(diff_currency.clone()).await?;
+                if mc_balance.balance == 0
+                    && mc_balance.remote_pending_debt == 0
+                    && mc_balance.local_pending_debt == 0
+                {
+                    // We may remove the currency if the balance and pending debts are exactly
+                    // zero:
+                    tc_transaction
+                        .remove_remote_currency(diff_currency.clone())
+                        .await?;
+                    // TODO: We need to report outside that we removed this currency somehow.
+                    // TODO: Somehow unite all code for removing remote currencies.
+                    todo!();
+                } else {
+                    // We are not allowed to remove this currency!
+                    return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
+                }
+            } else {
+                tc_transaction
+                    .remove_remote_currency(diff_currency.clone())
+                    .await?;
+                // TODO: We need to report outside that we removed this currency somehow.
+                todo!();
+            }
         }
     }
 
@@ -539,7 +554,7 @@ where
     Ok(move_token_received)
 }
 
-fn handle_out_move_token<B>(tc_transaction: &mut TcTransaction<B>) {
+fn handle_out_move_token<B>(tc_transaction: &mut impl TcTransaction<B>) {
     todo!();
 }
 

@@ -28,7 +28,7 @@ mod mutual_credit;
 // pub mod report;
 // mod state;
 // #[allow(unused)]
-// mod token_channel;
+mod token_channel;
 //
 // For testing:
 
