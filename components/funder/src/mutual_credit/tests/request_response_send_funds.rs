@@ -1,9 +1,5 @@
 use std::convert::TryFrom;
 
-use futures::channel::mpsc;
-use futures::task::SpawnExt;
-use futures::{FutureExt, TryFutureExt};
-
 use common::test_executor::TestExecutor;
 
 use crypto::hash_lock::HashLock;
@@ -17,30 +13,21 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::tests::utils::{mc_server, MutualCredit};
+use crate::mutual_credit::tests::utils::MutualCredit;
 use crate::mutual_credit::types::McTransaction;
 use crate::types::create_pending_transaction;
 
 use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;
 
-async fn task_request_response_send_funds(test_executor: TestExecutor) {
+async fn task_request_response_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
 
-    let (sender, receiver) = mpsc::channel(0);
-    let mutual_credit = MutualCredit::new(&currency, balance);
-    test_executor
-        .spawn(
-            mc_server(mutual_credit, receiver)
-                .map_err(|e| warn!("mc_server closed with error: {:?}", e))
-                .map(|_| ()),
-        )
-        .unwrap();
-    let mut mc_transaction = McTransaction::new(sender);
+    let mut mc_transaction = MutualCredit::new(&currency, balance);
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -125,6 +112,6 @@ async fn task_request_response_send_funds(test_executor: TestExecutor) {
 #[test]
 fn test_request_response_send_funds() {
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_request_response_send_funds(test_executor.clone()));
+    let res = test_executor.run(task_request_response_send_funds());
     assert!(res.is_output());
 }

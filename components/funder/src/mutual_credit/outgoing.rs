@@ -33,7 +33,7 @@ pub enum QueueOperationError {
 // TODO: Remove later:
 #[allow(unused)]
 pub async fn queue_operation(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     operation: FriendTcOp,
     currency: &Currency,
     local_public_key: &PublicKey,
@@ -59,7 +59,7 @@ pub async fn queue_operation(
 }
 
 async fn queue_request_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<(), QueueOperationError> {
     if !request_send_funds.route.is_part_valid() {
@@ -108,7 +108,7 @@ async fn queue_request_send_funds(
 }
 
 async fn queue_response_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     response_send_funds: ResponseSendFundsOp,
     currency: &Currency,
     local_public_key: &PublicKey,
@@ -189,7 +189,7 @@ async fn queue_response_send_funds(
 }
 
 async fn queue_cancel_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<(), QueueOperationError> {
     // Make sure that id exists in remote_pending hashmap,

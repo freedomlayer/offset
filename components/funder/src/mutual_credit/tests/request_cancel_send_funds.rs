@@ -1,9 +1,5 @@
 use std::convert::TryFrom;
 
-use futures::channel::mpsc;
-use futures::task::SpawnExt;
-use futures::{FutureExt, TryFutureExt};
-
 use common::test_executor::TestExecutor;
 
 use crypto::hash_lock::HashLock;
@@ -16,13 +12,13 @@ use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
 };
 
-use crate::mutual_credit::tests::utils::{mc_server, MutualCredit};
+use crate::mutual_credit::tests::utils::MutualCredit;
 use crate::mutual_credit::types::McTransaction;
 
 use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;
 
-async fn task_request_cancel_send_funds(test_executor: TestExecutor) {
+async fn task_request_cancel_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     let mut rng = DummyRandom::new(&[1u8]);
@@ -34,16 +30,7 @@ async fn task_request_cancel_send_funds(test_executor: TestExecutor) {
     let remote_public_key = public_key_b.clone();
     let balance = 0;
 
-    let mutual_credit = MutualCredit::new(&currency, balance);
-    let (sender, receiver) = mpsc::channel(0);
-    test_executor
-        .spawn(
-            mc_server(mutual_credit, receiver)
-                .map_err(|e| warn!("mc_server closed with error: {:?}", e))
-                .map(|_| ()),
-        )
-        .unwrap();
-    let mut mc_transaction = McTransaction::new(sender);
+    let mut mc_transaction = MutualCredit::new(&currency, balance);
 
     // -----[RequestSendFunds]--------
     // -----------------------------
@@ -107,6 +94,6 @@ async fn task_request_cancel_send_funds(test_executor: TestExecutor) {
 #[test]
 fn test_request_cancel_send_funds() {
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_request_cancel_send_funds(test_executor.clone()));
+    let res = test_executor.run(task_request_cancel_send_funds());
     assert!(res.is_output());
 }

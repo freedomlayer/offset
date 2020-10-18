@@ -4,14 +4,14 @@
 use paste::paste;
 
 use common::async_rpc::OpError;
+use common::conn::BoxFuture;
 use common::ser_utils::ser_string;
 use common::{get_out_type, ops_enum};
 
 use proto::crypto::Uid;
 use proto::funder::messages::PendingTransaction;
 
-use futures::channel::{mpsc, oneshot};
-use futures::SinkExt;
+use futures::channel::oneshot;
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalance {

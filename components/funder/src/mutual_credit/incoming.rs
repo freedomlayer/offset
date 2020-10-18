@@ -60,7 +60,7 @@ pub struct ProcessTransListError {
 // TODO: Remove later:
 #[allow(unused)]
 pub async fn process_operations_list(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     operations: Vec<FriendTcOp>,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -91,7 +91,7 @@ pub async fn process_operations_list(
 }
 
 pub async fn process_operation(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     friend_tc_op: FriendTcOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -118,7 +118,7 @@ pub async fn process_operation(
 
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     request_send_funds: RequestSendFundsOp,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
@@ -184,7 +184,7 @@ async fn process_request_send_funds(
 }
 
 async fn process_response_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     response_send_funds: ResponseSendFundsOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -262,7 +262,7 @@ async fn process_response_send_funds(
 }
 
 async fn process_cancel_send_funds(
-    mc_transaction: &mut McTransaction,
+    mc_transaction: &mut impl McTransaction,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
