@@ -433,6 +433,9 @@ where
         }
     }
 
+    // TODO: How do we pass the new relay's information? Do we need to update anything related to
+    // the new relays?
+
     // Attempt to apply operations for every currency:
     for currency_operations in &new_move_token.currencies_operations {
         let tc_out_borrow = token_channel.get_outgoing().unwrap();
