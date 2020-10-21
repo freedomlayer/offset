@@ -5,6 +5,8 @@ use std::fmt;
 use std::hash::Hash;
 use std::str::FromStr;
 
+use std::collections::HashMap;
+
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -178,41 +180,18 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
     }
 }
 
-/// Balance information for a single currency
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct BalanceInfo {
+pub struct MutualCreditInfo {
     #[serde(with = "ser_string")]
     pub balance: i128,
     #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
-}
-
-#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct CurrencyBalanceInfo {
     #[serde(with = "ser_string")]
-    pub currency: Currency,
-    pub balance_info: BalanceInfo,
-}
-
-/// Mutual Credit info
-#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct McInfo {
-    #[serde(with = "ser_b64")]
-    pub local_public_key: PublicKey,
-    #[serde(with = "ser_b64")]
-    pub remote_public_key: PublicKey,
-    pub balances: Vec<CurrencyBalanceInfo>,
-}
-
-/// Token channel counters.
-/// Both sides agree on these values implicitly.
-#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct CountersInfo {
-    pub inconsistency_counter: u64,
+    pub in_fees: u128,
     #[serde(with = "ser_string")]
-    pub move_token_counter: u128,
+    pub out_fees: u128,
 }
 
 /// Implicit values that both sides agree upon.
@@ -222,7 +201,7 @@ pub struct CountersInfo {
 pub struct TokenInfo {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub balances: Vec<CurrencyBalanceInfo>,
+    pub balances: HashMap<Currency, MutualCreditInfo>,
     #[serde(with = "ser_string")]
     pub move_token_counter: u128,
 }
@@ -863,6 +842,7 @@ impl FromStr for Currency {
     }
 }
 
+/*
 impl BalanceInfo {
     fn flip(self) -> BalanceInfo {
         BalanceInfo {
@@ -872,7 +852,21 @@ impl BalanceInfo {
         }
     }
 }
+*/
 
+impl MutualCreditInfo {
+    pub fn flip(self) -> MutualCreditInfo {
+        Self {
+            balance: self.balance.checked_neg().unwrap(),
+            local_pending_debt: self.remote_pending_debt,
+            remote_pending_debt: self.local_pending_debt,
+            in_fees: self.out_fees,
+            out_fees: self.in_fees,
+        }
+    }
+}
+
+/*
 impl TokenInfo {
     pub fn flip(self) -> TokenInfo {
         let balances = self
@@ -891,6 +885,7 @@ impl TokenInfo {
         }
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {

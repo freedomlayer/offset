@@ -111,7 +111,7 @@ pub struct MoveTokenHashed {
 }
 
 /*
-// TODO: Restore:
+// TODO: Restore later:
 pub fn create_unsigned_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
     relays_diff: Vec<RelayAddress<B>>,

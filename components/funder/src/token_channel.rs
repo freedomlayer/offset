@@ -18,7 +18,7 @@ use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::hash::sha_512_256;
+use crypto::hash::Hasher;
 use crypto::identity::compare_public_key;
 
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
@@ -250,7 +250,7 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
 /// Note that the result here is not really a random nonce. This function is used for the first
 /// deterministic initialization of a token channel.
 fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
-    let public_key_hash = sha_512_256(public_key);
+    let public_key_hash = Hasher::new().chain(public_key).finalize();
     RandValue::try_from(&public_key_hash.as_ref()[..RandValue::len()]).unwrap()
 }
 
@@ -362,12 +362,28 @@ where
     }
 }
 
-async fn hash_token_info_stream(
+async fn hash_mutual_credit_infos(
+    mutual_credit_infos: impl Stream<Item = Result<MutualCreditInfo, OpError>>,
+) -> Result<HashResult, OpError> {
+    let hasher = Hasher::new();
+    while let Some(mutual_credit_info) = mutual_credit_infos.next().await? {
+        hasher.update(mutual_credit_info.canonical_serialize());
+    }
+    Ok(hasher.finalize())
+}
+
+fn hash_token_info_stream(
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
     move_token_counter: u128,
-    mutual_credit_infos: impl Stream<Item = MutualCreditInfo> + Unpin,
+    mutual_credit_infos_hash: HashResult,
 ) -> HashResult {
+    Hahser::new()
+        .chain(local_public_key)
+        .chain(remote_public_key)
+        .chain(move_token_counter.canonical_serialize())
+        .chain(mutual_credits_infos_hash)
+        .finalize()
 }
 
 async fn handle_incoming_token_match<B>(
@@ -546,7 +562,15 @@ where
     .flip();
 
     // Verify stated balances:
-    let info_hash = hash_token_info(&expected_token_info);
+    let mutual_credit_infos_hash = hash_mutual_credit_infos(mutual_credit_infos).await?;
+
+    let info_hash = hash_token_info_stream(
+        local_public_key,
+        remote_public_key,
+        move_token_counter,
+        mutual_credit_infos_hash,
+    );
+
     if new_move_token.info_hash != info_hash {
         return Err(ReceiveMoveTokenError::InvalidTokenInfo);
     }
