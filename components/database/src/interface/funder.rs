@@ -4,7 +4,7 @@ use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
 use proto::funder::messages::{Currency, Rate};
 
-use crate::interfaces::types::{DbOpResult, DbOpSenderResult};
+use crate::interface::types::{DbOpResult, DbOpSenderResult};
 
 use futures::channel::mpsc;
 

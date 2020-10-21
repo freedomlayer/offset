@@ -10,7 +10,7 @@ use futures::SinkExt;
 
 use common::async_rpc::OpError;
 use common::conn::BoxFuture;
-use common::{get_out_type, ops_enum};
+use common::{get_out_type, ops_trait};
 
 use im::hashset::HashSet as ImHashSet;
 use std::collections::HashMap as ImHashMap;
@@ -31,6 +31,8 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
+
+use database::interface::funder::CurrencyConfig;
 
 use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
@@ -57,13 +59,13 @@ pub enum TcOpError {
 pub type TcOpResult<T> = Result<T, TcOpError>;
 pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
-pub enum TcStatus {
-    ConsistentIn,
-    ConsistentOut,
+pub enum TcStatus<B> {
+    ConsistentIn(MoveTokenHashed),
+    ConsistentOut(MoveToken<B>, MoveTokenHashed),
     Inconsistent,
 }
 
-ops_enum!((TcOp<B>, TcTransaction) => {
+ops_trait!((TcMcTransaction) => {
     mc_get_balance(currency: Currency) -> McBalance;
     mc_set_balance(currency: Currency, balance: i128);
     mc_set_local_pending_debt(currency: Currency, debt: u128);
@@ -74,29 +76,36 @@ ops_enum!((TcOp<B>, TcTransaction) => {
     mc_get_remote_pending_transaction(currency: Currency, request_id: Uid) -> Option<PendingTransaction>;
     mc_insert_remote_pending_transaction(currency: Currency, pending_transaction: PendingTransaction);
     mc_remove_remote_pending_transaction(currency: Currency, request_id: Uid);
+});
 
-    get_remote_public_key() -> PublicKey;
-    get_tc_status() -> TcStatus;
-    get_move_token_in() -> Option<MoveTokenHashed>;
-    get_move_token_out() -> Option<MoveToken<B>>;
+ops_trait!((TcTransaction<B>) => {
+    get_tc_status() -> TcStatus<B>;
+    set_direction_incoming(move_token_hashed: MoveTokenHashed);
+    set_direction_outgoing(move_token: MoveToken<B>);
 
-    add_local_currency(currency: Currency);
+    // get_move_token_in() -> Option<MoveTokenHashed>;
+    // get_move_token_out() -> Option<MoveToken<B>>;
+
+    get_currency_config(currency: Currency) -> CurrencyConfig;
+
+    // add_local_currency(currency: Currency);
     // TODO: Possibly add boolean result here? And to other remove commands?
-    remove_local_currency(currency: Currency);
+    // remove_local_currency(currency: Currency);
+
     is_local_currency(currency: Currency) -> bool;
+    is_remote_currency(currency: Currency) -> bool;
 
     add_remote_currency(currency: Currency);
     remove_remote_currency(currency: Currency);
-    is_remote_currency(currency: Currency) -> bool;
 
     // get_remote_active_currencies() ->
-    set_remote_active_currencies(currencies: Vec<Currency>);
-    is_active_currency(currency: Currency) -> bool;
+    // set_remote_active_currencies(currencies: Vec<Currency>);
+    // is_active_currency(currency: Currency) -> bool;
 
     add_mutual_credit(currency: Currency);
-    set_direction_incoming(move_token_hashed: MoveTokenHashed);
-    set_direction_outgoing(move_token: MoveToken<B>);
 });
+
+impl<T, B> McTransaction for T where T: TcTransaction<B> {}
 
 /// The currencies set to be active by two sides of the token channel.
 /// Only currencies that are active on both sides (Intersection) can be used for trading.
@@ -360,7 +369,6 @@ where
     // Note that we only verify the signature here, and not at the Incoming part.
     // This allows the genesis move token to occur smoothly, even though its signature
     // is not correct.
-    let remote_public_key = tc_transaction.get_remote_public_key().await?;
     if !verify_move_token(new_move_token.clone(), &remote_public_key) {
         return Err(ReceiveMoveTokenError::InvalidSignature);
     }

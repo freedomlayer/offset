@@ -17,7 +17,7 @@ mod atomic_db;
 mod create;
 mod database;
 pub mod file_db;
-mod interfaces;
+pub mod interface;
 
 pub use self::atomic_db::AtomicDb;
 pub use self::database::{database_loop, DatabaseClient, DatabaseClientError, DatabaseRequest};

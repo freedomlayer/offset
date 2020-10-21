@@ -1,17 +1,10 @@
 // use common::safe_arithmetic::SafeSignedArithmetic;
 
-// Used for macros:
-use paste::paste;
-
-use common::async_rpc::OpError;
-use common::conn::BoxFuture;
+use common::async_rpc::AsyncOpResult;
 use common::ser_utils::ser_string;
-use common::{get_out_type, ops_enum};
 
 use proto::crypto::Uid;
 use proto::funder::messages::PendingTransaction;
-
-use futures::channel::oneshot;
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalance {
@@ -39,15 +32,27 @@ impl McBalance {
     }
 }
 
-ops_enum!((McOp, McTransaction) => {
-    get_balance() -> McBalance;
-    set_balance(balance: i128);
-    set_local_pending_debt(debt: u128);
-    set_remote_pending_debt(debt: u128);
-    get_local_pending_transaction(request_id: Uid) -> Option<PendingTransaction>;
-    insert_local_pending_transaction(pending_transaction: PendingTransaction);
-    remove_local_pending_transaction(request_id: Uid);
-    get_remote_pending_transaction(request_id: Uid) -> Option<PendingTransaction>;
-    insert_remote_pending_transaction(pending_transaction: PendingTransaction);
-    remove_remote_pending_transaction(request_id: Uid);
-});
+pub trait McTransaction {
+    fn get_balance(&mut self) -> AsyncOpResult<McBalance>;
+    fn set_balance(&mut self, new_balance: i128) -> AsyncOpResult<()>;
+    fn set_local_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
+    fn set_remote_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
+    fn get_local_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> AsyncOpResult<Option<PendingTransaction>>;
+    fn insert_local_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> AsyncOpResult<()>;
+    fn remove_local_pending_transaction(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+    fn get_remote_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> AsyncOpResult<Option<PendingTransaction>>;
+    fn insert_remote_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> AsyncOpResult<()>;
+    fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+}

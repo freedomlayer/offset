@@ -1,3 +1,4 @@
+use crate::conn::BoxFuture;
 use futures::channel::oneshot;
 
 #[derive(Debug)]
@@ -5,6 +6,8 @@ pub enum OpError {
     SendOpFailed,
     ResponseOpFailed(oneshot::Canceled),
 }
+
+pub type AsyncOpResult<T> = BoxFuture<'static, Result<T, OpError>>;
 
 /*
 macro_rules! ops_enum_func {
@@ -54,14 +57,15 @@ macro_rules! get_out_type {
 /// Create an async interface for request/response messages
 /// Generates an enum of all possible RPC messages, and an async interface that knows how to send
 /// those RPC messages.
-macro_rules! ops_enum {
-    (($op_enum:ident $(<$($ty:ident),*>)?, $transaction_trait:ident) => {
+macro_rules! ops_trait {
+    (($transaction_trait:ident $(<$($ty:ident),*>)?) => {
         $(
             $variant_snake:ident ($($($arg_name:ident: $arg_type:path),+)?) $(-> $ret_type:path)?
         );*
         // Possibly an extra semicolon:
         $(;)?
     }) => {
+        /*
         paste! {
             // Enum for all possible operations
             pub enum $op_enum$(<$($ty),*>)? {
@@ -70,6 +74,7 @@ macro_rules! ops_enum {
                 ),*
             }
         }
+        */
 
         // A transaction client
         /*
@@ -123,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_rpc_enums() {
-        ops_enum!((TcOp1<B>, TcTransaction1) => {
+        ops_trait!((TcTransaction1<B>) => {
             func1(hello: Option<B>) -> u32;
             func2() -> u8;
             func3();
@@ -131,7 +136,7 @@ mod tests {
             func5(world: u64);
         });
 
-        ops_enum!((TcOp2, TcTransaction2) => {
+        ops_trait!((TcTransaction2) => {
             func1(hello: String) -> Result<u32, u64>;
             func2(world: String) -> u32
         });
