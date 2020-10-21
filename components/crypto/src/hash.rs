@@ -11,12 +11,17 @@ impl Hasher {
             inner: Sha512Trunc256::new(),
         }
     }
-    pub fn update(&mut self, data: &[u8]) -> &mut Self {
+
+    pub fn update(&mut self, data: &[u8]) {
+        self.inner.update(data);
+    }
+
+    pub fn chain(mut self, data: &[u8]) -> Self {
         self.inner.update(data);
         self
     }
 
-    pub fn finalize(&self) -> HashResult {
+    pub fn finalize(self) -> HashResult {
         let digest_res = self.inner.clone().finalize();
 
         let mut inner = [0x00; HashResult::len()];
@@ -30,7 +35,7 @@ impl Hasher {
 // TODO: Possibly choose a more generic name, to allow changes in the future?
 /// Calculate SHA512/256 over the given data.
 pub fn hash_buffer(data: &[u8]) -> HashResult {
-    Hasher::new().update(data).finalize()
+    Hasher::new().chain(data).finalize()
 }
 
 #[cfg(test)]
