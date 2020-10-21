@@ -362,7 +362,7 @@ where
     }
 }
 
-async fn hash_token_info(
+async fn hash_token_info_stream(
     local_public_key: PublicKey,
     remote_public_key: PublicKey,
     move_token_counter: u128,
