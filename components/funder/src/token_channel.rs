@@ -8,7 +8,7 @@ use paste::paste;
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
 
-use common::async_rpc::{AsyncOpResult, OpError};
+use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::conn::BoxFuture;
 use common::{get_out_type, ops_trait};
 
@@ -85,15 +85,9 @@ pub trait TcTransaction<B> {
     // get_move_token_out() -> Option<MoveToken<B>>;
 
     fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
-    // TODO: Could we somehow return an iterator here? Or maybe a stream?
-    // How to do this?
-    /// Sort all active mutual credits, and return a list of mutual credits after a given currency
-    /// name. If no currency is given, the search will start from the beginning.
-    fn list_mutual_credits_after(
-        &mut self,
-        opt_currency: Option<Currency>,
-        max_length: usize,
-    ) -> AsyncOpResult<Vec<MutualCreditInfo>>;
+
+    /// Return a sorted list of all mutual credits
+    fn list_mutual_credits(&mut self) -> AsyncOpStream<MutualCreditInfo>;
 
     // add_local_currency(currency: Currency);
     // TODO: Possibly add boolean result here? And to other remove commands?

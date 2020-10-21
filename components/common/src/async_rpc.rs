@@ -1,4 +1,4 @@
-use crate::conn::BoxFuture;
+use crate::conn::{BoxFuture, BoxStream};
 use futures::channel::oneshot;
 
 #[derive(Debug)]
@@ -8,6 +8,7 @@ pub enum OpError {
 }
 
 pub type AsyncOpResult<T> = BoxFuture<'static, Result<T, OpError>>;
+pub type AsyncOpStream<T> = BoxStream<'static, Result<T, OpError>>;
 
 /*
 macro_rules! ops_enum_func {
