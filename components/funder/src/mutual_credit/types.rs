@@ -18,6 +18,12 @@ pub struct McBalance {
     /// Frozen credits by the remote side
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
+    /// Fees that were received from remote side
+    #[serde(with = "ser_string")]
+    pub in_fees: u128,
+    /// Fees that were given to remote side
+    #[serde(with = "ser_string")]
+    pub out_fees: u128,
 }
 
 impl McBalance {
@@ -28,6 +34,8 @@ impl McBalance {
             balance,
             local_pending_debt: 0,
             remote_pending_debt: 0,
+            in_fees: 0,
+            out_fees: 0,
         }
     }
 }
@@ -37,6 +45,8 @@ pub trait McTransaction {
     fn set_balance(&mut self, new_balance: i128) -> AsyncOpResult<()>;
     fn set_local_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
     fn set_remote_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
+    fn set_in_fees(&mut self, in_fees: u128) -> AsyncOpResult<()>;
+    fn set_out_fees(&mut self, out_fees: u128) -> AsyncOpResult<()>;
     fn get_local_pending_transaction(
         &mut self,
         request_id: Uid,

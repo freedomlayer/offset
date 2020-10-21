@@ -247,6 +247,16 @@ async fn process_response_send_funds(
         .set_local_pending_debt(new_local_pending_debt)
         .await?;
 
+    // Update out_fees:
+    mc_transaction
+        .set_out_fees(
+            mc_balance
+                .out_fees
+                .checked_add(pending_transaction.left_fees)
+                .unwrap(),
+        )
+        .await?;
+
     // Decrease balance:
     let mc_balance = mc_transaction.get_balance().await?;
     let new_balance = mc_balance

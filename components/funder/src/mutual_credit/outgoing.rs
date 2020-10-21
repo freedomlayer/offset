@@ -174,6 +174,16 @@ async fn queue_response_send_funds(
         .set_remote_pending_debt(new_remote_pending_debt)
         .await?;
 
+    // Update in_fees:
+    mc_transaction
+        .set_in_fees(
+            mc_balance
+                .in_fees
+                .checked_add(pending_transaction.left_fees)
+                .unwrap(),
+        )
+        .await?;
+
     // Increase balance:
     let mc_balance = mc_transaction.get_balance().await?;
     let new_balance = mc_balance
