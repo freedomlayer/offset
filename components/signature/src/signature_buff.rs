@@ -1,6 +1,6 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
-use crypto::hash::{self, sha_512_256};
+use crypto::hash::{self, hash_buffer};
 
 //use proto::crypto::HashResult;
 
@@ -40,7 +40,7 @@ where
     let response_send_funds: UnsignedResponseSendFundsOp = response_send_funds.into();
     let mut sbuffer = Vec::new();
 
-    sbuffer.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    sbuffer.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
 
     let mut inner_blob = Vec::new();
     inner_blob.extend_from_slice(&pending_transaction.request_id);
@@ -50,7 +50,7 @@ where
         .write_u128::<BigEndian>(pending_transaction.dest_payment)
         .unwrap();
 
-    sbuffer.extend_from_slice(&hash::sha_512_256(&inner_blob));
+    sbuffer.extend_from_slice(&hash::hash_buffer(&inner_blob));
     sbuffer
         .write_u128::<BigEndian>(response_send_funds.serial_num)
         .unwrap();
@@ -122,7 +122,7 @@ where
 {
     let move_token: UnsignedMoveToken<B> = move_token.into();
     let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
+    sig_buffer.extend_from_slice(&hash_buffer(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token.old_token);
     sig_buffer.extend_from_slice(&move_token.info_hash);
     sig_buffer
@@ -132,7 +132,7 @@ pub const MUTATIONS_UPDATE_PREFIX: &[u8] = b"MUTATIONS_UPDATE";
 
 pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate) -> Vec<u8> {
     let mut res_bytes = Vec::new();
-    res_bytes.extend_from_slice(&hash::sha_512_256(MUTATIONS_UPDATE_PREFIX));
+    res_bytes.extend_from_slice(&hash::hash_buffer(MUTATIONS_UPDATE_PREFIX));
     res_bytes.extend_from_slice(&mutations_update.node_public_key);
 
     res_bytes

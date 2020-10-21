@@ -1,4 +1,4 @@
-use crypto::hash::sha_512_256;
+use crypto::hash::hash_buffer;
 use proto::crypto::{HashResult, RandValue};
 
 use std::collections::{HashMap, VecDeque};
@@ -20,14 +20,14 @@ fn hash_hashes(hashes: &[HashResult]) -> HashResult {
     let mut bytes_to_hash = Vec::new();
 
     // Start with a constant prefix:
-    bytes_to_hash.extend_from_slice(&sha_512_256(HASH_CLOCK_PREFIX));
+    bytes_to_hash.extend_from_slice(&hash_buffer(HASH_CLOCK_PREFIX));
 
     // Append prefixes:
     for hash in hashes {
         bytes_to_hash.extend_from_slice(hash);
     }
 
-    sha_512_256(&bytes_to_hash)
+    hash_buffer(&bytes_to_hash)
 }
 
 impl<N> HashClock<N>
@@ -74,7 +74,7 @@ where
     pub fn tick(&mut self, rand_value: RandValue) -> HashResult {
         let mut expansion = Vec::new();
 
-        let hashed_rand_value = sha_512_256(&rand_value);
+        let hashed_rand_value = hash_buffer(&rand_value);
         expansion.push(hashed_rand_value);
 
         // Concatenate all hashes, and update hash_info accordingly:

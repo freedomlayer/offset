@@ -3,7 +3,7 @@ use sha2::{Digest, Sha512Trunc256};
 
 // TODO: Possibly choose a more generic name, to allow changes in the future?
 /// Calculate SHA512/256 over the given data.
-pub fn sha_512_256(data: &[u8]) -> HashResult {
+pub fn hash_buffer(data: &[u8]) -> HashResult {
     let mut hasher = Sha512Trunc256::new();
     hasher.update(data);
     let digest_res = hasher.finalize();
@@ -22,7 +22,7 @@ mod tests {
     fn hash_basic() {
         let data = b"This is a test!";
 
-        let hash_res = sha_512_256(&data[..]);
+        let hash_res = hash_buffer(&data[..]);
 
         let expected = [
             0x34, 0x9c, 0x7e, 0xa7, 0x49, 0x8d, 0x04, 0x32, 0xdc, 0xb0, 0x60, 0x4a, 0x9e, 0xd3,

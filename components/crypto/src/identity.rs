@@ -3,13 +3,13 @@ use std::cmp::Ordering;
 use proto::crypto::{PrivateKey, PublicKey, Signature};
 
 use crate::error::CryptoError;
-use crate::hash::sha_512_256;
+use crate::hash::hash_buffer;
 use crate::rand::{CryptoRandom, RandGen};
 
 /// Check if one public key is "lower" than another.
 /// This is used to decide which side begins the token channel.
 pub fn compare_public_key(pk1: &PublicKey, pk2: &PublicKey) -> Ordering {
-    sha_512_256(pk1).cmp(&sha_512_256(pk2))
+    hash_buffer(pk1).cmp(&hash_buffer(pk2))
 }
 
 impl RandGen for PrivateKey {

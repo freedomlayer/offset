@@ -19,7 +19,7 @@ use crate::signature_buff::{
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
 
-    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
     data.extend(receipt.response_hash.as_ref());
     data.extend_from_slice(&receipt.src_plain_lock.hash_lock());
     data.extend_from_slice(&receipt.dest_plain_lock.hash_lock());
@@ -36,7 +36,7 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
 fn verify_commit_signature(commit: &Commit, local_public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
 
-    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
     data.extend(commit.response_hash.as_ref());
     data.extend_from_slice(&commit.src_plain_lock.hash_lock());
     data.extend_from_slice(&commit.dest_hashed_lock);
