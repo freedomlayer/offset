@@ -1,17 +1,36 @@
 use proto::crypto::HashResult;
 use sha2::{Digest, Sha512Trunc256};
 
+pub struct Hasher {
+    inner: Sha512Trunc256,
+}
+
+impl Hasher {
+    pub fn new() -> Self {
+        Self {
+            inner: Sha512Trunc256::new(),
+        }
+    }
+    pub fn update(&mut self, data: &[u8]) -> &mut Self {
+        self.inner.update(data);
+        self
+    }
+
+    pub fn finalize(&self) -> HashResult {
+        let digest_res = self.inner.clone().finalize();
+
+        let mut inner = [0x00; HashResult::len()];
+        inner.copy_from_slice(digest_res.as_ref());
+
+        HashResult::from(&inner)
+    }
+}
+
+// TODO: Possibly remove from interface in the future, use Hasher instead.
 // TODO: Possibly choose a more generic name, to allow changes in the future?
 /// Calculate SHA512/256 over the given data.
 pub fn hash_buffer(data: &[u8]) -> HashResult {
-    let mut hasher = Sha512Trunc256::new();
-    hasher.update(data);
-    let digest_res = hasher.finalize();
-
-    let mut inner = [0x00; HashResult::len()];
-    inner.copy_from_slice(digest_res.as_ref());
-
-    HashResult::from(&inner)
+    Hasher::new().update(data).finalize()
 }
 
 #[cfg(test)]
