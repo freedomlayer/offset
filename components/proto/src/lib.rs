@@ -26,12 +26,12 @@ pub mod keepalive;
 pub mod net;
 pub mod proto_ser;
 pub mod relay;
-pub mod report;
+// pub mod report;
 pub mod secure_channel;
 pub mod ser_string;
 pub mod wrapper;
 
-include_schema!(report_capnp, "report_capnp");
+// include_schema!(report_capnp, "report_capnp");
 include_schema!(app_server_capnp, "app_server_capnp");
 include_schema!(common_capnp, "common_capnp");
 include_schema!(dh_capnp, "dh_capnp");

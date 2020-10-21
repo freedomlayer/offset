@@ -22,7 +22,6 @@ use crate::crypto::{
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
 use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
-use crate::report::messages::FunderReportMutations;
 
 use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
 
@@ -180,21 +179,16 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
 }
 
 /// Balance information for a single currency
-#[capnp_conv(crate::report_capnp::balance_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BalanceInfo {
-    #[capnp_conv(with = Wrapper<i128>)]
     #[serde(with = "ser_string")]
     pub balance: i128,
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
-#[capnp_conv(crate::report_capnp::currency_balance_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyBalanceInfo {
     #[serde(with = "ser_string")]
@@ -203,7 +197,6 @@ pub struct CurrencyBalanceInfo {
 }
 
 /// Mutual Credit info
-#[capnp_conv(crate::report_capnp::mc_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct McInfo {
     #[serde(with = "ser_b64")]
@@ -215,11 +208,9 @@ pub struct McInfo {
 
 /// Token channel counters.
 /// Both sides agree on these values implicitly.
-#[capnp_conv(crate::report_capnp::counters_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CountersInfo {
     pub inconsistency_counter: u64,
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub move_token_counter: u128,
 }
@@ -227,11 +218,13 @@ pub struct CountersInfo {
 /// Implicit values that both sides agree upon.
 /// Those values are also signed as part of the prefix hash.
 /// A hash of this structure is included inside MoveToken.
-#[capnp_conv(crate::report_capnp::token_info)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
-    pub mc: McInfo,
-    pub counters: CountersInfo,
+    pub local_public_key: PublicKey,
+    pub remote_public_key: PublicKey,
+    pub balances: Vec<CurrencyBalanceInfo>,
+    #[serde(with = "ser_string")]
+    pub move_token_counter: u128,
 }
 
 #[capnp_conv(crate::funder_capnp::currency_operations)]
@@ -830,10 +823,10 @@ pub struct ResponseClosePayment {
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub enum FunderOutgoingControl<B: Clone> {
+pub enum FunderOutgoingControl {
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
-    ReportMutations(FunderReportMutations<B>),
+    // ReportMutations(FunderReportMutations<B>),
 }
 
 impl Currency {
@@ -880,8 +873,8 @@ impl BalanceInfo {
     }
 }
 
-impl McInfo {
-    pub fn flip(self) -> McInfo {
+impl TokenInfo {
+    pub fn flip(self) -> TokenInfo {
         let balances = self
             .balances
             .into_iter()
@@ -890,20 +883,11 @@ impl McInfo {
                 balance_info: currency_balance_info.balance_info.flip(),
             })
             .collect();
-
-        McInfo {
+        TokenInfo {
             local_public_key: self.remote_public_key,
             remote_public_key: self.local_public_key,
             balances,
-        }
-    }
-}
-
-impl TokenInfo {
-    pub fn flip(self) -> TokenInfo {
-        TokenInfo {
-            mc: self.mc.flip(),
-            counters: self.counters,
+            move_token_counter: self.move_token_counter,
         }
     }
 }

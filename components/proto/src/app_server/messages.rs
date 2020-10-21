@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::mutable_state::MutableState;
 use common::ser_utils::{ser_b64, ser_string};
 
 use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
@@ -13,12 +12,10 @@ use crate::funder::messages::{
     RemoveFriendCurrency, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencyMaxDebt,
     SetFriendCurrencyRate, SetFriendName, SetFriendRelays, TransactionResult,
 };
-use crate::index_client::messages::{
-    ClientResponseRoutes, IndexClientReport, IndexClientReportMutation,
-};
+use crate::index_client::messages::ClientResponseRoutes;
 use crate::index_server::messages::{NamedIndexServerAddress, RequestRoutes};
 use crate::net::messages::NetAddress;
-use crate::report::messages::{FunderReport, FunderReportMutation};
+// use crate::report::messages::{FunderReport, FunderReportMutation};
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offset-proto?
 
@@ -55,6 +52,7 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
 }
 */
 
+/*
 #[capnp_conv(crate::report_capnp::node_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReport<B = NetAddress> {
@@ -68,8 +66,8 @@ pub enum NodeReportMutation<B = NetAddress> {
     Funder(FunderReportMutation<B>),
     IndexClient(IndexClientReportMutation<B>),
 }
+*/
 
-#[capnp_conv(crate::app_server_capnp::report_mutations::opt_app_request_id)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptAppRequestId {
     AppRequestId(Uid),
@@ -94,6 +92,7 @@ impl From<OptAppRequestId> for Option<Uid> {
     }
 }
 
+/*
 #[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B = NetAddress> {
@@ -101,17 +100,18 @@ pub struct ReportMutations<B = NetAddress> {
     pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<NodeReportMutation<B>>,
 }
+*/
 
 #[allow(clippy::large_enum_variant)]
 #[capnp_conv(crate::app_server_capnp::app_server_to_app)]
 #[derive(Debug, PartialEq, Eq)]
-pub enum AppServerToApp<B = NetAddress> {
+pub enum AppServerToApp {
     /// Funds:
     TransactionResult(TransactionResult),
     ResponseClosePayment(ResponseClosePayment),
     // /// Reports about current state:
     // Report(NodeReport<B>),
-    ReportMutations(ReportMutations<B>),
+    // ReportMutations(ReportMutations<B>),
     ResponseRoutes(ClientResponseRoutes),
 }
 
@@ -188,6 +188,7 @@ impl<B> AppToAppServer<B> {
 
 // TODO: Move this code to a separate module:
 
+/*
 #[derive(Debug)]
 pub struct NodeReportMutateError;
 
@@ -223,6 +224,7 @@ where
         self.mutate(mutation)
     }
 }
+*/
 
 #[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

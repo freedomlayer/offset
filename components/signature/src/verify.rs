@@ -8,12 +8,10 @@ use proto::crypto::PublicKey;
 
 use proto::funder::messages::{Commit, MoveToken, Receipt};
 use proto::index_server::messages::MutationsUpdate;
-use proto::report::messages::MoveTokenHashedReport;
 
 use crate::canonical::CanonicalSerialize;
 use crate::signature_buff::{
-    create_mutations_update_signature_buff, move_token_hashed_report_signature_buff,
-    move_token_signature_buff, FUNDS_RESPONSE_PREFIX,
+    create_mutations_update_signature_buff, move_token_signature_buff, FUNDS_RESPONSE_PREFIX,
 };
 
 // TODO: Add a local test that makes sure verify_receipt is in sync with verify_commit_signature
@@ -82,15 +80,4 @@ pub fn verify_mutations_update(mutations_update: &MutationsUpdate) -> bool {
         &mutations_update.node_public_key,
         &mutations_update.signature,
     )
-}
-
-// TODO: Is the public_key argument redundant now? (As it should be exactly the same
-// as move_token_hashed_report.local_public_key)
-/// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token_hashed_report(
-    move_token_hashed_report: &MoveTokenHashedReport,
-    public_key: &PublicKey,
-) -> bool {
-    let sig_buffer = move_token_hashed_report_signature_buff(move_token_hashed_report);
-    verify_signature(&sig_buffer, public_key, &move_token_hashed_report.new_token)
 }

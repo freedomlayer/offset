@@ -1,19 +1,18 @@
 use std::cmp::Ordering;
+use std::collections::HashMap as ImHashMap;
 use std::convert::TryFrom;
 
 use derive_more::From;
 
-use paste::paste;
-
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
+use futures::Stream;
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::conn::BoxFuture;
 use common::{get_out_type, ops_trait};
 
 use im::hashset::HashSet as ImHashSet;
-use std::collections::HashMap as ImHashMap;
 
 // use common::ser_utils::ser_map_str_any;
 
@@ -22,7 +21,7 @@ use signature::canonical::CanonicalSerialize;
 use crypto::hash::sha_512_256;
 use crypto::identity::compare_public_key;
 
-use proto::crypto::{PublicKey, RandValue, Signature, Uid};
+use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -84,6 +83,7 @@ pub trait TcTransaction<B> {
     // get_move_token_in() -> Option<MoveTokenHashed>;
     // get_move_token_out() -> Option<MoveToken<B>>;
 
+    fn get_move_token_counter(&mut self) -> u128;
     fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
 
     /// Return a sorted list of all mutual credits
@@ -362,6 +362,14 @@ where
     }
 }
 
+async fn hash_token_info(
+    local_public_key: PublicKey,
+    remote_public_key: PublicKey,
+    move_token_counter: u128,
+    mutual_credit_infos: impl Stream<Item = MutualCreditInfo> + Unpin,
+) -> HashResult {
+}
+
 async fn handle_incoming_token_match<B>(
     tc_transaction: &mut impl TcTransaction<B>,
     move_token_out: MoveToken<B>,
@@ -484,6 +492,9 @@ where
     }
 
     // Create what we expect to be TokenInfo (From the point of view of remote side):
+    let mutual_credit_infos = tc_transaction.list_mutual_credits();
+    while let Some(mutual_credit_info) = mutual_credit_infos.next().await {}
+
     let tc_out_borrow = token_channel.get_outgoing().unwrap();
     let mut expected_balances: Vec<_> = tc_out_borrow
         .mutual_credits

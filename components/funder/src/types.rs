@@ -6,15 +6,12 @@ use proto::crypto::{PlainLock, PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations, FriendMessage,
-    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, UnsignedMoveToken,
-    UnsignedResponseSendFundsOp,
+    CancelSendFundsOp, ChannelerUpdateFriend, Currency, FriendMessage, FunderIncomingControl,
+    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
+    TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
 };
 
-use signature::signature_buff::{
-    create_response_signature_buffer, hash_token_info, move_token_signature_buff,
-};
+use signature::signature_buff::{create_response_signature_buffer, move_token_signature_buff};
 
 use identity::IdentityClient;
 
@@ -113,6 +110,8 @@ pub struct MoveTokenHashed {
     pub new_token: Signature,
 }
 
+/*
+// TODO: Restore:
 pub fn create_unsigned_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
     relays_diff: Vec<RelayAddress<B>>,
@@ -128,6 +127,7 @@ pub fn create_unsigned_move_token<B>(
         info_hash: hash_token_info(token_info),
     }
 }
+*/
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
@@ -220,7 +220,7 @@ pub enum FunderOutgoing<B>
 where
     B: Clone,
 {
-    Control(FunderOutgoingControl<B>),
+    Control(FunderOutgoingControl),
     Comm(FunderOutgoingComm<B>),
 }
 

@@ -2,16 +2,15 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash::{self, sha_512_256};
 
-use proto::crypto::HashResult;
+//use proto::crypto::HashResult;
 
 use common::int_convert::usize_to_u64;
 
 use crate::canonical::CanonicalSerialize;
 use proto::funder::messages::{
-    Currency, PendingTransaction, TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
+    Currency, PendingTransaction, UnsignedMoveToken, UnsignedResponseSendFundsOp,
 };
 use proto::index_server::messages::MutationsUpdate;
-use proto::report::messages::MoveTokenHashedReport;
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
@@ -91,9 +90,11 @@ where
 }
 */
 
+/*
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
     sha_512_256(&token_info.canonical_serialize())
 }
+*/
 
 /*
 /// Hash operations and local_address:
@@ -149,15 +150,4 @@ pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate
     res_bytes.extend_from_slice(&mutations_update.rand_nonce);
 
     res_bytes
-}
-
-pub fn move_token_hashed_report_signature_buff(
-    move_token_hashed_report: &MoveTokenHashedReport,
-) -> Vec<u8> {
-    let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&sha_512_256(TOKEN_NEXT));
-    sig_buffer.extend_from_slice(&move_token_hashed_report.prefix_hash);
-    sig_buffer.extend_from_slice(&hash_token_info(&move_token_hashed_report.token_info));
-    sig_buffer.extend_from_slice(&move_token_hashed_report.rand_nonce);
-    sig_buffer
 }

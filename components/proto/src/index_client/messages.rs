@@ -27,7 +27,6 @@ pub struct IndexClientState {
 // IndexClient <--> AppServer communication
 // ---------------------------------------------------
 
-#[capnp_conv(crate::report_capnp::index_client_report::opt_connected_server)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptConnectedServer {
     PublicKey(PublicKey),
@@ -53,7 +52,7 @@ impl From<OptConnectedServer> for Option<PublicKey> {
     }
 }
 
-#[capnp_conv(crate::report_capnp::index_client_report)]
+/*
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// ISA stands for Index Server Address
 pub struct IndexClientReport<ISA = NetAddress> {
@@ -63,6 +62,7 @@ pub struct IndexClientReport<ISA = NetAddress> {
     #[capnp_conv(with = OptConnectedServer)]
     pub opt_connected_server: Option<PublicKey>,
 }
+*/
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddIndexServer<ISA> {
@@ -71,7 +71,6 @@ pub struct AddIndexServer<ISA> {
     pub name: String,
 }
 
-#[capnp_conv(crate::report_capnp::index_client_report_mutation::set_connected_server)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SetConnectedServer {
     PublicKey(PublicKey),
@@ -97,12 +96,10 @@ impl From<SetConnectedServer> for Option<PublicKey> {
     }
 }
 
-#[capnp_conv(crate::report_capnp::index_client_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IndexClientReportMutation<ISA = NetAddress> {
     AddIndexServer(NamedIndexServerAddress<ISA>),
     RemoveIndexServer(PublicKey),
-    #[capnp_conv(with = SetConnectedServer)]
     SetConnectedServer(Option<PublicKey>),
 }
 
@@ -145,6 +142,7 @@ pub enum AppServerToIndexClient<ISA> {
     ApplyMutations(Vec<IndexMutation>),
 }
 
+/*
 // TODO: Move this code somewhere else?
 impl<ISA> IndexClientReport<ISA>
 where
@@ -172,3 +170,4 @@ where
         }
     }
 }
+*/
