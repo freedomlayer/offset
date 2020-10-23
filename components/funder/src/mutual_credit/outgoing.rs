@@ -179,7 +179,7 @@ async fn queue_response_send_funds(
         .set_in_fees(
             mc_balance
                 .in_fees
-                .checked_add(pending_transaction.left_fees)
+                .checked_add(pending_transaction.left_fees.into())
                 .unwrap(),
         )
         .await?;

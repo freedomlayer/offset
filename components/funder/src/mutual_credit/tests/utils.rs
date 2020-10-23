@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use common::async_rpc::OpError;
 use common::conn::BoxFuture;
-use std::collections::HashMap;
+use common::u256::U256;
 
 use proto::crypto::Uid;
 use proto::funder::messages::{Currency, PendingTransaction};
@@ -69,12 +71,12 @@ impl McTransaction for MutualCredit {
         Box::pin(async move { Ok(()) })
     }
 
-    fn set_in_fees(&mut self, in_fees: u128) -> BoxFuture<'static, Result<(), OpError>> {
+    fn set_in_fees(&mut self, in_fees: U256) -> BoxFuture<'static, Result<(), OpError>> {
         self.balance.in_fees = in_fees;
         Box::pin(async move { Ok(()) })
     }
 
-    fn set_out_fees(&mut self, out_fees: u128) -> BoxFuture<'static, Result<(), OpError>> {
+    fn set_out_fees(&mut self, out_fees: U256) -> BoxFuture<'static, Result<(), OpError>> {
         self.balance.out_fees = out_fees;
         Box::pin(async move { Ok(()) })
     }

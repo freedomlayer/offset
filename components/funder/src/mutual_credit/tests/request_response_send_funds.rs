@@ -73,8 +73,8 @@ async fn task_request_response_send_funds() {
     assert_eq!(mc_balance.balance, 0);
     assert_eq!(mc_balance.local_pending_debt, 10 + 5);
     assert_eq!(mc_balance.remote_pending_debt, 0);
-    assert_eq!(mc_balance.in_fees, 0);
-    assert_eq!(mc_balance.out_fees, 0);
+    assert_eq!(mc_balance.in_fees, 0.into());
+    assert_eq!(mc_balance.out_fees, 0.into());
 
     // -----[ResponseSendFunds]--------
     // --------------------------------
@@ -109,8 +109,8 @@ async fn task_request_response_send_funds() {
     assert_eq!(mc_balance.balance, -15);
     assert_eq!(mc_balance.local_pending_debt, 0);
     assert_eq!(mc_balance.remote_pending_debt, 0);
-    assert_eq!(mc_balance.in_fees, 0);
-    assert_eq!(mc_balance.out_fees, 5);
+    assert_eq!(mc_balance.in_fees, 0.into());
+    assert_eq!(mc_balance.out_fees, 5.into());
 }
 
 #[test]

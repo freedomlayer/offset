@@ -2,6 +2,7 @@
 
 use common::async_rpc::AsyncOpResult;
 use common::ser_utils::ser_string;
+use common::u256::U256;
 
 use proto::crypto::Uid;
 use proto::funder::messages::PendingTransaction;
@@ -21,10 +22,10 @@ pub struct McBalance {
     // TODO: in_fees and out_fees should be u256, not u128!
     /// Fees that were received from remote side
     #[serde(with = "ser_string")]
-    pub in_fees: u128,
+    pub in_fees: U256,
     /// Fees that were given to remote side
     #[serde(with = "ser_string")]
-    pub out_fees: u128,
+    pub out_fees: U256,
 }
 
 impl McBalance {
@@ -35,8 +36,8 @@ impl McBalance {
             balance,
             local_pending_debt: 0,
             remote_pending_debt: 0,
-            in_fees: 0,
-            out_fees: 0,
+            in_fees: 0.into(),
+            out_fees: 0.into(),
         }
     }
 }
@@ -46,8 +47,8 @@ pub trait McTransaction {
     fn set_balance(&mut self, new_balance: i128) -> AsyncOpResult<()>;
     fn set_local_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
     fn set_remote_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
-    fn set_in_fees(&mut self, in_fees: u128) -> AsyncOpResult<()>;
-    fn set_out_fees(&mut self, out_fees: u128) -> AsyncOpResult<()>;
+    fn set_in_fees(&mut self, in_fees: U256) -> AsyncOpResult<()>;
+    fn set_out_fees(&mut self, out_fees: U256) -> AsyncOpResult<()>;
     fn get_local_pending_transaction(
         &mut self,
         request_id: Uid,

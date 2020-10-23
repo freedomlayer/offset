@@ -252,7 +252,7 @@ async fn process_response_send_funds(
         .set_out_fees(
             mc_balance
                 .out_fees
-                .checked_add(pending_transaction.left_fees)
+                .checked_add(pending_transaction.left_fees.into())
                 .unwrap(),
         )
         .await?;
