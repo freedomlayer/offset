@@ -18,6 +18,7 @@ pub mod async_rpc;
 pub mod int_convert;
 pub mod never;
 pub mod safe_arithmetic;
+pub mod u256;
 
 // TODO: Big array might not be needed:
 #[macro_use]
