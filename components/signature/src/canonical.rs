@@ -3,7 +3,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, Receipt,
+    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, McBalance, Receipt,
     RequestSendFundsOp, ResponseSendFundsOp, TokenInfo,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
@@ -335,6 +335,28 @@ impl CanonicalSerialize for CountersInfo {
 }
 
 */
+
+impl CanonicalSerialize for McBalance {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.write_i128::<BigEndian>(self.balance).unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.local_pending_debt)
+            .unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.remote_pending_debt)
+            .unwrap();
+
+        // Write in/out fees as big endian:
+        let mut temp_array = [0u8; 16];
+        self.in_fees.to_big_endian(&mut temp_array);
+        res_bytes.extend_from_slice(&temp_array);
+        self.out_fees.to_big_endian(&mut temp_array);
+        res_bytes.extend_from_slice(&temp_array);
+
+        res_bytes
+    }
+}
 impl CanonicalSerialize for TokenInfo {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
