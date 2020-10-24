@@ -98,14 +98,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
                                         CHECK (is_consistent = true)
                                         DEFAULT true,
              move_token_counter         BLOB NOT NULL,
-             opt_move_token_out         BLOB,
-             opt_move_token_in          BLOB,
-             -- Two options:
-             -- 1. Incoming mode: No outgoing token, there is incoming token.
-             -- 2. Outgoing mode: We keep the last incoming token if exists, 
-             --    and there is a pending outgoing token.
-             CHECK ((opt_move_token_out IS NULL AND opt_move_token_in IS NOT NULL) 
-                OR  (opt_move_token_out IS NOT NULL)),
+             is_incoming                BOOL NOT NULL,
+
              FOREIGN KEY(friend_public_key, is_consistent) 
                 REFERENCES friends(friend_public_key, is_consistent)
                 ON DELETE CASCADE
@@ -115,6 +109,99 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE UNIQUE INDEX idx_consistent_channels ON consistent_channels(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE consistent_channels_incoming(
+             friend_public_key      BLOB NOT NULL PRIMARY KEY,
+             is_incoming            BOOL NOT NULL 
+                                    CHECK (is_incoming = true)
+                                    DEFAULT true,
+             old_token              BLOB NOT NULL,
+             new_token              BLOB NOT NULL,
+
+             FOREIGN KEY(friend_public_key, is_incoming) 
+                REFERENCES consistent_channels(friend_public_key, is_incoming)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_consistent_channels_incoming ON consistent_channels_incoming(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE consistent_channels_outgoing(
+             friend_public_key          BLOB NOT NULL PRIMARY KEY,
+             is_incoming                BOOL NOT NULL 
+                                        CHECK (is_incoming = false)
+                                        DEFAULT false,
+             move_token_out             BLOB NOT NULL,
+
+             -- Do we save a previously received hashed incoming move token?
+             is_with_incoming           BOOL NOT NULL,
+
+             FOREIGN KEY(friend_public_key, is_incoming) 
+                REFERENCES consistent_channels(friend_public_key, is_incoming)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_consistent_channels_outgoing ON consistent_channels_outgoing(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE consistent_channels_outgoing_with_incoming(
+             friend_public_key          BLOB NOT NULL PRIMARY KEY,
+             is_with_incoming           BOOL NOT NULL 
+                                        CHECK (is_with_incoming = true)
+                                        DEFAULT true,
+
+             -- Data saved for last incoming move token.
+             -- The list of balances for the last incoming move token is saved in a separate table.
+             old_token                  BLOB NOT NULL,
+             move_token_counter         BLOB NOT NULL,
+             new_token                  BLOB NOT NULL,
+
+             FOREIGN KEY(friend_public_key, is_with_incoming) 
+                REFERENCES consistent_channels_outgoing(friend_public_key, is_with_incoming)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_consistent_channels_outgoing_with_incoming ON consistent_channels_outgoing_with_incoming(friend_public_key);",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE TABLE last_incoming_balances(
+             friend_public_key          BLOB NOT NULL,
+             currency                   TEXT NOT NULL,
+
+             balance                    BLOB NOT NULL,
+             local_pending_debt         BLOB NOT NULL,
+             remote_pending_debt        BLOB NOT NULL,
+             in_fees                    BLOB NOT NULL,
+             out_fees                   BLOB NOT NULL,
+
+             PRIMARY KEY(friend_public_key, currency),
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES consistent_channels_outgoing_with_incoming(friend_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_last_incoming_balances ON last_incoming_balances(friend_public_key, currency);",
         params![],
     )?;
 
