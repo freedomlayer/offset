@@ -56,6 +56,8 @@ pub enum TcOpError {
 pub type TcOpResult<T> = Result<T, TcOpError>;
 pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
+// TODO: MoveTokenHashed contains too much information.
+// We may remove some of the information, for example: local and remote public keys.
 pub enum TcStatus<B> {
     ConsistentIn(MoveTokenHashed),
     ConsistentOut(MoveToken<B>, MoveTokenHashed),
