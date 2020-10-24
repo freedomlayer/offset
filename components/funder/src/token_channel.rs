@@ -6,7 +6,7 @@ use derive_more::From;
 
 use futures::channel::{mpsc, oneshot};
 use futures::SinkExt;
-use futures::Stream;
+use futures::{Stream, StreamExt, TryStreamExt};
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::conn::BoxFuture;
@@ -18,14 +18,14 @@ use im::hashset::HashSet as ImHashSet;
 
 use signature::canonical::CanonicalSerialize;
 
-use crypto::hash::Hasher;
+use crypto::hash::{hash_buffer, Hasher};
 use crypto::identity::compare_public_key;
 
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McInfo,
+    BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McBalance,
     MoveToken, PendingTransaction, TokenInfo, UnsignedMoveToken,
 };
 use signature::signature_buff::hash_token_info;
@@ -37,7 +37,7 @@ use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::queue_operation;
-use crate::mutual_credit::types::{McBalance, McOp, McTransaction};
+use crate::mutual_credit::types::{McOp, McTransaction};
 
 use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
 
@@ -75,11 +75,13 @@ pub trait TcTransaction<B> {
     // get_move_token_in() -> Option<MoveTokenHashed>;
     // get_move_token_out() -> Option<MoveToken<B>>;
 
-    fn get_move_token_counter(&mut self) -> u128;
+    fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
+    fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
+
     fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
 
     /// Return a sorted list of all mutual credits
-    fn list_mutual_credits(&mut self) -> AsyncOpStream<MutualCreditInfo>;
+    fn list_mutual_credits(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
 
     // add_local_currency(currency: Currency);
     // TODO: Possibly add boolean result here? And to other remove commands?
@@ -285,6 +287,7 @@ fn initial_move_token<B>(
 async fn handle_in_move_token<B>(
     tc_transaction: &mut impl TcTransaction<B>,
     new_move_token: MoveToken<B>,
+    local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
 where
@@ -299,6 +302,7 @@ where
                 tc_transaction,
                 move_token_out,
                 new_move_token,
+                local_public_key,
                 remote_public_key,
             )
             .await
@@ -328,6 +332,7 @@ async fn handle_in_move_token_dir_out<B>(
     tc_transaction: &mut impl TcTransaction<B>,
     move_token_out: MoveToken<B>,
     new_move_token: MoveToken<B>,
+    local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, ReceiveMoveTokenError>
 where
@@ -339,6 +344,7 @@ where
                 tc_transaction,
                 move_token_out,
                 new_move_token,
+                local_public_key,
                 remote_public_key,
             )
             .await?,
@@ -354,34 +360,33 @@ where
     }
 }
 
+// TODO: Should we move this function to offset-signature crate?
 async fn hash_mc_infos(
-    mc_infos: impl Stream<Item = Result<McInfo, OpError>>,
-) -> Result<HashResult, OpError> {
-    let hasher = Hasher::new();
-    while let Some(mutual_credit_info) = mutual_credit_infos.next().await? {
-        hasher.update(mutual_credit_info.canonical_serialize());
+    mut mc_infos: impl Stream<Item = Result<(Currency, McBalance), OpError>> + Unpin,
+) -> Result<HashResult, ReceiveMoveTokenError> {
+    let mut hasher = Hasher::new();
+    // Last seen currency, used to verify sorted order:
+    let mut opt_last_currency: Option<Currency> = None;
+
+    while let Some(item) = mc_infos.next().await {
+        let (currency, mc_balance) = item?;
+        // Ensure that the list is sorted:
+        if let Some(last_currency) = opt_last_currency {
+            assert!(last_currency <= currency);
+        }
+        // Update the last currency:
+        opt_last_currency = Some(currency.clone());
+        hasher.update(&hash_buffer(&currency.canonical_serialize()));
+        hasher.update(&mc_balance.canonical_serialize());
     }
     Ok(hasher.finalize())
-}
-
-fn hash_token_info_stream(
-    local_public_key: PublicKey,
-    remote_public_key: PublicKey,
-    move_token_counter: u128,
-    mutual_credit_infos_hash: HashResult,
-) -> HashResult {
-    Hahser::new()
-        .chain(local_public_key)
-        .chain(remote_public_key)
-        .chain(move_token_counter.canonical_serialize())
-        .chain(mutual_credits_infos_hash)
-        .finalize()
 }
 
 async fn handle_incoming_token_match<B>(
     tc_transaction: &mut impl TcTransaction<B>,
     move_token_out: MoveToken<B>,
     new_move_token: MoveToken<B>, // remote_max_debts: &ImHashMap<Currency, u128>,
+    local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<MoveTokenReceived<B>, ReceiveMoveTokenError>
 where
@@ -450,9 +455,8 @@ where
                     tc_transaction
                         .remove_remote_currency(diff_currency.clone())
                         .await?;
-                    // TODO: We need to report outside that we removed this currency somehow.
-                    // TODO: Somehow unite all code for removing remote currencies.
-                    todo!();
+                // TODO: Do We need to report outside that we removed this currency somehow?
+                // TODO: Somehow unite all code for removing remote currencies.
                 } else {
                     // We are not allowed to remove this currency!
                     return Err(ReceiveMoveTokenError::CanNotRemoveCurrencyInUse);
@@ -461,8 +465,7 @@ where
                 tc_transaction
                     .remove_remote_currency(diff_currency.clone())
                     .await?;
-                // TODO: We need to report outside that we removed this currency somehow.
-                todo!();
+                // TODO: Do We need to report outside that we removed this currency somehow?
             }
         }
     }
@@ -499,81 +502,40 @@ where
             .push(move_token_received_currency);
     }
 
+    let move_token_counter = tc_transaction.get_move_token_counter().await?;
+    let new_move_token_counter = move_token_counter
+        .checked_add(1)
+        .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?;
+
+    // Calculate `info_hash` as seen by the remote side.
     // Create what we expect to be TokenInfo (From the point of view of remote side):
     let mc_infos = tc_transaction.list_mutual_credits();
-    while let Some(mc_info) = mc_infos.next().await {
-        mutual_cred
-    }
 
-    let tc_out_borrow = token_channel.get_outgoing().unwrap();
-    let mut expected_balances: Vec<_> = tc_out_borrow
-        .mutual_credits
-        .iter()
-        .map(|(currency, mc)| CurrencyBalanceInfo {
-            currency: currency.clone(),
-            balance_info: BalanceInfo {
-                balance: mc.state().balance.balance,
-                local_pending_debt: mc.state().balance.local_pending_debt,
-                remote_pending_debt: mc.state().balance.remote_pending_debt,
-            },
-        })
-        .collect();
+    let token_info = TokenInfo {
+        local_public_key: remote_public_key.clone(),
+        remote_public_key: local_public_key.clone(),
+        balances_hash: hash_mc_infos(
+            mc_infos.map_ok(|(currency, mc_balance)| (currency, mc_balance.flip())),
+        )
+        .await?,
+        move_token_counter: new_move_token_counter,
+    };
 
-    // Canonicalize:
-    expected_balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
-
-    let expected_token_info = TokenInfo {
-        mc: McInfo {
-            local_public_key: tc_out_borrow
-                .tc_outgoing
-                .token_info
-                .mc
-                .local_public_key
-                .clone(),
-            remote_public_key: tc_out_borrow
-                .tc_outgoing
-                .token_info
-                .mc
-                .remote_public_key
-                .clone(),
-            balances: expected_balances,
-        },
-        counters: CountersInfo {
-            inconsistency_counter: tc_out_borrow
-                .tc_outgoing
-                .token_info
-                .counters
-                .inconsistency_counter,
-            move_token_counter: tc_out_borrow
-                .tc_outgoing
-                .token_info
-                .counters
-                .move_token_counter
-                .checked_add(1)
-                .ok_or(ReceiveMoveTokenError::MoveTokenCounterOverflow)?,
-        },
-    }
-    .flip();
-
-    // Verify stated balances:
-    let mutual_credit_infos_hash = hash_mutual_credit_infos(mutual_credit_infos).await?;
-
-    let info_hash = hash_token_info_stream(
-        local_public_key,
-        remote_public_key,
-        move_token_counter,
-        mutual_credit_infos_hash,
-    );
+    let info_hash = hash_token_info(&token_info);
 
     if new_move_token.info_hash != info_hash {
         return Err(ReceiveMoveTokenError::InvalidTokenInfo);
     }
 
-    move_token_received
-        .mutations
-        .push(TcMutation::SetDirection(SetDirection::Incoming(
-            create_hashed(&new_move_token, &expected_token_info),
-        )));
+    // Update move_token_counter:
+    tc_transaction
+        .set_move_token_counter(new_move_token_counter)
+        .await?;
+
+    // Set direction to outgoing, with the newly received move token:
+    tc_transaction
+        .set_direction_outgoing(new_move_token)
+        .await?;
 
     Ok(move_token_received)
 }
