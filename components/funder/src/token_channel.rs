@@ -64,14 +64,6 @@ pub enum TcStatus<B> {
     Inconsistent,
 }
 
-pub struct MutualCreditInfo {
-    pub balance: i128,
-    pub local_pending_debt: u128,
-    pub remote_pending_debt: u128,
-    pub in_fees: u128,
-    pub out_fees: u128,
-}
-
 pub trait TcTransaction<B> {
     type McTransaction: McTransaction;
     fn mc_transaction(&mut self, currency: Currency) -> &mut Self::McTransaction;
@@ -362,8 +354,8 @@ where
     }
 }
 
-async fn hash_mutual_credit_infos(
-    mutual_credit_infos: impl Stream<Item = Result<MutualCreditInfo, OpError>>,
+async fn hash_mc_infos(
+    mc_infos: impl Stream<Item = Result<McInfo, OpError>>,
 ) -> Result<HashResult, OpError> {
     let hasher = Hasher::new();
     while let Some(mutual_credit_info) = mutual_credit_infos.next().await? {
@@ -508,8 +500,10 @@ where
     }
 
     // Create what we expect to be TokenInfo (From the point of view of remote side):
-    let mutual_credit_infos = tc_transaction.list_mutual_credits();
-    while let Some(mutual_credit_info) = mutual_credit_infos.next().await {}
+    let mc_infos = tc_transaction.list_mutual_credits();
+    while let Some(mc_info) = mc_infos.next().await {
+        mutual_cred
+    }
 
     let tc_out_borrow = token_channel.get_outgoing().unwrap();
     let mut expected_balances: Vec<_> = tc_out_borrow

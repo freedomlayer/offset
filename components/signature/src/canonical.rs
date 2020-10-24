@@ -4,7 +4,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, Receipt,
-    RequestSendFundsOp, ResponseSendFundsOp,
+    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -334,12 +334,16 @@ impl CanonicalSerialize for CountersInfo {
     }
 }
 
+*/
 impl CanonicalSerialize for TokenInfo {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.mc.canonical_serialize());
-        res_bytes.extend_from_slice(&self.counters.canonical_serialize());
+        res_bytes.extend_from_slice(&self.local_public_key);
+        res_bytes.extend_from_slice(&self.remote_public_key);
+        res_bytes.extend_from_slice(&self.balances_hash);
+        res_bytes
+            .write_u128::<BigEndian>(self.move_token_counter)
+            .unwrap();
         res_bytes
     }
 }
-*/

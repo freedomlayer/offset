@@ -2,15 +2,15 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use crypto::hash::{self, hash_buffer};
 
-//use proto::crypto::HashResult;
-
 use common::int_convert::usize_to_u64;
 
-use crate::canonical::CanonicalSerialize;
+use proto::crypto::HashResult;
 use proto::funder::messages::{
-    Currency, PendingTransaction, UnsignedMoveToken, UnsignedResponseSendFundsOp,
+    Currency, PendingTransaction, TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
 };
 use proto::index_server::messages::MutationsUpdate;
+
+use crate::canonical::CanonicalSerialize;
 
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
@@ -90,11 +90,9 @@ where
 }
 */
 
-/*
 pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
-    sha_512_256(&token_info.canonical_serialize())
+    hash_buffer(&token_info.canonical_serialize())
 }
-*/
 
 /*
 /// Hash operations and local_address:

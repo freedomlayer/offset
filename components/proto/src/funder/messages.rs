@@ -5,8 +5,6 @@ use std::fmt;
 use std::hash::Hash;
 use std::str::FromStr;
 
-use std::collections::HashMap;
-
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -26,6 +24,7 @@ use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
 use crate::net::messages::NetAddress;
 
 use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
+use common::u256::U256;
 
 use crate::wrapper::Wrapper;
 
@@ -180,18 +179,47 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
     }
 }
 
-#[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MutualCreditInfo {
+#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct McBalance {
+    /// Amount of credits this side has against the remote side.
+    /// The other side keeps the negation of this value.
     #[serde(with = "ser_string")]
     pub balance: i128,
+    /// Frozen credits by our side
     #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
+    /// Frozen credits by the remote side
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
+    // TODO: in_fees and out_fees should be u256, not u128!
+    /// Fees that were received from remote side
     #[serde(with = "ser_string")]
-    pub in_fees: u128,
+    pub in_fees: U256,
+    /// Fees that were given to remote side
     #[serde(with = "ser_string")]
-    pub out_fees: u128,
+    pub out_fees: U256,
+}
+
+impl McBalance {
+    pub fn new(balance: i128) -> McBalance {
+        McBalance {
+            balance,
+            local_pending_debt: 0,
+            remote_pending_debt: 0,
+            in_fees: 0.into(),
+            out_fees: 0.into(),
+        }
+    }
+
+    pub fn flip(self) -> Self {
+        Self {
+            balance: self.balance.checked_neg().unwrap(),
+            local_pending_debt: self.remote_pending_debt,
+            remote_pending_debt: self.local_pending_debt,
+            in_fees: self.out_fees,
+            out_fees: self.in_fees,
+        }
+    }
 }
 
 /// Implicit values that both sides agree upon.
@@ -201,7 +229,10 @@ pub struct MutualCreditInfo {
 pub struct TokenInfo {
     pub local_public_key: PublicKey,
     pub remote_public_key: PublicKey,
-    pub balances: HashMap<Currency, MutualCreditInfo>,
+    /// Hash of a sorted list of all the balances
+    pub balances_hash: HashResult,
+    // pub balances: HashMap<Currency, MutualCreditInfo>,
+    /// Current token counter. Used as an alternative form of monotone time
     #[serde(with = "ser_string")]
     pub move_token_counter: u128,
 }
@@ -854,8 +885,9 @@ impl BalanceInfo {
 }
 */
 
-impl MutualCreditInfo {
-    pub fn flip(self) -> MutualCreditInfo {
+/*
+impl McBalance {
+    pub fn flip(self) -> McInfo {
         Self {
             balance: self.balance.checked_neg().unwrap(),
             local_pending_debt: self.remote_pending_debt,
@@ -865,6 +897,7 @@ impl MutualCreditInfo {
         }
     }
 }
+*/
 
 /*
 impl TokenInfo {

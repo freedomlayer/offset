@@ -5,9 +5,9 @@ use common::conn::BoxFuture;
 use common::u256::U256;
 
 use proto::crypto::Uid;
-use proto::funder::messages::{Currency, PendingTransaction};
+use proto::funder::messages::{Currency, McBalance, PendingTransaction};
 
-use crate::mutual_credit::types::{McBalance, McTransaction};
+use crate::mutual_credit::types::McTransaction;
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
