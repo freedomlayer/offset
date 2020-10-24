@@ -8,35 +8,12 @@ use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     CancelSendFundsOp, ChannelerUpdateFriend, Currency, FriendMessage, FunderIncomingControl,
     FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
-    TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
+    TokenInfo, UnsignedResponseSendFundsOp,
 };
 
-use signature::signature_buff::{create_response_signature_buffer, move_token_signature_buff};
+use signature::signature_buff::create_response_signature_buffer;
 
 use identity::IdentityClient;
-
-pub async fn sign_move_token<'a, B>(
-    unsigned_move_token: UnsignedMoveToken<B>,
-    identity_client: &'a mut IdentityClient,
-) -> MoveToken<B>
-where
-    B: CanonicalSerialize + Clone + 'a,
-{
-    let signature_buff = move_token_signature_buff(unsigned_move_token.clone());
-    let new_token = identity_client
-        .request_signature(signature_buff)
-        .await
-        .unwrap();
-
-    MoveToken {
-        old_token: unsigned_move_token.old_token,
-        currencies_operations: unsigned_move_token.currencies_operations,
-        relays_diff: unsigned_move_token.relays_diff,
-        currencies_diff: unsigned_move_token.currencies_diff,
-        info_hash: unsigned_move_token.info_hash,
-        new_token,
-    }
-}
 
 pub async fn create_response_send_funds<'a>(
     currency: &Currency,

@@ -1,18 +1,14 @@
-use std::cmp::Ordering;
-use std::collections::HashMap as ImHashMap;
+// use std::cmp::Ordering;
 use std::convert::TryFrom;
 
 use derive_more::From;
 
-use futures::channel::{mpsc, oneshot};
-use futures::SinkExt;
+use futures::channel::oneshot;
+// use futures::SinkExt;
 use futures::{Stream, StreamExt, TryStreamExt};
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
-use common::conn::BoxFuture;
-use common::{get_out_type, ops_trait};
-
-use im::hashset::HashSet as ImHashSet;
+// use common::conn::BoxFuture;
 
 // use common::ser_utils::ser_map_str_any;
 
@@ -21,12 +17,14 @@ use signature::canonical::CanonicalSerialize;
 use crypto::hash::{hash_buffer, Hasher};
 use crypto::identity::compare_public_key;
 
+use identity::IdentityClient;
+
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
     BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McBalance,
-    MoveToken, PendingTransaction, TokenInfo, UnsignedMoveToken,
+    MoveToken, PendingTransaction, TokenInfo,
 };
 use signature::signature_buff::hash_token_info;
 use signature::verify::verify_move_token;
@@ -36,10 +34,10 @@ use database::interface::funder::CurrencyConfig;
 use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
-use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
 use crate::mutual_credit::types::{McOp, McTransaction};
 
-use crate::types::{create_hashed, create_unsigned_move_token, MoveTokenHashed};
+use crate::types::{create_hashed, MoveTokenHashed};
 
 /*
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize)]
@@ -90,6 +88,9 @@ pub trait TcTransaction<B> {
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 
+    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
+
     fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
     fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
 
@@ -100,6 +101,7 @@ pub trait TcTransaction<B> {
     fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()>;
 }
 
+/*
 /// The currencies set to be active by two sides of the token channel.
 /// Only currencies that are active on both sides (Intersection) can be used for trading.
 #[derive(Arbitrary, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -122,6 +124,7 @@ impl ActiveCurrencies {
         self.local.clone().intersection(self.remote.clone())
     }
 }
+*/
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct TcOutgoing<B> {
@@ -215,15 +218,15 @@ pub enum ReceiveMoveTokenOutput<B> {
 
 #[derive(Debug)]
 pub struct SendMoveTokenOutput<B> {
-    pub unsigned_move_token: UnsignedMoveToken<B>,
-    // pub mutations: Vec<TcMutation<B>>,
-    pub token_info: TokenInfo,
+    pub move_token: MoveToken<B>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum SendMoveTokenError {
-    LocalCurrencyAlreadyExists,
+    InvalidTokenChannelStatus,
     CanNotRemoveCurrencyInUse,
+    QueueOperationError(QueueOperationError),
+    OpError(OpError),
 }
 
 /// Create a token from a public key
@@ -397,7 +400,7 @@ where
     // This allows the genesis move token to occur smoothly, even though its signature
     // is not correct.
     // TODO: Check if the above statement is still true.
-    if !verify_move_token(new_move_token.clone(), &remote_public_key) {
+    if !verify_move_token(&new_move_token, &remote_public_key) {
         return Err(ReceiveMoveTokenError::InvalidSignature);
     }
 
@@ -416,9 +419,9 @@ where
     // - Add to remote currencies every currency that is in the xor set, but not in the current
     // set.
     // - Remove from remote currencies currencies that satisfy the following requirements:
-    // - (1) in the xor set.
-    // - (2) in the remote
-    // - (3) (Not in the local set) or (in the local set with balance zero and zero pending debts)
+    //  - (1) in the xor set.
+    //  - (2) in the remote set
+    //  - (3) (Not in the local set) or (in the local set with balance zero and zero pending debts)
     for diff_currency in &new_move_token.currencies_diff {
         // Check if we need to add currency:
         if !tc_transaction
@@ -540,8 +543,167 @@ where
     Ok(move_token_received)
 }
 
-fn handle_out_move_token<B>(tc_transaction: &mut impl TcTransaction<B>) {
+/*
+pub async fn sign_move_token<'a, B>(
+    unsigned_move_token: UnsignedMoveToken<B>,
+    identity_client: &'a mut IdentityClient,
+) -> MoveToken<B>
+where
+    B: CanonicalSerialize + Clone + 'a,
+{
+    let signature_buff = move_token_signature_buff(unsigned_move_token.clone());
+    let new_token = identity_client
+        .request_signature(signature_buff)
+        .await
+        .unwrap();
+
+    MoveToken {
+        old_token: unsigned_move_token.old_token,
+        currencies_operations: unsigned_move_token.currencies_operations,
+        relays_diff: unsigned_move_token.relays_diff,
+        currencies_diff: unsigned_move_token.currencies_diff,
+        info_hash: unsigned_move_token.info_hash,
+        new_token,
+    }
+}
+*/
+
+async fn handle_out_move_token<B>(
+    tc_transaction: &mut impl TcTransaction<B>,
+    identity_client: &mut IdentityClient,
+    currencies_operations: Vec<CurrencyOperations>,
+    relays_diff: Vec<RelayAddress<B>>,
+    currencies_diff: Vec<Currency>,
+) -> Result<MoveToken<B>, SendMoveTokenError> {
+    // We expect that our current state is incoming:
+    let move_token_in = match tc_transaction.get_tc_status().await? {
+        TcStatus::ConsistentIn(move_token_in) => move_token_in,
+        TcStatus::ConsistentOut(_move_token_out, _move_token_in) => {
+            return Err(SendMoveTokenError::InvalidTokenChannelStatus)
+        }
+    };
+
+    // Handle currencies_diff:
+    for diff_currency in &currencies_diff {
+        // Check if we need to add currency:
+        if !tc_transaction
+            .is_local_currency(diff_currency.clone())
+            .await?
+        {
+            // Add a new local currency.
+            tc_transaction
+                .add_local_currency(diff_currency.clone())
+                .await?;
+
+            // If we also have this currency as a remote currency, add a new mutual credit:
+            if tc_transaction
+                .is_remote_currency(diff_currency.clone())
+                .await?
+            {
+                tc_transaction.add_mutual_credit(diff_currency.clone());
+            }
+        } else {
+            let is_remote_currency = tc_transaction
+                .is_remote_currency(diff_currency.clone())
+                .await?;
+            if is_remote_currency {
+                let mc_balance = tc_transaction
+                    .mc_transaction(diff_currency.clone())
+                    .get_balance()
+                    .await?;
+                if mc_balance.balance == 0
+                    && mc_balance.remote_pending_debt == 0
+                    && mc_balance.local_pending_debt == 0
+                {
+                    // We may remove the currency if the balance and pending debts are exactly
+                    // zero:
+                    tc_transaction
+                        .remove_local_currency(diff_currency.clone())
+                        .await?;
+                // TODO: Do We need to report outside that we removed this currency somehow?
+                // TODO: Somehow unite all code for removing local currencies.
+                } else {
+                    // We are not allowed to remove this currency!
+                    // TODO: Should be an error instead?
+                    return Err(SendMoveTokenError::CanNotRemoveCurrencyInUse);
+                }
+            } else {
+                tc_transaction
+                    .remove_remote_currency(diff_currency.clone())
+                    .await?;
+                // TODO: Do We need to report outside that we removed this currency somehow?
+            }
+        }
+    }
+
+    // TODO: Continue here:
     todo!();
+
+    // Update mutual credits:
+    for currency_operations in &currencies_operations {
+        for operation in currency_operations.operations {
+            let currency = currency_operations.currency.clone();
+            queue_operation(
+                tc_transaction.mc_transaction(currency.clone()),
+                operation,
+                &currency,
+                &local_public_key,
+            )
+            .await?;
+        }
+    }
+
+    let tc_in_borrow = token_channel.get_incoming().unwrap();
+
+    let mut balances: Vec<_> = tc_in_borrow
+        .mutual_credits
+        .iter()
+        .map(|(currency, mutual_credit)| CurrencyBalanceInfo {
+            currency: currency.clone(),
+            balance_info: BalanceInfo {
+                balance: mutual_credit.state().balance.balance,
+                local_pending_debt: mutual_credit.state().balance.local_pending_debt,
+                remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
+            },
+        })
+        .collect();
+
+    // Canonicalize balances:
+    balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
+
+    let tc_in_borrow = token_channel.get_incoming().unwrap();
+    let cur_token_info = &tc_in_borrow.tc_incoming.move_token_in.token_info;
+
+    let token_info = TokenInfo {
+        mc: McInfo {
+            local_public_key: cur_token_info.mc.remote_public_key.clone(),
+            remote_public_key: cur_token_info.mc.local_public_key.clone(),
+            balances,
+        },
+        counters: CountersInfo {
+            move_token_counter: cur_token_info.counters.move_token_counter.wrapping_add(1),
+            inconsistency_counter: cur_token_info.counters.inconsistency_counter,
+        },
+    };
+
+    let mut move_token = MoveToken {
+        old_token: move_token_in.new_token,
+        currencies_operations,
+        relays_diff,
+        currencies_diff,
+        info_hash,
+        // Still not known:
+        new_token: Signature::from(&[0; Signature::len()]),
+    };
+
+    // Fill in signature:
+    let signature_buff = move_token_signature_buff(move_token.clone());
+    move_token.new_token = identity_client
+        .request_signature(signature_buff)
+        .await
+        .unwrap();
+
+    Ok(move_token)
 }
 
 /*

@@ -259,6 +259,7 @@ pub struct MoveToken<B = NetAddress> {
     pub new_token: Signature,
 }
 
+/*
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UnsignedMoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
@@ -269,7 +270,9 @@ pub struct UnsignedMoveToken<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
 }
+*/
 
+/*
 impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
     fn into(self) -> UnsignedMoveToken<B> {
         UnsignedMoveToken {
@@ -281,6 +284,7 @@ impl<B> Into<UnsignedMoveToken<B>> for MoveToken<B> {
         }
     }
 }
+*/
 
 #[capnp_conv(crate::common_capnp::currency)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]

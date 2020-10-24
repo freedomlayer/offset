@@ -6,7 +6,7 @@ use common::int_convert::usize_to_u64;
 
 use proto::crypto::HashResult;
 use proto::funder::messages::{
-    Currency, PendingTransaction, TokenInfo, UnsignedMoveToken, UnsignedResponseSendFundsOp,
+    Currency, MoveToken, PendingTransaction, TokenInfo, UnsignedResponseSendFundsOp,
 };
 use proto::index_server::messages::MutationsUpdate;
 
@@ -113,12 +113,10 @@ where
 }
 */
 
-pub fn move_token_signature_buff<B, MT>(move_token: MT) -> Vec<u8>
+pub fn move_token_signature_buff<B>(move_token: &MoveToken<B>) -> Vec<u8>
 where
     B: CanonicalSerialize + Clone,
-    MT: Into<UnsignedMoveToken<B>>,
 {
-    let move_token: UnsignedMoveToken<B> = move_token.into();
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&hash_buffer(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token.old_token);
