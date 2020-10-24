@@ -26,7 +26,7 @@ use proto::funder::messages::{
     BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McBalance,
     MoveToken, PendingTransaction, TokenInfo,
 };
-use signature::signature_buff::hash_token_info;
+use signature::signature_buff::{hash_token_info, move_token_signature_buff};
 use signature::verify::verify_move_token;
 
 use database::interface::funder::CurrencyConfig;
@@ -225,6 +225,7 @@ pub struct SendMoveTokenOutput<B> {
 pub enum SendMoveTokenError {
     InvalidTokenChannelStatus,
     CanNotRemoveCurrencyInUse,
+    MoveTokenCounterOverflow,
     QueueOperationError(QueueOperationError),
     OpError(OpError),
 }
@@ -366,7 +367,7 @@ where
 // TODO: Should we move this function to offset-signature crate?
 async fn hash_mc_infos(
     mut mc_infos: impl Stream<Item = Result<(Currency, McBalance), OpError>> + Unpin,
-) -> Result<HashResult, ReceiveMoveTokenError> {
+) -> Result<HashResult, OpError> {
     let mut hasher = Hasher::new();
     // Last seen currency, used to verify sorted order:
     let mut opt_last_currency: Option<Currency> = None;
@@ -574,7 +575,12 @@ async fn handle_out_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
     relays_diff: Vec<RelayAddress<B>>,
     currencies_diff: Vec<Currency>,
-) -> Result<MoveToken<B>, SendMoveTokenError> {
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+) -> Result<MoveToken<B>, SendMoveTokenError>
+where
+    B: CanonicalSerialize + Clone,
+{
     // We expect that our current state is incoming:
     let move_token_in = match tc_transaction.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => move_token_in,
@@ -636,54 +642,31 @@ async fn handle_out_move_token<B>(
         }
     }
 
-    // TODO: Continue here:
-    todo!();
-
     // Update mutual credits:
     for currency_operations in &currencies_operations {
-        for operation in currency_operations.operations {
-            let currency = currency_operations.currency.clone();
+        for operation in currency_operations.operations.iter().cloned() {
             queue_operation(
-                tc_transaction.mc_transaction(currency.clone()),
+                tc_transaction.mc_transaction(currency_operations.currency.clone()),
                 operation,
-                &currency,
-                &local_public_key,
+                &currency_operations.currency,
+                local_public_key,
             )
             .await?;
         }
     }
 
-    let tc_in_borrow = token_channel.get_incoming().unwrap();
-
-    let mut balances: Vec<_> = tc_in_borrow
-        .mutual_credits
-        .iter()
-        .map(|(currency, mutual_credit)| CurrencyBalanceInfo {
-            currency: currency.clone(),
-            balance_info: BalanceInfo {
-                balance: mutual_credit.state().balance.balance,
-                local_pending_debt: mutual_credit.state().balance.local_pending_debt,
-                remote_pending_debt: mutual_credit.state().balance.remote_pending_debt,
-            },
-        })
-        .collect();
-
-    // Canonicalize balances:
-    balances.sort_by(|cbi1, cbi2| cbi1.currency.cmp(&cbi2.currency));
-
-    let tc_in_borrow = token_channel.get_incoming().unwrap();
-    let cur_token_info = &tc_in_borrow.tc_incoming.move_token_in.token_info;
+    let new_move_token_counter = tc_transaction
+        .get_move_token_counter()
+        .await?
+        .checked_add(1)
+        .ok_or(SendMoveTokenError::MoveTokenCounterOverflow)?;
+    let mc_infos = tc_transaction.list_mutual_credits();
 
     let token_info = TokenInfo {
-        mc: McInfo {
-            local_public_key: cur_token_info.mc.remote_public_key.clone(),
-            remote_public_key: cur_token_info.mc.local_public_key.clone(),
-            balances,
-        },
-        counters: CountersInfo {
-            move_token_counter: cur_token_info.counters.move_token_counter.wrapping_add(1),
-            inconsistency_counter: cur_token_info.counters.inconsistency_counter,
-        },
+        local_public_key: local_public_key.clone(),
+        remote_public_key: remote_public_key.clone(),
+        balances_hash: hash_mc_infos(mc_infos).await?,
+        move_token_counter: new_move_token_counter,
     };
 
     let mut move_token = MoveToken {
@@ -691,17 +674,25 @@ async fn handle_out_move_token<B>(
         currencies_operations,
         relays_diff,
         currencies_diff,
-        info_hash,
+        info_hash: hash_token_info(&token_info),
         // Still not known:
         new_token: Signature::from(&[0; Signature::len()]),
     };
 
     // Fill in signature:
-    let signature_buff = move_token_signature_buff(move_token.clone());
+    let signature_buff = move_token_signature_buff(&move_token);
     move_token.new_token = identity_client
         .request_signature(signature_buff)
         .await
         .unwrap();
+
+    // TODO: We need to be able to remember the last incoming move token.
+    // How to store this data inside the database? How to save it here?
+
+    // Set the direction to be outgoing:
+    tc_transaction
+        .set_direction_outgoing(move_token.clone())
+        .await?;
 
     Ok(move_token)
 }
