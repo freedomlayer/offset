@@ -1,10 +1,10 @@
 use byteorder::{BigEndian, WriteBytesExt};
 
-use crypto::hash::{self, hash_buffer};
+use crypto::hash;
 
 use common::int_convert::usize_to_u64;
 
-use proto::crypto::HashResult;
+use proto::crypto::{HashResult, PublicKey};
 use proto::funder::messages::{
     Currency, MoveToken, PendingTransaction, TokenInfo, UnsignedResponseSendFundsOp,
 };
@@ -90,8 +90,22 @@ where
 }
 */
 
-pub fn hash_token_info(token_info: &TokenInfo) -> HashResult {
-    hash_buffer(&token_info.canonical_serialize())
+pub fn hash_token_info(
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+    token_info: &TokenInfo,
+) -> HashResult {
+    let mut move_token_counter_buff = Vec::new();
+    move_token_counter_buff
+        .write_u128::<BigEndian>(token_info.move_token_counter)
+        .unwrap();
+
+    hash::Hasher::new()
+        .chain(&local_public_key)
+        .chain(&remote_public_key)
+        .chain(&token_info.balances_hash)
+        .chain(&move_token_counter_buff)
+        .finalize()
 }
 
 /*
@@ -118,7 +132,7 @@ where
     B: CanonicalSerialize + Clone,
 {
     let mut sig_buffer = Vec::new();
-    sig_buffer.extend_from_slice(&hash_buffer(TOKEN_NEXT));
+    sig_buffer.extend_from_slice(&hash::hash_buffer(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token.old_token);
     sig_buffer.extend_from_slice(&move_token.info_hash);
     sig_buffer

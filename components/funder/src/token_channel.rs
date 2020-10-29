@@ -23,8 +23,7 @@ use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    BalanceInfo, CountersInfo, Currency, CurrencyBalanceInfo, CurrencyOperations, McBalance,
-    MoveToken, PendingTransaction, TokenInfo,
+    Currency, CurrencyOperations, McBalance, MoveToken, PendingTransaction, TokenInfo,
 };
 use signature::signature_buff::{hash_token_info, move_token_signature_buff};
 use signature::verify::verify_move_token;
@@ -35,7 +34,7 @@ use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
-use crate::mutual_credit::types::{McOp, McTransaction};
+use crate::mutual_credit::types::McTransaction;
 
 use crate::types::{create_hashed, MoveTokenHashed};
 
@@ -254,6 +253,7 @@ fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
     RandValue::try_from(&public_key_hash.as_ref()[..RandValue::len()]).unwrap()
 }
 
+/*
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
@@ -263,8 +263,6 @@ fn initial_move_token<B>(
 ) -> (MoveToken<B>, TokenInfo) {
     let token_info = TokenInfo {
         mc: McInfo {
-            local_public_key: low_public_key.clone(),
-            remote_public_key: high_public_key.clone(),
             balances: Vec::new(),
         },
         counters: CountersInfo {
@@ -289,6 +287,7 @@ fn initial_move_token<B>(
 
     (move_token, token_info)
 }
+*/
 
 async fn handle_in_move_token<B>(
     tc_transaction: &mut impl TcTransaction<B>,
@@ -518,8 +517,6 @@ where
     let mc_infos = tc_transaction.list_mutual_credits();
 
     let token_info = TokenInfo {
-        local_public_key: remote_public_key.clone(),
-        remote_public_key: local_public_key.clone(),
         balances_hash: hash_mc_infos(
             mc_infos.map_ok(|(currency, mc_balance)| (currency, mc_balance.flip())),
         )
@@ -527,7 +524,7 @@ where
         move_token_counter: new_move_token_counter,
     };
 
-    let info_hash = hash_token_info(&token_info);
+    let info_hash = hash_token_info(remote_public_key, local_public_key, &token_info);
 
     if new_move_token.info_hash != info_hash {
         return Err(ReceiveMoveTokenError::InvalidTokenInfo);
@@ -589,6 +586,7 @@ where
         TcStatus::ConsistentOut(_move_token_out, _move_token_in) => {
             return Err(SendMoveTokenError::InvalidTokenChannelStatus)
         }
+        TcStatus::Inconsistent => return Err(SendMoveTokenError::InvalidTokenChannelStatus),
     };
 
     // Handle currencies_diff:
@@ -665,8 +663,6 @@ where
     let mc_infos = tc_transaction.list_mutual_credits();
 
     let token_info = TokenInfo {
-        local_public_key: local_public_key.clone(),
-        remote_public_key: remote_public_key.clone(),
         balances_hash: hash_mc_infos(mc_infos).await?,
         move_token_counter: new_move_token_counter,
     };
@@ -676,7 +672,7 @@ where
         currencies_operations,
         relays_diff,
         currencies_diff,
-        info_hash: hash_token_info(&token_info),
+        info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
         // Still not known:
         new_token: Signature::from(&[0; Signature::len()]),
     };

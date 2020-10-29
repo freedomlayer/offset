@@ -227,8 +227,6 @@ impl McBalance {
 /// A hash of this structure is included inside MoveToken.
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
-    pub local_public_key: PublicKey,
-    pub remote_public_key: PublicKey,
     /// Hash of a sorted list of all the balances
     pub balances_hash: HashResult,
     // pub balances: HashMap<Currency, MutualCreditInfo>,
