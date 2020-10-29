@@ -71,22 +71,6 @@ pub trait TcTransaction<B> {
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
     fn set_direction_outgoing(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
 
-    /// Set last incoming move token (Only relevant when the current state is outgoing)
-    fn set_last_incoming(
-        &mut self,
-        old_token: Signature,
-        move_token_counter: u128,
-        new_token: Signature,
-    ) -> AsyncOpResult<()>;
-
-    /// Set last known balance during an incoming move token (Only relevant when the current state
-    /// is outgoing)
-    fn set_last_incoming_balance(
-        &mut self,
-        currency: Currency,
-        mc_balance: McBalance,
-    ) -> AsyncOpResult<()>;
-
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
@@ -697,34 +681,9 @@ where
         .await
         .unwrap();
 
-    // TODO: We need to be able to remember the last incoming move token.
-    // How to store this data inside the database? How to save it here?
-
-    tc_transaction
-        .set_last_incoming(
-            move_token_in.old_token,
-            move_token_in.token_info.move_token_counter,
-            move_token_in.new_token,
-        )
-        .await?;
-
-    // Remember the balances for the last incoming move token:
-    let mutual_credits_list = tc_transaction.list_mutual_credits();
-    for elem in mutual_credits_list.next().await {
-        let (currency, mc_balance) = elem?;
-        todo!();
-    }
-    todo!();
-
-    // TODO: Issue to think about: How to make sure we can store the last incoming balances without
-    // loading all of them into memory? Do we need to make a modification to how the db works,
-    // perhaps?
-
-    tc_transaction
-        .set_last_incoming_balance(currency, mc_balance)
-        .await?;
-
     // Set the direction to be outgoing:
+    // TODO: This should also save the last incoming move token, in an atomic way.
+    // Should probably be implemented inside the database code.
     tc_transaction
         .set_direction_outgoing(move_token.clone())
         .await?;
