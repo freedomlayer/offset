@@ -217,9 +217,12 @@ pub enum InitTokenChannelError {
     InvalidResetMoveToken,
     InvalidTokenInfo,
     InvalidSignature,
+    InvalidResetToken,
     OpError(OpError),
 }
 
+// TODO: How to handle errors here?
+// Some errors might not be recoverable
 /// Create a new token channel, and determines the initial state for the local side.
 /// The initial state is determined according to the order between the two provided public keys.
 /// Note that this function does not affect the database, it only returns a new state for the token
@@ -256,6 +259,9 @@ where
     )
 }
 
+// TODO: How to handle errors here?
+// Some errors might not be recoverable
+// TODO: Should we check the signature ourselves, or the user of this function should?
 /// Remote side has accepted our reset proposal
 /// Adjust token channel accordingly.
 pub async fn init_token_channel_from_remote_reset<B>(
@@ -267,12 +273,12 @@ pub async fn init_token_channel_from_remote_reset<B>(
 where
     B: Clone + CanonicalSerialize,
 {
-    // TODO: Should we verify the signature here?
     // Verify signature:
     if !verify_move_token(&reset_move_token, &remote_public_key) {
         return Err(InitTokenChannelError::InvalidSignature);
     }
 
+    // TODO: Maybe we can allow reset token messages that are not empty?
     // Make sure that the MoveToken message is empty:
     if !reset_move_token.relays_diff.is_empty()
         || !reset_move_token.currencies_diff.is_empty()
@@ -294,6 +300,10 @@ where
             (local_reset_token, local_reset_move_token_counter)
         }
     };
+
+    if local_reset_token != reset_move_token.old_token {
+        return Err(InitTokenChannelError::InvalidResetToken);
+    }
 
     // Calculate `info_hash` as seen by the remote side.
     // Create what we expect to be TokenInfo (From the point of view of remote side):
