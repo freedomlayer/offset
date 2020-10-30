@@ -364,7 +364,8 @@ pub struct CurrencyBalance {
 pub struct ResetTerms {
     #[serde(with = "ser_b64")]
     pub reset_token: Signature,
-    pub inconsistency_counter: u64,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub move_token_counter: u128,
     pub balance_for_reset: Vec<CurrencyBalance>,
 }
 

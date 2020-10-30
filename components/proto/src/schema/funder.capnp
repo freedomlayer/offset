@@ -61,7 +61,9 @@ struct CurrencyBalance {
 
 struct ResetTerms {
         resetToken @0: Signature;
-        inconsistencyCounter @1: UInt64;
+        moveTokenCounter @1: CustomUInt128;
+        # Newly proposed moveTokenCounter. Must be larger than both side's
+        # previous moveTokenCounter.
         balanceForReset @2: List(CurrencyBalance);
         # List of expected balance for each currency
 }

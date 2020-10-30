@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::convert::TryFrom;
+use std::iter::IntoIterator;
 
 use derive_more::From;
 
@@ -48,7 +49,7 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 pub enum TcStatus<B> {
     ConsistentIn(MoveTokenHashed),
     ConsistentOut(MoveToken<B>, MoveTokenHashed),
-    Inconsistent,
+    Inconsistent(Signature, u128), // (local_reset_token, local_reset_move_token_counter)
 }
 
 pub trait TcTransaction<B> {
@@ -58,14 +59,22 @@ pub trait TcTransaction<B> {
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
     fn set_direction_outgoing(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
+    fn set_direction_outgoing_empty_incoming(
+        &mut self,
+        move_token: MoveToken<B>,
+    ) -> AsyncOpResult<()>;
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
     fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
 
-    /// Return a sorted async iterator of all mutual credits
-    fn list_mutual_credits(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+    /// Return a sorted async iterator of all balances
+    fn list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+
+    /// Return a sorted async iterator of all local reset proposal balances
+    /// Only relevant for inconsistent channels
+    fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
@@ -202,36 +211,119 @@ fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey
     move_token_out
 }
 
-/// A new token channel status, as seen by the local side
-pub enum NewTokenChannel<B> {
-    Incoming(MoveTokenHashed),
-    Outgoing(MoveToken<B>),
+#[derive(Debug, From)]
+pub enum InitTokenChannelError {
+    InvalidTokenChannelStatus,
+    InvalidResetMoveToken,
+    InvalidTokenInfo,
+    InvalidSignature,
+    OpError(OpError),
 }
 
 /// Create a new token channel, and determines the initial state for the local side.
 /// The initial state is determined according to the order between the two provided public keys.
 /// Note that this function does not affect the database, it only returns a new state for the token
 /// channel.
-pub async fn create_token_channel<B>(
+pub async fn init_token_channel<B>(
+    tc_transaction: &mut impl TcTransaction<B>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> NewTokenChannel<B>
+) -> Result<(), InitTokenChannelError>
 where
     B: CanonicalSerialize + Clone,
 {
-    if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
-        // We are the first sender
-        NewTokenChannel::Outgoing(initial_move_token(local_public_key, remote_public_key))
-    } else {
-        // We are the second sender
-        let move_token_in = initial_move_token(remote_public_key, local_public_key);
-        let token_info = TokenInfo {
-            // No balances yet:
-            balances_hash: hash_buffer(&[]),
-            move_token_counter: 0,
-        };
-        NewTokenChannel::Incoming(create_hashed::<B>(&move_token_in, &token_info))
+    Ok(
+        if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
+            // We are the first sender
+            tc_transaction
+                .set_direction_outgoing_empty_incoming(initial_move_token(
+                    local_public_key,
+                    remote_public_key,
+                ))
+                .await?
+        } else {
+            // We are the second sender
+            let move_token_in = initial_move_token(remote_public_key, local_public_key);
+            let token_info = TokenInfo {
+                // No balances yet:
+                balances_hash: hash_buffer(&[]),
+                move_token_counter: 0,
+            };
+            tc_transaction
+                .set_direction_incoming(create_hashed::<B>(&move_token_in, &token_info))
+                .await?
+        },
+    )
+}
+
+/// Remote side has accepted our reset proposal
+/// Adjust token channel accordingly.
+pub async fn init_token_channel_from_remote_reset<B>(
+    tc_transaction: &mut impl TcTransaction<B>,
+    reset_move_token: &MoveToken<B>,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+) -> Result<(), InitTokenChannelError>
+where
+    B: Clone + CanonicalSerialize,
+{
+    // TODO: Should we verify the signature here?
+    // Verify signature:
+    if !verify_move_token(&reset_move_token, &remote_public_key) {
+        return Err(InitTokenChannelError::InvalidSignature);
     }
+
+    // Make sure that the MoveToken message is empty:
+    if !reset_move_token.relays_diff.is_empty()
+        || !reset_move_token.currencies_diff.is_empty()
+        || !reset_move_token.currencies_operations.is_empty()
+    {
+        return Err(InitTokenChannelError::InvalidResetMoveToken);
+    }
+
+    let (local_reset_token, local_reset_move_token_counter) = match tc_transaction
+        .get_tc_status()
+        .await?
+    {
+        TcStatus::ConsistentIn(_) => return Err(InitTokenChannelError::InvalidTokenChannelStatus),
+
+        TcStatus::ConsistentOut(_, _) => {
+            return Err(InitTokenChannelError::InvalidTokenChannelStatus)
+        }
+        TcStatus::Inconsistent(local_reset_token, local_reset_move_token_counter) => {
+            (local_reset_token, local_reset_move_token_counter)
+        }
+    };
+
+    // Calculate `info_hash` as seen by the remote side.
+    // Create what we expect to be TokenInfo (From the point of view of remote side):
+    let mc_balances = tc_transaction.list_local_reset_balances();
+
+    let token_info = TokenInfo {
+        balances_hash: hash_mc_infos(
+            mc_balances.map_ok(|(currency, mc_balance)| (currency, mc_balance.flip())),
+        )
+        .await?,
+        move_token_counter: local_reset_move_token_counter,
+    };
+
+    let info_hash = hash_token_info(remote_public_key, local_public_key, &token_info);
+    if reset_move_token.info_hash != info_hash {
+        return Err(InitTokenChannelError::InvalidTokenInfo);
+    }
+
+    // Update move_token_counter:
+    tc_transaction
+        .set_move_token_counter(local_reset_move_token_counter)
+        .await?;
+
+    // Set direction to outgoing, with the newly received move token:
+    let new_move_token_hashed = create_hashed(&reset_move_token, &token_info);
+    tc_transaction
+        .set_direction_incoming(new_move_token_hashed)
+        .await?;
+
+    Ok(())
 }
 
 async fn handle_in_move_token<B>(
@@ -257,7 +349,9 @@ where
             )
             .await
         }
-        TcStatus::Inconsistent => unreachable!(),
+        TcStatus::Inconsistent(_local_reset_token, _local_reset_move_token_counter) => {
+            unreachable!()
+        }
     }
 }
 
@@ -459,11 +553,11 @@ where
 
     // Calculate `info_hash` as seen by the remote side.
     // Create what we expect to be TokenInfo (From the point of view of remote side):
-    let mc_infos = tc_transaction.list_mutual_credits();
+    let mc_balances = tc_transaction.list_balances();
 
     let token_info = TokenInfo {
         balances_hash: hash_mc_infos(
-            mc_infos.map_ok(|(currency, mc_balance)| (currency, mc_balance.flip())),
+            mc_balances.map_ok(|(currency, mc_balance)| (currency, mc_balance.flip())),
         )
         .await?,
         move_token_counter: new_move_token_counter,
@@ -481,8 +575,9 @@ where
         .await?;
 
     // Set direction to outgoing, with the newly received move token:
+    let new_move_token_hashed = create_hashed(&new_move_token, &token_info);
     tc_transaction
-        .set_direction_outgoing(new_move_token)
+        .set_direction_incoming(new_move_token_hashed)
         .await?;
 
     Ok(move_token_received)
@@ -506,7 +601,9 @@ where
         TcStatus::ConsistentOut(_move_token_out, _move_token_in) => {
             return Err(SendMoveTokenError::InvalidTokenChannelStatus)
         }
-        TcStatus::Inconsistent => return Err(SendMoveTokenError::InvalidTokenChannelStatus),
+        TcStatus::Inconsistent(_local_reset_token, _local_reset_move_token_counter) => {
+            return Err(SendMoveTokenError::InvalidTokenChannelStatus)
+        }
     };
 
     // Handle currencies_diff:
@@ -580,10 +677,10 @@ where
         .await?
         .checked_add(1)
         .ok_or(SendMoveTokenError::MoveTokenCounterOverflow)?;
-    let mc_infos = tc_transaction.list_mutual_credits();
+    let mc_balances = tc_transaction.list_balances();
 
     let token_info = TokenInfo {
-        balances_hash: hash_mc_infos(mc_infos).await?,
+        balances_hash: hash_mc_infos(mc_balances).await?,
         move_token_counter: new_move_token_counter,
     };
 
