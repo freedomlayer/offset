@@ -120,7 +120,7 @@ pub enum ReceiveMoveTokenError {
     InvalidCurrency,
     InvalidAddActiveCurrencies,
     CanNotRemoveCurrencyInUse,
-    InvalidState,
+    InvalidTokenChannelStatus,
     OpError(OpError),
 }
 
@@ -350,7 +350,7 @@ where
             .await
         }
         TcStatus::Inconsistent(_local_reset_token, _local_reset_move_token_counter) => {
-            unreachable!()
+            return Err(ReceiveMoveTokenError::InvalidTokenChannelStatus);
         }
     }
 }
