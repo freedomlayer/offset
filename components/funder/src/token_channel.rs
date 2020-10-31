@@ -482,6 +482,7 @@ async fn hash_mc_infos(
     Ok(hasher.finalize())
 }
 
+#[derive(Debug)]
 enum InvalidIncoming {
     InvalidSignature,
     InvalidOperation,
@@ -489,6 +490,7 @@ enum InvalidIncoming {
     CanNotRemoveCurrencyInUse,
 }
 
+#[derive(Debug)]
 enum IncomingTokenMatchOutput<B> {
     MoveTokenReceived(MoveTokenReceived<B>),
     InvalidIncoming(InvalidIncoming),
