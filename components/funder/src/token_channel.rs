@@ -68,6 +68,12 @@ pub trait TcTransaction<B> {
         local_reset_move_token_counter: u128,
     ) -> AsyncOpResult<()>;
 
+    /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
+    fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
+
+    /// Simulate incoming token, to be used before an outgoing reset move token (a local reset)
+    fn set_incoming_from_inconsistent(&mut self) -> AsyncOpResult<()>;
+
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
@@ -327,8 +333,56 @@ where
             // Might be a reset move token
             if new_move_token.old_token == local_reset_token {
                 // This is a reset move token!
-                // TODO: Implement handler for reset token here:
-                todo!();
+                let token_info = TokenInfo {
+                    balances_hash: hash_mc_infos(tc_transaction.list_local_reset_balances())
+                        .await?,
+                    move_token_counter: local_reset_move_token_counter
+                        .checked_sub(1)
+                        .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
+                };
+
+                let move_token_out = MoveToken {
+                    old_token: Signature::from(&[0; Signature::len()]),
+                    currencies_operations: Vec::new(),
+                    relays_diff: Vec::new(),
+                    currencies_diff: Vec::new(),
+                    info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
+                    new_token: local_reset_token.clone(),
+                };
+
+                tc_transaction
+                    .set_outgoing_from_inconsistent(move_token_out.clone())
+                    .await?;
+
+                let output = handle_incoming_token_match(
+                    tc_transaction,
+                    move_token_out,
+                    new_move_token,
+                    local_public_key,
+                    remote_public_key,
+                )
+                .await?;
+
+                match output {
+                    IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
+                        Ok(ReceiveMoveTokenOutput::Received(move_token_received))
+                    }
+                    IncomingTokenMatchOutput::InvalidIncoming(_) => {
+                        // TODO: This is wrong, because the balances might have already been
+                        // modified. How to make the previous changes atomic/revertible?
+                        todo!();
+                        tc_transaction
+                            .set_inconsistent(
+                                local_reset_token.clone(),
+                                local_reset_move_token_counter,
+                            )
+                            .await?;
+                        Ok(ReceiveMoveTokenOutput::ChainInconsistent(
+                            local_reset_token,
+                            local_reset_move_token_counter,
+                        ))
+                    }
+                }
             } else {
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(
                     local_reset_token,
@@ -434,6 +488,9 @@ where
                 return Ok(ReceiveMoveTokenOutput::Received(move_token_received))
             }
             IncomingTokenMatchOutput::InvalidIncoming(_) => {
+                // TODO: This is probably wrong, because we might have already changed some
+                // balances.
+                todo!();
                 // Inconsistency
                 let (local_reset_token, local_reset_move_token_counter) =
                     set_inconsistent(tc_transaction, identity_client).await?;
