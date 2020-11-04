@@ -12,7 +12,7 @@ use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
 };
 
-use crate::mutual_credit::tests::utils::MutualCredit;
+use crate::mutual_credit::tests::utils::MockMutualCredit;
 use crate::mutual_credit::types::McClient;
 
 use crate::mutual_credit::incoming::process_operations_list;
@@ -30,7 +30,7 @@ async fn task_request_cancel_send_funds() {
     let remote_public_key = public_key_b.clone();
     let balance = 0;
 
-    let mut mc_transaction = MutualCredit::new(&currency, balance);
+    let mut mc_transaction = MockMutualCredit::new(&currency, balance);
 
     // -----[RequestSendFunds]--------
     // -----------------------------

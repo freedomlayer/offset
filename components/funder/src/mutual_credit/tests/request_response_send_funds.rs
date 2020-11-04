@@ -13,7 +13,7 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::tests::utils::MutualCredit;
+use crate::mutual_credit::tests::utils::MockMutualCredit;
 use crate::mutual_credit::types::McClient;
 use crate::types::create_pending_transaction;
 
@@ -27,7 +27,7 @@ async fn task_request_response_send_funds() {
     let remote_public_key = PublicKey::from(&[0xbb; PublicKey::len()]);
     let balance = 0;
 
-    let mut mc_transaction = MutualCredit::new(&currency, balance);
+    let mut mc_transaction = MockMutualCredit::new(&currency, balance);
 
     // -----[RequestSendFunds]--------
     // -----------------------------

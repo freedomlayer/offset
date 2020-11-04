@@ -21,8 +21,8 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
 pub enum TcStatus<B> {
-    ConsistentIn(MoveTokenHashed),                // (move_token_in)
-    ConsistentOut(MoveToken<B>, MoveTokenHashed), // (move_token_out, last_move_token_in)
+    ConsistentIn(MoveTokenHashed),                        // (move_token_in)
+    ConsistentOut(MoveToken<B>, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
     Inconsistent(Signature, u128, Option<(Signature, u128)>),
     // (local_reset_token, local_reset_move_token_counter, Option<(remote_reset_token, remote_reset_move_token_counter)>)
 }

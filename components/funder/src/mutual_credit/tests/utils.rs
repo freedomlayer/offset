@@ -27,7 +27,7 @@ impl McPendingTransactions {
 }
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct MutualCredit {
+pub struct MockMutualCredit {
     /// Currency in use (How much is one credit worth?)
     pub currency: Currency,
     /// Current credit balance with respect to remote side
@@ -36,13 +36,13 @@ pub struct MutualCredit {
     pub pending_transactions: McPendingTransactions,
 }
 
-impl MutualCredit {
+impl MockMutualCredit {
     pub fn new(
         // TODO: Should we move instead of take a reference here?
         currency: &Currency,
         balance: i128,
-    ) -> MutualCredit {
-        MutualCredit {
+    ) -> MockMutualCredit {
+        MockMutualCredit {
             currency: currency.clone(),
             balance: McBalance::new(balance),
             pending_transactions: McPendingTransactions::new(),
@@ -50,7 +50,7 @@ impl MutualCredit {
     }
 }
 
-impl McClient for MutualCredit {
+impl McClient for MockMutualCredit {
     fn get_balance(&mut self) -> BoxFuture<'static, Result<McBalance, OpError>> {
         let mc_balance = self.balance.clone();
         Box::pin(async move { Ok(mc_balance) })
