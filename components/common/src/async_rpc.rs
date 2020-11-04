@@ -7,8 +7,8 @@ pub enum OpError {
     ResponseOpFailed(oneshot::Canceled),
 }
 
-pub type AsyncOpResult<T> = BoxFuture<'static, Result<T, OpError>>;
-pub type AsyncOpStream<T> = BoxStream<'static, Result<T, OpError>>;
+pub type AsyncOpResult<'a, T> = BoxFuture<'a, Result<T, OpError>>;
+pub type AsyncOpStream<'a, T> = BoxStream<'a, Result<T, OpError>>;
 
 /*
 macro_rules! ops_enum_func {
