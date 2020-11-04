@@ -836,7 +836,9 @@ where
             return Err(TokenChannelError::InvalidTokenChannelStatus)
         }
         TcStatus::Inconsistent(_local_reset_token, _local_reset_move_token_counter) => {
-            return Err(TokenChannelError::InvalidTokenChannelStatus)
+            // TODO: Possibly add here some code for outgoing move token handling
+            todo!();
+            return Err(TokenChannelError::InvalidTokenChannelStatus);
         }
     };
 
