@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use futures::future;
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 
@@ -36,6 +38,8 @@ pub enum MockTcDirection<B> {
 pub struct TcConsistent<B> {
     mutual_credits: HashMap<Currency, MockMutualCredit>,
     direction: MockTcDirection<B>,
+    local_currencies: HashSet<Currency>,
+    remote_currencies: HashSet<Currency>,
 }
 
 #[derive(Debug)]
@@ -65,47 +69,68 @@ where
     }
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>> {
-        Box::pin(async move {
-            Ok(match &self.status {
-                MockTcStatus::Consistent(tc_consistent) => match &tc_consistent.direction {
-                    MockTcDirection::In(move_token_in) => {
-                        TcStatus::ConsistentIn(move_token_in.clone())
-                    }
-                    MockTcDirection::Out(move_token_out, opt_move_token_in) => {
-                        TcStatus::ConsistentOut(move_token_out.clone(), opt_move_token_in.clone())
-                    }
-                },
-                MockTcStatus::Inconsistent(local_reset_terms, opt_remote_reset_terms) => {
-                    TcStatus::Inconsistent(
-                        local_reset_terms.reset_token.clone(),
-                        local_reset_terms.reset_move_token_counter,
-                        opt_remote_reset_terms.as_ref().map(|remote_reset_terms| {
-                            (
-                                remote_reset_terms.reset_token.clone(),
-                                remote_reset_terms.reset_move_token_counter.clone(),
-                            )
-                        }),
-                    )
+        let res = Ok(match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => match &tc_consistent.direction {
+                MockTcDirection::In(move_token_in) => TcStatus::ConsistentIn(move_token_in.clone()),
+                MockTcDirection::Out(move_token_out, opt_move_token_in) => {
+                    TcStatus::ConsistentOut(move_token_out.clone(), opt_move_token_in.clone())
                 }
-            })
-        })
+            },
+            MockTcStatus::Inconsistent(local_reset_terms, opt_remote_reset_terms) => {
+                TcStatus::Inconsistent(
+                    local_reset_terms.reset_token.clone(),
+                    local_reset_terms.reset_move_token_counter,
+                    opt_remote_reset_terms.as_ref().map(|remote_reset_terms| {
+                        (
+                            remote_reset_terms.reset_token.clone(),
+                            remote_reset_terms.reset_move_token_counter.clone(),
+                        )
+                    }),
+                )
+            }
+        });
+        Box::pin(future::ready(res))
     }
 
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()> {
-        todo!();
+        let tc_consistent = match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent,
+            _ => unreachable!(),
+        };
+
+        tc_consistent.direction = MockTcDirection::In(move_token_hashed);
+        Box::pin(future::ready(Ok(())))
     }
 
     fn set_direction_outgoing(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()> {
-        todo!();
+        let tc_consistent = match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent,
+            _ => unreachable!(),
+        };
+
+        let last_move_token_in = match &tc_consistent.direction {
+            MockTcDirection::In(move_token_in) => move_token_in.clone(),
+            _ => unreachable!(),
+        };
+
+        tc_consistent.direction = MockTcDirection::Out(move_token, Some(last_move_token_in));
+        Box::pin(future::ready(Ok(())))
     }
 
     fn set_direction_outgoing_empty_incoming(
         &mut self,
         move_token: MoveToken<B>,
     ) -> AsyncOpResult<()> {
-        todo!();
+        let tc_consistent = match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent,
+            _ => unreachable!(),
+        };
+
+        tc_consistent.direction = MockTcDirection::Out(move_token, None);
+        Box::pin(future::ready(Ok(())))
     }
 
+    // TODO: How do remote side sets reset terms?
     fn set_inconsistent(
         &mut self,
         local_reset_token: Signature,
