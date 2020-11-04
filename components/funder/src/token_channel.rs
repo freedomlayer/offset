@@ -75,7 +75,10 @@ pub trait TcClient<B> {
     fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
 
     /// Simulate incoming token, to be used before an outgoing reset move token (a local reset)
-    fn set_incoming_from_inconsistent(&mut self) -> AsyncOpResult<()>;
+    fn set_incoming_from_inconsistent(
+        &mut self,
+        move_token_hashed: MoveTokenHashed,
+    ) -> AsyncOpResult<()>;
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
@@ -88,6 +91,10 @@ pub trait TcClient<B> {
     /// Return a sorted async iterator of all local reset proposal balances
     /// Only relevant for inconsistent channels
     fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+
+    /// Return a sorted async iterator of all remote reset proposal balances
+    /// Only relevant for inconsistent channels
+    fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
@@ -172,7 +179,7 @@ fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey
     // We do this because we want to have synchronization between the two sides of the token
     // channel, however, the remote side has no means of generating the signature (Because he
     // doesn't have the private key). Therefore we use a dummy new_token instead.
-    let move_token_out = MoveToken {
+    let move_token_out = MoveToken::<B> {
         old_token: token_from_public_key(&low_public_key),
         currencies_operations: Vec::new(),
         relays_diff: Vec::new(),
@@ -260,6 +267,8 @@ where
             // Might be a reset move token
             if new_move_token.old_token == local_reset_token {
                 // This is a reset move token!
+
+                // Simulate an outgoing move token with the correct `new_token`:
                 let token_info = TokenInfo {
                     balances_hash: hash_mc_infos(tc_client.list_local_reset_balances()).await?,
                     move_token_counter: local_reset_move_token_counter
@@ -281,7 +290,6 @@ where
                     .transaction(|tc_client| {
                         Box::pin(async move {
                             let output = async move {
-                                // Simulate an outgoing move token with the correct `old_token`:
                                 tc_client
                                     .set_outgoing_from_inconsistent(move_token_out.clone())
                                     .await?;
@@ -722,8 +730,6 @@ where
             _local_reset_move_token_counter,
             _opt_remote,
         ) => {
-            // TODO: Possibly add here some code for outgoing move token handling
-            todo!();
             return Err(TokenChannelError::InvalidTokenChannelStatus);
         }
     };
@@ -821,7 +827,72 @@ where
     Ok(move_token)
 }
 
-// TODO: Implement: new_from_local_reset, new_from_remote_reset.
+/// Apply a token channel reset, accepting remote side's
+/// reset terms.
+pub async fn accept_remote_reset<B>(
+    tc_client: &mut impl TcClient<B>,
+    identity_client: &mut IdentityClient,
+    currencies_operations: Vec<CurrencyOperations>,
+    relays_diff: Vec<RelayAddress<B>>,
+    currencies_diff: Vec<Currency>,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+) -> Result<MoveToken<B>, TokenChannelError>
+where
+    B: CanonicalSerialize + Clone,
+{
+    // Make sure that we are in inconsistent state,
+    // and that the remote side has already sent his reset terms:
+    let (remote_reset_token, remote_reset_move_token_counter) = match tc_client
+        .get_tc_status()
+        .await?
+    {
+        TcStatus::ConsistentIn(_) => return Err(TokenChannelError::InvalidTokenChannelStatus),
+        TcStatus::ConsistentOut(_, _) => return Err(TokenChannelError::InvalidTokenChannelStatus),
+        TcStatus::Inconsistent(_, _, None) => {
+            // We don't have the remote side's reset terms yet:
+            return Err(TokenChannelError::InvalidTokenChannelStatus);
+        }
+        TcStatus::Inconsistent(
+            _local_reset_token,
+            _local_reset_move_token_counter,
+            Some((remote_reset_token, remote_reset_move_token_counter)),
+        ) => (remote_reset_token, remote_reset_move_token_counter),
+    };
+
+    // Simulate an incoming move token with the correct `new_token`:
+    let token_info = TokenInfo {
+        balances_hash: hash_mc_infos(tc_client.list_remote_reset_balances()).await?,
+        move_token_counter: remote_reset_move_token_counter
+            .checked_sub(1)
+            .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
+    };
+
+    let move_token_in = MoveToken::<B> {
+        old_token: Signature::from(&[0; Signature::len()]),
+        currencies_operations: Vec::new(),
+        relays_diff: Vec::new(),
+        currencies_diff: Vec::new(),
+        info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
+        new_token: remote_reset_token.clone(),
+    };
+
+    tc_client
+        .set_incoming_from_inconsistent(create_hashed(&move_token_in, &token_info))
+        .await?;
+
+    // Create an outgoing move token, to be sent to the remote side:
+    handle_out_move_token(
+        tc_client,
+        identity_client,
+        currencies_operations,
+        relays_diff,
+        currencies_diff,
+        local_public_key,
+        remote_public_key,
+    )
+    .await
+}
 
 /*
 impl<B> TokenChannel<B>
