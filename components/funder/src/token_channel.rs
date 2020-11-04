@@ -26,12 +26,13 @@ use signature::signature_buff::{hash_token_info, move_token_signature_buff};
 use signature::verify::verify_move_token;
 
 use database::interface::funder::CurrencyConfig;
+use database::transaction::Transaction;
 
 use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
-use crate::mutual_credit::types::McTransaction;
+use crate::mutual_credit::types::McClient;
 
 use crate::types::{create_hashed, MoveTokenHashed};
 
@@ -51,9 +52,9 @@ pub enum TcStatus<B> {
     Inconsistent(Signature, u128), // (local_reset_token, local_reset_move_token_counter)
 }
 
-pub trait TcTransaction<B> {
-    type McTransaction: McTransaction;
-    fn mc_transaction(&mut self, currency: Currency) -> &mut Self::McTransaction;
+pub trait TcClient<B> {
+    type McClient: McClient;
+    fn mc_client(&mut self, currency: Currency) -> &mut Self::McClient;
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
@@ -188,7 +189,7 @@ fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey
 /// Note that this function does not affect the database, it only returns a new state for the token
 /// channel.
 pub async fn init_token_channel<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcClient<B>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<(), TokenChannelError>
@@ -198,7 +199,7 @@ where
     Ok(
         if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
             // We are the first sender
-            tc_transaction
+            tc_client
                 .set_direction_outgoing_empty_incoming(initial_move_token(
                     local_public_key,
                     remote_public_key,
@@ -212,7 +213,7 @@ where
                 balances_hash: hash_buffer(&[]),
                 move_token_counter: 0,
             };
-            tc_transaction
+            tc_client
                 .set_direction_incoming(create_hashed::<B>(&move_token_in, &token_info))
                 .await?
         },
@@ -226,7 +227,7 @@ where
 /// Remote side has accepted our reset proposal
 /// Adjust token channel accordingly.
 pub async fn init_token_channel_from_remote_reset<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcTransaction<B>,
     reset_move_token: &MoveToken<B>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -248,7 +249,7 @@ where
         return Err(InitTokenChannelError::InvalidResetMoveToken);
     }
 
-    let (local_reset_token, local_reset_move_token_counter) = match tc_transaction
+    let (local_reset_token, local_reset_move_token_counter) = match tc_client
         .get_tc_status()
         .await?
     {
@@ -268,7 +269,7 @@ where
 
     // Calculate `info_hash` as seen by the remote side.
     // Create what we expect to be TokenInfo (From the point of view of remote side):
-    let mc_balances = tc_transaction.list_local_reset_balances();
+    let mc_balances = tc_client.list_local_reset_balances();
 
     let token_info = TokenInfo {
         balances_hash: hash_mc_infos(
@@ -284,13 +285,13 @@ where
     }
 
     // Update move_token_counter:
-    tc_transaction
+    tc_client
         .set_move_token_counter(local_reset_move_token_counter)
         .await?;
 
     // Set direction to outgoing, with the newly received move token:
     let new_move_token_hashed = create_hashed(&reset_move_token, &token_info);
-    tc_transaction
+    tc_client
         .set_direction_incoming(new_move_token_hashed)
         .await?;
 
@@ -298,29 +299,27 @@ where
 }
 */
 
-pub async fn handle_in_move_token<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+pub async fn handle_in_move_token<B, C>(
+    tc_client: &mut C,
     identity_client: &mut IdentityClient,
     new_move_token: MoveToken<B>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
 where
-    B: CanonicalSerialize + Clone,
+    // TODO: Can we somehow get rid of the Sync requirement for `B`?
+    B: CanonicalSerialize + Clone + Send + Sync,
+    C: TcClient<B> + Transaction + Send,
+    C::McClient: Send,
 {
-    match tc_transaction.get_tc_status().await? {
+    match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => {
-            handle_in_move_token_dir_in(
-                tc_transaction,
-                identity_client,
-                move_token_in,
-                new_move_token,
-            )
-            .await
+            handle_in_move_token_dir_in(tc_client, identity_client, move_token_in, new_move_token)
+                .await
         }
         TcStatus::ConsistentOut(move_token_out, _move_token_in) => {
             handle_in_move_token_dir_out(
-                tc_transaction,
+                tc_client,
                 identity_client,
                 move_token_out,
                 new_move_token,
@@ -334,8 +333,7 @@ where
             if new_move_token.old_token == local_reset_token {
                 // This is a reset move token!
                 let token_info = TokenInfo {
-                    balances_hash: hash_mc_infos(tc_transaction.list_local_reset_balances())
-                        .await?,
+                    balances_hash: hash_mc_infos(tc_client.list_local_reset_balances()).await?,
                     move_token_counter: local_reset_move_token_counter
                         .checked_sub(1)
                         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
@@ -350,28 +348,46 @@ where
                     new_token: local_reset_token.clone(),
                 };
 
-                tc_transaction
-                    .set_outgoing_from_inconsistent(move_token_out.clone())
-                    .await?;
+                // Atomically attempt to handle a reset move token:
+                let (output, _was_committed) = tc_client
+                    .transaction(|tc_client| {
+                        Box::pin(async move {
+                            let output = async move {
+                                // Simulate an outgoing move token with the correct `old_token`:
+                                tc_client
+                                    .set_outgoing_from_inconsistent(move_token_out.clone())
+                                    .await?;
 
-                let output = handle_incoming_token_match(
-                    tc_transaction,
-                    move_token_out,
-                    new_move_token,
-                    local_public_key,
-                    remote_public_key,
-                )
-                .await?;
+                                // Attempt to receive an incoming token:
+                                handle_incoming_token_match(
+                                    tc_client,
+                                    move_token_out,
+                                    new_move_token,
+                                    local_public_key,
+                                    remote_public_key,
+                                )
+                                .await
+                            }
+                            .await;
 
-                match output {
+                            // Decide whether we should commit the transaction
+                            let should_commit = match &output {
+                                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
+                                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
+                                Err(_) => false,
+                            };
+                            (output, should_commit)
+                        })
+                    })
+                    .await;
+
+                match output? {
                     IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
                         Ok(ReceiveMoveTokenOutput::Received(move_token_received))
                     }
                     IncomingTokenMatchOutput::InvalidIncoming(_) => {
-                        // TODO: This is wrong, because the balances might have already been
-                        // modified. How to make the previous changes atomic/revertible?
-                        todo!();
-                        tc_transaction
+                        // In this case the transaction was not committed:
+                        tc_client
                             .set_inconsistent(
                                 local_reset_token.clone(),
                                 local_reset_move_token_counter,
@@ -415,7 +431,7 @@ async fn create_reset_token(
 }
 
 async fn set_inconsistent<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
 ) -> Result<(Signature, u128), TokenChannelError> {
     let local_reset_token = create_reset_token(identity_client).await?;
@@ -424,13 +440,13 @@ async fn set_inconsistent<B>(
     // to our move token plus 1, so he might not be willing to sign another move token with the
     // same `move_token_counter`. There could be a gap of size `1` as a result, but we don't care
     // about it, as long as the `move_token_counter` values are monotonic.
-    let local_reset_move_token_counter = tc_transaction
+    let local_reset_move_token_counter = tc_client
         .get_move_token_counter()
         .await?
         .checked_add(2)
         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?;
 
-    tc_transaction
+    tc_client
         .set_inconsistent(
             local_reset_token.clone(),
             local_reset_move_token_counter.clone(),
@@ -441,7 +457,7 @@ async fn set_inconsistent<B>(
 }
 
 async fn handle_in_move_token_dir_in<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
     move_token_in: MoveTokenHashed,
     new_move_token: MoveToken<B>,
@@ -455,7 +471,7 @@ where
     } else {
         // Inconsistency
         let (local_reset_token, local_reset_move_token_counter) =
-            set_inconsistent(tc_transaction, identity_client).await?;
+            set_inconsistent(tc_client, identity_client).await?;
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(
             local_reset_token,
             local_reset_move_token_counter,
@@ -463,8 +479,8 @@ where
     }
 }
 
-async fn handle_in_move_token_dir_out<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+async fn handle_in_move_token_dir_out<B, C>(
+    tc_client: &mut C,
     identity_client: &mut IdentityClient,
     move_token_out: MoveToken<B>,
     new_move_token: MoveToken<B>,
@@ -472,28 +488,48 @@ async fn handle_in_move_token_dir_out<B>(
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
 where
-    B: Clone + CanonicalSerialize,
+    B: Clone + CanonicalSerialize + Send + Sync,
+    C: TcClient<B> + Transaction + Send,
+    C::McClient: Send,
 {
     if new_move_token.old_token == move_token_out.new_token {
-        let output = handle_incoming_token_match(
-            tc_transaction,
-            move_token_out,
-            new_move_token,
-            local_public_key,
-            remote_public_key,
-        )
-        .await?;
-        match output {
+        // Atomically attempt to handle an incoming move token:
+        let (output, _was_committed) = tc_client
+            .transaction(|tc_client| {
+                Box::pin(async move {
+                    let output = async move {
+                        // Attempt to receive an incoming token:
+                        handle_incoming_token_match(
+                            tc_client,
+                            move_token_out,
+                            new_move_token,
+                            local_public_key,
+                            remote_public_key,
+                        )
+                        .await
+                    }
+                    .await;
+
+                    // Decide whether we should commit the transaction
+                    let should_commit = match &output {
+                        Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
+                        Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
+                        Err(_) => false,
+                    };
+                    (output, should_commit)
+                })
+            })
+            .await;
+
+        match output? {
             IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
                 return Ok(ReceiveMoveTokenOutput::Received(move_token_received))
             }
             IncomingTokenMatchOutput::InvalidIncoming(_) => {
-                // TODO: This is probably wrong, because we might have already changed some
-                // balances.
-                todo!();
                 // Inconsistency
+                // In this case the transaction was not committed:
                 let (local_reset_token, local_reset_move_token_counter) =
-                    set_inconsistent(tc_transaction, identity_client).await?;
+                    set_inconsistent(tc_client, identity_client).await?;
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(
                     local_reset_token,
                     local_reset_move_token_counter,
@@ -509,7 +545,7 @@ where
     } else {
         // Inconsistency
         let (local_reset_token, local_reset_move_token_counter) =
-            set_inconsistent(tc_transaction, identity_client).await?;
+            set_inconsistent(tc_client, identity_client).await?;
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(
             local_reset_token,
             local_reset_move_token_counter,
@@ -553,8 +589,73 @@ enum IncomingTokenMatchOutput<B> {
     InvalidIncoming(InvalidIncoming),
 }
 
+/*
+#[derive(Debug, From)]
+enum IncomingTransactionError {
+    InvalidIncoming(InvalidIncoming),
+    TokenChannelError(TokenChannelError),
+}
+
+/// A transactional function. No changes occur if a failure happens.
+async fn handle_incoming_token_match_transact<B, C>(
+    tc_client: &mut C,
+    move_token_out: MoveToken<B>,
+    new_move_token: MoveToken<B>, // remote_max_debts: &ImHashMap<Currency, u128>,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+) -> Result<IncomingTokenMatchOutput<B>, TokenChannelError>
+where
+    B: Clone + CanonicalSerialize + Send,
+    C: TcClient<B> + Transaction + Send,
+    C::McClient: Send,
+{
+    let incoming_output = tc_client
+        .transaction(move |tc_client| {
+            Box::pin(async move {
+                let output = handle_incoming_token_match(
+                    tc_client,
+                    move_token_out,
+                    new_move_token,
+                    local_public_key,
+                    remote_public_key,
+                )
+                .await?;
+
+                // We map "Transaction failure" to Err(...), and "Transaction success" into Ok(...)
+                match output {
+                    IncomingTokenMatchOutput::InvalidIncoming(invalid_incoming) => {
+                        // Transaction failed
+                        Err(IncomingTransactionError::InvalidIncoming(invalid_incoming))
+                    }
+                    IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
+                        // Transaction succeeded
+                        Ok(move_token_received)
+                    }
+                }
+            })
+        })
+        .await;
+
+    // We map back into recoverable and unrecoverable errors:
+    match incoming_output {
+        Ok(move_token_received) => Ok(IncomingTokenMatchOutput::MoveTokenReceived(
+            // Transaction succeeded
+            move_token_received,
+        )),
+        Err(IncomingTransactionError::InvalidIncoming(invalid_incoming)) => {
+            // Transaction failed, recoverable error
+            Ok(IncomingTokenMatchOutput::InvalidIncoming(invalid_incoming))
+        }
+        Err(IncomingTransactionError::TokenChannelError(token_channel_error)) => {
+            // Unrecoverable error
+            Err(token_channel_error)
+        }
+    }
+}
+*/
+
 async fn handle_incoming_token_match<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcClient<B>,
     move_token_out: MoveToken<B>,
     new_move_token: MoveToken<B>, // remote_max_debts: &ImHashMap<Currency, u128>,
     local_public_key: &PublicKey,
@@ -594,29 +695,19 @@ where
     //  - (3) (Not in the local set) or (in the local set with balance zero and zero pending debts)
     for diff_currency in &new_move_token.currencies_diff {
         // Check if we need to add currency:
-        if !tc_transaction
-            .is_remote_currency(diff_currency.clone())
-            .await?
-        {
+        if !tc_client.is_remote_currency(diff_currency.clone()).await? {
             // Add a new remote currency.
-            tc_transaction
-                .add_remote_currency(diff_currency.clone())
-                .await?;
+            tc_client.add_remote_currency(diff_currency.clone()).await?;
 
             // If we also have this currency as a local currency, add a new mutual credit:
-            if tc_transaction
-                .is_local_currency(diff_currency.clone())
-                .await?
-            {
-                tc_transaction.add_mutual_credit(diff_currency.clone());
+            if tc_client.is_local_currency(diff_currency.clone()).await? {
+                tc_client.add_mutual_credit(diff_currency.clone());
             }
         } else {
-            let is_local_currency = tc_transaction
-                .is_local_currency(diff_currency.clone())
-                .await?;
+            let is_local_currency = tc_client.is_local_currency(diff_currency.clone()).await?;
             if is_local_currency {
-                let mc_balance = tc_transaction
-                    .mc_transaction(diff_currency.clone())
+                let mc_balance = tc_client
+                    .mc_client(diff_currency.clone())
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -625,7 +716,7 @@ where
                 {
                     // We may remove the currency if the balance and pending debts are exactly
                     // zero:
-                    tc_transaction
+                    tc_client
                         .remove_remote_currency(diff_currency.clone())
                         .await?;
                 // TODO: Do We need to report outside that we removed this currency somehow?
@@ -637,7 +728,7 @@ where
                     ));
                 }
             } else {
-                tc_transaction
+                tc_client
                     .remove_remote_currency(diff_currency.clone())
                     .await?;
                 // TODO: Do We need to report outside that we removed this currency somehow?
@@ -650,13 +741,13 @@ where
 
     // Attempt to apply operations for every currency:
     for currency_operations in &new_move_token.currencies_operations {
-        let remote_max_debt = tc_transaction
+        let remote_max_debt = tc_client
             .get_currency_config(currency_operations.currency.clone())
             .await?
             .remote_max_debt;
 
         let res = process_operations_list(
-            tc_transaction.mc_transaction(currency_operations.currency.clone()),
+            tc_client.mc_client(currency_operations.currency.clone()),
             currency_operations.operations.clone(),
             &currency_operations.currency,
             remote_public_key,
@@ -685,14 +776,14 @@ where
             .push(move_token_received_currency);
     }
 
-    let move_token_counter = tc_transaction.get_move_token_counter().await?;
+    let move_token_counter = tc_client.get_move_token_counter().await?;
     let new_move_token_counter = move_token_counter
         .checked_add(1)
         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?;
 
     // Calculate `info_hash` as seen by the remote side.
     // Create what we expect to be TokenInfo (From the point of view of remote side):
-    let mc_balances = tc_transaction.list_balances();
+    let mc_balances = tc_client.list_balances();
 
     let token_info = TokenInfo {
         balances_hash: hash_mc_infos(
@@ -711,13 +802,13 @@ where
     }
 
     // Update move_token_counter:
-    tc_transaction
+    tc_client
         .set_move_token_counter(new_move_token_counter)
         .await?;
 
     // Set direction to outgoing, with the newly received move token:
     let new_move_token_hashed = create_hashed(&new_move_token, &token_info);
-    tc_transaction
+    tc_client
         .set_direction_incoming(new_move_token_hashed)
         .await?;
 
@@ -727,7 +818,7 @@ where
 }
 
 pub async fn handle_out_move_token<B>(
-    tc_transaction: &mut impl TcTransaction<B>,
+    tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
     currencies_operations: Vec<CurrencyOperations>,
     relays_diff: Vec<RelayAddress<B>>,
@@ -739,7 +830,7 @@ where
     B: CanonicalSerialize + Clone,
 {
     // We expect that our current state is incoming:
-    let move_token_in = match tc_transaction.get_tc_status().await? {
+    let move_token_in = match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => move_token_in,
         TcStatus::ConsistentOut(_move_token_out, _move_token_in) => {
             return Err(TokenChannelError::InvalidTokenChannelStatus)
@@ -752,29 +843,19 @@ where
     // Handle currencies_diff:
     for diff_currency in &currencies_diff {
         // Check if we need to add currency:
-        if !tc_transaction
-            .is_local_currency(diff_currency.clone())
-            .await?
-        {
+        if !tc_client.is_local_currency(diff_currency.clone()).await? {
             // Add a new local currency.
-            tc_transaction
-                .add_local_currency(diff_currency.clone())
-                .await?;
+            tc_client.add_local_currency(diff_currency.clone()).await?;
 
             // If we also have this currency as a remote currency, add a new mutual credit:
-            if tc_transaction
-                .is_remote_currency(diff_currency.clone())
-                .await?
-            {
-                tc_transaction.add_mutual_credit(diff_currency.clone());
+            if tc_client.is_remote_currency(diff_currency.clone()).await? {
+                tc_client.add_mutual_credit(diff_currency.clone());
             }
         } else {
-            let is_remote_currency = tc_transaction
-                .is_remote_currency(diff_currency.clone())
-                .await?;
+            let is_remote_currency = tc_client.is_remote_currency(diff_currency.clone()).await?;
             if is_remote_currency {
-                let mc_balance = tc_transaction
-                    .mc_transaction(diff_currency.clone())
+                let mc_balance = tc_client
+                    .mc_client(diff_currency.clone())
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -783,7 +864,7 @@ where
                 {
                     // We may remove the currency if the balance and pending debts are exactly
                     // zero:
-                    tc_transaction
+                    tc_client
                         .remove_local_currency(diff_currency.clone())
                         .await?;
                 // TODO: Do We need to report outside that we removed this currency somehow?
@@ -794,7 +875,7 @@ where
                     return Err(TokenChannelError::CanNotRemoveCurrencyInUse);
                 }
             } else {
-                tc_transaction
+                tc_client
                     .remove_remote_currency(diff_currency.clone())
                     .await?;
                 // TODO: Do We need to report outside that we removed this currency somehow?
@@ -806,7 +887,7 @@ where
     for currency_operations in &currencies_operations {
         for operation in currency_operations.operations.iter().cloned() {
             queue_operation(
-                tc_transaction.mc_transaction(currency_operations.currency.clone()),
+                tc_client.mc_client(currency_operations.currency.clone()),
                 operation,
                 &currency_operations.currency,
                 local_public_key,
@@ -815,12 +896,12 @@ where
         }
     }
 
-    let new_move_token_counter = tc_transaction
+    let new_move_token_counter = tc_client
         .get_move_token_counter()
         .await?
         .checked_add(1)
         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?;
-    let mc_balances = tc_transaction.list_balances();
+    let mc_balances = tc_client.list_balances();
 
     let token_info = TokenInfo {
         balances_hash: hash_mc_infos(mc_balances).await?,
@@ -847,9 +928,7 @@ where
     // Set the direction to be outgoing:
     // TODO: This should also save the last incoming move token, in an atomic way.
     // Should probably be implemented inside the database code.
-    tc_transaction
-        .set_direction_outgoing(move_token.clone())
-        .await?;
+    tc_client.set_direction_outgoing(move_token.clone()).await?;
 
     Ok(move_token)
 }

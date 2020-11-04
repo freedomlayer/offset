@@ -13,7 +13,7 @@ use proto::funder::messages::{
 };
 
 use crate::mutual_credit::tests::utils::MutualCredit;
-use crate::mutual_credit::types::McTransaction;
+use crate::mutual_credit::types::McClient;
 
 use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;

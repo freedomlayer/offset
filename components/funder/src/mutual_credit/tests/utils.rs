@@ -7,7 +7,7 @@ use common::u256::U256;
 use proto::crypto::Uid;
 use proto::funder::messages::{Currency, McBalance, PendingTransaction};
 
-use crate::mutual_credit::types::McTransaction;
+use crate::mutual_credit::types::McClient;
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
@@ -50,7 +50,7 @@ impl MutualCredit {
     }
 }
 
-impl McTransaction for MutualCredit {
+impl McClient for MutualCredit {
     fn get_balance(&mut self) -> BoxFuture<'static, Result<McBalance, OpError>> {
         let mc_balance = self.balance.clone();
         Box::pin(async move { Ok(mc_balance) })

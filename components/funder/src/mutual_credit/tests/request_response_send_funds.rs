@@ -14,7 +14,7 @@ use proto::funder::messages::{
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::tests::utils::MutualCredit;
-use crate::mutual_credit::types::McTransaction;
+use crate::mutual_credit::types::McClient;
 use crate::types::create_pending_transaction;
 
 use crate::mutual_credit::incoming::process_operations_list;

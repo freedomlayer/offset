@@ -12,7 +12,7 @@ use proto::funder::messages::{
 };
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::types::McTransaction;
+use crate::mutual_credit::types::McClient;
 use crate::types::create_pending_transaction;
 
 #[derive(Debug, From)]
@@ -33,7 +33,7 @@ pub enum QueueOperationError {
 // TODO: Remove later:
 #[allow(unused)]
 pub async fn queue_operation(
-    mc_transaction: &mut impl McTransaction,
+    mc_client: &mut impl McClient,
     operation: FriendTcOp,
     currency: &Currency,
     local_public_key: &PublicKey,
@@ -41,25 +41,20 @@ pub async fn queue_operation(
     // TODO: Maybe remove clone from here later:
     match operation {
         FriendTcOp::RequestSendFunds(request_send_funds) => {
-            queue_request_send_funds(mc_transaction, request_send_funds).await
+            queue_request_send_funds(mc_client, request_send_funds).await
         }
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            queue_response_send_funds(
-                mc_transaction,
-                response_send_funds,
-                currency,
-                local_public_key,
-            )
-            .await
+            queue_response_send_funds(mc_client, response_send_funds, currency, local_public_key)
+                .await
         }
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            queue_cancel_send_funds(mc_transaction, cancel_send_funds).await
+            queue_cancel_send_funds(mc_client, cancel_send_funds).await
         }
     }
 }
 
 async fn queue_request_send_funds(
-    mc_transaction: &mut impl McTransaction,
+    mc_client: &mut impl McClient,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<(), QueueOperationError> {
     if !request_send_funds.route.is_part_valid() {
@@ -76,7 +71,7 @@ async fn queue_request_send_funds(
         .checked_add(request_send_funds.left_fees)
         .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
-    let mc_balance = mc_transaction.get_balance().await?;
+    let mc_balance = mc_client.get_balance().await?;
 
     // Make sure we can freeze the credits
     let new_local_pending_debt = mc_balance
@@ -85,7 +80,7 @@ async fn queue_request_send_funds(
         .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
     // Make sure that we don't have this request as a pending request already:
-    if mc_transaction
+    if mc_client
         .get_local_pending_transaction(request_send_funds.request_id.clone())
         .await?
         .is_some()
@@ -95,12 +90,12 @@ async fn queue_request_send_funds(
 
     // Add pending transaction:
     let pending_transaction = create_pending_transaction(&request_send_funds);
-    mc_transaction
+    mc_client
         .insert_local_pending_transaction(pending_transaction)
         .await?;
 
     // If we are here, we can freeze the credits:
-    mc_transaction
+    mc_client
         .set_local_pending_debt(new_local_pending_debt)
         .await?;
 
@@ -108,7 +103,7 @@ async fn queue_request_send_funds(
 }
 
 async fn queue_response_send_funds(
-    mc_transaction: &mut impl McTransaction,
+    mc_client: &mut impl McClient,
     response_send_funds: ResponseSendFundsOp,
     currency: &Currency,
     local_public_key: &PublicKey,
@@ -117,7 +112,7 @@ async fn queue_response_send_funds(
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc_transaction
+    let pending_transaction = mc_client
         .get_remote_pending_transaction(response_send_funds.request_id.clone())
         .await?
         .ok_or(QueueOperationError::RequestDoesNotExist)?;
@@ -157,12 +152,12 @@ async fn queue_response_send_funds(
         .unwrap();
 
     // Remove entry from remote_pending hashmap:
-    mc_transaction
+    mc_client
         .remove_remote_pending_transaction(response_send_funds.request_id)
         .await?;
 
     // Decrease frozen credits
-    let mc_balance = mc_transaction.get_balance().await?;
+    let mc_balance = mc_client.get_balance().await?;
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
@@ -170,12 +165,12 @@ async fn queue_response_send_funds(
     // Above unwrap() should never fail. This was already checked when a request message was
     // received.
 
-    mc_transaction
+    mc_client
         .set_remote_pending_debt(new_remote_pending_debt)
         .await?;
 
     // Update in_fees:
-    mc_transaction
+    mc_client
         .set_in_fees(
             mc_balance
                 .in_fees
@@ -185,7 +180,7 @@ async fn queue_response_send_funds(
         .await?;
 
     // Increase balance:
-    let mc_balance = mc_transaction.get_balance().await?;
+    let mc_balance = mc_client.get_balance().await?;
     let new_balance = mc_balance
         .balance
         .checked_add_unsigned(freeze_credits)
@@ -193,20 +188,20 @@ async fn queue_response_send_funds(
     // Above unwrap() should never fail. This was already checked when a request message was
     // received.
 
-    mc_transaction.set_balance(new_balance).await?;
+    mc_client.set_balance(new_balance).await?;
 
     Ok(())
 }
 
 async fn queue_cancel_send_funds(
-    mc_transaction: &mut impl McTransaction,
+    mc_client: &mut impl McClient,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<(), QueueOperationError> {
     // Make sure that id exists in remote_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc_transaction
+    let pending_transaction = mc_client
         .get_remote_pending_transaction(cancel_send_funds.request_id.clone())
         .await?
         .ok_or(QueueOperationError::RequestDoesNotExist)?;
@@ -217,18 +212,18 @@ async fn queue_cancel_send_funds(
         .unwrap();
 
     // Remove entry from remote hashmap:
-    mc_transaction
+    mc_client
         .remove_remote_pending_transaction(cancel_send_funds.request_id.clone())
         .await?;
 
     // Decrease frozen credits:
-    let mc_balance = mc_transaction.get_balance().await?;
+    let mc_balance = mc_client.get_balance().await?;
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
         .unwrap();
 
-    mc_transaction
+    mc_client
         .set_remote_pending_debt(new_remote_pending_debt)
         .await?;
 
