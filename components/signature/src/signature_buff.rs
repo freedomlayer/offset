@@ -138,6 +138,24 @@ where
     sig_buffer
 }
 
+// TODO: Rethink string in this prefix:
+pub const RESET_TOKEN_PREFIX: &[u8] = b"RESET_TOKEN";
+
+pub fn reset_token_signature_buff(
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+    move_token_counter: u128,
+) -> Vec<u8> {
+    let mut sig_buffer = Vec::new();
+    sig_buffer.extend_from_slice(&hash::hash_buffer(RESET_TOKEN_PREFIX));
+    sig_buffer.extend_from_slice(&local_public_key);
+    sig_buffer.extend_from_slice(&remote_public_key);
+    sig_buffer
+        .write_u128::<BigEndian>(move_token_counter)
+        .unwrap();
+    sig_buffer
+}
+
 pub const MUTATIONS_UPDATE_PREFIX: &[u8] = b"MUTATIONS_UPDATE";
 
 pub fn create_mutations_update_signature_buff(mutations_update: &MutationsUpdate) -> Vec<u8> {

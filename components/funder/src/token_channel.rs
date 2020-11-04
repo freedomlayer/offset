@@ -9,8 +9,6 @@ use futures::{Stream, StreamExt, TryStreamExt};
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 
-use signature::canonical::CanonicalSerialize;
-
 use crypto::hash::{hash_buffer, Hasher};
 use crypto::identity::compare_public_key;
 
@@ -22,7 +20,10 @@ use proto::funder::messages::{
     Currency, CurrencyOperations, McBalance, MoveToken, PendingTransaction, TokenInfo,
 };
 
-use signature::signature_buff::{hash_token_info, move_token_signature_buff};
+use signature::canonical::CanonicalSerialize;
+use signature::signature_buff::{
+    hash_token_info, move_token_signature_buff, reset_token_signature_buff,
+};
 use signature::verify::verify_move_token;
 
 use database::interface::funder::CurrencyConfig;
@@ -165,8 +166,6 @@ fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey
         move_token_counter: 0,
     };
 
-    // let info_hash = hash_token_info(remote_public_key, local_public_key, &token_info);
-
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
     // We do this because we want to have synchronization between the two sides of the token
@@ -235,8 +234,15 @@ where
 {
     match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => {
-            handle_in_move_token_dir_in(tc_client, identity_client, move_token_in, new_move_token)
-                .await
+            handle_in_move_token_dir_in(
+                tc_client,
+                identity_client,
+                local_public_key,
+                remote_public_key,
+                move_token_in,
+                new_move_token,
+            )
+            .await
         }
         TcStatus::ConsistentOut(move_token_out, _move_token_in) => {
             handle_in_move_token_dir_out(
@@ -327,30 +333,30 @@ where
 /// Generate a reset token, to be used by remote side if he wants to accept the reset terms.
 async fn create_reset_token(
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+    move_token_counter: u128,
 ) -> Result<Signature, TokenChannelError> {
-    // TODO:
     // Some ideas:
     // - Use a random generator to randomly generate an identity client.
     // - Sign over a blob that contains:
-    //      - hash(prefix ("INCONSISTENT_TOKEN"))
+    //      - hash(prefix ("SOME_STRING"))
     //      - Both public keys.
-    //      - Current counter + 1
-    /*
-    let signature_buff =
-    let local_reset_token = identity_client
-        .request_signature(signature_buff)
+    //      - local_reset_move_token_counter
+    let sign_buffer =
+        reset_token_signature_buff(local_public_key, remote_public_key, move_token_counter);
+    Ok(identity_client
+        .request_signature(sign_buffer)
         .await
-        .map_err(|_| TokenChannelError::RequestSignatureError)?;
-    */
-    todo!()
+        .map_err(|_| TokenChannelError::RequestSignatureError)?)
 }
 
 async fn set_inconsistent<B>(
     tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
 ) -> Result<(Signature, u128), TokenChannelError> {
-    let local_reset_token = create_reset_token(identity_client).await?;
-
     // We increase by 2, because the other side might have already signed a move token that equals
     // to our move token plus 1, so he might not be willing to sign another move token with the
     // same `move_token_counter`. There could be a gap of size `1` as a result, but we don't care
@@ -360,6 +366,15 @@ async fn set_inconsistent<B>(
         .await?
         .checked_add(2)
         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?;
+
+    // Create a local reset token, to be used by the remote side to accept our terms:
+    let local_reset_token = create_reset_token(
+        identity_client,
+        local_public_key,
+        remote_public_key,
+        local_reset_move_token_counter,
+    )
+    .await?;
 
     tc_client
         .set_inconsistent(
@@ -374,6 +389,8 @@ async fn set_inconsistent<B>(
 async fn handle_in_move_token_dir_in<B>(
     tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
     move_token_in: MoveTokenHashed,
     new_move_token: MoveToken<B>,
 ) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
@@ -385,8 +402,13 @@ where
         Ok(ReceiveMoveTokenOutput::Duplicate)
     } else {
         // Inconsistency
-        let (local_reset_token, local_reset_move_token_counter) =
-            set_inconsistent(tc_client, identity_client).await?;
+        let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
+            tc_client,
+            identity_client,
+            local_public_key,
+            remote_public_key,
+        )
+        .await?;
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(
             local_reset_token,
             local_reset_move_token_counter,
@@ -443,8 +465,13 @@ where
             IncomingTokenMatchOutput::InvalidIncoming(_) => {
                 // Inconsistency
                 // In this case the transaction was not committed:
-                let (local_reset_token, local_reset_move_token_counter) =
-                    set_inconsistent(tc_client, identity_client).await?;
+                let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
+                    tc_client,
+                    identity_client,
+                    local_public_key,
+                    remote_public_key,
+                )
+                .await?;
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(
                     local_reset_token,
                     local_reset_move_token_counter,
@@ -459,8 +486,13 @@ where
         ))
     } else {
         // Inconsistency
-        let (local_reset_token, local_reset_move_token_counter) =
-            set_inconsistent(tc_client, identity_client).await?;
+        let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
+            tc_client,
+            identity_client,
+            local_public_key,
+            remote_public_key,
+        )
+        .await?;
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(
             local_reset_token,
             local_reset_move_token_counter,
@@ -536,7 +568,6 @@ where
     // currencies_diff represents a "xor" between the previous set of currencies and the new set of
     // currencies.
     //
-    // TODO:
     // - Add to remote currencies every currency that is in the xor set, but not in the current
     // set.
     // - Remove from remote currencies currencies that satisfy the following requirements:
