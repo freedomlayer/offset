@@ -57,8 +57,6 @@ pub struct ProcessTransListError {
     process_trans_error: ProcessOperationError,
 }
 
-// TODO: Remove later:
-#[allow(unused)]
 pub async fn process_operations_list(
     mc_transaction: &mut impl McTransaction,
     operations: Vec<FriendTcOp>,
