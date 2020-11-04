@@ -81,14 +81,6 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
     Signature::from(&buff)
 }
 
-/// Generate a random nonce from public key.
-/// Note that the result here is not really a random nonce. This function is used for the first
-/// deterministic initialization of a token channel.
-fn rand_nonce_from_public_key(public_key: &PublicKey) -> RandValue {
-    let public_key_hash = Hasher::new().chain(public_key).finalize();
-    RandValue::try_from(&public_key_hash.as_ref()[..RandValue::len()]).unwrap()
-}
-
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
