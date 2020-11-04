@@ -50,7 +50,8 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 pub enum TcStatus<B> {
     ConsistentIn(MoveTokenHashed),                // (move_token_in)
     ConsistentOut(MoveToken<B>, MoveTokenHashed), // (move_token_out, last_move_token_in)
-    Inconsistent(Signature, u128), // (local_reset_token, local_reset_move_token_counter)
+    Inconsistent(Signature, u128, Option<(Signature, u128)>),
+    // (local_reset_token, local_reset_move_token_counter, Option<(remote_reset_token, remote_reset_move_token_counter)>)
 }
 
 pub trait TcClient<B> {
@@ -255,7 +256,7 @@ where
             )
             .await
         }
-        TcStatus::Inconsistent(local_reset_token, local_reset_move_token_counter) => {
+        TcStatus::Inconsistent(local_reset_token, local_reset_move_token_counter, _opt_remote) => {
             // Might be a reset move token
             if new_move_token.old_token == local_reset_token {
                 // This is a reset move token!
@@ -716,7 +717,11 @@ where
         TcStatus::ConsistentOut(_move_token_out, _move_token_in) => {
             return Err(TokenChannelError::InvalidTokenChannelStatus)
         }
-        TcStatus::Inconsistent(_local_reset_token, _local_reset_move_token_counter) => {
+        TcStatus::Inconsistent(
+            _local_reset_token,
+            _local_reset_move_token_counter,
+            _opt_remote,
+        ) => {
             // TODO: Possibly add here some code for outgoing move token handling
             todo!();
             return Err(TokenChannelError::InvalidTokenChannelStatus);
