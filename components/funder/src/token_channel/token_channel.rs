@@ -805,3 +805,20 @@ where
     )
     .await
 }
+
+/// Load the remote reset terms information from a remote side's inconsistency message
+pub async fn load_remote_reset_terms<B>(
+    tc_client: &mut impl TcClient<B>,
+    remote_reset_token: Signature,
+    remote_reset_move_token_counter: u128,
+    // TODO: Should `remote_reset_balances` be a Vec or a HashMap?
+    remote_reset_balances: Vec<(Currency, McBalance)>,
+) {
+    // TODO:
+    // - Change our state to inconsistent, if required.
+    // - Update remote_reset_{token, move_token_counter}.
+    // - Insert all `remote_reset_balance-s`, possibly one by one?
+    //
+    // Think about the interface with the database.
+    todo!();
+}
