@@ -1,41 +1,14 @@
-use std::cmp::Ordering;
-use std::convert::TryFrom;
-use std::iter::IntoIterator;
-
-use derive_more::From;
-
 use futures::channel::oneshot;
-use futures::{Stream, StreamExt, TryStreamExt};
 
-use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
+use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 
-use crypto::hash::{hash_buffer, Hasher};
-use crypto::identity::compare_public_key;
-
-use identity::IdentityClient;
-
-use proto::app_server::messages::RelayAddress;
-use proto::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
-use proto::funder::messages::{
-    Currency, CurrencyOperations, McBalance, MoveToken, PendingTransaction, TokenInfo,
-};
-
-use signature::canonical::CanonicalSerialize;
-use signature::signature_buff::{
-    hash_token_info, move_token_signature_buff, reset_token_signature_buff,
-};
-use signature::verify::verify_move_token;
+use proto::crypto::Signature;
+use proto::funder::messages::{Currency, McBalance, MoveToken};
 
 use database::interface::funder::CurrencyConfig;
-use database::transaction::Transaction;
 
-use crate::mutual_credit::incoming::{
-    process_operations_list, IncomingMessage, ProcessTransListError,
-};
-use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
 use crate::mutual_credit::types::McClient;
-
-use crate::types::{create_hashed, MoveTokenHashed};
+use crate::types::MoveTokenHashed;
 
 #[derive(Debug)]
 pub enum TcOpError {
