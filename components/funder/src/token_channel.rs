@@ -843,22 +843,20 @@ where
 {
     // Make sure that we are in inconsistent state,
     // and that the remote side has already sent his reset terms:
-    let (remote_reset_token, remote_reset_move_token_counter) = match tc_client
-        .get_tc_status()
-        .await?
-    {
-        TcStatus::ConsistentIn(_) => return Err(TokenChannelError::InvalidTokenChannelStatus),
-        TcStatus::ConsistentOut(_, _) => return Err(TokenChannelError::InvalidTokenChannelStatus),
-        TcStatus::Inconsistent(_, _, None) => {
-            // We don't have the remote side's reset terms yet:
-            return Err(TokenChannelError::InvalidTokenChannelStatus);
-        }
-        TcStatus::Inconsistent(
-            _local_reset_token,
-            _local_reset_move_token_counter,
-            Some((remote_reset_token, remote_reset_move_token_counter)),
-        ) => (remote_reset_token, remote_reset_move_token_counter),
-    };
+    let (remote_reset_token, remote_reset_move_token_counter) =
+        match tc_client.get_tc_status().await? {
+            TcStatus::ConsistentIn(_)
+            | TcStatus::ConsistentOut(_, _)
+            | TcStatus::Inconsistent(_, _, None) => {
+                // We don't have the remote side's reset terms yet:
+                return Err(TokenChannelError::InvalidTokenChannelStatus);
+            }
+            TcStatus::Inconsistent(
+                _local_reset_token,
+                _local_reset_move_token_counter,
+                Some((remote_reset_token, remote_reset_move_token_counter)),
+            ) => (remote_reset_token, remote_reset_move_token_counter),
+        };
 
     // Simulate an incoming move token with the correct `new_token`:
     let token_info = TokenInfo {
