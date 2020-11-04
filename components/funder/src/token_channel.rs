@@ -387,12 +387,6 @@ where
                     }
                     IncomingTokenMatchOutput::InvalidIncoming(_) => {
                         // In this case the transaction was not committed:
-                        tc_client
-                            .set_inconsistent(
-                                local_reset_token.clone(),
-                                local_reset_move_token_counter,
-                            )
-                            .await?;
                         Ok(ReceiveMoveTokenOutput::ChainInconsistent(
                             local_reset_token,
                             local_reset_move_token_counter,
