@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 use futures::future;
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
+use common::safe_arithmetic::SafeSignedArithmetic;
+use common::u256::U256;
 
 use proto::crypto::Signature;
 use proto::funder::messages::{Currency, McBalance, MoveToken};
@@ -10,23 +12,9 @@ use proto::funder::messages::{Currency, McBalance, MoveToken};
 use database::interface::funder::CurrencyConfig;
 
 use crate::mutual_credit::tests::MockMutualCredit;
-use crate::token_channel::types::{ResetBalance, TcStatus};
+use crate::token_channel::types::{ResetBalance, ResetTerms, TcStatus};
 use crate::token_channel::TcClient;
 use crate::types::MoveTokenHashed;
-
-#[derive(Debug)]
-pub struct MockLocalResetTerms {
-    reset_token: Signature,
-    reset_move_token_counter: u128,
-    reset_balances: Vec<(Currency, McBalance)>,
-}
-
-#[derive(Debug)]
-pub struct MockRemoteResetTerms {
-    reset_token: Signature,
-    reset_move_token_counter: u128,
-    reset_balances: Vec<(Currency, McBalance)>,
-}
 
 #[derive(Debug)]
 pub enum MockTcDirection<B> {
@@ -38,6 +26,7 @@ pub enum MockTcDirection<B> {
 pub struct TcConsistent<B> {
     mutual_credits: HashMap<Currency, MockMutualCredit>,
     direction: MockTcDirection<B>,
+    move_token_counter: u128,
     local_currencies: HashSet<Currency>,
     remote_currencies: HashSet<Currency>,
 }
@@ -45,12 +34,35 @@ pub struct TcConsistent<B> {
 #[derive(Debug)]
 pub enum MockTcStatus<B> {
     Consistent(TcConsistent<B>),
-    Inconsistent(MockLocalResetTerms, Option<MockRemoteResetTerms>),
+    Inconsistent(ResetTerms, Option<ResetTerms>),
 }
 
 #[derive(Debug)]
 pub struct MockTokenChannel<B> {
     status: MockTcStatus<B>,
+}
+
+/// Calculate ResetBalance for a specific mutual credit
+fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
+    let mc_balance = &mock_token_channel.balance;
+
+    // Calculate in_fees, adding fees from remote pending requests:
+    let mut in_fees = mc_balance.in_fees;
+    for (_uid, pending_transaction) in &mock_token_channel.pending_transactions.remote {
+        in_fees
+            .checked_add(U256::from(pending_transaction.left_fees))
+            .unwrap();
+    }
+
+    ResetBalance {
+        // Calculate reset balance, including pending debt
+        balance: mc_balance
+            .balance
+            .checked_add_unsigned(mc_balance.remote_pending_debt)
+            .unwrap(),
+        in_fees,
+        out_fees: mc_balance.out_fees,
+    }
 }
 
 impl<B> TcClient<B> for MockTokenChannel<B>
@@ -79,11 +91,11 @@ where
             MockTcStatus::Inconsistent(local_reset_terms, opt_remote_reset_terms) => {
                 TcStatus::Inconsistent(
                     local_reset_terms.reset_token.clone(),
-                    local_reset_terms.reset_move_token_counter,
+                    local_reset_terms.move_token_counter,
                     opt_remote_reset_terms.as_ref().map(|remote_reset_terms| {
                         (
                             remote_reset_terms.reset_token.clone(),
-                            remote_reset_terms.reset_move_token_counter.clone(),
+                            remote_reset_terms.move_token_counter.clone(),
                         )
                     }),
                 )
@@ -102,11 +114,18 @@ where
         Box::pin(future::ready(Ok(())))
     }
 
-    fn set_direction_outgoing(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()> {
+    fn set_direction_outgoing(
+        &mut self,
+        move_token: MoveToken<B>,
+        move_token_counter: u128,
+    ) -> AsyncOpResult<()> {
         let tc_consistent = match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => tc_consistent,
             _ => unreachable!(),
         };
+
+        // Set `move_token_counter`:
+        tc_consistent.move_token_counter = move_token_counter;
 
         let last_move_token_in = match &tc_consistent.direction {
             MockTcDirection::In(move_token_in) => move_token_in.clone(),
@@ -120,6 +139,7 @@ where
     fn set_direction_outgoing_empty_incoming(
         &mut self,
         move_token: MoveToken<B>,
+        move_token_counter: u128,
     ) -> AsyncOpResult<()> {
         let tc_consistent = match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => tc_consistent,
@@ -130,13 +150,33 @@ where
         Box::pin(future::ready(Ok(())))
     }
 
-    // TODO: How do remote side sets reset terms?
     fn set_inconsistent(
         &mut self,
         local_reset_token: Signature,
         local_reset_move_token_counter: u128,
     ) -> AsyncOpResult<()> {
-        todo!();
+        // Calculate `reset_balances`:
+        let reset_balances: HashMap<_, _> = match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent
+                .mutual_credits
+                .iter()
+                .map(|(currency, mock_mutual_credit)| {
+                    (currency.clone(), calc_reset_balance(&mock_mutual_credit))
+                })
+                .collect(),
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+
+        // Change status to inconsistent:
+        self.status = MockTcStatus::Inconsistent(
+            ResetTerms {
+                reset_token: local_reset_token,
+                move_token_counter: local_reset_move_token_counter,
+                reset_balances,
+            },
+            None,
+        );
+        Box::pin(future::ready(Ok(())))
     }
 
     /// Set remote terms for reset. Can only be called if we are in inconsistent state.
@@ -145,7 +185,22 @@ where
         remote_reset_token: Signature,
         remote_reset_move_token_counter: u128,
     ) -> AsyncOpResult<()> {
-        todo!();
+        let local_reset_terms = match &self.status {
+            MockTcStatus::Consistent(..) | MockTcStatus::Inconsistent(_, Some(_)) => unreachable!(),
+            MockTcStatus::Inconsistent(local_reset_terms, None) => local_reset_terms.clone(),
+        };
+
+        self.status = MockTcStatus::Inconsistent(
+            local_reset_terms,
+            Some(ResetTerms {
+                reset_token: remote_reset_token,
+                move_token_counter: remote_reset_move_token_counter,
+                // Note that reset_balances is currently empty, and needs to filled.
+                reset_balances: HashMap::new(),
+            }),
+        );
+
+        Box::pin(future::ready(Ok(())))
     }
 
     fn add_remote_reset_balance(
@@ -153,7 +208,21 @@ where
         currency: Currency,
         reset_balance: ResetBalance,
     ) -> AsyncOpResult<()> {
-        todo!();
+        let remote_reset_terms = match &mut self.status {
+            MockTcStatus::Consistent(..) | MockTcStatus::Inconsistent(_, None) => unreachable!(),
+            MockTcStatus::Inconsistent(local_reset_terms, Some(remote_reset_terms)) => {
+                remote_reset_terms
+            }
+        };
+
+        if let Some(_) = remote_reset_terms
+            .reset_balances
+            .insert(currency, reset_balance)
+        {
+            unreachable!();
+        }
+
+        Box::pin(future::ready(Ok(())))
     }
 
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
@@ -170,10 +239,13 @@ where
     }
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128> {
-        todo!();
-    }
+        /*
+        let local_reset_terms = match &self.status {
+            MockTcStatus::Consistent(..)
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+        */
 
-    fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()> {
         todo!();
     }
 

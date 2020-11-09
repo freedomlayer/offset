@@ -121,14 +121,15 @@ pub async fn init_token_channel<B>(
 where
     B: CanonicalSerialize + Clone,
 {
+    let move_token_counter = 0;
     Ok(
         if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
             // We are the first sender
             tc_client
-                .set_direction_outgoing_empty_incoming(initial_move_token(
-                    local_public_key,
-                    remote_public_key,
-                ))
+                .set_direction_outgoing_empty_incoming(
+                    initial_move_token(local_public_key, remote_public_key),
+                    move_token_counter,
+                )
                 .await?
         } else {
             // We are the second sender
@@ -136,7 +137,7 @@ where
             let token_info = TokenInfo {
                 // No balances yet:
                 balances_hash: hash_buffer(&[]),
-                move_token_counter: 0,
+                move_token_counter,
             };
             tc_client
                 .set_direction_incoming(create_hashed::<B>(&move_token_in, &token_info))
@@ -146,7 +147,7 @@ where
 }
 
 /// Create a new McBalance (with zero pending fees) based on a given ResetBalance
-fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
+pub fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
     McBalance {
         balance: reset_balance.balance,
         local_pending_debt: 0,
@@ -274,7 +275,7 @@ where
                         Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
                             reset_token: local_reset_token,
                             move_token_counter: local_reset_move_token_counter,
-                            balances_for_reset: local_balances_for_reset(tc_client).await?,
+                            reset_balances: local_balances_for_reset(tc_client).await?,
                         }))
                     }
                 }
@@ -282,7 +283,7 @@ where
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
                     reset_token: local_reset_token,
                     move_token_counter: local_reset_move_token_counter,
-                    balances_for_reset: local_balances_for_reset(tc_client).await?,
+                    reset_balances: local_balances_for_reset(tc_client).await?,
                 }))
             }
         }
@@ -376,7 +377,7 @@ where
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
             reset_token: local_reset_token,
             move_token_counter: local_reset_move_token_counter,
-            balances_for_reset: local_balances_for_reset(tc_client).await?,
+            reset_balances: local_balances_for_reset(tc_client).await?,
         }))
     }
 }
@@ -439,7 +440,7 @@ where
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
                     reset_token: local_reset_token,
                     move_token_counter: local_reset_move_token_counter,
-                    balances_for_reset: local_balances_for_reset(tc_client).await?,
+                    reset_balances: local_balances_for_reset(tc_client).await?,
                 }))
             }
         }
@@ -461,7 +462,7 @@ where
         Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
             reset_token: local_reset_token,
             move_token_counter: local_reset_move_token_counter,
-            balances_for_reset: local_balances_for_reset(tc_client).await?,
+            reset_balances: local_balances_for_reset(tc_client).await?,
         }))
     }
 }
@@ -647,11 +648,6 @@ where
         ));
     }
 
-    // Update move_token_counter:
-    tc_client
-        .set_move_token_counter(new_move_token_counter)
-        .await?;
-
     // Set direction to outgoing, with the newly received move token:
     let new_move_token_hashed = create_hashed(&new_move_token, &token_info);
     tc_client
@@ -771,7 +767,9 @@ where
     // Set the direction to be outgoing:
     // TODO: This should also save the last incoming move token, in an atomic way.
     // Should probably be implemented inside the database code.
-    tc_client.set_direction_outgoing(move_token.clone()).await?;
+    tc_client
+        .set_direction_outgoing(move_token.clone(), new_move_token_counter)
+        .await?;
 
     Ok(move_token)
 }
@@ -870,7 +868,7 @@ pub async fn load_remote_reset_terms<B>(
             Some(ResetTerms {
                 reset_token: local_reset_token,
                 move_token_counter: local_reset_move_token_counter,
-                balances_for_reset: local_balances_for_reset(tc_client).await?,
+                reset_balances: local_balances_for_reset(tc_client).await?,
             })
         }
         TcStatus::Inconsistent(..) => None,

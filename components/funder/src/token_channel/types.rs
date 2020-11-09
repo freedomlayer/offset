@@ -24,20 +24,22 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
 // TODO: Might move to proto in the future:
 /// Balances for resetting a currency
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResetBalance {
     pub balance: i128,
     pub in_fees: U256,
     pub out_fees: U256,
 }
 
+// TODO: Maybe shouldn't be cloneable (because reset balances could be large)
 // TODO: Might move to proto in the future:
 /// Reset terms for a token channel
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub move_token_counter: u128,
-    pub balances_for_reset: HashMap<Currency, ResetBalance>,
+    // TODO: Rename:
+    pub reset_balances: HashMap<Currency, ResetBalance>,
 }
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
@@ -55,10 +57,15 @@ pub trait TcClient<B> {
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
-    fn set_direction_outgoing(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
+    fn set_direction_outgoing(
+        &mut self,
+        move_token: MoveToken<B>,
+        move_token_counter: u128,
+    ) -> AsyncOpResult<()>;
     fn set_direction_outgoing_empty_incoming(
         &mut self,
         move_token: MoveToken<B>,
+        move_token_counter: u128,
     ) -> AsyncOpResult<()>;
     fn set_inconsistent(
         &mut self,
@@ -91,7 +98,7 @@ pub trait TcClient<B> {
     ) -> AsyncOpResult<()>;
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
-    fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
+    // fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
     fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
 
