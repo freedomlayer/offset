@@ -42,6 +42,7 @@ pub enum TokenChannelError {
     CanNotRemoveCurrencyInUse,
     InvalidTokenChannelStatus,
     RequestSignatureError,
+    InvalidDbState,
     OpError(OpError),
     QueueOperationError(QueueOperationError),
 }
@@ -64,7 +65,7 @@ pub enum ReceiveMoveTokenOutput<B> {
     Duplicate,
     RetransmitOutgoing(MoveToken<B>),
     Received(MoveTokenReceived<B>),
-    ChainInconsistent(Signature, u128), // (local_reset_token, local_reset_move_token_counter)
+    ChainInconsistent(ResetTerms), // (local_reset_token, local_reset_move_token_counter)
 }
 
 /// Create a token from a public key
@@ -153,6 +154,21 @@ fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
         in_fees: reset_balance.in_fees,
         out_fees: reset_balance.out_fees,
     }
+}
+
+/// Extract all local balances for reset as a map:
+async fn local_balances_for_reset<B>(
+    tc_client: &mut impl TcClient<B>,
+) -> Result<HashMap<Currency, ResetBalance>, TokenChannelError> {
+    let mut balances = HashMap::new();
+    let mut reset_balances = tc_client.list_local_reset_balances();
+    while let Some(item) = reset_balances.next().await {
+        let (currency, reset_balance) = item?;
+        if let Some(_) = balances.insert(currency, reset_balance) {
+            return Err(TokenChannelError::InvalidDbState);
+        }
+    }
+    Ok(balances)
 }
 
 pub async fn handle_in_move_token<B, C>(
@@ -255,17 +271,19 @@ where
                     }
                     IncomingTokenMatchOutput::InvalidIncoming(_) => {
                         // In this case the transaction was not committed:
-                        Ok(ReceiveMoveTokenOutput::ChainInconsistent(
-                            local_reset_token,
-                            local_reset_move_token_counter,
-                        ))
+                        Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
+                            reset_token: local_reset_token,
+                            move_token_counter: local_reset_move_token_counter,
+                            balances_for_reset: local_balances_for_reset(tc_client).await?,
+                        }))
                     }
                 }
             } else {
-                Ok(ReceiveMoveTokenOutput::ChainInconsistent(
-                    local_reset_token,
-                    local_reset_move_token_counter,
-                ))
+                Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
+                    reset_token: local_reset_token,
+                    move_token_counter: local_reset_move_token_counter,
+                    balances_for_reset: local_balances_for_reset(tc_client).await?,
+                }))
             }
         }
     }
@@ -278,6 +296,7 @@ where
 //      - hash(prefix ("SOME_STRING"))
 //      - Both public keys.
 //      - local_reset_move_token_counter
+
 /// Generate a reset token, to be used by remote side if he wants to accept the reset terms.
 async fn create_reset_token(
     identity_client: &mut IdentityClient,
@@ -353,10 +372,12 @@ where
             remote_public_key,
         )
         .await?;
-        Ok(ReceiveMoveTokenOutput::ChainInconsistent(
-            local_reset_token,
-            local_reset_move_token_counter,
-        ))
+
+        Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
+            reset_token: local_reset_token,
+            move_token_counter: local_reset_move_token_counter,
+            balances_for_reset: local_balances_for_reset(tc_client).await?,
+        }))
     }
 }
 
@@ -415,10 +436,11 @@ where
                     remote_public_key,
                 )
                 .await?;
-                Ok(ReceiveMoveTokenOutput::ChainInconsistent(
-                    local_reset_token,
-                    local_reset_move_token_counter,
-                ))
+                Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
+                    reset_token: local_reset_token,
+                    move_token_counter: local_reset_move_token_counter,
+                    balances_for_reset: local_balances_for_reset(tc_client).await?,
+                }))
             }
         }
     // self.outgoing_to_incoming(friend_move_token, new_move_token)
@@ -436,10 +458,11 @@ where
             remote_public_key,
         )
         .await?;
-        Ok(ReceiveMoveTokenOutput::ChainInconsistent(
-            local_reset_token,
-            local_reset_move_token_counter,
-        ))
+        Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
+            reset_token: local_reset_token,
+            move_token_counter: local_reset_move_token_counter,
+            balances_for_reset: local_balances_for_reset(tc_client).await?,
+        }))
     }
 }
 
