@@ -24,6 +24,7 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
 // TODO: Might move to proto in the future:
 /// Balances for resetting a currency
+#[derive(Debug)]
 pub struct ResetBalance {
     pub balance: i128,
     pub in_fees: U256,
@@ -32,6 +33,7 @@ pub struct ResetBalance {
 
 // TODO: Might move to proto in the future:
 /// Reset terms for a token channel
+#[derive(Debug)]
 pub struct ResetTerms {
     pub reset_token: Signature,
     pub move_token_counter: u128,
@@ -39,6 +41,7 @@ pub struct ResetTerms {
 }
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
+#[derive(Debug)]
 pub enum TcStatus<B> {
     ConsistentIn(MoveTokenHashed),                        // (move_token_in)
     ConsistentOut(MoveToken<B>, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
