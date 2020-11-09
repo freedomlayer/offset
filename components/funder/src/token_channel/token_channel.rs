@@ -276,6 +276,8 @@ async fn create_reset_token(
         .map_err(|_| TokenChannelError::RequestSignatureError)?)
 }
 
+/// Set token channel to be inconsistent
+/// Local reset terms are automatically calculated
 async fn set_inconsistent<B>(
     tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
@@ -807,18 +809,43 @@ where
 }
 
 /// Load the remote reset terms information from a remote side's inconsistency message
+/// Optionally returns local reset terms (If not already inconsistent)
 pub async fn load_remote_reset_terms<B>(
     tc_client: &mut impl TcClient<B>,
+    identity_client: &mut IdentityClient,
     remote_reset_token: Signature,
     remote_reset_move_token_counter: u128,
-    // TODO: Should `remote_reset_balances` be a Vec or a HashMap?
-    remote_reset_balances: Vec<(Currency, McBalance)>,
-) {
-    // TODO:
-    // - Change our state to inconsistent, if required.
-    // - Update remote_reset_{token, move_token_counter}.
-    // - Insert all `remote_reset_balance-s`, possibly one by one?
-    //
-    // Think about the interface with the database.
-    todo!();
+    remote_reset_balances: impl IntoIterator<Item = (Currency, McBalance)>,
+    local_public_key: &PublicKey,
+    remote_public_key: &PublicKey,
+) -> Result<Option<(Signature, u128)>, TokenChannelError> {
+    // Check our current state:
+    let ret_val = match tc_client.get_tc_status().await? {
+        TcStatus::ConsistentIn(_) | TcStatus::ConsistentOut(_, _) => {
+            // Change our token channel status to inconsistent:
+            Some(
+                set_inconsistent(
+                    tc_client,
+                    identity_client,
+                    local_public_key,
+                    remote_public_key,
+                )
+                .await?,
+            )
+        }
+        TcStatus::Inconsistent(_, _, _) => None,
+    };
+
+    // Set remote reset terms:
+    tc_client
+        .set_inconsistent_remote_terms(remote_reset_token, remote_reset_move_token_counter)
+        .await?;
+
+    for (currency, mc_balance) in remote_reset_balances.into_iter() {
+        tc_client
+            .add_remote_reset_balance(currency, mc_balance)
+            .await?;
+    }
+
+    Ok(ret_val)
 }

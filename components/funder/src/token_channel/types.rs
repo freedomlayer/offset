@@ -44,6 +44,21 @@ pub trait TcClient<B> {
         local_reset_move_token_counter: u128,
     ) -> AsyncOpResult<()>;
 
+    /// Set remote terms for reset. Can only be called if we are in inconsistent state.
+    fn set_inconsistent_remote_terms(
+        &mut self,
+        remote_reset_token: Signature,
+        remote_reset_move_token_counter: u128,
+    ) -> AsyncOpResult<()>;
+
+    /// Add a new remote reset balance to the remote reset terms list
+    /// Can only be called if we already called `set_inconsistent_remote_terms()`.
+    fn add_remote_reset_balance(
+        &mut self,
+        currency: Currency,
+        reset_balance: McBalance,
+    ) -> AsyncOpResult<()>;
+
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
     fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
 
