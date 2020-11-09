@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use futures::channel::oneshot;
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream};
+use common::u256::U256;
 
 use proto::crypto::Signature;
 use proto::funder::messages::{Currency, McBalance, MoveToken};
@@ -18,6 +21,22 @@ pub enum TcOpError {
 
 pub type TcOpResult<T> = Result<T, TcOpError>;
 pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
+
+// TODO: Might move to proto in the future:
+/// Balances for resetting a currency
+pub struct ResetBalance {
+    pub balance: i128,
+    pub in_fees: U256,
+    pub out_fees: U256,
+}
+
+// TODO: Might move to proto in the future:
+/// Reset terms for a token channel
+pub struct ResetTerms {
+    pub reset_token: Signature,
+    pub move_token_counter: u128,
+    pub balances_for_reset: HashMap<Currency, ResetBalance>,
+}
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
 pub enum TcStatus<B> {
@@ -56,7 +75,7 @@ pub trait TcClient<B> {
     fn add_remote_reset_balance(
         &mut self,
         currency: Currency,
-        reset_balance: McBalance,
+        reset_balance: ResetBalance,
     ) -> AsyncOpResult<()>;
 
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
@@ -78,11 +97,11 @@ pub trait TcClient<B> {
 
     /// Return a sorted async iterator of all local reset proposal balances
     /// Only relevant for inconsistent channels
-    fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+    fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)>;
 
     /// Return a sorted async iterator of all remote reset proposal balances
     /// Only relevant for inconsistent channels
-    fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+    fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)>;
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;

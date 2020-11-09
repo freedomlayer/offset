@@ -10,7 +10,7 @@ use proto::funder::messages::{Currency, McBalance, MoveToken};
 use database::interface::funder::CurrencyConfig;
 
 use crate::mutual_credit::tests::MockMutualCredit;
-use crate::token_channel::types::TcStatus;
+use crate::token_channel::types::{ResetBalance, TcStatus};
 use crate::token_channel::TcClient;
 use crate::types::MoveTokenHashed;
 
@@ -151,7 +151,7 @@ where
     fn add_remote_reset_balance(
         &mut self,
         currency: Currency,
-        reset_balance: McBalance,
+        reset_balance: ResetBalance,
     ) -> AsyncOpResult<()> {
         todo!();
     }
@@ -188,13 +188,13 @@ where
 
     /// Return a sorted async iterator of all local reset proposal balances
     /// Only relevant for inconsistent channels
-    fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)> {
+    fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)> {
         todo!();
     }
 
     /// Return a sorted async iterator of all remote reset proposal balances
     /// Only relevant for inconsistent channels
-    fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)> {
+    fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)> {
         todo!();
     }
 

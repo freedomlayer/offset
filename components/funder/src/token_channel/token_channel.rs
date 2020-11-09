@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use derive_more::From;
@@ -30,7 +31,7 @@ use crate::mutual_credit::incoming::{
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
 use crate::mutual_credit::types::McClient;
 
-use crate::token_channel::types::{TcClient, TcStatus};
+use crate::token_channel::types::{ResetBalance, ResetTerms, TcClient, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
 
 /// Unrecoverable TokenChannel error
@@ -144,6 +145,17 @@ where
     )
 }
 
+/// Create a new McBalance (with zero pending fees) based on a given ResetBalance
+fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
+    McBalance {
+        balance: reset_balance.balance,
+        local_pending_debt: 0,
+        remote_pending_debt: 0,
+        in_fees: reset_balance.in_fees,
+        out_fees: reset_balance.out_fees,
+    }
+}
+
 pub async fn handle_in_move_token<B, C>(
     tc_client: &mut C,
     identity_client: &mut IdentityClient,
@@ -187,7 +199,12 @@ where
 
                 // Simulate an outgoing move token with the correct `new_token`:
                 let token_info = TokenInfo {
-                    balances_hash: hash_mc_infos(tc_client.list_local_reset_balances()).await?,
+                    balances_hash: hash_mc_infos(tc_client.list_local_reset_balances().map_ok(
+                        |(currency, mc_balance)| {
+                            (currency, reset_balance_to_mc_balance(mc_balance))
+                        },
+                    ))
+                    .await?,
                     move_token_counter: local_reset_move_token_counter
                         .checked_sub(1)
                         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
@@ -776,7 +793,10 @@ where
 
     // Simulate an incoming move token with the correct `new_token`:
     let token_info = TokenInfo {
-        balances_hash: hash_mc_infos(tc_client.list_remote_reset_balances()).await?,
+        balances_hash: hash_mc_infos(tc_client.list_remote_reset_balances().map_ok(
+            |(currency, reset_balance)| (currency, reset_balance_to_mc_balance(reset_balance)),
+        ))
+        .await?,
         move_token_counter: remote_reset_move_token_counter
             .checked_sub(1)
             .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
@@ -815,7 +835,7 @@ pub async fn load_remote_reset_terms<B>(
     identity_client: &mut IdentityClient,
     remote_reset_token: Signature,
     remote_reset_move_token_counter: u128,
-    remote_reset_balances: impl IntoIterator<Item = (Currency, McBalance)>,
+    remote_reset_balances: impl IntoIterator<Item = (Currency, ResetBalance)>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<Option<(Signature, u128)>, TokenChannelError> {
