@@ -146,6 +146,7 @@ where
     )
 }
 
+// TODO: Possibly have this function as a method on the ResetBalance struct.
 /// Create a new McBalance (with zero pending fees) based on a given ResetBalance
 pub fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
     McBalance {
