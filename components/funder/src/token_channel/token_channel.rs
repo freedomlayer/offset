@@ -861,20 +861,24 @@ pub async fn load_remote_reset_terms<B>(
     remote_reset_balances: impl IntoIterator<Item = (Currency, ResetBalance)>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<Option<(Signature, u128)>, TokenChannelError> {
+) -> Result<Option<ResetTerms>, TokenChannelError> {
     // Check our current state:
     let ret_val = match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(_) | TcStatus::ConsistentOut(_, _) => {
             // Change our token channel status to inconsistent:
-            Some(
-                set_inconsistent(
-                    tc_client,
-                    identity_client,
-                    local_public_key,
-                    remote_public_key,
-                )
-                .await?,
+            let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
+                tc_client,
+                identity_client,
+                local_public_key,
+                remote_public_key,
             )
+            .await?;
+
+            Some(ResetTerms {
+                reset_token: local_reset_token,
+                move_token_counter: local_reset_move_token_counter,
+                balances_for_reset: local_balances_for_reset(tc_client).await?,
+            })
         }
         TcStatus::Inconsistent(_, _, _) => None,
     };
