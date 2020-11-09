@@ -54,7 +54,6 @@ pub struct MoveTokenReceivedCurrency {
 
 #[derive(Debug)]
 pub struct MoveTokenReceived<B> {
-    // pub mutations: Vec<TcMutation<B>>,
     pub currencies: Vec<MoveTokenReceivedCurrency>,
     pub relays_diff: Vec<RelayAddress<B>>,
 }
