@@ -678,14 +678,7 @@ where
     // We expect that our current state is incoming:
     let move_token_in = match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => move_token_in,
-        TcStatus::ConsistentOut(_move_token_out, _opt_move_token_in) => {
-            return Err(TokenChannelError::InvalidTokenChannelStatus)
-        }
-        TcStatus::Inconsistent(
-            _local_reset_token,
-            _local_reset_move_token_counter,
-            _opt_remote,
-        ) => {
+        TcStatus::ConsistentOut(..) | TcStatus::Inconsistent(..) => {
             return Err(TokenChannelError::InvalidTokenChannelStatus);
         }
     };
@@ -801,8 +794,8 @@ where
     // and that the remote side has already sent his reset terms:
     let (remote_reset_token, remote_reset_move_token_counter) =
         match tc_client.get_tc_status().await? {
-            TcStatus::ConsistentIn(_)
-            | TcStatus::ConsistentOut(_, _)
+            TcStatus::ConsistentIn(..)
+            | TcStatus::ConsistentOut(..)
             | TcStatus::Inconsistent(_, _, None) => {
                 // We don't have the remote side's reset terms yet:
                 return Err(TokenChannelError::InvalidTokenChannelStatus);
@@ -864,7 +857,7 @@ pub async fn load_remote_reset_terms<B>(
 ) -> Result<Option<ResetTerms>, TokenChannelError> {
     // Check our current state:
     let ret_val = match tc_client.get_tc_status().await? {
-        TcStatus::ConsistentIn(_) | TcStatus::ConsistentOut(_, _) => {
+        TcStatus::ConsistentIn(..) | TcStatus::ConsistentOut(..) => {
             // Change our token channel status to inconsistent:
             let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
                 tc_client,
@@ -880,7 +873,7 @@ pub async fn load_remote_reset_terms<B>(
                 balances_for_reset: local_balances_for_reset(tc_client).await?,
             })
         }
-        TcStatus::Inconsistent(_, _, _) => None,
+        TcStatus::Inconsistent(..) => None,
     };
 
     // Set remote reset terms:
