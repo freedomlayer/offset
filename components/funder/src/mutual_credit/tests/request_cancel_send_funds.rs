@@ -30,7 +30,7 @@ async fn task_request_cancel_send_funds() {
     let remote_public_key = public_key_b.clone();
     let balance = 0;
 
-    let mut mc_transaction = MockMutualCredit::new(&currency, balance);
+    let mut mc_transaction = MockMutualCredit::new(currency.clone(), balance);
 
     // -----[RequestSendFunds]--------
     // -----------------------------

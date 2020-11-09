@@ -589,9 +589,8 @@ where
     // Attempt to apply operations for every currency:
     for currency_operations in &new_move_token.currencies_operations {
         let remote_max_debt = tc_client
-            .get_currency_config(currency_operations.currency.clone())
-            .await?
-            .remote_max_debt;
+            .get_remote_max_debt(currency_operations.currency.clone())
+            .await?;
 
         let res = process_operations_list(
             tc_client.mc_client(currency_operations.currency.clone()),

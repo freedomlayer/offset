@@ -39,11 +39,11 @@ pub struct MockMutualCredit {
 impl MockMutualCredit {
     pub fn new(
         // TODO: Should we move instead of take a reference here?
-        currency: &Currency,
+        currency: Currency,
         balance: i128,
     ) -> MockMutualCredit {
         MockMutualCredit {
-            currency: currency.clone(),
+            currency,
             balance: McBalance::new(balance),
             pending_transactions: McPendingTransactions::new(),
         }

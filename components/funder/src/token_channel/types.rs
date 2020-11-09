@@ -100,7 +100,8 @@ pub trait TcClient<B> {
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     // fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
-    fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig>;
+    /// Get currency's configured remote max debt
+    fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
 
     /// Return a sorted async iterator of all balances
     fn list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
@@ -116,11 +117,11 @@ pub trait TcClient<B> {
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 
-    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
-    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 
-    fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
-    fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 
     fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()>;
 }

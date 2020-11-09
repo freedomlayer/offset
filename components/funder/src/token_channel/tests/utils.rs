@@ -40,6 +40,9 @@ pub enum MockTcStatus<B> {
 #[derive(Debug)]
 pub struct MockTokenChannel<B> {
     status: MockTcStatus<B>,
+    /// Remote max debt, configured for each currency
+    /// (And possibly for currencies that are not yet active)
+    remote_max_debts: HashMap<Currency, u128>,
 }
 
 /// Calculate ResetBalance for a specific mutual credit
@@ -239,18 +242,17 @@ where
     }
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128> {
-        /*
-        let local_reset_terms = match &self.status {
-            MockTcStatus::Consistent(..)
+        Box::pin(future::ready(Ok(match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent.move_token_counter,
             MockTcStatus::Inconsistent(..) => unreachable!(),
-        };
-        */
-
-        todo!();
+        })))
     }
 
-    fn get_currency_config(&mut self, currency: Currency) -> AsyncOpResult<CurrencyConfig> {
-        todo!();
+    fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128> {
+        Box::pin(future::ready(Ok(*self
+            .remote_max_debts
+            .get(&currency)
+            .unwrap())))
     }
 
     /// Return a sorted async iterator of all balances
@@ -271,30 +273,70 @@ where
     }
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
-        todo!();
+        let local_currencies = match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => &tc_consistent.local_currencies,
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+        Box::pin(future::ready(Ok(local_currencies.contains(&currency))))
     }
 
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
-        todo!();
+        let remote_currencies = match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => &tc_consistent.remote_currencies,
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+        Box::pin(future::ready(Ok(remote_currencies.contains(&currency))))
     }
 
-    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()> {
-        todo!();
+    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
+        Box::pin(future::ready(Ok(match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => {
+                tc_consistent.local_currencies.insert(currency)
+            }
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        })))
     }
 
-    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<()> {
-        todo!();
+    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
+        Box::pin(future::ready(Ok(match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => {
+                tc_consistent.local_currencies.remove(&currency)
+            }
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        })))
     }
 
-    fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()> {
-        todo!();
+    fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
+        Box::pin(future::ready(Ok(match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => {
+                tc_consistent.remote_currencies.remove(&currency)
+            }
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        })))
     }
 
-    fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<()> {
-        todo!();
+    fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
+        Box::pin(future::ready(Ok(match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => {
+                tc_consistent.remote_currencies.remove(&currency)
+            }
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        })))
     }
 
     fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()> {
-        todo!();
+        let balance = 0;
+        match &mut self.status {
+            MockTcStatus::Consistent(tc_consistent) => {
+                let res = tc_consistent
+                    .mutual_credits
+                    .insert(currency.clone(), MockMutualCredit::new(currency, balance));
+                if let Some(_) = res {
+                    unreachable!();
+                }
+            }
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+        Box::pin(future::ready(Ok(())))
     }
 }
