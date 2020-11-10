@@ -230,11 +230,6 @@ where
 
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
     fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()> {
-        // TODO:
-        // Allow to initialize MockMutualCredit using in_fees and out_fees too.
-        // Currently `in_fees` and `out_fees` are always initially zero.
-
-        /*
         let local_reset_terms = match &self.status {
             MockTcStatus::Consistent(..) => unreachable!(),
             MockTcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
@@ -248,26 +243,32 @@ where
             .map(|(currency, reset_balance)| {
                 (
                     currency.clone(),
-                    MockMutualCredit::new(reset_balance_to_mc_balance(reset_balance.clone()),
+                    MockMutualCredit::new(
+                        currency.clone(),
+                        reset_balance.balance,
+                        reset_balance.in_fees,
+                        reset_balance.out_fees,
+                    ),
                 )
             })
             .collect();
-        let currencies_set = local_reset_terms
+
+        let currencies_set: HashSet<_> = local_reset_terms
             .reset_balances
             .iter()
             .map(|(currency, _)| currency)
             .cloned()
             .collect();
+
         self.status = MockTcStatus::Consistent(TcConsistent {
             mutual_credits,
             direction: MockTcDirection::Out(move_token, None),
             move_token_counter: local_reset_terms.move_token_counter.checked_sub(1).unwrap(),
-            local_currencies: currencies_set,
+            local_currencies: currencies_set.clone(),
             remote_currencies: currencies_set,
         });
-        */
 
-        todo!();
+        Box::pin(future::ready(Ok(())))
     }
 
     /// Simulate incoming token, to be used before an outgoing reset move token (a local reset)
