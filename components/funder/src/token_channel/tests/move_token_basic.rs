@@ -44,23 +44,31 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
             TcStatus::Inconsistent(..) => unreachable!(),
         };
 
+    // Spawn identity servers:
     let (requests_sender_a, identity_server_a) = create_identity(identity_a);
     let mut identity_client_a = IdentityClient::new(requests_sender_a);
     test_executor
         .spawn(identity_server_a.then(|_| future::ready(())))
         .unwrap();
 
+    let (requests_sender_b, identity_server_b) = create_identity(identity_b);
+    let mut identity_client_b = IdentityClient::new(requests_sender_b);
+    test_executor
+        .spawn(identity_server_b.then(|_| future::ready(())))
+        .unwrap();
+
+    // Send a MoveToken message from b to a:
     let currencies_operations = Vec::new();
     let relays_diff = Vec::new();
     let currencies_diff = vec![currency];
     let move_token = handle_out_move_token(
-        &mut tc_a_b,
-        &mut identity_client_a,
+        &mut tc_b_a,
+        &mut identity_client_b,
         currencies_operations,
         relays_diff,
         currencies_diff,
-        &pk_a,
         &pk_b,
+        &pk_a,
     )
     .await
     .unwrap();
