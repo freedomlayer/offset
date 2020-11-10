@@ -1,9 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::mem;
 
-use futures::{future, stream};
+use futures::{future, stream, Future};
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
+use common::conn::BoxFuture;
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::u256::U256;
 
@@ -13,6 +15,7 @@ use proto::funder::messages::{Currency, McBalance, MoveToken, TokenInfo};
 use signature::canonical::CanonicalSerialize;
 
 use database::interface::funder::CurrencyConfig;
+use database::transaction::Transaction;
 
 use crypto::hash::hash_buffer;
 use crypto::identity::compare_public_key;
@@ -22,13 +25,13 @@ use crate::token_channel::types::{ResetBalance, ResetTerms, TcStatus};
 use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcClient};
 use crate::types::{create_hashed, MoveTokenHashed};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MockTcDirection<B> {
     In(MoveTokenHashed),
     Out(MoveToken<B>, Option<MoveTokenHashed>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TcConsistent<B> {
     mutual_credits: HashMap<Currency, MockMutualCredit>,
     direction: MockTcDirection<B>,
@@ -37,13 +40,13 @@ pub struct TcConsistent<B> {
     remote_currencies: HashSet<Currency>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MockTcStatus<B> {
     Consistent(TcConsistent<B>),
     Inconsistent(ResetTerms, Option<ResetTerms>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MockTokenChannel<B> {
     status: MockTcStatus<B>,
     /// Remote max debt, configured for each currency
@@ -507,5 +510,33 @@ where
             MockTcStatus::Inconsistent(..) => unreachable!(),
         };
         Box::pin(future::ready(Ok(())))
+    }
+}
+
+impl<B> Transaction for MockTokenChannel<B>
+where
+    B: Clone + Send,
+{
+    fn transaction<'a, F, FR, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
+    where
+        F: (FnOnce(&'a mut Self) -> FR) + Send + 'a,
+        FR: Future<Output = (T, bool)> + Send + 'a,
+        T: Send + 'a,
+    {
+        Box::pin(async move {
+            // Save original value, before we start making modifications:
+            let orig_mock_token_channel = self.clone();
+            match f(self).await {
+                (val, true) => {
+                    // Commit transaction
+                    (val, true)
+                }
+                (val, false) => {
+                    // Cancel transaction
+                    let _ = mem::replace(self, orig_mock_token_channel);
+                    (val, false)
+                }
+            }
+        })
     }
 }
