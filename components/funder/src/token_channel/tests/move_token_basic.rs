@@ -21,7 +21,9 @@ use crate::token_channel::{
 };
 
 async fn task_move_token_basic(test_executor: TestExecutor) {
-    let currency = Currency::try_from("FST".to_owned()).unwrap();
+    let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
+    let currency2 = Currency::try_from("FST2".to_owned()).unwrap();
+    let currency3 = Currency::try_from("FST3".to_owned()).unwrap();
 
     let mut rng_a = DummyRandom::new(&[0xau8]);
     let pkcs8 = PrivateKey::rand_gen(&mut rng_a);
@@ -57,10 +59,10 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .spawn(identity_server_b.then(|_| future::ready(())))
         .unwrap();
 
-    // Send a MoveToken message from b to a:
+    // Send a MoveToken message from b to a, adding a currency:
     let currencies_operations = Vec::new();
     let relays_diff = Vec::new();
-    let currencies_diff = vec![currency];
+    let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
         &mut identity_client_b,
@@ -69,6 +71,33 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         currencies_diff,
         &pk_b,
         &pk_a,
+    )
+    .await
+    .unwrap();
+
+    // Receive the MoveToken message at a:
+    handle_in_move_token(
+        &mut tc_a_b,
+        &mut identity_client_a,
+        move_token,
+        &pk_a,
+        &pk_b,
+    )
+    .await
+    .unwrap();
+
+    // Send a MoveToken message from a to b, adding two currencies:
+    let currencies_operations = Vec::new();
+    let relays_diff = Vec::new();
+    let currencies_diff = vec![currency1.clone(), currency2.clone()];
+    let move_token = handle_out_move_token(
+        &mut tc_a_b,
+        &mut identity_client_a,
+        currencies_operations,
+        relays_diff,
+        currencies_diff,
+        &pk_a,
+        &pk_b,
     )
     .await
     .unwrap();
