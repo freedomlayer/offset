@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use futures::{future, stream};
@@ -6,15 +7,20 @@ use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::u256::U256;
 
-use proto::crypto::Signature;
-use proto::funder::messages::{Currency, McBalance, MoveToken};
+use proto::crypto::{PublicKey, Signature};
+use proto::funder::messages::{Currency, McBalance, MoveToken, TokenInfo};
+
+use signature::canonical::CanonicalSerialize;
 
 use database::interface::funder::CurrencyConfig;
 
+use crypto::hash::hash_buffer;
+use crypto::identity::compare_public_key;
+
 use crate::mutual_credit::tests::MockMutualCredit;
 use crate::token_channel::types::{ResetBalance, ResetTerms, TcStatus};
-use crate::token_channel::{reset_balance_to_mc_balance, TcClient};
-use crate::types::MoveTokenHashed;
+use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcClient};
+use crate::types::{create_hashed, MoveTokenHashed};
 
 #[derive(Debug)]
 pub enum MockTcDirection<B> {
@@ -43,6 +49,51 @@ pub struct MockTokenChannel<B> {
     /// Remote max debt, configured for each currency
     /// (And possibly for currencies that are not yet active)
     remote_max_debts: HashMap<Currency, u128>,
+}
+
+impl<B> MockTokenChannel<B>
+where
+    B: CanonicalSerialize + Clone,
+{
+    pub fn new(local_public_key: &PublicKey, remote_public_key: &PublicKey) -> Self {
+        // First move token message for both sides
+        let move_token_counter = 0;
+        if compare_public_key(&local_public_key, &remote_public_key) == Ordering::Less {
+            // We are the first sender
+            MockTokenChannel {
+                status: MockTcStatus::Consistent(TcConsistent {
+                    mutual_credits: HashMap::new(),
+                    direction: MockTcDirection::Out(
+                        initial_move_token(local_public_key, remote_public_key),
+                        None,
+                    ),
+                    move_token_counter,
+                    local_currencies: HashSet::new(),
+                    remote_currencies: HashSet::new(),
+                }),
+                remote_max_debts: HashMap::new(),
+            }
+        } else {
+            // We are the second sender
+            let move_token_in = initial_move_token(remote_public_key, local_public_key);
+            let token_info = TokenInfo {
+                // No balances yet:
+                balances_hash: hash_buffer(&[]),
+                move_token_counter,
+            };
+
+            MockTokenChannel {
+                status: MockTcStatus::Consistent(TcConsistent {
+                    mutual_credits: HashMap::new(),
+                    direction: MockTcDirection::In(create_hashed::<B>(&move_token_in, &token_info)),
+                    move_token_counter,
+                    local_currencies: HashSet::new(),
+                    remote_currencies: HashSet::new(),
+                }),
+                remote_max_debts: HashMap::new(),
+            }
+        }
+    }
 }
 
 /// Calculate ResetBalance for a specific mutual credit

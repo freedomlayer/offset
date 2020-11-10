@@ -85,7 +85,10 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey) -> MoveToken<B> {
+pub fn initial_move_token<B>(
+    low_public_key: &PublicKey,
+    high_public_key: &PublicKey,
+) -> MoveToken<B> {
     let token_info = TokenInfo {
         // No balances yet:
         balances_hash: hash_buffer(&[]),
@@ -109,6 +112,7 @@ fn initial_move_token<B>(low_public_key: &PublicKey, high_public_key: &PublicKey
     move_token_out
 }
 
+/*
 /// Create a new token channel, and determines the initial state for the local side.
 /// The initial state is determined according to the order between the two provided public keys.
 /// Note that this function does not affect the database, it only returns a new state for the token
@@ -145,6 +149,7 @@ where
         },
     )
 }
+*/
 
 // TODO: Possibly have this function as a method on the ResetBalance struct.
 /// Create a new McBalance (with zero pending fees) based on a given ResetBalance
