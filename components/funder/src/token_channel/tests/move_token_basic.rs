@@ -1,5 +1,8 @@
 use std::convert::TryFrom;
 
+use futures::task::SpawnExt;
+use futures::{future, FutureExt};
+
 use common::test_executor::TestExecutor;
 
 use crypto::identity::{Identity, SoftwareEd25519Identity};
@@ -8,6 +11,8 @@ use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{PrivateKey, PublicKey};
 use proto::funder::messages::Currency;
+
+use identity::{create_identity, IdentityClient};
 
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::{
@@ -32,19 +37,33 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     let mut tc_b_a = MockTokenChannel::<u32>::new(&pk_b, &pk_a);
 
     // Sort `a` and `b` entities, to have always have `a` as the first sender.
-    let (pk_a, pk_b, identity_a, identity_b, tc_a_b, tc_b_a) =
+    let (pk_a, pk_b, identity_a, identity_b, mut tc_a_b, mut tc_b_a) =
         match tc_a_b.get_tc_status().await.unwrap() {
             TcStatus::ConsistentOut(..) => (pk_a, pk_b, identity_a, identity_b, tc_a_b, tc_b_a),
             TcStatus::ConsistentIn(..) => (pk_b, pk_a, identity_b, identity_a, tc_b_a, tc_a_b),
             TcStatus::Inconsistent(..) => unreachable!(),
         };
 
-    /*
+    let (requests_sender_a, identity_server_a) = create_identity(identity_a);
+    let mut identity_client_a = IdentityClient::new(requests_sender_a);
+    test_executor
+        .spawn(identity_server_a.then(|_| future::ready(())))
+        .unwrap();
+
     let currencies_operations = Vec::new();
     let relays_diff = Vec::new();
     let currencies_diff = vec![currency];
-    handle_out_move_token(&mut tc_a_b, identity_a, currencies_operations, relays_diff
-    */
+    let move_token = handle_out_move_token(
+        &mut tc_a_b,
+        &mut identity_client_a,
+        currencies_operations,
+        relays_diff,
+        currencies_diff,
+        &pk_a,
+        &pk_b,
+    )
+    .await
+    .unwrap();
 }
 
 #[test]
