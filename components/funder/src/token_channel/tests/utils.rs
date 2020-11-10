@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use futures::future;
+use futures::{future, stream};
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::safe_arithmetic::SafeSignedArithmetic;
@@ -338,19 +338,53 @@ where
 
     /// Return a sorted async iterator of all balances
     fn list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)> {
-        todo!();
+        let tc_consistent = match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent,
+            MockTcStatus::Inconsistent(..) => unreachable!(),
+        };
+
+        let iter = tc_consistent
+            .mutual_credits
+            .iter()
+            .map(|(currency, mutual_credit)| Ok((currency.clone(), mutual_credit.balance.clone())));
+
+        Box::pin(stream::iter(iter))
     }
 
     /// Return a sorted async iterator of all local reset proposal balances
     /// Only relevant for inconsistent channels
     fn list_local_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)> {
-        todo!();
+        let local_reset_terms = match &self.status {
+            MockTcStatus::Consistent(..) => unreachable!(),
+            MockTcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
+                local_reset_terms
+            }
+        };
+
+        let iter = local_reset_terms
+            .reset_balances
+            .iter()
+            .map(|(currency, reset_balance)| Ok((currency.clone(), reset_balance.clone())));
+
+        Box::pin(stream::iter(iter))
     }
 
     /// Return a sorted async iterator of all remote reset proposal balances
     /// Only relevant for inconsistent channels
     fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)> {
-        todo!();
+        let remote_reset_terms = match &self.status {
+            MockTcStatus::Consistent(..) | MockTcStatus::Inconsistent(_, None) => unreachable!(),
+            MockTcStatus::Inconsistent(_local_reset_terms, Some(remote_reset_terms)) => {
+                remote_reset_terms
+            }
+        };
+
+        let iter = remote_reset_terms
+            .reset_balances
+            .iter()
+            .map(|(currency, reset_balance)| Ok((currency.clone(), reset_balance.clone())));
+
+        Box::pin(stream::iter(iter))
     }
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
