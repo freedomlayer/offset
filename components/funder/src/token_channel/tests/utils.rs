@@ -276,7 +276,50 @@ where
         &mut self,
         move_token_hashed: MoveTokenHashed,
     ) -> AsyncOpResult<()> {
-        todo!();
+        let remote_reset_terms = match &self.status {
+            MockTcStatus::Consistent(..) => unreachable!(),
+            MockTcStatus::Inconsistent(_, None) => unreachable!(),
+            MockTcStatus::Inconsistent(local_reset_terms, Some(remote_reset_terms)) => {
+                remote_reset_terms.clone()
+            }
+        };
+
+        let mutual_credits = remote_reset_terms
+            .reset_balances
+            .iter()
+            .map(|(currency, reset_balance)| {
+                (
+                    currency.clone(),
+                    MockMutualCredit::new(
+                        currency.clone(),
+                        // Note: direction is flipped:
+                        reset_balance.balance.checked_neg().unwrap(),
+                        reset_balance.out_fees,
+                        reset_balance.in_fees,
+                    ),
+                )
+            })
+            .collect();
+
+        let currencies_set: HashSet<_> = remote_reset_terms
+            .reset_balances
+            .iter()
+            .map(|(currency, _)| currency)
+            .cloned()
+            .collect();
+
+        self.status = MockTcStatus::Consistent(TcConsistent {
+            mutual_credits,
+            direction: MockTcDirection::In(move_token_hashed),
+            move_token_counter: remote_reset_terms
+                .move_token_counter
+                .checked_sub(1)
+                .unwrap(),
+            local_currencies: currencies_set.clone(),
+            remote_currencies: currencies_set,
+        });
+
+        Box::pin(future::ready(Ok(())))
     }
 
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128> {
