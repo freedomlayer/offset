@@ -201,13 +201,13 @@ pub struct McBalance {
 }
 
 impl McBalance {
-    pub fn new(balance: i128) -> McBalance {
+    pub fn new(balance: i128, in_fees: U256, out_fees: U256) -> McBalance {
         McBalance {
             balance,
             local_pending_debt: 0,
             remote_pending_debt: 0,
-            in_fees: 0.into(),
-            out_fees: 0.into(),
+            in_fees,
+            out_fees,
         }
     }
 

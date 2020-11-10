@@ -363,11 +363,14 @@ where
 
     fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()> {
         let balance = 0;
+        let in_fees = 0.into();
+        let out_fees = 0.into();
         match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
-                let res = tc_consistent
-                    .mutual_credits
-                    .insert(currency.clone(), MockMutualCredit::new(currency, balance));
+                let res = tc_consistent.mutual_credits.insert(
+                    currency.clone(),
+                    MockMutualCredit::new(currency, balance, in_fees, out_fees),
+                );
                 if let Some(_) = res {
                     unreachable!();
                 }

@@ -41,10 +41,12 @@ impl MockMutualCredit {
         // TODO: Should we move instead of take a reference here?
         currency: Currency,
         balance: i128,
+        in_fees: U256,
+        out_fees: U256,
     ) -> MockMutualCredit {
         MockMutualCredit {
             currency,
-            balance: McBalance::new(balance),
+            balance: McBalance::new(balance, in_fees, out_fees),
             pending_transactions: McPendingTransactions::new(),
         }
     }
