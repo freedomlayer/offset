@@ -28,13 +28,13 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     let mut rng_a = DummyRandom::new(&[0xau8]);
     let pkcs8 = PrivateKey::rand_gen(&mut rng_a);
     let identity_a = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
+    let pk_a = identity_a.get_public_key();
 
     let mut rng_b = DummyRandom::new(&[0xbu8]);
     let pkcs8 = PrivateKey::rand_gen(&mut rng_b);
     let identity_b = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
+    let pk_b = identity_b.get_public_key();
 
-    let pk_a = PublicKey::from(&[0xaa; PublicKey::len()]);
-    let pk_b = PublicKey::from(&[0xbb; PublicKey::len()]);
     let mut tc_a_b = MockTokenChannel::<u32>::new(&pk_a, &pk_b);
     let mut tc_b_a = MockTokenChannel::<u32>::new(&pk_b, &pk_a);
 
@@ -98,6 +98,17 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         currencies_diff,
         &pk_a,
         &pk_b,
+    )
+    .await
+    .unwrap();
+
+    // Receive the MoveToken message at b:
+    handle_in_move_token(
+        &mut tc_b_a,
+        &mut identity_client_a,
+        move_token,
+        &pk_b,
+        &pk_a,
     )
     .await
     .unwrap();
