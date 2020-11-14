@@ -1,5 +1,4 @@
 use futures::future::BoxFuture;
-// use futures::Future;
 
 // TODO: This is a compromise. We would have preferred to use a closure, but the lifetimes with the
 // Transaction traits seem to not work out.
