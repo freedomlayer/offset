@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use derive_more::From;
@@ -195,7 +196,7 @@ enum TransactFail {
 
 impl<'b, C, B> TransFunc for InconsistentTrans<'b, C, B>
 where
-    B: Clone + CanonicalSerialize + Send + Sync,
+    B: Debug + Clone + CanonicalSerialize + Send + Sync,
     C: TcClient<B> + Send,
     C::McClient: Send,
 {
@@ -248,7 +249,7 @@ pub async fn handle_in_move_token<B, C>(
 ) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
 where
     // TODO: Can we somehow get rid of the Sync requirement for `B`?
-    B: CanonicalSerialize + Clone + Send + Sync,
+    B: Debug + CanonicalSerialize + Clone + Send + Sync,
     C: TcClient<B> + Transaction + Send,
     C::McClient: Send,
 {
@@ -439,7 +440,7 @@ struct InMoveTokenDirOutTrans<'a, C, B> {
 
 impl<'b, C, B> TransFunc for InMoveTokenDirOutTrans<'b, C, B>
 where
-    B: Clone + CanonicalSerialize + Send + Sync,
+    B: Debug + Clone + CanonicalSerialize + Send + Sync,
     C: TcClient<B> + Send,
     C::McClient: Send,
 {
@@ -488,7 +489,7 @@ async fn handle_in_move_token_dir_out<B, C>(
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
 where
-    B: Clone + CanonicalSerialize + Send + Sync,
+    B: Debug + Clone + CanonicalSerialize + Send + Sync,
     C: TcClient<B> + Transaction + Send,
     C::McClient: Send,
 {
@@ -590,7 +591,7 @@ async fn handle_incoming_token_match<B>(
     remote_public_key: &PublicKey,
 ) -> Result<IncomingTokenMatchOutput<B>, TokenChannelError>
 where
-    B: Clone + CanonicalSerialize,
+    B: Debug + Clone + CanonicalSerialize,
 {
     // Verify signature:
     // Note that we only verify the signature here, and not at the Incoming part.
