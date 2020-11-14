@@ -1,21 +1,6 @@
 use futures::future::BoxFuture;
 // use futures::Future;
 
-/*
-/// A database transaction. Enforced using closure syntax.
-/// Supports nested transactions.
-pub trait TransactionLegacy {
-    /// Begin a new transaction.
-    /// Transaction ends at the end of the closure scope.
-    fn transaction<'a, F, FR, T, E>(&'a mut self, f: F) -> BoxFuture<'a, Result<T, E>>
-    where
-        F: (FnOnce(&'a mut Self) -> FR) + Send + 'a,
-        FR: Future<Output = Result<T, E>> + Send + 'a,
-        T: Send + 'a,
-        E: Debug + Send + 'a;
-}
-*/
-
 // TODO: This is a compromise. We would have preferred to use a closure, but the lifetimes with the
 // Transaction traits seem to not work out.
 // See: https://users.rust-lang.org/t/returning-this-value-requires-that-1-must-outlive-2/51417
