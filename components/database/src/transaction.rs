@@ -16,6 +16,9 @@ pub trait TransactionLegacy {
 }
 */
 
+// TODO: This is a compromise. We would have preferred to use a closure, but the lifetimes with the
+// Transaction traits seem to not work out.
+// See: https://users.rust-lang.org/t/returning-this-value-requires-that-1-must-outlive-2/51417
 /// A transaction function
 pub trait TransFunc {
     /// Input (Will be handed as shared reference)
