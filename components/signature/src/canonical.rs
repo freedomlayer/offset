@@ -348,7 +348,7 @@ impl CanonicalSerialize for McBalance {
             .unwrap();
 
         // Write in/out fees as big endian:
-        let mut temp_array = [0u8; 16];
+        let mut temp_array = [0u8; 32];
         self.in_fees.to_big_endian(&mut temp_array);
         res_bytes.extend_from_slice(&temp_array);
         self.out_fees.to_big_endian(&mut temp_array);
