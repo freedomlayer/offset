@@ -475,16 +475,6 @@ where
                     Err(Ok(invalid_incoming))
                 }
             }
-
-            /*
-            // Decide whether we should commit the transaction
-            let should_commit = match &output {
-                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
-                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
-                Err(_) => false,
-            };
-            (output, should_commit)
-            */
         })
     }
 }
