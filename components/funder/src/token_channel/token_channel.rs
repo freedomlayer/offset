@@ -1,12 +1,14 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::marker::PhantomData;
 
 use derive_more::From;
 
 use futures::{Stream, StreamExt, TryStreamExt};
 
 use common::async_rpc::OpError;
+use common::conn::BoxFuture;
 
 use crypto::hash::{hash_buffer, Hasher};
 use crypto::identity::compare_public_key;
@@ -23,7 +25,7 @@ use signature::signature_buff::{
 };
 use signature::verify::verify_move_token;
 
-use database::transaction::Transaction;
+use database::transaction::{TransFunc, Transaction};
 
 use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
@@ -178,6 +180,55 @@ async fn local_balances_for_reset<B>(
     Ok(balances)
 }
 
+struct InconsistentTrans<'a, C, B> {
+    input_phantom: PhantomData<C>,
+    move_token_out: MoveToken<B>,
+    new_move_token: MoveToken<B>,
+    local_public_key: &'a PublicKey,
+    remote_public_key: &'a PublicKey,
+}
+
+impl<'b, C, B> TransFunc for InconsistentTrans<'b, C, B>
+where
+    B: Clone + CanonicalSerialize + Send + Sync,
+    C: TcClient<B> + Send,
+    C::McClient: Send,
+{
+    type InRef = C;
+    type Out = (Result<IncomingTokenMatchOutput<B>, TokenChannelError>, bool);
+
+    fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
+    where
+        Self: 'a,
+    {
+        Box::pin(async move {
+            let output = async move {
+                tc_client
+                    .set_outgoing_from_inconsistent(self.move_token_out.clone())
+                    .await?;
+
+                // Attempt to receive an incoming token:
+                handle_incoming_token_match(
+                    tc_client,
+                    self.new_move_token,
+                    self.local_public_key,
+                    self.remote_public_key,
+                )
+                .await
+            }
+            .await;
+
+            // Decide whether we should commit the transaction
+            let should_commit = match &output {
+                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
+                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
+                Err(_) => false,
+            };
+            (output, should_commit)
+        })
+    }
+}
+
 pub async fn handle_in_move_token<B, C>(
     tc_client: &mut C,
     identity_client: &mut IdentityClient,
@@ -242,33 +293,13 @@ where
                 };
 
                 // Atomically attempt to handle a reset move token:
-                let (output, _was_committed) = tc_client
-                    .transaction(|tc_client| {
-                        Box::pin(async move {
-                            let output = async move {
-                                tc_client
-                                    .set_outgoing_from_inconsistent(move_token_out.clone())
-                                    .await?;
-
-                                // Attempt to receive an incoming token:
-                                handle_incoming_token_match(
-                                    tc_client,
-                                    new_move_token,
-                                    local_public_key,
-                                    remote_public_key,
-                                )
-                                .await
-                            }
-                            .await;
-
-                            // Decide whether we should commit the transaction
-                            let should_commit = match &output {
-                                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
-                                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
-                                Err(_) => false,
-                            };
-                            (output, should_commit)
-                        })
+                let (output, was_committed) = tc_client
+                    .transaction(InconsistentTrans {
+                        input_phantom: PhantomData::<C>,
+                        move_token_out,
+                        new_move_token,
+                        local_public_key,
+                        remote_public_key,
                     })
                     .await;
 
@@ -388,6 +419,50 @@ where
     }
 }
 
+struct InMoveTokenDirOutTrans<'a, C, B> {
+    input_phantom: PhantomData<C>,
+    new_move_token: MoveToken<B>,
+    local_public_key: &'a PublicKey,
+    remote_public_key: &'a PublicKey,
+}
+
+impl<'b, C, B> TransFunc for InMoveTokenDirOutTrans<'b, C, B>
+where
+    B: Clone + CanonicalSerialize + Send + Sync,
+    C: TcClient<B> + Send,
+    C::McClient: Send,
+{
+    type InRef = C;
+    type Out = (Result<IncomingTokenMatchOutput<B>, TokenChannelError>, bool);
+
+    fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
+    where
+        Self: 'a,
+    {
+        Box::pin(async move {
+            let output = async move {
+                // Attempt to receive an incoming token:
+                handle_incoming_token_match(
+                    tc_client,
+                    self.new_move_token,
+                    self.local_public_key,
+                    self.remote_public_key,
+                )
+                .await
+            }
+            .await;
+
+            // Decide whether we should commit the transaction
+            let should_commit = match &output {
+                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
+                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
+                Err(_) => false,
+            };
+            (output, should_commit)
+        })
+    }
+}
+
 async fn handle_in_move_token_dir_out<B, C>(
     tc_client: &mut C,
     identity_client: &mut IdentityClient,
@@ -402,30 +477,13 @@ where
     C::McClient: Send,
 {
     if new_move_token.old_token == move_token_out.new_token {
-        // Atomically attempt to handle an incoming move token:
-        let (output, _was_committed) = tc_client
-            .transaction(|tc_client| {
-                Box::pin(async move {
-                    let output = async move {
-                        // Attempt to receive an incoming token:
-                        handle_incoming_token_match(
-                            tc_client,
-                            new_move_token,
-                            local_public_key,
-                            remote_public_key,
-                        )
-                        .await
-                    }
-                    .await;
-
-                    // Decide whether we should commit the transaction
-                    let should_commit = match &output {
-                        Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
-                        Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
-                        Err(_) => false,
-                    };
-                    (output, should_commit)
-                })
+        // Atomically attempt to handle a reset move token:
+        let (output, was_committed) = tc_client
+            .transaction(InMoveTokenDirOutTrans {
+                input_phantom: PhantomData::<C>,
+                new_move_token,
+                local_public_key,
+                remote_public_key,
             })
             .await;
 

@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use futures::Future;
+// use futures::Future;
 
 /*
 /// A database transaction. Enforced using closure syntax.
@@ -16,16 +16,30 @@ pub trait TransactionLegacy {
 }
 */
 
+/// A transaction function
+pub trait TransFunc {
+    /// Input (Will be handed as shared reference)
+    type InRef;
+    /// Output
+    type Out;
+    /// Call invocation
+    fn call<'a>(self, input: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
+    where
+        Self: 'a;
+}
+
 /// A database transaction. Enforced using closure syntax.
 /// Supports nested transactions.
-pub trait Transaction {
+pub trait Transaction
+where
+    Self: std::marker::Sized,
+{
     /// Begin a new transaction.
     /// Transaction ends at the end of the closure scope.
     /// If the returned boolean is true, the transaction was successful. Otherwise, the transaction
     /// was canceled.
-    fn transaction<'a, F, FR, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
+    fn transaction<'a, F, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
     where
-        F: (FnOnce(&'a mut Self) -> FR) + Send + 'a,
-        FR: Future<Output = (T, bool)> + Send + 'a,
-        T: Send + 'a;
+        F: TransFunc<InRef = Self, Out = (T, bool)> + Send + 'a,
+        T: Send;
 }

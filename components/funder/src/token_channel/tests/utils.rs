@@ -15,7 +15,7 @@ use proto::funder::messages::{Currency, McBalance, MoveToken, TokenInfo};
 use signature::canonical::CanonicalSerialize;
 
 use database::interface::funder::CurrencyConfig;
-use database::transaction::Transaction;
+use database::transaction::{TransFunc, Transaction};
 
 use crypto::hash::hash_buffer;
 use crypto::identity::compare_public_key;
@@ -517,16 +517,15 @@ impl<B> Transaction for MockTokenChannel<B>
 where
     B: Clone + Send,
 {
-    fn transaction<'a, F, FR, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
+    fn transaction<'a, F, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
     where
-        F: (FnOnce(&'a mut Self) -> FR) + Send + 'a,
-        FR: Future<Output = (T, bool)> + Send + 'a,
-        T: Send + 'a,
+        F: TransFunc<InRef = Self, Out = (T, bool)> + Send + 'a,
+        T: Send,
     {
         Box::pin(async move {
             // Save original value, before we start making modifications:
             let orig_mock_token_channel = self.clone();
-            match f(self).await {
+            match f.call(self).await {
                 (val, true) => {
                     // Commit transaction
                     (val, true)
