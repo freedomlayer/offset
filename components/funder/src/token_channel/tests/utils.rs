@@ -517,23 +517,24 @@ impl<B> Transaction for MockTokenChannel<B>
 where
     B: Clone + Send,
 {
-    fn transaction<'a, F, T>(&'a mut self, f: F) -> BoxFuture<'a, (T, bool)>
+    fn transaction<'a, F, T, E>(&'a mut self, f: F) -> BoxFuture<'a, Result<T, E>>
     where
-        F: TransFunc<InRef = Self, Out = (T, bool)> + Send + 'a,
+        F: TransFunc<InRef = Self, Out = Result<T, E>> + Send + 'a,
         T: Send,
+        E: Send,
     {
         Box::pin(async move {
             // Save original value, before we start making modifications:
             let orig_mock_token_channel = self.clone();
             match f.call(self).await {
-                (val, true) => {
-                    // Commit transaction
-                    (val, true)
+                Ok(t) => {
+                    // Transaction was successful
+                    Ok(t)
                 }
-                (val, false) => {
+                Err(e) => {
                     // Cancel transaction
                     let _ = mem::replace(self, orig_mock_token_channel);
-                    (val, false)
+                    Err(e)
                 }
             }
         })

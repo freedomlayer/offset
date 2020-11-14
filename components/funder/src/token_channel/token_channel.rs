@@ -188,6 +188,11 @@ struct InconsistentTrans<'a, C, B> {
     remote_public_key: &'a PublicKey,
 }
 
+enum TransactFail {
+    TokenChannelError(TokenChannelError),
+    InvalidIncoming(InvalidIncoming),
+}
+
 impl<'b, C, B> TransFunc for InconsistentTrans<'b, C, B>
 where
     B: Clone + CanonicalSerialize + Send + Sync,
@@ -195,14 +200,17 @@ where
     C::McClient: Send,
 {
     type InRef = C;
-    type Out = (Result<IncomingTokenMatchOutput<B>, TokenChannelError>, bool);
+    // We divide the error into two types:
+    // Recoverable: InvalidIncoming
+    // Unrecoverable: TokenChannelError
+    type Out = Result<MoveTokenReceived<B>, Result<InvalidIncoming, TokenChannelError>>;
 
     fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
     where
         Self: 'a,
     {
         Box::pin(async move {
-            let output = async move {
+            let incoming_token_match_output = async move {
                 tc_client
                     .set_outgoing_from_inconsistent(self.move_token_out.clone())
                     .await?;
@@ -216,15 +224,17 @@ where
                 )
                 .await
             }
-            .await;
+            .await
+            .map_err(|e| Err(e))?;
 
-            // Decide whether we should commit the transaction
-            let should_commit = match &output {
-                Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
-                Ok(IncomingTokenMatchOutput::InvalidIncoming(_)) => false,
-                Err(_) => false,
-            };
-            (output, should_commit)
+            match incoming_token_match_output {
+                IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
+                    Ok(move_token_received)
+                }
+                IncomingTokenMatchOutput::InvalidIncoming(invalid_incoming) => {
+                    Err(Ok(invalid_incoming))
+                }
+            }
         })
     }
 }
@@ -293,7 +303,7 @@ where
                 };
 
                 // Atomically attempt to handle a reset move token:
-                let (output, was_committed) = tc_client
+                let output = tc_client
                     .transaction(InconsistentTrans {
                         input_phantom: PhantomData::<C>,
                         move_token_out,
@@ -303,11 +313,12 @@ where
                     })
                     .await;
 
-                match output? {
-                    IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
+                match output {
+                    Ok(move_token_received) => {
                         Ok(ReceiveMoveTokenOutput::Received(move_token_received))
                     }
-                    IncomingTokenMatchOutput::InvalidIncoming(_) => {
+                    Err(e) => {
+                        let invalid_incoming = e?;
                         // In this case the transaction was not committed:
                         Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
                             reset_token: local_reset_token,
@@ -433,14 +444,17 @@ where
     C::McClient: Send,
 {
     type InRef = C;
-    type Out = (Result<IncomingTokenMatchOutput<B>, TokenChannelError>, bool);
+    // We divide the error into two types:
+    // Recoverable: InvalidIncoming
+    // Unrecoverable: TokenChannelError
+    type Out = Result<MoveTokenReceived<B>, Result<InvalidIncoming, TokenChannelError>>;
 
     fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
     where
         Self: 'a,
     {
         Box::pin(async move {
-            let output = async move {
+            let incoming_token_match_output = async move {
                 // Attempt to receive an incoming token:
                 handle_incoming_token_match(
                     tc_client,
@@ -450,8 +464,19 @@ where
                 )
                 .await
             }
-            .await;
+            .await
+            .map_err(|e| Err(e))?;
 
+            match incoming_token_match_output {
+                IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
+                    Ok(move_token_received)
+                }
+                IncomingTokenMatchOutput::InvalidIncoming(invalid_incoming) => {
+                    Err(Ok(invalid_incoming))
+                }
+            }
+
+            /*
             // Decide whether we should commit the transaction
             let should_commit = match &output {
                 Ok(IncomingTokenMatchOutput::MoveTokenReceived(_)) => true,
@@ -459,6 +484,7 @@ where
                 Err(_) => false,
             };
             (output, should_commit)
+            */
         })
     }
 }
@@ -478,7 +504,7 @@ where
 {
     if new_move_token.old_token == move_token_out.new_token {
         // Atomically attempt to handle a reset move token:
-        let (output, was_committed) = tc_client
+        let output = tc_client
             .transaction(InMoveTokenDirOutTrans {
                 input_phantom: PhantomData::<C>,
                 new_move_token,
@@ -487,11 +513,10 @@ where
             })
             .await;
 
-        match output? {
-            IncomingTokenMatchOutput::MoveTokenReceived(move_token_received) => {
-                return Ok(ReceiveMoveTokenOutput::Received(move_token_received))
-            }
-            IncomingTokenMatchOutput::InvalidIncoming(_) => {
+        match output {
+            Ok(move_token_received) => Ok(ReceiveMoveTokenOutput::Received(move_token_received)),
+            Err(e) => {
+                let invalid_incoming = e?;
                 // Inconsistency
                 // In this case the transaction was not committed:
                 let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
@@ -508,6 +533,7 @@ where
                 }))
             }
         }
+
     // self.outgoing_to_incoming(friend_move_token, new_move_token)
     } else if move_token_out.old_token == new_move_token.new_token {
         // We should retransmit our move token message to the remote side.
