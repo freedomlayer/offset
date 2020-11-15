@@ -6,7 +6,8 @@ mod tests;
 
 pub use self::token_channel::{
     accept_remote_reset, handle_in_move_token, handle_out_move_token, initial_move_token,
-    reset_balance_to_mc_balance, MoveTokenReceived, ReceiveMoveTokenOutput, TokenChannelError,
+    load_remote_reset_terms, reset_balance_to_mc_balance, MoveTokenReceived,
+    ReceiveMoveTokenOutput, TokenChannelError,
 };
 
-pub use types::{TcClient, TcStatus};
+pub use types::{ResetBalance, TcClient, TcStatus};

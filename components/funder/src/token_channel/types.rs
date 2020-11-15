@@ -24,7 +24,7 @@ pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
 
 // TODO: Might move to proto in the future:
 /// Balances for resetting a currency
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetBalance {
     pub balance: i128,
     pub in_fees: U256,
