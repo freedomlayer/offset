@@ -17,7 +17,7 @@ use identity::{create_identity, IdentityClient};
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::{
     accept_remote_reset, handle_in_move_token, handle_out_move_token, reset_balance_to_mc_balance,
-    TcClient, TcStatus, TokenChannelError,
+    ReceiveMoveTokenOutput, TcClient, TcStatus, TokenChannelError,
 };
 
 async fn task_move_token_basic(test_executor: TestExecutor) {
@@ -76,15 +76,17 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     .unwrap();
 
     // Receive the MoveToken message at a:
-    handle_in_move_token(
-        &mut tc_a_b,
-        &mut identity_client_a,
-        move_token,
-        &pk_a,
-        &pk_b,
-    )
-    .await
-    .unwrap();
+    assert!(matches!(
+        handle_in_move_token(
+            &mut tc_a_b,
+            &mut identity_client_a,
+            move_token,
+            &pk_a,
+            &pk_b,
+        )
+        .await,
+        Ok(ReceiveMoveTokenOutput::Received(_))
+    ));
 
     // Send a MoveToken message from a to b, adding two currencies:
     let currencies_operations = Vec::new();
@@ -103,15 +105,17 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     .unwrap();
 
     // Receive the MoveToken message at b:
-    handle_in_move_token(
-        &mut tc_b_a,
-        &mut identity_client_a,
-        move_token,
-        &pk_b,
-        &pk_a,
-    )
-    .await
-    .unwrap();
+    assert!(matches!(
+        handle_in_move_token(
+            &mut tc_b_a,
+            &mut identity_client_b,
+            move_token,
+            &pk_b,
+            &pk_a,
+        )
+        .await,
+        Ok(ReceiveMoveTokenOutput::Received(_))
+    ));
 
     // TODO: Continue here.
 }
