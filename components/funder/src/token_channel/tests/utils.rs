@@ -398,12 +398,14 @@ where
             MockTcStatus::Inconsistent(..) => unreachable!(),
         };
 
-        let iter = tc_consistent
+        let mut balances_vec: Vec<_> = tc_consistent
             .mutual_credits
             .iter()
-            .map(|(currency, mutual_credit)| Ok((currency.clone(), mutual_credit.balance.clone())));
+            .map(|(currency, mutual_credit)| (currency.clone(), mutual_credit.balance.clone()))
+            .collect();
 
-        Box::pin(stream::iter(iter))
+        balances_vec.sort_by(|(currency1, _), (currency2, _)| currency1.cmp(currency2));
+        Box::pin(stream::iter(balances_vec.into_iter().map(|item| Ok(item))))
     }
 
     /// Return a sorted async iterator of all local reset proposal balances
@@ -416,12 +418,14 @@ where
             }
         };
 
-        let iter = local_reset_terms
+        let mut balances_vec: Vec<_> = local_reset_terms
             .reset_balances
             .iter()
-            .map(|(currency, reset_balance)| Ok((currency.clone(), reset_balance.clone())));
+            .map(|(currency, reset_balance)| (currency.clone(), reset_balance.clone()))
+            .collect();
 
-        Box::pin(stream::iter(iter))
+        balances_vec.sort_by(|(currency1, _), (currency2, _)| currency1.cmp(currency2));
+        Box::pin(stream::iter(balances_vec.into_iter().map(|item| Ok(item))))
     }
 
     /// Return a sorted async iterator of all remote reset proposal balances
@@ -434,12 +438,14 @@ where
             }
         };
 
-        let iter = remote_reset_terms
+        let mut balances_vec: Vec<_> = remote_reset_terms
             .reset_balances
             .iter()
-            .map(|(currency, reset_balance)| Ok((currency.clone(), reset_balance.clone())));
+            .map(|(currency, reset_balance)| (currency.clone(), reset_balance.clone()))
+            .collect();
 
-        Box::pin(stream::iter(iter))
+        balances_vec.sort_by(|(currency1, _), (currency2, _)| currency1.cmp(currency2));
+        Box::pin(stream::iter(balances_vec.into_iter().map(|item| Ok(item))))
     }
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
