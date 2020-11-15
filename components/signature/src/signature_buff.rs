@@ -15,6 +15,9 @@ use crate::canonical::CanonicalSerialize;
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 
+// TODO:
+// - We probably don't need the "unsigned" version,
+// - Take response_send_funds as a reference.
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
