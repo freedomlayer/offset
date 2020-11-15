@@ -485,7 +485,7 @@ where
     fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
         Box::pin(future::ready(Ok(match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
-                tc_consistent.remote_currencies.remove(&currency)
+                tc_consistent.remote_currencies.insert(currency)
             }
             MockTcStatus::Inconsistent(..) => unreachable!(),
         })))
