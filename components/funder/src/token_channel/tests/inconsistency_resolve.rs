@@ -220,6 +220,8 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     )
     .await
     .unwrap();
+
+    // TODO: Send an extra move token between a and b, just ot make sure channel is now consistent.
 }
 
 #[test]
