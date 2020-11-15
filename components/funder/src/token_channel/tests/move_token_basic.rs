@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use futures::task::SpawnExt;
-use futures::{future, FutureExt};
+use futures::{future, FutureExt, StreamExt};
 
 use common::test_executor::TestExecutor;
 
@@ -164,6 +164,23 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     .await
     .unwrap();
 
+    {
+        // Assert balances:
+        let mut b_balances_iter = tc_b_a.list_balances();
+        let mut b_balances = Vec::new();
+        while let Some(item) = b_balances_iter.next().await {
+            b_balances.push(item.unwrap());
+        }
+        assert_eq!(b_balances.len(), 1);
+        let (currency, mc_balance) = b_balances.pop().unwrap();
+        assert_eq!(currency, currency1);
+        assert_eq!(mc_balance.balance, 0);
+        assert_eq!(mc_balance.local_pending_debt, 25);
+        assert_eq!(mc_balance.remote_pending_debt, 0);
+        assert_eq!(mc_balance.in_fees, 0.into());
+        assert_eq!(mc_balance.out_fees, 0.into());
+    }
+
     // Add a remote max debt to a, so that `a` will be able to receive credits from `b`:
     // ---------------------------------------------------------------------------------
     tc_a_b.remote_max_debts.insert(currency1.clone(), 100u128);
@@ -263,6 +280,38 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     )
     .await
     .unwrap();
+
+    {
+        // Assert balances (b):
+        let mut b_balances_iter = tc_b_a.list_balances();
+        let mut b_balances = Vec::new();
+        while let Some(item) = b_balances_iter.next().await {
+            b_balances.push(item.unwrap());
+        }
+        assert_eq!(b_balances.len(), 1);
+        let (currency, mc_balance) = b_balances.pop().unwrap();
+        assert_eq!(currency, currency1);
+        assert_eq!(mc_balance.balance, -25);
+        assert_eq!(mc_balance.local_pending_debt, 0);
+        assert_eq!(mc_balance.remote_pending_debt, 0);
+        assert_eq!(mc_balance.in_fees, 0.into());
+        assert_eq!(mc_balance.out_fees, 5.into());
+
+        // Assert balances (a):
+        let mut a_balances_iter = tc_a_b.list_balances();
+        let mut a_balances = Vec::new();
+        while let Some(item) = a_balances_iter.next().await {
+            a_balances.push(item.unwrap());
+        }
+        assert_eq!(a_balances.len(), 1);
+        let (currency, mc_balance) = a_balances.pop().unwrap();
+        assert_eq!(currency, currency1);
+        assert_eq!(mc_balance.balance, 25);
+        assert_eq!(mc_balance.local_pending_debt, 0);
+        assert_eq!(mc_balance.remote_pending_debt, 0);
+        assert_eq!(mc_balance.in_fees, 5.into());
+        assert_eq!(mc_balance.out_fees, 0.into());
+    }
 }
 
 #[test]
