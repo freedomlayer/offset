@@ -177,6 +177,21 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
         Some(&expected_reset_balance)
     );
 
+    // b: load a's reset terms:
+    // ------------------------
+    assert!(matches!(
+        load_remote_reset_terms(
+            &mut tc_b_a,
+            &mut identity_client_b,
+            reset_terms_a,
+            &pk_b,
+            &pk_a,
+        )
+        .await
+        .unwrap(),
+        None
+    ));
+
     // b accepts a's reset terms:
     // --------------------------
     let currencies_operations = Vec::new();
@@ -190,6 +205,18 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
         currencies_diff,
         &pk_b,
         &pk_a,
+    )
+    .await
+    .unwrap();
+
+    // a: receive reset move token message:
+    // -----------------------------------
+    let res = handle_in_move_token(
+        &mut tc_a_b,
+        &mut identity_client_a,
+        move_token,
+        &pk_a,
+        &pk_b,
     )
     .await
     .unwrap();
