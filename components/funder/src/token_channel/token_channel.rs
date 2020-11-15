@@ -927,9 +927,7 @@ where
 pub async fn load_remote_reset_terms<B>(
     tc_client: &mut impl TcClient<B>,
     identity_client: &mut IdentityClient,
-    remote_reset_token: Signature,
-    remote_reset_move_token_counter: u128,
-    remote_reset_balances: impl IntoIterator<Item = (Currency, ResetBalance)>,
+    remote_reset_terms: ResetTerms,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<Option<ResetTerms>, TokenChannelError> {
@@ -956,10 +954,13 @@ pub async fn load_remote_reset_terms<B>(
 
     // Set remote reset terms:
     tc_client
-        .set_inconsistent_remote_terms(remote_reset_token, remote_reset_move_token_counter)
+        .set_inconsistent_remote_terms(
+            remote_reset_terms.reset_token,
+            remote_reset_terms.move_token_counter,
+        )
         .await?;
 
-    for (currency, mc_balance) in remote_reset_balances.into_iter() {
+    for (currency, mc_balance) in remote_reset_terms.reset_balances.into_iter() {
         tc_client
             .add_remote_reset_balance(currency, mc_balance)
             .await?;
