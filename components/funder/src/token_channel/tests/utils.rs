@@ -51,7 +51,7 @@ pub struct MockTokenChannel<B> {
     status: MockTcStatus<B>,
     /// Remote max debt, configured for each currency
     /// (And possibly for currencies that are not yet active)
-    remote_max_debts: HashMap<Currency, u128>,
+    pub remote_max_debts: HashMap<Currency, u128>,
 }
 
 impl<B> MockTokenChannel<B>
