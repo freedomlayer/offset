@@ -167,6 +167,7 @@ where
             _ => unreachable!(),
         };
 
+        tc_consistent.move_token_counter = move_token_hashed.token_info.move_token_counter;
         tc_consistent.direction = MockTcDirection::In(move_token_hashed);
         Box::pin(future::ready(Ok(())))
     }
