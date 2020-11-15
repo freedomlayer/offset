@@ -248,6 +248,10 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     .await
     .unwrap();
 
+    // Insert remote_max_debt for currency1, to allow handling incoming operations for this currency.
+    // ---------------------------------------------------------------------------------------------
+    tc_b_a.remote_max_debts.insert(currency1.clone(), 20u128);
+
     // Receive the MoveToken message at b:
     // ----------------------------------
     let res = handle_in_move_token(
