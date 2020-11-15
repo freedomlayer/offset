@@ -56,4 +56,13 @@ mod tests {
 
         assert_eq!(hash_res.as_ref(), expected);
     }
+
+    #[test]
+    fn hasher_empty() {
+        let x = Hasher::new().finalize();
+        let y = Hasher::new().finalize();
+        let z = Hasher::new().finalize();
+        assert_eq!(x, y);
+        assert_eq!(y, z);
+    }
 }
