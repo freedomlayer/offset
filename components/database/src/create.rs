@@ -45,10 +45,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friends(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
-             sent_local_relays          BLOB NOT NULL,
-             -- Last local relays we have sent to the friend
-             remote_relays              BLOB NOT NULL,
-             -- Friend's relays
              friend_name                TEXT NOT NULL UNIQUE,
              -- Friend's name
              is_enabled                 BOOL NOT NULL,
@@ -68,6 +64,51 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // public name index:
     tx.execute(
         "CREATE UNIQUE INDEX idx_friends_name ON friends(friend_name);",
+        params![],
+    )?;
+
+    // Relays list we have received from the friend
+    // We use those relays to connect to the friend.
+    tx.execute(
+        "CREATE TABLE received_friend_relays(
+             friend_public_key        BLOB NOT NULL,
+             relay_public_key         BLOB NOT NULL,
+             port                     BLOB NOT NULL,
+             address                  TEXT NOT NULL,
+             PRIMARY KEY(friend_public_key, relay_public_key),
+             FOREIGN KEY(friend_public_key)
+                REFERENCES friends(friend_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_received_friend_relays ON received_friend_relays(friend_public_key, relay_public_key);",
+        params![],
+    )?;
+
+    // Relays list we have sent to the friend
+    // The friend will use those relays to connect to us
+    tx.execute(
+        "CREATE TABLE sent_friend_relays(
+             friend_public_key        BLOB NOT NULL,
+             relay_public_key         BLOB NOT NULL,
+             port                     BLOB NOT NULL,
+             address                  TEXT NOT NULL,
+             is_removed               BOOL NOT NULL
+                                      DEFAULT false,
+             -- Marked for removal upon the next ack
+             PRIMARY KEY(friend_public_key, relay_public_key),
+             FOREIGN KEY(friend_public_key)
+                REFERENCES friends(friend_public_key)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_sent_friend_relays ON sent_friend_relays(friend_public_key, relay_public_key);",
         params![],
     )?;
 
@@ -530,28 +571,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE friend_relays(
-             friend_public_key        BLOB NOT NULL,
-             relay_public_key         BLOB NOT NULL,
-             address                  TEXT,
-             PRIMARY KEY(friend_public_key, relay_public_key),
-             FOREIGN KEY(friend_public_key)
-                REFERENCES friends(friend_public_key)
-                ON DELETE CASCADE
-            );",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE UNIQUE INDEX idx_friend_relays ON friend_relays(friend_public_key, relay_public_key);",
-        params![],
-    )?;
-
-    tx.execute(
         "CREATE TABLE relays(
              relay_public_key         BLOB NOT NULL PRIMARY KEY,
-             address                  TEXT,
-             relay_name               TEXT
+             address                  TEXT NOT NULL,
+             relay_name               TEXT NOT NULL
             );",
         params![],
     )?;
@@ -564,8 +587,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE index_servers(
              index_public_key         BLOB NOT NULL PRIMARY KEY,
-             address                  TEXT,
-             index_name               TEXT
+             address                  TEXT NOT NULL,
+             index_name               TEXT NOT NULL
             );",
         params![],
     )?;
