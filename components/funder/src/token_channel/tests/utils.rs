@@ -26,38 +26,35 @@ use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcCl
 use crate::types::{create_hashed, MoveTokenHashed};
 
 #[derive(Debug, Clone)]
-pub enum MockTcDirection<B> {
+pub enum MockTcDirection {
     In(MoveTokenHashed),
-    Out(MoveToken<B>, Option<MoveTokenHashed>),
+    Out(MoveToken, Option<MoveTokenHashed>),
 }
 
 #[derive(Debug, Clone)]
-pub struct TcConsistent<B> {
+pub struct TcConsistent {
     mutual_credits: HashMap<Currency, MockMutualCredit>,
-    direction: MockTcDirection<B>,
+    direction: MockTcDirection,
     move_token_counter: u128,
     local_currencies: HashSet<Currency>,
     remote_currencies: HashSet<Currency>,
 }
 
 #[derive(Debug, Clone)]
-pub enum MockTcStatus<B> {
-    Consistent(TcConsistent<B>),
+pub enum MockTcStatus {
+    Consistent(TcConsistent),
     Inconsistent(ResetTerms, Option<ResetTerms>),
 }
 
 #[derive(Debug, Clone)]
-pub struct MockTokenChannel<B> {
-    status: MockTcStatus<B>,
+pub struct MockTokenChannel {
+    status: MockTcStatus,
     /// Remote max debt, configured for each currency
     /// (And possibly for currencies that are not yet active)
     pub remote_max_debts: HashMap<Currency, u128>,
 }
 
-impl<B> MockTokenChannel<B>
-where
-    B: CanonicalSerialize + Clone,
-{
+impl MockTokenChannel {
     pub fn new(local_public_key: &PublicKey, remote_public_key: &PublicKey) -> Self {
         // First move token message for both sides
         let move_token_counter = 0;
@@ -88,7 +85,7 @@ where
             MockTokenChannel {
                 status: MockTcStatus::Consistent(TcConsistent {
                     mutual_credits: HashMap::new(),
-                    direction: MockTcDirection::In(create_hashed::<B>(&move_token_in, &token_info)),
+                    direction: MockTcDirection::In(create_hashed(&move_token_in, &token_info)),
                     move_token_counter,
                     local_currencies: HashSet::new(),
                     remote_currencies: HashSet::new(),
@@ -122,10 +119,7 @@ fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
     }
 }
 
-impl<B> TcClient<B> for MockTokenChannel<B>
-where
-    B: Clone + Send,
-{
+impl TcClient for MockTokenChannel {
     type McClient = MockMutualCredit;
 
     fn mc_client(&mut self, currency: Currency) -> &mut Self::McClient {
@@ -137,7 +131,7 @@ where
         }
     }
 
-    fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>> {
+    fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus> {
         let res = Ok(match &self.status {
             MockTcStatus::Consistent(tc_consistent) => match &tc_consistent.direction {
                 MockTcDirection::In(move_token_in) => TcStatus::ConsistentIn(move_token_in.clone()),
@@ -174,7 +168,7 @@ where
 
     fn set_direction_outgoing(
         &mut self,
-        move_token: MoveToken<B>,
+        move_token: MoveToken,
         move_token_counter: u128,
     ) -> AsyncOpResult<()> {
         let tc_consistent = match &mut self.status {
@@ -196,7 +190,7 @@ where
 
     fn set_direction_outgoing_empty_incoming(
         &mut self,
-        move_token: MoveToken<B>,
+        move_token: MoveToken,
         move_token_counter: u128,
     ) -> AsyncOpResult<()> {
         let tc_consistent = match &mut self.status {
@@ -284,7 +278,7 @@ where
     }
 
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
-    fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()> {
+    fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken) -> AsyncOpResult<()> {
         let local_reset_terms = match &self.status {
             MockTcStatus::Consistent(..) => unreachable!(),
             MockTcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
@@ -520,10 +514,7 @@ where
     }
 }
 
-impl<B> Transaction for MockTokenChannel<B>
-where
-    B: Clone + Send,
-{
+impl Transaction for MockTokenChannel {
     fn transaction<'a, F, T, E>(&'a mut self, f: F) -> BoxFuture<'a, Result<T, E>>
     where
         F: TransFunc<InRef = Self, Out = Result<T, E>> + Send + 'a,

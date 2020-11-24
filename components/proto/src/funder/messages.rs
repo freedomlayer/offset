@@ -245,11 +245,10 @@ pub struct CurrencyOperations {
 
 #[capnp_conv(crate::funder_capnp::move_token)]
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct MoveToken<B = NetAddress> {
+pub struct MoveToken {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
     pub currencies_operations: Vec<CurrencyOperations>,
-    pub relays_diff: Vec<RelayAddress<B>>,
     pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,
@@ -371,18 +370,26 @@ pub struct ResetTerms {
 
 #[capnp_conv(crate::funder_capnp::move_token_request)]
 #[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]
-pub struct MoveTokenRequest<B = NetAddress> {
-    pub move_token: MoveToken<B>,
+pub struct MoveTokenRequest {
+    pub move_token: MoveToken,
     // Do we want the remote side to return the token:
     pub token_wanted: bool,
+}
+
+#[capnp_conv(crate::funder_capnp::relays_update)]
+#[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]
+pub struct RelaysUpdate<B = NetAddress> {
+    pub update_id: Uid,
+    pub relays: Vec<RelayAddress<B>>,
 }
 
 #[capnp_conv(crate::funder_capnp::friend_message)]
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum FriendMessage<B = NetAddress> {
-    MoveTokenRequest(MoveTokenRequest<B>),
+    MoveTokenRequest(MoveTokenRequest),
     InconsistencyError(ResetTerms),
+    RelaysUpdate(RelaysUpdate<B>),
 }
 
 /// A `Receipt` is received if a `RequestSendFunds` is successful.

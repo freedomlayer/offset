@@ -45,8 +45,8 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     let identity_b = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let pk_b = identity_b.get_public_key();
 
-    let mut tc_a_b = MockTokenChannel::<u32>::new(&pk_a, &pk_b);
-    let mut tc_b_a = MockTokenChannel::<u32>::new(&pk_b, &pk_a);
+    let mut tc_a_b = MockTokenChannel::new(&pk_a, &pk_b);
+    let mut tc_b_a = MockTokenChannel::new(&pk_b, &pk_a);
 
     // Sort `a` and `b` entities, to have always have `a` as the first sender.
     let (pk_a, pk_b, identity_a, identity_b, mut tc_a_b, mut tc_b_a) =
@@ -72,13 +72,11 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
     let currencies_operations = Vec::new();
-    let relays_diff = Vec::new();
     let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
         &mut identity_client_b,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_b,
         &pk_a,
@@ -108,13 +106,11 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     // and set incorrect token info hash.
     // ------------------------------------------------------------
     let currencies_operations = Vec::new();
-    let relays_diff = Vec::new();
     let currencies_diff = vec![currency1.clone(), currency2.clone()];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
         &mut identity_client_a,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_a,
         &pk_b,
@@ -127,7 +123,7 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
 
     // b is reset, this is done to simulate inconsistency:
     // ---------------------------------------------------
-    let mut tc_b_a = MockTokenChannel::<u32>::new(&pk_b, &pk_a);
+    let mut tc_b_a = MockTokenChannel::new(&pk_b, &pk_a);
     assert_eq!(tc_b_a.get_move_token_counter().await.unwrap(), 0);
 
     // Receive the MoveToken message at b:
@@ -195,13 +191,11 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     // b accepts a's reset terms:
     // --------------------------
     let currencies_operations = Vec::new();
-    let relays_diff = Vec::new();
     let currencies_diff = Vec::new();
     let move_token = accept_remote_reset(
         &mut tc_b_a,
         &mut identity_client_b,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_b,
         &pk_a,

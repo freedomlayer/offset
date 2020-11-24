@@ -130,10 +130,7 @@ where
 }
 */
 
-pub fn move_token_signature_buff<B>(move_token: &MoveToken<B>) -> Vec<u8>
-where
-    B: CanonicalSerialize + Clone,
-{
+pub fn move_token_signature_buff(move_token: &MoveToken) -> Vec<u8> {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&hash::hash_buffer(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token.old_token);

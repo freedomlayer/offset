@@ -1,5 +1,3 @@
-use signature::canonical::CanonicalSerialize;
-
 use common::ser_utils::ser_b64;
 
 use proto::crypto::{PlainLock, PublicKey, Signature, Uid};
@@ -143,10 +141,7 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<B>(move_token: &MoveToken<B>, token_info: &TokenInfo) -> MoveTokenHashed
-where
-    B: CanonicalSerialize + Clone,
-{
+pub fn create_hashed(move_token: &MoveToken, token_info: &TokenInfo) -> MoveTokenHashed {
     MoveTokenHashed {
         old_token: move_token.old_token.clone(),
         token_info: token_info.clone(),

@@ -62,10 +62,7 @@ pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
 }
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token<B>(move_token: &MoveToken<B>, public_key: &PublicKey) -> bool
-where
-    B: CanonicalSerialize + Clone,
-{
+pub fn verify_move_token(move_token: &MoveToken, public_key: &PublicKey) -> bool {
     let sig_buffer = move_token_signature_buff(move_token);
     verify_signature(&sig_buffer, public_key, &move_token.new_token)
 }

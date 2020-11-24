@@ -57,17 +57,16 @@ pub struct MoveTokenReceivedCurrency {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceived<B> {
+pub struct MoveTokenReceived {
     pub currencies: Vec<MoveTokenReceivedCurrency>,
-    pub relays_diff: Vec<RelayAddress<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
-pub enum ReceiveMoveTokenOutput<B> {
+pub enum ReceiveMoveTokenOutput {
     Duplicate,
-    RetransmitOutgoing(MoveToken<B>),
-    Received(MoveTokenReceived<B>),
+    RetransmitOutgoing(MoveToken),
+    Received(MoveTokenReceived),
     ChainInconsistent(ResetTerms), // (local_reset_token, local_reset_move_token_counter)
 }
 
@@ -88,10 +87,7 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
 /// Create an initial move token in the relationship between two public keys.
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
-pub fn initial_move_token<B>(
-    low_public_key: &PublicKey,
-    high_public_key: &PublicKey,
-) -> MoveToken<B> {
+pub fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -> MoveToken {
     let token_info = TokenInfo {
         // No balances yet:
         balances_hash: hash_buffer(&[]),
@@ -103,10 +99,9 @@ pub fn initial_move_token<B>(
     // We do this because we want to have synchronization between the two sides of the token
     // channel, however, the remote side has no means of generating the signature (Because he
     // doesn't have the private key). Therefore we use a dummy new_token instead.
-    let move_token_out = MoveToken::<B> {
+    let move_token_out = MoveToken {
         old_token: token_from_public_key(&low_public_key),
         currencies_operations: Vec::new(),
-        relays_diff: Vec::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(&low_public_key, &high_public_key, &token_info),
         new_token: token_from_public_key(&high_public_key),
@@ -167,8 +162,8 @@ pub fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
 }
 
 /// Extract all local balances for reset as a map:
-async fn local_balances_for_reset<B>(
-    tc_client: &mut impl TcClient<B>,
+async fn local_balances_for_reset(
+    tc_client: &mut impl TcClient,
 ) -> Result<HashMap<Currency, ResetBalance>, TokenChannelError> {
     let mut balances = HashMap::new();
     let mut reset_balances = tc_client.list_local_reset_balances();
@@ -181,10 +176,10 @@ async fn local_balances_for_reset<B>(
     Ok(balances)
 }
 
-struct InconsistentTrans<'a, C, B> {
+struct InconsistentTrans<'a, C> {
     input_phantom: PhantomData<C>,
-    move_token_out: MoveToken<B>,
-    new_move_token: MoveToken<B>,
+    move_token_out: MoveToken,
+    new_move_token: MoveToken,
     local_public_key: &'a PublicKey,
     remote_public_key: &'a PublicKey,
 }
@@ -194,17 +189,16 @@ enum TransactFail {
     InvalidIncoming(InvalidIncoming),
 }
 
-impl<'b, C, B> TransFunc for InconsistentTrans<'b, C, B>
+impl<'b, C> TransFunc for InconsistentTrans<'b, C>
 where
-    B: Debug + Clone + CanonicalSerialize + Send + Sync,
-    C: TcClient<B> + Send,
+    C: TcClient + Send,
     C::McClient: Send,
 {
     type InRef = C;
     // We divide the error into two types:
     // Recoverable: InvalidIncoming
     // Unrecoverable: TokenChannelError
-    type Out = Result<MoveTokenReceived<B>, Result<InvalidIncoming, TokenChannelError>>;
+    type Out = Result<MoveTokenReceived, Result<InvalidIncoming, TokenChannelError>>;
 
     fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
     where
@@ -240,17 +234,16 @@ where
     }
 }
 
-pub async fn handle_in_move_token<B, C>(
+pub async fn handle_in_move_token<C>(
     tc_client: &mut C,
     identity_client: &mut IdentityClient,
-    new_move_token: MoveToken<B>,
+    new_move_token: MoveToken,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
+) -> Result<ReceiveMoveTokenOutput, TokenChannelError>
 where
     // TODO: Can we somehow get rid of the Sync requirement for `B`?
-    B: Debug + CanonicalSerialize + Clone + Send + Sync,
-    C: TcClient<B> + Transaction + Send,
+    C: TcClient + Transaction + Send,
     C::McClient: Send,
 {
     match tc_client.get_tc_status().await? {
@@ -297,7 +290,6 @@ where
                 let move_token_out = MoveToken {
                     old_token: Signature::from(&[0; Signature::len()]),
                     currencies_operations: Vec::new(),
-                    relays_diff: Vec::new(),
                     currencies_diff: Vec::new(),
                     info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
                     new_token: local_reset_token.clone(),
@@ -364,8 +356,8 @@ async fn create_reset_token(
 
 /// Set token channel to be inconsistent
 /// Local reset terms are automatically calculated
-async fn set_inconsistent<B>(
-    tc_client: &mut impl TcClient<B>,
+async fn set_inconsistent(
+    tc_client: &mut impl TcClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -399,17 +391,14 @@ async fn set_inconsistent<B>(
     Ok((local_reset_token, local_reset_move_token_counter))
 }
 
-async fn handle_in_move_token_dir_in<B>(
-    tc_client: &mut impl TcClient<B>,
+async fn handle_in_move_token_dir_in(
+    tc_client: &mut impl TcClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
     move_token_in: MoveTokenHashed,
-    new_move_token: MoveToken<B>,
-) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
-where
-    B: CanonicalSerialize + Clone,
-{
+    new_move_token: MoveToken,
+) -> Result<ReceiveMoveTokenOutput, TokenChannelError> {
     if move_token_in == create_hashed(&new_move_token, &move_token_in.token_info) {
         // Duplicate
         Ok(ReceiveMoveTokenOutput::Duplicate)
@@ -431,24 +420,23 @@ where
     }
 }
 
-struct InMoveTokenDirOutTrans<'a, C, B> {
+struct InMoveTokenDirOutTrans<'a, C> {
     input_phantom: PhantomData<C>,
-    new_move_token: MoveToken<B>,
+    new_move_token: MoveToken,
     local_public_key: &'a PublicKey,
     remote_public_key: &'a PublicKey,
 }
 
-impl<'b, C, B> TransFunc for InMoveTokenDirOutTrans<'b, C, B>
+impl<'b, C> TransFunc for InMoveTokenDirOutTrans<'b, C>
 where
-    B: Debug + Clone + CanonicalSerialize + Send + Sync,
-    C: TcClient<B> + Send,
+    C: TcClient + Send,
     C::McClient: Send,
 {
     type InRef = C;
     // We divide the error into two types:
     // Recoverable: InvalidIncoming
     // Unrecoverable: TokenChannelError
-    type Out = Result<MoveTokenReceived<B>, Result<InvalidIncoming, TokenChannelError>>;
+    type Out = Result<MoveTokenReceived, Result<InvalidIncoming, TokenChannelError>>;
 
     fn call<'a>(self, tc_client: &'a mut Self::InRef) -> BoxFuture<'a, Self::Out>
     where
@@ -480,17 +468,16 @@ where
     }
 }
 
-async fn handle_in_move_token_dir_out<B, C>(
+async fn handle_in_move_token_dir_out<C>(
     tc_client: &mut C,
     identity_client: &mut IdentityClient,
-    move_token_out: MoveToken<B>,
-    new_move_token: MoveToken<B>,
+    move_token_out: MoveToken,
+    new_move_token: MoveToken,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<ReceiveMoveTokenOutput<B>, TokenChannelError>
+) -> Result<ReceiveMoveTokenOutput, TokenChannelError>
 where
-    B: Debug + Clone + CanonicalSerialize + Send + Sync,
-    C: TcClient<B> + Transaction + Send,
+    C: TcClient + Transaction + Send,
     C::McClient: Send,
 {
     if new_move_token.old_token == move_token_out.new_token {
@@ -579,20 +566,17 @@ enum InvalidIncoming {
 }
 
 #[derive(Debug)]
-enum IncomingTokenMatchOutput<B> {
-    MoveTokenReceived(MoveTokenReceived<B>),
+enum IncomingTokenMatchOutput {
+    MoveTokenReceived(MoveTokenReceived),
     InvalidIncoming(InvalidIncoming),
 }
 
-async fn handle_incoming_token_match<B>(
-    tc_client: &mut impl TcClient<B>,
-    new_move_token: MoveToken<B>, // remote_max_debts: &ImHashMap<Currency, u128>,
+async fn handle_incoming_token_match(
+    tc_client: &mut impl TcClient,
+    new_move_token: MoveToken, // remote_max_debts: &ImHashMap<Currency, u128>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<IncomingTokenMatchOutput<B>, TokenChannelError>
-where
-    B: Debug + Clone + CanonicalSerialize,
-{
+) -> Result<IncomingTokenMatchOutput, TokenChannelError> {
     // Verify signature:
     // Note that we only verify the signature here, and not at the Incoming part.
     // This allows the genesis move token to occur smoothly, even though its signature
@@ -607,7 +591,6 @@ where
     // Aggregate results for every currency:
     let mut move_token_received = MoveTokenReceived {
         currencies: Vec::new(),
-        relays_diff: new_move_token.relays_diff.clone(),
     };
 
     // Handle active currencies:
@@ -739,18 +722,14 @@ where
     ))
 }
 
-pub async fn handle_out_move_token<B>(
-    tc_client: &mut impl TcClient<B>,
+pub async fn handle_out_move_token(
+    tc_client: &mut impl TcClient,
     identity_client: &mut IdentityClient,
     currencies_operations: Vec<CurrencyOperations>,
-    relays_diff: Vec<RelayAddress<B>>,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<MoveToken<B>, TokenChannelError>
-where
-    B: CanonicalSerialize + Clone,
-{
+) -> Result<MoveToken, TokenChannelError> {
     // We expect that our current state is incoming:
     let move_token_in = match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => move_token_in,
@@ -830,7 +809,6 @@ where
     let mut move_token = MoveToken {
         old_token: move_token_in.new_token,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
         // Still not known:
@@ -856,18 +834,14 @@ where
 
 /// Apply a token channel reset, accepting remote side's
 /// reset terms.
-pub async fn accept_remote_reset<B>(
-    tc_client: &mut impl TcClient<B>,
+pub async fn accept_remote_reset(
+    tc_client: &mut impl TcClient,
     identity_client: &mut IdentityClient,
     currencies_operations: Vec<CurrencyOperations>,
-    relays_diff: Vec<RelayAddress<B>>,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<MoveToken<B>, TokenChannelError>
-where
-    B: CanonicalSerialize + Clone,
-{
+) -> Result<MoveToken, TokenChannelError> {
     // Make sure that we are in inconsistent state,
     // and that the remote side has already sent his reset terms:
     let (remote_reset_token, remote_reset_move_token_counter) =
@@ -896,10 +870,9 @@ where
             .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
     };
 
-    let move_token_in = MoveToken::<B> {
+    let move_token_in = MoveToken {
         old_token: Signature::from(&[0; Signature::len()]),
         currencies_operations: Vec::new(),
-        relays_diff: Vec::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
         new_token: remote_reset_token.clone(),
@@ -914,7 +887,6 @@ where
         tc_client,
         identity_client,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         local_public_key,
         remote_public_key,
@@ -924,8 +896,8 @@ where
 
 /// Load the remote reset terms information from a remote side's inconsistency message
 /// Optionally returns local reset terms (If not already inconsistent)
-pub async fn load_remote_reset_terms<B>(
-    tc_client: &mut impl TcClient<B>,
+pub async fn load_remote_reset_terms(
+    tc_client: &mut impl TcClient,
     identity_client: &mut IdentityClient,
     remote_reset_terms: ResetTerms,
     local_public_key: &PublicKey,

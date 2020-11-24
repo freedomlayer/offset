@@ -44,8 +44,8 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     let identity_b = SoftwareEd25519Identity::from_private_key(&pkcs8).unwrap();
     let pk_b = identity_b.get_public_key();
 
-    let mut tc_a_b = MockTokenChannel::<u32>::new(&pk_a, &pk_b);
-    let mut tc_b_a = MockTokenChannel::<u32>::new(&pk_b, &pk_a);
+    let mut tc_a_b = MockTokenChannel::new(&pk_a, &pk_b);
+    let mut tc_b_a = MockTokenChannel::new(&pk_b, &pk_a);
 
     // Sort `a` and `b` entities, to have always have `a` as the first sender.
     let (pk_a, pk_b, identity_a, identity_b, mut tc_a_b, mut tc_b_a) =
@@ -71,13 +71,11 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
     let currencies_operations = Vec::new();
-    let relays_diff = Vec::new();
     let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
         &mut identity_client_b,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_b,
         &pk_a,
@@ -102,13 +100,11 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     // Send a MoveToken message from a to b, adding two currencies:
     // ------------------------------------------------------------
     let currencies_operations = Vec::new();
-    let relays_diff = Vec::new();
     let currencies_diff = vec![currency1.clone(), currency2.clone()];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
         &mut identity_client_a,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_a,
         &pk_b,
@@ -150,13 +146,11 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         currency: currency1.clone(),
         operations: vec![FriendTcOp::RequestSendFunds(request_send_funds_op.clone())],
     }];
-    let relays_diff = Vec::new();
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
         &mut identity_client_b,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_b,
         &pk_a,
@@ -199,13 +193,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Make sure the the result is as expected:
     let mut currencies = match res {
-        ReceiveMoveTokenOutput::Received(MoveTokenReceived {
-            currencies,
-            relays_diff,
-        }) => {
-            assert!(relays_diff.is_empty());
-            currencies
-        }
+        ReceiveMoveTokenOutput::Received(MoveTokenReceived { currencies }) => currencies,
         _ => unreachable!(),
     };
 
@@ -251,13 +239,11 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
             response_send_funds_op.clone(),
         )],
     }];
-    let relays_diff = Vec::new();
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
         &mut identity_client_a,
         currencies_operations,
-        relays_diff,
         currencies_diff,
         &pk_a,
         &pk_b,

@@ -44,27 +44,27 @@ pub struct ResetTerms {
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
 #[derive(Debug)]
-pub enum TcStatus<B> {
-    ConsistentIn(MoveTokenHashed),                        // (move_token_in)
-    ConsistentOut(MoveToken<B>, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
+pub enum TcStatus {
+    ConsistentIn(MoveTokenHashed),                     // (move_token_in)
+    ConsistentOut(MoveToken, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
     Inconsistent(Signature, u128, Option<(Signature, u128)>),
     // (local_reset_token, local_reset_move_token_counter, Option<(remote_reset_token, remote_reset_move_token_counter)>)
 }
 
-pub trait TcClient<B> {
+pub trait TcClient {
     type McClient: McClient;
     fn mc_client(&mut self, currency: Currency) -> &mut Self::McClient;
 
-    fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus<B>>;
+    fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
     fn set_direction_outgoing(
         &mut self,
-        move_token: MoveToken<B>,
+        move_token: MoveToken,
         move_token_counter: u128,
     ) -> AsyncOpResult<()>;
     fn set_direction_outgoing_empty_incoming(
         &mut self,
-        move_token: MoveToken<B>,
+        move_token: MoveToken,
         move_token_counter: u128,
     ) -> AsyncOpResult<()>;
     fn set_inconsistent(
@@ -89,7 +89,7 @@ pub trait TcClient<B> {
     ) -> AsyncOpResult<()>;
 
     /// Simulate outgoing token, to be used before an incoming reset move token (a remote reset)
-    fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken<B>) -> AsyncOpResult<()>;
+    fn set_outgoing_from_inconsistent(&mut self, move_token: MoveToken) -> AsyncOpResult<()>;
 
     /// Simulate incoming token, to be used before an outgoing reset move token (a local reset)
     fn set_incoming_from_inconsistent(

@@ -34,17 +34,12 @@ struct MoveToken {
         # Operations that should be applied to various currencies.
         # For every currency, ordered batched operations are provided.
         # First operation should be applied first.
-        relaysDiff @2: List(RelayAddress);
-        # Exclusive-Or difference between previous list of relays and new list of relays.
-        # Should be empty if nothing has changed.
-        # TODO: We might be able to make this more efficient, as RelayAddress
-        # might be too much information for removing an entry.
-        currenciesDiff @3: List(Currency);
+        currenciesDiff @2: List(Currency);
         # Exclusive-Or difference between previous list of currencies and new list of currencies.
         # Should be empty if nothing has changed.
-        infoHash @4: HashResult;
+        infoHash @3: HashResult;
         # Current information about the channel that both sides implicitly agree upon.
-        newToken @5 : Signature;
+        newToken @4 : Signature;
         # A signature over all the previous fields.
 }
 
@@ -68,12 +63,18 @@ struct ResetTerms {
         # List of expected balance for each currency
 }
 
+struct RelaysUpdate {
+        updateId @0: Uid;
+        relays @1: List(RelayAddress);
+}
+
 
 # A message sent between friends.
 struct FriendMessage {
         union {
                 moveTokenRequest @0: MoveTokenRequest;
                 inconsistencyError @1: ResetTerms;
+                relaysUpdate @2: RelaysUpdate;
         }
 }
 
