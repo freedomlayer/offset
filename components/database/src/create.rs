@@ -748,6 +748,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              amount              BLOB NOT NULL,
              description         TEXT NOT NULL,
              data_hash           BLOB NOT NULL,
+             signature           BLOB NOT NULL,
              UNIQUE (dest_public_key, serial_num),
              -- A node can not issue the same invoice sequence number twice
              FOREIGN KEY(counter, event_type) 
