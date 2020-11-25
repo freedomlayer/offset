@@ -96,9 +96,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              relay_public_key         BLOB NOT NULL,
              port                     BLOB NOT NULL,
              address                  TEXT NOT NULL,
-             remove_generation        BLOB,
-             -- At which generation this relay was marked for removal?
-             -- NULL if not marked for removal
+             is_remove                BOOL NOT NULL,
+             -- Is marked for removal?
+             generation               BLOB,
+             -- At which generation this relay was added/removed?
+             -- NULL if change was already acked.
+             CHECK (NOT (is_remove == true AND generation == NULL)),
              PRIMARY KEY(friend_public_key, relay_public_key),
              FOREIGN KEY(friend_public_key)
                 REFERENCES friends(friend_public_key)
