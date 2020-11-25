@@ -769,10 +769,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              event_type      TEXT CHECK (event_type = 'I') 
                              DEFAULT 'I'
                              NOT NULL,
+             serial_num      BLOB NOT NULL UNIQUE,
              currency        TEXT NOT NULL,
              amount          BLOB NOT NULL,
              description     TEXT NOT NULL,
-             serial_num      BLOB NOT NULL UNIQUE,
+             data_hash       BLOB NOT NULL,
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
