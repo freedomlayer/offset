@@ -35,7 +35,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // Single row is enforced in this table according to https://stackoverflow.com/a/33104119
     tx.execute(
         "CREATE TABLE node(
-             id                       INTEGER PRIMARY KEY CHECK (id = 0), -- enforce single row
+             id                       INTEGER PRIMARY KEY CHECK (id == 0), -- enforce single row
              version                  INTEGER NOT NULL,  -- Database version
              local_public_key         BLOB NOT NULL
             );",
@@ -139,7 +139,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE consistent_channels(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
              is_consistent              BOOL NOT NULL 
-                                        CHECK (is_consistent = true)
+                                        CHECK (is_consistent == true)
                                         DEFAULT true,
              move_token_counter         BLOB NOT NULL,
              is_incoming                BOOL NOT NULL,
@@ -160,7 +160,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE consistent_channels_incoming(
              friend_public_key      BLOB NOT NULL PRIMARY KEY,
              is_incoming            BOOL NOT NULL 
-                                    CHECK (is_incoming = true)
+                                    CHECK (is_incoming == true)
                                     DEFAULT true,
              old_token              BLOB NOT NULL,
              new_token              BLOB NOT NULL,
@@ -181,7 +181,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE consistent_channels_outgoing(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
              is_incoming                BOOL NOT NULL 
-                                        CHECK (is_incoming = false)
+                                        CHECK (is_incoming == false)
                                         DEFAULT false,
              move_token_out             BLOB NOT NULL,
 
@@ -204,7 +204,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE consistent_channels_outgoing_with_incoming(
              friend_public_key          BLOB NOT NULL PRIMARY KEY,
              is_with_incoming           BOOL NOT NULL 
-                                        CHECK (is_with_incoming = true)
+                                        CHECK (is_with_incoming == true)
                                         DEFAULT true,
 
              -- Data saved for last incoming move token.
@@ -253,7 +253,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE inconsistent_channels(
              friend_public_key                      BLOB NOT NULL PRIMARY KEY,
              is_consistent                          BOOL NOT NULL 
-                                                    CHECK (is_consistent = false)
+                                                    CHECK (is_consistent == false)
                                                     DEFAULT false,
              -- Last seen incoming move token:
              opt_move_token_in                      BLOB,
@@ -536,7 +536,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
              backwards_type           TEXT NOT NULL 
-                                      CHECK (backwards_type = 'R')
+                                      CHECK (backwards_type == 'R')
                                       DEFAULT 'R',
              src_hashed_lock          BLOB NOT NULL,
              serial_num               BLOB NOT NULL,
@@ -559,7 +559,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
              backwards_type           TEXT NOT NULL 
-                                      CHECK (backwards_type = 'C')
+                                      CHECK (backwards_type == 'C')
                                       DEFAULT 'C',
              FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
                 REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
@@ -740,7 +740,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE payment_events(
              counter             BLOB NOT NULL PRIMARY KEY,
-             event_type          TEXT CHECK (event_type = 'P') 
+             event_type          TEXT CHECK (event_type == 'P') 
                                  DEFAULT 'P' 
                                  NOT NULL,
              response_hash       BLOB NOT NULL,
@@ -770,7 +770,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE invoice_events (
              counter         BLOB NOT NULL PRIMARY KEY,
-             event_type      TEXT CHECK (event_type = 'I') 
+             event_type      TEXT CHECK (event_type == 'I') 
                              DEFAULT 'I'
                              NOT NULL,
              serial_num      BLOB NOT NULL UNIQUE,
@@ -789,7 +789,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_inconsistency_events (
              counter                BLOB NOT NULL PRIMARY KEY,
-             event_type             TEXT CHECK (event_type = 'F') 
+             event_type             TEXT CHECK (event_type == 'F') 
                                     DEFAULT 'F'
                                     NOT NULL,
              friend_public_key      BLOB NOT NULL,
