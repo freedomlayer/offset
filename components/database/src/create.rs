@@ -116,6 +116,11 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
+        "CREATE INDEX idx_sent_friend_relays_generation ON sent_friend_relays(generation);",
+        params![],
+    )?;
+
+    tx.execute(
         "CREATE TABLE currency_configs(
              friend_public_key          BLOB NOT NULL,
              currency                   TEXT NOT NULL,
