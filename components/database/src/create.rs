@@ -740,17 +740,28 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              event_type          TEXT CHECK (event_type = 'P') 
                                  DEFAULT 'P' 
                                  NOT NULL,
-             payment_id          BLOB NOT NULL UNIQUE,
+             response_hash       BLOB NOT NULL,
+             dest_public_key     BLOB NOT NULL,
+             serial_num          BLOB NOT NULL,
+             invoice_id          BLOB NOT NULL,
              currency            TEXT NOT NULL,
-             total_amount        BLOB NOT NULL,
              amount              BLOB NOT NULL,
              description         TEXT NOT NULL,
+             data_hash           BLOB NOT NULL,
+             UNIQUE (dest_public_key, serial_num),
+             -- A node can not issue the same invoice sequence number twice
              FOREIGN KEY(counter, event_type) 
                 REFERENCES events(counter, event_type)
                 ON DELETE CASCADE
             );",
         params![],
     )?;
+
+    // TODO: Add relevant indexes?
+    // - Search using description?
+    // - Search using counter?
+    // - How to make interface more flexible?
+    //      Allowing user to make interesting queries?
 
     tx.execute(
         "CREATE TABLE invoice_events (
