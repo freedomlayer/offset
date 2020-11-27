@@ -709,6 +709,37 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // Currently open friend invites
+    tx.execute(
+        "CREATE TABLE friend_invites(
+            invite_id           BLOB NOT NULL PRIMARY KEY,
+            psk                 BLOB NOT NULL,
+            friend_public_key   BLOB
+            -- If friend_public_key == NULL, it means we haven't 
+            -- been contacted by the friend yet, or that we have created a specific 
+            -- friend invite.
+        );",
+        params![],
+    )?;
+
+    // Relays we use to listen for friend invites
+    tx.execute(
+        "CREATE TABLE friend_invites_relays(
+            invite_id                BLOB NOT NULL,
+            relay_public_key         BLOB NOT NULL,
+            port                     BLOB NOT NULL,
+            address                  TEXT NOT NULL,
+            -- If friend_public_key == NULL, it means we haven't 
+            -- been contacted by the friend yet, or that we have created a specific 
+            -- friend invite.
+            PRIMARY KEY(invite_id, relay_public_key),
+            FOREIGN KEY(invite_id) 
+               REFERENCES friend_invites(invite_id)
+               ON DELETE CASCADE
+        );",
+        params![],
+    )?;
+
     // Documents table, allowing total order on all items payments and invoices
     tx.execute(
         "CREATE TABLE events(
