@@ -630,7 +630,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE open_invoices(
              invoice_id      BLOB NOT NULL PRIMARY KEY,
+             psk             BLOB NOT NULL,
              description     TEXT NOT NULL,
+             data_hash       BLOB NOT NULL,
              currency        TEXT NOT NULL,
              opt_amount      BLOB
             );",
@@ -661,16 +663,15 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE invoice_instances(
+        "CREATE TABLE invoice_actions(
              invoice_id             BLOB NOT NULL,
-             invoice_instance       BLOB NOT NULL,
+             action_id              BLOB NOT NULL,
              description            TEXT NOT NULL,
-             payload_hash           BLOB NOT NULL UNIQUE,
-             -- hash(invoice_instance, description, payload_hash)
              invoice_hash           BLOB NOT NULL UNIQUE,
-             -- src_hashed_lock is provided by the buyer/payer during the commitment.
+             -- invoiceHash = sha512/256(action_id || hash(description) || data_hash)
              opt_src_hashed_lock    BLOB,
-             PRIMARY KEY(invoice_id, invoice_instance),
+             -- src_hashed_lock is provided by the buyer/payer during the commitment.
+             PRIMARY KEY(invoice_id, action_id),
              FOREIGN KEY(invoice_id) 
                  REFERENCES open_invoices(invoice_id)
                  ON DELETE CASCADE
@@ -679,32 +680,32 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_invoice_instances ON invoice_instances(invoice_id, invoice_instance);",
+        "CREATE UNIQUE INDEX idx_invoice_actions ON invoice_actions(invoice_id, action_id);",
         params![],
     )?;
 
     tx.execute(
-        "CREATE TABLE invoice_instances_requests(
+        "CREATE TABLE invoice_actions_requests(
              invoice_id             BLOB NOT NULL,
-             invoice_instance       BLOB NOT NULL,
+             action_id              BLOB NOT NULL,
              request_id             BLOB NOT NULL PRIMARY KEY,
              FOREIGN KEY(request_id) 
                  REFERENCES remote_open_transactions(request_id)
                  ON DELETE RESTRICT,
-             FOREIGN KEY(invoice_id, invoice_instance) 
-                 REFERENCES invoice_instances(invoice_id, invoice_instance)
+             FOREIGN KEY(invoice_id, action_id) 
+                 REFERENCES invoice_actions(invoice_id, action_id)
                  ON DELETE CASCADE
             );",
         params![],
     )?;
 
     tx.execute(
-        "CREATE INDEX idx_instances_requests ON invoice_instances_requests(invoice_id, invoice_instance);",
+        "CREATE INDEX idx_actions_requests ON invoice_actions_requests(invoice_id, action_id);",
         params![],
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_instances_requests_request_id ON invoice_instances_requests(request_id);",
+        "CREATE UNIQUE INDEX idx_actions_requests_request_id ON invoice_actions_requests(request_id);",
         params![],
     )?;
 
@@ -751,7 +752,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              response_hash       BLOB NOT NULL,
              dest_public_key     BLOB NOT NULL,
              serial_num          BLOB NOT NULL,
-             invoice_id          BLOB NOT NULL,
+             action_id           BLOB NOT NULL,
              currency            TEXT NOT NULL,
              amount              BLOB NOT NULL,
              description         TEXT NOT NULL,
