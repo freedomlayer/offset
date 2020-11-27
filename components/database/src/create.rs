@@ -713,11 +713,34 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_invites(
             invite_id           BLOB NOT NULL PRIMARY KEY,
-            psk                 BLOB NOT NULL,
-            friend_public_key   BLOB
-            -- If friend_public_key == NULL, it means we haven't 
-            -- been contacted by the friend yet, or that we have created a specific 
-            -- friend invite.
+            psk                 BLOB NOT NULL
+        );",
+        params![],
+    )?;
+
+    // Invites that are used to add a new friend
+    tx.execute(
+        "CREATE TABLE friend_invites_add(
+            invite_id           BLOB NOT NULL PRIMARY KEY,
+            new_friend_name     TEXT NOT NULL,
+            FOREIGN KEY(invite_id) 
+                 REFERENCES friend_invites(invite_id)
+                 ON DELETE CASCADE
+        );",
+        params![],
+    )?;
+
+    // Invites that are used to inform a remote friend about updated relays list.
+    tx.execute(
+        "CREATE TABLE friend_invites_update(
+            invite_id           BLOB NOT NULL PRIMARY KEY,
+            friend_public_key   TEXT NOT NULL,
+            FOREIGN KEY(invite_id) 
+                 REFERENCES friend_invites(invite_id)
+                 ON DELETE CASCADE,
+            FOREIGN KEY(friend_public_key) 
+                 REFERENCES friends(friend_public_key)
+                 ON DELETE CASCADE
         );",
         params![],
     )?;
