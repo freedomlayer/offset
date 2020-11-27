@@ -713,7 +713,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_invites(
             invite_id           BLOB NOT NULL PRIMARY KEY,
-            psk                 BLOB NOT NULL
+            psk                 BLOB NOT NULL,
+            invite_type         TEXT CHECK (invite_type IN ('A', 'U')) NOT NULL
         );",
         params![],
     )?;
@@ -722,9 +723,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_invites_add(
             invite_id           BLOB NOT NULL PRIMARY KEY,
+            invite_type         TEXT NOT NULL 
+                                CHECK (invite_type == 'A')
+                                DEFAULT 'A',
             new_friend_name     TEXT NOT NULL,
-            FOREIGN KEY(invite_id) 
-                 REFERENCES friend_invites(invite_id)
+            FOREIGN KEY(invite_id, invite_type) 
+                 REFERENCES friend_invites(invite_id, invite_type)
                  ON DELETE CASCADE
         );",
         params![],
@@ -734,9 +738,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     tx.execute(
         "CREATE TABLE friend_invites_update(
             invite_id           BLOB NOT NULL PRIMARY KEY,
+            invite_type         TEXT NOT NULL 
+                                CHECK (invite_type == 'U')
+                                DEFAULT 'U',
             friend_public_key   TEXT NOT NULL,
-            FOREIGN KEY(invite_id) 
-                 REFERENCES friend_invites(invite_id)
+            FOREIGN KEY(invite_id, invite_type) 
+                 REFERENCES friend_invites(invite_id, invite_type)
                  ON DELETE CASCADE,
             FOREIGN KEY(friend_public_key) 
                  REFERENCES friends(friend_public_key)
