@@ -746,7 +746,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE friend_invites(
             invite_id           BLOB NOT NULL PRIMARY KEY,
             psk                 BLOB NOT NULL,
-            invite_type         TEXT CHECK (invite_type IN ('A', 'U')) NOT NULL
+            invite_type         TEXT CHECK (invite_type IN ('A', 'U')) NOT NULL,
+             -- Information about the application that created this invite
+            app_public_key      BLOB NOT NULL,
+            app_name            TEXT NOT NULL
         );",
         params![],
     )?;
