@@ -802,8 +802,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
-    // TODO: Maybe app_public_key should be a foreign key to applications table, and should be
-    // nullable?
     // Documents table, allowing total order on all items payments and invoices
     tx.execute(
         "CREATE TABLE events(
