@@ -18,11 +18,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              perm_buy                   BOOL NOT NULL,
              perm_sell                  BOOL NOT NULL,
              perm_config_card           BOOL NOT NULL,
-             perm_config_access         BOOL NOT NULL,
-
-             FOREIGN KEY(app_public_key) 
-                REFERENCES applications(app_public_key)
-                ON DELETE CASCADE
+             perm_config_access         BOOL NOT NULL
             );",
         params![],
     )?;
@@ -607,17 +603,20 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     // Ongoing payments that were not yet finalized
-    // TODO: Complete open payments information:
-    // - Pending requests/responses?
-    // - Stage information? (See state.rs in funder)
     tx.execute(
         "CREATE TABLE open_payments(
             payment_id          BLOB NOT NULL PRIMARY KEY,
+            app_public_key      BLOB NOT NULL,
+            app_name            TEXT NOT NULL,
             dest_public_key     BLOB NOT NULL,
             currency            TEXT NOT NULL,
             amount              BLOB NOT NULL,
             description         TEXT NOT NULL,
-            src_plain_lock      BLOB NOT NULL
+            src_plain_lock      BLOB NOT NULL,
+            fees                BLOB, 
+            -- fees == NULL if we don't know the fees yet.
+            FOREIGN KEY(app_public_key) 
+                REFERENCES applications(app_public_key)
             );",
         params![],
     )?;
@@ -627,14 +626,47 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // Payments where the user accepted the proposed fees.
+    // Such payments can only be cancelled by the seller.
+    tx.execute(
+        "CREATE TABLE open_payments_accepted(
+            payment_id          BLOB NOT NULL PRIMARY KEY,
+            fees                BLOB NOT NULL
+                                CHECK (fees != NULL),
+            FOREIGN KEY(payment_id, fees) 
+                REFERENCES open_payments(payment_id, fees)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    // TODO: Add indexes. Should we add an index to `request_id` here?
+    tx.execute(
+        "CREATE TABLE open_payments_requests(
+            payment_id          BLOB NOT NULL,
+            request_id          BLOB NOT NULL UNIQUE,
+            received_ack        BOOL NOT NULL,
+            -- Have we received an acknowledgement from the seller about this request?
+            PRIMARY KEY(payment_id, request_id),
+            FOREIGN KEY(payment_id)
+                REFERENCES open_payments_accepted(payment_id)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
     tx.execute(
         "CREATE TABLE open_invoices(
              invoice_id      BLOB NOT NULL PRIMARY KEY,
+             app_public_key  BLOB NOT NULL,
              psk             BLOB NOT NULL,
              description     TEXT NOT NULL,
              data_hash       BLOB NOT NULL,
              currency        TEXT NOT NULL,
-             opt_amount      BLOB
+             opt_amount      BLOB,
+             FOREIGN KEY(app_public_key) 
+                 REFERENCES applications(app_public_key)
+                 ON DELETE RESTRICT
             );",
         params![],
     )?;
@@ -765,11 +797,13 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             PRIMARY KEY(invite_id, relay_public_key),
             FOREIGN KEY(invite_id) 
                REFERENCES friend_invites(invite_id)
-               ON DELETE CASCADE
+               ON DELETE RESTRICT
         );",
         params![],
     )?;
 
+    // TODO: Maybe app_public_key should be a foreign key to applications table, and should be
+    // nullable?
     // Documents table, allowing total order on all items payments and invoices
     tx.execute(
         "CREATE TABLE events(
