@@ -776,7 +776,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
             invite_type         TEXT NOT NULL 
                                 CHECK (invite_type == 'U')
                                 DEFAULT 'U',
-            friend_public_key   TEXT NOT NULL,
+            friend_public_key   BLOB NOT NULL UNIQUE,
             FOREIGN KEY(invite_id, invite_type) 
                  REFERENCES friend_invites(invite_id, invite_type)
                  ON DELETE CASCADE,
