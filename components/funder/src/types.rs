@@ -1,6 +1,7 @@
+use common::conn::{BoxFuture, BoxStream, ConnPairVec};
 use common::ser_utils::ser_b64;
 
-use proto::crypto::{PlainLock, PublicKey, Signature, Uid};
+use proto::crypto::{DhPublicKey, PlainLock, PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
@@ -12,6 +13,25 @@ use proto::funder::messages::{
 use signature::signature_buff::create_response_signature_buffer;
 
 use identity::IdentityClient;
+
+use crypto::dh::DhStaticPrivateKey;
+
+#[derive(Debug)]
+struct RelayClientError;
+
+trait RelayClient {
+    fn connect(
+        &mut self,
+        relay: RelayAddress,
+        port: DhPublicKey,
+    ) -> BoxFuture<'_, Result<ConnPairVec, RelayClientError>>;
+
+    fn listen(
+        &mut self,
+        relay: RelayAddress,
+        port_private: DhStaticPrivateKey,
+    ) -> BoxStream<'_, ConnPairVec>;
+}
 
 pub async fn create_response_send_funds<'a>(
     currency: &Currency,
