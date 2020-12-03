@@ -4,7 +4,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 use derive_more::From;
 
-use crypto::dh::DhPrivateKey;
+use crypto::dh::DhEphemeralPrivateKey;
 use crypto::identity::verify_signature;
 use crypto::rand::{CryptoRandom, RandGen};
 use crypto::sym_encrypt::{Decryptor, Encryptor};
@@ -48,12 +48,12 @@ pub struct ScStateHalf {
     pub remote_public_key: PublicKey,
     local_public_key: PublicKey,
     local_rand_nonce: RandValue,
-    dh_private_key: DhPrivateKey,
+    dh_private_key: DhEphemeralPrivateKey,
     local_salt: Salt,
 }
 
 struct PendingRekey {
-    local_dh_private_key: DhPrivateKey,
+    local_dh_private_key: DhEphemeralPrivateKey,
     local_salt: Salt,
 }
 
@@ -105,7 +105,7 @@ impl ScStateInitial {
         }
 
         let dh_private_key =
-            DhPrivateKey::new(&mut rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
+            DhEphemeralPrivateKey::new(&mut rng).map_err(|_| ScStateError::PrivateKeyGenFailure)?;
         let dh_public_key = dh_private_key
             .compute_public_key()
             .map_err(|_| ScStateError::DhPublicKeyComputeFailure)?;
@@ -257,7 +257,7 @@ impl ScState {
         if self.opt_pending_rekey.is_some() {
             return Err(ScStateError::RekeyInProgress);
         }
-        let dh_private_key = DhPrivateKey::new(rng).unwrap();
+        let dh_private_key = DhEphemeralPrivateKey::new(rng).unwrap();
         let local_salt = Salt::rand_gen(rng);
         let dh_public_key = dh_private_key.compute_public_key().unwrap();
         let pending_rekey = PendingRekey {
@@ -280,7 +280,7 @@ impl ScState {
     ) -> Result<HandleIncomingOutput, ScStateError> {
         match self.opt_pending_rekey.take() {
             None => {
-                let dh_private_key = DhPrivateKey::new(rng).unwrap();
+                let dh_private_key = DhEphemeralPrivateKey::new(rng).unwrap();
                 let local_salt = Salt::rand_gen(rng);
                 let dh_public_key = dh_private_key.compute_public_key().unwrap();
 
