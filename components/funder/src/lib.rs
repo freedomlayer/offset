@@ -34,6 +34,9 @@ mod token_channel;
 
 pub mod types;
 
+// TODO: Later move outside of this module, to a relay related module
+pub mod relay_client;
+
 // #[cfg(test)]
 // mod tests;
 
