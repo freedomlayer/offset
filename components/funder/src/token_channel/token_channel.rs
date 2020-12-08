@@ -32,9 +32,9 @@ use crate::mutual_credit::incoming::{
     process_operations_list, IncomingMessage, ProcessTransListError,
 };
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
-use crate::mutual_credit::types::McClient;
+use crate::mutual_credit::types::McDbClient;
 
-use crate::token_channel::types::{ResetBalance, ResetTerms, TcClient, TcStatus};
+use crate::token_channel::types::{ResetBalance, ResetTerms, TcDbClient, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
 
 /// Unrecoverable TokenChannel error
@@ -163,7 +163,7 @@ pub fn reset_balance_to_mc_balance(reset_balance: ResetBalance) -> McBalance {
 
 /// Extract all local balances for reset as a map:
 async fn local_balances_for_reset(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
 ) -> Result<HashMap<Currency, ResetBalance>, TokenChannelError> {
     let mut balances = HashMap::new();
     let mut reset_balances = tc_client.list_local_reset_balances();
@@ -191,8 +191,8 @@ enum TransactFail {
 
 impl<'b, C> TransFunc for InconsistentTrans<'b, C>
 where
-    C: TcClient + Send,
-    C::McClient: Send,
+    C: TcDbClient + Send,
+    C::McDbClient: Send,
 {
     type InRef = C;
     // We divide the error into two types:
@@ -243,8 +243,8 @@ pub async fn handle_in_move_token<C>(
 ) -> Result<ReceiveMoveTokenOutput, TokenChannelError>
 where
     // TODO: Can we somehow get rid of the Sync requirement for `B`?
-    C: TcClient + Transaction + Send,
-    C::McClient: Send,
+    C: TcDbClient + Transaction + Send,
+    C::McDbClient: Send,
 {
     match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(move_token_in) => {
@@ -357,7 +357,7 @@ async fn create_reset_token(
 /// Set token channel to be inconsistent
 /// Local reset terms are automatically calculated
 async fn set_inconsistent(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -392,7 +392,7 @@ async fn set_inconsistent(
 }
 
 async fn handle_in_move_token_dir_in(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -429,8 +429,8 @@ struct InMoveTokenDirOutTrans<'a, C> {
 
 impl<'b, C> TransFunc for InMoveTokenDirOutTrans<'b, C>
 where
-    C: TcClient + Send,
-    C::McClient: Send,
+    C: TcDbClient + Send,
+    C::McDbClient: Send,
 {
     type InRef = C;
     // We divide the error into two types:
@@ -477,8 +477,8 @@ async fn handle_in_move_token_dir_out<C>(
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput, TokenChannelError>
 where
-    C: TcClient + Transaction + Send,
-    C::McClient: Send,
+    C: TcDbClient + Transaction + Send,
+    C::McDbClient: Send,
 {
     if new_move_token.old_token == move_token_out.new_token {
         // Atomically attempt to handle a reset move token:
@@ -572,7 +572,7 @@ enum IncomingTokenMatchOutput {
 }
 
 async fn handle_incoming_token_match(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     new_move_token: MoveToken, // remote_max_debts: &ImHashMap<Currency, u128>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -723,7 +723,7 @@ async fn handle_incoming_token_match(
 }
 
 pub async fn handle_out_move_token(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
     currencies_operations: Vec<CurrencyOperations>,
     currencies_diff: Vec<Currency>,
@@ -835,7 +835,7 @@ pub async fn handle_out_move_token(
 /// Apply a token channel reset, accepting remote side's
 /// reset terms.
 pub async fn accept_remote_reset(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
     currencies_operations: Vec<CurrencyOperations>,
     currencies_diff: Vec<Currency>,
@@ -897,7 +897,7 @@ pub async fn accept_remote_reset(
 /// Load the remote reset terms information from a remote side's inconsistency message
 /// Optionally returns local reset terms (If not already inconsistent)
 pub async fn load_remote_reset_terms(
-    tc_client: &mut impl TcClient,
+    tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
     remote_reset_terms: ResetTerms,
     local_public_key: &PublicKey,

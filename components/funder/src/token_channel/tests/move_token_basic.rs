@@ -25,7 +25,7 @@ use crate::mutual_credit::incoming::IncomingMessage;
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::{
     accept_remote_reset, handle_in_move_token, handle_out_move_token, reset_balance_to_mc_balance,
-    MoveTokenReceived, ReceiveMoveTokenOutput, TcClient, TcStatus, TokenChannelError,
+    MoveTokenReceived, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
 use crate::types::create_pending_transaction;
 

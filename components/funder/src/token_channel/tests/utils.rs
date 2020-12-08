@@ -22,7 +22,7 @@ use crypto::identity::compare_public_key;
 
 use crate::mutual_credit::tests::MockMutualCredit;
 use crate::token_channel::types::{ResetBalance, ResetTerms, TcStatus};
-use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcClient};
+use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcDbClient};
 use crate::types::{create_hashed, MoveTokenHashed};
 
 #[derive(Debug, Clone)]
@@ -119,10 +119,10 @@ fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
     }
 }
 
-impl TcClient for MockTokenChannel {
-    type McClient = MockMutualCredit;
+impl TcDbClient for MockTokenChannel {
+    type McDbClient = MockMutualCredit;
 
-    fn mc_client(&mut self, currency: Currency) -> &mut Self::McClient {
+    fn mc_client(&mut self, currency: Currency) -> &mut Self::McDbClient {
         match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
                 tc_consistent.mutual_credits.get_mut(&currency).unwrap()

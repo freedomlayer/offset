@@ -10,4 +10,4 @@ pub use self::token_channel::{
     ReceiveMoveTokenOutput, TokenChannelError,
 };
 
-pub use types::{ResetBalance, TcClient, TcStatus};
+pub use types::{ResetBalance, TcDbClient, TcStatus};

@@ -16,7 +16,7 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::types::create_pending_transaction;
 
-use super::types::McClient;
+use super::types::McDbClient;
 
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
@@ -58,7 +58,7 @@ pub struct ProcessTransListError {
 }
 
 pub async fn process_operations_list(
-    mc_client: &mut impl McClient,
+    mc_client: &mut impl McDbClient,
     operations: Vec<FriendTcOp>,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -89,7 +89,7 @@ pub async fn process_operations_list(
 }
 
 pub async fn process_operation(
-    mc_client: &mut impl McClient,
+    mc_client: &mut impl McDbClient,
     friend_tc_op: FriendTcOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -111,7 +111,7 @@ pub async fn process_operation(
 
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
-    mc_client: &mut impl McClient,
+    mc_client: &mut impl McDbClient,
     request_send_funds: RequestSendFundsOp,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
@@ -177,7 +177,7 @@ async fn process_request_send_funds(
 }
 
 async fn process_response_send_funds(
-    mc_client: &mut impl McClient,
+    mc_client: &mut impl McDbClient,
     response_send_funds: ResponseSendFundsOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
@@ -265,7 +265,7 @@ async fn process_response_send_funds(
 }
 
 async fn process_cancel_send_funds(
-    mc_client: &mut impl McClient,
+    mc_client: &mut impl McDbClient,
     cancel_send_funds: CancelSendFundsOp,
 ) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,

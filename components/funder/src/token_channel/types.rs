@@ -10,7 +10,7 @@ use proto::funder::messages::{Currency, McBalance, MoveToken};
 
 use database::interface::funder::CurrencyConfig;
 
-use crate::mutual_credit::types::McClient;
+use crate::mutual_credit::types::McDbClient;
 use crate::types::MoveTokenHashed;
 
 #[derive(Debug)]
@@ -51,9 +51,9 @@ pub enum TcStatus {
     // (local_reset_token, local_reset_move_token_counter, Option<(remote_reset_token, remote_reset_move_token_counter)>)
 }
 
-pub trait TcClient {
-    type McClient: McClient;
-    fn mc_client(&mut self, currency: Currency) -> &mut Self::McClient;
+pub trait TcDbClient {
+    type McDbClient: McDbClient;
+    fn mc_client(&mut self, currency: Currency) -> &mut Self::McDbClient;
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;

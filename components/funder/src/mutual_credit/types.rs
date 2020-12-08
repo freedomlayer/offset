@@ -5,7 +5,7 @@ use common::u256::U256;
 use proto::crypto::Uid;
 use proto::funder::messages::{McBalance, PendingTransaction};
 
-pub trait McClient {
+pub trait McDbClient {
     fn get_balance(&mut self) -> AsyncOpResult<McBalance>;
     fn set_balance(&mut self, new_balance: i128) -> AsyncOpResult<()>;
     fn set_local_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
