@@ -53,7 +53,7 @@ pub enum TcStatus {
 
 pub trait TcDbClient {
     type McDbClient: McDbClient;
-    fn mc_client(&mut self, currency: Currency) -> &mut Self::McDbClient;
+    fn mc_db_client(&mut self, currency: Currency) -> &mut Self::McDbClient;
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;

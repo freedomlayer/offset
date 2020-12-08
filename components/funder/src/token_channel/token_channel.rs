@@ -618,7 +618,7 @@ async fn handle_incoming_token_match(
             let is_local_currency = tc_client.is_local_currency(diff_currency.clone()).await?;
             if is_local_currency {
                 let mc_balance = tc_client
-                    .mc_client(diff_currency.clone())
+                    .mc_db_client(diff_currency.clone())
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -657,7 +657,7 @@ async fn handle_incoming_token_match(
             .await?;
 
         let res = process_operations_list(
-            tc_client.mc_client(currency_operations.currency.clone()),
+            tc_client.mc_db_client(currency_operations.currency.clone()),
             currency_operations.operations.clone(),
             &currency_operations.currency,
             remote_public_key,
@@ -753,7 +753,7 @@ pub async fn handle_out_move_token(
             let is_remote_currency = tc_client.is_remote_currency(diff_currency.clone()).await?;
             if is_remote_currency {
                 let mc_balance = tc_client
-                    .mc_client(diff_currency.clone())
+                    .mc_db_client(diff_currency.clone())
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -785,7 +785,7 @@ pub async fn handle_out_move_token(
     for currency_operations in &currencies_operations {
         for operation in currency_operations.operations.iter().cloned() {
             queue_operation(
-                tc_client.mc_client(currency_operations.currency.clone()),
+                tc_client.mc_db_client(currency_operations.currency.clone()),
                 operation,
                 &currency_operations.currency,
                 local_public_key,

@@ -122,7 +122,7 @@ fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
 impl TcDbClient for MockTokenChannel {
     type McDbClient = MockMutualCredit;
 
-    fn mc_client(&mut self, currency: Currency) -> &mut Self::McDbClient {
+    fn mc_db_client(&mut self, currency: Currency) -> &mut Self::McDbClient {
         match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
                 tc_consistent.mutual_credits.get_mut(&currency).unwrap()
