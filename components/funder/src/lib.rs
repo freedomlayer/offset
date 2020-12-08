@@ -29,6 +29,8 @@ mod mutual_credit;
 // mod state;
 #[allow(unused)]
 mod token_channel;
+
+mod switch;
 //
 // For testing:
 
