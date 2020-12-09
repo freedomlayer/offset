@@ -23,13 +23,15 @@ extern crate quickcheck_derive;
 // mod friend;
 // mod funder;
 // mod handler;
-// mod liveness;
+#[allow(unused)]
+mod liveness;
 mod mutual_credit;
 // pub mod report;
 // mod state;
 #[allow(unused)]
 mod token_channel;
 
+#[allow(unused)]
 mod switch;
 //
 // For testing:

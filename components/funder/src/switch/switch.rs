@@ -5,12 +5,18 @@ use common::async_rpc::OpError;
 
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
-use proto::funder::messages::{Currency, MoveToken, RelaysUpdate, RequestSendFundsOp};
+use proto::funder::messages::{
+    CancelSendFundsOp, Currency, MoveToken, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+};
+use proto::index_server::messages::IndexMutation;
 
-use crate::switch::types::SwitchDbClient;
+use crate::liveness::LivenessMutation;
+use crate::switch::types::{SwitchDbClient, SwitchState};
+use crate::token_channel::{TcDbClient, TcStatus};
 
 #[derive(Debug, From)]
 pub enum SwitchError {
+    FriendAlreadyOnline,
     OpError(OpError),
 }
 
@@ -23,10 +29,70 @@ pub struct SwitchOutput {
 }
 */
 
+#[derive(Debug)]
+pub struct SwitchOutput {
+    pub outgoing_move_tokens: HashMap<PublicKey, MoveToken>,
+    pub relays_updates: HashMap<PublicKey, RelaysUpdate>,
+    pub index_mutations: Vec<IndexMutation>,
+    pub updated_remote_relays: Vec<PublicKey>,
+    pub incoming_requests: Vec<RequestSendFundsOp>,
+    pub incoming_responses: Vec<ResponseSendFundsOp>,
+    pub incoming_cancels: Vec<CancelSendFundsOp>,
+}
+
+pub async fn set_friend_online(
+    switch_db_client: &mut impl SwitchDbClient,
+    switch_state: &mut SwitchState,
+    friend_public_key: PublicKey,
+) -> Result<SwitchOutput, SwitchError> {
+    if switch_state.liveness.is_online(&friend_public_key) {
+        // The friend is already marked as online!
+        return Err(SwitchError::FriendAlreadyOnline);
+    }
+
+    // TODO: Possibly resend relays updates
+    todo!();
+
+    // TODO: Attempt to reconstruct and send last outgoing message, if exists.
+    match switch_db_client
+        .tc_db_client(friend_public_key.clone())
+        .get_tc_status()
+        .await?
+    {
+        TcStatus::ConsistentIn(_) => {
+            // Create an outgoing move token if we have something to send.
+            todo!();
+        }
+        TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
+            // Resend outgoing move token.
+            // Resend with "request token back = true" if we have more things to send.
+            todo!();
+        }
+        TcStatus::Inconsistent(..) => {
+            // Resend reset terms
+            todo!();
+        }
+    }
+
+    // TODO: Maybe change liveness to work directly, without the mutations concept?
+    // Maybe we don't need atomicity for the liveness struct?
+    switch_state
+        .liveness
+        .mutate(&LivenessMutation::SetOnline(friend_public_key.clone()));
+}
+
+pub async fn set_friend_offline(
+    _switch_db_client: &mut impl SwitchDbClient,
+    _switch_state: &mut SwitchState,
+    _friend_public_key: PublicKey,
+) -> Result<SwitchOutput, SwitchError> {
+    todo!();
+}
+
 pub async fn send_request(
     _switch_db_client: &mut impl SwitchDbClient,
     _request: RequestSendFundsOp,
-) -> Result<(PublicKey, MoveToken), SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO:
     // - Add request to relevant user pending requests queue (According to friend on route)
     // - For the relevant friend: If token is present:
@@ -40,7 +106,7 @@ pub async fn add_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<MoveToken, SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
 }
@@ -49,7 +115,7 @@ pub async fn remove_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<MoveToken, SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
 }
@@ -60,7 +126,7 @@ pub async fn set_remote_max_debt(
     _friend_public_key: PublicKey,
     _currency: Currency,
     _remote_max_debt: u128,
-) -> Result<(), SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
 }
@@ -70,7 +136,7 @@ pub async fn open_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<(), SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
 }
@@ -80,28 +146,24 @@ pub async fn close_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<(), SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
-}
-
-/*
-// TODO
-type FriendListen = (PublicKey, RelayAddress);
-
-#[derive(Debug)]
-pub struct UpdateLocalRelaysOutput {
-    // Optional outgoing "relays update" message:
-    opt_relays_update: Option<RelaysUpdate>,
-    add_friend_listens: HashSet<FriendListen>,
-    remove_friend_listens: HashSet<FriendListen>,
 }
 
 pub async fn update_local_relays(
     _switch_db_client: &mut impl SwitchDbClient,
     _local_relays: HashMap<PublicKey, RelayAddress>,
-) -> Result<UpdateLocalRelaysOutput, SwitchError> {
+) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
 }
-*/
+
+pub async fn incoming_move_token(
+    _switch_db_client: &mut impl SwitchDbClient,
+    _friend_public_key: PublicKey,
+    _move_token: MoveToken,
+) -> Result<SwitchOutput, SwitchError> {
+    // TODO
+    todo!();
+}
