@@ -379,7 +379,8 @@ pub struct MoveTokenRequest {
 #[capnp_conv(crate::funder_capnp::relays_update)]
 #[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]
 pub struct RelaysUpdate<B = NetAddress> {
-    pub update_id: Uid,
+    #[capnp_conv(with = Wrapper<u128>)]
+    pub generation: u128,
     pub relays: Vec<RelayAddress<B>>,
 }
 

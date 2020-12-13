@@ -64,7 +64,7 @@ struct ResetTerms {
 }
 
 struct RelaysUpdate {
-        updateId @0: Uid;
+        generation @0: CustomUInt128;
         relays @1: List(RelayAddress);
 }
 
