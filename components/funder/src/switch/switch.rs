@@ -6,7 +6,8 @@ use common::async_rpc::OpError;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, MoveToken, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, MoveToken, RelaysUpdate, RequestSendFundsOp,
+    ResponseSendFundsOp,
 };
 use proto::index_server::messages::IndexMutation;
 
@@ -31,8 +32,7 @@ pub struct SwitchOutput {
 
 #[derive(Debug)]
 pub struct SwitchOutput {
-    pub outgoing_move_tokens: HashMap<PublicKey, MoveToken>,
-    pub relays_updates: HashMap<PublicKey, RelaysUpdate>,
+    pub friend_message: HashMap<PublicKey, FriendMessage>,
     pub index_mutations: Vec<IndexMutation>,
     pub updated_remote_relays: Vec<PublicKey>,
     pub incoming_requests: Vec<RequestSendFundsOp>,
@@ -159,10 +159,10 @@ pub async fn update_local_relays(
     todo!();
 }
 
-pub async fn incoming_move_token(
+pub async fn incoming_friend_message(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
-    _move_token: MoveToken,
+    _friend_message: FriendMessage,
 ) -> Result<SwitchOutput, SwitchError> {
     // TODO
     todo!();
