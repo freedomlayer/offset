@@ -75,6 +75,7 @@ struct FriendMessage {
                 moveTokenRequest @0: MoveTokenRequest;
                 inconsistencyError @1: ResetTerms;
                 relaysUpdate @2: RelaysUpdate;
+                relaysAck @3: Uid;
         }
 }
 

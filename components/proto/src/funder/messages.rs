@@ -390,6 +390,7 @@ pub enum FriendMessage<B = NetAddress> {
     MoveTokenRequest(MoveTokenRequest),
     InconsistencyError(ResetTerms),
     RelaysUpdate(RelaysUpdate<B>),
+    RelaysAck(Uid),
 }
 
 /// A `Receipt` is received if a `RequestSendFunds` is successful.
