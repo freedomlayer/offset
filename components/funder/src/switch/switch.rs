@@ -11,13 +11,13 @@ use proto::funder::messages::{
 };
 use proto::index_server::messages::IndexMutation;
 
-use crate::liveness::LivenessMutation;
 use crate::switch::types::{SwitchDbClient, SwitchState};
 use crate::token_channel::{TcDbClient, TcStatus};
 
 #[derive(Debug, From)]
 pub enum SwitchError {
     FriendAlreadyOnline,
+    GenerationOverflow,
     OpError(OpError),
 }
 
@@ -30,9 +30,10 @@ pub struct SwitchOutput {
 }
 */
 
+// TODO: Make this structure more ergonomic to use:
 #[derive(Debug)]
 pub struct SwitchOutput {
-    pub friend_message: HashMap<PublicKey, FriendMessage>,
+    pub friends_messages: HashMap<PublicKey, FriendMessage>,
     pub index_mutations: Vec<IndexMutation>,
     pub updated_remote_relays: Vec<PublicKey>,
     pub incoming_requests: Vec<RequestSendFundsOp>,
@@ -50,7 +51,42 @@ pub async fn set_friend_online(
         return Err(SwitchError::FriendAlreadyOnline);
     }
 
+    if let Some(max_generation) = switch_db_client
+        .get_max_sent_relays_generation(friend_public_key.clone())
+        .await?
+    {
+        let generation = max_generation
+            .checked_add(1)
+            .ok_or(SwitchError::GenerationOverflow)?;
+
+        let local_relays = switch_db_client.get_local_relays().await?;
+        let mut relays = Vec::new();
+        for local_relay in local_relays {
+            relays.push(RelayAddress {
+                public_key: local_relay.public_key,
+                address: local_relay.address,
+                // TODO: We need to randomly generate relay ports here
+                // Should we use u128, or a different type? How will it be json serialized?
+                port: todo!(),
+            })
+        }
+
+        let relays_update = RelaysUpdate {
+            generation,
+            relays: relays.clone(),
+        };
+
+        switch_db_client
+            .update_sent_relays(friend_public_key, generation, relays)
+            .await?;
+
+        // Actually send relays here:
+        todo!();
+    }
+
     // TODO: Possibly resend relays updates
+    // - If there are unpacked changes to relays:
+    // -
     todo!();
 
     // TODO: Attempt to reconstruct and send last outgoing message, if exists.
@@ -76,9 +112,7 @@ pub async fn set_friend_online(
 
     // TODO: Maybe change liveness to work directly, without the mutations concept?
     // Maybe we don't need atomicity for the liveness struct?
-    switch_state
-        .liveness
-        .mutate(&LivenessMutation::SetOnline(friend_public_key.clone()));
+    switch_state.liveness.set_online(friend_public_key.clone());
 }
 
 pub async fn set_friend_offline(
