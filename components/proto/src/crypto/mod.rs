@@ -57,6 +57,9 @@ type_capnp_serde!(InvoiceId, common_capnp::invoice_id, (x0, x1, x2, x3));
 define_fixed_bytes!(PaymentId, 16);
 type_capnp_serde!(PaymentId, common_capnp::payment_id, (x0, x1));
 
+define_fixed_bytes!(RelayPort, 16);
+type_capnp_serde!(RelayPort, common_capnp::relay_port, (x0, x1));
+
 define_fixed_bytes!(RandValue, 16);
 type_capnp_serde!(RandValue, common_capnp::rand_value, (x0, x1));
 

@@ -81,9 +81,14 @@ struct PaymentId {
         inner @0: Buffer128;
 }
 
+struct RelayPort {
+        inner @0: Buffer128;
+}
+
 struct PlainLock {
         inner @0: Buffer256;
 }
+
 
 struct HashedLock {
         inner @0: Buffer256;
