@@ -9,9 +9,8 @@ use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendMessage, MoveToken, RelaysUpdate, RequestSendFundsOp,
     ResponseSendFundsOp,
 };
-use proto::index_server::messages::IndexMutation;
 
-use crate::switch::types::{SwitchDbClient, SwitchState};
+use crate::switch::types::{SwitchDbClient, SwitchOutput, SwitchState};
 use crate::token_channel::{TcDbClient, TcStatus};
 
 #[derive(Debug, From)]
@@ -19,26 +18,6 @@ pub enum SwitchError {
     FriendAlreadyOnline,
     GenerationOverflow,
     OpError(OpError),
-}
-
-/*
-#[derive(Debug)]
-pub struct SwitchOutput {
-    opt_move_tokens: HashMap<PublicKey, MoveToken>,
-    add_connections: Vec<(u128, PublicKey)>,
-    remove_connections: Vec<(u128, PublicKey)>,
-}
-*/
-
-// TODO: Make this structure more ergonomic to use:
-#[derive(Debug)]
-pub struct SwitchOutput {
-    pub friends_messages: HashMap<PublicKey, FriendMessage>,
-    pub index_mutations: Vec<IndexMutation>,
-    pub updated_remote_relays: Vec<PublicKey>,
-    pub incoming_requests: Vec<RequestSendFundsOp>,
-    pub incoming_responses: Vec<ResponseSendFundsOp>,
-    pub incoming_cancels: Vec<CancelSendFundsOp>,
 }
 
 pub async fn set_friend_online(
@@ -51,43 +30,19 @@ pub async fn set_friend_online(
         return Err(SwitchError::FriendAlreadyOnline);
     }
 
-    if let Some(max_generation) = switch_db_client
-        .get_max_sent_relays_generation(friend_public_key.clone())
+    let mut output = SwitchOutput::new();
+
+    // Check if we have any relays information to send to the remote side:
+    if let (Some(generation), relays) = switch_db_client
+        .get_sent_relays(friend_public_key.clone())
         .await?
     {
-        let generation = max_generation
-            .checked_add(1)
-            .ok_or(SwitchError::GenerationOverflow)?;
-
-        let local_relays = switch_db_client.get_local_relays().await?;
-        let mut relays = Vec::new();
-        for local_relay in local_relays {
-            relays.push(RelayAddress {
-                public_key: local_relay.public_key,
-                address: local_relay.address,
-                // TODO: We need to randomly generate relay ports here
-                // Should we use u128, or a different type? How will it be json serialized?
-                port: todo!(),
-            })
-        }
-
-        let relays_update = RelaysUpdate {
-            generation,
-            relays: relays.clone(),
-        };
-
-        switch_db_client
-            .update_sent_relays(friend_public_key, generation, relays)
-            .await?;
-
-        // Actually send relays here:
-        todo!();
+        // Add a message for sending relays:
+        output.add_friend_message(
+            friend_public_key.clone(),
+            FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
+        );
     }
-
-    // TODO: Possibly resend relays updates
-    // - If there are unpacked changes to relays:
-    // -
-    todo!();
 
     // TODO: Attempt to reconstruct and send last outgoing message, if exists.
     match switch_db_client
