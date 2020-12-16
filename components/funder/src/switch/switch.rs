@@ -28,9 +28,7 @@ pub fn collect_outgoing_move_token() -> Result<Option<MoveToken>, SwitchError> {
     // - Collect pending requests from other queues
     //      - Question: How to order the pending responses, cancels and requests with respect to
     //      currencies?
-    //          - Round robin?
-    //          - first in first out (How to order)?
-    //          - What is the solution for this in Offset v1?
+    //          -- first in first out
     // - Collect requests to add currencies (Currencies that are present in the config tables but
     //      not in `local_currencies` table.
     // - Collect requests to remove currencies
