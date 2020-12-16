@@ -81,7 +81,7 @@ struct PaymentId {
         inner @0: Buffer128;
 }
 
-struct RelayPort {
+struct NodePort {
         inner @0: Buffer128;
 }
 
