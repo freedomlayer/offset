@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
 
-use common::ser_utils::{ser_b64, ser_string};
+use common::ser_utils::ser_b64;
 
-use crate::crypto::{InvoiceId, PaymentId, PublicKey, Uid};
-use crate::wrapper::Wrapper;
+use crate::crypto::{InvoiceId, NodePort, PaymentId, PublicKey, Uid};
+// use crate::wrapper::Wrapper;
 
 use crate::funder::messages::{
     AckClosePayment, AddFriend, AddInvoice, Commit, CreatePayment, CreateTransaction, Currency,
@@ -36,9 +36,9 @@ pub struct RelayAddress<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
-    #[capnp_conv(with = Wrapper<u128>)]
-    #[serde(with = "ser_string")]
-    pub port: u128,
+    // #[capnp_conv(with = Wrapper<u128>)]
+    #[serde(with = "ser_b64")]
+    pub port: NodePort,
 }
 
 /*

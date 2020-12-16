@@ -116,7 +116,7 @@ struct Currency {
 struct RelayAddress {
         publicKey @0: PublicKey;
         address @1: NetAddress;
-        port @2: CustomUInt128;
+        port @2: NodePort;
 }
 
 # Authenticated named address of a Relay (Includes public key)
