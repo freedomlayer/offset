@@ -20,6 +20,19 @@ pub enum SwitchError {
     OpError(OpError),
 }
 
+/// Attempt to create an outgoing move token
+pub fn collect_outgoing_move_token() -> Result<Option<MoveToken>, SwitchError> {
+    // TODO:
+    // - Collect any pending responses and cancels
+    // - Collect user pending requests
+    // - Collect pending requests from other queues
+    // - Collect requests to add currencies (Currencies that are present in the config tables but
+    //      not in `local_currencies` table.
+    // - Collect requests to remove currencies
+    //      - Question: Is this saved in the database?
+    todo!();
+}
+
 pub async fn set_friend_online(
     switch_db_client: &mut impl SwitchDbClient,
     switch_state: &mut SwitchState,
@@ -56,6 +69,7 @@ pub async fn set_friend_online(
         }
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
             // Resend outgoing move token.
+
             // Resend with "request token back = true" if we have more things to send.
             todo!();
         }
