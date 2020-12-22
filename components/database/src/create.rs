@@ -337,7 +337,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE local_currencies(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             mark_removal             BOOL NOT NULL,
+             is_remove                BOOL NOT NULL,
              -- Is marked for removal?
              FOREIGN KEY(friend_public_key) 
                 REFERENCES consistent_channels(friend_public_key)
