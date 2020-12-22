@@ -152,6 +152,7 @@ pub struct Commit {
     pub signature: Signature,
 }
 
+// TODO: Possibly shorten names inside enum?
 #[capnp_conv(crate::funder_capnp::friend_tc_op)]
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum FriendTcOp {
