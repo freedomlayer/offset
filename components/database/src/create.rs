@@ -450,7 +450,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             generation               BLOB NOT NULL UNIQUE,
+             index                    BLOB NOT NULL UNIQUE,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -471,7 +471,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_user_requests_generation ON pending_user_requests(generation);",
+        "CREATE UNIQUE INDEX idx_pending_user_requests_index ON pending_user_requests(index);",
         params![],
     )?;
 
@@ -480,7 +480,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             generation               BLOB NOT NULL UNIQUE,
+             index                    BLOB NOT NULL UNIQUE,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -501,7 +501,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_requests_generation ON pending_requests(generation);",
+        "CREATE UNIQUE INDEX idx_pending_requests_index ON pending_requests(index);",
         params![],
     )?;
 
@@ -510,7 +510,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             generation               BLOB NOT NULL UNIQUE,
+             index                    BLOB NOT NULL UNIQUE,
              backwards_type           TEXT CHECK (backwards_type IN ('R', 'C')) NOT NULL,
              -- R: Response, C: Cancel
              FOREIGN KEY(friend_public_key, currency) 
@@ -529,7 +529,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_backwards_generation ON pending_backwards(generation);",
+        "CREATE UNIQUE INDEX idx_pending_backwards_index ON pending_backwards(index);",
         params![],
     )?;
 
