@@ -99,19 +99,6 @@ async fn collect_currencies_operations(
     Ok(operations_vec_to_currencies_operations(operations_vec))
 }
 
-async fn collect_currencies_diff(
-    switch_db_client: &mut impl SwitchDbClient,
-    friend_public_key: PublicKey,
-) -> Result<Vec<Currency>, SwitchError> {
-    // TODO:
-    // - Collect requests to add currencies (Currencies that are present in the config tables but
-    //      not in `local_currencies` table.
-    // - Collect requests to remove currencies
-    //
-    // Possibly pack into one function?
-    todo!();
-}
-
 /// Attempt to create an outgoing move token
 /// Return Ok(None) if we have nothing to send
 async fn collect_outgoing_move_token(
@@ -128,8 +115,9 @@ async fn collect_outgoing_move_token(
     )
     .await?;
 
-    let mut currencies_diff =
-        collect_currencies_diff(switch_db_client, friend_public_key.clone()).await?;
+    let mut currencies_diff = switch_db_client
+        .currencies_diff(friend_public_key.clone())
+        .await?;
 
     Ok(
         if currencies_operations.is_empty() && currencies_diff.is_empty() {
@@ -233,7 +221,16 @@ pub async fn add_currency(
     todo!();
 }
 
-pub async fn remove_currency(
+pub async fn set_remove_currency(
+    _switch_db_client: &mut impl SwitchDbClient,
+    _friend_public_key: PublicKey,
+    _currency: Currency,
+) -> Result<SwitchOutput, SwitchError> {
+    // TODO
+    todo!();
+}
+
+pub async fn unset_remove_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,

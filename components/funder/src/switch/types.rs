@@ -104,6 +104,30 @@ pub trait SwitchDbClient {
         currency: Currency,
         request_op: RequestSendFundsOp,
     ) -> AsyncOpResult<()>;
+
+    /*
+    /// Get a list of configured currencies that were not yet added as local currencies
+    fn currencies_to_add(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<Vec<Currency>>;
+
+    /// Get a list of local currencies that can be removed at the moment. Options:
+    /// - Not present in remote currencies
+    /// - Present in remote currencies but have a zero balance
+    fn currencies_to_remove(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<Vec<Currency>>;
+    */
+
+    /// Add currencies
+    /// --------------
+    /// Get a list of configured currencies that were not yet added as local currencies
+    ///
+    /// Remove currencies
+    /// -----------------
+    /// Get a list of local currencies that can be removed at the moment. Options:
+    /// - Not present in remote currencies
+    /// - Present in remote currencies but have a zero balance
+    fn currencies_diff(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<Vec<Currency>>;
 }
 
 #[derive(Debug)]
