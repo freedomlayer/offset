@@ -2,7 +2,7 @@ use im::hashset::HashSet as ImHashSet;
 
 use proto::crypto::PublicKey;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Liveness {
     pub friends: ImHashSet<PublicKey>,
 }
