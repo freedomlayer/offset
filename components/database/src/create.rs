@@ -480,7 +480,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             queue_index              BLOB NOT NULL UNIQUE,
+             queue_index              BLOB NOT NULL,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -488,6 +488,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              invoice_hash             BLOB NOT NULL,
              hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
+             UNIQUE (friend_public_key, queue_index),
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE
@@ -501,7 +502,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_requests_queue_index ON pending_requests(queue_index);",
+        "CREATE UNIQUE INDEX idx_pending_requests_friend_public_key_queue_index ON pending_requests(friend_public_key, queue_index);",
         params![],
     )?;
 
@@ -513,6 +514,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              queue_index              BLOB NOT NULL UNIQUE,
              backwards_type           TEXT CHECK (backwards_type IN ('R', 'C')) NOT NULL,
              -- R: Response, C: Cancel
+             UNIQUE (friend_public_key, queue_index),
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES mutual_credits(friend_public_key, currency)
                 ON DELETE CASCADE,
@@ -529,7 +531,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_backwards_queue_index ON pending_backwards(queue_index);",
+        "CREATE UNIQUE INDEX idx_pending_backwards_friend_public_key_queue_index ON pending_backwards(friend_public_key, queue_index);",
         params![],
     )?;
 
