@@ -450,7 +450,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             index                    BLOB NOT NULL UNIQUE,
+             queue_index              BLOB NOT NULL UNIQUE,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -471,7 +471,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_user_requests_index ON pending_user_requests(index);",
+        "CREATE UNIQUE INDEX idx_pending_user_requests_queue_index ON pending_user_requests(queue_index);",
         params![],
     )?;
 
@@ -480,7 +480,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             index                    BLOB NOT NULL UNIQUE,
+             queue_index              BLOB NOT NULL UNIQUE,
              src_hashed_lock          BLOB NOT NULL,
              route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
@@ -501,7 +501,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_requests_index ON pending_requests(index);",
+        "CREATE UNIQUE INDEX idx_pending_requests_queue_index ON pending_requests(queue_index);",
         params![],
     )?;
 
@@ -510,7 +510,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             index                    BLOB NOT NULL UNIQUE,
+             queue_index              BLOB NOT NULL UNIQUE,
              backwards_type           TEXT CHECK (backwards_type IN ('R', 'C')) NOT NULL,
              -- R: Response, C: Cancel
              FOREIGN KEY(friend_public_key, currency) 
@@ -529,14 +529,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE UNIQUE INDEX idx_pending_backwards_index ON pending_backwards(index);",
+        "CREATE UNIQUE INDEX idx_pending_backwards_queue_index ON pending_backwards(queue_index);",
         params![],
     )?;
 
     tx.execute(
         "CREATE TABLE pending_backwards_responses(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
              backwards_type           TEXT NOT NULL 
                                       CHECK (backwards_type == 'R')
@@ -544,8 +542,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              src_hashed_lock          BLOB NOT NULL,
              serial_num               BLOB NOT NULL,
              signature                BLOB NOT NULL,
-             FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
-                REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
+             FOREIGN KEY(request_id, backwards_type) 
+                REFERENCES pending_backwards(request_id, backwards_type)
                 ON DELETE CASCADE
             );",
         params![],
@@ -558,14 +556,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE TABLE pending_backwards_cancels(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
              backwards_type           TEXT NOT NULL 
                                       CHECK (backwards_type == 'C')
                                       DEFAULT 'C',
-             FOREIGN KEY(friend_public_key, currency, request_id, backwards_type) 
-                REFERENCES pending_backwards(friend_public_key, currency, request_id, backwards_type)
+             FOREIGN KEY(request_id, backwards_type) 
+                REFERENCES pending_backwards(request_id, backwards_type)
                 ON DELETE CASCADE
             );",
         params![],
