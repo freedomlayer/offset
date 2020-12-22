@@ -9,10 +9,23 @@ use crate::token_channel::TcDbClient;
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, FriendMessage, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::IndexMutation;
 // use proto::funder::messages::{McBalance, PendingTransaction};
+//
+
+/// Switch's ephemeral state (Not saved inside the database)
+#[derive(Debug)]
+pub struct SwitchState {
+    pub liveness: Liveness,
+}
+
+#[derive(Debug)]
+pub enum BackwardsOp {
+    Response(ResponseSendFundsOp),
+    Cancel(CancelSendFundsOp),
+}
 
 pub trait SwitchDbClient {
     type TcDbClient: TcDbClient;
@@ -48,11 +61,25 @@ pub trait SwitchDbClient {
     /*
     fn get_balance(&mut self) -> AsyncOpResult<McBalance>;
     */
-}
 
-/// Switch's ephemeral state (Not saved inside the database)
-pub struct SwitchState {
-    pub liveness: Liveness,
+    /*
+    fn peek_pending_backwards(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<BackwardsOp>;
+    */
+
+    fn pop_front_pending_backwards(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<Option<(Currency, BackwardsOp)>>;
+
+    fn push_back_pending_backwards(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+        backwards_op: BackwardsOp,
+    ) -> AsyncOpResult<()>;
 }
 
 #[derive(Debug)]

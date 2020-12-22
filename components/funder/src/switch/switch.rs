@@ -3,37 +3,115 @@ use std::collections::{HashMap, HashSet};
 
 use common::async_rpc::OpError;
 
+use identity::IdentityClient;
+
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendMessage, MoveToken, RelaysUpdate, RequestSendFundsOp,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, CurrencyOperations, FriendMessage, FriendTcOp, MoveToken,
+    RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 
-use crate::switch::types::{SwitchDbClient, SwitchOutput, SwitchState};
-use crate::token_channel::{TcDbClient, TcStatus};
+use crate::switch::types::{BackwardsOp, SwitchDbClient, SwitchOutput, SwitchState};
+use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
 
 #[derive(Debug, From)]
 pub enum SwitchError {
     FriendAlreadyOnline,
     GenerationOverflow,
+    TokenChannelError(TokenChannelError),
     OpError(OpError),
 }
 
-/// Attempt to create an outgoing move token
-pub fn collect_outgoing_move_token() -> Result<Option<MoveToken>, SwitchError> {
+fn operations_vec_to_currencies_operations(
+    operations_vec: Vec<(Currency, FriendTcOp)>,
+) -> Vec<CurrencyOperations> {
+    let mut operations_map = HashMap::<Currency, Vec<FriendTcOp>>::new();
+    for (currency, tc_op) in operations_vec {
+        let entry = operations_map.entry(currency).or_insert(Vec::new());
+        (*entry).push(tc_op);
+    }
+
+    // Sort by currency, for deterministic results:
+    let mut currencies_operations: Vec<CurrencyOperations> = operations_map
+        .into_iter()
+        .map(|(currency, operations)| CurrencyOperations {
+            currency,
+            operations,
+        })
+        .collect();
+    currencies_operations.sort_by(|co_a, co_b| co_a.currency.cmp(&co_b.currency));
+    currencies_operations
+}
+
+pub async fn collect_currencies_operations(
+    switch_db_client: &mut impl SwitchDbClient,
+    friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
+) -> Result<Vec<CurrencyOperations>, SwitchError> {
+    let mut operations_vec = Vec::<(Currency, FriendTcOp)>::new();
+
+    // Collect any pending responses and cancels:
+    while let Some((currency, backwards_op)) = switch_db_client
+        .pop_front_pending_backwards(friend_public_key.clone())
+        .await?
+    {
+        let friend_tc_op = match backwards_op {
+            BackwardsOp::Response(response_op) => FriendTcOp::ResponseSendFunds(response_op),
+            BackwardsOp::Cancel(cancel_op) => FriendTcOp::CancelSendFunds(cancel_op),
+        };
+        operations_vec.push((currency, friend_tc_op));
+
+        // Make sure we do not exceed maximum amount of operations:
+        if operations_vec.len() >= max_operations_in_batch {
+            return Ok(operations_vec_to_currencies_operations(operations_vec));
+        }
+    }
+
     // TODO:
-    // - Collect any pending responses and cancels
+
     // - Collect user pending requests
     // - Collect pending requests from other queues
-    //      - Question: How to order the pending responses, cancels and requests with respect to
-    //      currencies?
-    //          -- first in first out
+
+    todo!();
+}
+
+/// Attempt to create an outgoing move token
+pub async fn collect_outgoing_move_token(
+    switch_db_client: &mut impl SwitchDbClient,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
+) -> Result<Option<MoveToken>, SwitchError> {
+    let currencies_operations = collect_currencies_operations(
+        switch_db_client,
+        friend_public_key.clone(),
+        max_operations_in_batch,
+    )
+    .await?;
+
+    let mut currencies_diff = Vec::new();
+
+    // TODO:
     // - Collect requests to add currencies (Currencies that are present in the config tables but
     //      not in `local_currencies` table.
     // - Collect requests to remove currencies
-    //      - Question: Is this saved in the database?
+    //
+    // Possibly pack into one function?
     todo!();
+
+    Ok(Some(
+        handle_out_move_token(
+            switch_db_client.tc_db_client(friend_public_key.clone()),
+            identity_client,
+            currencies_operations,
+            currencies_diff,
+            local_public_key,
+            &friend_public_key,
+        )
+        .await?,
+    ))
 }
 
 pub async fn set_friend_online(
