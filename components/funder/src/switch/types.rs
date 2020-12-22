@@ -80,6 +80,30 @@ pub trait SwitchDbClient {
         currency: Currency,
         backwards_op: BackwardsOp,
     ) -> AsyncOpResult<()>;
+
+    fn pop_front_pending_user_requests(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
+
+    fn push_back_pending_user_requests(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+        request_op: RequestSendFundsOp,
+    ) -> AsyncOpResult<()>;
+
+    fn pop_front_pending_requests(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
+
+    fn push_back_pending_requests(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+        request_op: RequestSendFundsOp,
+    ) -> AsyncOpResult<()>;
 }
 
 #[derive(Debug)]

@@ -44,7 +44,7 @@ fn operations_vec_to_currencies_operations(
     currencies_operations
 }
 
-pub async fn collect_currencies_operations(
+async fn collect_currencies_operations(
     switch_db_client: &mut impl SwitchDbClient,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
@@ -68,16 +68,53 @@ pub async fn collect_currencies_operations(
         }
     }
 
+    // Collect any pending user requests:
+    while let Some((currency, request_op)) = switch_db_client
+        .pop_front_pending_user_requests(friend_public_key.clone())
+        .await?
+    {
+        let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
+        operations_vec.push((currency, friend_tc_op));
+
+        // Make sure we do not exceed maximum amount of operations:
+        if operations_vec.len() >= max_operations_in_batch {
+            return Ok(operations_vec_to_currencies_operations(operations_vec));
+        }
+    }
+
+    // Collect any pending requests:
+    while let Some((currency, request_op)) = switch_db_client
+        .pop_front_pending_requests(friend_public_key.clone())
+        .await?
+    {
+        let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
+        operations_vec.push((currency, friend_tc_op));
+
+        // Make sure we do not exceed maximum amount of operations:
+        if operations_vec.len() >= max_operations_in_batch {
+            return Ok(operations_vec_to_currencies_operations(operations_vec));
+        }
+    }
+
+    Ok(operations_vec_to_currencies_operations(operations_vec))
+}
+
+async fn collect_currencies_diff(
+    switch_db_client: &mut impl SwitchDbClient,
+    friend_public_key: PublicKey,
+) -> Result<Vec<Currency>, SwitchError> {
     // TODO:
-
-    // - Collect user pending requests
-    // - Collect pending requests from other queues
-
+    // - Collect requests to add currencies (Currencies that are present in the config tables but
+    //      not in `local_currencies` table.
+    // - Collect requests to remove currencies
+    //
+    // Possibly pack into one function?
     todo!();
 }
 
 /// Attempt to create an outgoing move token
-pub async fn collect_outgoing_move_token(
+/// Return Ok(None) if we have nothing to send
+async fn collect_outgoing_move_token(
     switch_db_client: &mut impl SwitchDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
@@ -91,27 +128,28 @@ pub async fn collect_outgoing_move_token(
     )
     .await?;
 
-    let mut currencies_diff = Vec::new();
+    let mut currencies_diff =
+        collect_currencies_diff(switch_db_client, friend_public_key.clone()).await?;
 
-    // TODO:
-    // - Collect requests to add currencies (Currencies that are present in the config tables but
-    //      not in `local_currencies` table.
-    // - Collect requests to remove currencies
-    //
-    // Possibly pack into one function?
-    todo!();
-
-    Ok(Some(
-        handle_out_move_token(
-            switch_db_client.tc_db_client(friend_public_key.clone()),
-            identity_client,
-            currencies_operations,
-            currencies_diff,
-            local_public_key,
-            &friend_public_key,
-        )
-        .await?,
-    ))
+    Ok(
+        if currencies_operations.is_empty() && currencies_diff.is_empty() {
+            // There is nothing interesting to send to remote side
+            None
+        } else {
+            // We have something to send to remote side
+            Some(
+                handle_out_move_token(
+                    switch_db_client.tc_db_client(friend_public_key.clone()),
+                    identity_client,
+                    currencies_operations,
+                    currencies_diff,
+                    local_public_key,
+                    &friend_public_key,
+                )
+                .await?,
+            )
+        },
+    )
 }
 
 pub async fn set_friend_online(
