@@ -1,14 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
-
 use common::ser_utils::ser_b64;
 
 use crate::crypto::{InvoiceId, NodePort, PaymentId, PublicKey, Uid};
 // use crate::wrapper::Wrapper;
 
 use crate::funder::messages::{
-    AckClosePayment, AddFriend, AddInvoice, Commit, CreatePayment, CreateTransaction, Currency,
+    AckClosePayment, AddFriend, AddInvoice, CreatePayment, CreateTransaction, Currency,
     RemoveFriendCurrency, ResetFriendChannel, ResponseClosePayment, SetFriendCurrencyMaxDebt,
     SetFriendCurrencyRate, SetFriendName, SetFriendRelays, TransactionResult,
 };
@@ -19,7 +17,6 @@ use crate::net::messages::NetAddress;
 
 // TODO: Move NamedRelayAddress and RelayAddress to another place in offset-proto?
 
-#[capnp_conv(crate::common_capnp::named_relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NamedRelayAddress<B = NetAddress> {
@@ -29,14 +26,12 @@ pub struct NamedRelayAddress<B = NetAddress> {
     pub name: String,
 }
 
-#[capnp_conv(crate::common_capnp::relay_address)]
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayAddress<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
-    // #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_b64")]
     pub port: NodePort,
 }
@@ -53,14 +48,12 @@ impl<B> From<NamedRelayAddress<B>> for RelayAddress<B> {
 */
 
 /*
-#[capnp_conv(crate::report_capnp::node_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeReport<B = NetAddress> {
     pub funder_report: FunderReport<B>,
     pub index_client_report: IndexClientReport<B>,
 }
 
-#[capnp_conv(crate::report_capnp::node_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeReportMutation<B = NetAddress> {
     Funder(FunderReportMutation<B>),
@@ -93,17 +86,14 @@ impl From<OptAppRequestId> for Option<Uid> {
 }
 
 /*
-#[capnp_conv(crate::app_server_capnp::report_mutations)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportMutations<B = NetAddress> {
-    #[capnp_conv(with = OptAppRequestId)]
     pub opt_app_request_id: Option<Uid>,
     pub mutations: Vec<NodeReportMutation<B>>,
 }
 */
 
 #[allow(clippy::large_enum_variant)]
-#[capnp_conv(crate::app_server_capnp::app_server_to_app)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum AppServerToApp {
     /// Funds:
@@ -121,14 +111,12 @@ pub enum NamedRelaysMutation<B = NetAddress> {
     RemoveRelay(PublicKey),
 }
 
-#[capnp_conv(crate::app_server_capnp::open_friend_currency)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct OpenFriendCurrency {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
 }
 
-#[capnp_conv(crate::app_server_capnp::close_friend_currency)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CloseFriendCurrency {
     pub friend_public_key: PublicKey,
@@ -136,7 +124,6 @@ pub struct CloseFriendCurrency {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[capnp_conv(crate::app_server_capnp::app_request)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum AppRequest<B = NetAddress> {
     /// Manage locally used relays:
@@ -163,14 +150,13 @@ pub enum AppRequest<B = NetAddress> {
     /// Seller:
     AddInvoice(AddInvoice),
     CancelInvoice(InvoiceId),
-    CommitInvoice(Commit),
+    //CommitInvoice(Commit),
     /// Request routes from one node to another:
     RequestRoutes(RequestRoutes),
     /// Manage index servers:
     AddIndexServer(NamedIndexServerAddress<B>),
     RemoveIndexServer(PublicKey),
 }
-#[capnp_conv(crate::app_server_capnp::app_to_app_server)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct AppToAppServer<B = NetAddress> {
     pub app_request_id: Uid,
@@ -226,7 +212,6 @@ where
 }
 */
 
-#[capnp_conv(crate::app_server_capnp::app_permissions)]
 #[derive(Arbitrary, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AppPermissions {

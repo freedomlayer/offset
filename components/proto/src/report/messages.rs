@@ -8,8 +8,6 @@ use common::mutable_state::MutableState;
 use common::never::Never;
 use common::ser_utils::ser_string;
 
-use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
-
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
@@ -19,7 +17,6 @@ use crate::funder::messages::{
 use crate::net::messages::NetAddress;
 use crate::wrapper::Wrapper;
 
-#[capnp_conv(crate::report_capnp::move_token_hashed_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTokenHashedReport {
     pub prefix_hash: HashResult,
@@ -28,39 +25,32 @@ pub struct MoveTokenHashedReport {
     pub new_token: Signature,
 }
 
-#[capnp_conv(crate::report_capnp::friend_status_report)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub enum FriendStatusReport {
     Enabled,
     Disabled,
 }
 
-#[capnp_conv(crate::report_capnp::requests_status_report)]
 #[derive(Arbitrary, Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum RequestsStatusReport {
     Open,
     Closed,
 }
 
-#[capnp_conv(crate::report_capnp::mc_balance_report)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalanceReport {
     /// Amount of credits this side has against the remote side.
     /// The other side keeps the negation of this value.
-    #[capnp_conv(with = Wrapper<i128>)]
     #[serde(with = "ser_string")]
     pub balance: i128,
     /// Frozen credits by our side
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub local_pending_debt: u128,
     /// Frozen credits by the remote side
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
 }
 
-#[capnp_conv(crate::report_capnp::friend_liveness_report)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum FriendLivenessReport {
     Online,
@@ -77,21 +67,18 @@ impl FriendLivenessReport {
     }
 }
 
-#[capnp_conv(crate::report_capnp::currency_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CurrencyReport {
     pub currency: Currency,
     pub balance: McBalanceReport,
 }
 
-#[capnp_conv(crate::report_capnp::reset_terms_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResetTermsReport {
     pub reset_token: Signature,
     pub balance_for_reset: Vec<CurrencyBalance>,
 }
 
-#[capnp_conv(crate::report_capnp::channel_inconsistent_report::opt_remote_reset_terms)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptRemoteResetTerms {
     RemoteResetTerms(ResetTermsReport),
@@ -117,21 +104,17 @@ impl From<OptRemoteResetTerms> for Option<ResetTermsReport> {
     }
 }
 
-#[capnp_conv(crate::report_capnp::channel_inconsistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelInconsistentReport {
     pub local_reset_terms: Vec<CurrencyBalance>,
-    #[capnp_conv(with = OptRemoteResetTerms)]
     pub opt_remote_reset_terms: Option<ResetTermsReport>,
 }
 
-#[capnp_conv(crate::report_capnp::channel_consistent_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChannelConsistentReport {
     pub currency_reports: Vec<CurrencyReport>,
 }
 
-#[capnp_conv(crate::report_capnp::channel_status_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ChannelStatusReport {
     Inconsistent(ChannelInconsistentReport),
@@ -139,7 +122,6 @@ pub enum ChannelStatusReport {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[capnp_conv(crate::report_capnp::opt_last_incoming_move_token)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OptLastIncomingMoveToken {
     MoveTokenHashed(MoveTokenHashedReport),
@@ -169,7 +151,6 @@ impl From<OptLastIncomingMoveToken> for Option<MoveTokenHashedReport> {
     }
 }
 
-#[capnp_conv(crate::report_capnp::currency_config_report)]
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct CurrencyConfigReport {
     pub currency: Currency,
@@ -177,14 +158,12 @@ pub struct CurrencyConfigReport {
     /// for a certain currency.
     pub rate: Rate,
     /// Credit frame for the remote side (Set by the user of this node)
-    #[capnp_conv(with = Wrapper<u128>)]
     #[serde(with = "ser_string")]
     pub remote_max_debt: u128,
     /// Can requests be sent through this mutual credit?
     pub is_open: bool,
 }
 
-#[capnp_conv(crate::report_capnp::friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FriendReport<B = NetAddress> {
     pub name: String,
@@ -192,7 +171,6 @@ pub struct FriendReport<B = NetAddress> {
     pub currency_configs: Vec<CurrencyConfigReport>,
     // Last message signed by the remote side.
     // Can be used as a proof for the last known balance.
-    #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     // TODO: The state of liveness = true with status = disabled should never happen.
     // Can we somehow express this in the type system?
@@ -201,14 +179,12 @@ pub struct FriendReport<B = NetAddress> {
     pub status: FriendStatusReport,
 }
 
-#[capnp_conv(crate::report_capnp::pk_friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PkFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub friend_report: FriendReport<B>,
 }
 
-#[capnp_conv(crate::report_capnp::pk_friend_report_list)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkFriendReportList {
     list: Vec<PkFriendReport<NetAddress>>,
@@ -245,18 +221,15 @@ impl From<HashMap<PublicKey, FriendReport<NetAddress>>> for PkFriendReportList {
 
 /// A FunderReport is a summary of a FunderState.
 /// It contains the information the Funder exposes to the user apps of the Offset node.
-#[capnp_conv(crate::report_capnp::funder_report)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 // TODO: Removed A: Clone here and ImHashMap. Should this struct be cloneable for some reason?
 pub struct FunderReport<B = NetAddress> {
     pub local_public_key: PublicKey,
     pub relays: Vec<NamedRelayAddress<B>>,
-    #[capnp_conv(with = PkFriendReportList)]
     pub friends: HashMap<PublicKey, FriendReport<B>>,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[capnp_conv(crate::report_capnp::friend_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FriendReportMutation<B = NetAddress> {
     SetRemoteRelays(Vec<RelayAddress<B>>),
@@ -265,23 +238,19 @@ pub enum FriendReportMutation<B = NetAddress> {
     RemoveCurrencyConfig(Currency),
     SetChannelStatus(ChannelStatusReport),
     SetStatus(FriendStatusReport),
-    #[capnp_conv(with = OptLastIncomingMoveToken)]
     SetOptLastIncomingMoveToken(Option<MoveTokenHashedReport>),
     SetLiveness(FriendLivenessReport),
 }
 
-#[capnp_conv(crate::report_capnp::add_friend_report)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AddFriendReport<B = NetAddress> {
     pub friend_public_key: PublicKey,
     pub name: String,
     pub relays: Vec<RelayAddress<B>>,
-    #[capnp_conv(with = OptLastIncomingMoveToken)]
     pub opt_last_incoming_move_token: Option<MoveTokenHashedReport>,
     pub channel_status: ChannelStatusReport,
 }
 
-#[capnp_conv(crate::report_capnp::pk_friend_report_mutation)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PkFriendReportMutation<B = NetAddress> {
     friend_public_key: PublicKey,
@@ -306,14 +275,12 @@ impl From<(PublicKey, FriendReportMutation)> for PkFriendReportMutation {
 }
 
 #[allow(clippy::large_enum_variant)]
-#[capnp_conv(crate::report_capnp::funder_report_mutation)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunderReportMutation<B = NetAddress> {
     AddRelay(NamedRelayAddress<B>),
     RemoveRelay(PublicKey),
     AddFriend(AddFriendReport<B>),
     RemoveFriend(PublicKey),
-    #[capnp_conv(with = PkFriendReportMutation<NetAddress>)]
     PkFriendReportMutation((PublicKey, FriendReportMutation<B>)),
 }
 

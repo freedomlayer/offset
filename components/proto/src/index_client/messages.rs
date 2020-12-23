@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
-
 use crate::crypto::{PublicKey, Uid};
 use crate::funder::messages::{Currency, Rate};
 pub use crate::index_server::messages::{
@@ -59,7 +57,6 @@ pub struct IndexClientReport<ISA = NetAddress> {
     /// A list of trusted index servers.
     pub index_servers: Vec<NamedIndexServerAddress<ISA>>,
     /// The server we are currently connected to (None if not connected).
-    #[capnp_conv(with = OptConnectedServer)]
     pub opt_connected_server: Option<PublicKey>,
 }
 */
@@ -103,14 +100,12 @@ pub enum IndexClientReportMutation<ISA = NetAddress> {
     SetConnectedServer(Option<PublicKey>),
 }
 
-#[capnp_conv(crate::app_server_capnp::response_routes_result)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResponseRoutesResult {
     Success(Vec<MultiRoute>),
     Failure,
 }
 
-#[capnp_conv(crate::app_server_capnp::client_response_routes)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientResponseRoutes {
     pub request_id: Uid,

@@ -7,11 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use derive_more::Display;
 
-use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
-
 use crate::consts::MAX_NET_ADDRESS_LENGTH;
 
-#[capnp_conv(crate::common_capnp::net_address)]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
 #[display(fmt = "{}", address)]
 pub struct NetAddress {
