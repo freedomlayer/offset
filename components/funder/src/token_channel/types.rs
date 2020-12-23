@@ -47,6 +47,9 @@ pub struct ResetTerms {
 pub enum TcStatus {
     ConsistentIn(MoveTokenHashed),                     // (move_token_in)
     ConsistentOut(MoveToken, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
+    // TODO: Is it too wasteful to save all the balances in memory?
+    // We took this decision because we assume that we might need to send all those balances in a
+    // message at some point anyways. Maybe could be improved in the future.
     Inconsistent(ResetTerms, Option<ResetTerms>), // (local_reset_terms, Option<remote_reset_terms)
 }
 
