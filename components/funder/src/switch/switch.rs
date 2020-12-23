@@ -9,7 +9,7 @@ use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
     CancelSendFundsOp, Currency, CurrencyOperations, FriendMessage, FriendTcOp, MoveToken,
-    RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 
 use crate::switch::types::{BackwardsOp, SwitchDbClient, SwitchOutput, SwitchState};
@@ -53,7 +53,7 @@ async fn collect_currencies_operations(
 
     // Collect any pending responses and cancels:
     while let Some((currency, backwards_op)) = switch_db_client
-        .pop_front_pending_backwards(friend_public_key.clone())
+        .pending_backwards_pop_front(friend_public_key.clone())
         .await?
     {
         let friend_tc_op = match backwards_op {
@@ -70,7 +70,7 @@ async fn collect_currencies_operations(
 
     // Collect any pending user requests:
     while let Some((currency, request_op)) = switch_db_client
-        .pop_front_pending_user_requests(friend_public_key.clone())
+        .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
         let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
@@ -84,7 +84,7 @@ async fn collect_currencies_operations(
 
     // Collect any pending requests:
     while let Some((currency, request_op)) = switch_db_client
-        .pop_front_pending_requests(friend_public_key.clone())
+        .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
         let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
@@ -99,6 +99,22 @@ async fn collect_currencies_operations(
     Ok(operations_vec_to_currencies_operations(operations_vec))
 }
 
+/// Do we have more pending currencies operations?
+async fn is_pending_currencies_operations(
+    switch_db_client: &mut impl SwitchDbClient,
+    friend_public_key: PublicKey,
+) -> Result<bool, SwitchError> {
+    Ok(!switch_db_client
+        .pending_backwards_is_empty(friend_public_key.clone())
+        .await?
+        || !switch_db_client
+            .pending_user_requests_is_empty(friend_public_key.clone())
+            .await?
+        || !switch_db_client
+            .pending_requests_is_empty(friend_public_key.clone())
+            .await?)
+}
+
 /// Attempt to create an outgoing move token
 /// Return Ok(None) if we have nothing to send
 async fn collect_outgoing_move_token(
@@ -107,7 +123,7 @@ async fn collect_outgoing_move_token(
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<Option<MoveToken>, SwitchError> {
+) -> Result<Option<MoveTokenRequest>, SwitchError> {
     let currencies_operations = collect_currencies_operations(
         switch_db_client,
         friend_public_key.clone(),
@@ -125,17 +141,20 @@ async fn collect_outgoing_move_token(
             None
         } else {
             // We have something to send to remote side
-            Some(
-                handle_out_move_token(
-                    switch_db_client.tc_db_client(friend_public_key.clone()),
-                    identity_client,
-                    currencies_operations,
-                    currencies_diff,
-                    local_public_key,
-                    &friend_public_key,
-                )
-                .await?,
+            let move_token = handle_out_move_token(
+                switch_db_client.tc_db_client(friend_public_key.clone()),
+                identity_client,
+                currencies_operations,
+                currencies_diff,
+                local_public_key,
+                &friend_public_key,
             )
+            .await?;
+            Some(MoveTokenRequest {
+                move_token,
+                token_wanted: is_pending_currencies_operations(switch_db_client, friend_public_key)
+                    .await?,
+            })
         },
     )
 }

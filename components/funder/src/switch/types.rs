@@ -69,41 +69,50 @@ pub trait SwitchDbClient {
     ) -> AsyncOpResult<BackwardsOp>;
     */
 
-    fn pop_front_pending_backwards(
+    fn pending_backwards_pop_front(
         &mut self,
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, BackwardsOp)>>;
 
-    fn push_back_pending_backwards(
+    fn pending_backwards_push_back(
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
         backwards_op: BackwardsOp,
     ) -> AsyncOpResult<()>;
 
-    fn pop_front_pending_user_requests(
+    fn pending_backwards_is_empty(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<bool>;
+
+    fn pending_user_requests_pop_front(
         &mut self,
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
 
-    fn push_back_pending_user_requests(
+    fn pending_user_requests_push_back(
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
         request_op: RequestSendFundsOp,
     ) -> AsyncOpResult<()>;
 
-    fn pop_front_pending_requests(
+    fn pending_user_requests_is_empty(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<bool>;
+
+    fn pending_requests_pop_front(
         &mut self,
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
 
-    fn push_back_pending_requests(
+    fn pending_requests_push_back(
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
         request_op: RequestSendFundsOp,
     ) -> AsyncOpResult<()>;
+
+    fn pending_requests_is_empty(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<bool>;
 
     /*
     /// Get a list of configured currencies that were not yet added as local currencies
