@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::task::SpawnExt;
@@ -70,7 +71,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
-    let currencies_operations = Vec::new();
+    let currencies_operations = HashMap::new();
     let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
@@ -99,7 +100,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Send a MoveToken message from a to b, adding two currencies:
     // ------------------------------------------------------------
-    let currencies_operations = Vec::new();
+    let currencies_operations = HashMap::new();
     let currencies_diff = vec![currency1.clone(), currency2.clone()];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
@@ -142,10 +143,14 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         left_fees: 5u128,
     };
     let pending_transaction = create_pending_transaction(&request_send_funds_op);
-    let currencies_operations = vec![CurrencyOperations {
-        currency: currency1.clone(),
-        operations: vec![FriendTcOp::RequestSendFunds(request_send_funds_op.clone())],
-    }];
+    let currencies_operations: HashMap<_, _> = [(
+        currency1.clone(),
+        vec![FriendTcOp::RequestSendFunds(request_send_funds_op.clone())],
+    )]
+    .iter()
+    .cloned()
+    .collect();
+
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
@@ -233,12 +238,16 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    let currencies_operations = vec![CurrencyOperations {
-        currency: currency1.clone(),
-        operations: vec![FriendTcOp::ResponseSendFunds(
+    let currencies_operations: HashMap<_, _> = [(
+        currency1.clone(),
+        vec![FriendTcOp::ResponseSendFunds(
             response_send_funds_op.clone(),
         )],
-    }];
+    )]
+    .iter()
+    .cloned()
+    .collect();
+
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
         &mut tc_a_b,

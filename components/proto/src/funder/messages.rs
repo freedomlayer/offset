@@ -230,11 +230,14 @@ pub struct CurrencyOperations {
     pub operations: Vec<FriendTcOp>,
 }
 
+pub type CurrenciesOperations = HashMap<Currency, Vec<FriendTcOp>>;
+
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
-    pub currencies_operations: Vec<CurrencyOperations>,
+    // pub currencies_operations: Vec<CurrencyOperations>,
+    pub currencies_operations: CurrenciesOperations,
     pub currencies_diff: Vec<Currency>,
     #[serde(with = "ser_b64")]
     pub info_hash: HashResult,

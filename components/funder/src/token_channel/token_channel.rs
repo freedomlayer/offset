@@ -19,7 +19,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature};
 use proto::funder::messages::{
-    Currency, CurrencyOperations, McBalance, MoveToken, ResetBalance, ResetTerms, TokenInfo,
+    Currency, CurrencyOperations, FriendTcOp, McBalance, MoveToken, ResetBalance, ResetTerms,
+    TokenInfo,
 };
 
 use signature::canonical::CanonicalSerialize;
@@ -103,7 +104,7 @@ pub fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKe
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     let move_token_out = MoveToken {
         old_token: token_from_public_key(&low_public_key),
-        currencies_operations: Vec::new(),
+        currencies_operations: HashMap::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(&low_public_key, &high_public_key, &token_info),
         new_token: token_from_public_key(&high_public_key),
@@ -292,7 +293,7 @@ where
 
                 let move_token_out = MoveToken {
                     old_token: Signature::from(&[0; Signature::len()]),
-                    currencies_operations: Vec::new(),
+                    currencies_operations: HashMap::new(),
                     currencies_diff: Vec::new(),
                     info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
                     new_token: local_reset_terms.reset_token.clone(),
@@ -651,15 +652,13 @@ async fn handle_incoming_token_match(
     }
 
     // Attempt to apply operations for every currency:
-    for currency_operations in &new_move_token.currencies_operations {
-        let remote_max_debt = tc_client
-            .get_remote_max_debt(currency_operations.currency.clone())
-            .await?;
+    for (currency, friend_tc_ops) in &new_move_token.currencies_operations {
+        let remote_max_debt = tc_client.get_remote_max_debt(currency.clone()).await?;
 
         let res = process_operations_list(
-            tc_client.mc_db_client(currency_operations.currency.clone()),
-            currency_operations.operations.clone(),
-            &currency_operations.currency,
+            tc_client.mc_db_client(currency.clone()),
+            friend_tc_ops.clone(),
+            &currency,
             remote_public_key,
             remote_max_debt,
         )
@@ -677,7 +676,7 @@ async fn handle_incoming_token_match(
         // We apply mutations on this token channel, to verify stated balance values
         // let mut check_mutual_credit = mutual_credit.clone();
         let move_token_received_currency = MoveTokenReceivedCurrency {
-            currency: currency_operations.currency.clone(),
+            currency: currency.clone(),
             incoming_messages,
         };
 
@@ -725,7 +724,7 @@ async fn handle_incoming_token_match(
 pub async fn handle_out_move_token(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: Vec<CurrencyOperations>,
+    currencies_operations: HashMap<Currency, Vec<FriendTcOp>>,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -782,12 +781,12 @@ pub async fn handle_out_move_token(
     }
 
     // Update mutual credits:
-    for currency_operations in &currencies_operations {
-        for operation in currency_operations.operations.iter().cloned() {
+    for (currency, friend_tc_ops) in &currencies_operations {
+        for operation in friend_tc_ops.iter().cloned() {
             queue_operation(
-                tc_client.mc_db_client(currency_operations.currency.clone()),
+                tc_client.mc_db_client(currency.clone()),
                 operation,
-                &currency_operations.currency,
+                &currency,
                 local_public_key,
             )
             .await?;
@@ -837,7 +836,7 @@ pub async fn handle_out_move_token(
 pub async fn accept_remote_reset(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: Vec<CurrencyOperations>,
+    currencies_operations: HashMap<Currency, Vec<FriendTcOp>>,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -871,7 +870,7 @@ pub async fn accept_remote_reset(
 
     let move_token_in = MoveToken {
         old_token: Signature::from(&[0; Signature::len()]),
-        currencies_operations: Vec::new(),
+        currencies_operations: HashMap::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
         new_token: remote_reset_token.clone(),

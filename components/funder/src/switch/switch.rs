@@ -8,8 +8,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, CurrencyOperations, FriendMessage, FriendTcOp, MoveToken,
-    MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
+    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 
 use crate::switch::types::{BackwardsOp, SwitchDbClient, SwitchOutput, SwitchState};
@@ -26,22 +26,12 @@ pub enum SwitchError {
 
 fn operations_vec_to_currencies_operations(
     operations_vec: Vec<(Currency, FriendTcOp)>,
-) -> Vec<CurrencyOperations> {
-    let mut operations_map = HashMap::<Currency, Vec<FriendTcOp>>::new();
+) -> CurrenciesOperations {
+    let mut currencies_operations = HashMap::<Currency, Vec<FriendTcOp>>::new();
     for (currency, tc_op) in operations_vec {
-        let entry = operations_map.entry(currency).or_insert(Vec::new());
+        let entry = currencies_operations.entry(currency).or_insert(Vec::new());
         (*entry).push(tc_op);
     }
-
-    // Sort by currency, for deterministic results:
-    let mut currencies_operations: Vec<CurrencyOperations> = operations_map
-        .into_iter()
-        .map(|(currency, operations)| CurrencyOperations {
-            currency,
-            operations,
-        })
-        .collect();
-    currencies_operations.sort_by(|co_a, co_b| co_a.currency.cmp(&co_b.currency));
     currencies_operations
 }
 
@@ -49,7 +39,7 @@ async fn collect_currencies_operations(
     switch_db_client: &mut impl SwitchDbClient,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<Vec<CurrencyOperations>, SwitchError> {
+) -> Result<CurrenciesOperations, SwitchError> {
     let mut operations_vec = Vec::<(Currency, FriendTcOp)>::new();
 
     // Collect any pending responses and cancels:

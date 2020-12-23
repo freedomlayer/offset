@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::task::SpawnExt;
@@ -72,7 +73,7 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
 
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
-    let currencies_operations = Vec::new();
+    let currencies_operations = HashMap::new();
     let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
@@ -106,7 +107,7 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
     // Send a MoveToken message from a to b, adding two currencies,
     // and set incorrect token info hash.
     // ------------------------------------------------------------
-    let currencies_operations = Vec::new();
+    let currencies_operations = HashMap::new();
     let currencies_diff = vec![currency1.clone(), currency2.clone()];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
@@ -191,7 +192,7 @@ async fn task_inconsistency_resolve(test_executor: TestExecutor) {
 
     // b accepts a's reset terms:
     // --------------------------
-    let currencies_operations = Vec::new();
+    let currencies_operations = HashMap::new();
     let currencies_diff = Vec::new();
     let move_token = accept_remote_reset(
         &mut tc_b_a,
