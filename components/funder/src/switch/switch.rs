@@ -18,6 +18,7 @@ use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenCha
 #[derive(Debug, From)]
 pub enum SwitchError {
     FriendAlreadyOnline,
+    FriendAlreadyOffline,
     GenerationOverflow,
     TokenChannelError(TokenChannelError),
     OpError(OpError),
@@ -254,10 +255,22 @@ pub async fn set_friend_online(
 }
 
 pub async fn set_friend_offline(
-    _switch_db_client: &mut impl SwitchDbClient,
-    _switch_state: &mut SwitchState,
-    _friend_public_key: PublicKey,
+    switch_db_client: &mut impl SwitchDbClient,
+    switch_state: &mut SwitchState,
+    friend_public_key: PublicKey,
 ) -> Result<SwitchOutput, SwitchError> {
+    if !switch_state.liveness.is_online(&friend_public_key) {
+        // The friend is already marked as offline!
+        return Err(SwitchError::FriendAlreadyOffline);
+    }
+    switch_state.liveness.set_offline(&friend_public_key);
+
+    // TODO:
+    // - Cancel all pending requests
+    //      - Possibly send outgoing cancels to relevant friends? (Through SwitchOutput)
+    // - Cancel all user pending requests
+    //      - Possibly send outgoing cancels? (Through SwitchOutput)
+
     todo!();
 }
 
