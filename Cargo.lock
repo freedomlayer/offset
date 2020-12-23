@@ -259,21 +259,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24508e28c677875c380c20f4d28124fab6f8ed4ef929a1397d7b1a31e92f1005"
 
 [[package]]
-name = "capnp"
-version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b867c15d8ff93c4d81b69c89280840f877331ef2a1fccbaf947afecc68b51a9e"
-
-[[package]]
-name = "capnpc"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2afedfc194b01c6804ad0a10c7139024b99ee3df6a39bb09bdf759067ababff"
-dependencies = [
- "capnp",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1043,29 +1028,6 @@ dependencies = [
  "serde",
  "structopt",
  "tempfile",
-]
-
-[[package]]
-name = "offset-capnp-conv"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "capnp",
- "capnpc",
- "derive_more 0.15.0",
- "log",
- "offset-capnp-conv-derive",
- "pretty_env_logger",
-]
-
-[[package]]
-name = "offset-capnp-conv-derive"
-version = "0.1.0"
-dependencies = [
- "heck",
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "syn 0.15.44",
 ]
 
 [[package]]

@@ -1,19 +1,21 @@
-use byteorder::{BigEndian, WriteBytesExt};
+// use byteorder::{BigEndian, WriteBytesExt};
 
-use crypto::hash;
-use crypto::hash_lock::HashLock;
+// use crypto::hash;
+// use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
 use proto::crypto::PublicKey;
 
-use proto::funder::messages::{Commit, MoveToken, Receipt};
+use proto::funder::messages::MoveToken;
 use proto::index_server::messages::MutationsUpdate;
 
-use crate::canonical::CanonicalSerialize;
+// use crate::canonical::CanonicalSerialize;
 use crate::signature_buff::{
-    create_mutations_update_signature_buff, move_token_signature_buff, FUNDS_RESPONSE_PREFIX,
+    create_mutations_update_signature_buff,
+    move_token_signature_buff, /*, FUNDS_RESPONSE_PREFIX,*/
 };
 
+/*
 // TODO: Add a local test that makes sure verify_receipt is in sync with verify_commit_signature
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
@@ -31,7 +33,9 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.extend_from_slice(&receipt.currency.canonical_serialize());
     verify_signature(&data, public_key, &receipt.signature)
 }
+*/
 
+/*
 /// Verify that a given Commit signature is valid
 fn verify_commit_signature(commit: &Commit, local_public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
@@ -60,6 +64,7 @@ pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
     // Verify signature:
     verify_commit_signature(commit, local_public_key)
 }
+*/
 
 /// Verify that new_token is a valid signature over the rest of the fields.
 pub fn verify_move_token(move_token: &MoveToken, public_key: &PublicKey) -> bool {

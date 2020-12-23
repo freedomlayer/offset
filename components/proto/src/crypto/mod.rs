@@ -14,8 +14,6 @@ use common::define_fixed_bytes;
 // #[macro_use]
 // mod serialize;
 
-// use self::serialize::{type_capnp_serde128, type_capnp_serde256, type_capnp_serde512};
-//
 define_fixed_bytes!(HmacResult, 32);
 
 define_fixed_bytes!(HmacKey, 32);

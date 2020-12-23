@@ -3,7 +3,7 @@ use byteorder::{BigEndian, WriteBytesExt};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, McBalance, Receipt,
+    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, McBalance,
     RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
@@ -224,6 +224,7 @@ impl CanonicalSerialize for FriendsRoute {
     }
 }
 
+/*
 impl CanonicalSerialize for Receipt {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -236,6 +237,7 @@ impl CanonicalSerialize for Receipt {
         res_bytes
     }
 }
+*/
 
 impl CanonicalSerialize for NetAddress {
     fn canonical_serialize(&self) -> Vec<u8> {
