@@ -6,7 +6,7 @@ use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 use common::u256::U256;
 
 use proto::crypto::Signature;
-use proto::funder::messages::{Currency, McBalance, MoveToken};
+use proto::funder::messages::{Currency, McBalance, MoveToken, ResetBalance, ResetTerms};
 
 use database::interface::funder::CurrencyConfig;
 
@@ -21,26 +21,6 @@ pub enum TcOpError {
 
 pub type TcOpResult<T> = Result<T, TcOpError>;
 pub type TcOpSenderResult<T> = oneshot::Sender<TcOpResult<T>>;
-
-// TODO: Might move to proto in the future:
-/// Balances for resetting a currency
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ResetBalance {
-    pub balance: i128,
-    pub in_fees: U256,
-    pub out_fees: U256,
-}
-
-// TODO: Maybe shouldn't be cloneable (because reset balances could be large)
-// TODO: Might move to proto in the future:
-/// Reset terms for a token channel
-#[derive(Debug, Clone)]
-pub struct ResetTerms {
-    pub reset_token: Signature,
-    pub move_token_counter: u128,
-    // TODO: Rename:
-    pub reset_balances: HashMap<Currency, ResetBalance>,
-}
 
 /// Status of a TokenChannel. Could be either outgoing, incoming or inconsistent.
 #[derive(Debug)]

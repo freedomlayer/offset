@@ -1,5 +1,5 @@
 use std::cmp::Eq;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt;
 use std::hash::Hash;
@@ -341,13 +341,23 @@ pub struct CurrencyBalance {
     pub balance: i128,
 }
 
-#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Balances for resetting a currency
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResetBalance {
+    pub balance: i128,
+    pub in_fees: U256,
+    pub out_fees: U256,
+}
+
+// TODO: Maybe shouldn't be cloneable (because reset balances could be large)
+// TODO: Might move to proto in the future:
+/// Reset terms for a token channel
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResetTerms {
-    #[serde(with = "ser_b64")]
     pub reset_token: Signature,
-    #[serde(with = "ser_string")]
     pub move_token_counter: u128,
-    pub balance_for_reset: Vec<CurrencyBalance>,
+    // TODO: Rename:
+    pub reset_balances: HashMap<Currency, ResetBalance>,
 }
 
 #[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]

@@ -18,7 +18,9 @@ use identity::IdentityClient;
 
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature};
-use proto::funder::messages::{Currency, CurrencyOperations, McBalance, MoveToken, TokenInfo};
+use proto::funder::messages::{
+    Currency, CurrencyOperations, McBalance, MoveToken, ResetBalance, ResetTerms, TokenInfo,
+};
 
 use signature::canonical::CanonicalSerialize;
 use signature::signature_buff::{
@@ -34,7 +36,7 @@ use crate::mutual_credit::incoming::{
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
 use crate::mutual_credit::types::McDbClient;
 
-use crate::token_channel::types::{ResetBalance, ResetTerms, TcDbClient, TcStatus};
+use crate::token_channel::types::{TcDbClient, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
 
 /// Unrecoverable TokenChannel error

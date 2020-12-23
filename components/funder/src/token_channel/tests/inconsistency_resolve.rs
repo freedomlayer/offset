@@ -16,7 +16,8 @@ use proto::crypto::{
     HashResult, HashedLock, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid,
 };
 use proto::funder::messages::{
-    Currency, CurrencyOperations, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResponseSendFundsOp,
+    Currency, CurrencyOperations, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResetBalance,
+    ResponseSendFundsOp,
 };
 
 use identity::{create_identity, IdentityClient};
@@ -25,8 +26,8 @@ use crate::mutual_credit::incoming::IncomingMessage;
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::{
     accept_remote_reset, handle_in_move_token, handle_out_move_token, load_remote_reset_terms,
-    reset_balance_to_mc_balance, MoveTokenReceived, ReceiveMoveTokenOutput, ResetBalance,
-    TcDbClient, TcStatus, TokenChannelError,
+    reset_balance_to_mc_balance, MoveTokenReceived, ReceiveMoveTokenOutput, TcDbClient, TcStatus,
+    TokenChannelError,
 };
 use crate::types::create_pending_transaction;
 

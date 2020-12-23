@@ -10,7 +10,9 @@ use common::safe_arithmetic::SafeSignedArithmetic;
 use common::u256::U256;
 
 use proto::crypto::{PublicKey, Signature};
-use proto::funder::messages::{Currency, McBalance, MoveToken, TokenInfo};
+use proto::funder::messages::{
+    Currency, McBalance, MoveToken, ResetBalance, ResetTerms, TokenInfo,
+};
 
 use signature::canonical::CanonicalSerialize;
 
@@ -21,7 +23,7 @@ use crypto::hash::hash_buffer;
 use crypto::identity::compare_public_key;
 
 use crate::mutual_credit::tests::MockMutualCredit;
-use crate::token_channel::types::{ResetBalance, ResetTerms, TcStatus};
+use crate::token_channel::types::TcStatus;
 use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcDbClient};
 use crate::types::{create_hashed, MoveTokenHashed};
 
