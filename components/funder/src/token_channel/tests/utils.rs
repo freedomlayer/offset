@@ -140,16 +140,7 @@ impl TcDbClient for MockTokenChannel {
                 }
             },
             MockTcStatus::Inconsistent(local_reset_terms, opt_remote_reset_terms) => {
-                TcStatus::Inconsistent(
-                    local_reset_terms.reset_token.clone(),
-                    local_reset_terms.move_token_counter,
-                    opt_remote_reset_terms.as_ref().map(|remote_reset_terms| {
-                        (
-                            remote_reset_terms.reset_token.clone(),
-                            remote_reset_terms.move_token_counter.clone(),
-                        )
-                    }),
-                )
+                TcStatus::Inconsistent(local_reset_terms.clone(), opt_remote_reset_terms.clone())
             }
         });
         Box::pin(future::ready(res))

@@ -269,9 +269,9 @@ where
             )
             .await
         }
-        TcStatus::Inconsistent(local_reset_token, local_reset_move_token_counter, _opt_remote) => {
+        TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
             // Might be a reset move token
-            if new_move_token.old_token == local_reset_token {
+            if new_move_token.old_token == local_reset_terms.reset_token {
                 // This is a reset move token!
 
                 // Simulate an outgoing move token with the correct `new_token`:
@@ -282,7 +282,8 @@ where
                         },
                     ))
                     .await?,
-                    move_token_counter: local_reset_move_token_counter
+                    move_token_counter: local_reset_terms
+                        .move_token_counter
                         .checked_sub(1)
                         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
                 };
@@ -292,7 +293,7 @@ where
                     currencies_operations: Vec::new(),
                     currencies_diff: Vec::new(),
                     info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
-                    new_token: local_reset_token.clone(),
+                    new_token: local_reset_terms.reset_token.clone(),
                 };
 
                 // Atomically attempt to handle a reset move token:
@@ -314,16 +315,16 @@ where
                         let invalid_incoming = e?;
                         // In this case the transaction was not committed:
                         Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
-                            reset_token: local_reset_token,
-                            move_token_counter: local_reset_move_token_counter,
+                            reset_token: local_reset_terms.reset_token,
+                            move_token_counter: local_reset_terms.move_token_counter,
                             reset_balances: local_balances_for_reset(tc_client).await?,
                         }))
                     }
                 }
             } else {
                 Ok(ReceiveMoveTokenOutput::ChainInconsistent(ResetTerms {
-                    reset_token: local_reset_token,
-                    move_token_counter: local_reset_move_token_counter,
+                    reset_token: local_reset_terms.reset_token,
+                    move_token_counter: local_reset_terms.move_token_counter,
                     reset_balances: local_balances_for_reset(tc_client).await?,
                 }))
             }
@@ -848,15 +849,14 @@ pub async fn accept_remote_reset(
         match tc_client.get_tc_status().await? {
             TcStatus::ConsistentIn(..)
             | TcStatus::ConsistentOut(..)
-            | TcStatus::Inconsistent(_, _, None) => {
+            | TcStatus::Inconsistent(_, None) => {
                 // We don't have the remote side's reset terms yet:
                 return Err(TokenChannelError::InvalidTokenChannelStatus);
             }
-            TcStatus::Inconsistent(
-                _local_reset_token,
-                _local_reset_move_token_counter,
-                Some((remote_reset_token, remote_reset_move_token_counter)),
-            ) => (remote_reset_token, remote_reset_move_token_counter),
+            TcStatus::Inconsistent(_local_reset_terms, Some(remote_reset_terms)) => (
+                remote_reset_terms.reset_token,
+                remote_reset_terms.move_token_counter,
+            ),
         };
 
     // Simulate an incoming move token with the correct `new_token`:

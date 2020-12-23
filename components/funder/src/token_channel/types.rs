@@ -47,8 +47,7 @@ pub struct ResetTerms {
 pub enum TcStatus {
     ConsistentIn(MoveTokenHashed),                     // (move_token_in)
     ConsistentOut(MoveToken, Option<MoveTokenHashed>), // (move_token_out, last_move_token_in)
-    Inconsistent(Signature, u128, Option<(Signature, u128)>),
-    // (local_reset_token, local_reset_move_token_counter, Option<(remote_reset_token, remote_reset_move_token_counter)>)
+    Inconsistent(ResetTerms, Option<ResetTerms>), // (local_reset_terms, Option<remote_reset_terms)
 }
 
 pub trait TcDbClient {
