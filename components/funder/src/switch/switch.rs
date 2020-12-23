@@ -241,6 +241,9 @@ pub async fn set_friend_online(
         }
     }
 
+    // TODO: How to calculate index mutations?
+    todo!();
+
     Ok(output)
 }
 
