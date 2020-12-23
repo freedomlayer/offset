@@ -159,15 +159,34 @@ async fn collect_outgoing_move_token(
     )
 }
 
+/// Check if we have anything to send to a remove friend on a move token message,
+/// without performing any data mutations
+async fn is_pending_move_token(
+    switch_db_client: &mut impl SwitchDbClient,
+    friend_public_key: PublicKey,
+) -> Result<bool, SwitchError> {
+    Ok(
+        is_pending_currencies_operations(switch_db_client, friend_public_key.clone()).await?
+            || !switch_db_client
+                .currencies_diff(friend_public_key.clone())
+                .await?
+                .is_empty(),
+    )
+}
+
 pub async fn set_friend_online(
     switch_db_client: &mut impl SwitchDbClient,
     switch_state: &mut SwitchState,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
     friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<SwitchOutput, SwitchError> {
     if switch_state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as online!
         return Err(SwitchError::FriendAlreadyOnline);
     }
+    switch_state.liveness.set_online(friend_public_key.clone());
 
     let mut output = SwitchOutput::new();
 
@@ -183,7 +202,6 @@ pub async fn set_friend_online(
         );
     }
 
-    // TODO: Attempt to reconstruct and send last outgoing message, if exists.
     match switch_db_client
         .tc_db_client(friend_public_key.clone())
         .get_tc_status()
@@ -191,13 +209,37 @@ pub async fn set_friend_online(
     {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
-            todo!();
+            let opt_move_token_request = collect_outgoing_move_token(
+                switch_db_client,
+                identity_client,
+                local_public_key,
+                friend_public_key.clone(),
+                max_operations_in_batch,
+            )
+            .await?;
+
+            if let Some(move_token_request) = opt_move_token_request {
+                // We have something to send to remote side:
+                output.add_friend_message(
+                    friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(move_token_request),
+                );
+            }
         }
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
-            // Resend outgoing move token.
-
-            // Resend with "request token back = true" if we have more things to send.
-            todo!();
+            // Resend outgoing move token,
+            // possibly asking for the token if we have something to send
+            output.add_friend_message(
+                friend_public_key.clone(),
+                FriendMessage::MoveTokenRequest(MoveTokenRequest {
+                    move_token: move_token_out,
+                    token_wanted: is_pending_move_token(
+                        switch_db_client,
+                        friend_public_key.clone(),
+                    )
+                    .await?,
+                }),
+            );
         }
         TcStatus::Inconsistent(..) => {
             // Resend reset terms
@@ -205,9 +247,7 @@ pub async fn set_friend_online(
         }
     }
 
-    // TODO: Maybe change liveness to work directly, without the mutations concept?
-    // Maybe we don't need atomicity for the liveness struct?
-    switch_state.liveness.set_online(friend_public_key.clone());
+    Ok(output)
 }
 
 pub async fn set_friend_offline(
