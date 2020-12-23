@@ -242,25 +242,11 @@ pub async fn set_friend_online(
             );
         }
         TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
-            // Convert to proto's reset terms:
-            // TODO: This will probably not be required in the future, when we move to another
-            // serialization strategy?
-
-            /*
-            let proto_local_reset_terms = proto::funder::messages::ResetTerms {
-                reset_token: local_reset_terms.reset_token,
-                move_token_counter: local_reset_terms.move_token_counter,
-                balance_for_reset: local_reset_terms.reset_balances.into_iter(|(currency, reset_balance)
-
-            }
-
             // Resend reset terms
             output.add_friend_message(
                 friend_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms),
             );
-            */
-            todo!();
         }
     }
 
