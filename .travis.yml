@@ -43,8 +43,6 @@ jobs:
       # Add clippy and rustfmt:
     - rustup update
     - rustup component add clippy rustfmt
-      # Install capnp:
-    - ci/pre/capnp.sh
       # Check formatting:
     - cargo fmt --all -- --check
       # Run clippy check:
@@ -69,8 +67,6 @@ jobs:
     os: osx
     osx_image: xcode11.3
     # Solution due to https://travis-ci.community/t/homebrew-syntax-error/5623 :
-    before_script:
-    - HOMEBREW_NO_AUTO_UPDATE=1 brew install capnp
     script:
     - cargo test
 
@@ -81,7 +77,6 @@ jobs:
     # See: https://travis-ci.community/t/windows-instances-hanging-before-install/250/25
     filter_secrets: false
     before_script:
-    - choco install capnproto 
     - rustup target add x86_64-pc-windows-msvc
     script:
         - cargo test

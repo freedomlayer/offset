@@ -43,6 +43,3 @@ cd -
 
 # Make sure rust stable is installed
 rustup install stable
-
-# Install capnp:
-ci/pre/capnp.sh
