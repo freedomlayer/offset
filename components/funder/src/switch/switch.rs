@@ -332,6 +332,20 @@ pub async fn send_request(
     todo!();
 }
 
+pub async fn send_response(
+    _switch_db_client: &mut impl SwitchDbClient,
+    _response: ResponseSendFundsOp,
+) -> Result<SwitchOutput, SwitchError> {
+    todo!();
+}
+
+pub async fn send_cancel(
+    _switch_db_client: &mut impl SwitchDbClient,
+    _cancel: CancelSendFundsOp,
+) -> Result<SwitchOutput, SwitchError> {
+    todo!();
+}
+
 pub async fn add_currency(
     _switch_db_client: &mut impl SwitchDbClient,
     _friend_public_key: PublicKey,
