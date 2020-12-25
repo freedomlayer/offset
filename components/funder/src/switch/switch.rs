@@ -12,10 +12,11 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations,
+    FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp,
+    ResponseSendFundsOp,
 };
-use proto::index_server::messages::{IndexMutation, UpdateFriendCurrency};
+use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 
 use crate::switch::types::{BackwardsOp, CurrencyInfo, SwitchDbClient, SwitchOutput, SwitchState};
 use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
@@ -310,15 +311,53 @@ pub async fn set_friend_offline(
     }
     switch_state.liveness.set_offline(&friend_public_key);
 
-    // TODO:
-    // - Cancel all pending requests
-    //      - Possibly send outgoing cancels to relevant friends? (Through SwitchOutput)
-    // - Cancel all user pending requests
-    //      - Possibly send outgoing cancels? (Through SwitchOutput)
-    // - Add index mutations:
-    //      - Remove mutations for all currencies that are considered open with this friend.
+    let mut output = SwitchOutput::new();
 
-    todo!();
+    // Cancel all pending user requests
+    while let Some((_currency, pending_user_request)) = switch_db_client
+        .pending_user_requests_pop_front(friend_public_key.clone())
+        .await?
+    {
+        // Send outgoing cancel to user:
+        output.add_incoming_cancel(CancelSendFundsOp {
+            request_id: pending_user_request.request_id,
+        });
+    }
+
+    // Cancel all pending requests
+    while let Some((currency, pending_request)) = switch_db_client
+        .pending_requests_pop_front(friend_public_key.clone())
+        .await?
+    {
+        // Find from which friend this pending request has originated from:
+        let origin_public_key = switch_db_client
+            .get_remote_pending_request_friend_public_key(pending_request.request_id.clone())
+            .await?;
+
+        // Cancel request by queue-ing a cancel into the relevant friend's queue:
+        switch_db_client
+            .pending_backwards_push_back(
+                origin_public_key,
+                currency,
+                BackwardsOp::Cancel(CancelSendFundsOp {
+                    request_id: pending_request.request_id,
+                }),
+            )
+            .await?;
+    }
+
+    // Add index mutations
+    // We send index mutations to remove all currencies that are considered open
+    let mut open_currencies = switch_db_client.list_open_currencies(friend_public_key.clone());
+    while let Some(res) = open_currencies.next().await {
+        let open_currency = res?;
+        output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+            public_key: friend_public_key.clone(),
+            currency: open_currency.currency,
+        }));
+    }
+
+    Ok(output)
 }
 
 pub async fn send_request(

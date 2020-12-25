@@ -7,7 +7,7 @@ use crate::liveness::Liveness;
 use crate::token_channel::TcDbClient;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
-use proto::crypto::PublicKey;
+use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendMessage, McBalance, Rate, RequestSendFundsOp,
     ResponseSendFundsOp,
@@ -145,6 +145,11 @@ pub trait SwitchDbClient {
         friend_public_key: PublicKey,
         currency: Currency,
     ) -> AsyncOpResult<Option<CurrencyInfo>>;
+
+    fn get_remote_pending_request_friend_public_key(
+        &mut self,
+        request_id: Uid,
+    ) -> AsyncOpResult<PublicKey>;
 
     /*
     /// Get a list of configured currencies that were not yet added as local currencies
