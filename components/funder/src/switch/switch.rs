@@ -1,7 +1,11 @@
-use derive_more::From;
 use std::collections::{HashMap, HashSet};
 
+use futures::StreamExt;
+
+use derive_more::From;
+
 use common::async_rpc::OpError;
+use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 
 use identity::IdentityClient;
 
@@ -11,8 +15,9 @@ use proto::funder::messages::{
     CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
     FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
+use proto::index_server::messages::{IndexMutation, UpdateFriendCurrency};
 
-use crate::switch::types::{BackwardsOp, SwitchDbClient, SwitchOutput, SwitchState};
+use crate::switch::types::{BackwardsOp, CurrencyInfo, SwitchDbClient, SwitchOutput, SwitchState};
 use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
 
 #[derive(Debug, From)]
@@ -20,6 +25,7 @@ pub enum SwitchError {
     FriendAlreadyOnline,
     FriendAlreadyOffline,
     GenerationOverflow,
+    BalanceOverflow,
     TokenChannelError(TokenChannelError),
     OpError(OpError),
 }
@@ -165,6 +171,45 @@ async fn is_pending_move_token(
     )
 }
 
+/// Calculate receive capacity for a certain currency
+fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError> {
+    if !currency_info.is_open {
+        return Ok(0);
+    }
+
+    let info_local = if let Some(info_local) = &currency_info.opt_local {
+        info_local
+    } else {
+        return Ok(0);
+    };
+
+    let mc_balance = if let Some(mc_balance) = &info_local.opt_remote {
+        mc_balance
+    } else {
+        return Ok(0);
+    };
+
+    Ok(currency_info.remote_max_debt.saturating_sub_signed(
+        mc_balance
+            .balance
+            .checked_add_unsigned(mc_balance.remote_pending_debt)
+            .ok_or(SwitchError::BalanceOverflow)?,
+    ))
+}
+
+fn create_update_index_mutation(
+    friend_public_key: PublicKey,
+    currency_info: CurrencyInfo,
+) -> Result<IndexMutation, SwitchError> {
+    let recv_capacity = calc_recv_capacity(&currency_info)?;
+    Ok(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
+        public_key: friend_public_key,
+        currency: currency_info.currency,
+        recv_capacity,
+        rate: currency_info.rate,
+    }))
+}
+
 pub async fn set_friend_online(
     switch_db_client: &mut impl SwitchDbClient,
     switch_state: &mut SwitchState,
@@ -241,8 +286,15 @@ pub async fn set_friend_online(
         }
     }
 
-    // TODO: How to calculate index mutations?
-    todo!();
+    // Add an index mutation for all open currencies:
+    let mut open_currencies = switch_db_client.list_open_currencies(friend_public_key.clone());
+    while let Some(res) = open_currencies.next().await {
+        let open_currency = res?;
+        output.add_index_mutation(create_update_index_mutation(
+            friend_public_key.clone(),
+            open_currency,
+        )?);
+    }
 
     Ok(output)
 }

@@ -1,4 +1,4 @@
-use common::async_rpc::AsyncOpResult;
+use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 use std::collections::HashMap;
 // use common::ser_utils::ser_string;
 // use common::u256::U256;
@@ -9,11 +9,10 @@ use crate::token_channel::TcDbClient;
 use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendMessage, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, McBalance, Rate, RequestSendFundsOp,
+    ResponseSendFundsOp,
 };
 use proto::index_server::messages::IndexMutation;
-// use proto::funder::messages::{McBalance, PendingTransaction};
-//
 
 /// Switch's ephemeral state (Not saved inside the database)
 #[derive(Debug)]
@@ -25,6 +24,30 @@ pub struct SwitchState {
 pub enum BackwardsOp {
     Response(ResponseSendFundsOp),
     Cancel(CancelSendFundsOp),
+}
+
+#[derive(Debug)]
+pub struct CurrencyInfoLocal {
+    /// Is locally marked for removal?
+    pub is_remove: bool,
+    /// Was set by remote side too?
+    pub opt_remote: Option<McBalance>,
+}
+
+#[derive(Debug)]
+pub struct CurrencyInfo {
+    /// Currency name
+    pub currency: Currency,
+    /// Currency rate: This is how much it costs to the remote friend to send credits through us.
+    pub rate: Rate,
+    /// Maximum amount of debt we allow to the remote side. This is the maximum rich we can get
+    /// from this currency relationship.
+    pub remote_max_debt: u128,
+    /// Do we allow requests to go through this currency?
+    /// TODO: Find out exactly what this means.
+    pub is_open: bool,
+    /// Was the remote side told about this currency?
+    pub opt_local: Option<CurrencyInfoLocal>,
 }
 
 pub trait SwitchDbClient {
@@ -113,6 +136,15 @@ pub trait SwitchDbClient {
     ) -> AsyncOpResult<()>;
 
     fn pending_requests_is_empty(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<bool>;
+
+    fn list_open_currencies(&mut self, friend_public_key: PublicKey)
+        -> AsyncOpStream<CurrencyInfo>;
+
+    fn get_currency_info(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<Option<CurrencyInfo>>;
 
     /*
     /// Get a list of configured currencies that were not yet added as local currencies
