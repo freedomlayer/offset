@@ -315,6 +315,8 @@ pub async fn set_friend_offline(
     //      - Possibly send outgoing cancels to relevant friends? (Through SwitchOutput)
     // - Cancel all user pending requests
     //      - Possibly send outgoing cancels? (Through SwitchOutput)
+    // - Add index mutations:
+    //      - Remove mutations for all currencies that are considered open with this friend.
 
     todo!();
 }
