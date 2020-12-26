@@ -174,6 +174,7 @@ async fn is_pending_move_token(
 }
 
 /// Calculate receive capacity for a certain currency
+/// This is the number we are going to report to an index server
 fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError> {
     if !currency_info.is_open {
         return Ok(0);
@@ -199,6 +200,7 @@ fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError>
     ))
 }
 
+/// Create one update index mutation, based on a given currency info.
 fn create_update_index_mutation(
     friend_public_key: PublicKey,
     currency_info: CurrencyInfo,
@@ -212,20 +214,48 @@ fn create_update_index_mutation(
     }))
 }
 
-fn create_index_mutations_from_move_token(
+/// Create a list of index mutations based on a MoveToken message.
+async fn create_index_mutations_from_move_token(
     switch_db_client: &mut impl SwitchDbClient,
-    move_token: MoveToken,
+    friend_public_key: PublicKey,
+    move_token: &MoveToken,
 ) -> Result<Vec<IndexMutation>, SwitchError> {
-    // let mut _index_mutations = Vec::new();
+    // Collect all mentioned currencies:
+    let currencies = {
+        let mut currencies = HashSet::new();
+        for currency in &move_token.currencies_diff {
+            currencies.insert(currency.clone());
+        }
 
-    // TODO:
-    // - Collect currencies to be mutated:
-    //      - All currencies from currencies operations
-    //      - Currencies that were added from currencies diff.
-    // - Iterate over all currencies.
-    //      If a currency is present, create a mutation. If not, create a removal mutation.
+        for currency in move_token.currencies_operations.keys() {
+            currencies.insert(currency.clone());
+        }
+        currencies
+    };
 
-    todo!();
+    let mut index_mutations = Vec::new();
+
+    // Create all index mutations:
+    for currency in currencies.into_iter() {
+        let opt_currency_info = switch_db_client
+            .get_currency_info(friend_public_key.clone(), currency.clone())
+            .await?;
+        if let Some(currency_info) = opt_currency_info {
+            // Currency exists
+            index_mutations.push(create_update_index_mutation(
+                friend_public_key.clone(),
+                currency_info,
+            )?);
+        } else {
+            // Currency does not exist anymore
+            index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+                public_key: friend_public_key.clone(),
+                currency,
+            }));
+        }
+    }
+
+    Ok(index_mutations)
 }
 
 pub async fn set_friend_online(
