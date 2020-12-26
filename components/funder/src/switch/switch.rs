@@ -465,7 +465,19 @@ pub async fn send_request(
             .await?;
 
             if let Some(move_token_request) = opt_move_token_request {
-                // We have something to send to remote side:
+                // We have something to send to remote side
+                // Deduce index mutations according to move token:
+                let index_mutations = create_index_mutations_from_move_token(
+                    switch_db_client,
+                    friend_public_key.clone(),
+                    &move_token_request.move_token,
+                )
+                .await?;
+                for index_mutation in index_mutations {
+                    output.add_index_mutation(index_mutation);
+                }
+
+                // Send move token request to remote side:
                 output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
@@ -500,12 +512,6 @@ pub async fn send_request(
             });
         }
     }
-
-    // TODO: Add index mutations. How to do this?
-    // - Look at produced MoveToken at relevant places
-    //
-    //
-    todo!();
 
     Ok(output)
 }
