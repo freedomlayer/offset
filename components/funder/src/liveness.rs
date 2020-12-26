@@ -22,7 +22,7 @@ impl Liveness {
         self.friends.remove(&public_key).is_some()
     }
 
-    pub fn is_online(&mut self, public_key: &PublicKey) -> bool {
+    pub fn is_online(&self, public_key: &PublicKey) -> bool {
         self.friends.contains(public_key)
     }
 }
