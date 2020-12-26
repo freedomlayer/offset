@@ -365,7 +365,7 @@ pub async fn send_request(
     switch_db_client: &mut impl SwitchDbClient,
     switch_state: &SwitchState,
     currency: Currency,
-    request: RequestSendFundsOp,
+    mut request: RequestSendFundsOp,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
@@ -377,13 +377,14 @@ pub async fn send_request(
 
     let mut output = SwitchOutput::new();
 
-    // First public key is ours, next public key is the next friend.
-    // TODO: Could be a mistake, verify later
-    let friend_public_key = request
-        .route
-        .get(1)
-        .ok_or(SwitchError::InvalidRoute)?
-        .clone();
+    // We cut the first two public keys from the route:
+    // Pop first route public key:
+    let route_local_public_key = request.route.remove(0);
+    if &route_local_public_key != local_public_key {
+        return Err(SwitchError::InvalidRoute);
+    }
+    // Pop second route public key:
+    let friend_public_key = request.route.remove(0);
 
     // Gather information about friend's channel and liveness:
     let tc_status = switch_db_client
