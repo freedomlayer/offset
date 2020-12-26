@@ -149,7 +149,7 @@ pub trait SwitchDbClient {
     fn get_remote_pending_request_friend_public_key(
         &mut self,
         request_id: Uid,
-    ) -> AsyncOpResult<PublicKey>;
+    ) -> AsyncOpResult<Option<PublicKey>>;
 
     /*
     /// Get a list of configured currencies that were not yet added as local currencies

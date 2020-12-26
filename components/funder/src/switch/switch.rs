@@ -376,21 +376,24 @@ pub async fn set_friend_offline(
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
-        // Find from which friend this pending request has originated from:
-        let origin_public_key = switch_db_client
+        // Find from which friend this pending request has originated from.
+        // Due to inconsistencies, it is possible that this pending request has no origin.
+        let opt_origin_public_key = switch_db_client
             .get_remote_pending_request_friend_public_key(pending_request.request_id.clone())
             .await?;
 
-        // Cancel request by queue-ing a cancel into the relevant friend's queue:
-        switch_db_client
-            .pending_backwards_push_back(
-                origin_public_key,
-                currency,
-                BackwardsOp::Cancel(CancelSendFundsOp {
-                    request_id: pending_request.request_id,
-                }),
-            )
-            .await?;
+        if let Some(origin_public_key) = opt_origin_public_key {
+            // Cancel request by queue-ing a cancel into the relevant friend's queue:
+            switch_db_client
+                .pending_backwards_push_back(
+                    origin_public_key,
+                    currency,
+                    BackwardsOp::Cancel(CancelSendFundsOp {
+                        request_id: pending_request.request_id,
+                    }),
+                )
+                .await?;
+        }
     }
 
     // Add index mutations
