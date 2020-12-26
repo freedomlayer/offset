@@ -212,6 +212,22 @@ fn create_update_index_mutation(
     }))
 }
 
+fn create_index_mutations_from_move_token(
+    switch_db_client: &mut impl SwitchDbClient,
+    move_token: MoveToken,
+) -> Result<Vec<IndexMutation>, SwitchError> {
+    // let mut _index_mutations = Vec::new();
+
+    // TODO:
+    // - Collect currencies to be mutated:
+    //      - All currencies from currencies operations
+    //      - Currencies that were added from currencies diff.
+    // - Iterate over all currencies.
+    //      If a currency is present, create a mutation. If not, create a removal mutation.
+
+    todo!();
+}
+
 pub async fn set_friend_online(
     switch_db_client: &mut impl SwitchDbClient,
     switch_state: &mut SwitchState,
