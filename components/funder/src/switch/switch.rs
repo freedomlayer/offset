@@ -17,6 +17,7 @@ use proto::funder::messages::{
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 
+use crate::route::Route;
 use crate::switch::types::{BackwardsOp, CurrencyInfo, SwitchDbClient, SwitchOutput, SwitchState};
 use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
 
@@ -26,6 +27,7 @@ pub enum SwitchError {
     FriendAlreadyOffline,
     GenerationOverflow,
     BalanceOverflow,
+    InvalidRoute,
     TokenChannelError(TokenChannelError),
     OpError(OpError),
 }
@@ -360,27 +362,99 @@ pub async fn set_friend_offline(
 }
 
 pub async fn send_request(
-    _switch_db_client: &mut impl SwitchDbClient,
-    _currency: Currency,
-    _request: RequestSendFundsOp,
+    switch_db_client: &mut impl SwitchDbClient,
+    switch_state: &SwitchState,
+    currency: Currency,
+    request: RequestSendFundsOp,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<SwitchOutput, SwitchError> {
-    // TODO: Check if request route is valid? (As part)?
-    //
-    /*
-    // TODO: Deduce next public key from route
-    let friend_public_key = request.route.get(
-    switch_db_client
-        .pending_user_requests_push_back(friend_public_key, currency, request)
-        .await?;
-    */
+    // Make sure that the provided route is valid:
+    if !request.route.is_valid() {
+        return Err(SwitchError::InvalidRoute);
+    }
 
-    // TODO:
-    // - Add request to relevant user pending requests queue (According to friend on route)
-    // - For the relevant friend: If token is present:
-    //      - Compose a friend move token message
-    // - If the token is not present:
-    //      - Compose a request token message.
-    todo!();
+    let mut output = SwitchOutput::new();
+
+    // First public key is ours, next public key is the next friend.
+    // TODO: Could be a mistake, verify later
+    let friend_public_key = request
+        .route
+        .get(1)
+        .ok_or(SwitchError::InvalidRoute)?
+        .clone();
+
+    // Gather information about friend's channel and liveness:
+    let tc_status = switch_db_client
+        .tc_db_client(friend_public_key.clone())
+        .get_tc_status()
+        .await?;
+    let is_online = switch_state.liveness.is_online(&friend_public_key);
+
+    // If friend is ready (online + consistent):
+    // - push the request
+    //      - If token is incoming:
+    //          - Send an outoging token
+    //      - Else (token is outgoing):
+    //          - Request token
+    // Else (Friend is not ready):
+    // - Send a cancel
+    match (tc_status, is_online) {
+        (TcStatus::ConsistentIn(_), true) => {
+            // Push request:
+            switch_db_client
+                .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
+                .await?;
+
+            // Create an outgoing move token if we have something to send.
+            let opt_move_token_request = collect_outgoing_move_token(
+                switch_db_client,
+                identity_client,
+                local_public_key,
+                friend_public_key.clone(),
+                max_operations_in_batch,
+            )
+            .await?;
+
+            if let Some(move_token_request) = opt_move_token_request {
+                // We have something to send to remote side:
+                output.add_friend_message(
+                    friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(move_token_request),
+                );
+            }
+        }
+        (TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in), true) => {
+            // Push request:
+            switch_db_client
+                .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
+                .await?;
+
+            // Resend outgoing move token,
+            // possibly asking for the token if we have something to send
+            output.add_friend_message(
+                friend_public_key.clone(),
+                FriendMessage::MoveTokenRequest(MoveTokenRequest {
+                    move_token: move_token_out,
+                    token_wanted: is_pending_move_token(
+                        switch_db_client,
+                        friend_public_key.clone(),
+                    )
+                    .await?,
+                }),
+            );
+        }
+        _ => {
+            // Friend is not ready to accept a request.
+            // We cancel the request:
+            output.add_incoming_cancel(CancelSendFundsOp {
+                request_id: request.request_id,
+            });
+        }
+    }
+
+    Ok(output)
 }
 
 pub async fn send_response(
