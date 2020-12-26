@@ -1,5 +1,5 @@
 use std::cmp::Eq;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::hash::Hash;
@@ -18,7 +18,7 @@ use crate::crypto::{
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
-use crate::consts::{MAX_CURRENCY_LEN, MAX_ROUTE_LEN};
+use crate::consts::MAX_CURRENCY_LEN;
 use crate::net::messages::NetAddress;
 
 use common::ser_utils::{ser_b64, ser_string, ser_vec_b64};
@@ -66,11 +66,13 @@ pub const InvoiceId::len(): usize = 32;
 define_fixed_bytes!(InvoiceId, InvoiceId::len());
 */
 
+/*
 #[derive(Arbitrary, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FriendsRoute {
     #[serde(with = "ser_vec_b64")]
     pub public_keys: Vec<PublicKey>,
 }
+*/
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
@@ -78,7 +80,8 @@ pub struct RequestSendFundsOp {
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
-    pub route: FriendsRoute,
+    #[serde(with = "ser_vec_b64")]
+    pub route: Vec<PublicKey>,
     pub dest_payment: u128,
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
@@ -430,7 +433,9 @@ pub struct PendingTransaction {
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
-    pub route: FriendsRoute,
+    // pub route: FriendsRoute,
+    #[serde(with = "ser_vec_b64")]
+    pub route: Vec<PublicKey>,
     pub dest_payment: u128,
     #[serde(with = "ser_string")]
     pub total_dest_payment: u128,
@@ -447,6 +452,7 @@ pub struct PendingTransaction {
 
 // TODO: Possibly impl FriendsRoute as a trait for Vec<PublicKey>?
 
+/*
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
@@ -541,6 +547,7 @@ fn is_route_part_valid<T: Hash + Eq>(route: &[T]) -> bool {
 
     no_duplicates(route)
 }
+*/
 
 // AppServer <-> Funder communication:
 // ===================================
@@ -684,7 +691,7 @@ pub struct RemoveFriendCurrency {
 /// A friend's route with known capacity
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FriendsRouteCapacity {
-    route: FriendsRoute,
+    route: Vec<PublicKey>,
     capacity: u128,
 }
 
@@ -714,7 +721,7 @@ pub struct CreateTransaction {
     /// Randomly generated request_id (by the user),
     /// allows the user to refer to this request later.
     pub request_id: Uid,
-    pub route: FriendsRoute,
+    pub route: Vec<PublicKey>,
     pub dest_payment: u128,
     pub fees: u128,
 }

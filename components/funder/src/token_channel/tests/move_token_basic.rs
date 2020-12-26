@@ -17,7 +17,7 @@ use proto::crypto::{
     HashResult, HashedLock, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid,
 };
 use proto::funder::messages::{
-    Currency, CurrencyOperations, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResponseSendFundsOp,
+    Currency, CurrencyOperations, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp,
 };
 
 use identity::{create_identity, IdentityClient};
@@ -133,9 +133,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     let request_send_funds_op = RequestSendFundsOp {
         request_id: Uid::from(&[0; Uid::len()]),
         src_hashed_lock: src_plain_lock.hash_lock(),
-        route: FriendsRoute {
-            public_keys: vec![pk_a.clone()],
-        },
+        route: vec![pk_a.clone()],
         dest_payment: 20u128,
         total_dest_payment: 30u128,
         invoice_hash: HashResult::from(&[0; HashResult::len()]),

@@ -2,9 +2,10 @@ use byteorder::{BigEndian, WriteBytesExt};
 // use std::collections::HashMap;
 
 use proto::app_server::messages::RelayAddress;
+use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, FriendsRoute, McBalance,
-    RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, CurrencyOperations, FriendTcOp, McBalance, RequestSendFundsOp,
+    ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -52,6 +53,16 @@ where
             res_data.extend_from_slice(&t.canonical_serialize());
         }
         res_data
+    }
+}
+
+// TODO: Possibly be more generic here? We might be able to impl CanonicalSerialize for all fixed
+// sized bytes types we have, if required. Not sure that we want to do this, though.
+impl CanonicalSerialize for PublicKey {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(self);
+        res_bytes
     }
 }
 
@@ -211,6 +222,7 @@ impl CanonicalSerialize for FriendTcOp {
     }
 }
 
+/*
 impl CanonicalSerialize for FriendsRoute {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -223,6 +235,7 @@ impl CanonicalSerialize for FriendsRoute {
         res_bytes
     }
 }
+*/
 
 /*
 impl CanonicalSerialize for Receipt {

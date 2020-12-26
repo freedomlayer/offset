@@ -8,9 +8,7 @@ use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Uid};
-use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp,
-};
+use proto::funder::messages::{CancelSendFundsOp, Currency, FriendTcOp, RequestSendFundsOp};
 
 use crate::mutual_credit::tests::utils::MockMutualCredit;
 use crate::mutual_credit::types::McDbClient;
@@ -36,13 +34,11 @@ async fn task_request_cancel_send_funds() {
     // -----[RequestSendFunds]--------
     // -----------------------------
     let request_id = Uid::from(&[3; Uid::len()]);
-    let route = FriendsRoute {
-        public_keys: vec![
-            PublicKey::from(&[0xaa; PublicKey::len()]),
-            public_key_b.clone(),
-            PublicKey::from(&[0xcc; PublicKey::len()]),
-        ],
-    };
+    let route = vec![
+        PublicKey::from(&[0xaa; PublicKey::len()]),
+        public_key_b.clone(),
+        PublicKey::from(&[0xcc; PublicKey::len()]),
+    ];
     let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
     let hmac = HmacResult::from(&[2; HmacResult::len()]);

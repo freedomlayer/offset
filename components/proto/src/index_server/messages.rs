@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use common::ser_utils::{ser_b64, ser_string};
 
 use crate::crypto::{HashResult, PublicKey, RandValue, Signature, Uid};
-use crate::funder::messages::{Currency, FriendsRoute, Rate};
+use crate::funder::messages::{Currency, Rate};
 use crate::net::messages::NetAddress;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -54,7 +54,7 @@ pub struct RequestRoutes {
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RouteCapacityRate {
-    pub route: FriendsRoute,
+    pub route: Vec<PublicKey>,
     /// How many credits we can push along this route?
     #[serde(with = "ser_string")]
     pub capacity: u128,

@@ -14,6 +14,7 @@ use proto::funder::messages::{
 
 use signature::signature_buff::create_response_signature_buffer;
 
+use crate::route::Route;
 use crate::types::create_pending_transaction;
 
 use super::types::McDbClient;
@@ -196,10 +197,10 @@ async fn process_response_send_funds(
         return Err(ProcessOperationError::InvalidSrcPlainLock);
     }
 
-    let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+    let dest_public_key = if pending_transaction.route.is_empty() {
         remote_public_key
     } else {
-        pending_transaction.route.public_keys.last().unwrap()
+        pending_transaction.route.last().unwrap()
     };
 
     let response_signature_buffer = create_response_signature_buffer(

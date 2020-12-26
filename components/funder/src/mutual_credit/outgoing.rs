@@ -13,6 +13,7 @@ use proto::funder::messages::{
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::types::McDbClient;
+use crate::route::Route;
 use crate::types::create_pending_transaction;
 
 #[derive(Debug, From)]
@@ -130,10 +131,10 @@ async fn queue_response_send_funds(
         &pending_transaction,
     );
     // The response was signed by the destination node:
-    let dest_public_key = if pending_transaction.route.public_keys.is_empty() {
+    let dest_public_key = if pending_transaction.route.is_empty() {
         local_public_key
     } else {
-        pending_transaction.route.public_keys.last().unwrap()
+        pending_transaction.route.last().unwrap()
     };
 
     // Verify response funds signature:

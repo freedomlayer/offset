@@ -17,8 +17,7 @@ use proto::crypto::{
     HashResult, HashedLock, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid,
 };
 use proto::funder::messages::{
-    Currency, CurrencyOperations, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResetBalance,
-    ResponseSendFundsOp,
+    Currency, CurrencyOperations, FriendTcOp, RequestSendFundsOp, ResetBalance, ResponseSendFundsOp,
 };
 
 use identity::{create_identity, IdentityClient};

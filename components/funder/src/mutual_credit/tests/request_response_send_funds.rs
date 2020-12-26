@@ -8,9 +8,7 @@ use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
-use proto::funder::messages::{
-    Currency, FriendTcOp, FriendsRoute, RequestSendFundsOp, ResponseSendFundsOp,
-};
+use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp};
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::tests::utils::MockMutualCredit;
@@ -38,13 +36,11 @@ async fn task_request_response_send_funds() {
     let public_key_c = identity.get_public_key();
 
     let request_id = Uid::from(&[3; Uid::len()]);
-    let route = FriendsRoute {
-        public_keys: vec![
-            PublicKey::from(&[0xaa; PublicKey::len()]),
-            PublicKey::from(&[0xbb; PublicKey::len()]),
-            public_key_c.clone(),
-        ],
-    };
+    let route = vec![
+        PublicKey::from(&[0xaa; PublicKey::len()]),
+        PublicKey::from(&[0xbb; PublicKey::len()]),
+        public_key_c.clone(),
+    ];
     let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
     let hmac = HmacResult::from(&[2; HmacResult::len()]);
