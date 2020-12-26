@@ -12,9 +12,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::PublicKey;
 use proto::funder::messages::{
-    CancelSendFundsOp, CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations,
-    FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
+    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 
@@ -362,8 +361,19 @@ pub async fn set_friend_offline(
 
 pub async fn send_request(
     _switch_db_client: &mut impl SwitchDbClient,
+    _currency: Currency,
     _request: RequestSendFundsOp,
 ) -> Result<SwitchOutput, SwitchError> {
+    // TODO: Check if request route is valid? (As part)?
+    //
+    /*
+    // TODO: Deduce next public key from route
+    let friend_public_key = request.route.get(
+    switch_db_client
+        .pending_user_requests_push_back(friend_public_key, currency, request)
+        .await?;
+    */
+
     // TODO:
     // - Add request to relevant user pending requests queue (According to friend on route)
     // - For the relevant friend: If token is present:
