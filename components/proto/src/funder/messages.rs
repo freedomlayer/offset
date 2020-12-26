@@ -445,6 +445,8 @@ pub struct PendingTransaction {
 // ==================================================================
 // ==================================================================
 
+// TODO: Possibly impl FriendsRoute as a trait for Vec<PublicKey>?
+
 impl FriendsRoute {
     pub fn len(&self) -> usize {
         self.public_keys.len()
