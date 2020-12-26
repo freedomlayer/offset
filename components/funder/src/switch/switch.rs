@@ -520,6 +520,10 @@ pub async fn send_response(
     _switch_db_client: &mut impl SwitchDbClient,
     _response: ResponseSendFundsOp,
 ) -> Result<SwitchOutput, SwitchError> {
+    // TODO:
+    // - Find relevant request (And so, find relevant friend_public_key)
+    // - Queue response
+    // - Attempt to collect a MoveToken for the relevant friend.
     todo!();
 }
 
