@@ -541,7 +541,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              backwards_type           TEXT NOT NULL 
                                       CHECK (backwards_type == 'R')
                                       DEFAULT 'R',
-             src_hashed_lock          BLOB NOT NULL,
+             src_plain_lock           BLOB NOT NULL,
              serial_num               BLOB NOT NULL,
              signature                BLOB NOT NULL,
              FOREIGN KEY(request_id, backwards_type) 
