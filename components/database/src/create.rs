@@ -397,20 +397,42 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // A list of all requests currently being processed
     tx.execute(
-        "CREATE TABLE local_open_transactions(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
+        "CREATE TABLE requests(
              request_id               BLOB NOT NULL PRIMARY KEY,
+             currency                 TEXT NOT NULL,
+             origin_type              TEXT CHECK (origin_type IN ('F', 'L')) NOT NULL,
+                                      -- Originated from a (F)riend or (L)ocally
              src_hashed_lock          BLOB NOT NULL,
-             route                    BLOB NOT NULL,
              dest_payment             BLOB NOT NULL,
              total_dest_payment       BLOB NOT NULL,
              invoice_hash             BLOB NOT NULL,
              hmac                     BLOB NOT NULL,
+             FOREIGN KEY(currency) 
+                REFERENCES mutual_credits(currency)
+                ON DELETE CASCADE
+            );",
+        params![],
+    )?;
+
+    tx.execute(
+        "CREATE UNIQUE INDEX idx_orig_requests ON requests(request_id);",
+        params![],
+    )?;
+
+    // Requests that were sent through our node to a remote friend.
+    tx.execute(
+        "CREATE TABLE local_open_transactions(
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             friend_public_key        BLOB NOT NULL,
+             route                    BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES mutual_credits(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES mutual_credits(friend_public_key)
+                ON DELETE CASCADE
+             FOREIGN KEY(request_id) 
+                REFERENCES requests(request_id)
                 ON DELETE CASCADE
             );",
         params![],
@@ -421,20 +443,21 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         params![],
     )?;
 
+    // Requests that were sent through a friend along our node.
     tx.execute(
         "CREATE TABLE remote_open_transactions(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
              request_id               BLOB NOT NULL PRIMARY KEY,
-             src_hashed_lock          BLOB NOT NULL,
+             origin_type              TEXT NOT NULL 
+                                      CHECK (origin_type == 'F')
+                                      DEFAULT 'F',
+             friend_public_key        BLOB NOT NULL,
              route                    BLOB NOT NULL,
-             dest_payment             BLOB NOT NULL,
-             total_dest_payment       BLOB NOT NULL,
-             invoice_hash             BLOB NOT NULL,
-             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES mutual_credits(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES mutual_credits(friend_public_key)
+                ON DELETE CASCADE
+             FOREIGN KEY(request_id, origin_type) 
+                REFERENCES requests(request_id, origin_type)
                 ON DELETE CASCADE
             );",
         params![],
@@ -447,19 +470,20 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE TABLE pending_user_requests(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL PRIMARY KEY,
              queue_index              BLOB NOT NULL UNIQUE,
-             src_hashed_lock          BLOB NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             origin_type              TEXT NOT NULL 
+                                      CHECK (origin_type == 'L')
+                                      DEFAULT 'L',
+             friend_public_key        BLOB NOT NULL,
              route                    BLOB NOT NULL,
-             dest_payment             BLOB NOT NULL,
-             total_dest_payment       BLOB NOT NULL,
-             invoice_hash             BLOB NOT NULL,
-             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES mutual_credits(friend_public_key, currency)
+             UNIQUE (friend_public_key, queue_index),
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES mutual_credits(friend_public_key)
+                ON DELETE CASCADE
+             FOREIGN KEY(request_id, origin_type) 
+                REFERENCES requests(request_id, origin_type)
                 ON DELETE CASCADE
             );",
         params![],
@@ -477,20 +501,20 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE TABLE pending_requests(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL PRIMARY KEY,
              queue_index              BLOB NOT NULL,
-             src_hashed_lock          BLOB NOT NULL,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             origin_type              TEXT NOT NULL 
+                                      CHECK (origin_type == 'F')
+                                      DEFAULT 'F',
+             friend_public_key        BLOB NOT NULL,
              route                    BLOB NOT NULL,
-             dest_payment             BLOB NOT NULL,
-             total_dest_payment       BLOB NOT NULL,
-             invoice_hash             BLOB NOT NULL,
-             hmac                     BLOB NOT NULL,
              left_fees                BLOB NOT NULL,
              UNIQUE (friend_public_key, queue_index),
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES mutual_credits(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES mutual_credits(friend_public_key)
+                ON DELETE CASCADE
+             FOREIGN KEY(request_id, origin_type) 
+                REFERENCES requests(request_id, origin_type)
                 ON DELETE CASCADE
             );",
         params![],
@@ -508,18 +532,17 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     tx.execute(
         "CREATE TABLE pending_backwards(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
-             request_id               BLOB NOT NULL PRIMARY KEY,
              queue_index              BLOB NOT NULL UNIQUE,
+             request_id               BLOB NOT NULL PRIMARY KEY,
+             friend_public_key        BLOB NOT NULL,
              backwards_type           TEXT CHECK (backwards_type IN ('R', 'C')) NOT NULL,
              -- R: Response, C: Cancel
              UNIQUE (friend_public_key, queue_index),
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES mutual_credits(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key) 
+                REFERENCES mutual_credits(friend_public_key)
                 ON DELETE CASCADE,
              FOREIGN KEY(request_id) 
-                REFERENCES pending_requests(request_id)
+                REFERENCES requests(request_id)
                 ON DELETE CASCADE
             );",
         params![],
