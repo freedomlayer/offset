@@ -50,6 +50,12 @@ pub struct CurrencyInfo {
     pub opt_local: Option<CurrencyInfoLocal>,
 }
 
+#[derive(Debug)]
+pub struct RequestOrigin {
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+}
+
 pub trait RouterDbClient {
     type TcDbClient: TcDbClient;
     fn tc_db_client(&mut self, friend_public_key: PublicKey) -> &mut Self::TcDbClient;
@@ -146,10 +152,10 @@ pub trait RouterDbClient {
         currency: Currency,
     ) -> AsyncOpResult<Option<CurrencyInfo>>;
 
-    fn get_remote_pending_request_friend_public_key(
+    fn get_remote_pending_request_origin(
         &mut self,
         request_id: Uid,
-    ) -> AsyncOpResult<Option<PublicKey>>;
+    ) -> AsyncOpResult<Option<RequestOrigin>>;
 
     /*
     /// Get a list of configured currencies that were not yet added as local currencies

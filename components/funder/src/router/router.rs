@@ -378,16 +378,16 @@ pub async fn set_friend_offline(
     {
         // Find from which friend this pending request has originated from.
         // Due to inconsistencies, it is possible that this pending request has no origin.
-        let opt_origin_public_key = router_db_client
-            .get_remote_pending_request_friend_public_key(pending_request.request_id.clone())
+        let opt_request_origin = router_db_client
+            .get_remote_pending_request_origin(pending_request.request_id.clone())
             .await?;
 
-        if let Some(origin_public_key) = opt_origin_public_key {
+        if let Some(request_origin) = opt_request_origin {
             // Cancel request by queue-ing a cancel into the relevant friend's queue:
             router_db_client
                 .pending_backwards_push_back(
-                    origin_public_key,
-                    currency,
+                    request_origin.friend_public_key,
+                    request_origin.currency,
                     BackwardsOp::Cancel(CancelSendFundsOp {
                         request_id: pending_request.request_id,
                     }),
@@ -520,14 +520,87 @@ pub async fn send_request(
 }
 
 pub async fn send_response(
-    _router_db_client: &mut impl RouterDbClient,
-    _response: ResponseSendFundsOp,
+    router_db_client: &mut impl RouterDbClient,
+    response: ResponseSendFundsOp,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO:
-    // - Find relevant request (And so, find relevant friend_public_key)
-    // - Queue response
-    // - Attempt to collect a MoveToken for the relevant friend.
-    todo!();
+    let mut output = RouterOutput::new();
+
+    let opt_request_origin = router_db_client
+        .get_remote_pending_request_origin(response.request_id.clone())
+        .await?;
+
+    // Attempt to find which node originally sent us this request,
+    // so that we can forward him the response.
+    // If we can not find the request's origin, we discard the response.
+    if let Some(request_origin) = opt_request_origin {
+        router_db_client
+            .pending_backwards_push_back(
+                request_origin.friend_public_key.clone(),
+                request_origin.currency,
+                BackwardsOp::Response(response),
+            )
+            .await?;
+
+        match router_db_client
+            .tc_db_client(request_origin.friend_public_key.clone())
+            .get_tc_status()
+            .await?
+        {
+            TcStatus::ConsistentIn(_) => {
+                // Create an outgoing move token if we have something to send.
+                let opt_move_token_request = collect_outgoing_move_token(
+                    router_db_client,
+                    identity_client,
+                    local_public_key,
+                    request_origin.friend_public_key.clone(),
+                    max_operations_in_batch,
+                )
+                .await?;
+
+                if let Some(move_token_request) = opt_move_token_request {
+                    // We have something to send to remote side:
+
+                    // Update index mutations:
+                    let index_mutations = create_index_mutations_from_move_token(
+                        router_db_client,
+                        request_origin.friend_public_key.clone(),
+                        &move_token_request.move_token,
+                    )
+                    .await?;
+                    for index_mutation in index_mutations {
+                        output.add_index_mutation(index_mutation);
+                    }
+                    output.add_friend_message(
+                        request_origin.friend_public_key.clone(),
+                        FriendMessage::MoveTokenRequest(move_token_request),
+                    );
+                }
+            }
+            TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
+                // Resend outgoing move token,
+                // possibly asking for the token if we have something to send
+                output.add_friend_message(
+                    request_origin.friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(MoveTokenRequest {
+                        move_token: move_token_out,
+                        token_wanted: is_pending_move_token(
+                            router_db_client,
+                            request_origin.friend_public_key.clone(),
+                        )
+                        .await?,
+                    }),
+                );
+            }
+            // This state is not possible, because we did manage to locate our request with this
+            // friend:
+            TcStatus::Inconsistent(..) => unreachable!(),
+        }
+    }
+
+    Ok(output)
 }
 
 pub async fn send_cancel(
