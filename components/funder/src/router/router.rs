@@ -654,7 +654,7 @@ pub async fn send_cancel(
 
         flush_friend(
             router_db_client,
-            friend_public_key,
+            request_origin.friend_public_key,
             identity_client,
             local_public_key,
             max_operations_in_batch,
@@ -667,30 +667,75 @@ pub async fn send_cancel(
 }
 
 pub async fn add_currency(
-    _router_db_client: &mut impl RouterDbClient,
-    _friend_public_key: PublicKey,
-    _currency: Currency,
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO
-    todo!();
+    let mut output = RouterOutput::new();
+    router_db_client
+        .add_currency_config(friend_public_key.clone(), currency)
+        .await?;
+
+    flush_friend(
+        router_db_client,
+        friend_public_key,
+        identity_client,
+        local_public_key,
+        max_operations_in_batch,
+        &mut output,
+    )
+    .await?;
+    Ok(output)
 }
 
 pub async fn set_remove_currency(
-    _router_db_client: &mut impl RouterDbClient,
-    _friend_public_key: PublicKey,
-    _currency: Currency,
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO
-    todo!();
+    let mut output = RouterOutput::new();
+    router_db_client
+        .set_currency_remove(friend_public_key.clone(), currency)
+        .await?;
+
+    flush_friend(
+        router_db_client,
+        friend_public_key,
+        identity_client,
+        local_public_key,
+        max_operations_in_batch,
+        &mut output,
+    )
+    .await?;
+    Ok(output)
 }
 
 pub async fn unset_remove_currency(
-    _router_db_client: &mut impl RouterDbClient,
-    _friend_public_key: PublicKey,
-    _currency: Currency,
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO
-    todo!();
+    let mut output = RouterOutput::new();
+    router_db_client
+        .unset_currency_remove(friend_public_key.clone(), currency)
+        .await?;
+
+    flush_friend(
+        router_db_client,
+        friend_public_key,
+        identity_client,
+        local_public_key,
+        max_operations_in_batch,
+        &mut output,
+    )
+    .await?;
+    Ok(output)
 }
 
 // TODO: Do we need to send an update to index client somehow?

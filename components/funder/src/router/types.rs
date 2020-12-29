@@ -157,6 +157,26 @@ pub trait RouterDbClient {
         request_id: Uid,
     ) -> AsyncOpResult<Option<RequestOrigin>>;
 
+    fn add_currency_config(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
+    /// Set currency to be removed when possible
+    fn set_currency_remove(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
+    /// Unset currency removal
+    fn unset_currency_remove(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
     /*
     /// Get a list of configured currencies that were not yet added as local currencies
     fn currencies_to_add(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<Vec<Currency>>;
