@@ -615,7 +615,7 @@ pub async fn send_response(
 
         flush_friend(
             router_db_client,
-            friend_public_key,
+            request_origin.friend_public_key,
             identity_client,
             local_public_key,
             max_operations_in_batch,
