@@ -749,6 +749,7 @@ pub async fn set_remote_max_debt(
     _remote_max_debt: u128,
 ) -> Result<RouterOutput, RouterError> {
     // TODO
+    // - Note: Should effect index mutations
     todo!();
 }
 
@@ -759,6 +760,7 @@ pub async fn open_currency(
     _currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
     // TODO
+    // - Note: Should effect index mutations
     todo!();
 }
 
@@ -769,6 +771,7 @@ pub async fn close_currency(
     _currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
     // TODO
+    // - Note: Should effect index mutations
     todo!();
 }
 
