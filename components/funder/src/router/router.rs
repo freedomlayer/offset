@@ -18,11 +18,11 @@ use proto::funder::messages::{
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 
 use crate::route::Route;
-use crate::switch::types::{BackwardsOp, CurrencyInfo, SwitchDbClient, SwitchOutput, SwitchState};
+use crate::router::types::{BackwardsOp, CurrencyInfo, RouterDbClient, RouterOutput, RouterState};
 use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
 
 #[derive(Debug, From)]
-pub enum SwitchError {
+pub enum RouterError {
     FriendAlreadyOnline,
     FriendAlreadyOffline,
     GenerationOverflow,
@@ -44,14 +44,14 @@ fn operations_vec_to_currencies_operations(
 }
 
 async fn collect_currencies_operations(
-    switch_db_client: &mut impl SwitchDbClient,
+    router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<CurrenciesOperations, SwitchError> {
+) -> Result<CurrenciesOperations, RouterError> {
     let mut operations_vec = Vec::<(Currency, FriendTcOp)>::new();
 
     // Collect any pending responses and cancels:
-    while let Some((currency, backwards_op)) = switch_db_client
+    while let Some((currency, backwards_op)) = router_db_client
         .pending_backwards_pop_front(friend_public_key.clone())
         .await?
     {
@@ -68,7 +68,7 @@ async fn collect_currencies_operations(
     }
 
     // Collect any pending user requests:
-    while let Some((currency, request_op)) = switch_db_client
+    while let Some((currency, request_op)) = router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
@@ -82,7 +82,7 @@ async fn collect_currencies_operations(
     }
 
     // Collect any pending requests:
-    while let Some((currency, request_op)) = switch_db_client
+    while let Some((currency, request_op)) = router_db_client
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
@@ -100,16 +100,16 @@ async fn collect_currencies_operations(
 
 /// Do we have more pending currencies operations?
 async fn is_pending_currencies_operations(
-    switch_db_client: &mut impl SwitchDbClient,
+    router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
-) -> Result<bool, SwitchError> {
-    Ok(!switch_db_client
+) -> Result<bool, RouterError> {
+    Ok(!router_db_client
         .pending_backwards_is_empty(friend_public_key.clone())
         .await?
-        || !switch_db_client
+        || !router_db_client
             .pending_user_requests_is_empty(friend_public_key.clone())
             .await?
-        || !switch_db_client
+        || !router_db_client
             .pending_requests_is_empty(friend_public_key.clone())
             .await?)
 }
@@ -117,20 +117,20 @@ async fn is_pending_currencies_operations(
 /// Attempt to create an outgoing move token
 /// Return Ok(None) if we have nothing to send
 async fn collect_outgoing_move_token(
-    switch_db_client: &mut impl SwitchDbClient,
+    router_db_client: &mut impl RouterDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<Option<MoveTokenRequest>, SwitchError> {
+) -> Result<Option<MoveTokenRequest>, RouterError> {
     let currencies_operations = collect_currencies_operations(
-        switch_db_client,
+        router_db_client,
         friend_public_key.clone(),
         max_operations_in_batch,
     )
     .await?;
 
-    let mut currencies_diff = switch_db_client
+    let mut currencies_diff = router_db_client
         .currencies_diff(friend_public_key.clone())
         .await?;
 
@@ -141,7 +141,7 @@ async fn collect_outgoing_move_token(
         } else {
             // We have something to send to remote side
             let move_token = handle_out_move_token(
-                switch_db_client.tc_db_client(friend_public_key.clone()),
+                router_db_client.tc_db_client(friend_public_key.clone()),
                 identity_client,
                 currencies_operations,
                 currencies_diff,
@@ -151,7 +151,7 @@ async fn collect_outgoing_move_token(
             .await?;
             Some(MoveTokenRequest {
                 move_token,
-                token_wanted: is_pending_currencies_operations(switch_db_client, friend_public_key)
+                token_wanted: is_pending_currencies_operations(router_db_client, friend_public_key)
                     .await?,
             })
         },
@@ -161,12 +161,12 @@ async fn collect_outgoing_move_token(
 /// Check if we have anything to send to a remove friend on a move token message,
 /// without performing any data mutations
 async fn is_pending_move_token(
-    switch_db_client: &mut impl SwitchDbClient,
+    router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
-) -> Result<bool, SwitchError> {
+) -> Result<bool, RouterError> {
     Ok(
-        is_pending_currencies_operations(switch_db_client, friend_public_key.clone()).await?
-            || !switch_db_client
+        is_pending_currencies_operations(router_db_client, friend_public_key.clone()).await?
+            || !router_db_client
                 .currencies_diff(friend_public_key.clone())
                 .await?
                 .is_empty(),
@@ -175,7 +175,7 @@ async fn is_pending_move_token(
 
 /// Calculate receive capacity for a certain currency
 /// This is the number we are going to report to an index server
-fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError> {
+fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterError> {
     if !currency_info.is_open {
         return Ok(0);
     }
@@ -196,7 +196,7 @@ fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError>
         mc_balance
             .balance
             .checked_add_unsigned(mc_balance.remote_pending_debt)
-            .ok_or(SwitchError::BalanceOverflow)?,
+            .ok_or(RouterError::BalanceOverflow)?,
     ))
 }
 
@@ -204,7 +204,7 @@ fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, SwitchError>
 fn create_update_index_mutation(
     friend_public_key: PublicKey,
     currency_info: CurrencyInfo,
-) -> Result<IndexMutation, SwitchError> {
+) -> Result<IndexMutation, RouterError> {
     let recv_capacity = calc_recv_capacity(&currency_info)?;
     Ok(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
         public_key: friend_public_key,
@@ -216,10 +216,10 @@ fn create_update_index_mutation(
 
 /// Create a list of index mutations based on a MoveToken message.
 async fn create_index_mutations_from_move_token(
-    switch_db_client: &mut impl SwitchDbClient,
+    router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     move_token: &MoveToken,
-) -> Result<Vec<IndexMutation>, SwitchError> {
+) -> Result<Vec<IndexMutation>, RouterError> {
     // Collect all mentioned currencies:
     let currencies = {
         let mut currencies = HashSet::new();
@@ -237,7 +237,7 @@ async fn create_index_mutations_from_move_token(
 
     // Create all index mutations:
     for currency in currencies.into_iter() {
-        let opt_currency_info = switch_db_client
+        let opt_currency_info = router_db_client
             .get_currency_info(friend_public_key.clone(), currency.clone())
             .await?;
         if let Some(currency_info) = opt_currency_info {
@@ -259,23 +259,23 @@ async fn create_index_mutations_from_move_token(
 }
 
 pub async fn set_friend_online(
-    switch_db_client: &mut impl SwitchDbClient,
-    switch_state: &mut SwitchState,
+    router_db_client: &mut impl RouterDbClient,
+    router_state: &mut RouterState,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<SwitchOutput, SwitchError> {
-    if switch_state.liveness.is_online(&friend_public_key) {
+) -> Result<RouterOutput, RouterError> {
+    if router_state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as online!
-        return Err(SwitchError::FriendAlreadyOnline);
+        return Err(RouterError::FriendAlreadyOnline);
     }
-    switch_state.liveness.set_online(friend_public_key.clone());
+    router_state.liveness.set_online(friend_public_key.clone());
 
-    let mut output = SwitchOutput::new();
+    let mut output = RouterOutput::new();
 
     // Check if we have any relays information to send to the remote side:
-    if let (Some(generation), relays) = switch_db_client
+    if let (Some(generation), relays) = router_db_client
         .get_sent_relays(friend_public_key.clone())
         .await?
     {
@@ -286,7 +286,7 @@ pub async fn set_friend_online(
         );
     }
 
-    match switch_db_client
+    match router_db_client
         .tc_db_client(friend_public_key.clone())
         .get_tc_status()
         .await?
@@ -294,7 +294,7 @@ pub async fn set_friend_online(
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
             let opt_move_token_request = collect_outgoing_move_token(
-                switch_db_client,
+                router_db_client,
                 identity_client,
                 local_public_key,
                 friend_public_key.clone(),
@@ -318,7 +318,7 @@ pub async fn set_friend_online(
                 FriendMessage::MoveTokenRequest(MoveTokenRequest {
                     move_token: move_token_out,
                     token_wanted: is_pending_move_token(
-                        switch_db_client,
+                        router_db_client,
                         friend_public_key.clone(),
                     )
                     .await?,
@@ -335,7 +335,7 @@ pub async fn set_friend_online(
     }
 
     // Add an index mutation for all open currencies:
-    let mut open_currencies = switch_db_client.list_open_currencies(friend_public_key.clone());
+    let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
         let open_currency = res?;
         output.add_index_mutation(create_update_index_mutation(
@@ -348,20 +348,20 @@ pub async fn set_friend_online(
 }
 
 pub async fn set_friend_offline(
-    switch_db_client: &mut impl SwitchDbClient,
-    switch_state: &mut SwitchState,
+    router_db_client: &mut impl RouterDbClient,
+    router_state: &mut RouterState,
     friend_public_key: PublicKey,
-) -> Result<SwitchOutput, SwitchError> {
-    if !switch_state.liveness.is_online(&friend_public_key) {
+) -> Result<RouterOutput, RouterError> {
+    if !router_state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as offline!
-        return Err(SwitchError::FriendAlreadyOffline);
+        return Err(RouterError::FriendAlreadyOffline);
     }
-    switch_state.liveness.set_offline(&friend_public_key);
+    router_state.liveness.set_offline(&friend_public_key);
 
-    let mut output = SwitchOutput::new();
+    let mut output = RouterOutput::new();
 
     // Cancel all pending user requests
-    while let Some((_currency, pending_user_request)) = switch_db_client
+    while let Some((_currency, pending_user_request)) = router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
@@ -372,19 +372,19 @@ pub async fn set_friend_offline(
     }
 
     // Cancel all pending requests
-    while let Some((currency, pending_request)) = switch_db_client
+    while let Some((currency, pending_request)) = router_db_client
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
         // Find from which friend this pending request has originated from.
         // Due to inconsistencies, it is possible that this pending request has no origin.
-        let opt_origin_public_key = switch_db_client
+        let opt_origin_public_key = router_db_client
             .get_remote_pending_request_friend_public_key(pending_request.request_id.clone())
             .await?;
 
         if let Some(origin_public_key) = opt_origin_public_key {
             // Cancel request by queue-ing a cancel into the relevant friend's queue:
-            switch_db_client
+            router_db_client
                 .pending_backwards_push_back(
                     origin_public_key,
                     currency,
@@ -398,7 +398,7 @@ pub async fn set_friend_offline(
 
     // Add index mutations
     // We send index mutations to remove all currencies that are considered open
-    let mut open_currencies = switch_db_client.list_open_currencies(friend_public_key.clone());
+    let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
         let open_currency = res?;
         output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
@@ -411,36 +411,36 @@ pub async fn set_friend_offline(
 }
 
 pub async fn send_request(
-    switch_db_client: &mut impl SwitchDbClient,
-    switch_state: &SwitchState,
+    router_db_client: &mut impl RouterDbClient,
+    router_state: &RouterState,
     currency: Currency,
     mut request: RequestSendFundsOp,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // Make sure that the provided route is valid:
     if !request.route.is_valid() {
-        return Err(SwitchError::InvalidRoute);
+        return Err(RouterError::InvalidRoute);
     }
 
-    let mut output = SwitchOutput::new();
+    let mut output = RouterOutput::new();
 
     // We cut the first two public keys from the route:
     // Pop first route public key:
     let route_local_public_key = request.route.remove(0);
     if &route_local_public_key != local_public_key {
-        return Err(SwitchError::InvalidRoute);
+        return Err(RouterError::InvalidRoute);
     }
     // Pop second route public key:
     let friend_public_key = request.route.remove(0);
 
     // Gather information about friend's channel and liveness:
-    let tc_status = switch_db_client
+    let tc_status = router_db_client
         .tc_db_client(friend_public_key.clone())
         .get_tc_status()
         .await?;
-    let is_online = switch_state.liveness.is_online(&friend_public_key);
+    let is_online = router_state.liveness.is_online(&friend_public_key);
 
     // If friend is ready (online + consistent):
     // - push the request
@@ -453,13 +453,13 @@ pub async fn send_request(
     match (tc_status, is_online) {
         (TcStatus::ConsistentIn(_), true) => {
             // Push request:
-            switch_db_client
+            router_db_client
                 .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
                 .await?;
 
             // Create an outgoing move token if we have something to send.
             let opt_move_token_request = collect_outgoing_move_token(
-                switch_db_client,
+                router_db_client,
                 identity_client,
                 local_public_key,
                 friend_public_key.clone(),
@@ -471,7 +471,7 @@ pub async fn send_request(
                 // We have something to send to remote side
                 // Deduce index mutations according to move token:
                 let index_mutations = create_index_mutations_from_move_token(
-                    switch_db_client,
+                    router_db_client,
                     friend_public_key.clone(),
                     &move_token_request.move_token,
                 )
@@ -489,7 +489,7 @@ pub async fn send_request(
         }
         (TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in), true) => {
             // Push request:
-            switch_db_client
+            router_db_client
                 .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
                 .await?;
 
@@ -500,7 +500,7 @@ pub async fn send_request(
                 FriendMessage::MoveTokenRequest(MoveTokenRequest {
                     move_token: move_token_out,
                     token_wanted: is_pending_move_token(
-                        switch_db_client,
+                        router_db_client,
                         friend_public_key.clone(),
                     )
                     .await?,
@@ -520,9 +520,9 @@ pub async fn send_request(
 }
 
 pub async fn send_response(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _response: ResponseSendFundsOp,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO:
     // - Find relevant request (And so, find relevant friend_public_key)
     // - Queue response
@@ -531,83 +531,83 @@ pub async fn send_response(
 }
 
 pub async fn send_cancel(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _cancel: CancelSendFundsOp,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     todo!();
 }
 
 pub async fn add_currency(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 pub async fn set_remove_currency(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 pub async fn unset_remove_currency(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 // TODO: Do we need to send an update to index client somehow?
 pub async fn set_remote_max_debt(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
     _remote_max_debt: u128,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 // TODO: Do we need to send an update to index client somehow?
 pub async fn open_currency(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 // TODO: Do we need to send an update to index client somehow?
 pub async fn close_currency(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _currency: Currency,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 pub async fn update_local_relays(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _local_relays: HashMap<PublicKey, RelayAddress>,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }
 
 pub async fn incoming_friend_message(
-    _switch_db_client: &mut impl SwitchDbClient,
+    _router_db_client: &mut impl RouterDbClient,
     _friend_public_key: PublicKey,
     _friend_message: FriendMessage,
-) -> Result<SwitchOutput, SwitchError> {
+) -> Result<RouterOutput, RouterError> {
     // TODO
     todo!();
 }

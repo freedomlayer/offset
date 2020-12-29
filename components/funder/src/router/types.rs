@@ -14,9 +14,9 @@ use proto::funder::messages::{
 };
 use proto::index_server::messages::IndexMutation;
 
-/// Switch's ephemeral state (Not saved inside the database)
+/// Router's ephemeral state (Not saved inside the database)
 #[derive(Debug)]
-pub struct SwitchState {
+pub struct RouterState {
     pub liveness: Liveness,
 }
 
@@ -50,7 +50,7 @@ pub struct CurrencyInfo {
     pub opt_local: Option<CurrencyInfoLocal>,
 }
 
-pub trait SwitchDbClient {
+pub trait RouterDbClient {
     type TcDbClient: TcDbClient;
     fn tc_db_client(&mut self, friend_public_key: PublicKey) -> &mut Self::TcDbClient;
 
@@ -177,7 +177,7 @@ pub trait SwitchDbClient {
 }
 
 #[derive(Debug)]
-pub struct SwitchOutput {
+pub struct RouterOutput {
     pub friends_messages: HashMap<PublicKey, Vec<FriendMessage>>,
     pub index_mutations: Vec<IndexMutation>,
     pub updated_remote_relays: Vec<PublicKey>,
@@ -186,9 +186,9 @@ pub struct SwitchOutput {
     pub incoming_cancels: Vec<CancelSendFundsOp>,
 }
 
-impl SwitchOutput {
+impl RouterOutput {
     pub fn new() -> Self {
-        SwitchOutput {
+        RouterOutput {
             friends_messages: HashMap::new(),
             index_mutations: Vec::new(),
             updated_remote_relays: Vec::new(),
