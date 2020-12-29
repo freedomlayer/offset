@@ -720,6 +720,9 @@ pub async fn unset_remove_currency(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     currency: Currency,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
     let mut output = RouterOutput::new();
     router_db_client
