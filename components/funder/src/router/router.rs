@@ -741,7 +741,6 @@ pub async fn unset_remove_currency(
     Ok(output)
 }
 
-// TODO: Do we need to send an update to index client somehow?
 pub async fn set_remote_max_debt(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
@@ -752,16 +751,18 @@ pub async fn set_remote_max_debt(
     // Do we need to somehow report back?
 
     let mut output = RouterOutput::new();
-    router_db_client
-        .set_remote_max_debt(friend_public_key.clone(), currency.clone(), remote_max_debt)
-        .await?;
 
-    // TODO: Create an index mutation
     let opt_currency_info = router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
         .await?;
     if let Some(currency_info) = opt_currency_info {
-        // Currency exists
+        // Currency exists (We don't do anything otherwise)
+        // Set remote max debt:
+        router_db_client
+            .set_remote_max_debt(friend_public_key.clone(), currency.clone(), remote_max_debt)
+            .await?;
+
+        // Create an index mutation if needed:
         if currency_info.is_open {
             // Currency is open:
             output.add_index_mutation(create_update_index_mutation(
@@ -774,15 +775,36 @@ pub async fn set_remote_max_debt(
     Ok(output)
 }
 
-// TODO: Do we need to send an update to index client somehow?
 pub async fn open_currency(
-    _router_db_client: &mut impl RouterDbClient,
-    _friend_public_key: PublicKey,
-    _currency: Currency,
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO
-    // - Note: Should effect index mutations
-    todo!();
+    let mut output = RouterOutput::new();
+
+    let opt_currency_info = router_db_client
+        .get_currency_info(friend_public_key.clone(), currency.clone())
+        .await?;
+
+    if let Some(currency_info) = opt_currency_info {
+        // Currency exists:
+        if !currency_info.is_open {
+            // currency is closed:
+
+            // Open currency:
+            router_db_client
+                .open_currency(friend_public_key.clone(), currency)
+                .await?;
+
+            // Add index mutation:
+            output.add_index_mutation(create_update_index_mutation(
+                friend_public_key,
+                currency_info,
+            )?);
+        }
+    }
+
+    Ok(output)
 }
 
 // TODO: Do we need to send an update to index client somehow?

@@ -184,6 +184,18 @@ pub trait RouterDbClient {
         remote_max_debt: u128,
     ) -> AsyncOpResult<()>;
 
+    fn open_currency(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
+    fn close_currency(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
     /*
     /// Get a list of configured currencies that were not yet added as local currencies
     fn currencies_to_add(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<Vec<Currency>>;
