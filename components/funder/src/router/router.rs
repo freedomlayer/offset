@@ -807,15 +807,36 @@ pub async fn open_currency(
     Ok(output)
 }
 
-// TODO: Do we need to send an update to index client somehow?
 pub async fn close_currency(
-    _router_db_client: &mut impl RouterDbClient,
-    _friend_public_key: PublicKey,
-    _currency: Currency,
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO
-    // - Note: Should effect index mutations
-    todo!();
+    let mut output = RouterOutput::new();
+
+    let opt_currency_info = router_db_client
+        .get_currency_info(friend_public_key.clone(), currency.clone())
+        .await?;
+
+    if let Some(currency_info) = opt_currency_info {
+        // Currency exists:
+        if currency_info.is_open {
+            // currency is open:
+
+            // Close currency:
+            router_db_client
+                .close_currency(friend_public_key.clone(), currency.clone())
+                .await?;
+
+            // Add index mutation:
+            output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+                public_key: friend_public_key,
+                currency,
+            }));
+        }
+    }
+
+    Ok(output)
 }
 
 pub async fn update_local_relays(
