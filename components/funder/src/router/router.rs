@@ -846,7 +846,8 @@ pub async fn update_local_relays(
     // TODO
     // - Pick an internal u128 port for every friend for every relay.
     //      - This info is saved in the db
-    // - What should we report outside?
+    // - Send relays update messages to all relevant friends.
+    //      - How to deal with acks? (Maybe in incoming_friend_message handler?)
     todo!();
 }
 
