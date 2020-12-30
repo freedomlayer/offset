@@ -36,6 +36,7 @@ pub struct CurrencyInfoLocal {
 
 #[derive(Debug)]
 pub struct CurrencyInfo {
+    // TODO: Maybe remove this field?
     /// Currency name
     pub currency: Currency,
     /// Currency rate: This is how much it costs to the remote friend to send credits through us.
