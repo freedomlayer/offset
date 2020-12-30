@@ -844,6 +844,9 @@ pub async fn update_local_relays(
     _local_relays: HashMap<PublicKey, RelayAddress>,
 ) -> Result<RouterOutput, RouterError> {
     // TODO
+    // - Pick an internal u128 port for every friend for every relay.
+    //      - This info is saved in the db
+    // - What should we report outside?
     todo!();
 }
 
