@@ -7,6 +7,8 @@ use derive_more::From;
 use common::async_rpc::OpError;
 use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 
+use database::transaction::Transaction;
+
 use identity::IdentityClient;
 
 use proto::app_server::messages::RelayAddressPort;
@@ -29,7 +31,9 @@ use crate::router::utils::index_mutation::{
     create_index_mutations_from_move_token, create_update_index_mutation,
 };
 use crate::router::utils::move_token::{collect_outgoing_move_token, is_pending_move_token};
-use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
+use crate::token_channel::{
+    handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
+};
 
 pub async fn set_friend_online(
     router_db_client: &mut impl RouterDbClient,
@@ -746,12 +750,39 @@ pub async fn update_local_relays(
     Ok(output)
 }
 
-async fn incoming_move_token_request(
-    router_db_client: &mut impl RouterDbClient,
+async fn incoming_move_token_request<RC>(
+    mut router_db_client: &mut RC,
     friend_public_key: PublicKey,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
     move_token_request: MoveTokenRequest,
-) -> Result<RouterOutput, RouterError> {
-    todo!();
+) -> Result<RouterOutput, RouterError>
+where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
+    let receive_move_token_output = handle_in_move_token(
+        router_db_client.tc_db_client(friend_public_key.clone()),
+        identity_client,
+        move_token_request.move_token,
+        local_public_key,
+        &friend_public_key,
+    )
+    .await?;
+
+    match receive_move_token_output {
+        ReceiveMoveTokenOutput::Duplicate => {
+            // TODO: Possibly send token to remote side (According to token_wanted)
+            // We should have nothing else to send at this point, otherwise we would have already
+            // sent it.
+            todo!();
+        }
+        ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => todo!(),
+        ReceiveMoveTokenOutput::Received(move_token_received) => todo!(),
+        ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => todo!(), // (local_reset_token, local_reset_move_token_counter)
+    }
 }
 
 async fn incoming_inconsistency_error(
@@ -778,15 +809,30 @@ async fn incoming_relays_ack(
     todo!();
 }
 
-pub async fn incoming_friend_message(
-    router_db_client: &mut impl RouterDbClient,
+pub async fn incoming_friend_message<RC>(
+    router_db_client: &mut RC,
     friend_public_key: PublicKey,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
     friend_message: FriendMessage,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<RouterOutput, RouterError>
+where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
     match friend_message {
         FriendMessage::MoveTokenRequest(move_token_request) => {
-            incoming_move_token_request(router_db_client, friend_public_key, move_token_request)
-                .await
+            incoming_move_token_request(
+                router_db_client,
+                friend_public_key,
+                identity_client,
+                local_public_key,
+                max_operations_in_batch,
+                move_token_request,
+            )
+            .await
         }
         FriendMessage::InconsistencyError(reset_terms) => {
             incoming_inconsistency_error(router_db_client, friend_public_key, reset_terms).await

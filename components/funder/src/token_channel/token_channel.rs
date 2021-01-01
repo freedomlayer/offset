@@ -70,7 +70,7 @@ pub enum ReceiveMoveTokenOutput {
     Duplicate,
     RetransmitOutgoing(MoveToken),
     Received(MoveTokenReceived),
-    ChainInconsistent(ResetTerms), // (local_reset_token, local_reset_move_token_counter)
+    ChainInconsistent(ResetTerms),
 }
 
 /// Create a token from a public key
