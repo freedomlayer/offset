@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::liveness::Liveness;
 use crate::token_channel::TcDbClient;
 
-use proto::app_server::messages::{NamedRelayAddress, RelayAddress};
+use proto::app_server::messages::{NamedRelayAddress, RelayAddressPort};
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, Currency, FriendMessage, McBalance, Rate, RequestSendFundsOp,
@@ -68,7 +68,7 @@ pub struct RequestOrigin {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SentRelay {
-    pub relay_address: RelayAddress,
+    pub relay_address: RelayAddressPort,
     pub is_remove: bool,
     pub opt_generation: Option<u128>,
 }
@@ -95,7 +95,7 @@ pub trait RouterDbClient {
     fn get_last_sent_relays(
         &mut self,
         friend_public_key: PublicKey,
-    ) -> AsyncOpResult<(Option<u128>, Vec<RelayAddress>)>;
+    ) -> AsyncOpResult<(Option<u128>, Vec<RelayAddressPort>)>;
 
     /// Get detailed list of sent relays, including generation information
     fn get_sent_relays(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<(Vec<SentRelay>)>;

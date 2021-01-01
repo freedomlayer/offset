@@ -192,9 +192,9 @@ pub enum ChannelerConfig<RA> {
 
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum FunderIncomingComm<B> {
+pub enum FunderIncomingComm {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage<B>)),
+    Friend((PublicKey, FriendMessage)),
 }
 
 /// An incoming message to the Funder:
@@ -203,7 +203,7 @@ pub enum FunderIncomingComm<B> {
 pub enum FunderIncoming<B> {
     Init,
     Control(FunderIncomingControl<B>),
-    Comm(FunderIncomingComm<B>),
+    Comm(FunderIncomingComm),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -219,6 +219,6 @@ where
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoingComm<B> {
-    FriendMessage((PublicKey, FriendMessage<B>)),
+    FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<RelayAddress<B>>),
 }

@@ -33,6 +33,15 @@ pub struct RelayAddress<B = NetAddress> {
     #[serde(with = "ser_b64")]
     pub public_key: PublicKey,
     pub address: B,
+}
+
+// TODO: Remove port from RelayAddress? Create another struct?
+#[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelayAddressPort {
+    #[serde(with = "ser_b64")]
+    pub public_key: PublicKey,
+    pub address: NetAddress,
     #[serde(with = "ser_b64")]
     pub port: NodePort,
 }

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::crypto::{NodePort, PrivateKey, PublicKey};
+use crate::crypto::{PrivateKey, PublicKey};
 
 use mutual_from::mutual_from;
 
@@ -35,8 +35,6 @@ pub struct RelayAddressFile {
     pub public_key: PublicKey,
     #[serde(with = "ser_string")]
     pub address: NetAddress,
-    #[serde(with = "ser_b64")]
-    pub port: NodePort,
 }
 
 /// A helper structure for serialize and deserializing FriendAddress.

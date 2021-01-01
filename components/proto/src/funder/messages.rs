@@ -17,7 +17,7 @@ use crate::crypto::{
     HashResult, HashedLock, HmacResult, InvoiceId, PaymentId, PlainLock, PublicKey, Signature, Uid,
 };
 
-use crate::app_server::messages::{NamedRelayAddress, RelayAddress};
+use crate::app_server::messages::{NamedRelayAddress, RelayAddress, RelayAddressPort};
 use crate::consts::MAX_CURRENCY_LEN;
 use crate::net::messages::NetAddress;
 
@@ -374,17 +374,17 @@ pub struct MoveTokenRequest {
 }
 
 #[derive(Arbitrary, PartialEq, Eq, Clone, Serialize, Debug)]
-pub struct RelaysUpdate<B = NetAddress> {
+pub struct RelaysUpdate {
     pub generation: u128,
-    pub relays: Vec<RelayAddress<B>>,
+    pub relays: Vec<RelayAddressPort>,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum FriendMessage<B = NetAddress> {
+pub enum FriendMessage {
     MoveTokenRequest(MoveTokenRequest),
     InconsistencyError(ResetTerms),
-    RelaysUpdate(RelaysUpdate<B>),
+    RelaysUpdate(RelaysUpdate),
     RelaysAck(Uid),
 }
 

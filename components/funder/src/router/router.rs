@@ -9,7 +9,7 @@ use common::safe_arithmetic::{SafeSignedArithmetic, SafeUnsignedArithmetic};
 
 use identity::IdentityClient;
 
-use proto::app_server::messages::RelayAddress;
+use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
     CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
@@ -870,7 +870,7 @@ async fn update_friend_local_relays(
     local_relays: HashMap<PublicKey, NetAddress>,
     friend_public_key: PublicKey,
     rng: &mut impl CryptoRandom,
-) -> Result<Option<(u128, Vec<RelayAddress>)>, RouterError> {
+) -> Result<Option<(u128, Vec<RelayAddressPort>)>, RouterError> {
     let sent_relays = router_db_client
         .get_sent_relays(friend_public_key.clone())
         .await?;
@@ -908,7 +908,7 @@ async fn update_friend_local_relays(
 
     // Add remaining local relays:
     for (relay_public_key, address) in c_local_relays.into_iter() {
-        let relay_address = RelayAddress {
+        let relay_address = RelayAddressPort {
             public_key: relay_public_key,
             address,
             // Randomly generate a new port:
