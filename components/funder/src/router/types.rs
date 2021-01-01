@@ -1,7 +1,8 @@
-use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 use std::collections::HashMap;
-// use common::ser_utils::ser_string;
-// use common::u256::U256;
+
+use derive_more::From;
+
+use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 
 use crate::liveness::Liveness;
 use crate::token_channel::TcDbClient;
@@ -13,6 +14,20 @@ use proto::funder::messages::{
     ResponseSendFundsOp,
 };
 use proto::index_server::messages::IndexMutation;
+
+use crate::token_channel::TokenChannelError;
+
+#[derive(Debug, From)]
+pub enum RouterError {
+    FriendAlreadyOnline,
+    FriendAlreadyOffline,
+    GenerationOverflow,
+    BalanceOverflow,
+    InvalidRoute,
+    UnexpectedTcStatus,
+    TokenChannelError(TokenChannelError),
+    OpError(OpError),
+}
 
 /// Router's ephemeral state (Not saved inside the database)
 #[derive(Debug)]

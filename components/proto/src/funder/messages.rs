@@ -385,7 +385,7 @@ pub enum FriendMessage {
     MoveTokenRequest(MoveTokenRequest),
     InconsistencyError(ResetTerms),
     RelaysUpdate(RelaysUpdate),
-    RelaysAck(Uid),
+    RelaysAck(u128), // generation
 }
 
 /*
