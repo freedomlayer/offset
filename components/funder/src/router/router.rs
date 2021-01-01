@@ -805,7 +805,21 @@ where
                 }
             }
         }
-        ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => todo!(),
+        ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => {
+            // Retransmit outgoing move token message to friend:
+            let move_token_request = MoveTokenRequest {
+                move_token,
+                token_wanted: is_pending_move_token(router_db_client, friend_public_key.clone())
+                    .await?,
+            };
+
+            if router_state.liveness.is_online(&friend_public_key) {
+                output.add_friend_message(
+                    friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(move_token_request),
+                );
+            }
+        }
         ReceiveMoveTokenOutput::Received(move_token_received) => todo!(),
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => todo!(), // (local_reset_token, local_reset_move_token_counter)
     }
