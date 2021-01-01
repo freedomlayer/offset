@@ -13,7 +13,8 @@ use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
     CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
+    ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -745,17 +746,56 @@ pub async fn update_local_relays(
     Ok(output)
 }
 
+async fn incoming_move_token_request(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    move_token_request: MoveTokenRequest,
+) -> Result<RouterOutput, RouterError> {
+    todo!();
+}
+
+async fn incoming_inconsistency_error(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    reset_terms: ResetTerms,
+) -> Result<RouterOutput, RouterError> {
+    todo!();
+}
+
+async fn incoming_relays_update(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    relays_update: RelaysUpdate,
+) -> Result<RouterOutput, RouterError> {
+    todo!();
+}
+
+async fn incoming_relays_ack(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    generation: u128,
+) -> Result<RouterOutput, RouterError> {
+    todo!();
+}
+
 pub async fn incoming_friend_message(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     friend_message: FriendMessage,
 ) -> Result<RouterOutput, RouterError> {
     match friend_message {
-        FriendMessage::MoveTokenRequest(_move_token_request) => todo!(),
-        FriendMessage::InconsistencyError(_reset_terms) => todo!(),
-        FriendMessage::RelaysUpdate(_relays_update) => todo!(),
-        FriendMessage::RelaysAck(_generation) => todo!(),
+        FriendMessage::MoveTokenRequest(move_token_request) => {
+            incoming_move_token_request(router_db_client, friend_public_key, move_token_request)
+                .await
+        }
+        FriendMessage::InconsistencyError(reset_terms) => {
+            incoming_inconsistency_error(router_db_client, friend_public_key, reset_terms).await
+        }
+        FriendMessage::RelaysUpdate(relays_update) => {
+            incoming_relays_update(router_db_client, friend_public_key, relays_update).await
+        }
+        FriendMessage::RelaysAck(generation) => {
+            incoming_relays_ack(router_db_client, friend_public_key, generation).await
+        }
     }
-    // TODO
-    todo!();
 }
