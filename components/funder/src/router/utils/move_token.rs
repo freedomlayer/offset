@@ -109,6 +109,43 @@ async fn is_pending_currencies_operations(
 }
 
 /// Attempt to create an outgoing move token
+/// May create an empty move token.
+pub async fn collect_outgoing_move_token_allow_empty(
+    router_db_client: &mut impl RouterDbClient,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
+) -> Result<MoveTokenRequest, RouterError> {
+    let currencies_operations = collect_currencies_operations(
+        router_db_client,
+        friend_public_key.clone(),
+        max_operations_in_batch,
+    )
+    .await?;
+
+    let mut currencies_diff = router_db_client
+        .currencies_diff(friend_public_key.clone())
+        .await?;
+
+    // Create move token and update internal state:
+    let move_token = handle_out_move_token(
+        router_db_client.tc_db_client(friend_public_key.clone()),
+        identity_client,
+        currencies_operations,
+        currencies_diff,
+        local_public_key,
+        &friend_public_key,
+    )
+    .await?;
+
+    Ok(MoveTokenRequest {
+        move_token,
+        token_wanted: is_pending_currencies_operations(router_db_client, friend_public_key).await?,
+    })
+}
+
+/// Attempt to create an outgoing move token
 /// Return Ok(None) if we have nothing to send
 pub async fn collect_outgoing_move_token(
     router_db_client: &mut impl RouterDbClient,

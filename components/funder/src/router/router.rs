@@ -30,7 +30,9 @@ use crate::router::types::{
 use crate::router::utils::index_mutation::{
     create_index_mutations_from_move_token, create_update_index_mutation,
 };
-use crate::router::utils::move_token::{collect_outgoing_move_token, is_pending_move_token};
+use crate::router::utils::move_token::{
+    collect_outgoing_move_token, collect_outgoing_move_token_allow_empty, is_pending_move_token,
+};
 use crate::token_channel::{
     handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
@@ -752,6 +754,7 @@ pub async fn update_local_relays(
 
 async fn incoming_move_token_request<RC>(
     mut router_db_client: &mut RC,
+    router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
@@ -763,6 +766,7 @@ where
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
+    let mut output = RouterOutput::new();
     let receive_move_token_output = handle_in_move_token(
         router_db_client.tc_db_client(friend_public_key.clone()),
         identity_client,
@@ -774,15 +778,39 @@ where
 
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {
-            // TODO: Possibly send token to remote side (According to token_wanted)
             // We should have nothing else to send at this point, otherwise we would have already
             // sent it.
-            todo!();
+            assert!(!is_pending_move_token(router_db_client, friend_public_key.clone()).await?);
+
+            // Possibly send token to remote side (According to token_wanted)
+            if move_token_request.token_wanted {
+                let out_move_token_request = collect_outgoing_move_token_allow_empty(
+                    router_db_client,
+                    identity_client,
+                    local_public_key,
+                    friend_public_key.clone(),
+                    max_operations_in_batch,
+                )
+                .await?;
+
+                // TODO: Should we really check for liveness here? We just got a message from this
+                // friend. Think about liveness design here. What if we ever forget to check for
+                // liveness before adding a friend message? Maybe this should be checked in
+                // different way, or a different layer?
+                if router_state.liveness.is_online(&friend_public_key) {
+                    output.add_friend_message(
+                        friend_public_key.clone(),
+                        FriendMessage::MoveTokenRequest(out_move_token_request),
+                    );
+                }
+            }
         }
         ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => todo!(),
         ReceiveMoveTokenOutput::Received(move_token_received) => todo!(),
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => todo!(), // (local_reset_token, local_reset_move_token_counter)
     }
+
+    Ok(output)
 }
 
 async fn incoming_inconsistency_error(
@@ -811,6 +839,7 @@ async fn incoming_relays_ack(
 
 pub async fn incoming_friend_message<RC>(
     router_db_client: &mut RC,
+    router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
@@ -826,6 +855,7 @@ where
         FriendMessage::MoveTokenRequest(move_token_request) => {
             incoming_move_token_request(
                 router_db_client,
+                router_state,
                 friend_public_key,
                 identity_client,
                 local_public_key,
