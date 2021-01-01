@@ -870,7 +870,7 @@ async fn update_friend_local_relays(
     local_relays: HashMap<PublicKey, NetAddress>,
     friend_public_key: PublicKey,
     rng: &mut impl CryptoRandom,
-) -> Result<bool, RouterError> {
+) -> Result<Option<(u128, Vec<RelayAddress>)>, RouterError> {
     let sent_relays = router_db_client
         .get_sent_relays(friend_public_key.clone())
         .await?;
@@ -925,11 +925,17 @@ async fn update_friend_local_relays(
     Ok(if sent_relays_updated {
         // Update sent relays:
         router_db_client
-            .set_sent_relays(friend_public_key.clone(), new_sent_relays)
+            .set_sent_relays(friend_public_key.clone(), new_sent_relays.clone())
             .await?;
-        true
+        Some((
+            new_generation,
+            new_sent_relays
+                .into_iter()
+                .map(|sent_relay| sent_relay.relay_address)
+                .collect(),
+        ))
     } else {
-        false
+        None
     })
 }
 
@@ -947,17 +953,23 @@ pub async fn update_local_relays(
     {
         opt_friend_public_key = Some(friend_public_key.clone());
 
-        let sent_relays_updated = update_friend_local_relays(
+        let opt_res = update_friend_local_relays(
             router_db_client,
             local_relays.clone(),
-            friend_public_key,
+            friend_public_key.clone(),
             rng,
         )
         .await?;
 
-        // TODO: If sent_relays was updated and the friend is ready, we need to send relays to
+        // If sent_relays was updated and the friend is ready, we need to send relays to
         // remote friend:
-        todo!();
+        if let Some((generation, relays)) = opt_res {
+            // Add a message for sending relays:
+            output.add_friend_message(
+                friend_public_key.clone(),
+                FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
+            );
+        }
     }
 
     Ok(output)

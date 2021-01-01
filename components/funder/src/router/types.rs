@@ -66,7 +66,7 @@ pub struct RequestOrigin {
     pub currency: Currency,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SentRelay {
     pub relay_address: RelayAddress,
     pub is_remove: bool,
