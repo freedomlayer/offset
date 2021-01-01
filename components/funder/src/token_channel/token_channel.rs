@@ -61,6 +61,7 @@ pub struct MoveTokenReceivedCurrency {
 
 #[derive(Debug)]
 pub struct MoveTokenReceived {
+    // TODO: Why isn't this a hash map? Does the order matter here?
     pub currencies: Vec<MoveTokenReceivedCurrency>,
 }
 
