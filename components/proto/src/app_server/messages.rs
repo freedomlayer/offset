@@ -26,6 +26,7 @@ pub struct NamedRelayAddress<B = NetAddress> {
     pub name: String,
 }
 
+// TODO: Remove port from RelayAddress? Create another struct?
 #[derive(Arbitrary, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RelayAddress<B = NetAddress> {
