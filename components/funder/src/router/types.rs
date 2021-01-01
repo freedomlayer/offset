@@ -51,35 +51,63 @@ pub struct CurrencyInfo {
     pub opt_local: Option<CurrencyInfoLocal>,
 }
 
+/*
+#[derive(Debug)]
+pub struct FriendInfo {
+    pub public_key: PublicKey,
+    pub name: PublicKey,
+    pub is_enabled: bool,
+}
+*/
+
 #[derive(Debug)]
 pub struct RequestOrigin {
     pub friend_public_key: PublicKey,
     pub currency: Currency,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct SentRelay {
+    pub relay_address: RelayAddress,
+    pub is_remove: bool,
+    pub opt_generation: Option<u128>,
+}
+
 pub trait RouterDbClient {
     type TcDbClient: TcDbClient;
     fn tc_db_client(&mut self, friend_public_key: PublicKey) -> &mut Self::TcDbClient;
 
+    /*
     /// Get the current list of local relays
     fn get_local_relays(&mut self) -> AsyncOpResult<Vec<NamedRelayAddress>>;
-
-    /*
-    /// Get the maximum value of sent relay generation.
-    /// Returns None if all relays were acked by the remote side.
-    fn get_max_sent_relays_generation(
-        &mut self,
-        friend_public_key: PublicKey,
-    ) -> AsyncOpResult<Option<u128>>;
     */
+
+    /// A util to iterate over friends and mutating them.
+    /// A None input will return the first friend.
+    /// A None output means that there are no more friends.
+    fn get_next_friend(
+        &mut self,
+        prev_friend_public_key: Option<PublicKey>,
+    ) -> AsyncOpResult<Option<PublicKey>>;
 
     /// Get the last set of sent relays, together with their generation
     /// Generation == None means that the sent relays were already acked
-    fn get_sent_relays(
+    fn get_last_sent_relays(
         &mut self,
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<(Option<u128>, Vec<RelayAddress>)>;
 
+    /// Get detailed list of sent relays, including generation information
+    fn get_sent_relays(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<(Vec<SentRelay>)>;
+
+    /// Set list of sent relays
+    fn set_sent_relays(
+        &mut self,
+        friend_public_key: PublicKey,
+        sent_relays: Vec<SentRelay>,
+    ) -> AsyncOpResult<()>;
+
+    /*
     /// Update sent relays for friend `friend_public_key` with the list of current local relays.
     fn update_sent_relays(
         &mut self,
@@ -87,6 +115,7 @@ pub trait RouterDbClient {
         generation: u128,
         sent_relays: Vec<RelayAddress>,
     ) -> AsyncOpResult<()>;
+    */
 
     /*
     fn get_balance(&mut self) -> AsyncOpResult<McBalance>;
