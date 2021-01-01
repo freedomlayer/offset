@@ -21,7 +21,6 @@ use proto::net::messages::NetAddress;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use crate::route::Route;
-use crate::router::move_token::{collect_outgoing_move_token, is_pending_move_token};
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
