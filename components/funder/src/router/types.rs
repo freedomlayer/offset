@@ -90,6 +90,7 @@ pub struct SentRelay {
 
 pub trait RouterDbClient {
     type TcDbClient: TcDbClient;
+    // TODO: Maybe should return an Option instead? What if friend doesn't exist?
     fn tc_db_client(&mut self, friend_public_key: PublicKey) -> &mut Self::TcDbClient;
 
     /*
