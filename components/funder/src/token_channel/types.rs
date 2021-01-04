@@ -35,7 +35,6 @@ pub enum TcStatus {
 
 pub trait TcDbClient {
     type McDbClient: McDbClient;
-    // TODO: Maybe should return an Option instead? What if currency doesn't exist?
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
