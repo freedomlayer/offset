@@ -31,6 +31,7 @@ use crate::router::types::{
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingMessage, IncomingResponseSendFundsOp,
 };
+use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::{
     create_index_mutations_from_move_token, create_update_index_mutation,
 };
@@ -46,21 +47,19 @@ async fn incoming_message_request<RC>(
     router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
     router_output: &mut RouterOutput,
+    currency: Currency,
     mut request_send_funds: RequestSendFundsOp,
-) where
+) -> Result<(), RouterError>
+where
     RC: RouterDbClient,
-    // TODO: Maybe not necessary:
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
-    // TODO:
-    // - Check if the message is directed to us, or to a next hop.
     // - If directed to us, punt
-    // - If directed to another friend,
+    // - If directed to another friend:
     //      - If friend exists and ready, forward to next hop
-    //      - otherwise, queue cancel
-
+    //      - Otherwise, queue cancel
     if request_send_funds.route.is_empty() {
         // Directed to us. Punt:
         router_output.add_incoming_request(request_send_funds);
@@ -69,12 +68,57 @@ async fn incoming_message_request<RC>(
         let next_public_key = request_send_funds.route.remove(0);
 
         // Check if next public key corresponds to a friend that is ready
+        let is_ready = if let Some(tc_db_client) = router_db_client
+            .tc_db_client(next_public_key.clone())
+            .await?
+        {
+            match tc_db_client.get_tc_status().await? {
+                TcStatus::ConsistentIn(..) | TcStatus::ConsistentOut(..) => true,
+                TcStatus::Inconsistent(..) => false,
+            }
+        } else {
+            // next public key points to a nonexistent friend!
+            false
+        } && router_state.liveness.is_online(&next_public_key);
 
-        // Directed to another friend
-        todo!();
+        if is_ready {
+            // Queue request to friend and flush destination friend
+            router_db_client
+                .pending_requests_push_back(next_public_key.clone(), currency, request_send_funds)
+                .await?;
+            flush_friend(
+                router_db_client,
+                next_public_key,
+                identity_client,
+                local_public_key,
+                max_operations_in_batch,
+                router_output,
+            )
+            .await?;
+        } else {
+            // Return a cancel message and flush origin friend
+            router_db_client
+                .pending_backwards_push_back(
+                    friend_public_key.clone(),
+                    currency,
+                    BackwardsOp::Cancel(CancelSendFundsOp {
+                        request_id: request_send_funds.request_id.clone(),
+                    }),
+                )
+                .await?;
+
+            flush_friend(
+                router_db_client,
+                friend_public_key,
+                identity_client,
+                local_public_key,
+                max_operations_in_batch,
+                router_output,
+            )
+            .await?;
+        }
     }
-
-    todo!();
+    Ok(())
 }
 
 async fn incoming_message_request_cancel<RC>(
@@ -84,7 +128,8 @@ async fn incoming_message_request_cancel<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     request_send_funds: RequestSendFundsOp,
-) where
+) -> Result<(), RouterError>
+where
     RC: RouterDbClient,
     // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
@@ -100,7 +145,8 @@ async fn incoming_message_response<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     incoming_response: IncomingResponseSendFundsOp,
-) where
+) -> Result<(), RouterError>
+where
     RC: RouterDbClient,
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
@@ -115,7 +161,8 @@ async fn incoming_message_cancel<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     cancel_send_funds: IncomingCancelSendFundsOp,
-) where
+) -> Result<(), RouterError>
+where
     RC: RouterDbClient,
     // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
@@ -205,7 +252,10 @@ where
                             router_state,
                             friend_public_key.clone(),
                             identity_client,
+                            local_public_key,
+                            max_operations_in_batch,
                             &mut output,
+                            currency,
                             request_send_funds,
                         )
                         .await
@@ -243,7 +293,7 @@ where
                         )
                         .await
                     }
-                }
+                }?;
             }
             todo!();
         }
