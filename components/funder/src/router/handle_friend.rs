@@ -50,6 +50,7 @@ async fn incoming_message_request<RC>(
     mut request_send_funds: RequestSendFundsOp,
 ) where
     RC: RouterDbClient,
+    // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
@@ -85,6 +86,7 @@ async fn incoming_message_request_cancel<RC>(
     request_send_funds: RequestSendFundsOp,
 ) where
     RC: RouterDbClient,
+    // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
@@ -115,6 +117,7 @@ async fn incoming_message_cancel<RC>(
     cancel_send_funds: IncomingCancelSendFundsOp,
 ) where
     RC: RouterDbClient,
+    // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
@@ -132,6 +135,7 @@ async fn incoming_move_token_request<RC>(
 ) -> Result<RouterOutput, RouterError>
 where
     RC: RouterDbClient,
+    // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
