@@ -47,8 +47,28 @@ async fn incoming_message_request<RC>(
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
-    request_send_funds: RequestSendFundsOp,
+    mut request_send_funds: RequestSendFundsOp,
 ) {
+    // TODO:
+    // - Check if the message is directed to us, or to a next hop.
+    // - If directed to us, punt
+    // - If directed to another friend,
+    //      - If friend exists and ready, forward to next hop
+    //      - otherwise, queue cancel
+
+    if request_send_funds.route.is_empty() {
+        // Directed to us. Punt:
+        router_output.add_incoming_request(request_send_funds);
+    } else {
+        // Route is not empty. We need to forward the request to a friend
+        let next_public_key = request_send_funds.route.remove(0);
+
+        // Check if next public key corresponds to a friend that is ready
+
+        // Directed to another friend
+        todo!();
+    }
+
     todo!();
 }
 
