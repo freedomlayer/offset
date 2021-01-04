@@ -65,6 +65,12 @@ async fn update_friend_local_relays(
     friend_public_key: PublicKey,
     rng: &mut impl CryptoRandom,
 ) -> Result<Option<(u128, Vec<RelayAddressPort>)>, RouterError> {
+    // First we make sure that the friend exists:
+    let _ = router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .ok_or(RouterError::InvalidDbState)?;
+
     let sent_relays = router_db_client
         .get_sent_relays(friend_public_key.clone())
         .await?;

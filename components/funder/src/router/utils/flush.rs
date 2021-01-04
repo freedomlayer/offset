@@ -41,6 +41,8 @@ pub async fn flush_friend(
 ) -> Result<(), RouterError> {
     match router_db_client
         .tc_db_client(friend_public_key.clone())
+        .await?
+        .ok_or(RouterError::InvalidDbState)?
         .get_tc_status()
         .await?
     {

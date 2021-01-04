@@ -46,13 +46,22 @@ pub async fn set_friend_online(
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
+    let mut output = RouterOutput::new();
+    let tc_status = if let Some(tc_db_client) = router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+    {
+        tc_db_client.get_tc_status().await?
+    } else {
+        return Ok(output);
+    };
+
     if router_state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as online!
         return Err(RouterError::FriendAlreadyOnline);
     }
     router_state.liveness.set_online(friend_public_key.clone());
-
-    let mut output = RouterOutput::new();
 
     // Check if we have any relays information to send to the remote side:
     if let (Some(generation), relays) = router_db_client
@@ -66,11 +75,7 @@ pub async fn set_friend_online(
         );
     }
 
-    match router_db_client
-        .tc_db_client(friend_public_key.clone())
-        .get_tc_status()
-        .await?
-    {
+    match tc_status {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
             let opt_move_token_request = collect_outgoing_move_token(
@@ -133,13 +138,21 @@ pub async fn set_friend_offline(
     router_state: &mut RouterState,
     friend_public_key: PublicKey,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
+    let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
+
     if !router_state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as offline!
         return Err(RouterError::FriendAlreadyOffline);
     }
     router_state.liveness.set_offline(&friend_public_key);
-
-    let mut output = RouterOutput::new();
 
     // Cancel all pending user requests
     while let Some((_currency, pending_user_request)) = router_db_client
@@ -199,7 +212,15 @@ pub async fn add_currency(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
     router_db_client
         .add_currency_config(friend_public_key.clone(), currency)
         .await?;
@@ -224,7 +245,15 @@ pub async fn set_remove_currency(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
     router_db_client
         .set_currency_remove(friend_public_key.clone(), currency)
         .await?;
@@ -249,7 +278,15 @@ pub async fn unset_remove_currency(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
     router_db_client
         .unset_currency_remove(friend_public_key.clone(), currency)
         .await?;
@@ -272,10 +309,15 @@ pub async fn set_remote_max_debt(
     currency: Currency,
     remote_max_debt: u128,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO: What to do if currency does not exist?
-    // Do we need to somehow report back?
-
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
 
     let opt_currency_info = router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
@@ -305,7 +347,15 @@ pub async fn open_currency(
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
 
     let opt_currency_info = router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
@@ -337,7 +387,15 @@ pub async fn close_currency(
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<RouterOutput, RouterError> {
+    // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
 
     let opt_currency_info = router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())

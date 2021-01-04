@@ -27,6 +27,7 @@ use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
+use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::{
     create_index_mutations_from_move_token, create_update_index_mutation,
 };
@@ -62,11 +63,23 @@ pub async fn send_request(
     // Pop second route public key:
     let friend_public_key = request.route.remove(0);
 
-    // Gather information about friend's channel and liveness:
-    let tc_status = router_db_client
+    let opt_tc_db_client = router_db_client
         .tc_db_client(friend_public_key.clone())
-        .get_tc_status()
         .await?;
+
+    let tc_db_client = if let Some(tc_db_client) = opt_tc_db_client {
+        tc_db_client
+    } else {
+        // Friend is not ready to accept a request.
+        // We cancel the request:
+        output.add_incoming_cancel(CancelSendFundsOp {
+            request_id: request.request_id,
+        });
+        return Ok(output);
+    };
+
+    // Gather information about friend's channel and liveness:
+    let tc_status = tc_db_client.get_tc_status().await?;
     let is_online = router_state.liveness.is_online(&friend_public_key);
 
     // If friend is ready (online + consistent):
@@ -144,74 +157,6 @@ pub async fn send_request(
     }
 
     Ok(output)
-}
-
-/// Attempt to send as much as possible through a token channel to remote side
-/// Assumes that the token channel is in consistent state (Incoming / Outgoing).
-async fn flush_friend(
-    router_db_client: &mut impl RouterDbClient,
-    friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
-) -> Result<(), RouterError> {
-    match router_db_client
-        .tc_db_client(friend_public_key.clone())
-        .get_tc_status()
-        .await?
-    {
-        TcStatus::ConsistentIn(_) => {
-            // Create an outgoing move token if we have something to send.
-            let opt_move_token_request = collect_outgoing_move_token(
-                router_db_client,
-                identity_client,
-                local_public_key,
-                friend_public_key.clone(),
-                max_operations_in_batch,
-            )
-            .await?;
-
-            if let Some(move_token_request) = opt_move_token_request {
-                // We have something to send to remote side:
-
-                // Update index mutations:
-                let index_mutations = create_index_mutations_from_move_token(
-                    router_db_client,
-                    friend_public_key.clone(),
-                    &move_token_request.move_token,
-                )
-                .await?;
-                for index_mutation in index_mutations {
-                    router_output.add_index_mutation(index_mutation);
-                }
-                router_output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(move_token_request),
-                );
-            }
-        }
-        TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
-            // Resend outgoing move token,
-            // possibly asking for the token if we have something to send
-            router_output.add_friend_message(
-                friend_public_key.clone(),
-                FriendMessage::MoveTokenRequest(MoveTokenRequest {
-                    move_token: move_token_out,
-                    token_wanted: is_pending_move_token(
-                        router_db_client,
-                        friend_public_key.clone(),
-                    )
-                    .await?,
-                }),
-            );
-        }
-        // This state is not possible, because we did manage to locate our request with this
-        // friend:
-        TcStatus::Inconsistent(..) => return Err(RouterError::UnexpectedTcStatus),
-    }
-
-    Ok(())
 }
 
 pub async fn send_response(

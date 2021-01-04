@@ -141,7 +141,10 @@ where
 {
     let mut output = RouterOutput::new();
     let receive_move_token_output = handle_in_move_token(
-        router_db_client.tc_db_client(friend_public_key.clone()),
+        router_db_client
+            .tc_db_client(friend_public_key.clone())
+            .await?
+            .ok_or(RouterError::InvalidDbState)?,
         identity_client,
         move_token_request.move_token,
         local_public_key,

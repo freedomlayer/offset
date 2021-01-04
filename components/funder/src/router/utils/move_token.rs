@@ -132,7 +132,10 @@ pub async fn collect_outgoing_move_token_allow_empty(
 
     // Create move token and update internal state:
     let move_token = handle_out_move_token(
-        router_db_client.tc_db_client(friend_public_key.clone()),
+        router_db_client
+            .tc_db_client(friend_public_key.clone())
+            .await?
+            .ok_or(RouterError::InvalidDbState)?,
         identity_client,
         currencies_operations,
         currencies_diff,
@@ -174,7 +177,10 @@ pub async fn collect_outgoing_move_token(
         } else {
             // We have something to send to remote side
             let move_token = handle_out_move_token(
-                router_db_client.tc_db_client(friend_public_key.clone()),
+                router_db_client
+                    .tc_db_client(friend_public_key.clone())
+                    .await?
+                    .ok_or(RouterError::InvalidDbState)?,
                 identity_client,
                 currencies_operations,
                 currencies_diff,
