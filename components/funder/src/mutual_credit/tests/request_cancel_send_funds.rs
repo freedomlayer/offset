@@ -13,8 +13,8 @@ use proto::funder::messages::{CancelSendFundsOp, Currency, FriendTcOp, RequestSe
 use crate::mutual_credit::tests::utils::MockMutualCredit;
 use crate::mutual_credit::types::McDbClient;
 
-use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::tests::utils::process_operations_list;
 
 async fn task_request_cancel_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();

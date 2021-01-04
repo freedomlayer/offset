@@ -233,7 +233,8 @@ pub struct CurrencyOperations {
     pub operations: Vec<FriendTcOp>,
 }
 
-pub type CurrenciesOperations = HashMap<Currency, Vec<FriendTcOp>>;
+// pub type CurrenciesOperations = HashMap<Currency, Vec<FriendTcOp>>;
+pub type CurrenciesOperations = Vec<(Currency, FriendTcOp)>;
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken {

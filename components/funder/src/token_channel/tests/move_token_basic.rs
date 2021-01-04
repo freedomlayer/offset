@@ -71,7 +71,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
-    let currencies_operations = HashMap::new();
+    let currencies_operations = Vec::new();
     let currencies_diff = vec![currency1.clone()];
     let move_token = handle_out_move_token(
         &mut tc_b_a,
@@ -100,7 +100,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Send a MoveToken message from a to b, adding two currencies:
     // ------------------------------------------------------------
-    let currencies_operations = HashMap::new();
+    let currencies_operations = Vec::new();
     let currencies_diff = vec![currency1.clone(), currency2.clone()];
     let move_token = handle_out_move_token(
         &mut tc_a_b,
@@ -141,13 +141,10 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         left_fees: 5u128,
     };
     let pending_transaction = create_pending_transaction(&request_send_funds_op);
-    let currencies_operations: HashMap<_, _> = [(
+    let currencies_operations = vec![(
         currency1.clone(),
-        vec![FriendTcOp::RequestSendFunds(request_send_funds_op.clone())],
-    )]
-    .iter()
-    .cloned()
-    .collect();
+        FriendTcOp::RequestSendFunds(request_send_funds_op.clone()),
+    )];
 
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
@@ -195,19 +192,16 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     .unwrap();
 
     // Make sure the the result is as expected:
-    let mut currencies = match res {
-        ReceiveMoveTokenOutput::Received(MoveTokenReceived { currencies }) => currencies,
+    let mut incoming_messages = match res {
+        ReceiveMoveTokenOutput::Received(MoveTokenReceived { incoming_messages }) => {
+            incoming_messages
+        }
         _ => unreachable!(),
     };
 
-    assert_eq!(currencies.len(), 1);
-    let mut move_token_received_currency = currencies.pop().unwrap();
-    assert_eq!(move_token_received_currency.currency, currency1);
-    assert_eq!(move_token_received_currency.incoming_messages.len(), 1);
-    let incoming_message = move_token_received_currency
-        .incoming_messages
-        .pop()
-        .unwrap();
+    assert_eq!(incoming_messages.len(), 1);
+    let (currency, incoming_message) = incoming_messages.pop().unwrap();
+    assert_eq!(currency, currency1);
     let received_request_send_funds_op = match incoming_message {
         IncomingMessage::Request(request_send_funds_op) => request_send_funds_op,
         _ => unreachable!(),
@@ -236,16 +230,10 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .await
         .unwrap();
 
-    let currencies_operations: HashMap<_, _> = [(
+    let currencies_operations = vec![(
         currency1.clone(),
-        vec![FriendTcOp::ResponseSendFunds(
-            response_send_funds_op.clone(),
-        )],
-    )]
-    .iter()
-    .cloned()
-    .collect();
-
+        FriendTcOp::ResponseSendFunds(response_send_funds_op.clone()),
+    )];
     let currencies_diff = vec![];
     let move_token = handle_out_move_token(
         &mut tc_a_b,

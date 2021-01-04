@@ -19,8 +19,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature};
 use proto::funder::messages::{
-    Currency, CurrencyOperations, FriendTcOp, McBalance, MoveToken, ResetBalance, ResetTerms,
-    TokenInfo,
+    CurrenciesOperations, Currency, CurrencyOperations, FriendTcOp, McBalance, MoveToken,
+    ResetBalance, ResetTerms, TokenInfo,
 };
 
 use signature::canonical::CanonicalSerialize;
@@ -31,9 +31,7 @@ use signature::verify::verify_move_token;
 
 use database::transaction::{TransFunc, Transaction};
 
-use crate::mutual_credit::incoming::{
-    process_operations_list, IncomingMessage, ProcessTransListError,
-};
+use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
 use crate::mutual_credit::types::McDbClient;
 
@@ -43,7 +41,7 @@ use crate::types::{create_hashed, MoveTokenHashed};
 /// Unrecoverable TokenChannel error
 #[derive(Debug, From)]
 pub enum TokenChannelError {
-    InvalidTransaction(ProcessTransListError),
+    InvalidTransaction(ProcessOperationError),
     MoveTokenCounterOverflow,
     CanNotRemoveCurrencyInUse,
     InvalidTokenChannelStatus,
@@ -54,15 +52,8 @@ pub enum TokenChannelError {
 }
 
 #[derive(Debug)]
-pub struct MoveTokenReceivedCurrency {
-    pub currency: Currency,
-    pub incoming_messages: Vec<IncomingMessage>,
-}
-
-#[derive(Debug)]
 pub struct MoveTokenReceived {
-    // TODO: Why isn't this a hash map? Does the order matter here?
-    pub currencies: Vec<MoveTokenReceivedCurrency>,
+    pub incoming_messages: Vec<(Currency, IncomingMessage)>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -105,7 +96,7 @@ pub fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKe
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     let move_token_out = MoveToken {
         old_token: token_from_public_key(&low_public_key),
-        currencies_operations: HashMap::new(),
+        currencies_operations: Vec::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(&low_public_key, &high_public_key, &token_info),
         new_token: token_from_public_key(&high_public_key),
@@ -294,7 +285,7 @@ where
 
                 let move_token_out = MoveToken {
                     old_token: Signature::from(&[0; Signature::len()]),
-                    currencies_operations: HashMap::new(),
+                    currencies_operations: Vec::new(),
                     currencies_diff: Vec::new(),
                     info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
                     new_token: local_reset_terms.reset_token.clone(),
@@ -593,9 +584,9 @@ async fn handle_incoming_token_match(
         ));
     }
 
-    // Aggregate results for every currency:
+    // Aggregate incoming messages:
     let mut move_token_received = MoveTokenReceived {
-        currencies: Vec::new(),
+        incoming_messages: Vec::new(),
     };
 
     // Handle active currencies:
@@ -653,20 +644,20 @@ async fn handle_incoming_token_match(
     }
 
     // Attempt to apply operations for every currency:
-    for (currency, friend_tc_ops) in &new_move_token.currencies_operations {
+    for (currency, friend_tc_op) in &new_move_token.currencies_operations {
         let remote_max_debt = tc_client.get_remote_max_debt(currency.clone()).await?;
 
-        let res = process_operations_list(
+        let res = process_operation(
             tc_client.mc_db_client(currency.clone()),
-            friend_tc_ops.clone(),
+            friend_tc_op.clone(),
             &currency,
             remote_public_key,
             remote_max_debt,
         )
         .await;
 
-        let incoming_messages = match res {
-            Ok(incoming_messages) => incoming_messages,
+        let incoming_message = match res {
+            Ok(incoming_message) => incoming_message,
             Err(_) => {
                 return Ok(IncomingTokenMatchOutput::InvalidIncoming(
                     InvalidIncoming::InvalidOperation,
@@ -674,16 +665,18 @@ async fn handle_incoming_token_match(
             }
         };
 
+        /*
         // We apply mutations on this token channel, to verify stated balance values
         // let mut check_mutual_credit = mutual_credit.clone();
         let move_token_received_currency = MoveTokenReceivedCurrency {
             currency: currency.clone(),
             incoming_messages,
         };
+        */
 
         move_token_received
-            .currencies
-            .push(move_token_received_currency);
+            .incoming_messages
+            .push((currency.clone(), incoming_message));
     }
 
     let move_token_counter = tc_client.get_move_token_counter().await?;
@@ -725,7 +718,7 @@ async fn handle_incoming_token_match(
 pub async fn handle_out_move_token(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: HashMap<Currency, Vec<FriendTcOp>>,
+    currencies_operations: CurrenciesOperations,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -782,16 +775,14 @@ pub async fn handle_out_move_token(
     }
 
     // Update mutual credits:
-    for (currency, friend_tc_ops) in &currencies_operations {
-        for operation in friend_tc_ops.iter().cloned() {
-            queue_operation(
-                tc_client.mc_db_client(currency.clone()),
-                operation,
-                &currency,
-                local_public_key,
-            )
-            .await?;
-        }
+    for (currency, friend_tc_op) in &currencies_operations {
+        queue_operation(
+            tc_client.mc_db_client(currency.clone()),
+            friend_tc_op.clone(),
+            &currency,
+            local_public_key,
+        )
+        .await?;
     }
 
     let new_move_token_counter = tc_client
@@ -837,7 +828,7 @@ pub async fn handle_out_move_token(
 pub async fn accept_remote_reset(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: HashMap<Currency, Vec<FriendTcOp>>,
+    currencies_operations: CurrenciesOperations,
     currencies_diff: Vec<Currency>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
@@ -871,7 +862,7 @@ pub async fn accept_remote_reset(
 
     let move_token_in = MoveToken {
         old_token: Signature::from(&[0; Signature::len()]),
-        currencies_operations: HashMap::new(),
+        currencies_operations: Vec::new(),
         currencies_diff: Vec::new(),
         info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
         new_token: remote_reset_token.clone(),

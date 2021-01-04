@@ -11,12 +11,11 @@ use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Si
 use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp};
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::tests::utils::MockMutualCredit;
-use crate::mutual_credit::types::McDbClient;
-use crate::types::create_pending_transaction;
-
-use crate::mutual_credit::incoming::process_operations_list;
 use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
+use crate::mutual_credit::types::McDbClient;
+
+use crate::types::create_pending_transaction;
 
 async fn task_request_response_send_funds() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();

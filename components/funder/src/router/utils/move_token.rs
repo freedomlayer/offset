@@ -26,6 +26,7 @@ use crate::router::types::{
 };
 use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
 
+/*
 fn operations_vec_to_currencies_operations(
     operations_vec: Vec<(Currency, FriendTcOp)>,
 ) -> CurrenciesOperations {
@@ -36,6 +37,7 @@ fn operations_vec_to_currencies_operations(
     }
     currencies_operations
 }
+*/
 
 async fn collect_currencies_operations(
     router_db_client: &mut impl RouterDbClient,
@@ -57,7 +59,7 @@ async fn collect_currencies_operations(
 
         // Make sure we do not exceed maximum amount of operations:
         if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec_to_currencies_operations(operations_vec));
+            return Ok(operations_vec);
         }
     }
 
@@ -71,7 +73,7 @@ async fn collect_currencies_operations(
 
         // Make sure we do not exceed maximum amount of operations:
         if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec_to_currencies_operations(operations_vec));
+            return Ok(operations_vec);
         }
     }
 
@@ -85,11 +87,11 @@ async fn collect_currencies_operations(
 
         // Make sure we do not exceed maximum amount of operations:
         if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec_to_currencies_operations(operations_vec));
+            return Ok(operations_vec);
         }
     }
 
-    Ok(operations_vec_to_currencies_operations(operations_vec))
+    Ok(operations_vec)
 }
 
 /// Do we have more pending currencies operations?

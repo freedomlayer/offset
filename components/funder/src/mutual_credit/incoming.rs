@@ -52,43 +52,6 @@ pub enum ProcessOperationError {
     OpError(OpError),
 }
 
-#[derive(Debug)]
-pub struct ProcessTransListError {
-    index: usize,
-    process_trans_error: ProcessOperationError,
-}
-
-pub async fn process_operations_list(
-    mc_client: &mut impl McDbClient,
-    operations: Vec<FriendTcOp>,
-    currency: &Currency,
-    remote_public_key: &PublicKey,
-    remote_max_debt: u128,
-) -> Result<Vec<IncomingMessage>, ProcessTransListError> {
-    let mut outputs = Vec::new();
-
-    for (index, friend_tc_op) in operations.into_iter().enumerate() {
-        match process_operation(
-            mc_client,
-            friend_tc_op,
-            currency,
-            remote_public_key,
-            remote_max_debt,
-        )
-        .await
-        {
-            Err(e) => {
-                return Err(ProcessTransListError {
-                    index,
-                    process_trans_error: e,
-                })
-            }
-            Ok(incoming_message) => outputs.push(incoming_message),
-        }
-    }
-    Ok(outputs)
-}
-
 pub async fn process_operation(
     mc_client: &mut impl McDbClient,
     friend_tc_op: FriendTcOp,

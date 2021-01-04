@@ -80,7 +80,7 @@ pub async fn create_index_mutations_from_move_token(
             currencies.insert(currency.clone());
         }
 
-        for currency in move_token.currencies_operations.keys() {
+        for (currency, _operation) in &move_token.currencies_operations {
             currencies.insert(currency.clone());
         }
         currencies
