@@ -28,6 +28,8 @@ pub struct IncomingResponseSendFundsOp {
 #[derive(Debug)]
 pub struct IncomingCancelSendFundsOp {
     pub pending_transaction: PendingTransaction,
+    // TODO: incoming_cancel looks redundant, because we can already deduce request_id from
+    // `pending_transaction`. Maybe remove it?
     pub incoming_cancel: CancelSendFundsOp,
 }
 
