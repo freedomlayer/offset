@@ -48,7 +48,11 @@ async fn incoming_message_request<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     mut request_send_funds: RequestSendFundsOp,
-) {
+) where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
     // TODO:
     // - Check if the message is directed to us, or to a next hop.
     // - If directed to us, punt
@@ -79,7 +83,11 @@ async fn incoming_message_request_cancel<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     request_send_funds: RequestSendFundsOp,
-) {
+) where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
     todo!();
 }
 
@@ -90,7 +98,11 @@ async fn incoming_message_response<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     incoming_response: IncomingResponseSendFundsOp,
-) {
+) where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
     todo!();
 }
 
@@ -101,7 +113,11 @@ async fn incoming_message_cancel<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     cancel_send_funds: IncomingCancelSendFundsOp,
-) {
+) where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
     todo!();
 }
 
