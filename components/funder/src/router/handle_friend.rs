@@ -131,9 +131,6 @@ async fn incoming_message_request_cancel<RC>(
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
-    // TODO: Maybe not necessary:
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
     todo!();
 }
@@ -148,8 +145,6 @@ async fn incoming_message_response<RC>(
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
     todo!();
 }
@@ -164,9 +159,6 @@ async fn incoming_message_cancel<RC>(
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
-    // TODO: Maybe not necessary:
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
     todo!();
 }
