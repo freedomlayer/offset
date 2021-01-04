@@ -124,11 +124,12 @@ fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
 impl TcDbClient for MockTokenChannel {
     type McDbClient = MockMutualCredit;
 
-    fn mc_db_client(&mut self, currency: Currency) -> &mut Self::McDbClient {
+    // TODO: Maybe take into account other return values, like None, instead of unwrapping?
+    fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>> {
         match &mut self.status {
-            MockTcStatus::Consistent(tc_consistent) => {
-                tc_consistent.mutual_credits.get_mut(&currency).unwrap()
-            }
+            MockTcStatus::Consistent(tc_consistent) => Box::pin(future::ready(Ok(Some(
+                tc_consistent.mutual_credits.get_mut(&currency).unwrap(),
+            )))),
             _ => unreachable!(),
         }
     }

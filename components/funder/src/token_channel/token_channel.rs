@@ -615,6 +615,8 @@ async fn handle_incoming_token_match(
             if is_local_currency {
                 let mc_balance = tc_client
                     .mc_db_client(diff_currency.clone())
+                    .await?
+                    .ok_or(TokenChannelError::InvalidDbState)?
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -648,7 +650,10 @@ async fn handle_incoming_token_match(
         let remote_max_debt = tc_client.get_remote_max_debt(currency.clone()).await?;
 
         let res = process_operation(
-            tc_client.mc_db_client(currency.clone()),
+            tc_client
+                .mc_db_client(currency.clone())
+                .await?
+                .ok_or(TokenChannelError::InvalidDbState)?,
             friend_tc_op.clone(),
             &currency,
             remote_public_key,
@@ -747,6 +752,8 @@ pub async fn handle_out_move_token(
             if is_remote_currency {
                 let mc_balance = tc_client
                     .mc_db_client(diff_currency.clone())
+                    .await?
+                    .ok_or(TokenChannelError::InvalidDbState)?
                     .get_balance()
                     .await?;
                 if mc_balance.balance == 0
@@ -777,7 +784,10 @@ pub async fn handle_out_move_token(
     // Update mutual credits:
     for (currency, friend_tc_op) in &currencies_operations {
         queue_operation(
-            tc_client.mc_db_client(currency.clone()),
+            tc_client
+                .mc_db_client(currency.clone())
+                .await?
+                .ok_or(TokenChannelError::InvalidDbState)?,
             friend_tc_op.clone(),
             &currency,
             local_public_key,
