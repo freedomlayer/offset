@@ -118,6 +118,8 @@ where
     Ok(())
 }
 
+/// An incoming request was received, but due to insufficient trust we can not
+/// forward this request. We return a cancel message to the sender friend
 async fn incoming_message_request_cancel<RC>(
     mut router_db_client: &mut RC,
     friend_public_key: PublicKey,
@@ -129,7 +131,6 @@ async fn incoming_message_request_cancel<RC>(
 where
     RC: RouterDbClient,
 {
-    // Queue cancel to friend_public_key (Request origin)
     if router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -138,6 +139,7 @@ where
         .await?
         .is_consistent()
     {
+        // Queue cancel to friend_public_key (Request origin)
         router_db_client
             .pending_requests_push_back(friend_public_key.clone(), currency, request_send_funds)
             .await?;
@@ -160,6 +162,12 @@ async fn incoming_message_response<RC>(
 where
     RC: RouterDbClient,
 {
+    // TODO:
+    // - Check if the origin of this message is local (How to do this?)
+    //      - If so, punt response and quit
+    // - Find the origin of the request.
+    //      - If nonexistent, do nothing
+    //      - If found and consistent, queue response
     todo!();
 }
 
