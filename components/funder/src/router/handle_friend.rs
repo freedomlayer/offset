@@ -68,7 +68,7 @@ where
         let next_public_key = request_send_funds.route.remove(0);
 
         // Check if next public key corresponds to a friend that is ready
-        let is_ready = if let Some(tc_db_client) = router_db_client
+        let should_forward = if let Some(tc_db_client) = router_db_client
             .tc_db_client(next_public_key.clone())
             .await?
         {
@@ -76,9 +76,12 @@ where
         } else {
             // next public key points to a nonexistent friend!
             false
-        } && router_state.liveness.is_online(&next_public_key);
+        } && router_state.liveness.is_online(&next_public_key)
+            && !router_db_client
+                .is_local_request_exists(request_send_funds.request_id.clone())
+                .await?;
 
-        if is_ready {
+        if should_forward {
             // Queue request to friend and flush destination friend
             router_db_client
                 .pending_requests_push_back(next_public_key.clone(), currency, request_send_funds)
