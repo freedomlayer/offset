@@ -79,81 +79,31 @@ pub async fn send_request(
     };
 
     // Gather information about friend's channel and liveness:
-    let tc_status = tc_db_client.get_tc_status().await?;
-    let is_online = router_state.liveness.is_online(&friend_public_key);
+    // let tc_status = tc_db_client.get_tc_status().await?;
+    // let is_online = router_state.liveness.is_online(&friend_public_key);
 
-    // If friend is ready (online + consistent):
-    // - push the request
-    //      - If token is incoming:
-    //          - Send an outoging token
-    //      - Else (token is outgoing):
-    //          - Request token
-    // Else (Friend is not ready):
-    // - Send a cancel
-    match (tc_status, is_online) {
-        (TcStatus::ConsistentIn(_), true) => {
-            // Push request:
-            router_db_client
-                .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
-                .await?;
-
-            // Create an outgoing move token if we have something to send.
-            let opt_move_token_request = collect_outgoing_move_token(
-                router_db_client,
-                identity_client,
-                local_public_key,
-                friend_public_key.clone(),
-                max_operations_in_batch,
-            )
+    // Check if friend is ready:
+    if tc_db_client.get_tc_status().await?.is_consistent()
+        && router_state.liveness.is_online(&friend_public_key)
+    {
+        // Push request:
+        router_db_client
+            .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
             .await?;
 
-            if let Some(move_token_request) = opt_move_token_request {
-                // We have something to send to remote side
-                // Deduce index mutations according to move token:
-                let index_mutations = create_index_mutations_from_move_token(
-                    router_db_client,
-                    friend_public_key.clone(),
-                    &move_token_request.move_token,
-                )
-                .await?;
-                for index_mutation in index_mutations {
-                    output.add_index_mutation(index_mutation);
-                }
-
-                // Send move token request to remote side:
-                output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(move_token_request),
-                );
-            }
-        }
-        (TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in), true) => {
-            // Push request:
-            router_db_client
-                .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
-                .await?;
-
-            // Resend outgoing move token,
-            // possibly asking for the token if we have something to send
-            output.add_friend_message(
-                friend_public_key.clone(),
-                FriendMessage::MoveTokenRequest(MoveTokenRequest {
-                    move_token: move_token_out,
-                    token_wanted: is_pending_move_token(
-                        router_db_client,
-                        friend_public_key.clone(),
-                    )
-                    .await?,
-                }),
-            );
-        }
-        _ => {
-            // Friend is not ready to accept a request.
-            // We cancel the request:
-            output.add_incoming_cancel(CancelSendFundsOp {
-                request_id: request.request_id,
-            });
-        }
+        flush_friend(
+            router_db_client,
+            friend_public_key.clone(),
+            identity_client,
+            local_public_key,
+            max_operations_in_batch,
+            &mut output,
+        )
+        .await?;
+    } else {
+        output.add_incoming_cancel(CancelSendFundsOp {
+            request_id: request.request_id,
+        });
     }
 
     Ok(output)
