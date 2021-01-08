@@ -147,6 +147,9 @@ pub trait RouterDbClient {
     ) -> AsyncOpResult<BackwardsOp>;
     */
 
+    fn add_local_request(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+    fn remove_local_request(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+
     fn pending_backwards_pop_front(
         &mut self,
         friend_public_key: PublicKey,
@@ -183,6 +186,11 @@ pub trait RouterDbClient {
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
 
+    /// Check if a `request_id` is already in use.
+    /// Searches all local pending requests, and all local open transactions.
+    fn is_local_request_exists(&mut self, request_id: Uid) -> AsyncOpResult<bool>;
+
+    // TODO: What happens if impossible to push, due to duplicate request id?
     fn pending_requests_push_back(
         &mut self,
         friend_public_key: PublicKey,

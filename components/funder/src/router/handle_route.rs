@@ -52,6 +52,17 @@ pub async fn send_request(
 
     let mut output = RouterOutput::new();
 
+    if router_db_client
+        .is_local_request_exists(request.request_id.clone())
+        .await?
+    {
+        // We already have a local request with the same id. Return back a cancel.
+        output.add_incoming_cancel(CancelSendFundsOp {
+            request_id: request.request_id,
+        });
+        return Ok(output);
+    }
+
     // We cut the first two public keys from the route:
     // Pop first route public key:
     let route_local_public_key = request.route.remove(0);
@@ -71,7 +82,7 @@ pub async fn send_request(
         // Friend is not ready to accept a request.
         // We cancel the request:
         output.add_incoming_cancel(CancelSendFundsOp {
-            request_id: request.request_id,
+            request_id: request.request_id.clone(),
         });
         return Ok(output);
     };
@@ -84,10 +95,17 @@ pub async fn send_request(
     if tc_db_client.get_tc_status().await?.is_consistent()
         && router_state.liveness.is_online(&friend_public_key)
     {
+        // Keep request_id:
+        let request_id = request.request_id.clone();
+
         // Push request:
         router_db_client
             .pending_user_requests_push_back(friend_public_key.clone(), currency, request)
             .await?;
+
+        // Mark request as created locally, so that we remember to punt the corresponding
+        // response/cancel message later.
+        router_db_client.add_local_request(request_id).await?;
 
         flush_friend(
             router_db_client,
