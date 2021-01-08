@@ -33,6 +33,15 @@ pub enum TcStatus {
     Inconsistent(ResetTerms, Option<ResetTerms>), // (local_reset_terms, Option<remote_reset_terms)
 }
 
+impl TcStatus {
+    pub fn is_consistent(&self) -> bool {
+        match &self {
+            Self::ConsistentIn(..) | Self::ConsistentOut(..) => true,
+            Self::Inconsistent(..) => false,
+        }
+    }
+}
+
 pub trait TcDbClient {
     type McDbClient: McDbClient;
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;

@@ -72,10 +72,7 @@ where
             .tc_db_client(next_public_key.clone())
             .await?
         {
-            match tc_db_client.get_tc_status().await? {
-                TcStatus::ConsistentIn(..) | TcStatus::ConsistentOut(..) => true,
-                TcStatus::Inconsistent(..) => false,
-            }
+            tc_db_client.get_tc_status().await?.is_consistent()
         } else {
             // next public key points to a nonexistent friend!
             false
@@ -123,16 +120,33 @@ where
 
 async fn incoming_message_request_cancel<RC>(
     mut router_db_client: &mut RC,
-    router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
+    currency: Currency,
     request_send_funds: RequestSendFundsOp,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
 {
-    todo!();
+    // Queue cancel to friend_public_key (Request origin)
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .ok_or(RouterError::InvalidDbState)?
+        .get_tc_status()
+        .await?
+        .is_consistent()
+    {
+        router_db_client
+            .pending_requests_push_back(friend_public_key.clone(), currency, request_send_funds)
+            .await?;
+    } else {
+        // We have just received a cancel message from this friend.
+        // We expect that this friend is consistent
+        return Err(RouterError::InvalidDbState);
+    }
+    Ok(())
 }
 
 async fn incoming_message_response<RC>(
@@ -160,6 +174,13 @@ async fn incoming_message_cancel<RC>(
 where
     RC: RouterDbClient,
 {
+    // TODO:
+    // - Check if request origin is local
+    //      - If so, punt cancel
+    // - Otherwise, find request friend origin
+    //      - If found, forward cancel to friend if possible
+    //          - What if inconsistent?
+    //      - Flush friend
     todo!();
 }
 
@@ -255,10 +276,10 @@ where
                     IncomingMessage::RequestCancel(request_send_funds) => {
                         incoming_message_request_cancel(
                             router_db_client,
-                            router_state,
                             friend_public_key.clone(),
                             identity_client,
                             &mut output,
+                            currency,
                             request_send_funds,
                         )
                         .await
