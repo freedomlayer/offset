@@ -421,7 +421,6 @@ where
                     }
                 }?;
             }
-            todo!();
         }
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => todo!(), // (local_reset_token, local_reset_move_token_counter)
     }
