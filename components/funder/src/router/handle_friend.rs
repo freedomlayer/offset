@@ -434,7 +434,16 @@ where
                 }?;
             }
         }
-        ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => todo!(), // (local_reset_token, local_reset_move_token_counter)
+        ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => {
+            // TODO:
+            // - Cancel relevant requests:
+            //      - User pending requests
+            //      - pending requests
+            //      -
+            // - Send our reset terms
+            // -
+            todo!();
+        }
     }
 
     Ok(output)
