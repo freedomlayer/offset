@@ -19,6 +19,8 @@ use crate::types::create_pending_transaction;
 
 use super::types::McDbClient;
 
+// TODO: Do we ever need the `pending_transaction` part for anything?
+// If not, maybe we can remove it?
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
     pub pending_transaction: PendingTransaction,

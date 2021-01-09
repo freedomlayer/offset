@@ -159,40 +159,136 @@ async fn incoming_message_response<RC>(
     router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
     router_output: &mut RouterOutput,
+    currency: Currency,
     incoming_response: IncomingResponseSendFundsOp,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
 {
-    // TODO:
-    // - Check if the origin of this message is local (How to do this?)
-    //      - If so, punt response and quit
-    // - Find the origin of the request.
-    //      - If nonexistent, do nothing
-    //      - If found and consistent, queue response
-    todo!();
+    // Gather information about request's origin:
+    let opt_request_origin = router_db_client
+        .get_remote_pending_request_origin(incoming_response.incoming_response.request_id.clone())
+        .await?;
+    let is_local_origin = router_db_client
+        .is_request_local_origin(incoming_response.incoming_response.request_id.clone())
+        .await?;
+
+    match (is_local_origin, opt_request_origin) {
+        (false, None) => {
+            // Request was probably originated from a friend that became inconsistent.
+            // We have nothing to do here.
+        }
+        (true, None) => {
+            // Request has originated locally
+            // We punt the response
+            router_output.add_incoming_response(incoming_response.incoming_response);
+        }
+        (false, Some(request_origin)) => {
+            // Request has originated from a friend.
+            // We assume that friend must be consistent, otherwise it would have not been found as
+            // an origin.
+
+            // Push response:
+            router_db_client
+                .pending_backwards_push_back(
+                    friend_public_key.clone(),
+                    currency,
+                    BackwardsOp::Response(incoming_response.incoming_response),
+                )
+                .await?;
+
+            // Attempt to send a move token if possible
+            flush_friend(
+                router_db_client,
+                friend_public_key.clone(),
+                identity_client,
+                local_public_key,
+                max_operations_in_batch,
+                router_output,
+            )
+            .await?;
+        }
+        (true, Some(request_origin)) => {
+            // This means the request has both originated locally, and from a friend.
+            // Note that this only happen during a cycle request, but a cycle always begins and
+            // ends at the local node.
+            // Therefore, this should never happen when processing a friend incoming response.
+            unreachable!();
+        }
+    }
+    Ok(())
 }
 
+// TODO: This function seems too similar to`incoming_message_response`
 async fn incoming_message_cancel<RC>(
     mut router_db_client: &mut RC,
     router_state: &mut RouterState,
     friend_public_key: PublicKey,
     identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    max_operations_in_batch: usize,
     router_output: &mut RouterOutput,
-    cancel_send_funds: IncomingCancelSendFundsOp,
+    currency: Currency,
+    incoming_cancel: IncomingCancelSendFundsOp,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
 {
-    // TODO:
-    // - Check if request origin is local
-    //      - If so, punt cancel
-    // - Otherwise, find request friend origin
-    //      - If found, forward cancel to friend if possible
-    //          - What if inconsistent?
-    //      - Flush friend
-    todo!();
+    // Gather information about request's origin:
+    let opt_request_origin = router_db_client
+        .get_remote_pending_request_origin(incoming_cancel.incoming_cancel.request_id.clone())
+        .await?;
+    let is_local_origin = router_db_client
+        .is_request_local_origin(incoming_cancel.incoming_cancel.request_id.clone())
+        .await?;
+
+    match (is_local_origin, opt_request_origin) {
+        (false, None) => {
+            // Request was probably originated from a friend that became inconsistent.
+            // We have nothing to do here.
+        }
+        (true, None) => {
+            // Request has originated locally
+            // We punt the cancel
+            router_output.add_incoming_cancel(incoming_cancel.incoming_cancel);
+        }
+        (false, Some(request_origin)) => {
+            // Request has originated from a friend.
+            // We assume that friend must be consistent, otherwise it would have not been found as
+            // an origin.
+
+            // Push cancel:
+            router_db_client
+                .pending_backwards_push_back(
+                    friend_public_key.clone(),
+                    currency,
+                    BackwardsOp::Cancel(incoming_cancel.incoming_cancel),
+                )
+                .await?;
+
+            // Attempt to send a move token if possible
+            flush_friend(
+                router_db_client,
+                friend_public_key.clone(),
+                identity_client,
+                local_public_key,
+                max_operations_in_batch,
+                router_output,
+            )
+            .await?;
+        }
+        (true, Some(request_origin)) => {
+            // This means the request has both originated locally, and from a friend.
+            // Note that this only happen during a cycle request, but a cycle always begins and
+            // ends at the local node.
+            // Therefore, this should never happen when processing a friend incoming cancel.
+            unreachable!();
+        }
+    }
+    Ok(())
 }
 
 async fn incoming_move_token_request<RC>(
@@ -301,7 +397,10 @@ where
                             router_state,
                             friend_public_key.clone(),
                             identity_client,
+                            local_public_key,
+                            max_operations_in_batch,
                             &mut output,
+                            currency,
                             incoming_response,
                         )
                         .await
@@ -312,7 +411,10 @@ where
                             router_state,
                             friend_public_key.clone(),
                             identity_client,
+                            local_public_key,
+                            max_operations_in_batch,
                             &mut output,
+                            currency,
                             incoming_cancel,
                         )
                         .await

@@ -209,10 +209,15 @@ pub trait RouterDbClient {
         currency: Currency,
     ) -> AsyncOpResult<Option<CurrencyInfo>>;
 
+    /// Check if the origin of the request is any of the friends
+    /// If so, find the relevant friend
     fn get_remote_pending_request_origin(
         &mut self,
         request_id: Uid,
     ) -> AsyncOpResult<Option<RequestOrigin>>;
+
+    /// Check if this request has originated from the local node
+    fn is_request_local_origin(&mut self, request_id: Uid) -> AsyncOpResult<bool>;
 
     fn add_currency_config(
         &mut self,
