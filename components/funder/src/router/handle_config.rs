@@ -157,6 +157,10 @@ pub async fn set_friend_offline(
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
+        // Clear the request from local requests list
+        router_db_client
+            .remove_local_request(pending_user_request.request_id.clone())
+            .await?;
         // Send outgoing cancel to user:
         output.add_incoming_cancel(CancelSendFundsOp {
             request_id: pending_user_request.request_id,

@@ -183,6 +183,12 @@ where
         }
         (true, None) => {
             // Request has originated locally
+
+            // Clear the request from local requests list
+            router_db_client
+                .remove_local_request(incoming_response.incoming_response.request_id.clone())
+                .await?;
+
             // We punt the response
             router_output.add_incoming_response(incoming_response.incoming_response);
         }
@@ -252,6 +258,12 @@ where
         }
         (true, None) => {
             // Request has originated locally
+
+            // Clear the request from local requests list
+            router_db_client
+                .remove_local_request(incoming_cancel.incoming_cancel.request_id.clone())
+                .await?;
+
             // We punt the cancel
             router_output.add_incoming_cancel(incoming_cancel.incoming_cancel);
         }
