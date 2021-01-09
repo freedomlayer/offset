@@ -376,6 +376,8 @@ where
             }
         }
         ReceiveMoveTokenOutput::Received(move_token_received) => {
+            // TODO: Handle index mutations here.
+            todo!();
             for (currency, incoming_message) in move_token_received.incoming_messages {
                 match incoming_message {
                     IncomingMessage::Request(request_send_funds) => {
@@ -439,9 +441,12 @@ where
             // - Cancel relevant requests:
             //      - User pending requests
             //      - pending requests
-            //      -
+            //
+            // - Handle index mutations?
+            //
             // - Send our reset terms
-            // -
+            //
+            // - Notify to the outside?
             todo!();
         }
     }
