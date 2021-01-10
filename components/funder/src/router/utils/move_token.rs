@@ -297,8 +297,6 @@ fn diff_capacities(
             .get(&currency)
             .ok_or(RouterError::InvalidState)?;
 
-        // let currency_info = currencies_info.get(currency
-
         if capacity_before != capacity_after {
             if *capacity_after == 0 {
                 index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
