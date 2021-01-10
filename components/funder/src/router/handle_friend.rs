@@ -34,11 +34,10 @@ use crate::mutual_credit::incoming::{
 use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::{
-    collect_outgoing_move_token, collect_outgoing_move_token_allow_empty, is_pending_move_token,
+    collect_outgoing_move_token_allow_empty, handle_in_move_token_index_mutations,
+    handle_out_move_token_index_mutations, is_pending_move_token,
 };
-use crate::token_channel::{
-    handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
-};
+use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError};
 
 async fn incoming_message_request<RC>(
     mut router_db_client: &mut RC,
@@ -319,15 +318,13 @@ where
     // TODO: Do not forward if requests not enabled? / Friend not enabled?
     todo!();
     let mut output = RouterOutput::new();
-    let receive_move_token_output = handle_in_move_token(
-        router_db_client
-            .tc_db_client(friend_public_key.clone())
-            .await?
-            .ok_or(RouterError::InvalidDbState)?,
+
+    let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
+        router_db_client,
         identity_client,
         move_token_request.move_token,
         local_public_key,
-        &friend_public_key,
+        friend_public_key.clone(),
     )
     .await?;
 
@@ -339,6 +336,10 @@ where
 
             // Possibly send token to remote side (According to token_wanted)
             if move_token_request.token_wanted {
+                // TODO: What about index mutations here (Allow empty)
+                // How to elegantly create a separate version for creation of outgoing move token,
+                // allowing an empty move token?
+                todo!();
                 let out_move_token_request = collect_outgoing_move_token_allow_empty(
                     router_db_client,
                     identity_client,
@@ -376,8 +377,6 @@ where
             }
         }
         ReceiveMoveTokenOutput::Received(move_token_received) => {
-            // TODO: Handle index mutations here.
-            todo!();
             for (currency, incoming_message) in move_token_received.incoming_messages {
                 match incoming_message {
                     IncomingMessage::Request(request_send_funds) => {
@@ -435,6 +434,11 @@ where
                     }
                 }?;
             }
+
+            // TODO: Possibly send MoveToken back to friend in one of the following cases:
+            // - We have something to send
+            // - The friend has asked for the token back
+            todo!();
         }
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => {
             // TODO:
@@ -449,6 +453,11 @@ where
             // - Notify to the outside?
             todo!();
         }
+    }
+
+    // Add index mutations:
+    for index_mutation in index_mutations {
+        output.add_index_mutation(index_mutation);
     }
 
     Ok(output)

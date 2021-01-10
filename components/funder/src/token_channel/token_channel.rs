@@ -237,7 +237,6 @@ pub async fn handle_in_move_token<C>(
     remote_public_key: &PublicKey,
 ) -> Result<ReceiveMoveTokenOutput, TokenChannelError>
 where
-    // TODO: Can we somehow get rid of the Sync requirement for `B`?
     C: TcDbClient + Transaction + Send,
     C::McDbClient: Send,
 {

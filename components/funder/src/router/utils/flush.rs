@@ -27,7 +27,9 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
-use crate::router::utils::move_token::{collect_outgoing_move_token, is_pending_move_token};
+use crate::router::utils::move_token::{
+    handle_out_move_token_index_mutations, is_pending_move_token,
+};
 
 /// Attempt to send as much as possible through a token channel to remote side
 /// Assumes that the token channel is in consistent state (Incoming / Outgoing).
@@ -48,7 +50,7 @@ pub async fn flush_friend(
     {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
-            let opt_tuple = collect_outgoing_move_token(
+            let opt_tuple = handle_out_move_token_index_mutations(
                 router_db_client,
                 identity_client,
                 local_public_key,

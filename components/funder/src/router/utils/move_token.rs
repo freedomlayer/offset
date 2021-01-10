@@ -20,12 +20,17 @@ use proto::net::messages::NetAddress;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
+use database::transaction::Transaction;
+
 use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::index_mutation::calc_recv_capacity;
-use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
+use crate::token_channel::{
+    handle_in_move_token, handle_out_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus,
+    TokenChannelError,
+};
 
 /*
 fn operations_vec_to_currencies_operations(
@@ -111,6 +116,8 @@ async fn is_pending_currencies_operations(
             .await?)
 }
 
+// TODO: Rewrite this function to also return index mutations.
+// Should be very similar to  `handle_in_move_token_index_mutations`.
 /// Attempt to create an outgoing move token
 /// May create an empty move token.
 pub async fn collect_outgoing_move_token_allow_empty(
@@ -120,6 +127,7 @@ pub async fn collect_outgoing_move_token_allow_empty(
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<MoveTokenRequest, RouterError> {
+    todo!();
     let currencies_operations = collect_currencies_operations(
         router_db_client,
         friend_public_key.clone(),
@@ -321,7 +329,7 @@ fn diff_capacities(
     Ok(index_mutations)
 }
 
-pub async fn collect_outgoing_move_token(
+pub async fn handle_out_move_token_index_mutations(
     router_db_client: &mut impl RouterDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
@@ -398,4 +406,67 @@ pub async fn is_pending_move_token(
                 .await?
                 .is_empty(),
     )
+}
+
+pub async fn handle_in_move_token_index_mutations<RC>(
+    router_db_client: &mut RC,
+    identity_client: &mut IdentityClient,
+    move_token: MoveToken,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+) -> Result<(ReceiveMoveTokenOutput, Vec<IndexMutation>), RouterError>
+where
+    RC: RouterDbClient,
+    RC::TcDbClient: Transaction + Send,
+    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
+{
+    // Get list of interesting currencies:
+    let pre_move_token = PreMoveToken {
+        currencies_operations: move_token.currencies_operations.clone(),
+        currencies_diff: move_token.currencies_diff.clone(),
+    };
+    let currencies = get_mentioned_currencies(&pre_move_token);
+
+    // Record recv capacity for all interesting currencies
+    let currencies_info_before =
+        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
+
+    let recv_capacities_before = get_recv_capacities(
+        &currencies_info_before,
+        friend_public_key.clone(),
+        &currencies,
+    )?;
+
+    // Handle incoming move token:
+    let receive_move_token_output = handle_in_move_token(
+        router_db_client
+            .tc_db_client(friend_public_key.clone())
+            .await?
+            .ok_or(RouterError::InvalidDbState)?,
+        identity_client,
+        move_token,
+        local_public_key,
+        &friend_public_key,
+    )
+    .await?;
+
+    let currencies_info_after =
+        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
+
+    // Record recv capacity for all interesting currencies
+    let recv_capacities_after = get_recv_capacities(
+        &currencies_info_after,
+        friend_public_key.clone(),
+        &currencies,
+    )?;
+
+    // Compare recv capacities and create index mutations:
+    let index_mutations = diff_capacities(
+        friend_public_key,
+        &recv_capacities_before,
+        &recv_capacities_after,
+        &currencies_info_after,
+    )?;
+
+    Ok((receive_move_token_output, index_mutations))
 }
