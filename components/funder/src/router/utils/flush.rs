@@ -26,7 +26,7 @@ use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
-use crate::router::utils::index_mutation::create_index_mutations_from_move_token;
+use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
 use crate::router::utils::move_token::{collect_outgoing_move_token, is_pending_move_token};
 
 /// Attempt to send as much as possible through a token channel to remote side
@@ -61,7 +61,7 @@ pub async fn flush_friend(
                 // We have something to send to remote side:
 
                 // Update index mutations:
-                let index_mutations = create_index_mutations_from_move_token(
+                let index_mutations = create_index_mutations_from_outgoing_move_token(
                     router_db_client,
                     friend_public_key.clone(),
                     &move_token_request.move_token,

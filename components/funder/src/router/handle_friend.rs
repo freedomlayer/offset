@@ -33,7 +33,7 @@ use crate::mutual_credit::incoming::{
 };
 use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::{
-    create_index_mutations_from_move_token, create_update_index_mutation,
+    create_index_mutations_from_outgoing_move_token, create_update_index_mutation,
 };
 use crate::router::utils::move_token::{
     collect_outgoing_move_token, collect_outgoing_move_token_allow_empty, is_pending_move_token,

@@ -67,8 +67,9 @@ pub fn create_update_index_mutation(
     }))
 }
 
-/// Create a list of index mutations based on a MoveToken message.
-pub async fn create_index_mutations_from_move_token(
+/// Create a list of index mutations based on an outgoing MoveToken message.
+/// Note that the outgoing MoveToken message was already applied.
+pub async fn create_index_mutations_from_outgoing_move_token(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     move_token: &MoveToken,
