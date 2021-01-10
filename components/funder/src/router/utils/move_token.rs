@@ -323,8 +323,6 @@ fn diff_capacities(
     Ok(index_mutations)
 }
 
-// TODO: Refactor this function.
-// There are too many repeating parts.
 pub async fn collect_outgoing_move_token(
     router_db_client: &mut impl RouterDbClient,
     identity_client: &mut IdentityClient,
