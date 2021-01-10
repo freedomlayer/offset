@@ -74,6 +74,19 @@ pub async fn create_index_mutations_from_outgoing_move_token(
     friend_public_key: PublicKey,
     move_token: &MoveToken,
 ) -> Result<Vec<IndexMutation>, RouterError> {
+    // Strategy:
+    // - For every currency in currencies diff:
+    //      - If currency is gone, send a RemoveFriendCurrency
+    //      - If currency exists, send UpdateFriendCurrency
+    // - For the currencies from currencies operations, that were not in the currencies diff:
+    //      - If currency is gone: Impossible
+    //      - If currency exists: send UpdateFriendCurrency
+    //
+    // This strategy is consolidated into the following simplified strategy:
+    // - For each mentioned currency (currencies_diff or currencies_operations):
+    //      - If currency is gone, send a RemoveFriendCurrency
+    //      - If currency exists, send UpdateFriendCurrency
+
     // Collect all mentioned currencies:
     let currencies = {
         let mut currencies = HashSet::new();
