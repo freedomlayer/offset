@@ -30,7 +30,7 @@ use crate::router::types::{
 
 use crate::mutual_credit::incoming::IncomingMessage;
 use crate::router::utils::index_mutation::create_update_index_mutation;
-use crate::router::utils::move_token::{collect_outgoing_move_token, is_pending_move_token};
+use crate::router::utils::move_token::is_pending_move_token;
 use crate::token_channel::{
     handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };

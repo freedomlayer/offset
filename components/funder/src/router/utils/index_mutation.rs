@@ -28,7 +28,7 @@ use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenCha
 
 /// Calculate receive capacity for a certain currency
 /// This is the number we are going to report to an index server
-fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterError> {
+pub fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterError> {
     if !currency_info.is_open {
         return Ok(0);
     }
@@ -123,4 +123,21 @@ pub async fn create_index_mutations_from_outgoing_move_token(
     }
 
     Ok(index_mutations)
+}
+
+/// Create a list of index mutations based on an incoming MoveToken message.
+/// Note that the incoming MoveToken message was already applied.
+pub async fn create_index_mutations_from_incoming_move_token(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    move_token: &MoveToken,
+) -> Result<Vec<IndexMutation>, RouterError> {
+    // Strategy:
+    // - For every currency in currencies diff:
+    //      - If currency is gone, send nothing (Because it was already gone before)
+    //      - If currency exists, send UpdateFriendCurrency
+    // - For the currencies from currencies operations, that were not in the currencies diff:
+    //      - If currency is gone: Impossible
+    //      - If currency exists: send UpdateFriendCurrency
+    todo!();
 }

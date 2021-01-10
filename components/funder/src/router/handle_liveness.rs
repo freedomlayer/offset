@@ -74,7 +74,7 @@ pub async fn set_friend_online(
     match tc_status {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
-            let opt_move_token_request = collect_outgoing_move_token(
+            let opt_tuple = collect_outgoing_move_token(
                 router_db_client,
                 identity_client,
                 local_public_key,
@@ -83,7 +83,10 @@ pub async fn set_friend_online(
             )
             .await?;
 
-            if let Some(move_token_request) = opt_move_token_request {
+            if let Some((move_token_request, _index_mutations)) = opt_tuple {
+                // We discard index_mutations calculation here, because we are going to add all
+                // open currencies anyways.
+
                 // We have something to send to remote side:
                 output.add_friend_message(
                     friend_public_key.clone(),

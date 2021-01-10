@@ -48,7 +48,7 @@ pub async fn flush_friend(
     {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
-            let opt_move_token_request = collect_outgoing_move_token(
+            let opt_tuple = collect_outgoing_move_token(
                 router_db_client,
                 identity_client,
                 local_public_key,
@@ -57,16 +57,10 @@ pub async fn flush_friend(
             )
             .await?;
 
-            if let Some(move_token_request) = opt_move_token_request {
+            if let Some((move_token_request, index_mutations)) = opt_tuple {
                 // We have something to send to remote side:
 
                 // Update index mutations:
-                let index_mutations = create_index_mutations_from_outgoing_move_token(
-                    router_db_client,
-                    friend_public_key.clone(),
-                    &move_token_request.move_token,
-                )
-                .await?;
                 for index_mutation in index_mutations {
                     router_output.add_index_mutation(index_mutation);
                 }

@@ -23,6 +23,7 @@ pub enum RouterError {
     FriendAlreadyOffline,
     GenerationOverflow,
     BalanceOverflow,
+    InvalidState,
     InvalidRoute,
     InvalidDbState,
     UnexpectedTcStatus,
