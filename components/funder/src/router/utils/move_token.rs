@@ -233,6 +233,96 @@ async fn send_pre_move_token(
     })
 }
 
+/// Collect all mentioned currencies from a PreMoveToken
+fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> HashSet<Currency> {
+    // Collect all mentioned currencies:
+    let mut currencies = HashSet::new();
+    for currency in &pre_move_token.currencies_diff {
+        currencies.insert(currency.clone());
+    }
+
+    for (currency, _operation) in &pre_move_token.currencies_operations {
+        currencies.insert(currency.clone());
+    }
+
+    currencies
+}
+
+async fn get_currencies_info(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currencies: &[Currency],
+) -> Result<HashMap<Currency, CurrencyInfo>, RouterError> {
+    let mut currencies_info = HashMap::<Currency, CurrencyInfo>::new();
+    for currency in currencies.iter() {
+        let opt_currency_info = router_db_client
+            .get_currency_info(friend_public_key.clone(), currency.clone())
+            .await?;
+
+        if let Some(currency_info) = opt_currency_info {
+            currencies_info.insert(currency.clone(), currency_info);
+        }
+    }
+    Ok(currencies_info)
+}
+
+/// Get receive capacities for a given list of currencies
+fn get_recv_capacities(
+    currencies_info: &HashMap<Currency, CurrencyInfo>,
+    friend_public_key: PublicKey,
+    currencies: &[Currency],
+) -> Result<HashMap<Currency, u128>, RouterError> {
+    let mut recv_capacities = HashMap::<Currency, u128>::new();
+    for currency in currencies.iter() {
+        let recv_capacity = if let Some(currency_info) = currencies_info.get(currency) {
+            calc_recv_capacity(&currency_info)?
+        } else {
+            0u128
+        };
+
+        recv_capacities.insert(currency.clone(), recv_capacity);
+    }
+    Ok(recv_capacities)
+}
+
+fn diff_capacities(
+    friend_public_key: PublicKey,
+    capacities_before: &HashMap<Currency, u128>,
+    capacities_after: &HashMap<Currency, u128>,
+    currencies_info: &HashMap<Currency, CurrencyInfo>,
+) -> Result<Vec<IndexMutation>, RouterError> {
+    let mut index_mutations = Vec::new();
+    for (currency, capacity_before) in capacities_before {
+        let capacity_after = capacities_after
+            .get(&currency)
+            .ok_or(RouterError::InvalidState)?;
+
+        // let currency_info = currencies_info.get(currency
+
+        if capacity_before != capacity_after {
+            if *capacity_after == 0 {
+                index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+                    public_key: friend_public_key.clone(),
+                    currency: currency.clone(),
+                }));
+            } else {
+                // We should have this currency's info if the capacity after is nonzero:
+                let currency_info = currencies_info
+                    .get(&currency)
+                    .ok_or(RouterError::InvalidState)?;
+
+                index_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
+                    public_key: friend_public_key.clone(),
+                    currency: currency.clone(),
+                    recv_capacity: *capacity_after,
+                    rate: currency_info.rate.clone(),
+                }));
+            }
+        }
+    }
+    Ok(index_mutations)
+}
+
 // TODO: Refactor this function.
 // There are too many repeating parts.
 pub async fn collect_outgoing_move_token(
@@ -256,35 +346,21 @@ pub async fn collect_outgoing_move_token(
     };
 
     // Collect all mentioned currencies:
-    let currencies = {
-        let mut currencies = HashSet::new();
-        for currency in &pre_move_token_request.pre_move_token.currencies_diff {
-            currencies.insert(currency.clone());
-        }
+    let currencies = get_mentioned_currencies(&pre_move_token_request.pre_move_token);
 
-        for (currency, _operation) in &pre_move_token_request.pre_move_token.currencies_operations {
-            currencies.insert(currency.clone());
-        }
-        currencies
-    };
+    let currencies_info_before = get_currencies_info(
+        router_db_client,
+        friend_public_key.clone(),
+        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+    )
+    .await?;
 
     // Record recv capacity for all interesting currencies
-    let recv_capacities_before = {
-        let mut recv_capacities_before = HashMap::<Currency, u128>::new();
-        for currency in &currencies {
-            let opt_currency_info = router_db_client
-                .get_currency_info(friend_public_key.clone(), currency.clone())
-                .await?;
-            let recv_capacity = if let Some(currency_info) = opt_currency_info {
-                calc_recv_capacity(&currency_info)?
-            } else {
-                0u128
-            };
-
-            recv_capacities_before.insert(currency.clone(), recv_capacity);
-        }
-        recv_capacities_before
-    };
+    let recv_capacities_before = get_recv_capacities(
+        &currencies_info_before,
+        friend_public_key.clone(),
+        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+    )?;
 
     // Send MoveToken:
     let move_token_request = send_pre_move_token(
@@ -296,60 +372,27 @@ pub async fn collect_outgoing_move_token(
     )
     .await?;
 
-    // Record recv capacity for all interesting currencies
-    let recv_capacities_after = {
-        let mut recv_capacities_after = HashMap::<Currency, u128>::new();
-        for currency in &currencies {
-            let opt_currency_info = router_db_client
-                .get_currency_info(friend_public_key.clone(), currency.clone())
-                .await?;
-            let recv_capacity = if let Some(currency_info) = opt_currency_info {
-                calc_recv_capacity(&currency_info)?
-            } else {
-                0u128
-            };
+    let currencies_info_after = get_currencies_info(
+        router_db_client,
+        friend_public_key.clone(),
+        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+    )
+    .await?;
 
-            recv_capacities_after.insert(currency.clone(), recv_capacity);
-        }
-        recv_capacities_after
-    };
+    // Record recv capacity for all interesting currencies
+    let recv_capacities_after = get_recv_capacities(
+        &currencies_info_after,
+        friend_public_key.clone(),
+        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+    )?;
 
     // Compare recv capacities and create index mutations:
-    let mut index_mutations = Vec::new();
-
-    // TODO:
-    for currency in &currencies {
-        let capacity_before = recv_capacities_before
-            .get(currency)
-            .ok_or(RouterError::InvalidState)?;
-
-        let capacity_after = recv_capacities_after
-            .get(currency)
-            .ok_or(RouterError::InvalidState)?;
-
-        // TODO: We already invoked get_currency_info() when we obtained capacity_after.
-        // This means we can be more efficient, possibly only calling get_currency_info() once.
-        let currency_info = router_db_client
-            .get_currency_info(friend_public_key.clone(), currency.clone())
-            .await?
-            .ok_or(RouterError::InvalidState)?;
-
-        if capacity_before != capacity_after {
-            if *capacity_after == 0 {
-                index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
-                    public_key: friend_public_key.clone(),
-                    currency: currency.clone(),
-                }));
-            } else {
-                index_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
-                    public_key: friend_public_key.clone(),
-                    currency: currency.clone(),
-                    recv_capacity: *capacity_after,
-                    rate: currency_info.rate,
-                }));
-            }
-        }
-    }
+    let index_mutations = diff_capacities(
+        friend_public_key,
+        &recv_capacities_before,
+        &recv_capacities_after,
+        &currencies_info_after,
+    )?;
 
     Ok(Some((move_token_request, index_mutations)))
 }
