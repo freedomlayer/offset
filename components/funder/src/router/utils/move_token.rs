@@ -234,7 +234,7 @@ async fn send_pre_move_token(
 }
 
 /// Collect all mentioned currencies from a PreMoveToken
-fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> HashSet<Currency> {
+fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> Vec<Currency> {
     // Collect all mentioned currencies:
     let mut currencies = HashSet::new();
     for currency in &pre_move_token.currencies_diff {
@@ -245,7 +245,7 @@ fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> HashSet<Currency> 
         currencies.insert(currency.clone());
     }
 
-    currencies
+    currencies.into_iter().collect()
 }
 
 async fn get_currencies_info(
@@ -346,18 +346,14 @@ pub async fn collect_outgoing_move_token(
     // Collect all mentioned currencies:
     let currencies = get_mentioned_currencies(&pre_move_token_request.pre_move_token);
 
-    let currencies_info_before = get_currencies_info(
-        router_db_client,
-        friend_public_key.clone(),
-        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
-    )
-    .await?;
+    let currencies_info_before =
+        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
 
     // Record recv capacity for all interesting currencies
     let recv_capacities_before = get_recv_capacities(
         &currencies_info_before,
         friend_public_key.clone(),
-        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+        &currencies,
     )?;
 
     // Send MoveToken:
@@ -370,18 +366,14 @@ pub async fn collect_outgoing_move_token(
     )
     .await?;
 
-    let currencies_info_after = get_currencies_info(
-        router_db_client,
-        friend_public_key.clone(),
-        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
-    )
-    .await?;
+    let currencies_info_after =
+        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
 
     // Record recv capacity for all interesting currencies
     let recv_capacities_after = get_recv_capacities(
         &currencies_info_after,
         friend_public_key.clone(),
-        currencies.iter().cloned().collect::<Vec<_>>().as_slice(),
+        &currencies,
     )?;
 
     // Compare recv capacities and create index mutations:
