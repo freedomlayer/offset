@@ -385,56 +385,6 @@ pub async fn collect_outgoing_move_token(
     Ok(Some((move_token_request, index_mutations)))
 }
 
-/*
-/// Attempt to create an outgoing move token
-/// Return Ok(None) if we have nothing to send
-pub async fn collect_outgoing_move_token(
-    router_db_client: &mut impl RouterDbClient,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-) -> Result<Option<MoveTokenRequest>, RouterError> {
-    let currencies_operations = collect_currencies_operations(
-
-    router_db_client,
-        friend_public_key.clone(),
-        max_operations_in_batch,
-    )
-    .await?;
-
-    let mut currencies_diff = router_db_client
-        .currencies_diff(friend_public_key.clone())
-        .await?;
-
-    Ok(
-        if currencies_operations.is_empty() && currencies_diff.is_empty() {
-            // There is nothing interesting to send to remote side
-            None
-        } else {
-            // We have something to send to remote side
-            let move_token = handle_out_move_token(
-                router_db_client
-                    .tc_db_client(friend_public_key.clone())
-                    .await?
-                    .ok_or(RouterError::InvalidDbState)?,
-                identity_client,
-                currencies_operations,
-                currencies_diff,
-                local_public_key,
-                &friend_public_key,
-            )
-            .await?;
-            Some(MoveTokenRequest {
-                move_token,
-                token_wanted: is_pending_currencies_operations(router_db_client, friend_public_key)
-                    .await?,
-            })
-        },
-    )
-}
-*/
-
 /// Check if we have anything to send to a remove friend on a move token message,
 /// without performing any data mutations
 pub async fn is_pending_move_token(
