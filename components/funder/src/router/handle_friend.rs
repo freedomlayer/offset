@@ -318,6 +318,8 @@ where
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
+    // TODO: Do not forward if requests not enabled? / Friend not enabled?
+    todo!();
     let mut output = RouterOutput::new();
     let receive_move_token_output = handle_in_move_token(
         router_db_client

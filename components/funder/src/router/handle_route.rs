@@ -45,6 +45,9 @@ pub async fn send_request(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // TODO: Do not forward if requests not enabled? / Friend not enabled?
+    todo!();
+
     // Make sure that the provided route is valid:
     if !request.route.is_valid() {
         return Err(RouterError::InvalidRoute);
