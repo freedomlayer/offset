@@ -35,7 +35,7 @@ use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::{
     handle_in_move_token_index_mutations, handle_out_move_token_index_mutations_allow_empty,
-    is_pending_move_token,
+    handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
 };
 use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError};
 
@@ -307,7 +307,7 @@ async fn incoming_move_token_request<RC>(
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
-    move_token_request: MoveTokenRequest,
+    in_move_token_request: MoveTokenRequest,
 ) -> Result<RouterOutput, RouterError>
 where
     RC: RouterDbClient,
@@ -322,7 +322,7 @@ where
     let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
         router_db_client,
         identity_client,
-        move_token_request.move_token,
+        in_move_token_request.move_token,
         local_public_key,
         friend_public_key.clone(),
     )
@@ -340,7 +340,7 @@ where
             assert!(!is_pending_move_token(router_db_client, friend_public_key.clone()).await?);
 
             // Possibly send token to remote side (According to token_wanted)
-            if move_token_request.token_wanted {
+            if in_move_token_request.token_wanted {
                 let (out_move_token_request, index_mutations) =
                     handle_out_move_token_index_mutations_allow_empty(
                         router_db_client,
@@ -351,20 +351,17 @@ where
                     )
                     .await?;
 
-                // TODO: Should we really check for liveness here? We just got a message from this
-                // friend. Think about liveness design here. What if we ever forget to check for
-                // liveness before adding a friend message? Maybe this should be checked in
-                // different way, or a different layer?
-                if router_state.liveness.is_online(&friend_public_key) {
-                    // Add index mutations:
-                    for index_mutation in index_mutations {
-                        output.add_index_mutation(index_mutation);
-                    }
-                    output.add_friend_message(
-                        friend_public_key.clone(),
-                        FriendMessage::MoveTokenRequest(out_move_token_request),
-                    );
+                // We just got a message from remote side. Remote side should be online:
+                assert!(router_state.liveness.is_online(&friend_public_key));
+
+                // Add index mutations:
+                for index_mutation in index_mutations {
+                    output.add_index_mutation(index_mutation);
                 }
+                output.add_friend_message(
+                    friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(out_move_token_request),
+                );
             }
         }
         ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => {
@@ -441,10 +438,45 @@ where
                 }?;
             }
 
-            // TODO: Possibly send MoveToken back to friend in one of the following cases:
-            // - We have something to send
-            // - The friend has asked for the token back
-            todo!();
+            // Possibly send RequestMoveToken back to friend in one of the following cases:
+            let opt_res = if in_move_token_request.token_wanted {
+                // Remote side wants to have the token back, so we have to send a MoveTokenRequest
+                // to remote side, even if it is empty
+                Some(
+                    handle_out_move_token_index_mutations_allow_empty(
+                        router_db_client,
+                        identity_client,
+                        local_public_key,
+                        friend_public_key,
+                        max_operations_in_batch,
+                    )
+                    .await?,
+                )
+            } else {
+                // We only send a MoveTokenRequest to remote side if we have something to send:
+                handle_out_move_token_index_mutations_disallow_empty(
+                    router_db_client,
+                    identity_client,
+                    local_public_key,
+                    friend_public_key,
+                    max_operations_in_batch,
+                )
+                .await?
+            };
+
+            if let Some((out_move_token_request, index_mutations)) = opt_res {
+                // We just got a message from remote side. Remote side should be online:
+                assert!(router_state.liveness.is_online(&friend_public_key));
+
+                // Add index mutations:
+                for index_mutation in index_mutations {
+                    output.add_index_mutation(index_mutation);
+                }
+                output.add_friend_message(
+                    friend_public_key.clone(),
+                    FriendMessage::MoveTokenRequest(out_move_token_request),
+                );
+            }
         }
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => {
             // TODO:
