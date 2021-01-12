@@ -53,6 +53,9 @@ async fn incoming_message_request<RC>(
 where
     RC: RouterDbClient,
 {
+    // TODO: Do not forward if requests not enabled? / Friend not enabled?
+    todo!();
+
     // - If directed to us, punt
     // - If directed to another friend:
     //      - If friend exists and ready, forward to next hop
@@ -315,8 +318,6 @@ where
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
-    // TODO: Do not forward if requests not enabled? / Friend not enabled?
-    todo!();
     let mut output = RouterOutput::new();
 
     let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
