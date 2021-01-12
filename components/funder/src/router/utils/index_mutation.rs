@@ -29,6 +29,12 @@ use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenCha
 /// Calculate receive capacity for a certain currency
 /// This is the number we are going to report to an index server
 pub fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterError> {
+    todo!();
+    // TODO:
+    // Should also take into account:
+    // - Liveness
+    // - Open/Closed currencies
+
     if !currency_info.is_open {
         return Ok(0);
     }

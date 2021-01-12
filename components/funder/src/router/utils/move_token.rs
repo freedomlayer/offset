@@ -224,7 +224,7 @@ async fn send_pre_move_token(
         router_db_client
             .tc_db_client(friend_public_key.clone())
             .await?
-            .ok_or(RouterError::InvalidDbState)?,
+            .ok_or(RouterError::InvalidState)?,
         identity_client,
         pre_move_token.currencies_operations,
         pre_move_token.currencies_diff,
@@ -494,7 +494,7 @@ where
         router_db_client
             .tc_db_client(friend_public_key.clone())
             .await?
-            .ok_or(RouterError::InvalidDbState)?,
+            .ok_or(RouterError::InvalidState)?,
         identity_client,
         move_token,
         local_public_key,

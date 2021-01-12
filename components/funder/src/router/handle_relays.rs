@@ -65,7 +65,7 @@ async fn update_friend_local_relays(
     let _ = router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
-        .ok_or(RouterError::InvalidDbState)?;
+        .ok_or(RouterError::InvalidState)?;
 
     let sent_relays = router_db_client
         .get_sent_relays(friend_public_key.clone())

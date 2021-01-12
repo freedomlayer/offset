@@ -12,7 +12,7 @@ use database::transaction::Transaction;
 use identity::IdentityClient;
 
 use proto::app_server::messages::RelayAddressPort;
-use proto::crypto::{NodePort, PublicKey};
+use proto::crypto::{NodePort, PublicKey, Uid};
 use proto::funder::messages::{
     CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
     FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
@@ -39,6 +39,43 @@ use crate::router::utils::move_token::{
 };
 use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError};
 
+/// Check if credit line between this node and a friend is ready
+/// Works for sending requests in both directions
+async fn is_credit_line_ready(
+    router_db_client: &mut impl RouterDbClient,
+    router_state: &RouterState,
+    friend_public_key: PublicKey,
+    currency: Currency,
+    request_id: Uid,
+) -> Result<bool, RouterError> {
+    // Friend must be online:
+    if !router_state.liveness.is_online(&friend_public_key) {
+        return Ok(false);
+    }
+
+    // Currency must exist:
+    let currency_info = if let Some(currency_info) = router_db_client
+        .get_currency_info(friend_public_key, currency)
+        .await?
+    {
+        currency_info
+    } else {
+        return Ok(false);
+    };
+
+    if let Some(currency_info_local) = currency_info.opt_local {
+        if let Some(mc_balance) = currency_info_local.opt_remote {
+            // A mutual credit line is open for this currency
+        } else {
+            return Ok(false);
+        }
+    } else {
+        return Ok(false);
+    }
+
+    Ok(currency_info.is_open || router_db_client.is_request_local_origin(request_id).await?)
+}
+
 async fn incoming_message_request<RC>(
     mut router_db_client: &mut RC,
     router_state: &mut RouterState,
@@ -53,71 +90,108 @@ async fn incoming_message_request<RC>(
 where
     RC: RouterDbClient,
 {
-    // TODO: Do not forward if requests not enabled? / Friend not enabled?
-    todo!();
+    // Make sure that we are ready to receive this request operation
+    // We might not be ready in the case of currency being closed.
+    if !is_credit_line_ready(
+        router_db_client,
+        &*router_state,
+        friend_public_key.clone(),
+        currency.clone(),
+        request_send_funds.request_id.clone(),
+    )
+    .await?
+    {
+        // Return a cancel message and flush origin friend
+        router_db_client
+            .pending_backwards_push_back(
+                friend_public_key.clone(),
+                currency,
+                BackwardsOp::Cancel(CancelSendFundsOp {
+                    request_id: request_send_funds.request_id.clone(),
+                }),
+            )
+            .await?;
 
-    // - If directed to us, punt
-    // - If directed to another friend:
-    //      - If friend exists and ready, forward to next hop
-    //      - Otherwise, queue cancel
+        flush_friend(
+            router_db_client,
+            friend_public_key,
+            identity_client,
+            local_public_key,
+            max_operations_in_batch,
+            router_output,
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    // If directed to us, punt
     if request_send_funds.route.is_empty() {
         // Directed to us. Punt:
         router_output.add_incoming_request(request_send_funds);
-    } else {
-        // Route is not empty. We need to forward the request to a friend
-        let next_public_key = request_send_funds.route.remove(0);
-
-        // Check if next public key corresponds to a friend that is ready
-        let should_forward = if let Some(tc_db_client) = router_db_client
-            .tc_db_client(next_public_key.clone())
-            .await?
-        {
-            tc_db_client.get_tc_status().await?.is_consistent()
-        } else {
-            // next public key points to a nonexistent friend!
-            false
-        } && router_state.liveness.is_online(&next_public_key)
-            && !router_db_client
-                .is_local_request_exists(request_send_funds.request_id.clone())
-                .await?;
-
-        if should_forward {
-            // Queue request to friend and flush destination friend
-            router_db_client
-                .pending_requests_push_back(next_public_key.clone(), currency, request_send_funds)
-                .await?;
-            flush_friend(
-                router_db_client,
-                next_public_key,
-                identity_client,
-                local_public_key,
-                max_operations_in_batch,
-                router_output,
-            )
-            .await?;
-        } else {
-            // Return a cancel message and flush origin friend
-            router_db_client
-                .pending_backwards_push_back(
-                    friend_public_key.clone(),
-                    currency,
-                    BackwardsOp::Cancel(CancelSendFundsOp {
-                        request_id: request_send_funds.request_id.clone(),
-                    }),
-                )
-                .await?;
-
-            flush_friend(
-                router_db_client,
-                friend_public_key,
-                identity_client,
-                local_public_key,
-                max_operations_in_batch,
-                router_output,
-            )
-            .await?;
-        }
+        return Ok(());
     }
+
+    // - If directed to another friend:
+    //      - If friend exists and ready, forward to next hop
+    //      - Otherwise, queue cancel
+    // Route is not empty. We need to forward the request to a friend
+    let next_public_key = request_send_funds.route.remove(0);
+
+    // Check if next public key corresponds to a friend that is ready
+    let should_forward = is_credit_line_ready(
+        router_db_client,
+        &*router_state,
+        next_public_key.clone(),
+        currency.clone(),
+        request_send_funds.request_id.clone(),
+    )
+    .await?
+        && !router_db_client
+            .is_local_request_exists(request_send_funds.request_id.clone())
+            .await?;
+
+    // Attempt to collect fees according to rate. If credits in fees jar are insufficient, do not
+    // forward, and cancel the request.
+    todo!();
+
+    if should_forward {
+        // Queue request to friend and flush destination friend
+        router_db_client
+            .pending_requests_push_back(next_public_key.clone(), currency, request_send_funds)
+            .await?;
+        flush_friend(
+            router_db_client,
+            next_public_key,
+            identity_client,
+            local_public_key,
+            max_operations_in_batch,
+            router_output,
+        )
+        .await?;
+    } else {
+        // Return a cancel message and flush origin friend
+        router_db_client
+            .pending_backwards_push_back(
+                friend_public_key.clone(),
+                currency,
+                BackwardsOp::Cancel(CancelSendFundsOp {
+                    request_id: request_send_funds.request_id.clone(),
+                }),
+            )
+            .await?;
+
+        flush_friend(
+            router_db_client,
+            friend_public_key,
+            identity_client,
+            local_public_key,
+            max_operations_in_batch,
+            router_output,
+        )
+        .await?;
+    }
+
     Ok(())
 }
 
@@ -137,7 +211,7 @@ where
     if router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
-        .ok_or(RouterError::InvalidDbState)?
+        .ok_or(RouterError::InvalidState)?
         .get_tc_status()
         .await?
         .is_consistent()
@@ -149,7 +223,7 @@ where
     } else {
         // We have just received a cancel message from this friend.
         // We expect that this friend is consistent
-        return Err(RouterError::InvalidDbState);
+        return Err(RouterError::InvalidState);
     }
     Ok(())
 }
@@ -448,7 +522,7 @@ where
                         router_db_client,
                         identity_client,
                         local_public_key,
-                        friend_public_key,
+                        friend_public_key.clone(),
                         max_operations_in_batch,
                     )
                     .await?,
@@ -459,7 +533,7 @@ where
                     router_db_client,
                     identity_client,
                     local_public_key,
-                    friend_public_key,
+                    friend_public_key.clone(),
                     max_operations_in_batch,
                 )
                 .await?
@@ -492,11 +566,6 @@ where
             // - Notify to the outside?
             todo!();
         }
-    }
-
-    // Add index mutations:
-    for index_mutation in index_mutations {
-        output.add_index_mutation(index_mutation);
     }
 
     Ok(output)
