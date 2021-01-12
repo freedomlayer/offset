@@ -116,6 +116,7 @@ async fn is_pending_currencies_operations(
             .await?)
 }
 
+/*
 // TODO: Rewrite this function to also return index mutations.
 // Should be very similar to  `handle_in_move_token_index_mutations`.
 /// Attempt to create an outgoing move token
@@ -158,6 +159,7 @@ pub async fn collect_outgoing_move_token_allow_empty(
         token_wanted: is_pending_currencies_operations(router_db_client, friend_public_key).await?,
     })
 }
+*/
 
 /// Like MoveToken, but without the calculated `info_hash` and `signature`
 #[derive(Debug)]
@@ -185,7 +187,7 @@ async fn collect_outgoing_pre_move_token(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<Option<PreMoveTokenRequest>, RouterError> {
+) -> Result<Option<PreMoveToken>, RouterError> {
     let currencies_operations = collect_currencies_operations(
         router_db_client,
         friend_public_key.clone(),
@@ -203,13 +205,9 @@ async fn collect_outgoing_pre_move_token(
             None
         } else {
             // We have something to send to remote side
-            Some(PreMoveTokenRequest {
-                pre_move_token: PreMoveToken {
-                    currencies_operations,
-                    currencies_diff,
-                },
-                token_wanted: is_pending_currencies_operations(router_db_client, friend_public_key)
-                    .await?,
+            Some(PreMoveToken {
+                currencies_operations,
+                currencies_diff,
             })
         },
     )
@@ -220,25 +218,22 @@ async fn send_pre_move_token(
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
-    pre_move_token_request: PreMoveTokenRequest,
-) -> Result<MoveTokenRequest, RouterError> {
+    pre_move_token: PreMoveToken,
+) -> Result<MoveToken, RouterError> {
     let move_token = handle_out_move_token(
         router_db_client
             .tc_db_client(friend_public_key.clone())
             .await?
             .ok_or(RouterError::InvalidDbState)?,
         identity_client,
-        pre_move_token_request.pre_move_token.currencies_operations,
-        pre_move_token_request.pre_move_token.currencies_diff,
+        pre_move_token.currencies_operations,
+        pre_move_token.currencies_diff,
         local_public_key,
         &friend_public_key,
     )
     .await?;
 
-    Ok(MoveTokenRequest {
-        move_token,
-        token_wanted: pre_move_token_request.token_wanted,
-    })
+    Ok(move_token)
 }
 
 /// Collect all mentioned currencies from a PreMoveToken
@@ -329,28 +324,15 @@ fn diff_capacities(
     Ok(index_mutations)
 }
 
-pub async fn handle_out_move_token_index_mutations(
+async fn apply_out_pre_move_token(
     router_db_client: &mut impl RouterDbClient,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-) -> Result<Option<(MoveTokenRequest, Vec<IndexMutation>)>, RouterError> {
-    let opt_pre_move_token_request = collect_outgoing_pre_move_token(
-        router_db_client,
-        friend_public_key.clone(),
-        max_operations_in_batch,
-    )
-    .await?;
-
-    let pre_move_token_request = if let Some(pre_move_token_request) = opt_pre_move_token_request {
-        pre_move_token_request
-    } else {
-        return Ok(None);
-    };
-
+    pre_move_token: PreMoveToken,
+) -> Result<(MoveTokenRequest, Vec<IndexMutation>), RouterError> {
     // Collect all mentioned currencies:
-    let currencies = get_mentioned_currencies(&pre_move_token_request.pre_move_token);
+    let currencies = get_mentioned_currencies(&pre_move_token);
 
     let currencies_info_before =
         get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
@@ -363,12 +345,12 @@ pub async fn handle_out_move_token_index_mutations(
     )?;
 
     // Send MoveToken:
-    let move_token_request = send_pre_move_token(
+    let move_token = send_pre_move_token(
         router_db_client,
         identity_client,
         local_public_key,
         friend_public_key.clone(),
-        pre_move_token_request,
+        pre_move_token,
     )
     .await?;
 
@@ -384,13 +366,83 @@ pub async fn handle_out_move_token_index_mutations(
 
     // Compare recv capacities and create index mutations:
     let index_mutations = diff_capacities(
-        friend_public_key,
+        friend_public_key.clone(),
         &recv_capacities_before,
         &recv_capacities_after,
         &currencies_info_after,
     )?;
 
-    Ok(Some((move_token_request, index_mutations)))
+    let move_token_request = MoveTokenRequest {
+        move_token,
+        token_wanted: is_pending_move_token(router_db_client, friend_public_key).await?,
+    };
+
+    Ok((move_token_request, index_mutations))
+}
+
+pub async fn handle_out_move_token_index_mutations_disallow_empty(
+    router_db_client: &mut impl RouterDbClient,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
+) -> Result<Option<(MoveTokenRequest, Vec<IndexMutation>)>, RouterError> {
+    let opt_pre_move_token = collect_outgoing_pre_move_token(
+        router_db_client,
+        friend_public_key.clone(),
+        max_operations_in_batch,
+    )
+    .await?;
+
+    let pre_move_token = if let Some(pre_move_token) = opt_pre_move_token {
+        pre_move_token
+    } else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        apply_out_pre_move_token(
+            router_db_client,
+            identity_client,
+            local_public_key,
+            friend_public_key,
+            pre_move_token,
+        )
+        .await?,
+    ))
+}
+
+pub async fn handle_out_move_token_index_mutations_allow_empty(
+    router_db_client: &mut impl RouterDbClient,
+    identity_client: &mut IdentityClient,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    max_operations_in_batch: usize,
+) -> Result<(MoveTokenRequest, Vec<IndexMutation>), RouterError> {
+    let opt_pre_move_token = collect_outgoing_pre_move_token(
+        router_db_client,
+        friend_public_key.clone(),
+        max_operations_in_batch,
+    )
+    .await?;
+
+    let pre_move_token = if let Some(pre_move_token) = opt_pre_move_token {
+        pre_move_token
+    } else {
+        PreMoveToken {
+            currencies_operations: Vec::new(),
+            currencies_diff: Vec::new(),
+        }
+    };
+
+    apply_out_pre_move_token(
+        router_db_client,
+        identity_client,
+        local_public_key,
+        friend_public_key,
+        pre_move_token,
+    )
+    .await
 }
 
 /// Check if we have anything to send to a remove friend on a move token message,

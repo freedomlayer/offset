@@ -28,7 +28,7 @@ use crate::router::types::{
 };
 use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
 use crate::router::utils::move_token::{
-    handle_out_move_token_index_mutations, is_pending_move_token,
+    handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
 };
 
 /// Attempt to send as much as possible through a token channel to remote side
@@ -50,7 +50,7 @@ pub async fn flush_friend(
     {
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
-            let opt_tuple = handle_out_move_token_index_mutations(
+            let opt_tuple = handle_out_move_token_index_mutations_disallow_empty(
                 router_db_client,
                 identity_client,
                 local_public_key,
