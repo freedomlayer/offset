@@ -57,7 +57,7 @@ where
         .write_u128::<BigEndian>(response_send_funds.serial_num)
         .unwrap();
     sbuffer.extend_from_slice(&pending_transaction.invoice_hash);
-    sbuffer.extend_from_slice(&currency.canonical_serialize());
+    sbuffer.extend_from_slice(&hash::hash_buffer(&currency.canonical_serialize()));
 
     sbuffer
 }
