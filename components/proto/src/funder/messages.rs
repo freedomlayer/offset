@@ -14,7 +14,7 @@ use num_bigint::BigUint;
 use num_traits::cast::ToPrimitive;
 
 use crate::crypto::{
-    HashResult, HashedLock, HmacResult, InvoiceId, PaymentId, PlainLock, PublicKey, Signature, Uid,
+    HashResult, HashedLock, InvoiceId, PaymentId, PlainLock, PublicKey, Signature, Uid,
 };
 
 use crate::app_server::messages::{NamedRelayAddress, RelayAddress, RelayAddressPort};
@@ -80,15 +80,11 @@ pub struct RequestSendFundsOp {
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
-    #[serde(with = "ser_vec_b64")]
-    pub route: Vec<PublicKey>,
     pub dest_payment: u128,
-    #[serde(with = "ser_string")]
-    pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_hash: HashResult,
-    #[serde(with = "ser_b64")]
-    pub hmac: HmacResult,
+    #[serde(with = "ser_vec_b64")]
+    pub route: Vec<PublicKey>,
     #[serde(with = "ser_string")]
     pub left_fees: u128,
 }
@@ -434,16 +430,11 @@ pub struct PendingTransaction {
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
-    // pub route: FriendsRoute,
-    #[serde(with = "ser_vec_b64")]
-    pub route: Vec<PublicKey>,
     pub dest_payment: u128,
-    #[serde(with = "ser_string")]
-    pub total_dest_payment: u128,
     #[serde(with = "ser_b64")]
     pub invoice_hash: HashResult,
-    #[serde(with = "ser_b64")]
-    pub hmac: HmacResult,
+    #[serde(with = "ser_vec_b64")]
+    pub route: Vec<PublicKey>,
     #[serde(with = "ser_string")]
     pub left_fees: u128,
 }

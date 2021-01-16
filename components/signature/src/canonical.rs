@@ -172,11 +172,7 @@ impl CanonicalSerialize for RequestSendFundsOp {
         res_bytes
             .write_u128::<BigEndian>(self.dest_payment)
             .unwrap();
-        res_bytes
-            .write_u128::<BigEndian>(self.total_dest_payment)
-            .unwrap();
         res_bytes.extend_from_slice(&self.invoice_hash);
-        res_bytes.extend_from_slice(&self.hmac);
         res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
         res_bytes
     }

@@ -7,7 +7,7 @@ use crypto::identity::{Identity, SoftwareEd25519Identity};
 use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
-use proto::crypto::{HashResult, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
+use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
 use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp};
 use signature::signature_buff::create_response_signature_buffer;
 
@@ -42,16 +42,13 @@ async fn task_request_response_send_funds() {
     ];
     let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
-    let hmac = HmacResult::from(&[2; HmacResult::len()]);
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
         src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
-        total_dest_payment: 10,
         invoice_hash,
-        hmac,
         left_fees: 5,
     };
 

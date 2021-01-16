@@ -135,9 +135,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         src_hashed_lock: src_plain_lock.hash_lock(),
         route: vec![pk_a.clone()],
         dest_payment: 20u128,
-        total_dest_payment: 30u128,
         invoice_hash: HashResult::from(&[0; HashResult::len()]),
-        hmac: HmacResult::from(&[0; HmacResult::len()]),
         left_fees: 5u128,
     };
     let pending_transaction = create_pending_transaction(&request_send_funds_op);

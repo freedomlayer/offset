@@ -47,7 +47,6 @@ where
 
     let mut inner_blob = Vec::new();
     inner_blob.extend_from_slice(&pending_transaction.request_id);
-    inner_blob.extend_from_slice(&pending_transaction.hmac);
     inner_blob.extend_from_slice(&response_send_funds.src_plain_lock);
     inner_blob
         .write_u128::<BigEndian>(pending_transaction.dest_payment)
@@ -56,9 +55,6 @@ where
     sbuffer.extend_from_slice(&hash::hash_buffer(&inner_blob));
     sbuffer
         .write_u128::<BigEndian>(response_send_funds.serial_num)
-        .unwrap();
-    sbuffer
-        .write_u128::<BigEndian>(pending_transaction.total_dest_payment)
         .unwrap();
     sbuffer.extend_from_slice(&pending_transaction.invoice_hash);
     sbuffer.extend_from_slice(&currency.canonical_serialize());

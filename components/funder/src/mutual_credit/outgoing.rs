@@ -26,7 +26,7 @@ pub enum QueueOperationError {
     RequestDoesNotExist,
     InvalidResponseSignature,
     InvalidSrcPlainLock,
-    DestPaymentExceedsTotal,
+    // DestPaymentExceedsTotal,
     OpError(OpError),
 }
 
@@ -62,9 +62,11 @@ async fn queue_request_send_funds(
         return Err(QueueOperationError::InvalidRoute);
     }
 
+    /*
     if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
         return Err(QueueOperationError::DestPaymentExceedsTotal);
     }
+    */
 
     // Calculate amount of credits to freeze
     let own_freeze_credits = request_send_funds

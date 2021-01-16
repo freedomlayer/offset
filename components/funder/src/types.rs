@@ -74,9 +74,7 @@ pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> Pe
         src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
-        total_dest_payment: request_send_funds.total_dest_payment,
         invoice_hash: request_send_funds.invoice_hash.clone(),
-        hmac: request_send_funds.hmac.clone(),
         left_fees: request_send_funds.left_fees,
     }
 }

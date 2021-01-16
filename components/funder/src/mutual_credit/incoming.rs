@@ -52,7 +52,7 @@ pub enum ProcessOperationError {
     RequestDoesNotExist,
     InvalidResponseSignature,
     InvalidSrcPlainLock,
-    DestPaymentExceedsTotal,
+    // DestPaymentExceedsTotal,
     OpError(OpError),
 }
 
@@ -87,9 +87,11 @@ async fn process_request_send_funds(
         return Err(ProcessOperationError::InvalidRoute);
     }
 
+    /*
     if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
         return Err(ProcessOperationError::DestPaymentExceedsTotal);
     }
+    */
 
     // Make sure that we don't have this request as a pending request already:
     let opt_remote_pending_transaction = mc_client
