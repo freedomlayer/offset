@@ -31,8 +31,6 @@ pub enum QueueOperationError {
 }
 
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
-// TODO: Remove later:
-#[allow(unused)]
 pub async fn queue_operation(
     mc_client: &mut impl McDbClient,
     operation: FriendTcOp,

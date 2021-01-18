@@ -132,6 +132,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     let src_plain_lock = PlainLock::from(&[0xaa; PlainLock::len()]);
     let request_send_funds_op = RequestSendFundsOp {
         request_id: Uid::from(&[0; Uid::len()]),
+        currency: currency1.clone(),
         src_hashed_lock: src_plain_lock.hash_lock(),
         route: vec![pk_a.clone()],
         dest_payment: 20u128,

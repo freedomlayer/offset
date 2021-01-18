@@ -44,6 +44,7 @@ async fn task_request_cancel_send_funds() {
 
     let request_send_funds = RequestSendFundsOp {
         request_id: request_id.clone(),
+        currency: currency.clone(),
         src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,

@@ -68,9 +68,14 @@ pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
     CancelSendFundsOp { request_id }
 }
 
+// TODO:
+// 1. Maybe take RequestSendFundOp by value, delegate cloning to external code.
+// 2. Maybe PendingTransaction is just an alias for RequestSendFunds? Why do we have two
+//    structs?
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
     PendingTransaction {
         request_id: request_send_funds.request_id.clone(),
+        currency: request_send_funds.currency.clone(),
         src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,

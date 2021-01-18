@@ -76,43 +76,75 @@ pub struct FriendsRoute {
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestSendFundsOp {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
+    /// Currency used for this request
+    #[serde(with = "ser_string")]
+    pub currency: Currency,
+    /// A hash lock created by the originator of this request
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
+    /// Amount paid to destination
     pub dest_payment: u128,
+    /// hash(hash(actionId) || hash(totalDestPayment) || hash(description) || hash(additional))
+    /// TODO: Check if this scheme is safe? Do we need to use pbkdf instead?
     #[serde(with = "ser_b64")]
     pub invoice_hash: HashResult,
+    /// List of next nodes to transfer this request
     #[serde(with = "ser_vec_b64")]
     pub route: Vec<PublicKey>,
+    /// Amount of fees left to give to mediators
+    /// Every mediator takes the amount of fees he wants and subtracts this
+    /// value accordingly.
     #[serde(with = "ser_string")]
     pub left_fees: u128,
 }
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseSendFundsOp {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
+    /// Serial number used for this collection of invoice money.
+    /// This should be a u128 counter, increased by 1 for every collected
+    /// invoice.
     #[serde(with = "ser_string")]
     pub serial_num: u128,
+    /// Signature{key=destinationKey}(
+    ///   hash("FUNDS_RESPONSE") ||
+    ///   hash(request_id || src_plain_lock || dest_payment) ||
+    ///   hash(currency) ||
+    ///   serialNum ||
+    ///   invoiceHash)
+    /// )
     #[serde(with = "ser_b64")]
     pub signature: Signature,
 }
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct UnsignedResponseSendFundsOp {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
     #[serde(with = "ser_b64")]
     pub src_plain_lock: PlainLock,
+    /// Serial number used for this collection of invoice money.
+    /// This should be a u128 counter, increased by 1 for every collected
+    /// invoice.
     #[serde(with = "ser_string")]
     pub serial_num: u128,
 }
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct CancelSendFundsOp {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
 }
@@ -426,15 +458,28 @@ pub struct Receipt {
 
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingTransaction {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
     #[serde(with = "ser_b64")]
     pub request_id: Uid,
+    /// Currency used for this request
+    #[serde(with = "ser_string")]
+    pub currency: Currency,
+    /// A hash lock created by the originator of this request
     #[serde(with = "ser_b64")]
     pub src_hashed_lock: HashedLock,
+    /// Amount paid to destination
     pub dest_payment: u128,
+    /// hash(hash(actionId) || hash(totalDestPayment) || hash(description) || hash(additional))
+    /// TODO: Check if this scheme is safe? Do we need to use pbkdf instead?
     #[serde(with = "ser_b64")]
     pub invoice_hash: HashResult,
+    /// List of next nodes to transfer this request
     #[serde(with = "ser_vec_b64")]
     pub route: Vec<PublicKey>,
+    /// Amount of fees left to give to mediators
+    /// Every mediator takes the amount of fees he wants and subtracts this
+    /// value accordingly.
     #[serde(with = "ser_string")]
     pub left_fees: u128,
 }
