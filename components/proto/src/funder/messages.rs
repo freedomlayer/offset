@@ -178,6 +178,8 @@ pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
+    /// Add/remove currency
+    ToggleCurrency(Currency),
 }
 
 /*
@@ -254,25 +256,22 @@ pub struct TokenInfo {
     pub move_token_counter: u128,
 }
 
+/*
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CurrencyOperations {
     #[serde(with = "ser_string")]
-    pub currency: Currency,
     pub operations: Vec<FriendTcOp>,
 }
+*/
 
 // pub type CurrenciesOperations = HashMap<Currency, Vec<FriendTcOp>>;
-pub type CurrenciesOperations = Vec<(Currency, FriendTcOp)>;
+// pub type CurrenciesOperations = Vec<(Currency, FriendTcOp)>;
 
 #[derive(Arbitrary, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct MoveToken {
     #[serde(with = "ser_b64")]
     pub old_token: Signature,
-    // pub currencies_operations: Vec<CurrencyOperations>,
-    pub currencies_operations: CurrenciesOperations,
-    pub currencies_diff: Vec<Currency>,
-    #[serde(with = "ser_b64")]
-    pub info_hash: HashResult,
+    pub operations: Vec<FriendTcOp>,
     #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
