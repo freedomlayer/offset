@@ -7,38 +7,40 @@ use common::async_rpc::OpError;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::PublicKey;
-use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendTcOp, PendingTransaction, RequestSendFundsOp,
-    ResponseSendFundsOp,
-};
+use proto::funder::messages::{Currency, PendingTransaction};
 
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::route::Route;
-use crate::types::create_pending_transaction;
 
-use super::types::McDbClient;
+use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
+use crate::mutual_credit::utils::{
+    pending_transaction_from_mc_request, response_op_from_mc_response,
+};
 
+// TODO: Possibly rename to something shorter.
 // TODO: Do we ever need the `pending_transaction` part for anything?
 // If not, maybe we can remove it?
 #[derive(Debug)]
 pub struct IncomingResponseSendFundsOp {
+    // TODO: Possibly rename to pending_request?
     pub pending_transaction: PendingTransaction,
-    pub incoming_response: ResponseSendFundsOp,
+    pub incoming_response: McResponse,
 }
 
 #[derive(Debug)]
 pub struct IncomingCancelSendFundsOp {
+    // TODO: Possibly rename to pending_request?
     pub pending_transaction: PendingTransaction,
     // TODO: incoming_cancel looks redundant, because we can already deduce request_id from
     // `pending_transaction`. Maybe remove it?
-    pub incoming_cancel: CancelSendFundsOp,
+    pub incoming_cancel: McCancel,
 }
 
 #[derive(Debug)]
 pub enum IncomingMessage {
-    Request(RequestSendFundsOp),
-    RequestCancel(RequestSendFundsOp),
+    Request(McRequest),
+    RequestCancel(McRequest),
     Response(IncomingResponseSendFundsOp),
     Cancel(IncomingCancelSendFundsOp),
 }
@@ -58,29 +60,27 @@ pub enum ProcessOperationError {
 
 pub async fn process_operation(
     mc_client: &mut impl McDbClient,
-    friend_tc_op: FriendTcOp,
+    mc_op: McOp,
     currency: &Currency,
     remote_public_key: &PublicKey,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
-    match friend_tc_op {
-        FriendTcOp::RequestSendFunds(request_send_funds) => {
-            process_request_send_funds(mc_client, request_send_funds, remote_max_debt).await
+    match mc_op {
+        McOp::Request(request) => {
+            process_request_send_funds(mc_client, request, currency, remote_max_debt).await
         }
-        FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            process_response_send_funds(mc_client, response_send_funds, currency, remote_public_key)
-                .await
+        McOp::Response(response) => {
+            process_response_send_funds(mc_client, response, currency, remote_public_key).await
         }
-        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            process_cancel_send_funds(mc_client, cancel_send_funds).await
-        }
+        McOp::Cancel(cancel) => process_cancel_send_funds(mc_client, cancel).await,
     }
 }
 
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
     mc_client: &mut impl McDbClient,
-    request_send_funds: RequestSendFundsOp,
+    request_send_funds: McRequest,
+    currency: &Currency,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
     if !request_send_funds.route.is_part_valid() {
@@ -133,7 +133,8 @@ async fn process_request_send_funds(
     };
 
     // Add pending transaction:
-    let pending_transaction = create_pending_transaction(&request_send_funds);
+    let pending_transaction =
+        pending_transaction_from_mc_request(request_send_funds.clone(), currency.clone());
 
     mc_client
         .insert_remote_pending_transaction(pending_transaction)
@@ -148,7 +149,7 @@ async fn process_request_send_funds(
 
 async fn process_response_send_funds(
     mc_client: &mut impl McDbClient,
-    response_send_funds: ResponseSendFundsOp,
+    response: McResponse,
     currency: &Currency,
     remote_public_key: &PublicKey,
 ) -> Result<IncomingMessage, ProcessOperationError> {
@@ -157,12 +158,12 @@ async fn process_response_send_funds(
 
     // Obtain pending request:
     let pending_transaction = mc_client
-        .get_local_pending_transaction(response_send_funds.request_id.clone())
+        .get_local_pending_transaction(response.request_id.clone())
         .await?
         .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
     // Verify src_plain_lock and dest_plain_lock:
-    if response_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
+    if response.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
         return Err(ProcessOperationError::InvalidSrcPlainLock);
     }
 
@@ -174,7 +175,7 @@ async fn process_response_send_funds(
 
     let response_signature_buffer = create_response_signature_buffer(
         currency,
-        response_send_funds.clone(),
+        response_op_from_mc_response(response.clone()),
         &pending_transaction,
     );
 
@@ -182,7 +183,7 @@ async fn process_response_send_funds(
     if !verify_signature(
         &response_signature_buffer,
         dest_public_key,
-        &response_send_funds.signature,
+        &response.signature,
     ) {
         return Err(ProcessOperationError::InvalidResponseSignature);
     }
@@ -197,7 +198,7 @@ async fn process_response_send_funds(
 
     // Remove entry from local_pending hashmap:
     mc_client
-        .remove_local_pending_transaction(response_send_funds.request_id.clone())
+        .remove_local_pending_transaction(response.request_id.clone())
         .await?;
 
     // Decrease frozen credits:
@@ -230,25 +231,25 @@ async fn process_response_send_funds(
 
     Ok(IncomingMessage::Response(IncomingResponseSendFundsOp {
         pending_transaction,
-        incoming_response: response_send_funds,
+        incoming_response: response,
     }))
 }
 
 async fn process_cancel_send_funds(
     mc_client: &mut impl McDbClient,
-    cancel_send_funds: CancelSendFundsOp,
+    cancel: McCancel,
 ) -> Result<IncomingMessage, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
     let pending_transaction = mc_client
-        .get_local_pending_transaction(cancel_send_funds.request_id.clone())
+        .get_local_pending_transaction(cancel.request_id.clone())
         .await?
         .ok_or(ProcessOperationError::RequestDoesNotExist)?;
 
     mc_client
-        .remove_local_pending_transaction(cancel_send_funds.request_id.clone())
+        .remove_local_pending_transaction(cancel.request_id.clone())
         .await?;
 
     let freeze_credits = pending_transaction
@@ -270,6 +271,6 @@ async fn process_cancel_send_funds(
     // Return cancel_send_funds:
     Ok(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
         pending_transaction,
-        incoming_cancel: cancel_send_funds,
+        incoming_cancel: cancel,
     }))
 }

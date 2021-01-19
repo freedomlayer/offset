@@ -25,17 +25,15 @@ extern crate quickcheck_derive;
 // mod handler;
 #[allow(unused)]
 mod liveness;
+#[allow(unused)]
 mod mutual_credit;
 mod route;
 // pub mod report;
 // mod state;
-#[allow(unused)]
-mod token_channel;
-
-#[allow(unused)]
-mod router;
-//
-// For testing:
+// #[allow(unused)]
+// mod token_channel;
+// #[allow(unused)]
+// mod router;
 
 pub mod types;
 

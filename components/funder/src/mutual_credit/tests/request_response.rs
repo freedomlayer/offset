@@ -8,16 +8,17 @@ use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Signature, Uid};
-use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp};
+use proto::funder::messages::Currency;
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::outgoing::queue_operation;
 use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
-use crate::mutual_credit::types::McDbClient;
+use crate::mutual_credit::types::{McDbClient, McOp, McRequest, McResponse};
+use crate::mutual_credit::utils::{
+    pending_transaction_from_mc_request, response_op_from_mc_response,
+};
 
-use crate::types::create_pending_transaction;
-
-async fn task_request_response_send_funds() {
+async fn task_request_response() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     let local_public_key = PublicKey::from(&[0xaa; PublicKey::len()]);
@@ -43,9 +44,8 @@ async fn task_request_response_send_funds() {
     let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
 
-    let request_send_funds = RequestSendFundsOp {
+    let request = McRequest {
         request_id: request_id.clone(),
-        currency: currency.clone(),
         src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
@@ -53,10 +53,11 @@ async fn task_request_response_send_funds() {
         left_fees: 5,
     };
 
-    let pending_transaction = create_pending_transaction(&request_send_funds);
+    let pending_transaction =
+        pending_transaction_from_mc_request(request.clone(), currency.clone());
     queue_operation(
         &mut mc_transaction,
-        FriendTcOp::RequestSendFunds(request_send_funds),
+        McOp::Request(request),
         &currency,
         &local_public_key,
     )
@@ -74,7 +75,7 @@ async fn task_request_response_send_funds() {
     // --------------------------------
     let serial_num: u128 = 0;
 
-    let mut response_send_funds = ResponseSendFundsOp {
+    let mut response = McResponse {
         request_id: request_id.clone(),
         src_plain_lock: src_plain_lock.clone(),
         serial_num,
@@ -83,14 +84,14 @@ async fn task_request_response_send_funds() {
 
     let sign_buffer = create_response_signature_buffer(
         &currency,
-        response_send_funds.clone(),
+        response_op_from_mc_response(response.clone()),
         &pending_transaction,
     );
-    response_send_funds.signature = identity.sign(&sign_buffer);
+    response.signature = identity.sign(&sign_buffer);
 
     process_operations_list(
         &mut mc_transaction,
-        vec![FriendTcOp::ResponseSendFunds(response_send_funds)],
+        vec![McOp::Response(response)],
         &currency,
         &remote_public_key,
         100,
@@ -108,8 +109,8 @@ async fn task_request_response_send_funds() {
 }
 
 #[test]
-fn test_request_response_send_funds() {
+fn test_request_response() {
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_request_response_send_funds());
+    let res = test_executor.run(task_request_response());
     assert!(res.is_output());
 }

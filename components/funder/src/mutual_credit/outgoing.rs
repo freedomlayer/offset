@@ -7,14 +7,15 @@ use common::async_rpc::OpError;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::PublicKey;
-use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp,
-};
+use proto::funder::messages::Currency;
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::types::McDbClient;
 use crate::route::Route;
-use crate::types::create_pending_transaction;
+
+use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
+use crate::mutual_credit::utils::{
+    pending_transaction_from_mc_request, response_op_from_mc_response,
+};
 
 #[derive(Debug, From)]
 pub enum QueueOperationError {
@@ -33,30 +34,26 @@ pub enum QueueOperationError {
 /// A wrapper over a token channel, accumulating operations to be sent as one transaction.
 pub async fn queue_operation(
     mc_client: &mut impl McDbClient,
-    operation: FriendTcOp,
+    operation: McOp,
     currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
     // TODO: Maybe remove clone from here later:
     match operation {
-        FriendTcOp::RequestSendFunds(request_send_funds) => {
-            queue_request_send_funds(mc_client, request_send_funds).await
+        McOp::Request(request) => queue_request_send_funds(mc_client, request, currency).await,
+        McOp::Response(response) => {
+            queue_response_send_funds(mc_client, response, currency, local_public_key).await
         }
-        FriendTcOp::ResponseSendFunds(response_send_funds) => {
-            queue_response_send_funds(mc_client, response_send_funds, currency, local_public_key)
-                .await
-        }
-        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-            queue_cancel_send_funds(mc_client, cancel_send_funds).await
-        }
+        McOp::Cancel(cancel) => queue_cancel_send_funds(mc_client, cancel).await,
     }
 }
 
 async fn queue_request_send_funds(
     mc_client: &mut impl McDbClient,
-    request_send_funds: RequestSendFundsOp,
+    request: McRequest,
+    currency: &Currency,
 ) -> Result<(), QueueOperationError> {
-    if !request_send_funds.route.is_part_valid() {
+    if !request.route.is_part_valid() {
         return Err(QueueOperationError::InvalidRoute);
     }
 
@@ -67,9 +64,9 @@ async fn queue_request_send_funds(
     */
 
     // Calculate amount of credits to freeze
-    let own_freeze_credits = request_send_funds
+    let own_freeze_credits = request
         .dest_payment
-        .checked_add(request_send_funds.left_fees)
+        .checked_add(request.left_fees)
         .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
     let mc_balance = mc_client.get_balance().await?;
@@ -82,7 +79,7 @@ async fn queue_request_send_funds(
 
     // Make sure that we don't have this request as a pending request already:
     if mc_client
-        .get_local_pending_transaction(request_send_funds.request_id.clone())
+        .get_local_pending_transaction(request.request_id.clone())
         .await?
         .is_some()
     {
@@ -90,7 +87,8 @@ async fn queue_request_send_funds(
     }
 
     // Add pending transaction:
-    let pending_transaction = create_pending_transaction(&request_send_funds);
+    let pending_transaction =
+        pending_transaction_from_mc_request(request.clone(), currency.clone());
     mc_client
         .insert_local_pending_transaction(pending_transaction)
         .await?;
@@ -105,7 +103,7 @@ async fn queue_request_send_funds(
 
 async fn queue_response_send_funds(
     mc_client: &mut impl McDbClient,
-    response_send_funds: ResponseSendFundsOp,
+    response: McResponse,
     currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
@@ -114,20 +112,20 @@ async fn queue_response_send_funds(
 
     // Obtain pending request:
     let pending_transaction = mc_client
-        .get_remote_pending_transaction(response_send_funds.request_id.clone())
+        .get_remote_pending_transaction(response.request_id.clone())
         .await?
         .ok_or(QueueOperationError::RequestDoesNotExist)?;
     // TODO: Possibly get rid of clone() here for optimization later
 
     // Verify src_plain_lock and dest_plain_lock:
-    if response_send_funds.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
+    if response.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
         return Err(QueueOperationError::InvalidSrcPlainLock);
     }
 
     // verify signature:
     let response_signature_buffer = create_response_signature_buffer(
         currency,
-        response_send_funds.clone(),
+        response_op_from_mc_response(response.clone()),
         &pending_transaction,
     );
     // The response was signed by the destination node:
@@ -141,7 +139,7 @@ async fn queue_response_send_funds(
     if !verify_signature(
         &response_signature_buffer,
         dest_public_key,
-        &response_send_funds.signature,
+        &response.signature,
     ) {
         return Err(QueueOperationError::InvalidResponseSignature);
     }
@@ -154,7 +152,7 @@ async fn queue_response_send_funds(
 
     // Remove entry from remote_pending hashmap:
     mc_client
-        .remove_remote_pending_transaction(response_send_funds.request_id)
+        .remove_remote_pending_transaction(response.request_id)
         .await?;
 
     // Decrease frozen credits
@@ -196,14 +194,14 @@ async fn queue_response_send_funds(
 
 async fn queue_cancel_send_funds(
     mc_client: &mut impl McDbClient,
-    cancel_send_funds: CancelSendFundsOp,
+    cancel: McCancel,
 ) -> Result<(), QueueOperationError> {
     // Make sure that id exists in remote_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
     let pending_transaction = mc_client
-        .get_remote_pending_transaction(cancel_send_funds.request_id.clone())
+        .get_remote_pending_transaction(cancel.request_id.clone())
         .await?
         .ok_or(QueueOperationError::RequestDoesNotExist)?;
 
@@ -214,7 +212,7 @@ async fn queue_cancel_send_funds(
 
     // Remove entry from remote hashmap:
     mc_client
-        .remove_remote_pending_transaction(cancel_send_funds.request_id.clone())
+        .remove_remote_pending_transaction(cancel.request_id.clone())
         .await?;
 
     // Decrease frozen credits:

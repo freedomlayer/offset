@@ -8,15 +8,13 @@ use crypto::rand::RandGen;
 use crypto::test_utils::DummyRandom;
 
 use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Uid};
-use proto::funder::messages::{CancelSendFundsOp, Currency, FriendTcOp, RequestSendFundsOp};
-
-use crate::mutual_credit::tests::utils::MockMutualCredit;
-use crate::mutual_credit::types::McDbClient;
+use proto::funder::messages::Currency;
 
 use crate::mutual_credit::outgoing::queue_operation;
-use crate::mutual_credit::tests::utils::process_operations_list;
+use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
+use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest};
 
-async fn task_request_cancel_send_funds() {
+async fn task_request_cancel() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
 
     let mut rng = DummyRandom::new(&[1u8]);
@@ -31,7 +29,7 @@ async fn task_request_cancel_send_funds() {
     let out_fees = 0.into();
     let mut mc_transaction = MockMutualCredit::new(currency.clone(), balance, in_fees, out_fees);
 
-    // -----[RequestSendFunds]--------
+    // -----[McRequest]--------
     // -----------------------------
     let request_id = Uid::from(&[3; Uid::len()]);
     let route = vec![
@@ -42,9 +40,8 @@ async fn task_request_cancel_send_funds() {
     let invoice_hash = HashResult::from(&[0; HashResult::len()]);
     let src_plain_lock = PlainLock::from(&[1; PlainLock::len()]);
 
-    let request_send_funds = RequestSendFundsOp {
+    let request = McRequest {
         request_id: request_id.clone(),
-        currency: currency.clone(),
         src_hashed_lock: src_plain_lock.hash_lock(),
         route,
         dest_payment: 10,
@@ -54,7 +51,7 @@ async fn task_request_cancel_send_funds() {
 
     queue_operation(
         &mut mc_transaction,
-        FriendTcOp::RequestSendFunds(request_send_funds),
+        McOp::Request(request),
         &currency,
         &local_public_key,
     )
@@ -68,13 +65,13 @@ async fn task_request_cancel_send_funds() {
     assert_eq!(mc_balance.in_fees, 0.into());
     assert_eq!(mc_balance.out_fees, 0.into());
 
-    // -----[CancelSendFunds]--------
+    // -----[McCancel]--------
     // ------------------------------
-    let cancel_send_funds = CancelSendFundsOp { request_id };
+    let cancel = McCancel { request_id };
 
     process_operations_list(
         &mut mc_transaction,
-        vec![FriendTcOp::CancelSendFunds(cancel_send_funds)],
+        vec![McOp::Cancel(cancel)],
         &currency,
         &remote_public_key,
         100,
@@ -91,8 +88,8 @@ async fn task_request_cancel_send_funds() {
 }
 
 #[test]
-fn test_request_cancel_send_funds() {
+fn test_request_cancel() {
     let test_executor = TestExecutor::new();
-    let res = test_executor.run(task_request_cancel_send_funds());
+    let res = test_executor.run(task_request_cancel());
     assert!(res.is_output());
 }

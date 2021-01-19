@@ -126,11 +126,11 @@ where
 }
 */
 
-pub fn move_token_signature_buff(move_token: &MoveToken) -> Vec<u8> {
+pub fn move_token_signature_buff(move_token: &MoveToken, info_hash: &HashResult) -> Vec<u8> {
     let mut sig_buffer = Vec::new();
     sig_buffer.extend_from_slice(&hash::hash_buffer(TOKEN_NEXT));
     sig_buffer.extend_from_slice(&move_token.old_token);
-    sig_buffer.extend_from_slice(&move_token.info_hash);
+    sig_buffer.extend_from_slice(info_hash);
     sig_buffer
 }
 

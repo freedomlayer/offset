@@ -5,10 +5,10 @@ use common::conn::BoxFuture;
 use common::u256::U256;
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, FriendTcOp, McBalance, PendingTransaction};
+use proto::funder::messages::{Currency, McBalance, PendingTransaction};
 
 use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
-use crate::mutual_credit::types::McDbClient;
+use crate::mutual_credit::types::{McDbClient, McOp};
 
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
@@ -147,7 +147,7 @@ pub struct ProcessTransListError {
 
 pub async fn process_operations_list(
     mc_client: &mut impl McDbClient,
-    operations: Vec<FriendTcOp>,
+    operations: Vec<McOp>,
     currency: &Currency,
     remote_public_key: &PublicKey,
     remote_max_debt: u128,

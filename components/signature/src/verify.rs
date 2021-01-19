@@ -4,7 +4,7 @@
 // use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
-use proto::crypto::PublicKey;
+use proto::crypto::{HashResult, PublicKey};
 
 use proto::funder::messages::MoveToken;
 use proto::index_server::messages::MutationsUpdate;
@@ -67,8 +67,12 @@ pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
 */
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token(move_token: &MoveToken, public_key: &PublicKey) -> bool {
-    let sig_buffer = move_token_signature_buff(move_token);
+pub fn verify_move_token(
+    move_token: &MoveToken,
+    info_hash: &HashResult,
+    public_key: &PublicKey,
+) -> bool {
+    let sig_buffer = move_token_signature_buff(move_token, info_hash);
     verify_signature(&sig_buffer, public_key, &move_token.new_token)
 }
 
