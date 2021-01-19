@@ -19,15 +19,12 @@ use crate::mutual_credit::utils::{
 
 #[derive(Debug, From)]
 pub enum QueueOperationError {
-    // RemoteMaxDebtTooLarge,
     InvalidRoute,
-    // PkPairNotInRoute,
     CreditsCalcOverflow,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
     InvalidSrcPlainLock,
-    // DestPaymentExceedsTotal,
     OpError(OpError),
 }
 
