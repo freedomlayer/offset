@@ -19,8 +19,7 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddress;
 use proto::crypto::{HashResult, PublicKey, RandValue, Signature};
 use proto::funder::messages::{
-    CurrenciesOperations, Currency, CurrencyOperations, FriendTcOp, McBalance, MoveToken,
-    ResetBalance, ResetTerms, TokenInfo,
+    Currency, FriendTcOp, McBalance, MoveToken, ResetBalance, ResetTerms, TokenInfo,
 };
 
 use signature::canonical::CanonicalSerialize;
@@ -33,7 +32,7 @@ use database::transaction::{TransFunc, Transaction};
 
 use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
 use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
-use crate::mutual_credit::types::McDbClient;
+use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
 
 use crate::token_channel::types::{TcDbClient, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
@@ -83,11 +82,15 @@ fn token_from_public_key(public_key: &PublicKey) -> Signature {
 /// To canonicalize the initial move token (Having an equal move token for both sides), we sort the
 /// two public keys in some way.
 pub fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKey) -> MoveToken {
+    /*
     let token_info = TokenInfo {
         // No balances yet:
         balances_hash: hash_buffer(&[]),
         move_token_counter: 0,
     };
+
+    let info_hash = hash_token_info(&low_public_key, &high_public_key, &token_info);
+    */
 
     // This is a special initialization case.
     // Note that this is the only case where new_token is not a valid signature.
@@ -96,9 +99,7 @@ pub fn initial_move_token(low_public_key: &PublicKey, high_public_key: &PublicKe
     // doesn't have the private key). Therefore we use a dummy new_token instead.
     let move_token_out = MoveToken {
         old_token: token_from_public_key(&low_public_key),
-        currencies_operations: Vec::new(),
-        currencies_diff: Vec::new(),
-        info_hash: hash_token_info(&low_public_key, &high_public_key, &token_info),
+        operations: Vec::new(),
         new_token: token_from_public_key(&high_public_key),
     };
 
@@ -268,6 +269,7 @@ where
             if new_move_token.old_token == local_reset_terms.reset_token {
                 // This is a reset move token!
 
+                /*
                 // Simulate an outgoing move token with the correct `new_token`:
                 let token_info = TokenInfo {
                     balances_hash: hash_mc_infos(tc_client.list_local_reset_balances().map_ok(
@@ -281,12 +283,12 @@ where
                         .checked_sub(1)
                         .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
                 };
+                */
 
                 let move_token_out = MoveToken {
                     old_token: Signature::from(&[0; Signature::len()]),
-                    currencies_operations: Vec::new(),
-                    currencies_diff: Vec::new(),
-                    info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
+                    operations: Vec::new(),
+                    // info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
                     new_token: local_reset_terms.reset_token.clone(),
                 };
 
@@ -719,11 +721,36 @@ async fn handle_incoming_token_match(
     ))
 }
 
+#[derive(Debug, Clone)]
+enum TcOp {
+    McOp(Currency, McOp),
+    ToggleCurrency(Currency),
+}
+
+fn tc_op_from_friend_tc_op(friend_tc_op: FriendTcOp) -> TcOp {
+    let _ = match friend_tc_op {
+        FriendTcOp::RequestSendFunds(request_send_funds) => TcOp::McOp(
+            request_send_funds.currency,
+            McOp::Request(McRequest {
+                request_id: request_send_funds.request_id,
+                src_hashed_lock: request_send_funds.src_hashed_lock,
+                dest_payment: request_send_funds.dest_payment,
+                invoice_hash: request_send_funds.invoice_hash,
+                route: request_send_funds.route,
+                left_fees: request_send_funds.left_fees,
+            }),
+        ),
+        FriendTcOp::ResponseSendFunds(..) => todo!(),
+        FriendTcOp::CancelSendFunds(..) => todo!(),
+        FriendTcOp::ToggleCurrency(..) => todo!(),
+    };
+    todo!();
+}
+
 pub async fn handle_out_move_token(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: CurrenciesOperations,
-    currencies_diff: Vec<Currency>,
+    operations: Vec<FriendTcOp>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<MoveToken, TokenChannelError> {
@@ -734,6 +761,15 @@ pub async fn handle_out_move_token(
             return Err(TokenChannelError::InvalidTokenChannelStatus);
         }
     };
+
+    for op in operations {
+        match op {
+            FriendTcOp::RequestSendFunds(request_send_funds) => {}
+            FriendTcOp::ResponseSendFunds(response_send_funds) => {}
+            FriendTcOp::CancelSendFunds(response_send_funds) => {}
+            FriendTcOp::ToggleCurrency(currency) => {}
+        }
+    }
 
     // Handle currencies_diff:
     for diff_currency in &currencies_diff {
@@ -755,6 +791,7 @@ pub async fn handle_out_move_token(
                     .ok_or(TokenChannelError::InvalidDbState)?
                     .get_balance()
                     .await?;
+
                 if mc_balance.balance == 0
                     && mc_balance.remote_pending_debt == 0
                     && mc_balance.local_pending_debt == 0
