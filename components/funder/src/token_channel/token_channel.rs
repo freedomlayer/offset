@@ -793,30 +793,35 @@ async fn tc_op_from_incoming_friend_tc_op(
     }))
 }
 
-/*
-fn friend_tc_op_from_outgoing_mc_op(mc_op: McOp, currency: Currency) -> FriendTcOp {
-    match mc_op {
-        McOp::Request(mc_request) => FriendTcOp::RequestSendFunds(RequestSendFundsOp {
-            request_id: mc_request.request_id,
-            currency,
-            src_hashed_lock: mc_request.src_hashed_lock,
-            dest_payment: mc_request.dest_payment,
-            invoice_hash: mc_request.invoice_hash,
-            route: mc_request.route,
-            left_fees: mc_request.left_fees,
-        }),
-        McOp::Response(mc_response) => FriendTcOp::ResponseSendFunds(ResponseSendFundsOp {
-            request_id: mc_response.request_id,
-            src_plain_lock: mc_response.src_plain_lock,
-            serial_num: mc_response.serial_num,
-            signature: mc_response.signature,
-        }),
-        McOp::Cancel(mc_cancel) => FriendTcOp::CancelSendFunds(CancelSendFundsOp {
-            request_id: mc_cancel.request_id,
-        }),
+fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
+    match tc_op {
+        TcOp::McOp(currency, McOp::Request(mc_request)) => {
+            FriendTcOp::RequestSendFunds(RequestSendFundsOp {
+                request_id: mc_request.request_id,
+                currency,
+                src_hashed_lock: mc_request.src_hashed_lock,
+                dest_payment: mc_request.dest_payment,
+                invoice_hash: mc_request.invoice_hash,
+                route: mc_request.route,
+                left_fees: mc_request.left_fees,
+            })
+        }
+        TcOp::McOp(_currency, McOp::Response(mc_response)) => {
+            FriendTcOp::ResponseSendFunds(ResponseSendFundsOp {
+                request_id: mc_response.request_id,
+                src_plain_lock: mc_response.src_plain_lock,
+                serial_num: mc_response.serial_num,
+                signature: mc_response.signature,
+            })
+        }
+        TcOp::McOp(_currency, McOp::Cancel(mc_cancel)) => {
+            FriendTcOp::CancelSendFunds(CancelSendFundsOp {
+                request_id: mc_cancel.request_id,
+            })
+        }
+        TcOp::ToggleCurrency(currency) => FriendTcOp::ToggleCurrency(currency),
     }
 }
-*/
 
 pub async fn handle_out_move_token(
     tc_client: &mut impl TcDbClient,
@@ -941,69 +946,6 @@ pub async fn handle_out_move_token(
         }
     }
 
-    todo!();
-
-    /*
-    // Handle currencies_diff:
-    for diff_currency in &currencies_diff {
-        // Check if we need to add currency:
-        if !tc_client.is_local_currency(diff_currency.clone()).await? {
-            // Add a new local currency.
-            tc_client.add_local_currency(diff_currency.clone()).await?;
-
-            // If we also have this currency as a remote currency, add a new mutual credit:
-            if tc_client.is_remote_currency(diff_currency.clone()).await? {
-                tc_client.add_mutual_credit(diff_currency.clone());
-            }
-        } else {
-            let is_remote_currency = tc_client.is_remote_currency(diff_currency.clone()).await?;
-            if is_remote_currency {
-                let mc_balance = tc_client
-                    .mc_db_client(diff_currency.clone())
-                    .await?
-                    .ok_or(TokenChannelError::InvalidState)?
-                    .get_balance()
-                    .await?;
-
-                if mc_balance.balance == 0
-                    && mc_balance.remote_pending_debt == 0
-                    && mc_balance.local_pending_debt == 0
-                {
-                    // We may remove the currency if the balance and pending debts are exactly
-                    // zero:
-                    tc_client
-                        .remove_local_currency(diff_currency.clone())
-                        .await?;
-                // TODO: Do We need to report outside that we removed this currency somehow?
-                // TODO: Somehow unite all code for removing local currencies.
-                } else {
-                    // We are not allowed to remove this currency!
-                    // TODO: Should be an error instead?
-                    return Err(TokenChannelError::CanNotRemoveCurrencyInUse);
-                }
-            } else {
-                tc_client
-                    .remove_remote_currency(diff_currency.clone())
-                    .await?;
-                // TODO: Do We need to report outside that we removed this currency somehow?
-            }
-        }
-    }
-
-    // Update mutual credits:
-    for (currency, friend_tc_op) in &currencies_operations {
-        queue_operation(
-            tc_client
-                .mc_db_client(currency.clone())
-                .await?
-                .ok_or(TokenChannelError::InvalidState)?,
-            friend_tc_op.clone(),
-            &currency,
-            local_public_key,
-        )
-        .await?;
-    }
-
     let new_move_token_counter = tc_client
         .get_move_token_counter()
         .await?
@@ -1016,31 +958,31 @@ pub async fn handle_out_move_token(
         move_token_counter: new_move_token_counter,
     };
 
+    let info_hash = hash_token_info(local_public_key, remote_public_key, &token_info);
+
     let mut move_token = MoveToken {
         old_token: move_token_in.new_token,
-        currencies_operations,
-        currencies_diff,
-        info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
+        operations: tc_ops
+            .into_iter()
+            .map(|tc_op| friend_tc_op_from_outgoing_tc_op(tc_op))
+            .collect(),
         // Still not known:
         new_token: Signature::from(&[0; Signature::len()]),
     };
 
     // Fill in signature:
-    let signature_buff = move_token_signature_buff(&move_token);
+    let signature_buff = move_token_signature_buff(&move_token, &info_hash);
     move_token.new_token = identity_client
         .request_signature(signature_buff)
         .await
         .map_err(|_| TokenChannelError::RequestSignatureError)?;
 
-    // Set the direction to be outgoing:
-    // TODO: This should also save the last incoming move token, in an atomic way.
-    // Should probably be implemented inside the database code.
+    // Set the direction to be outgoing, and save last incoming token in an atomic way:
     tc_client
         .set_direction_outgoing(move_token.clone(), new_move_token_counter)
         .await?;
 
     Ok(move_token)
-    */
 }
 
 /// Apply a token channel reset, accepting remote side's
