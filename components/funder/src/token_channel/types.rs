@@ -6,7 +6,9 @@ use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 use common::u256::U256;
 
 use proto::crypto::Signature;
-use proto::funder::messages::{Currency, McBalance, MoveToken, ResetBalance, ResetTerms};
+use proto::funder::messages::{
+    Currency, Currency, McBalance, MoveToken, ResetBalance, ResetTerms, Uid,
+};
 
 use database::interface::funder::CurrencyConfig;
 
@@ -46,6 +48,7 @@ pub trait TcDbClient {
     type McDbClient: McDbClient;
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;
 
+    fn get_currency(&mut self, request_id: Uid) -> AsyncOpResult<Option<Currency>>;
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
     fn set_direction_outgoing(

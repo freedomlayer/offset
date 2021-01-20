@@ -727,8 +727,11 @@ enum TcOp {
     ToggleCurrency(Currency),
 }
 
-fn tc_op_from_friend_tc_op(friend_tc_op: FriendTcOp) -> TcOp {
-    let _ = match friend_tc_op {
+async fn tc_op_from_incoming_friend_tc_op(
+    tc_client: &mut impl TcDbClient,
+    friend_tc_op: FriendTcOp,
+) -> Result<Option<TcOp>, TokenChannelError> {
+    Ok(Some(match friend_tc_op {
         FriendTcOp::RequestSendFunds(request_send_funds) => TcOp::McOp(
             request_send_funds.currency,
             McOp::Request(McRequest {
@@ -740,11 +743,45 @@ fn tc_op_from_friend_tc_op(friend_tc_op: FriendTcOp) -> TcOp {
                 left_fees: request_send_funds.left_fees,
             }),
         ),
-        FriendTcOp::ResponseSendFunds(..) => todo!(),
-        FriendTcOp::CancelSendFunds(..) => todo!(),
-        FriendTcOp::ToggleCurrency(..) => todo!(),
-    };
-    todo!();
+        FriendTcOp::ResponseSendFunds(response_send_funds) => {
+            let currency = if let Some(currency) = tc_client
+                .get_currency(response_send_funds.request_id.clone())
+                .await?
+            {
+                currency
+            } else {
+                return Ok(None);
+            };
+
+            TcOp::McOp(
+                currency,
+                McOp::Response(McResponse {
+                    request_id: response_send_funds.request_id,
+                    src_plain_lock: response_send_funds.src_plain_lock,
+                    serial_num: response_send_funds.serial_num,
+                    signature: response_send_funds.signature,
+                }),
+            )
+        }
+        FriendTcOp::CancelSendFunds(cancel_send_funds) => {
+            let currency = if let Some(currency) = tc_client
+                .get_currency(cancel_send_funds.request_id.clone())
+                .await?
+            {
+                currency
+            } else {
+                return Ok(None);
+            };
+
+            TcOp::McOp(
+                currency,
+                McOp::Cancel(McCancel {
+                    request_id: cancel_send_funds.request_id,
+                }),
+            )
+        }
+        FriendTcOp::ToggleCurrency(currency) => TcOp::ToggleCurrency(currency),
+    }))
 }
 
 pub async fn handle_out_move_token(
