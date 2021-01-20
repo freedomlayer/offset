@@ -337,8 +337,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE local_currencies(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
-             is_remove                BOOL NOT NULL,
-             -- Is marked for removal?
              FOREIGN KEY(friend_public_key) 
                 REFERENCES consistent_channels(friend_public_key)
                 ON DELETE CASCADE,
@@ -381,10 +379,14 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              remote_pending_debt      BLOB NOT NULL,
              in_fees                  BLOB NOT NULL,
              out_fees                 BLOB NOT NULL,
-             PRIMARY KEY(friend_public_key, currency)
+             is_local_remove          BOOL NOT NULL,
+             -- Was marked for removal by local side?
+             is_remote_remove         BOOL NOT NULL,
+             -- Was marked for removal by remote side?
+             PRIMARY KEY(friend_public_key, currency),
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES local_currencies(friend_public_key, currency)
-                ON DELETE CASCADE
+                ON DELETE CASCADE,
              FOREIGN KEY(friend_public_key, currency) 
                 REFERENCES remote_currencies(friend_public_key, currency)
                 ON DELETE CASCADE
