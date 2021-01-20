@@ -46,7 +46,8 @@ pub trait TcDbClient {
     type McDbClient: McDbClient;
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;
 
-    fn get_currency(&mut self, request_id: Uid) -> AsyncOpResult<Option<Currency>>;
+    /// Find currency used for a locally sent request
+    fn get_currency_local_request(&mut self, request_id: Uid) -> AsyncOpResult<Option<Currency>>;
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus>;
     fn set_direction_incoming(&mut self, move_token_hashed: MoveTokenHashed) -> AsyncOpResult<()>;
     fn set_direction_outgoing(
@@ -108,6 +109,14 @@ pub trait TcDbClient {
 
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+
+    fn is_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn set_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    fn unset_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
+
+    fn is_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn set_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    fn unset_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
 
     fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
