@@ -451,7 +451,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // (As opposed to requests that were received for the first time from a friend)
     tx.execute(
         "CREATE TABLE local_requests(
-             request_id               BLOB NOT NULL PRIMARY KEY,
+             request_id               BLOB NOT NULL PRIMARY KEY
          );",
         params![],
     )?;
