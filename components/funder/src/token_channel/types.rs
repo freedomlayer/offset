@@ -5,10 +5,8 @@ use futures::channel::oneshot;
 use common::async_rpc::{AsyncOpResult, AsyncOpStream};
 use common::u256::U256;
 
-use proto::crypto::Signature;
-use proto::funder::messages::{
-    Currency, Currency, McBalance, MoveToken, ResetBalance, ResetTerms, Uid,
-};
+use proto::crypto::{Signature, Uid};
+use proto::funder::messages::{Currency, McBalance, MoveToken, ResetBalance, ResetTerms};
 
 use database::interface::funder::CurrencyConfig;
 
