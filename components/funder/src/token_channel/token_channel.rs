@@ -579,7 +579,10 @@ async fn handle_incoming_token_match(
     // This allows the genesis move token to occur smoothly, even though its signature
     // is not correct.
     // TODO: Check if the above statement is still true.
-    if !verify_move_token(&new_move_token, &remote_public_key) {
+
+    // TODO: We need to be able to calculate info_hash here.
+    let info_hash = todo!();
+    if !verify_move_token(&new_move_token, &info_hash, &remote_public_key) {
         return Ok(IncomingTokenMatchOutput::InvalidIncoming(
             InvalidIncoming::InvalidSignature,
         ));
@@ -589,6 +592,10 @@ async fn handle_incoming_token_match(
     let mut move_token_received = MoveTokenReceived {
         incoming_messages: Vec::new(),
     };
+
+    todo!();
+
+    /*
 
     // Handle active currencies:
 
@@ -719,6 +726,7 @@ async fn handle_incoming_token_match(
     Ok(IncomingTokenMatchOutput::MoveTokenReceived(
         move_token_received,
     ))
+    */
 }
 
 #[derive(Debug, Clone)]
@@ -808,6 +816,9 @@ pub async fn handle_out_move_token(
         }
     }
 
+    todo!();
+
+    /*
     // Handle currencies_diff:
     for diff_currency in &currencies_diff {
         // Check if we need to add currency:
@@ -904,6 +915,7 @@ pub async fn handle_out_move_token(
         .await?;
 
     Ok(move_token)
+    */
 }
 
 /// Apply a token channel reset, accepting remote side's
@@ -911,11 +923,14 @@ pub async fn handle_out_move_token(
 pub async fn accept_remote_reset(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
-    currencies_operations: CurrenciesOperations,
-    currencies_diff: Vec<Currency>,
+    operations: Vec<FriendTcOp>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<MoveToken, TokenChannelError> {
+    todo!();
+
+    /*
+
     // Make sure that we are in inconsistent state,
     // and that the remote side has already sent his reset terms:
     let (remote_reset_token, remote_reset_move_token_counter) =
@@ -965,6 +980,7 @@ pub async fn accept_remote_reset(
         remote_public_key,
     )
     .await
+    */
 }
 
 /// Load the remote reset terms information from a remote side's inconsistency message
