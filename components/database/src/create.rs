@@ -121,8 +121,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key          BLOB NOT NULL,
              currency                   TEXT NOT NULL,
              rate                       BLOB NOT NULL,
+             -- TODO: Unpack rate to its components here.
              remote_max_debt            BLOB NOT NULL,
+             local_max_debt             BLOB NOT NULL,
              is_open                    BOOL NOT NULL,
+             is_remove                  BOOL NOT NULL,
+             -- Was marked for removal locally?
              PRIMARY KEY(friend_public_key, currency),
              FOREIGN KEY(friend_public_key) 
                 REFERENCES friends(friend_public_key)
@@ -334,43 +338,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     )?;
 
     tx.execute(
-        "CREATE TABLE local_currencies(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
-             FOREIGN KEY(friend_public_key) 
-                REFERENCES consistent_channels(friend_public_key)
-                ON DELETE CASCADE,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES currency_configs(friend_public_key, currency)
-                ON DELETE CASCADE,
-             PRIMARY KEY(friend_public_key, currency)
-            );",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE UNIQUE INDEX idx_local_currencies ON local_currencies(friend_public_key, currency);",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE TABLE remote_currencies(
-             friend_public_key        BLOB NOT NULL,
-             currency                 TEXT NOT NULL,
-             FOREIGN KEY(friend_public_key) 
-                REFERENCES consistent_channels(friend_public_key)
-                ON DELETE CASCADE,
-             PRIMARY KEY(friend_public_key, currency)
-            );",
-        params![],
-    )?;
-
-    tx.execute(
-        "CREATE UNIQUE INDEX idx_remote_currencies ON remote_currencies(friend_public_key, currency);",
-        params![],
-    )?;
-
-    tx.execute(
         "CREATE TABLE mutual_credits(
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
@@ -379,16 +346,12 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              remote_pending_debt      BLOB NOT NULL,
              in_fees                  BLOB NOT NULL,
              out_fees                 BLOB NOT NULL,
-             is_local_remove          BOOL NOT NULL,
-             -- Was marked for removal by local side?
-             is_remote_remove         BOOL NOT NULL,
-             -- Was marked for removal by remote side?
              PRIMARY KEY(friend_public_key, currency),
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES local_currencies(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key)
+                REFERENCES consistent_channels(friend_public_key)
                 ON DELETE CASCADE,
-             FOREIGN KEY(friend_public_key, currency) 
-                REFERENCES remote_currencies(friend_public_key, currency)
+             FOREIGN KEY(friend_public_key, currency)
+                REFERENCES currency_configs(friend_public_key, currency)
                 ON DELETE CASCADE
             );",
         params![],
