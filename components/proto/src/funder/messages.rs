@@ -178,8 +178,6 @@ pub enum FriendTcOp {
     RequestSendFunds(RequestSendFundsOp),
     ResponseSendFunds(ResponseSendFundsOp),
     CancelSendFunds(CancelSendFundsOp),
-    /// Add/remove currency
-    ToggleCurrency(Currency),
 }
 
 /*

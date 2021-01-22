@@ -731,9 +731,9 @@ async fn handle_incoming_token_match(
 }
 
 #[derive(Debug, Clone)]
-pub enum TcOp {
-    McOp(Currency, McOp),
-    ToggleCurrency(Currency),
+pub struct TcOp {
+    pub currency: Currency,
+    pub mc_op: McOp,
 }
 
 async fn tc_op_from_incoming_friend_tc_op(
@@ -741,9 +741,9 @@ async fn tc_op_from_incoming_friend_tc_op(
     friend_tc_op: FriendTcOp,
 ) -> Result<Option<TcOp>, TokenChannelError> {
     Ok(Some(match friend_tc_op {
-        FriendTcOp::RequestSendFunds(request_send_funds) => TcOp::McOp(
-            request_send_funds.currency,
-            McOp::Request(McRequest {
+        FriendTcOp::RequestSendFunds(request_send_funds) => TcOp {
+            currency: request_send_funds.currency,
+            mc_op: McOp::Request(McRequest {
                 request_id: request_send_funds.request_id,
                 src_hashed_lock: request_send_funds.src_hashed_lock,
                 dest_payment: request_send_funds.dest_payment,
@@ -751,7 +751,7 @@ async fn tc_op_from_incoming_friend_tc_op(
                 route: request_send_funds.route,
                 left_fees: request_send_funds.left_fees,
             }),
-        ),
+        },
         FriendTcOp::ResponseSendFunds(response_send_funds) => {
             let currency = if let Some(currency) = tc_client
                 .get_currency_local_request(response_send_funds.request_id.clone())
@@ -762,15 +762,15 @@ async fn tc_op_from_incoming_friend_tc_op(
                 return Ok(None);
             };
 
-            TcOp::McOp(
+            TcOp {
                 currency,
-                McOp::Response(McResponse {
+                mc_op: McOp::Response(McResponse {
                     request_id: response_send_funds.request_id,
                     src_plain_lock: response_send_funds.src_plain_lock,
                     serial_num: response_send_funds.serial_num,
                     signature: response_send_funds.signature,
                 }),
-            )
+            }
         }
         FriendTcOp::CancelSendFunds(cancel_send_funds) => {
             let currency = if let Some(currency) = tc_client
@@ -782,44 +782,36 @@ async fn tc_op_from_incoming_friend_tc_op(
                 return Ok(None);
             };
 
-            TcOp::McOp(
+            TcOp {
                 currency,
-                McOp::Cancel(McCancel {
+                mc_op: McOp::Cancel(McCancel {
                     request_id: cancel_send_funds.request_id,
                 }),
-            )
+            }
         }
-        FriendTcOp::ToggleCurrency(currency) => TcOp::ToggleCurrency(currency),
     }))
 }
 
 fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
-    match tc_op {
-        TcOp::McOp(currency, McOp::Request(mc_request)) => {
-            FriendTcOp::RequestSendFunds(RequestSendFundsOp {
-                request_id: mc_request.request_id,
-                currency,
-                src_hashed_lock: mc_request.src_hashed_lock,
-                dest_payment: mc_request.dest_payment,
-                invoice_hash: mc_request.invoice_hash,
-                route: mc_request.route,
-                left_fees: mc_request.left_fees,
-            })
-        }
-        TcOp::McOp(_currency, McOp::Response(mc_response)) => {
-            FriendTcOp::ResponseSendFunds(ResponseSendFundsOp {
-                request_id: mc_response.request_id,
-                src_plain_lock: mc_response.src_plain_lock,
-                serial_num: mc_response.serial_num,
-                signature: mc_response.signature,
-            })
-        }
-        TcOp::McOp(_currency, McOp::Cancel(mc_cancel)) => {
-            FriendTcOp::CancelSendFunds(CancelSendFundsOp {
-                request_id: mc_cancel.request_id,
-            })
-        }
-        TcOp::ToggleCurrency(currency) => FriendTcOp::ToggleCurrency(currency),
+    match tc_op.mc_op {
+        McOp::Request(mc_request) => FriendTcOp::RequestSendFunds(RequestSendFundsOp {
+            request_id: mc_request.request_id,
+            currency: tc_op.currency,
+            src_hashed_lock: mc_request.src_hashed_lock,
+            dest_payment: mc_request.dest_payment,
+            invoice_hash: mc_request.invoice_hash,
+            route: mc_request.route,
+            left_fees: mc_request.left_fees,
+        }),
+        McOp::Response(mc_response) => FriendTcOp::ResponseSendFunds(ResponseSendFundsOp {
+            request_id: mc_response.request_id,
+            src_plain_lock: mc_response.src_plain_lock,
+            serial_num: mc_response.serial_num,
+            signature: mc_response.signature,
+        }),
+        McOp::Cancel(mc_cancel) => FriendTcOp::CancelSendFunds(CancelSendFundsOp {
+            request_id: mc_cancel.request_id,
+        }),
     }
 }
 
@@ -839,111 +831,106 @@ pub async fn handle_out_move_token(
     };
 
     for tc_op in tc_ops.iter().cloned() {
-        match tc_op {
-            TcOp::McOp(currency, mc_op) => {
-                queue_operation(
-                    tc_client
-                        .mc_db_client(currency.clone())
-                        .await?
-                        .ok_or(TokenChannelError::InvalidState)?,
-                    // TODO: In case a currency is removed, we need to remember to cancel all
-                    // requests that are pending for this currency. Where should this happen?
-                    mc_op,
-                    &currency,
-                    local_public_key,
-                )
+        queue_operation(
+            tc_client
+                .mc_db_client(tc_op.currency.clone())
+                .await?
+                .ok_or(TokenChannelError::InvalidState)?,
+            tc_op.mc_op,
+            &tc_op.currency,
+            local_public_key,
+        )
+        .await?;
+
+        // If currency is marked for removal locally and all credits are zero, we need to remove the currency.
+        if tc_client
+            .is_local_currency_remove(tc_op.currency.clone())
+            .await?
+        {
+            // If the balances are zero, we remove the currency:
+            let mc_balance = tc_client
+                .mc_db_client(tc_op.currency.clone())
+                .await?
+                .ok_or(TokenChannelError::InvalidState)?
+                .get_balance()
                 .await?;
 
-                // If currency is marked for removal by any of the sides, and balance + pending
-                // credits are zero, we need to remove the currency.
-                if tc_client.is_local_currency_remove(currency.clone()).await?
-                    || tc_client
-                        .is_remote_currency_remove(currency.clone())
-                        .await?
-                {
-                    // If the balances are zero, we remove the currency:
-                    let mc_balance = tc_client
-                        .mc_db_client(currency.clone())
-                        .await?
-                        .ok_or(TokenChannelError::InvalidState)?
-                        .get_balance()
-                        .await?;
-
-                    if mc_balance.balance == 0
-                        && mc_balance.remote_pending_debt == 0
-                        && mc_balance.local_pending_debt == 0
-                    {
-                        // We may remove the currency if the balance and pending debts are exactly
-                        // zero:
-                        tc_client.remove_local_currency(currency.clone()).await?;
-                        // TODO: Do We need to report outside that we removed this currency somehow?
-                        // TODO: Somehow unite all code for removing local currencies.
-                    }
-                }
-            }
-            TcOp::ToggleCurrency(currency) => {
-                // - If we don't have this currency locally configured:
-                //      - Add the currency locally
-                // - Else (we have this currency locally):
-                //      - If also enabled remotely:
-                //          - Remove this currency if balance and pending debt is zero.
-                //      - Else:
-                //          - Remove this currency
-
-                // Check if we need to add currency:
-                if !tc_client.is_local_currency(currency.clone()).await? {
-                    // Add a new local currency.
-                    tc_client.add_local_currency(currency.clone()).await?;
-
-                    // If we also have this currency as a remote currency, add a new mutual credit:
-                    if tc_client.is_remote_currency(currency.clone()).await? {
-                        tc_client.add_mutual_credit(currency.clone());
-                    }
-                } else {
-                    // We have this currency locally:
-                    if tc_client.is_remote_currency(currency.clone()).await? {
-                        // Check if we already have this currency marked for removal
-                        if tc_client.is_local_currency_remove(currency.clone()).await? {
-                            // Currency is already marked for removal.
-                            // We toggle the removal setting, setting the currency to be "not for
-                            // removal".
-                            tc_client
-                                .unset_local_currency_remove(currency.clone())
-                                .await?;
-                        } else {
-                            // Currency was not marked for removal.
-
-                            // Mark the currency for removal:
-                            tc_client
-                                .set_local_currency_remove(currency.clone())
-                                .await?;
-
-                            // If the balances are zero, we remove the currency:
-                            let mc_balance = tc_client
-                                .mc_db_client(currency.clone())
-                                .await?
-                                .ok_or(TokenChannelError::InvalidState)?
-                                .get_balance()
-                                .await?;
-
-                            if mc_balance.balance == 0
-                                && mc_balance.remote_pending_debt == 0
-                                && mc_balance.local_pending_debt == 0
-                            {
-                                // We may remove the currency if the balance and pending debts are exactly
-                                // zero:
-                                tc_client.remove_local_currency(currency.clone()).await?;
-                                // TODO: Do We need to report outside that we removed this currency somehow?
-                                // TODO: Somehow unite all code for removing local currencies.
-                            }
-                        }
-                    } else {
-                        tc_client.remove_remote_currency(currency.clone()).await?;
-                        // TODO: Do We need to report outside that we removed this currency somehow?
-                    }
-                }
+            if mc_balance.balance == 0
+                && mc_balance.remote_pending_debt == 0
+                && mc_balance.local_pending_debt == 0
+            {
+                // We may remove the currency if the balance and pending debts are exactly
+                // zero:
+                tc_client
+                    .remove_local_currency(tc_op.currency.clone())
+                    .await?;
+                // TODO: Do We need to report outside that we removed this currency somehow?
+                // TODO: Somehow unite all code for removing local currencies.
             }
         }
+        /*
+        TcOp::ToggleCurrency(currency) => {
+            // - If we don't have this currency locally configured:
+            //      - Add the currency locally
+            // - Else (we have this currency locally):
+            //      - If also enabled remotely:
+            //          - Remove this currency if balance and pending debt is zero.
+            //      - Else:
+            //          - Remove this currency
+
+            // Check if we need to add currency:
+            if !tc_client.is_local_currency(currency.clone()).await? {
+                // Add a new local currency.
+                tc_client.add_local_currency(currency.clone()).await?;
+
+                // If we also have this currency as a remote currency, add a new mutual credit:
+                if tc_client.is_remote_currency(currency.clone()).await? {
+                    tc_client.add_mutual_credit(currency.clone());
+                }
+            } else {
+                // We have this currency locally:
+                if tc_client.is_remote_currency(currency.clone()).await? {
+                    // Check if we already have this currency marked for removal
+                    if tc_client.is_local_currency_remove(currency.clone()).await? {
+                        // Currency is already marked for removal.
+                        // We toggle the removal setting, setting the currency to be "not for
+                        // removal".
+                        tc_client
+                            .unset_local_currency_remove(currency.clone())
+                            .await?;
+                    } else {
+                        // Currency was not marked for removal.
+
+                        // Mark the currency for removal:
+                        tc_client
+                            .set_local_currency_remove(currency.clone())
+                            .await?;
+
+                        // If the balances are zero, we remove the currency:
+                        let mc_balance = tc_client
+                            .mc_db_client(currency.clone())
+                            .await?
+                            .ok_or(TokenChannelError::InvalidState)?
+                            .get_balance()
+                            .await?;
+
+                        if mc_balance.balance == 0
+                            && mc_balance.remote_pending_debt == 0
+                            && mc_balance.local_pending_debt == 0
+                        {
+                            // We may remove the currency if the balance and pending debts are exactly
+                            // zero:
+                            tc_client.remove_local_currency(currency.clone()).await?;
+                            // TODO: Do We need to report outside that we removed this currency somehow?
+                            // TODO: Somehow unite all code for removing local currencies.
+                        }
+                    }
+                } else {
+                    tc_client.remove_remote_currency(currency.clone()).await?;
+                    // TODO: Do We need to report outside that we removed this currency somehow?
+                }
+            }
+        }*/
     }
 
     let new_move_token_counter = tc_client

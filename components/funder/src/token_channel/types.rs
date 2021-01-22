@@ -107,22 +107,11 @@ pub trait TcDbClient {
     /// Only relevant for inconsistent channels
     fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)>;
 
-    fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-
     fn is_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn set_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
     fn unset_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
 
-    fn is_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn set_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
-    fn unset_remote_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
-
+    fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-
-    fn add_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn remove_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-
-    fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()>;
 }
