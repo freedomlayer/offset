@@ -28,14 +28,13 @@ pub enum QueueOperationError {
     OpError(OpError),
 }
 
-/// A wrapper over a token channel, accumulating operations to be sent as one transaction.
+/// Queue a single operation mutual credit operation
 pub async fn queue_operation(
     mc_client: &mut impl McDbClient,
     operation: McOp,
     currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
-    // TODO: Maybe remove clone from here later:
     match operation {
         McOp::Request(request) => queue_request_send_funds(mc_client, request, currency).await,
         McOp::Response(response) => {
@@ -53,12 +52,6 @@ async fn queue_request_send_funds(
     if !request.route.is_part_valid() {
         return Err(QueueOperationError::InvalidRoute);
     }
-
-    /*
-    if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
-        return Err(QueueOperationError::DestPaymentExceedsTotal);
-    }
-    */
 
     // Calculate amount of credits to freeze
     let own_freeze_credits = request
