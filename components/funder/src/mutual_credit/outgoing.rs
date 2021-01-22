@@ -28,6 +28,7 @@ pub enum QueueOperationError {
     OpError(OpError),
 }
 
+/*
 /// Queue a single operation mutual credit operation
 pub async fn queue_operation(
     mc_client: &mut impl McDbClient,
@@ -36,15 +37,16 @@ pub async fn queue_operation(
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
     match operation {
-        McOp::Request(request) => queue_request_send_funds(mc_client, request, currency).await,
+        McOp::Request(request) => queue_request(mc_client, request, currency).await,
         McOp::Response(response) => {
-            queue_response_send_funds(mc_client, response, currency, local_public_key).await
+            queue_response(mc_client, response, currency, local_public_key).await
         }
-        McOp::Cancel(cancel) => queue_cancel_send_funds(mc_client, cancel).await,
+        McOp::Cancel(cancel) => queue_cancel(mc_client, cancel).await,
     }
 }
+*/
 
-async fn queue_request_send_funds(
+pub async fn queue_request(
     mc_client: &mut impl McDbClient,
     request: McRequest,
     currency: &Currency,
@@ -91,7 +93,7 @@ async fn queue_request_send_funds(
     Ok(())
 }
 
-async fn queue_response_send_funds(
+pub async fn queue_response(
     mc_client: &mut impl McDbClient,
     response: McResponse,
     currency: &Currency,
@@ -182,7 +184,7 @@ async fn queue_response_send_funds(
     Ok(())
 }
 
-async fn queue_cancel_send_funds(
+pub async fn queue_cancel(
     mc_client: &mut impl McDbClient,
     cancel: McCancel,
 ) -> Result<(), QueueOperationError> {

@@ -23,7 +23,7 @@ where
 {
     /// Begin a new transaction.
     /// Transaction ends at the end of the closure scope.
-    /// If the returned boolean is true, the transaction was successful. Otherwise, the transaction
+    /// If the returned value is Ok(..), the transaction was successful. Otherwise, the transaction
     /// was canceled.
     fn transaction<'a, F, T, E>(&'a mut self, f: F) -> BoxFuture<'a, Result<T, E>>
     where

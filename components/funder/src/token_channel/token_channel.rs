@@ -815,6 +815,58 @@ fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
     }
 }
 
+pub struct OutMoveToken<'a, C> {
+    pub tc_client: &'a mut C,
+    tc_ops: Vec<TcOp>,
+}
+
+impl<'a, C> OutMoveToken<'a, C>
+where
+    C: TcDbClient,
+{
+    pub fn new(tc_client: &'a mut C) -> Self {
+        Self {
+            tc_client,
+            tc_ops: Vec::new(),
+        }
+    }
+
+    pub async fn queue_request(
+        &mut self,
+        currency: Currency,
+        mc_request: McRequest,
+    ) -> Result<(), TokenChannelError> {
+        // TODO: Request might fail due to `local_max_debt`.
+        // Should we return a cancel message in this case?
+        todo!();
+    }
+
+    pub async fn queue_response(
+        &mut self,
+        currency: Currency,
+        mc_response: McResponse,
+    ) -> Result<(), TokenChannelError> {
+        todo!();
+    }
+
+    pub async fn queue_cancel(
+        &mut self,
+        currency: Currency,
+        mc_cancel: McCancel,
+    ) -> Result<(), TokenChannelError> {
+        todo!();
+    }
+
+    pub async fn finalize(
+        self,
+        identity_client: &mut IdentityClient,
+        local_public_key: &PublicKey,
+        remote_public_key: &PublicKey,
+    ) -> Result<MoveToken, TokenChannelError> {
+        todo!();
+    }
+}
+
 pub async fn handle_out_move_token(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
