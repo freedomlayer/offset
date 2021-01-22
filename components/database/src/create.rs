@@ -120,8 +120,10 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE currency_configs(
              friend_public_key          BLOB NOT NULL,
              currency                   TEXT NOT NULL,
-             rate                       BLOB NOT NULL,
-             -- TODO: Unpack rate to its components here.
+             rate_mul                   INTEGER NOT NULL
+                                        CHECK(rate_mul >= 0 AND rate_mul < 0x100000000),
+             rate_add                   INTEGER NOT NULL
+                                        CHECK(rate_add >= 0 AND rate_add < 0x100000000),
              remote_max_debt            BLOB NOT NULL,
              local_max_debt             BLOB NOT NULL,
              is_open                    BOOL NOT NULL,
