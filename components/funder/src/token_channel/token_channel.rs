@@ -830,6 +830,7 @@ pub async fn handle_out_move_token(
         }
     };
 
+    // TODO: If mutual credit does not exist yet, we might need to create it here.
     for tc_op in tc_ops.iter().cloned() {
         queue_operation(
             tc_client
