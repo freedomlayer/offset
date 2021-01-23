@@ -32,7 +32,9 @@ use signature::verify::verify_move_token;
 use database::transaction::{TransFunc, Transaction};
 
 use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
-use crate::mutual_credit::outgoing::{queue_operation, QueueOperationError};
+use crate::mutual_credit::outgoing::{
+    queue_cancel, queue_request, queue_response, QueueOperationError,
+};
 use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
 
 use crate::token_channel::types::{TcDbClient, TcStatus};
@@ -819,41 +821,74 @@ pub struct OutMoveToken {
     tc_ops: Vec<TcOp>,
 }
 
-impl OutMoveToken
-where
-    C: TcDbClient,
-{
+impl OutMoveToken {
     pub fn new(local_max_debt: usize) -> Self {
-        Self {
-            tc_ops: Vec::new(),
-            local_max_debt,
-        }
+        Self { tc_ops: Vec::new() }
     }
 
     pub async fn queue_request(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_request: McRequest,
-    ) -> Result<(), TokenChannelError> {
-        // TODO: Request might fail due to `local_max_debt`.
-        // Should we return a cancel message in this case?
-        todo!();
+        local_max_debt: u128,
+    ) -> Result<Result<(), McCancel>, TokenChannelError> {
+        // TODO: Remember to clean up all relevant pending requests when a currency is removed.
+        // Otherwise we might get to this state:
+        let mc_client = tc_client
+            .mc_db_client(currency.clone())
+            .await?
+            .ok_or(TokenChannelError::InvalidState)?;
+        // queue_request might fail due to `local_max_debt`.
+        let res = queue_request(mc_client, mc_request.clone(), &currency, local_max_debt).await?;
+
+        self.tc_ops.push(TcOp {
+            currency,
+            mc_op: McOp::Request(mc_request),
+        });
+
+        Ok(res)
     }
 
     pub async fn queue_response(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_response: McResponse,
+        local_public_key: &PublicKey,
     ) -> Result<(), TokenChannelError> {
-        todo!();
+        let mc_client = tc_client
+            .mc_db_client(currency.clone())
+            .await?
+            .ok_or(TokenChannelError::InvalidState)?;
+        queue_response(mc_client, mc_response.clone(), local_public_key).await?;
+
+        self.tc_ops.push(TcOp {
+            currency,
+            mc_op: McOp::Response(mc_response),
+        });
+
+        Ok(())
     }
 
     pub async fn queue_cancel(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_cancel: McCancel,
     ) -> Result<(), TokenChannelError> {
-        todo!();
+        let mc_client = tc_client
+            .mc_db_client(currency.clone())
+            .await?
+            .ok_or(TokenChannelError::InvalidState)?;
+        queue_cancel(mc_client, mc_cancel.clone()).await?;
+
+        self.tc_ops.push(TcOp {
+            currency,
+            mc_op: McOp::Cancel(mc_cancel),
+        });
+
+        Ok(())
     }
 
     pub async fn finalize(
