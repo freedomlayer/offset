@@ -112,7 +112,6 @@ pub async fn queue_request(
 pub async fn queue_response(
     mc_client: &mut impl McDbClient,
     response: McResponse,
-    currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
     // Make sure that id exists in remote_pending hashmap,
@@ -132,7 +131,7 @@ pub async fn queue_response(
 
     // verify signature:
     let response_signature_buffer = create_response_signature_buffer(
-        currency,
+        &pending_transaction.currency,
         response_op_from_mc_response(response.clone()),
         &pending_transaction,
     );
