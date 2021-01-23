@@ -10,7 +10,7 @@ use crypto::test_utils::DummyRandom;
 use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Uid};
 use proto::funder::messages::Currency;
 
-use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::outgoing::queue_request;
 use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
 use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest};
 
@@ -49,14 +49,10 @@ async fn task_request_cancel() {
         left_fees: 5,
     };
 
-    queue_operation(
-        &mut mc_transaction,
-        McOp::Request(request),
-        &currency,
-        &local_public_key,
-    )
-    .await
-    .unwrap();
+    let local_max_debt = u128::MAX;
+    queue_request(&mut mc_transaction, request, &currency, local_max_debt)
+        .await
+        .unwrap();
 
     let mc_balance = mc_transaction.get_balance().await.unwrap();
     assert_eq!(mc_balance.balance, 0);

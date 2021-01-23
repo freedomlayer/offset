@@ -11,7 +11,8 @@ use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Signature, Uid
 use proto::funder::messages::Currency;
 use signature::signature_buff::create_response_signature_buffer;
 
-use crate::mutual_credit::outgoing::queue_operation;
+use crate::mutual_credit::outgoing::queue_request;
+
 use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
 use crate::mutual_credit::types::{McDbClient, McOp, McRequest, McResponse};
 use crate::mutual_credit::utils::{
@@ -55,14 +56,10 @@ async fn task_request_response() {
 
     let pending_transaction =
         pending_transaction_from_mc_request(request.clone(), currency.clone());
-    queue_operation(
-        &mut mc_transaction,
-        McOp::Request(request),
-        &currency,
-        &local_public_key,
-    )
-    .await
-    .unwrap();
+    let local_max_debt = u128::MAX;
+    queue_request(&mut mc_transaction, request, &currency, local_max_debt)
+        .await
+        .unwrap();
 
     let mc_balance = mc_transaction.get_balance().await.unwrap();
     assert_eq!(mc_balance.balance, 0);

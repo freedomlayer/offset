@@ -115,17 +115,13 @@ async fn process_request_send_funds(
         .checked_add(own_freeze_credits)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
-    // Check that local_pending_debt - balance <= local_max_debt:
+    // Check that balance + remote_pending_debt - remote_max_debt > 0:
     let add = mc_balance
         .balance
         .checked_add_unsigned(new_remote_pending_debt)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
-    let incoming_message = if add
-        .checked_sub_unsigned(remote_max_debt)
-        .ok_or(ProcessOperationError::CreditsCalcOverflow)?
-        > 0
-    {
+    let incoming_message = if add.saturating_sub_unsigned(remote_max_debt) > 0 {
         // Insufficient trust:
         IncomingMessage::RequestCancel(request_send_funds.clone())
     } else {

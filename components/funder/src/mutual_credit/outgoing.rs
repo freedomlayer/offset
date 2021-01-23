@@ -50,7 +50,8 @@ pub async fn queue_request(
     mc_client: &mut impl McDbClient,
     request: McRequest,
     currency: &Currency,
-) -> Result<(), QueueOperationError> {
+    local_max_debt: u128,
+) -> Result<Result<(), McCancel>, QueueOperationError> {
     if !request.route.is_part_valid() {
         return Err(QueueOperationError::InvalidRoute);
     }
@@ -68,6 +69,21 @@ pub async fn queue_request(
         .local_pending_debt
         .checked_add(own_freeze_credits)
         .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+
+    // Make sure that we don't get into too much debt:
+    // Check that balance - local_pending_debt + local_max_debt >= 0
+    //            balance - local_pending_debt >= - local_max_debt
+    let sub = mc_balance
+        .balance
+        .checked_sub_unsigned(new_local_pending_debt)
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+
+    if sub.saturating_add_unsigned(local_max_debt) < 0 {
+        // Too much local debt:
+        return Ok(Err(McCancel {
+            request_id: request.request_id,
+        }));
+    }
 
     // Make sure that we don't have this request as a pending request already:
     if mc_client
@@ -90,7 +106,7 @@ pub async fn queue_request(
         .set_local_pending_debt(new_local_pending_debt)
         .await?;
 
-    Ok(())
+    Ok(Ok(()))
 }
 
 pub async fn queue_response(

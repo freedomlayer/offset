@@ -815,19 +815,18 @@ fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
     }
 }
 
-pub struct OutMoveToken<'a, C> {
-    pub tc_client: &'a mut C,
+pub struct OutMoveToken {
     tc_ops: Vec<TcOp>,
 }
 
-impl<'a, C> OutMoveToken<'a, C>
+impl OutMoveToken
 where
     C: TcDbClient,
 {
-    pub fn new(tc_client: &'a mut C) -> Self {
+    pub fn new(local_max_debt: usize) -> Self {
         Self {
-            tc_client,
             tc_ops: Vec::new(),
+            local_max_debt,
         }
     }
 
