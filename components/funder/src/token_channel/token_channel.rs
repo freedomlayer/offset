@@ -561,7 +561,6 @@ async fn hash_mc_infos(
 enum InvalidIncoming {
     InvalidSignature,
     InvalidOperation,
-    InvalidTokenInfo,
     CanNotRemoveCurrencyInUse,
 }
 
@@ -582,15 +581,6 @@ async fn handle_incoming_token_match(
     // This allows the genesis move token to occur smoothly, even though its signature
     // is not correct.
     // TODO: Check if the above statement is still true.
-
-    // TODO: Verify signature after we perform all operations and able to calculate `info_hash`.
-    // TODO: We need to be able to calculate info_hash here.
-    let info_hash = todo!();
-    if !verify_move_token(&new_move_token, &info_hash, &remote_public_key) {
-        return Ok(IncomingTokenMatchOutput::InvalidIncoming(
-            InvalidIncoming::InvalidSignature,
-        ));
-    }
 
     // Aggregate incoming messages:
     let mut move_token_received = MoveTokenReceived {
@@ -678,10 +668,6 @@ async fn handle_incoming_token_match(
             .push((tc_op.currency.clone(), incoming_message));
     }
 
-    todo!();
-
-    /*
-
     let move_token_counter = tc_client.get_move_token_counter().await?;
     let new_move_token_counter = move_token_counter
         .checked_add(1)
@@ -701,9 +687,10 @@ async fn handle_incoming_token_match(
 
     let info_hash = hash_token_info(remote_public_key, local_public_key, &token_info);
 
-    if new_move_token.info_hash != info_hash {
+    // Verify signature:
+    if !verify_move_token(&new_move_token, &info_hash, &remote_public_key) {
         return Ok(IncomingTokenMatchOutput::InvalidIncoming(
-            InvalidIncoming::InvalidTokenInfo,
+            InvalidIncoming::InvalidSignature,
         ));
     }
 
@@ -716,7 +703,6 @@ async fn handle_incoming_token_match(
     Ok(IncomingTokenMatchOutput::MoveTokenReceived(
         move_token_received,
     ))
-    */
 }
 
 #[derive(Debug, Clone)]
