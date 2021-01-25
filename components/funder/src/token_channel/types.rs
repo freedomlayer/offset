@@ -42,6 +42,12 @@ impl TcStatus {
     }
 }
 
+#[derive(Debug)]
+pub struct TcCurrencyConfig {
+    pub local_max_debt: u128,
+    pub remote_max_debt: u128,
+}
+
 pub trait TcDbClient {
     type McDbClient: McDbClient;
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;
@@ -93,11 +99,19 @@ pub trait TcDbClient {
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     // fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
-    /// Get currency's remote max debt (A value that was set locally)
-    fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
+    // fn is_currency_config(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 
-    /// Get currency's local max debt (A value that was set locally)
-    fn get_local_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
+    // /// Get currency's remote max debt (A value that was set locally)
+    // fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
+
+    // /// Get currency's local max debt (A value that was set locally)
+    // fn get_local_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
+
+    /// Get currency's configuration
+    fn get_currency_config(
+        &mut self,
+        currency: Currency,
+    ) -> AsyncOpResult<Option<TcCurrencyConfig>>;
 
     /// Return a sorted async iterator of all balances
     fn list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;

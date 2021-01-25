@@ -573,7 +573,7 @@ enum IncomingTokenMatchOutput {
 
 async fn handle_incoming_token_match(
     tc_client: &mut impl TcDbClient,
-    new_move_token: MoveToken, // remote_max_debts: &ImHashMap<Currency, u128>,
+    new_move_token: MoveToken,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<IncomingTokenMatchOutput, TokenChannelError> {
@@ -583,6 +583,7 @@ async fn handle_incoming_token_match(
     // is not correct.
     // TODO: Check if the above statement is still true.
 
+    // TODO: Verify signature after we perform all operations and able to calculate `info_hash`.
     // TODO: We need to be able to calculate info_hash here.
     let info_hash = todo!();
     if !verify_move_token(&new_move_token, &info_hash, &remote_public_key) {
@@ -596,77 +597,68 @@ async fn handle_incoming_token_match(
         incoming_messages: Vec::new(),
     };
 
-    todo!();
+    // Attempt to apply operations for every currency:
+    for friend_tc_op in new_move_token.operations.iter().cloned() {
+        let tc_op =
+            if let Some(tc_op) = tc_op_from_incoming_friend_tc_op(tc_client, friend_tc_op).await? {
+                tc_op
+            } else {
+                return Ok(IncomingTokenMatchOutput::InvalidIncoming(
+                    InvalidIncoming::InvalidOperation,
+                ));
+            };
 
-    /*
-
-    // Handle active currencies:
-
-    // currencies_diff represents a "xor" between the previous set of currencies and the new set of
-    // currencies.
-    //
-    // - Add to remote currencies every currency that is in the xor set, but not in the current
-    // set.
-    // - Remove from remote currencies currencies that satisfy the following requirements:
-    //  - (1) in the xor set.
-    //  - (2) in the remote set
-    //  - (3) (Not in the local set) or (in the local set with balance zero and zero pending debts)
-    for diff_currency in &new_move_token.currencies_diff {
-        // Check if we need to add currency:
-        if !tc_client.is_remote_currency(diff_currency.clone()).await? {
-            // Add a new remote currency.
-            tc_client.add_remote_currency(diff_currency.clone()).await?;
-
-            // If we also have this currency as a local currency, add a new mutual credit:
-            if tc_client.is_local_currency(diff_currency.clone()).await? {
-                tc_client.add_mutual_credit(diff_currency.clone());
-            }
+        let remote_max_debt = if let Some(remote_max_debt) = tc_client
+            .get_currency_config(tc_op.currency.clone())
+            .await?
+            .map(|currency_config| currency_config.remote_max_debt)
+        {
+            remote_max_debt
         } else {
-            let is_local_currency = tc_client.is_local_currency(diff_currency.clone()).await?;
-            if is_local_currency {
-                let mc_balance = tc_client
-                    .mc_db_client(diff_currency.clone())
-                    .await?
-                    .ok_or(TokenChannelError::InvalidState)?
-                    .get_balance()
-                    .await?;
-                if mc_balance.balance == 0
-                    && mc_balance.remote_pending_debt == 0
-                    && mc_balance.local_pending_debt == 0
-                {
-                    // We may remove the currency if the balance and pending debts are exactly
-                    // zero:
-                    tc_client
-                        .remove_remote_currency(diff_currency.clone())
-                        .await?;
-                // TODO: Do We need to report outside that we removed this currency somehow?
-                // TODO: Somehow unite all code for removing remote currencies.
-                } else {
-                    // We are not allowed to remove this currency!
+            // Currency is not configured.
+            match tc_op.mc_op {
+                McOp::Request(mc_request) => {
+                    // In case of a request, we cancel it:
+                    move_token_received.incoming_messages.push((
+                        tc_op.currency.clone(),
+                        IncomingMessage::RequestCancel(mc_request),
+                    ));
+                    continue;
+                }
+                McOp::Response(..) | McOp::Cancel(..) => {
                     return Ok(IncomingTokenMatchOutput::InvalidIncoming(
-                        InvalidIncoming::CanNotRemoveCurrencyInUse,
+                        InvalidIncoming::InvalidOperation,
                     ));
                 }
-            } else {
-                tc_client
-                    .remove_remote_currency(diff_currency.clone())
-                    .await?;
-                // TODO: Do We need to report outside that we removed this currency somehow?
             }
-        }
-    }
+        };
 
-    // Attempt to apply operations for every currency:
-    for (currency, friend_tc_op) in &new_move_token.currencies_operations {
-        let remote_max_debt = tc_client.get_remote_max_debt(currency.clone()).await?;
+        let mc_client =
+            if let Some(mc_client) = tc_client.mc_db_client(tc_op.currency.clone()).await? {
+                mc_client
+            } else {
+                match &tc_op.mc_op {
+                    McOp::Request(..) => {
+                        // An incoming request might allow opening a mutual credit, in case we have a matching
+                        // currency configuration. Otherwise, the request should be cancelled.
+                        tc_client.add_mutual_credit(tc_op.currency.clone()).await?;
+                        tc_client
+                            .mc_db_client(tc_op.currency.clone())
+                            .await?
+                            .expect("Invalid state")
+                    }
+                    McOp::Response(..) | McOp::Cancel(..) => {
+                        return Ok(IncomingTokenMatchOutput::InvalidIncoming(
+                            InvalidIncoming::InvalidOperation,
+                        ));
+                    }
+                }
+            };
 
         let res = process_operation(
-            tc_client
-                .mc_db_client(currency.clone())
-                .await?
-                .ok_or(TokenChannelError::InvalidState)?,
-            friend_tc_op.clone(),
-            &currency,
+            mc_client,
+            tc_op.mc_op,
+            &tc_op.currency,
             remote_public_key,
             remote_max_debt,
         )
@@ -681,19 +673,14 @@ async fn handle_incoming_token_match(
             }
         };
 
-        /*
-        // We apply mutations on this token channel, to verify stated balance values
-        // let mut check_mutual_credit = mutual_credit.clone();
-        let move_token_received_currency = MoveTokenReceivedCurrency {
-            currency: currency.clone(),
-            incoming_messages,
-        };
-        */
-
         move_token_received
             .incoming_messages
-            .push((currency.clone(), incoming_message));
+            .push((tc_op.currency.clone(), incoming_message));
     }
+
+    todo!();
+
+    /*
 
     let move_token_counter = tc_client.get_move_token_counter().await?;
     let new_move_token_counter = move_token_counter
@@ -838,7 +825,11 @@ impl OutMoveToken {
             TcStatus::ConsistentIn(..)
         ));
 
-        let local_max_debt = tc_client.get_local_max_debt(currency.clone()).await?;
+        let local_max_debt = tc_client
+            .get_currency_config(currency.clone())
+            .await?
+            .expect("Invalid state")
+            .local_max_debt;
         let mc_client = if let Some(mc_client) = tc_client.mc_db_client(currency.clone()).await? {
             mc_client
         } else {
