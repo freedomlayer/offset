@@ -817,70 +817,96 @@ fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
     }
 }
 
-pub struct OutMoveToken<'a, C> {
-    tc_client: &'a mut C,
+pub struct OutMoveToken {
     tc_ops: Vec<TcOp>,
 }
 
-// TODO: What interface should we expose to the outside world to be able to use tc_client?
-impl<'a, C> OutMoveToken<'a, C>
-where
-    C: TcDbClient,
-{
-    pub fn new(tc_client: &'a mut C) -> Self {
-        Self {
-            tc_client,
-            tc_ops: Vec::new(),
-        }
+impl OutMoveToken {
+    pub fn new() -> Self {
+        Self { tc_ops: Vec::new() }
     }
 
     pub async fn queue_request(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_request: McRequest,
-        local_max_debt: u128,
     ) -> Result<Result<(), McCancel>, TokenChannelError> {
-        // TODO: Remember to clean up all relevant pending requests when a currency is removed.
-        // Otherwise we might get to this state:
-        let mc_client = self
-            .tc_client
-            .mc_db_client(currency.clone())
-            .await?
-            .ok_or(TokenChannelError::InvalidState)?;
+        // Token channel must be in consistent incoming state
+        assert!(matches!(
+            tc_client.get_tc_status().await?,
+            TcStatus::ConsistentIn(..)
+        ));
 
-        // Add mutual credit if currency config exists.
-        // Note that the above statement might fail, and we might need to handle it.
-        todo!();
+        // Try to get currency config:
+        let currency_config =
+            if let Some(currency_config) = tc_client.get_currency_config(currency.clone()).await? {
+                currency_config
+            } else {
+                return Ok(Err(McCancel {
+                    request_id: mc_request.request_id,
+                }));
+            };
+
+        let mc_client = if let Some(mc_client) = tc_client.mc_db_client(currency.clone()).await? {
+            mc_client
+        } else {
+            // We need to create a new mutual credit
+            tc_client.add_local_currency(currency.clone()).await?;
+            tc_client
+                .mc_db_client(currency.clone())
+                .await?
+                .expect("Invalid state")
+        };
 
         // queue_request might fail due to `local_max_debt`.
-        let res = queue_request(mc_client, mc_request.clone(), &currency, local_max_debt).await?;
+        if let Err(mc_cancel) = queue_request(
+            mc_client,
+            mc_request.clone(),
+            &currency,
+            currency_config.local_max_debt,
+        )
+        .await?
+        {
+            return Ok(Err(mc_cancel));
+        }
 
         self.tc_ops.push(TcOp {
-            currency,
+            currency: currency.clone(),
             mc_op: McOp::Request(mc_request),
         });
 
-        todo!();
+        // Get resulting balances (After queue-ing the request):
+        let balances = mc_client.get_balance().await?;
 
-        // Remove mutual credit if all balances are zero.
+        if tc_client.is_local_currency_remove(currency.clone()).await? {
+            // We are expecting to remove this currency
+            // If balance and pending credits are zero, we might be able to remove this
+            // currency:
+            if balances.balance == 0
+                && balances.local_pending_debt == 0
+                && balances.remote_pending_debt == 0
+            {
+                tc_client.remove_local_currency(currency.clone()).await?;
+                // TODO: What to do with in_fees / out_fees? Do they need to be documented somehow?
+                // Will be documented in database code?
+            }
+        }
 
-        // Possible remove a currency config if mutual credit was removed, and currency is set for
-        // removal.
-
-        Ok(res)
+        Ok(Ok(()))
     }
 
     pub async fn queue_response(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_response: McResponse,
         local_public_key: &PublicKey,
     ) -> Result<(), TokenChannelError> {
-        let mc_client = self
-            .tc_client
+        let mc_client = tc_client
             .mc_db_client(currency.clone())
             .await?
-            .ok_or(TokenChannelError::InvalidState)?;
+            .expect("Invalid State");
         queue_response(mc_client, mc_response.clone(), local_public_key).await?;
 
         self.tc_ops.push(TcOp {
@@ -899,11 +925,11 @@ where
 
     pub async fn queue_cancel(
         &mut self,
+        tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_cancel: McCancel,
     ) -> Result<(), TokenChannelError> {
-        let mc_client = self
-            .tc_client
+        let mc_client = tc_client
             .mc_db_client(currency.clone())
             .await?
             .ok_or(TokenChannelError::InvalidState)?;
@@ -926,26 +952,26 @@ where
 
     pub async fn finalize(
         self,
+        tc_client: &mut impl TcDbClient,
         identity_client: &mut IdentityClient,
         local_public_key: &PublicKey,
         remote_public_key: &PublicKey,
     ) -> Result<MoveToken, TokenChannelError> {
         // We expect that our current state is incoming:
         // TODO: Should we check this at the constructor?
-        let move_token_in = match self.tc_client.get_tc_status().await? {
+        let move_token_in = match tc_client.get_tc_status().await? {
             TcStatus::ConsistentIn(move_token_in) => move_token_in,
             TcStatus::ConsistentOut(..) | TcStatus::Inconsistent(..) => {
                 return Err(TokenChannelError::InvalidTokenChannelStatus);
             }
         };
 
-        let new_move_token_counter = self
-            .tc_client
+        let new_move_token_counter = tc_client
             .get_move_token_counter()
             .await?
             .checked_add(1)
             .ok_or(TokenChannelError::MoveTokenCounterOverflow)?;
-        let mc_balances = self.tc_client.list_balances();
+        let mc_balances = tc_client.list_balances();
 
         let token_info = TokenInfo {
             balances_hash: hash_mc_infos(mc_balances).await?,
@@ -973,7 +999,7 @@ where
             .map_err(|_| TokenChannelError::RequestSignatureError)?;
 
         // Set the direction to be outgoing, and save last incoming token in an atomic way:
-        self.tc_client
+        tc_client
             .set_direction_outgoing(move_token.clone(), new_move_token_counter)
             .await?;
 
