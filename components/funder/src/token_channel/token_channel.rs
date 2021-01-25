@@ -831,28 +831,19 @@ impl OutMoveToken {
         tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_request: McRequest,
-    ) -> Result<Result<(), McCancel>, TokenChannelError> {
-        // Token channel must be in consistent incoming state
+    ) -> Result<Result<McBalance, McCancel>, TokenChannelError> {
+        // Token channel must be at a consistent incoming state
         assert!(matches!(
             tc_client.get_tc_status().await?,
             TcStatus::ConsistentIn(..)
         ));
 
-        // Try to get currency config:
-        let currency_config =
-            if let Some(currency_config) = tc_client.get_currency_config(currency.clone()).await? {
-                currency_config
-            } else {
-                return Ok(Err(McCancel {
-                    request_id: mc_request.request_id,
-                }));
-            };
-
+        let local_max_debt = tc_client.get_local_max_debt(currency.clone()).await?;
         let mc_client = if let Some(mc_client) = tc_client.mc_db_client(currency.clone()).await? {
             mc_client
         } else {
             // We need to create a new mutual credit
-            tc_client.add_local_currency(currency.clone()).await?;
+            tc_client.add_mutual_credit(currency.clone()).await?;
             tc_client
                 .mc_db_client(currency.clone())
                 .await?
@@ -860,13 +851,8 @@ impl OutMoveToken {
         };
 
         // queue_request might fail due to `local_max_debt`.
-        if let Err(mc_cancel) = queue_request(
-            mc_client,
-            mc_request.clone(),
-            &currency,
-            currency_config.local_max_debt,
-        )
-        .await?
+        if let Err(mc_cancel) =
+            queue_request(mc_client, mc_request.clone(), &currency, local_max_debt).await?
         {
             return Ok(Err(mc_cancel));
         }
@@ -877,23 +863,7 @@ impl OutMoveToken {
         });
 
         // Get resulting balances (After queue-ing the request):
-        let balances = mc_client.get_balance().await?;
-
-        if tc_client.is_local_currency_remove(currency.clone()).await? {
-            // We are expecting to remove this currency
-            // If balance and pending credits are zero, we might be able to remove this
-            // currency:
-            if balances.balance == 0
-                && balances.local_pending_debt == 0
-                && balances.remote_pending_debt == 0
-            {
-                tc_client.remove_local_currency(currency.clone()).await?;
-                // TODO: What to do with in_fees / out_fees? Do they need to be documented somehow?
-                // Will be documented in database code?
-            }
-        }
-
-        Ok(Ok(()))
+        Ok(Ok(mc_client.get_balance().await?))
     }
 
     pub async fn queue_response(
@@ -902,11 +872,18 @@ impl OutMoveToken {
         currency: Currency,
         mc_response: McResponse,
         local_public_key: &PublicKey,
-    ) -> Result<(), TokenChannelError> {
+    ) -> Result<McBalance, TokenChannelError> {
+        // Token channel must be at a consistent incoming state
+        assert!(matches!(
+            tc_client.get_tc_status().await?,
+            TcStatus::ConsistentIn(..)
+        ));
+
         let mc_client = tc_client
             .mc_db_client(currency.clone())
             .await?
             .expect("Invalid State");
+
         queue_response(mc_client, mc_response.clone(), local_public_key).await?;
 
         self.tc_ops.push(TcOp {
@@ -914,13 +891,7 @@ impl OutMoveToken {
             mc_op: McOp::Response(mc_response),
         });
 
-        todo!();
-
-        // Remove mutual credit if all balances are zero.
-
-        // Possible remove a currency config if mutual credit was removed, and currency is set for
-        // removal.
-        Ok(())
+        Ok(mc_client.get_balance().await?)
     }
 
     pub async fn queue_cancel(
@@ -928,7 +899,13 @@ impl OutMoveToken {
         tc_client: &mut impl TcDbClient,
         currency: Currency,
         mc_cancel: McCancel,
-    ) -> Result<(), TokenChannelError> {
+    ) -> Result<McBalance, TokenChannelError> {
+        // Token channel must be at a consistent incoming state
+        assert!(matches!(
+            tc_client.get_tc_status().await?,
+            TcStatus::ConsistentIn(..)
+        ));
+
         let mc_client = tc_client
             .mc_db_client(currency.clone())
             .await?
@@ -940,14 +917,7 @@ impl OutMoveToken {
             mc_op: McOp::Cancel(mc_cancel),
         });
 
-        todo!();
-
-        // Remove mutual credit if all balances are zero.
-
-        // Possible remove a currency config if mutual credit was removed, and currency is set for
-        // removal.
-
-        Ok(())
+        Ok(mc_client.get_balance().await?)
     }
 
     pub async fn finalize(
@@ -957,8 +927,12 @@ impl OutMoveToken {
         local_public_key: &PublicKey,
         remote_public_key: &PublicKey,
     ) -> Result<MoveToken, TokenChannelError> {
-        // We expect that our current state is incoming:
-        // TODO: Should we check this at the constructor?
+        // Token channel must be at a consistent incoming state
+        assert!(matches!(
+            tc_client.get_tc_status().await?,
+            TcStatus::ConsistentIn(..)
+        ));
+
         let move_token_in = match tc_client.get_tc_status().await? {
             TcStatus::ConsistentIn(move_token_in) => move_token_in,
             TcStatus::ConsistentOut(..) | TcStatus::Inconsistent(..) => {

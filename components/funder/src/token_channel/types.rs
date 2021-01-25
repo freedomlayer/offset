@@ -42,13 +42,6 @@ impl TcStatus {
     }
 }
 
-#[derive(Debug)]
-pub struct TcCurrencyConfig {
-    pub remote_max_debt: u128,
-    pub local_max_debt: u128,
-    pub is_remove: bool,
-}
-
 pub trait TcDbClient {
     type McDbClient: McDbClient;
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>>;
@@ -100,11 +93,11 @@ pub trait TcDbClient {
     fn get_move_token_counter(&mut self) -> AsyncOpResult<u128>;
     // fn set_move_token_counter(&mut self, move_token_counter: u128) -> AsyncOpResult<()>;
 
-    /// Get currency's config
-    fn get_currency_config(
-        &mut self,
-        currency: Currency,
-    ) -> AsyncOpResult<Option<TcCurrencyConfig>>;
+    /// Get currency's remote max debt (A value that was set locally)
+    fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
+
+    /// Get currency's local max debt (A value that was set locally)
+    fn get_local_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128>;
 
     /// Return a sorted async iterator of all balances
     fn list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
@@ -117,13 +110,13 @@ pub trait TcDbClient {
     /// Only relevant for inconsistent channels
     fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)>;
 
-    fn is_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    // fn is_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     // TODO: Should these functions be at the router module?
-    fn set_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
-    fn unset_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    // fn set_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
+    // fn unset_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
 
     // TODO: Rename these functions?
-    fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    // fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    // fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 }
