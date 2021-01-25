@@ -118,9 +118,11 @@ pub trait TcDbClient {
     fn list_remote_reset_balances(&mut self) -> AsyncOpStream<(Currency, ResetBalance)>;
 
     fn is_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    // TODO: Should these functions be at the router module?
     fn set_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
     fn unset_local_currency_remove(&mut self, currency: Currency) -> AsyncOpResult<()>;
 
+    // TODO: Rename these functions?
     fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
     fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
