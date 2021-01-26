@@ -332,14 +332,10 @@ where
     }
 }
 
-// TODO: Think abou the security implications of the implementation here.
-// Some previous ideas:
-// - Use a random generator to randomly generate an identity client.
-// - Sign over a blob that contains:
-//      - hash(prefix ("SOME_STRING"))
-//      - Both public keys.
-//      - local_reset_move_token_counter
-
+// Sign over a blob that contains:
+// - hash(prefix ("SOME_STRING"))
+// - Both public keys.
+// - local_reset_move_token_counter
 /// Generate a reset token, to be used by remote side if he wants to accept the reset terms.
 async fn create_reset_token(
     identity_client: &mut IdentityClient,
