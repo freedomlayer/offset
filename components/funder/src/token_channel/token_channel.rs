@@ -841,7 +841,7 @@ impl OutMoveToken {
             .await?
             .ok_or(TokenChannelError::InvalidState)?;
 
-        queue_response(mc_client, mc_response.clone(), local_public_key).await?;
+        queue_response(mc_client, mc_response.clone(), &currency, local_public_key).await?;
 
         self.tc_ops.push(TcOp {
             currency,

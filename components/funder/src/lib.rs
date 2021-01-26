@@ -30,8 +30,8 @@ mod mutual_credit;
 mod route;
 // pub mod report;
 // mod state;
-// #[allow(unused)]
-// mod token_channel;
+#[allow(unused)]
+mod token_channel;
 // #[allow(unused)]
 // mod router;
 pub mod types;

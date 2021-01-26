@@ -267,11 +267,6 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         let sign_buffer =
             mc_response_signature_buffer(&currency1, &mc_response, &pending_transaction);
 
-        let sign_buffer = create_response_signature_buffer(
-            &currency1,
-            response_send_funds_op.clone(),
-            &pending_transaction,
-        );
         mc_response.signature = identity_client_a
             .request_signature(sign_buffer)
             .await
