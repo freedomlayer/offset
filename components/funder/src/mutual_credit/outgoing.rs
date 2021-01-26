@@ -109,7 +109,10 @@ pub async fn queue_request(
         .await?
         .is_some()
     {
-        return Err(QueueOperationError::RequestAlreadyExists);
+        // Request already exists:
+        return Ok(Err(McCancel {
+            request_id: request.request_id,
+        }));
     }
 
     // Add pending transaction:
