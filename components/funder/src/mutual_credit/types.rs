@@ -5,7 +5,7 @@ use common::u256::U256;
 use proto::crypto::{HashResult, HashedLock, PlainLock, PublicKey, Signature, Uid};
 use proto::funder::messages::{McBalance, PendingTransaction};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McRequest {
     /// Id number of this request. Used to identify the whole transaction
     /// over this route.
@@ -25,7 +25,7 @@ pub struct McRequest {
     pub left_fees: u128,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McResponse {
     /// Id number of this request. Used to identify the whole transaction
     /// over this route.
@@ -45,7 +45,7 @@ pub struct McResponse {
     pub signature: Signature,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McCancel {
     /// Id number of this request. Used to identify the whole transaction
     /// over this route.
