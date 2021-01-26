@@ -164,10 +164,10 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed(move_token: &MoveToken, token_info: &TokenInfo) -> MoveTokenHashed {
+pub fn create_hashed(move_token: &MoveToken, token_info: TokenInfo) -> MoveTokenHashed {
     MoveTokenHashed {
         old_token: move_token.old_token.clone(),
-        token_info: token_info.clone(),
+        token_info,
         new_token: move_token.new_token.clone(),
     }
 }

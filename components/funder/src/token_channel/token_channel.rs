@@ -400,7 +400,7 @@ async fn handle_in_move_token_dir_in(
     move_token_in: MoveTokenHashed,
     new_move_token: MoveToken,
 ) -> Result<ReceiveMoveTokenOutput, TokenChannelError> {
-    if move_token_in == create_hashed(&new_move_token, &move_token_in.token_info) {
+    if move_token_in == create_hashed(&new_move_token, move_token_in.token_info.clone()) {
         // Duplicate
         Ok(ReceiveMoveTokenOutput::Duplicate)
     } else {
@@ -696,7 +696,7 @@ async fn handle_incoming_token_match(
     }
 
     // Set direction to outgoing, with the newly received move token:
-    let new_move_token_hashed = create_hashed(&new_move_token, &token_info);
+    let new_move_token_hashed = create_hashed(&new_move_token, token_info);
     tc_client
         .set_direction_incoming(new_move_token_hashed)
         .await?;
@@ -968,11 +968,7 @@ pub async fn accept_remote_reset(
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
 ) -> Result<MoveToken, TokenChannelError> {
-    todo!();
-
-    /*
-
-    // Make sure that we are in inconsistent state,
+    // Make sure that we are in an inconsistent state,
     // and that the remote side has already sent his reset terms:
     let (remote_reset_token, remote_reset_move_token_counter) =
         match tc_client.get_tc_status().await? {
@@ -1001,27 +997,23 @@ pub async fn accept_remote_reset(
 
     let move_token_in = MoveToken {
         old_token: Signature::from(&[0; Signature::len()]),
-        currencies_operations: Vec::new(),
-        currencies_diff: Vec::new(),
-        info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
+        operations: Vec::new(),
         new_token: remote_reset_token.clone(),
     };
 
     tc_client
-        .set_incoming_from_inconsistent(create_hashed(&move_token_in, &token_info))
+        .set_incoming_from_inconsistent(create_hashed(&move_token_in, token_info))
         .await?;
 
     // Create an outgoing move token, to be sent to the remote side:
-    handle_out_move_token(
-        tc_client,
-        identity_client,
-        currencies_operations,
-        currencies_diff,
-        local_public_key,
-        remote_public_key,
-    )
-    .await
-    */
+    OutMoveToken::new()
+        .finalize(
+            tc_client,
+            identity_client,
+            local_public_key,
+            remote_public_key,
+        )
+        .await
 }
 
 /// Load the remote reset terms information from a remote side's inconsistency message
