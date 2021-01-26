@@ -162,7 +162,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     };
 
     let mut out_move_token = OutMoveToken::new();
-    let mc_balance = out_move_token
+    let _mc_balance = out_move_token
         .queue_request(&mut tc_b_a, currency1.clone(), mc_request.clone())
         .await
         .unwrap();
