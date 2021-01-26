@@ -154,14 +154,6 @@ pub async fn queue_response(
     let response_signature_buffer =
         mc_response_signature_buffer(&currency, &response, &pending_transaction);
 
-    /*
-    let response_signature_buffer = create_response_signature_buffer(
-        &pending_transaction.currency,
-        response_op_from_mc_response(response.clone()),
-        &pending_transaction,
-    );
-    */
-
     // The response was signed by the destination node:
     let dest_public_key = if pending_transaction.route.is_empty() {
         local_public_key
