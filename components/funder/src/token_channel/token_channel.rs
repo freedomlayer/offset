@@ -273,26 +273,9 @@ where
             if new_move_token.old_token == local_reset_terms.reset_token {
                 // This is a reset move token!
 
-                /*
-                // Simulate an outgoing move token with the correct `new_token`:
-                let token_info = TokenInfo {
-                    balances_hash: hash_mc_infos(tc_client.list_local_reset_balances().map_ok(
-                        |(currency, mc_balance)| {
-                            (currency, reset_balance_to_mc_balance(mc_balance))
-                        },
-                    ))
-                    .await?,
-                    move_token_counter: local_reset_terms
-                        .move_token_counter
-                        .checked_sub(1)
-                        .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
-                };
-                */
-
                 let move_token_out = MoveToken {
                     old_token: Signature::from(&[0; Signature::len()]),
                     operations: Vec::new(),
-                    // info_hash: hash_token_info(local_public_key, remote_public_key, &token_info),
                     new_token: local_reset_terms.reset_token.clone(),
                 };
 
