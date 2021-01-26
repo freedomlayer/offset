@@ -182,6 +182,7 @@ pub async fn queue_response(
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
+        // TODO: Return unrecoverable error instead?
         .unwrap();
 
     // Remove entry from remote_pending hashmap:
@@ -194,6 +195,7 @@ pub async fn queue_response(
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
+        // TODO: Return unrecoverable error instead?
         .unwrap();
     // Above unwrap() should never fail. This was already checked when a request message was
     // received.
@@ -208,6 +210,7 @@ pub async fn queue_response(
             mc_balance
                 .in_fees
                 .checked_add(pending_transaction.left_fees.into())
+                // TODO: Return unrecoverable error instead?
                 .unwrap(),
         )
         .await?;
@@ -217,6 +220,7 @@ pub async fn queue_response(
     let new_balance = mc_balance
         .balance
         .checked_add_unsigned(freeze_credits)
+        // TODO: Return unrecoverable error instead?
         .unwrap();
     // Above unwrap() should never fail. This was already checked when a request message was
     // received.
@@ -242,6 +246,7 @@ pub async fn queue_cancel(
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
+        // TODO: Return unrecoverable error instead?
         .unwrap();
 
     // Remove entry from remote hashmap:
@@ -254,6 +259,7 @@ pub async fn queue_cancel(
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
+        // TODO: Return unrecoverable error instead?
         .unwrap();
 
     mc_client
