@@ -127,7 +127,25 @@ impl TcDbClient for MockTokenChannel {
     }
 
     fn get_currency_local_request(&mut self, request_id: Uid) -> AsyncOpResult<Option<Currency>> {
-        todo!();
+        let tc_consistent = match &self.status {
+            MockTcStatus::Consistent(tc_consistent) => tc_consistent,
+            _ => unreachable!(),
+        };
+
+        // Find the first mutual credit that contains this request, and return the corresponding
+        // currency.
+        for (currency, mutual_credit) in &tc_consistent.mutual_credits {
+            if mutual_credit
+                .pending_transactions
+                .local
+                .contains_key(&request_id)
+            {
+                return Box::pin(future::ready(Ok(Some(currency.clone()))));
+            }
+        }
+
+        // Nothing was found:
+        Box::pin(future::ready(Ok(None)))
     }
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus> {

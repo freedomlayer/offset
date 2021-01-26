@@ -207,7 +207,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         currency1.clone(),
         TcCurrencyConfig {
             local_max_debt: u128::MAX,
-            remote_max_debt: 100u128,
+            remote_max_debt: 25u128, // 20 credits payment + 5 credits fees
         },
     );
 
