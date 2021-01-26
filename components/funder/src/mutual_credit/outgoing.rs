@@ -20,7 +20,6 @@ use crate::mutual_credit::utils::{mc_response_signature_buffer, response_op_from
 #[derive(Debug, From)]
 pub enum QueueOperationError {
     InvalidRoute,
-    CreditsCalcOverflow,
     RequestAlreadyExists,
     RequestDoesNotExist,
     InvalidResponseSignature,
@@ -57,26 +56,45 @@ pub async fn queue_request(
     }
 
     // Calculate amount of credits to freeze
-    let own_freeze_credits = request
-        .dest_payment
-        .checked_add(request.left_fees)
-        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+    let own_freeze_credits =
+        if let Some(own_freeze_credits) = request.dest_payment.checked_add(request.left_fees) {
+            own_freeze_credits
+        } else {
+            // Freeze calculation overflow:
+            return Ok(Err(McCancel {
+                request_id: request.request_id,
+            }));
+        };
 
     let mc_balance = mc_client.get_balance().await?;
 
     // Make sure we can freeze the credits
-    let new_local_pending_debt = mc_balance
+    let new_local_pending_debt = if let Some(new_local_pending_debt) = mc_balance
         .local_pending_debt
         .checked_add(own_freeze_credits)
-        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+    {
+        new_local_pending_debt
+    } else {
+        // Freeze calculation overflow:
+        return Ok(Err(McCancel {
+            request_id: request.request_id,
+        }));
+    };
 
     // Make sure that we don't get into too much debt:
     // Check that balance - local_pending_debt + local_max_debt >= 0
     //            balance - local_pending_debt >= - local_max_debt
-    let sub = mc_balance
+    let sub = if let Some(sub) = mc_balance
         .balance
         .checked_sub_unsigned(new_local_pending_debt)
-        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+    {
+        sub
+    } else {
+        // balance - local_pending_debt underflow:
+        return Ok(Err(McCancel {
+            request_id: request.request_id,
+        }));
+    };
 
     if sub.saturating_add_unsigned(local_max_debt) < 0 {
         // Too much local debt:
