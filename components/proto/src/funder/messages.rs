@@ -453,6 +453,7 @@ pub struct Receipt {
 }
 */
 
+/*
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct PendingTransaction {
     /// Id number of this request. Used to identify the whole transaction
@@ -480,6 +481,7 @@ pub struct PendingTransaction {
     #[serde(with = "ser_string")]
     pub left_fees: u128,
 }
+*/
 
 // ==================================================================
 // ==================================================================

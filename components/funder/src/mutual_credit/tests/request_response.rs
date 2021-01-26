@@ -14,10 +14,8 @@ use signature::signature_buff::create_response_signature_buffer;
 use crate::mutual_credit::outgoing::queue_request;
 
 use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
-use crate::mutual_credit::types::{McDbClient, McOp, McRequest, McResponse};
-use crate::mutual_credit::utils::{
-    pending_transaction_from_mc_request, response_op_from_mc_response,
-};
+use crate::mutual_credit::types::{McDbClient, McOp, McRequest, McResponse, PendingTransaction};
+use crate::mutual_credit::utils::{mc_response_signature_buffer, response_op_from_mc_response};
 
 async fn task_request_response() {
     let currency = Currency::try_from("FST".to_owned()).unwrap();
@@ -54,8 +52,7 @@ async fn task_request_response() {
         left_fees: 5,
     };
 
-    let pending_transaction =
-        pending_transaction_from_mc_request(request.clone(), currency.clone());
+    let pending_transaction = PendingTransaction::from(request.clone());
     let local_max_debt = u128::MAX;
     queue_request(&mut mc_transaction, request, &currency, local_max_debt)
         .await
@@ -79,11 +76,7 @@ async fn task_request_response() {
         signature: Signature::from(&[0; Signature::len()]),
     };
 
-    let sign_buffer = create_response_signature_buffer(
-        &currency,
-        response_op_from_mc_response(response.clone()),
-        &pending_transaction,
-    );
+    let sign_buffer = mc_response_signature_buffer(&currency, &response, &pending_transaction);
     response.signature = identity.sign(&sign_buffer);
 
     process_operations_list(

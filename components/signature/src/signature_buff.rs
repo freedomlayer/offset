@@ -4,10 +4,8 @@ use crypto::hash;
 
 use common::int_convert::usize_to_u64;
 
-use proto::crypto::{HashResult, PublicKey};
-use proto::funder::messages::{
-    Currency, MoveToken, PendingTransaction, TokenInfo, UnsignedResponseSendFundsOp,
-};
+use proto::crypto::{HashResult, PlainLock, PublicKey, Uid};
+use proto::funder::messages::{Currency, MoveToken, TokenInfo};
 use proto::index_server::messages::MutationsUpdate;
 
 use crate::canonical::CanonicalSerialize;
@@ -15,49 +13,49 @@ use crate::canonical::CanonicalSerialize;
 pub const FUNDS_RESPONSE_PREFIX: &[u8] = b"FUND_RESPONSE";
 pub const FUNDS_CANCEL_PREFIX: &[u8] = b"FUND_CANCEL";
 
-// TODO:
-// - We probably don't need the "unsigned" version,
-// - Take response_send_funds as a reference.
+/*
+    pub request_id: Uid,
+    pub currency: Currency,
+    pub dest_payment: u128,
+    pub invoice_hash: HashResult,
+    pub src_plain_lock: PlainLock,
+    pub serial_num: u128,
+
+*/
+
 /// Create the buffer we sign over at the Response funds.
 /// Note that the signature is not just over the Response funds bytes. The signed buffer also
 /// contains information from the Request funds.
-pub fn create_response_signature_buffer<RSF>(
+pub fn create_response_signature_buffer(
+    request_id: &Uid,
     currency: &Currency,
-    response_send_funds: RSF,
-    pending_transaction: &PendingTransaction,
-) -> Vec<u8>
-where
-    RSF: Into<UnsignedResponseSendFundsOp>,
-{
+    dest_payment: u128,
+    invoice_hash: &HashResult,
+    src_plain_lock: &PlainLock,
+    serial_num: u128,
+) -> Vec<u8> {
     /*
-        # Signature{key=destinationKey}(
-        #   sha512/256("FUNDS_RESPONSE") ||
-        #   sha512/256(requestId || hmac || srcPlainLock || destPayment)
-        #   serialNum ||
-        #   totalDestPayment ||
-        #   invoiceHash ||
-        #   currency [Implicitly known by the mutual credit]
-        # )
-    */
-
-    let response_send_funds: UnsignedResponseSendFundsOp = response_send_funds.into();
+    /// Signature{key=destinationKey}(
+    ///   hash("FUNDS_RESPONSE") ||
+    ///   hash(request_id || src_plain_lock || dest_payment) ||
+    ///   hash(currency) ||
+    ///   serialNum ||
+    ///   invoiceHash)
+    /// )
+     */
     let mut sbuffer = Vec::new();
 
     sbuffer.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
 
     let mut inner_blob = Vec::new();
-    inner_blob.extend_from_slice(&pending_transaction.request_id);
-    inner_blob.extend_from_slice(&response_send_funds.src_plain_lock);
-    inner_blob
-        .write_u128::<BigEndian>(pending_transaction.dest_payment)
-        .unwrap();
+    inner_blob.extend_from_slice(request_id);
+    inner_blob.extend_from_slice(src_plain_lock);
+    inner_blob.write_u128::<BigEndian>(dest_payment).unwrap();
 
     sbuffer.extend_from_slice(&hash::hash_buffer(&inner_blob));
-    sbuffer
-        .write_u128::<BigEndian>(response_send_funds.serial_num)
-        .unwrap();
-    sbuffer.extend_from_slice(&pending_transaction.invoice_hash);
     sbuffer.extend_from_slice(&hash::hash_buffer(&currency.canonical_serialize()));
+    sbuffer.write_u128::<BigEndian>(serial_num).unwrap();
+    sbuffer.extend_from_slice(invoice_hash);
 
     sbuffer
 }

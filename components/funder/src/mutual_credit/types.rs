@@ -3,7 +3,27 @@ use common::async_rpc::AsyncOpResult;
 use common::u256::U256;
 
 use proto::crypto::{HashResult, HashedLock, PlainLock, PublicKey, Signature, Uid};
-use proto::funder::messages::{McBalance, PendingTransaction};
+use proto::funder::messages::McBalance;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingTransaction {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
+    pub request_id: Uid,
+    /// A hash lock created by the originator of this request
+    pub src_hashed_lock: HashedLock,
+    /// Amount paid to destination
+    pub dest_payment: u128,
+    /// hash(hash(actionId) || hash(totalDestPayment) || hash(description) || hash(additional))
+    /// TODO: Check if this scheme is safe? Do we need to use pbkdf instead?
+    pub invoice_hash: HashResult,
+    /// List of next nodes to transfer this request
+    pub route: Vec<PublicKey>,
+    /// Amount of fees left to give to mediators
+    /// Every mediator takes the amount of fees he wants and subtracts this
+    /// value accordingly.
+    pub left_fees: u128,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McRequest {
@@ -84,4 +104,17 @@ pub trait McDbClient {
         pending_transaction: PendingTransaction,
     ) -> AsyncOpResult<()>;
     fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+}
+
+impl From<McRequest> for PendingTransaction {
+    fn from(mc_request: McRequest) -> Self {
+        Self {
+            request_id: mc_request.request_id,
+            src_hashed_lock: mc_request.src_hashed_lock,
+            dest_payment: mc_request.dest_payment,
+            invoice_hash: mc_request.invoice_hash,
+            route: mc_request.route,
+            left_fees: mc_request.left_fees,
+        }
+    }
 }

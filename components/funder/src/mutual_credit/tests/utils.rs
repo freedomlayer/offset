@@ -5,12 +5,12 @@ use common::conn::BoxFuture;
 use common::u256::U256;
 
 use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, McBalance, PendingTransaction};
+use proto::funder::messages::{Currency, McBalance};
 
 use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
-use crate::mutual_credit::types::{McDbClient, McOp};
+use crate::mutual_credit::types::{McDbClient, McOp, PendingTransaction};
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct McPendingTransactions {
     /// Pending transactions that were opened locally and not yet completed
     pub local: HashMap<Uid, PendingTransaction>,
@@ -27,7 +27,7 @@ impl McPendingTransactions {
     }
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MockMutualCredit {
     /// Currency in use (How much is one credit worth?)
     pub currency: Currency,

@@ -1,4 +1,4 @@
-mod utils;
+pub mod utils;
 
 pub mod incoming;
 pub mod outgoing;

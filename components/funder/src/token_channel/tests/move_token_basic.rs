@@ -20,7 +20,8 @@ use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, Response
 use identity::{create_identity, IdentityClient};
 
 use crate::mutual_credit::incoming::IncomingMessage;
-use crate::mutual_credit::types::{McRequest, McResponse};
+use crate::mutual_credit::types::{McRequest, McResponse, PendingTransaction};
+use crate::mutual_credit::utils::mc_response_signature_buffer;
 
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::types::TcCurrencyConfig;
@@ -28,7 +29,6 @@ use crate::token_channel::{
     accept_remote_reset, handle_in_move_token, reset_balance_to_mc_balance, MoveTokenReceived,
     OutMoveToken, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
-use crate::types::create_pending_transaction;
 
 async fn task_move_token_basic(test_executor: TestExecutor) {
     let currency1 = Currency::try_from("FST1".to_owned()).unwrap();
@@ -147,6 +147,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         left_fees: 5u128,
     };
 
+    /*
     // TODO: How can this be done more elegantly?
     let pending_transaction = {
         let request_send_funds_op = RequestSendFundsOp {
@@ -160,6 +161,9 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         };
         create_pending_transaction(&request_send_funds_op)
     };
+    */
+
+    let pending_transaction = PendingTransaction::from(mc_request.clone());
 
     let mut out_move_token = OutMoveToken::new();
     let _mc_balance = out_move_token
@@ -260,6 +264,9 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         };
 
         // Sign the response:
+        let sign_buffer =
+            mc_response_signature_buffer(&currency1, &mc_response, &pending_transaction);
+
         let sign_buffer = create_response_signature_buffer(
             &currency1,
             response_send_funds_op.clone(),

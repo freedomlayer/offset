@@ -1,18 +1,17 @@
 use common::conn::{BoxFuture, BoxStream, ConnPairVec};
 use common::ser_utils::ser_b64;
 
-use proto::crypto::{DhPublicKey, PlainLock, PublicKey, Signature, Uid};
+use proto::crypto::{DhPublicKey, PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, Currency, FriendMessage, FunderIncomingControl,
-    FunderOutgoingControl, MoveToken, PendingTransaction, RequestSendFundsOp, ResponseSendFundsOp,
-    TokenInfo, UnsignedResponseSendFundsOp,
+    CancelSendFundsOp, ChannelerUpdateFriend, FriendMessage, FunderIncomingControl,
+    FunderOutgoingControl, MoveToken, TokenInfo,
 };
 
-use signature::signature_buff::create_response_signature_buffer;
+// use signature::signature_buff::create_response_signature_buffer;
 
-use identity::IdentityClient;
+// use identity::IdentityClient;
 
 use crypto::dh::DhStaticPrivateKey;
 
@@ -33,6 +32,7 @@ trait RelayClient {
     ) -> BoxStream<'_, ConnPairVec>;
 }
 
+/*
 pub async fn create_response_send_funds<'a>(
     currency: &Currency,
     pending_transaction: &'a PendingTransaction,
@@ -63,11 +63,13 @@ pub async fn create_response_send_funds<'a>(
         signature,
     }
 }
+*/
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
     CancelSendFundsOp { request_id }
 }
 
+/*
 // TODO:
 // 1. Maybe take RequestSendFundOp by value, delegate cloning to external code.
 // 2. Maybe PendingTransaction is just an alias for RequestSendFunds? Why do we have two
@@ -83,6 +85,7 @@ pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> Pe
         left_fees: request_send_funds.left_fees,
     }
 }
+*/
 
 /*
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]

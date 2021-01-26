@@ -7,16 +7,16 @@ use common::async_rpc::OpError;
 use common::safe_arithmetic::SafeSignedArithmetic;
 
 use proto::crypto::PublicKey;
-use proto::funder::messages::{Currency, PendingTransaction};
+use proto::funder::messages::Currency;
 
 use signature::signature_buff::create_response_signature_buffer;
 
 use crate::route::Route;
 
-use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
-use crate::mutual_credit::utils::{
-    pending_transaction_from_mc_request, response_op_from_mc_response,
+use crate::mutual_credit::types::{
+    McCancel, McDbClient, McOp, McRequest, McResponse, PendingTransaction,
 };
+use crate::mutual_credit::utils::{mc_response_signature_buffer, response_op_from_mc_response};
 
 // TODO: Possibly rename to something shorter.
 // TODO: Do we ever need the `pending_transaction` part for anything?
@@ -79,32 +79,26 @@ pub async fn process_operation(
 /// Process an incoming RequestSendFundsOp
 async fn process_request_send_funds(
     mc_client: &mut impl McDbClient,
-    request_send_funds: McRequest,
+    request: McRequest,
     currency: &Currency,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
-    if !request_send_funds.route.is_part_valid() {
+    if !request.route.is_part_valid() {
         return Err(ProcessOperationError::InvalidRoute);
     }
 
-    /*
-    if request_send_funds.dest_payment > request_send_funds.total_dest_payment {
-        return Err(ProcessOperationError::DestPaymentExceedsTotal);
-    }
-    */
-
     // Make sure that we don't have this request as a pending request already:
     let opt_remote_pending_transaction = mc_client
-        .get_remote_pending_transaction(request_send_funds.request_id.clone())
+        .get_remote_pending_transaction(request.request_id.clone())
         .await?;
     if opt_remote_pending_transaction.is_some() {
         return Err(ProcessOperationError::RequestAlreadyExists);
     }
 
     // Calculate amount of credits to freeze
-    let own_freeze_credits = request_send_funds
+    let own_freeze_credits = request
         .dest_payment
-        .checked_add(request_send_funds.left_fees)
+        .checked_add(request.left_fees)
         .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
 
     // Make sure we can freeze the credits
@@ -123,14 +117,13 @@ async fn process_request_send_funds(
 
     let incoming_message = if add.saturating_sub_unsigned(remote_max_debt) > 0 {
         // Insufficient trust:
-        IncomingMessage::RequestCancel(request_send_funds.clone())
+        IncomingMessage::RequestCancel(request.clone())
     } else {
-        IncomingMessage::Request(request_send_funds.clone())
+        IncomingMessage::Request(request.clone())
     };
 
     // Add pending transaction:
-    let pending_transaction =
-        pending_transaction_from_mc_request(request_send_funds.clone(), currency.clone());
+    let pending_transaction = PendingTransaction::from(request.clone());
 
     mc_client
         .insert_remote_pending_transaction(pending_transaction)
@@ -169,11 +162,8 @@ async fn process_response_send_funds(
         pending_transaction.route.last().unwrap()
     };
 
-    let response_signature_buffer = create_response_signature_buffer(
-        currency,
-        response_op_from_mc_response(response.clone()),
-        &pending_transaction,
-    );
+    let response_signature_buffer =
+        mc_response_signature_buffer(&currency, &response, &pending_transaction);
 
     // Verify response funds signature:
     if !verify_signature(

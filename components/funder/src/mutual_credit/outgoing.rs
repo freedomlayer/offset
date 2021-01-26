@@ -12,10 +12,10 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::route::Route;
 
-use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
-use crate::mutual_credit::utils::{
-    pending_transaction_from_mc_request, response_op_from_mc_response,
+use crate::mutual_credit::types::{
+    McCancel, McDbClient, McOp, McRequest, McResponse, PendingTransaction,
 };
+use crate::mutual_credit::utils::{mc_response_signature_buffer, response_op_from_mc_response};
 
 #[derive(Debug, From)]
 pub enum QueueOperationError {
@@ -95,8 +95,7 @@ pub async fn queue_request(
     }
 
     // Add pending transaction:
-    let pending_transaction =
-        pending_transaction_from_mc_request(request.clone(), currency.clone());
+    let pending_transaction = PendingTransaction::from(request.clone());
     mc_client
         .insert_local_pending_transaction(pending_transaction)
         .await?;
@@ -112,6 +111,7 @@ pub async fn queue_request(
 pub async fn queue_response(
     mc_client: &mut impl McDbClient,
     response: McResponse,
+    currency: &Currency,
     local_public_key: &PublicKey,
 ) -> Result<(), QueueOperationError> {
     // Make sure that id exists in remote_pending hashmap,
@@ -130,11 +130,17 @@ pub async fn queue_response(
     }
 
     // verify signature:
+    let response_signature_buffer =
+        mc_response_signature_buffer(&currency, &response, &pending_transaction);
+
+    /*
     let response_signature_buffer = create_response_signature_buffer(
         &pending_transaction.currency,
         response_op_from_mc_response(response.clone()),
         &pending_transaction,
     );
+    */
+
     // The response was signed by the destination node:
     let dest_public_key = if pending_transaction.route.is_empty() {
         local_public_key
