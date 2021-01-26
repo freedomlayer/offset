@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use futures::task::SpawnExt;
@@ -16,17 +15,18 @@ use signature::signature_buff::create_response_signature_buffer;
 use proto::crypto::{
     HashResult, HashedLock, HmacResult, PlainLock, PrivateKey, PublicKey, Signature, Uid,
 };
-use proto::funder::messages::{
-    Currency, CurrencyOperations, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp,
-};
+use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, ResponseSendFundsOp};
 
 use identity::{create_identity, IdentityClient};
 
 use crate::mutual_credit::incoming::IncomingMessage;
+use crate::mutual_credit::types::{McRequest, McResponse};
+
 use crate::token_channel::tests::utils::MockTokenChannel;
+use crate::token_channel::types::TcCurrencyConfig;
 use crate::token_channel::{
-    accept_remote_reset, handle_in_move_token, handle_out_move_token, reset_balance_to_mc_balance,
-    MoveTokenReceived, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
+    accept_remote_reset, handle_in_move_token, reset_balance_to_mc_balance, MoveTokenReceived,
+    OutMoveToken, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
 use crate::types::create_pending_transaction;
 
@@ -69,20 +69,17 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .spawn(identity_server_b.then(|_| future::ready(())))
         .unwrap();
 
+    /*
     // Send a MoveToken message from b to a, adding a currency:
     // --------------------------------------------------------
-    let currencies_operations = Vec::new();
-    let currencies_diff = vec![currency1.clone()];
-    let move_token = handle_out_move_token(
-        &mut tc_b_a,
-        &mut identity_client_b,
-        currencies_operations,
-        currencies_diff,
-        &pk_b,
-        &pk_a,
-    )
-    .await
-    .unwrap();
+    // let currencies_operations = Vec::new();
+    // let currencies_diff = vec![currency1.clone()];
+
+    let out_move_token = OutMoveToken::new();
+    let move_token = out_move_token
+        .finalize(&mut tc_b_a, &mut identity_client_b, &pk_b, &pk_a)
+        .await
+        .unwrap();
 
     // Receive the MoveToken message at a:
     // -----------------------------------
@@ -126,26 +123,55 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .await,
         Ok(ReceiveMoveTokenOutput::Received(_))
     ));
+    */
+
+    // Add currency config at b, to be able to send a request to a:
+    // ---------------------------------------------------------------------------------
+    tc_b_a.currency_configs.insert(
+        currency1.clone(),
+        TcCurrencyConfig {
+            local_max_debt: u128::MAX,
+            remote_max_debt: 0,
+        },
+    );
 
     // Send a MoveToken message from b to a, sending a request send funds message:
     // ---------------------------------------------------------------------------
     let src_plain_lock = PlainLock::from(&[0xaa; PlainLock::len()]);
-    let request_send_funds_op = RequestSendFundsOp {
+    let mc_request = McRequest {
         request_id: Uid::from(&[0; Uid::len()]),
-        currency: currency1.clone(),
-        src_hashed_lock: src_plain_lock.hash_lock(),
-        route: vec![pk_a.clone()],
+        src_hashed_lock: src_plain_lock.clone().hash_lock(),
         dest_payment: 20u128,
         invoice_hash: HashResult::from(&[0; HashResult::len()]),
+        route: vec![pk_a.clone()],
         left_fees: 5u128,
     };
-    let pending_transaction = create_pending_transaction(&request_send_funds_op);
-    let currencies_operations = vec![(
-        currency1.clone(),
-        FriendTcOp::RequestSendFunds(request_send_funds_op.clone()),
-    )];
 
-    let currencies_diff = vec![];
+    // TODO: How can this be done more elegantly?
+    let pending_transaction = {
+        let request_send_funds_op = RequestSendFundsOp {
+            request_id: mc_request.request_id.clone(),
+            currency: currency1.clone(),
+            src_hashed_lock: mc_request.src_hashed_lock.clone(),
+            dest_payment: mc_request.dest_payment.clone(),
+            invoice_hash: mc_request.invoice_hash.clone(),
+            route: mc_request.route.clone(),
+            left_fees: mc_request.left_fees,
+        };
+        create_pending_transaction(&request_send_funds_op)
+    };
+
+    let mut out_move_token = OutMoveToken::new();
+    let mc_balance = out_move_token
+        .queue_request(&mut tc_b_a, currency1.clone(), mc_request.clone())
+        .await
+        .unwrap();
+    let move_token = out_move_token
+        .finalize(&mut tc_b_a, &mut identity_client_b, &pk_b, &pk_a)
+        .await
+        .unwrap();
+
+    /*
     let move_token = handle_out_move_token(
         &mut tc_b_a,
         &mut identity_client_b,
@@ -156,6 +182,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     )
     .await
     .unwrap();
+    */
 
     {
         // Assert balances:
@@ -176,7 +203,13 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Add a remote max debt to a, so that `a` will be able to receive credits from `b`:
     // ---------------------------------------------------------------------------------
-    tc_a_b.remote_max_debts.insert(currency1.clone(), 100u128);
+    tc_a_b.currency_configs.insert(
+        currency1.clone(),
+        TcCurrencyConfig {
+            local_max_debt: u128::MAX,
+            remote_max_debt: 100u128,
+        },
+    );
 
     // Receive the MoveToken message at a:
     // ----------------------------------
@@ -201,53 +234,53 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
     assert_eq!(incoming_messages.len(), 1);
     let (currency, incoming_message) = incoming_messages.pop().unwrap();
     assert_eq!(currency, currency1);
-    let received_request_send_funds_op = match incoming_message {
-        IncomingMessage::Request(request_send_funds_op) => request_send_funds_op,
+    let received_mc_request = match incoming_message {
+        IncomingMessage::Request(received_mc_request) => received_mc_request,
         _ => unreachable!(),
     };
-    assert_eq!(received_request_send_funds_op, request_send_funds_op);
+    assert_eq!(received_mc_request, mc_request);
 
     // Send a MoveToken message from a to b, sending a response send funds message:
     // ----------------------------------------------------------------------------
-    let mut response_send_funds_op = ResponseSendFundsOp {
-        // Matches earlier's request_id:
-        request_id: Uid::from(&[0; Uid::len()]),
-        src_plain_lock,
-        serial_num: 0,
-        // Temporary signature value, calculated later:
-        signature: Signature::from(&[0; Signature::len()]),
+
+    // TODO: How to do this more elegantly?
+    let mc_response = {
+        let mut mc_response = McResponse {
+            request_id: Uid::from(&[0; Uid::len()]),
+            src_plain_lock,
+            serial_num: 0,
+            // Temporary signature value, calculated later:
+            signature: Signature::from(&[0; Signature::len()]),
+        };
+        let response_send_funds_op = ResponseSendFundsOp {
+            request_id: mc_response.request_id.clone(),
+            src_plain_lock: mc_response.src_plain_lock.clone(),
+            serial_num: mc_response.serial_num.clone(),
+            signature: mc_response.signature.clone(),
+        };
+
+        // Sign the response:
+        let sign_buffer = create_response_signature_buffer(
+            &currency1,
+            response_send_funds_op.clone(),
+            &pending_transaction,
+        );
+        mc_response.signature = identity_client_a
+            .request_signature(sign_buffer)
+            .await
+            .unwrap();
+        mc_response
     };
 
-    // Sign the response:
-    let sign_buffer = create_response_signature_buffer(
-        &currency1,
-        response_send_funds_op.clone(),
-        &pending_transaction,
-    );
-    response_send_funds_op.signature = identity_client_a
-        .request_signature(sign_buffer)
+    let mut out_move_token = OutMoveToken::new();
+    let _mc_balance = out_move_token
+        .queue_response(&mut tc_a_b, currency1.clone(), mc_response, &pk_a)
         .await
         .unwrap();
-
-    let currencies_operations = vec![(
-        currency1.clone(),
-        FriendTcOp::ResponseSendFunds(response_send_funds_op.clone()),
-    )];
-    let currencies_diff = vec![];
-    let move_token = handle_out_move_token(
-        &mut tc_a_b,
-        &mut identity_client_a,
-        currencies_operations,
-        currencies_diff,
-        &pk_a,
-        &pk_b,
-    )
-    .await
-    .unwrap();
-
-    // Insert remote_max_debt for currency1, to allow handling incoming operations for this currency.
-    // ---------------------------------------------------------------------------------------------
-    tc_b_a.remote_max_debts.insert(currency1.clone(), 20u128);
+    let move_token = out_move_token
+        .finalize(&mut tc_a_b, &mut identity_client_a, &pk_a, &pk_b)
+        .await
+        .unwrap();
 
     // Receive the MoveToken message at b:
     // ----------------------------------
