@@ -42,7 +42,7 @@ impl TcStatus {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TcCurrencyConfig {
     pub local_max_debt: u128,
     pub remote_max_debt: u128,
@@ -131,6 +131,6 @@ pub trait TcDbClient {
 
     // TODO: Rename these functions?
     // fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
-    fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<bool>;
+    fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()>;
     // fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool>;
 }

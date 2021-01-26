@@ -9,7 +9,7 @@ use common::conn::BoxFuture;
 use common::safe_arithmetic::SafeSignedArithmetic;
 use common::u256::U256;
 
-use proto::crypto::{PublicKey, Signature};
+use proto::crypto::{PublicKey, Signature, Uid};
 use proto::funder::messages::{
     Currency, McBalance, MoveToken, ResetBalance, ResetTerms, TokenInfo,
 };
@@ -23,7 +23,7 @@ use crypto::hash::hash_buffer;
 use crypto::identity::compare_public_key;
 
 use crate::mutual_credit::tests::MockMutualCredit;
-use crate::token_channel::types::TcStatus;
+use crate::token_channel::types::{TcCurrencyConfig, TcStatus};
 use crate::token_channel::{initial_move_token, reset_balance_to_mc_balance, TcDbClient};
 use crate::types::{create_hashed, MoveTokenHashed};
 
@@ -38,8 +38,6 @@ pub struct TcConsistent {
     mutual_credits: HashMap<Currency, MockMutualCredit>,
     direction: MockTcDirection,
     move_token_counter: u128,
-    local_currencies: HashSet<Currency>,
-    remote_currencies: HashSet<Currency>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,9 +49,8 @@ pub enum MockTcStatus {
 #[derive(Debug, Clone)]
 pub struct MockTokenChannel {
     status: MockTcStatus,
-    /// Remote max debt, configured for each currency
-    /// (And possibly for currencies that are not yet active)
-    pub remote_max_debts: HashMap<Currency, u128>,
+    /// All currency configurations, as seen from the TokenChannel
+    pub currency_configs: HashMap<Currency, TcCurrencyConfig>,
 }
 
 impl MockTokenChannel {
@@ -70,10 +67,8 @@ impl MockTokenChannel {
                         None,
                     ),
                     move_token_counter,
-                    local_currencies: HashSet::new(),
-                    remote_currencies: HashSet::new(),
                 }),
-                remote_max_debts: HashMap::new(),
+                currency_configs: HashMap::new(),
             }
         } else {
             // We are the second sender
@@ -87,12 +82,10 @@ impl MockTokenChannel {
             MockTokenChannel {
                 status: MockTcStatus::Consistent(TcConsistent {
                     mutual_credits: HashMap::new(),
-                    direction: MockTcDirection::In(create_hashed(&move_token_in, &token_info)),
+                    direction: MockTcDirection::In(create_hashed(&move_token_in, token_info)),
                     move_token_counter,
-                    local_currencies: HashSet::new(),
-                    remote_currencies: HashSet::new(),
                 }),
-                remote_max_debts: HashMap::new(),
+                currency_configs: HashMap::new(),
             }
         }
     }
@@ -124,14 +117,17 @@ fn calc_reset_balance(mock_token_channel: &MockMutualCredit) -> ResetBalance {
 impl TcDbClient for MockTokenChannel {
     type McDbClient = MockMutualCredit;
 
-    // TODO: Maybe take into account other return values, like None, instead of unwrapping?
     fn mc_db_client(&mut self, currency: Currency) -> AsyncOpResult<Option<&mut Self::McDbClient>> {
         match &mut self.status {
-            MockTcStatus::Consistent(tc_consistent) => Box::pin(future::ready(Ok(Some(
-                tc_consistent.mutual_credits.get_mut(&currency).unwrap(),
-            )))),
-            _ => unreachable!(),
+            MockTcStatus::Consistent(tc_consistent) => Box::pin(future::ready(Ok(tc_consistent
+                .mutual_credits
+                .get_mut(&currency)))),
+            MockTcStatus::Inconsistent(..) => Box::pin(future::ready(Ok(None))),
         }
+    }
+
+    fn get_currency_local_request(&mut self, request_id: Uid) -> AsyncOpResult<Option<Currency>> {
+        todo!();
     }
 
     fn get_tc_status(&mut self) -> AsyncOpResult<TcStatus> {
@@ -296,19 +292,19 @@ impl TcDbClient for MockTokenChannel {
             })
             .collect();
 
+        /*
         let currencies_set: HashSet<_> = local_reset_terms
             .reset_balances
             .iter()
             .map(|(currency, _)| currency)
             .cloned()
             .collect();
+        */
 
         self.status = MockTcStatus::Consistent(TcConsistent {
             mutual_credits,
             direction: MockTcDirection::Out(move_token, None),
             move_token_counter: local_reset_terms.move_token_counter.checked_sub(1).unwrap(),
-            local_currencies: currencies_set.clone(),
-            remote_currencies: currencies_set,
         });
 
         Box::pin(future::ready(Ok(())))
@@ -344,12 +340,14 @@ impl TcDbClient for MockTokenChannel {
             })
             .collect();
 
+        /*
         let currencies_set: HashSet<_> = remote_reset_terms
             .reset_balances
             .iter()
             .map(|(currency, _)| currency)
             .cloned()
             .collect();
+        */
 
         self.status = MockTcStatus::Consistent(TcConsistent {
             mutual_credits,
@@ -358,8 +356,6 @@ impl TcDbClient for MockTokenChannel {
                 .move_token_counter
                 .checked_sub(1)
                 .unwrap(),
-            local_currencies: currencies_set.clone(),
-            remote_currencies: currencies_set,
         });
 
         Box::pin(future::ready(Ok(())))
@@ -372,11 +368,14 @@ impl TcDbClient for MockTokenChannel {
         })))
     }
 
-    fn get_remote_max_debt(&mut self, currency: Currency) -> AsyncOpResult<u128> {
-        Box::pin(future::ready(Ok(*self
-            .remote_max_debts
+    fn get_currency_config(
+        &mut self,
+        currency: Currency,
+    ) -> AsyncOpResult<Option<TcCurrencyConfig>> {
+        Box::pin(future::ready(Ok(self
+            .currency_configs
             .get(&currency)
-            .unwrap())))
+            .cloned())))
     }
 
     /// Return a sorted async iterator of all balances
@@ -436,23 +435,8 @@ impl TcDbClient for MockTokenChannel {
         Box::pin(stream::iter(balances_vec.into_iter().map(|item| Ok(item))))
     }
 
-    fn is_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
-        let local_currencies = match &self.status {
-            MockTcStatus::Consistent(tc_consistent) => &tc_consistent.local_currencies,
-            MockTcStatus::Inconsistent(..) => unreachable!(),
-        };
-        Box::pin(future::ready(Ok(local_currencies.contains(&currency))))
-    }
-
-    fn is_remote_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
-        let remote_currencies = match &self.status {
-            MockTcStatus::Consistent(tc_consistent) => &tc_consistent.remote_currencies,
-            MockTcStatus::Inconsistent(..) => unreachable!(),
-        };
-        Box::pin(future::ready(Ok(remote_currencies.contains(&currency))))
-    }
-
-    fn add_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
+    /*
+    fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()> {
         Box::pin(future::ready(Ok(match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
                 tc_consistent.local_currencies.insert(currency)
@@ -460,7 +444,9 @@ impl TcDbClient for MockTokenChannel {
             MockTcStatus::Inconsistent(..) => unreachable!(),
         })))
     }
+    */
 
+    /*
     fn remove_local_currency(&mut self, currency: Currency) -> AsyncOpResult<bool> {
         Box::pin(future::ready(Ok(match &mut self.status {
             MockTcStatus::Consistent(tc_consistent) => {
@@ -487,6 +473,7 @@ impl TcDbClient for MockTokenChannel {
             MockTcStatus::Inconsistent(..) => unreachable!(),
         })))
     }
+    */
 
     fn add_mutual_credit(&mut self, currency: Currency) -> AsyncOpResult<()> {
         let balance = 0;
