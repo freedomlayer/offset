@@ -635,7 +635,7 @@ async fn handle_incoming_token_match(
                         tc_client
                             .mc_db_client(tc_op.currency.clone())
                             .await?
-                            .expect("Invalid state")
+                            .ok_or(TokenChannelError::InvalidState)?
                     }
                     McOp::Response(..) | McOp::Cancel(..) => {
                         return Ok(IncomingTokenMatchOutput::InvalidIncoming(
@@ -814,7 +814,7 @@ impl OutMoveToken {
         let local_max_debt = tc_client
             .get_currency_config(currency.clone())
             .await?
-            .expect("Invalid state")
+            .ok_or(TokenChannelError::InvalidState)?
             .local_max_debt;
         let mc_client = if let Some(mc_client) = tc_client.mc_db_client(currency.clone()).await? {
             mc_client
@@ -824,7 +824,7 @@ impl OutMoveToken {
             tc_client
                 .mc_db_client(currency.clone())
                 .await?
-                .expect("Invalid state")
+                .ok_or(TokenChannelError::InvalidState)?
         };
 
         // queue_request might fail due to `local_max_debt`.
@@ -859,7 +859,7 @@ impl OutMoveToken {
         let mc_client = tc_client
             .mc_db_client(currency.clone())
             .await?
-            .expect("Invalid State");
+            .ok_or(TokenChannelError::InvalidState)?;
 
         queue_response(mc_client, mc_response.clone(), local_public_key).await?;
 
