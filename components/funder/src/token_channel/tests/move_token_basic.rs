@@ -147,22 +147,6 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         left_fees: 5u128,
     };
 
-    /*
-    // TODO: How can this be done more elegantly?
-    let pending_transaction = {
-        let request_send_funds_op = RequestSendFundsOp {
-            request_id: mc_request.request_id.clone(),
-            currency: currency1.clone(),
-            src_hashed_lock: mc_request.src_hashed_lock.clone(),
-            dest_payment: mc_request.dest_payment.clone(),
-            invoice_hash: mc_request.invoice_hash.clone(),
-            route: mc_request.route.clone(),
-            left_fees: mc_request.left_fees,
-        };
-        create_pending_transaction(&request_send_funds_op)
-    };
-    */
-
     let pending_transaction = PendingTransaction::from(mc_request.clone());
 
     let mut out_move_token = OutMoveToken::new();
@@ -246,8 +230,6 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
 
     // Send a MoveToken message from a to b, sending a response send funds message:
     // ----------------------------------------------------------------------------
-
-    // TODO: How to do this more elegantly?
     let mc_response = {
         let mut mc_response = McResponse {
             request_id: Uid::from(&[0; Uid::len()]),
@@ -255,12 +237,6 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
             serial_num: 0,
             // Temporary signature value, calculated later:
             signature: Signature::from(&[0; Signature::len()]),
-        };
-        let response_send_funds_op = ResponseSendFundsOp {
-            request_id: mc_response.request_id.clone(),
-            src_plain_lock: mc_response.src_plain_lock.clone(),
-            serial_num: mc_response.serial_num.clone(),
-            signature: mc_response.signature.clone(),
         };
 
         // Sign the response:
