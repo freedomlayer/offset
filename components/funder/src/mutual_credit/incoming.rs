@@ -65,6 +65,10 @@ pub async fn process_operation(
     remote_public_key: &PublicKey,
     remote_max_debt: u128,
 ) -> Result<IncomingMessage, ProcessOperationError> {
+    // TODO: Add a special way to represent inconsistency in return value.
+    // Possibly only use error for unrecoverable errors.
+    todo!();
+
     match mc_op {
         McOp::Request(request) => {
             process_request_send_funds(mc_client, request, currency, remote_max_debt).await
