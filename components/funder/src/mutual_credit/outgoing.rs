@@ -24,6 +24,8 @@ pub enum QueueOperationError {
     RequestDoesNotExist,
     InvalidResponseSignature,
     InvalidSrcPlainLock,
+    InvalidState,
+    CreditsCalcOverflow,
     OpError(OpError),
 }
 
@@ -158,7 +160,10 @@ pub async fn queue_response(
     let dest_public_key = if pending_transaction.route.is_empty() {
         local_public_key
     } else {
-        pending_transaction.route.last().unwrap()
+        pending_transaction
+            .route
+            .last()
+            .ok_or(QueueOperationError::InvalidState)?
     };
 
     // Verify response funds signature:
@@ -174,8 +179,7 @@ pub async fn queue_response(
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
-        // TODO: Return unrecoverable error instead?
-        .unwrap();
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
     // Remove entry from remote_pending hashmap:
     mc_client
@@ -187,10 +191,8 @@ pub async fn queue_response(
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
-        // TODO: Return unrecoverable error instead?
-        .unwrap();
-    // Above unwrap() should never fail. This was already checked when a request message was
-    // received.
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+    // The above should never fail, as it was  already checked when a request message was received.
 
     mc_client
         .set_remote_pending_debt(new_remote_pending_debt)
@@ -202,8 +204,7 @@ pub async fn queue_response(
             mc_balance
                 .in_fees
                 .checked_add(pending_transaction.left_fees.into())
-                // TODO: Return unrecoverable error instead?
-                .unwrap(),
+                .ok_or(QueueOperationError::CreditsCalcOverflow)?,
         )
         .await?;
 
@@ -212,9 +213,8 @@ pub async fn queue_response(
     let new_balance = mc_balance
         .balance
         .checked_add_unsigned(freeze_credits)
-        // TODO: Return unrecoverable error instead?
-        .unwrap();
-    // Above unwrap() should never fail. This was already checked when a request message was
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
+    // The above should never fail. This was already checked when a request message was
     // received.
 
     mc_client.set_balance(new_balance).await?;
@@ -238,8 +238,7 @@ pub async fn queue_cancel(
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
-        // TODO: Return unrecoverable error instead?
-        .unwrap();
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
     // Remove entry from remote hashmap:
     mc_client
@@ -251,8 +250,7 @@ pub async fn queue_cancel(
     let new_remote_pending_debt = mc_balance
         .remote_pending_debt
         .checked_sub(freeze_credits)
-        // TODO: Return unrecoverable error instead?
-        .unwrap();
+        .ok_or(QueueOperationError::CreditsCalcOverflow)?;
 
     mc_client
         .set_remote_pending_debt(new_remote_pending_debt)
