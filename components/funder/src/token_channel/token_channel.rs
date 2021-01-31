@@ -47,8 +47,6 @@ use crate::types::{create_hashed, MoveTokenHashed};
 pub enum TokenChannelError {
     InvalidTransaction(ProcessOperationError),
     MoveTokenCounterOverflow,
-    CanNotRemoveCurrencyInUse,
-    InvalidTokenChannelStatus,
     RequestSignatureError,
     InvalidState,
     OpError(OpError),
@@ -542,7 +540,6 @@ async fn hash_mc_infos(
 enum InvalidIncoming {
     InvalidSignature,
     InvalidOperation,
-    CanNotRemoveCurrencyInUse,
 }
 
 #[derive(Debug)]
@@ -895,7 +892,7 @@ impl OutMoveToken {
         let move_token_in = match tc_client.get_tc_status().await? {
             TcStatus::ConsistentIn(move_token_in) => move_token_in,
             TcStatus::ConsistentOut(..) | TcStatus::Inconsistent(..) => {
-                return Err(TokenChannelError::InvalidTokenChannelStatus);
+                return Err(TokenChannelError::InvalidState);
             }
         };
 
@@ -957,7 +954,7 @@ pub async fn accept_remote_reset(
             | TcStatus::ConsistentOut(..)
             | TcStatus::Inconsistent(_, None) => {
                 // We don't have the remote side's reset terms yet:
-                return Err(TokenChannelError::InvalidTokenChannelStatus);
+                return Err(TokenChannelError::InvalidState);
             }
             TcStatus::Inconsistent(_local_reset_terms, Some(remote_reset_terms)) => (
                 remote_reset_terms.reset_token,
