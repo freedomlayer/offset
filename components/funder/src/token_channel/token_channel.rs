@@ -50,7 +50,6 @@ pub enum TokenChannelError {
     CanNotRemoveCurrencyInUse,
     InvalidTokenChannelStatus,
     RequestSignatureError,
-    // TODO: Should we panic instead of returning InvalidState error?
     InvalidState,
     OpError(OpError),
     QueueOperationError(QueueOperationError),
