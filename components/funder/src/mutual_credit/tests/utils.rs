@@ -7,7 +7,9 @@ use common::u256::U256;
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{Currency, McBalance};
 
-use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
+use crate::mutual_credit::incoming::{
+    process_operation, IncomingMessage, ProcessOperationError, ProcessOutput,
+};
 use crate::mutual_credit::types::{McDbClient, McOp, PendingTransaction};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -139,10 +141,17 @@ impl McDbClient for MockMutualCredit {
     }
 }
 
+/*
 #[derive(Debug)]
 pub struct ProcessTransListError {
     index: usize,
     process_trans_error: ProcessOperationError,
+}
+*/
+
+pub enum ProcessListOutput {
+    IncomingList(Vec<IncomingMessage>),
+    Inconsistency,
 }
 
 pub async fn process_operations_list(
@@ -151,8 +160,8 @@ pub async fn process_operations_list(
     currency: &Currency,
     remote_public_key: &PublicKey,
     remote_max_debt: u128,
-) -> Result<Vec<IncomingMessage>, ProcessTransListError> {
-    let mut outputs = Vec::new();
+) -> Result<ProcessListOutput, ProcessOperationError> {
+    let mut incoming_list = Vec::new();
 
     for (index, friend_tc_op) in operations.into_iter().enumerate() {
         match process_operation(
@@ -162,16 +171,13 @@ pub async fn process_operations_list(
             remote_public_key,
             remote_max_debt,
         )
-        .await
+        .await?
         {
-            Err(e) => {
-                return Err(ProcessTransListError {
-                    index,
-                    process_trans_error: e,
-                })
+            ProcessOutput::Incoming(incoming_message) => incoming_list.push(incoming_message),
+            ProcessOutput::Inconsistency => {
+                return Ok(ProcessListOutput::Inconsistency);
             }
-            Ok(incoming_message) => outputs.push(incoming_message),
         }
     }
-    Ok(outputs)
+    Ok(ProcessListOutput::IncomingList(incoming_list))
 }

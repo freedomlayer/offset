@@ -45,15 +45,22 @@ pub enum IncomingMessage {
     Cancel(IncomingCancelSendFundsOp),
 }
 
+#[derive(Debug)]
+pub enum ProcessOutput {
+    Incoming(IncomingMessage),
+    Inconsistency,
+}
+
 #[derive(Debug, From)]
 pub enum ProcessOperationError {
     /// The Route contains some public key twice.
-    InvalidRoute,
-    CreditsCalcOverflow,
-    RequestAlreadyExists,
-    RequestDoesNotExist,
-    InvalidResponseSignature,
-    InvalidSrcPlainLock,
+    // InvalidRoute,
+    // CreditsCalcOverflow,
+    // RequestAlreadyExists,
+    // RequestDoesNotExist,
+    // InvalidResponseSignature,
+    // InvalidSrcPlainLock,
+    InvalidState,
     // DestPaymentExceedsTotal,
     OpError(OpError),
 }
@@ -64,11 +71,7 @@ pub async fn process_operation(
     currency: &Currency,
     remote_public_key: &PublicKey,
     remote_max_debt: u128,
-) -> Result<IncomingMessage, ProcessOperationError> {
-    // TODO: Add a special way to represent inconsistency in return value.
-    // Possibly only use error for unrecoverable errors.
-    todo!();
-
+) -> Result<ProcessOutput, ProcessOperationError> {
     match mc_op {
         McOp::Request(request) => {
             process_request_send_funds(mc_client, request, currency, remote_max_debt).await
@@ -86,38 +89,62 @@ async fn process_request_send_funds(
     request: McRequest,
     currency: &Currency,
     remote_max_debt: u128,
-) -> Result<IncomingMessage, ProcessOperationError> {
-    if !request.route.is_part_valid() {
-        return Err(ProcessOperationError::InvalidRoute);
+) -> Result<ProcessOutput, ProcessOperationError> {
+    // Make sure that we don't have this request as a pending request already:
+    if mc_client
+        .get_remote_pending_transaction(request.request_id.clone())
+        .await?
+        .is_some()
+    {
+        // Request already exists
+        return Ok(ProcessOutput::Inconsistency);
     }
 
-    // Make sure that we don't have this request as a pending request already:
-    let opt_remote_pending_transaction = mc_client
-        .get_remote_pending_transaction(request.request_id.clone())
-        .await?;
-    if opt_remote_pending_transaction.is_some() {
-        return Err(ProcessOperationError::RequestAlreadyExists);
+    if !request.route.is_part_valid() {
+        // Invalid route. We cancel the request
+        return Ok(ProcessOutput::Incoming(IncomingMessage::RequestCancel(
+            request,
+        )));
     }
 
     // Calculate amount of credits to freeze
-    let own_freeze_credits = request
-        .dest_payment
-        .checked_add(request.left_fees)
-        .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
+    let own_freeze_credits =
+        if let Some(own_freeze_credits) = request.dest_payment.checked_add(request.left_fees) {
+            own_freeze_credits
+        } else {
+            // Credits calculation overflow. We cancel the request:
+            return Ok(ProcessOutput::Incoming(IncomingMessage::RequestCancel(
+                request,
+            )));
+        };
 
     // Make sure we can freeze the credits
     let mc_balance = mc_client.get_balance().await?;
 
-    let new_remote_pending_debt = mc_balance
+    let new_remote_pending_debt = if let Some(new_remote_pending_debt) = mc_balance
         .remote_pending_debt
         .checked_add(own_freeze_credits)
-        .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
+    {
+        new_remote_pending_debt
+    } else {
+        // Credits calculation overflow. We cancel the request:
+        return Ok(ProcessOutput::Incoming(IncomingMessage::RequestCancel(
+            request,
+        )));
+    };
 
     // Check that balance + remote_pending_debt - remote_max_debt > 0:
-    let add = mc_balance
+    let add = if let Some(add) = mc_balance
         .balance
         .checked_add_unsigned(new_remote_pending_debt)
-        .ok_or(ProcessOperationError::CreditsCalcOverflow)?;
+    {
+        add
+    } else {
+        // Credits calculation overflow. We cancel the request:
+        return Ok(ProcessOutput::Incoming(IncomingMessage::RequestCancel(
+            request,
+        )));
+    };
 
     let incoming_message = if add.saturating_sub_unsigned(remote_max_debt) > 0 {
         // Insufficient trust:
@@ -137,7 +164,7 @@ async fn process_request_send_funds(
         .set_remote_pending_debt(new_remote_pending_debt)
         .await?;
 
-    Ok(incoming_message)
+    Ok(ProcessOutput::Incoming(incoming_message))
 }
 
 async fn process_response_send_funds(
@@ -145,25 +172,34 @@ async fn process_response_send_funds(
     response: McResponse,
     currency: &Currency,
     remote_public_key: &PublicKey,
-) -> Result<IncomingMessage, ProcessOperationError> {
+) -> Result<ProcessOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc_client
+    let pending_transaction = if let Some(pending_transaction) = mc_client
         .get_local_pending_transaction(response.request_id.clone())
         .await?
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
+    {
+        pending_transaction
+    } else {
+        // Request does not exist
+        return Ok(ProcessOutput::Inconsistency);
+    };
 
     // Verify src_plain_lock and dest_plain_lock:
     if response.src_plain_lock.hash_lock() != pending_transaction.src_hashed_lock {
-        return Err(ProcessOperationError::InvalidSrcPlainLock);
+        // Invalid src plain lock
+        return Ok(ProcessOutput::Inconsistency);
     }
 
     let dest_public_key = if pending_transaction.route.is_empty() {
         remote_public_key
     } else {
-        pending_transaction.route.last().unwrap()
+        pending_transaction
+            .route
+            .last()
+            .ok_or(ProcessOperationError::InvalidState)?
     };
 
     let response_signature_buffer =
@@ -175,15 +211,16 @@ async fn process_response_send_funds(
         dest_public_key,
         &response.signature,
     ) {
-        return Err(ProcessOperationError::InvalidResponseSignature);
+        // Invalid response signature
+        return Ok(ProcessOutput::Inconsistency);
     }
 
     // Calculate amount of credits that were frozen:
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
-        .unwrap();
-    // Note: The unwrap() above should never fail, because this was already checked during the
+        .ok_or(ProcessOperationError::InvalidState)?;
+    // Note: The above should never fail, because this was already checked during the
     // request message processing.
 
     // Remove entry from local_pending hashmap:
@@ -196,7 +233,7 @@ async fn process_response_send_funds(
     let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
-        .unwrap();
+        .ok_or(ProcessOperationError::InvalidState)?;
     mc_client
         .set_local_pending_debt(new_local_pending_debt)
         .await?;
@@ -207,7 +244,7 @@ async fn process_response_send_funds(
             mc_balance
                 .out_fees
                 .checked_add(pending_transaction.left_fees.into())
-                .unwrap(),
+                .ok_or(ProcessOperationError::InvalidState)?,
         )
         .await?;
 
@@ -216,27 +253,34 @@ async fn process_response_send_funds(
     let new_balance = mc_balance
         .balance
         .checked_sub_unsigned(freeze_credits)
-        .unwrap();
+        .ok_or(ProcessOperationError::InvalidState)?;
     mc_client.set_balance(new_balance).await?;
 
-    Ok(IncomingMessage::Response(IncomingResponseSendFundsOp {
-        pending_transaction,
-        incoming_response: response,
-    }))
+    Ok(ProcessOutput::Incoming(IncomingMessage::Response(
+        IncomingResponseSendFundsOp {
+            pending_transaction,
+            incoming_response: response,
+        },
+    )))
 }
 
 async fn process_cancel_send_funds(
     mc_client: &mut impl McDbClient,
     cancel: McCancel,
-) -> Result<IncomingMessage, ProcessOperationError> {
+) -> Result<ProcessOutput, ProcessOperationError> {
     // Make sure that id exists in local_pending hashmap,
     // and access saved request details.
 
     // Obtain pending request:
-    let pending_transaction = mc_client
+    let pending_transaction = if let Some(pending_transaction) = mc_client
         .get_local_pending_transaction(cancel.request_id.clone())
         .await?
-        .ok_or(ProcessOperationError::RequestDoesNotExist)?;
+    {
+        pending_transaction
+    } else {
+        // Request does not exist
+        return Ok(ProcessOutput::Inconsistency);
+    };
 
     mc_client
         .remove_local_pending_transaction(cancel.request_id.clone())
@@ -245,22 +289,24 @@ async fn process_cancel_send_funds(
     let freeze_credits = pending_transaction
         .dest_payment
         .checked_add(pending_transaction.left_fees)
-        .unwrap();
+        .ok_or(ProcessOperationError::InvalidState)?;
 
     let mc_balance = mc_client.get_balance().await?;
     // Decrease frozen credits:
     let new_local_pending_debt = mc_balance
         .local_pending_debt
         .checked_sub(freeze_credits)
-        .unwrap();
+        .ok_or(ProcessOperationError::InvalidState)?;
 
     mc_client
         .set_local_pending_debt(new_local_pending_debt)
         .await?;
 
     // Return cancel_send_funds:
-    Ok(IncomingMessage::Cancel(IncomingCancelSendFundsOp {
-        pending_transaction,
-        incoming_cancel: cancel,
-    }))
+    Ok(ProcessOutput::Incoming(IncomingMessage::Cancel(
+        IncomingCancelSendFundsOp {
+            pending_transaction,
+            incoming_cancel: cancel,
+        },
+    )))
 }

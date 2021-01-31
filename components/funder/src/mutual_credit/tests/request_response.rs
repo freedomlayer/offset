@@ -13,7 +13,9 @@ use signature::signature_buff::create_response_signature_buffer;
 
 use crate::mutual_credit::outgoing::queue_request;
 
-use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
+use crate::mutual_credit::tests::utils::{
+    process_operations_list, MockMutualCredit, ProcessListOutput,
+};
 use crate::mutual_credit::types::{McDbClient, McOp, McRequest, McResponse, PendingTransaction};
 use crate::mutual_credit::utils::{mc_response_signature_buffer, response_op_from_mc_response};
 
@@ -79,7 +81,7 @@ async fn task_request_response() {
     let sign_buffer = mc_response_signature_buffer(&currency, &response, &pending_transaction);
     response.signature = identity.sign(&sign_buffer);
 
-    process_operations_list(
+    let list_output = process_operations_list(
         &mut mc_transaction,
         vec![McOp::Response(response)],
         &currency,
@@ -88,6 +90,7 @@ async fn task_request_response() {
     )
     .await
     .unwrap();
+    assert!(matches!(list_output, ProcessListOutput::IncomingList(..)));
 
     // We expect that the balance has updated:
     let mc_balance = mc_transaction.get_balance().await.unwrap();

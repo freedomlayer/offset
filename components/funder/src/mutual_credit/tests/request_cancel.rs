@@ -11,7 +11,9 @@ use proto::crypto::{HashResult, PlainLock, PrivateKey, PublicKey, Uid};
 use proto::funder::messages::Currency;
 
 use crate::mutual_credit::outgoing::queue_request;
-use crate::mutual_credit::tests::utils::{process_operations_list, MockMutualCredit};
+use crate::mutual_credit::tests::utils::{
+    process_operations_list, MockMutualCredit, ProcessListOutput,
+};
 use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest};
 
 async fn task_request_cancel() {
@@ -65,7 +67,7 @@ async fn task_request_cancel() {
     // ------------------------------
     let cancel = McCancel { request_id };
 
-    process_operations_list(
+    let list_output = process_operations_list(
         &mut mc_transaction,
         vec![McOp::Cancel(cancel)],
         &currency,
@@ -74,6 +76,7 @@ async fn task_request_cancel() {
     )
     .await
     .unwrap();
+    assert!(matches!(list_output, ProcessListOutput::IncomingList(..)));
 
     let mc_balance = mc_transaction.get_balance().await.unwrap();
     assert_eq!(mc_balance.balance, 0);

@@ -31,7 +31,9 @@ use signature::verify::verify_move_token;
 
 use database::transaction::{TransFunc, Transaction};
 
-use crate::mutual_credit::incoming::{process_operation, IncomingMessage, ProcessOperationError};
+use crate::mutual_credit::incoming::{
+    process_operation, IncomingMessage, ProcessOperationError, ProcessOutput,
+};
 use crate::mutual_credit::outgoing::{
     queue_cancel, queue_request, queue_response, QueueOperationError,
 };
@@ -625,24 +627,22 @@ async fn handle_incoming_token_match(
                 }
             };
 
-        let res = process_operation(
+        let process_output = process_operation(
             mc_client,
             tc_op.mc_op,
             &tc_op.currency,
             remote_public_key,
             remote_max_debt,
         )
-        .await;
+        .await?;
 
-        // TODO: Should check kind of return error in a more detailed way.
-        // We need to decide whether the error is recoverable or not.
-        todo!();
-        let incoming_message = match res {
-            Ok(incoming_message) => incoming_message,
-            Err(_) => {
+        let incoming_message = match process_output {
+            ProcessOutput::Incoming(incoming_message) => incoming_message,
+            ProcessOutput::Inconsistency => {
+                // TODO: Possibly rename returned error here?
                 return Ok(IncomingTokenMatchOutput::InvalidIncoming(
                     InvalidIncoming::InvalidOperation,
-                ))
+                ));
             }
         };
 
