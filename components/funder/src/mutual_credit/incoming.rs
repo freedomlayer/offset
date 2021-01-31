@@ -53,15 +53,7 @@ pub enum ProcessOutput {
 
 #[derive(Debug, From)]
 pub enum ProcessOperationError {
-    /// The Route contains some public key twice.
-    // InvalidRoute,
-    // CreditsCalcOverflow,
-    // RequestAlreadyExists,
-    // RequestDoesNotExist,
-    // InvalidResponseSignature,
-    // InvalidSrcPlainLock,
     InvalidState,
-    // DestPaymentExceedsTotal,
     OpError(OpError),
 }
 
