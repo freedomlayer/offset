@@ -970,7 +970,13 @@ pub async fn accept_remote_reset(
         .await?,
         move_token_counter: remote_reset_move_token_counter
             .checked_sub(1)
-            .ok_or(TokenChannelError::MoveTokenCounterOverflow)?,
+            // TODO: This error is not correct. We need to find a way to not allow remote side to
+            // somehow resolve this issue, possibly not allowing remote side to send a
+            // reset_move_token_counter = 0.
+            .ok_or((|| {
+                todo!();
+                TokenChannelError::MoveTokenCounterOverflow
+            })())?,
     };
 
     let move_token_in = MoveToken {
