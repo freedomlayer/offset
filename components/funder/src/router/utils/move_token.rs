@@ -12,8 +12,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey, Signature};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -22,13 +22,14 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use database::transaction::Transaction;
 
+use crate::mutual_credit::{McCancel, McRequest, McResponse};
 use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::index_mutation::calc_recv_capacity;
 use crate::token_channel::{
-    handle_in_move_token, handle_out_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus,
+    handle_in_move_token, OutMoveToken, ReceiveMoveTokenOutput, TcDbClient, TcOp, TcStatus,
     TokenChannelError,
 };
 
@@ -45,59 +46,143 @@ fn operations_vec_to_currencies_operations(
 }
 */
 
+async fn queue_backwards_op(
+    router_db_client: &mut impl RouterDbClient,
+    out_move_token: &mut OutMoveToken,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    backwards_op: BackwardsOp,
+) -> Result<(), RouterError> {
+    let tc_db_client = if let Some(tc_db_client) = router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+    {
+        tc_db_client
+    } else {
+        return Err(RouterError::InvalidState);
+    };
+    let friend_tc_op = match backwards_op {
+        BackwardsOp::Response(currency, mc_response) => {
+            out_move_token
+                .queue_response(tc_db_client, currency, mc_response, local_public_key)
+                .await?;
+        }
+        BackwardsOp::Cancel(currency, mc_cancel) => {
+            out_move_token
+                .queue_cancel(tc_db_client, currency, mc_cancel)
+                .await?;
+        }
+    };
+    Ok(())
+}
+
+async fn queue_request(
+    router_db_client: &mut impl RouterDbClient,
+    out_move_token: &mut OutMoveToken,
+    local_public_key: &PublicKey,
+    friend_public_key: PublicKey,
+    currency: Currency,
+    mc_request: McRequest,
+) -> Result<(), RouterError> {
+    let tc_db_client = if let Some(tc_db_client) = router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+    {
+        tc_db_client
+    } else {
+        return Err(RouterError::InvalidState);
+    };
+
+    let res = out_move_token
+        .queue_request(tc_db_client, currency, mc_request)
+        .await?;
+
+    match res {
+        Ok(mc_balance) => {
+            // TODO: Remove currency if balance and pending credits are zero and the user has
+            // requested to remove currency.
+            todo!();
+        }
+        Err(mc_cancel) => {
+            // TODO: Queue cancel message
+            todo!();
+        }
+    }
+    todo!();
+}
+
 async fn collect_currencies_operations(
     router_db_client: &mut impl RouterDbClient,
+    local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
-) -> Result<CurrenciesOperations, RouterError> {
-    let mut operations_vec = Vec::<(Currency, FriendTcOp)>::new();
+) -> Result<OutMoveToken, RouterError> {
+    // Create a structure that aggregates operations to be sent in a single MoveToken message:
+    let mut out_move_token = OutMoveToken::new();
 
     // Collect any pending responses and cancels:
     while let Some((currency, backwards_op)) = router_db_client
         .pending_backwards_pop_front(friend_public_key.clone())
         .await?
     {
-        let friend_tc_op = match backwards_op {
-            BackwardsOp::Response(response_op) => FriendTcOp::ResponseSendFunds(response_op),
-            BackwardsOp::Cancel(cancel_op) => FriendTcOp::CancelSendFunds(cancel_op),
-        };
-        operations_vec.push((currency, friend_tc_op));
+        queue_backwards_op(
+            router_db_client,
+            &mut out_move_token,
+            local_public_key,
+            friend_public_key.clone(),
+            backwards_op,
+        )
+        .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec);
+        if out_move_token.len() >= max_operations_in_batch {
+            return Ok(out_move_token);
         }
     }
 
     // Collect any pending user requests:
-    while let Some((currency, request_op)) = router_db_client
+    while let Some((currency, mc_request)) = router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
-        let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
-        operations_vec.push((currency, friend_tc_op));
+        queue_request(
+            router_db_client,
+            &mut out_move_token,
+            local_public_key,
+            friend_public_key.clone(),
+            currency,
+            mc_request,
+        )
+        .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec);
+        if out_move_token.len() >= max_operations_in_batch {
+            return Ok(out_move_token);
         }
     }
 
     // Collect any pending requests:
-    while let Some((currency, request_op)) = router_db_client
+    while let Some((currency, mc_request)) = router_db_client
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
-        let friend_tc_op = FriendTcOp::RequestSendFunds(request_op);
-        operations_vec.push((currency, friend_tc_op));
+        queue_request(
+            router_db_client,
+            &mut out_move_token,
+            local_public_key,
+            friend_public_key.clone(),
+            currency,
+            mc_request,
+        )
+        .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if operations_vec.len() >= max_operations_in_batch {
-            return Ok(operations_vec);
+        if out_move_token.len() >= max_operations_in_batch {
+            return Ok(out_move_token);
         }
     }
 
-    Ok(operations_vec)
+    Ok(out_move_token)
 }
 
 /// Do we have more pending currencies operations?
@@ -168,12 +253,14 @@ struct PreMoveToken {
     pub currencies_diff: Vec<Currency>,
 }
 
+/*
 /// Like MoveTokenRequest, but wrapping PreMoveToken instead of MoveToken.
 #[derive(Debug)]
 struct PreMoveTokenRequest {
     pub pre_move_token: PreMoveToken,
     pub token_wanted: bool,
 }
+*/
 
 /// Attempt to create an outgoing move token
 /// Collect any information we need to send to remote friend:

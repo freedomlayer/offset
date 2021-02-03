@@ -772,6 +772,10 @@ impl OutMoveToken {
         Self { tc_ops: Vec::new() }
     }
 
+    pub fn len(&self) -> usize {
+        self.tc_ops.len()
+    }
+
     pub async fn queue_request(
         &mut self,
         tc_client: &mut impl TcDbClient,

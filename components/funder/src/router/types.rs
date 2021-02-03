@@ -15,6 +15,7 @@ use proto::funder::messages::{
 };
 use proto::index_server::messages::IndexMutation;
 
+use crate::mutual_credit::{McCancel, McRequest, McResponse};
 use crate::token_channel::TokenChannelError;
 
 #[derive(Debug, From)]
@@ -38,8 +39,8 @@ pub struct RouterState {
 
 #[derive(Debug)]
 pub enum BackwardsOp {
-    Response(ResponseSendFundsOp),
-    Cancel(CancelSendFundsOp),
+    Response(Currency, McResponse),
+    Cancel(Currency, McCancel),
 }
 
 #[derive(Debug)]
@@ -167,13 +168,13 @@ pub trait RouterDbClient {
     fn pending_user_requests_pop_front(
         &mut self,
         friend_public_key: PublicKey,
-    ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
+    ) -> AsyncOpResult<Option<(Currency, McRequest)>>;
 
     fn pending_user_requests_push_back(
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
-        request_op: RequestSendFundsOp,
+        mc_request: McRequest,
     ) -> AsyncOpResult<()>;
 
     fn pending_user_requests_is_empty(
@@ -184,7 +185,7 @@ pub trait RouterDbClient {
     fn pending_requests_pop_front(
         &mut self,
         friend_public_key: PublicKey,
-    ) -> AsyncOpResult<Option<(Currency, RequestSendFundsOp)>>;
+    ) -> AsyncOpResult<Option<(Currency, McRequest)>>;
 
     /// Check if a `request_id` is already in use.
     /// Searches all local pending requests, and all local open transactions.
@@ -195,7 +196,7 @@ pub trait RouterDbClient {
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
-        request_op: RequestSendFundsOp,
+        mc_request: McRequest,
     ) -> AsyncOpResult<()>;
 
     fn pending_requests_is_empty(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<bool>;
@@ -288,9 +289,9 @@ pub struct RouterOutput {
     pub friends_messages: HashMap<PublicKey, Vec<FriendMessage>>,
     pub index_mutations: Vec<IndexMutation>,
     pub updated_remote_relays: Vec<PublicKey>,
-    pub incoming_requests: Vec<RequestSendFundsOp>,
-    pub incoming_responses: Vec<ResponseSendFundsOp>,
-    pub incoming_cancels: Vec<CancelSendFundsOp>,
+    pub incoming_requests: Vec<McRequest>,
+    pub incoming_responses: Vec<McResponse>,
+    pub incoming_cancels: Vec<McCancel>,
 }
 
 impl RouterOutput {
@@ -319,15 +320,15 @@ impl RouterOutput {
 
     // TODO: Add updated remote relays?
 
-    pub fn add_incoming_request(&mut self, request: RequestSendFundsOp) {
+    pub fn add_incoming_request(&mut self, request: McRequest) {
         self.incoming_requests.push(request);
     }
 
-    pub fn add_incoming_response(&mut self, response: ResponseSendFundsOp) {
+    pub fn add_incoming_response(&mut self, response: McResponse) {
         self.incoming_responses.push(response);
     }
 
-    pub fn add_incoming_cancel(&mut self, cancel: CancelSendFundsOp) {
+    pub fn add_incoming_cancel(&mut self, cancel: McCancel) {
         self.incoming_cancels.push(cancel);
     }
 }

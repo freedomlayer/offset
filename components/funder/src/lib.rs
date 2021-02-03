@@ -31,9 +31,9 @@ mod route;
 // pub mod report;
 // mod state;
 #[allow(unused)]
+mod router;
+#[allow(unused)]
 mod token_channel;
-// #[allow(unused)]
-// mod router;
 pub mod types;
 
 // #[cfg(test)]

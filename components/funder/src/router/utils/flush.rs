@@ -12,15 +12,15 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
 
 use crypto::rand::{CryptoRandom, RandGen};
 
-use crate::token_channel::{handle_out_move_token, TcDbClient, TcStatus, TokenChannelError};
+use crate::token_channel::{TcDbClient, TcStatus, TokenChannelError};
 
 use crate::route::Route;
 use crate::router::types::{
