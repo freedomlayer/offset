@@ -39,7 +39,7 @@ use crate::mutual_credit::outgoing::{
 };
 use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
 
-use crate::token_channel::types::{TcDbClient, TcStatus};
+use crate::token_channel::types::{TcDbClient, TcOp, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
 
 /// Unrecoverable TokenChannel error
@@ -682,12 +682,6 @@ async fn handle_incoming_token_match(
     Ok(IncomingTokenMatchOutput::MoveTokenReceived(
         move_token_received,
     ))
-}
-
-#[derive(Debug, Clone)]
-pub struct TcOp {
-    pub currency: Currency,
-    pub mc_op: McOp,
 }
 
 async fn tc_op_from_incoming_friend_tc_op(

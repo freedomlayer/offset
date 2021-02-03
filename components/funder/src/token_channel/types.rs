@@ -10,8 +10,14 @@ use proto::funder::messages::{Currency, McBalance, MoveToken, ResetBalance, Rese
 
 use database::interface::funder::CurrencyConfig;
 
-use crate::mutual_credit::types::McDbClient;
+use crate::mutual_credit::types::{McDbClient, McOp};
 use crate::types::MoveTokenHashed;
+
+#[derive(Debug, Clone)]
+pub struct TcOp {
+    pub currency: Currency,
+    pub mc_op: McOp,
+}
 
 #[derive(Debug)]
 pub enum TcOpError {
