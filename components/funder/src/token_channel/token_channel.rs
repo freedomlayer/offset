@@ -970,13 +970,9 @@ pub async fn accept_remote_reset(
         .await?,
         move_token_counter: remote_reset_move_token_counter
             .checked_sub(1)
-            // TODO: This error is not correct. We need to find a way to not allow remote side to
-            // somehow resolve this issue, possibly not allowing remote side to send a
-            // reset_move_token_counter = 0.
-            .ok_or((|| {
-                todo!();
-                TokenChannelError::MoveTokenCounterOverflow
-            })())?,
+            // We check in `load_remote_reset_terms()` that the proposed `reset_move_token_counter`
+            // is nonzero.
+            .ok_or(TokenChannelError::InvalidState)?,
     };
 
     let move_token_in = MoveToken {
@@ -1010,8 +1006,11 @@ pub async fn load_remote_reset_terms(
     remote_public_key: &PublicKey,
 ) -> Result<Option<ResetTerms>, TokenChannelError> {
     // Check our current state:
-    let ret_val = match tc_client.get_tc_status().await? {
+    let (opt_local_reset_terms, last_move_token_counter) = match tc_client.get_tc_status().await? {
         TcStatus::ConsistentIn(..) | TcStatus::ConsistentOut(..) => {
+            // Obtain last seen incoming/outgoing move_token_counter:
+            let last_move_token_counter = tc_client.get_move_token_counter().await?;
+
             // Change our token channel status to inconsistent:
             let (local_reset_token, local_reset_move_token_counter) = set_inconsistent(
                 tc_client,
@@ -1021,14 +1020,30 @@ pub async fn load_remote_reset_terms(
             )
             .await?;
 
-            Some(ResetTerms {
-                reset_token: local_reset_token,
-                move_token_counter: local_reset_move_token_counter,
-                reset_balances: local_balances_for_reset(tc_client).await?,
-            })
+            (
+                Some(ResetTerms {
+                    reset_token: local_reset_token,
+                    move_token_counter: local_reset_move_token_counter,
+                    reset_balances: local_balances_for_reset(tc_client).await?,
+                }),
+                last_move_token_counter,
+            )
         }
-        TcStatus::Inconsistent(..) => None,
+        TcStatus::Inconsistent(local_reset_terms, _remote_reset_terms) => (
+            None,
+            local_reset_terms
+                .move_token_counter
+                .checked_sub(2)
+                .ok_or(TokenChannelError::InvalidState)?,
+        ),
     };
+
+    // Make sure that the proposed `move_token_counter` is valid.
+    // It must be strictly larger than the last move token we have seen.
+    if remote_reset_terms.move_token_counter > last_move_token_counter {
+        // In case `move_token_counter` is invalid, we ignore the proposed reset terms.
+        return Ok(opt_local_reset_terms);
+    }
 
     // Set remote reset terms:
     tc_client
@@ -1044,5 +1059,5 @@ pub async fn load_remote_reset_terms(
             .await?;
     }
 
-    Ok(ret_val)
+    Ok(opt_local_reset_terms)
 }
