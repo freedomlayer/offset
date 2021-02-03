@@ -1033,6 +1033,7 @@ pub async fn load_remote_reset_terms(
             None,
             local_reset_terms
                 .move_token_counter
+                // TODO: The minus 2 here is a strange hack, maybe there is a better design for this?
                 .checked_sub(2)
                 .ok_or(TokenChannelError::InvalidState)?,
         ),
