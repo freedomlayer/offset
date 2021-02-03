@@ -10,7 +10,7 @@ use proto::funder::messages::{Currency, McBalance, MoveToken, ResetBalance, Rese
 
 use database::interface::funder::CurrencyConfig;
 
-use crate::mutual_credit::types::{McDbClient, McOp};
+use crate::mutual_credit::{McDbClient, McOp};
 use crate::types::MoveTokenHashed;
 
 #[derive(Debug, Clone)]

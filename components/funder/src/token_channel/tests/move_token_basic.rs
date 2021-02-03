@@ -20,8 +20,8 @@ use proto::funder::messages::{Currency, FriendTcOp, RequestSendFundsOp, Response
 use identity::{create_identity, IdentityClient};
 
 use crate::mutual_credit::incoming::IncomingMessage;
-use crate::mutual_credit::types::{McRequest, McResponse, PendingTransaction};
 use crate::mutual_credit::utils::mc_response_signature_buffer;
+use crate::mutual_credit::{McRequest, McResponse, PendingTransaction};
 
 use crate::token_channel::tests::utils::MockTokenChannel;
 use crate::token_channel::types::TcCurrencyConfig;

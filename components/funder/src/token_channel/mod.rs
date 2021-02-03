@@ -10,4 +10,4 @@ pub use self::token_channel::{
     TokenChannelError,
 };
 
-pub use types::{TcDbClient, TcStatus};
+pub use types::{TcDbClient, TcOp, TcStatus};

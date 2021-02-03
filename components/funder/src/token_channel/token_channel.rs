@@ -37,7 +37,7 @@ use crate::mutual_credit::incoming::{
 use crate::mutual_credit::outgoing::{
     queue_cancel, queue_request, queue_response, QueueOperationError,
 };
-use crate::mutual_credit::types::{McCancel, McDbClient, McOp, McRequest, McResponse};
+use crate::mutual_credit::{McCancel, McDbClient, McOp, McRequest, McResponse};
 
 use crate::token_channel::types::{TcDbClient, TcOp, TcStatus};
 use crate::types::{create_hashed, MoveTokenHashed};
