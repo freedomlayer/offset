@@ -809,8 +809,6 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
               amount       BLOB NOT NULL,
               in_fees      BLOB NOT NULL,
               out_fees     BLOB NOT NULL,
-              event_type   TEXT CHECK (event_type IN ('P', 'I', 'F')) NOT NULL,
-              -- Event type: P: Payment, I: Invoice, F: Friend inconsistency
  
               PRIMARY KEY(counter, currency)
               FOREIGN KEY(counter) 
