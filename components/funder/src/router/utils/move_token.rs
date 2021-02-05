@@ -94,21 +94,28 @@ async fn queue_request(
     };
 
     let res = out_move_token
-        .queue_request(tc_db_client, currency, mc_request)
+        .queue_request(tc_db_client, currency.clone(), mc_request)
         .await?;
 
     match res {
         Ok(mc_balance) => {
-            // TODO: Remove currency if balance and pending credits are zero and the user has
-            // requested to remove currency.
-            if mc_balance.local_pending_debt == 0
+            let currency_info = router_db_client
+                .get_currency_info(friend_public_key.clone(), currency.clone())
+                .await?
+                // If currency does not exist, we should have already cancelled this request.
+                .ok_or(RouterError::InvalidState)?;
+
+            // If currency is marked for removal, and all balances are zero, remove currency:
+            if currency_info.is_remove
+                && mc_balance.local_pending_debt == 0
                 && mc_balance.remote_pending_debt == 0
                 && mc_balance.balance == 0
             {
-                // TODO: If user has requested to remove currency, then remove.
+                // TODO:
+                // - Remove currency
+                // - Add event of currency removal, remembering the values of `in_fees` and `out_fees`?
                 todo!();
             }
-            todo!();
         }
         Err(mc_cancel) => {
             // TODO: Queue cancel message
