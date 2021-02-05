@@ -210,7 +210,6 @@ pub struct McBalance {
     /// Frozen credits by the remote side
     #[serde(with = "ser_string")]
     pub remote_pending_debt: u128,
-    // TODO: in_fees and out_fees should be u256, not u128!
     /// Fees that were received from remote side
     #[serde(with = "ser_string")]
     pub in_fees: U256,
