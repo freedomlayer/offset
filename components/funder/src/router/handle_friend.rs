@@ -216,10 +216,14 @@ where
         .await?
         .is_consistent()
     {
+        // TODO: Something is strange here. Are we actually queueing a cancel message or something
+        // else?
+
         // Queue cancel to friend_public_key (Request origin)
         router_db_client
             .pending_requests_push_back(friend_public_key.clone(), currency, request_send_funds)
             .await?;
+        todo!();
     } else {
         // We have just received a cancel message from this friend.
         // We expect that this friend is consistent
