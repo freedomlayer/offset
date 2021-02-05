@@ -25,7 +25,8 @@ use database::transaction::Transaction;
 use crate::mutual_credit::{McCancel, McRequest, McResponse};
 use crate::route::Route;
 use crate::router::types::{
-    BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
+    BackwardsOp, CurrencyInfo, FriendBalance, FriendBalanceDiff, RouterDbClient, RouterError,
+    RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::index_mutation::calc_recv_capacity;
 use crate::token_channel::{
@@ -83,6 +84,7 @@ async fn queue_request(
     friend_public_key: PublicKey,
     currency: Currency,
     mc_request: McRequest,
+    router_output: &mut RouterOutput,
 ) -> Result<(), RouterError> {
     let tc_db_client = if let Some(tc_db_client) = router_db_client
         .tc_db_client(friend_public_key.clone())
@@ -94,7 +96,7 @@ async fn queue_request(
     };
 
     let res = out_move_token
-        .queue_request(tc_db_client, currency.clone(), mc_request)
+        .queue_request(tc_db_client, currency.clone(), mc_request.clone())
         .await?;
 
     match res {
@@ -111,18 +113,68 @@ async fn queue_request(
                 && mc_balance.remote_pending_debt == 0
                 && mc_balance.balance == 0
             {
-                // TODO:
-                // - Remove currency
-                // - Add event of currency removal, remembering the values of `in_fees` and `out_fees`?
-                todo!();
+                // Remove currency:
+                router_db_client
+                    .remove_currency(friend_public_key.clone(), currency.clone())
+                    .await?;
+
+                // Add event of currency removal (Friend event)
+                let balances_diff = {
+                    let mut balances_diff = HashMap::new();
+                    let friend_balance_diff = FriendBalanceDiff {
+                        old_balance: FriendBalance {
+                            balance: 0,
+                            in_fees: mc_balance.in_fees,
+                            out_fees: mc_balance.out_fees,
+                        },
+                        new_balance: FriendBalance {
+                            balance: 0,
+                            // TODO: Are we calculating in_fees and out_fees correctly here?
+                            in_fees: 0.into(),
+                            out_fees: 0.into(),
+                        },
+                    };
+                    balances_diff.insert(currency.clone(), friend_balance_diff);
+                    balances_diff
+                };
+                router_db_client
+                    .add_friend_event(friend_public_key.clone(), balances_diff)
+                    .await?;
             }
         }
         Err(mc_cancel) => {
-            // TODO: Queue cancel message
-            todo!();
+            // We need to send a cancel message to the origin
+            if router_db_client
+                .is_request_local_origin(mc_request.request_id.clone())
+                .await?
+            {
+                // Request is of local origin
+                router_output.add_incoming_cancel(McCancel {
+                    request_id: mc_request.request_id.clone(),
+                });
+            } else {
+                if let Some(request_origin) = router_db_client
+                    .get_remote_pending_request_origin(mc_request.request_id.clone())
+                    .await?
+                {
+                    // Request is of remote origin
+                    router_db_client.pending_backwards_push_back(
+                        request_origin.friend_public_key.clone(),
+                        request_origin.currency.clone(),
+                        BackwardsOp::Cancel(
+                            request_origin.currency.clone(),
+                            McCancel {
+                                request_id: mc_request.request_id.clone(),
+                            },
+                        ),
+                    );
+                } else {
+                    // Request is orphan, nothing to do here
+                }
+            }
         }
     }
-    todo!();
+    Ok(())
 }
 
 async fn collect_currencies_operations(
@@ -130,6 +182,7 @@ async fn collect_currencies_operations(
     local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     max_operations_in_batch: usize,
+    router_output: &mut RouterOutput,
 ) -> Result<OutMoveToken, RouterError> {
     // Create a structure that aggregates operations to be sent in a single MoveToken message:
     let mut out_move_token = OutMoveToken::new();
@@ -166,6 +219,7 @@ async fn collect_currencies_operations(
             friend_public_key.clone(),
             currency,
             mc_request,
+            router_output,
         )
         .await?;
 
@@ -187,6 +241,7 @@ async fn collect_currencies_operations(
             friend_public_key.clone(),
             currency,
             mc_request,
+            router_output,
         )
         .await?;
 

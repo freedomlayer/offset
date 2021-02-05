@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use derive_more::From;
 
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
+use common::u256::U256;
 
 use crate::liveness::Liveness;
 use crate::token_channel::TcDbClient;
@@ -69,6 +70,25 @@ pub struct FriendInfo {
     pub is_enabled: bool,
 }
 */
+
+#[derive(Debug)]
+pub struct FriendBalance {
+    /// Amount of credits this side has against the remote side.
+    /// The other side keeps the negation of this value.
+    pub balance: i128,
+    /// Fees that were received from remote side
+    pub in_fees: U256,
+    /// Fees that were given to remote side
+    pub out_fees: U256,
+}
+
+#[derive(Debug)]
+pub struct FriendBalanceDiff {
+    /// Old balance (Before event occured)
+    pub old_balance: FriendBalance,
+    /// New balance (after event occured)
+    pub new_balance: FriendBalance,
+}
 
 #[derive(Debug)]
 pub struct RequestOrigin {
@@ -240,6 +260,13 @@ pub trait RouterDbClient {
         remote_max_debt: u128,
     ) -> AsyncOpResult<()>;
 
+    fn set_local_max_debt(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+        local_max_debt: u128,
+    ) -> AsyncOpResult<()>;
+
     fn open_currency(
         &mut self,
         friend_public_key: PublicKey,
@@ -247,6 +274,12 @@ pub trait RouterDbClient {
     ) -> AsyncOpResult<()>;
 
     fn close_currency(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<()>;
+
+    fn remove_currency(
         &mut self,
         friend_public_key: PublicKey,
         currency: Currency,
@@ -275,6 +308,14 @@ pub trait RouterDbClient {
     /// - Not present in remote currencies
     /// - Present in remote currencies but have a zero balance
     fn currencies_diff(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<Vec<Currency>>;
+
+    /// Add a friend event
+    /// Can be one of: 1. Channel reset, 2. Friend removal, 3. currency removal
+    fn add_friend_event(
+        &mut self,
+        friend_public_key: PublicKey,
+        balances_diff: HashMap<Currency, FriendBalanceDiff>,
+    ) -> AsyncOpResult<()>;
 }
 
 #[derive(Debug)]
