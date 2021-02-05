@@ -101,6 +101,13 @@ async fn queue_request(
         Ok(mc_balance) => {
             // TODO: Remove currency if balance and pending credits are zero and the user has
             // requested to remove currency.
+            if mc_balance.local_pending_debt == 0
+                && mc_balance.remote_pending_debt == 0
+                && mc_balance.balance == 0
+            {
+                // TODO: If user has requested to remove currency, then remove.
+                todo!();
+            }
             todo!();
         }
         Err(mc_cancel) => {
