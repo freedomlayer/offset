@@ -868,7 +868,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
 
     // A case of friend inconsistency or friend removal
     tx.execute(
-        "CREATE TABLE friend_inconsistency_events (
+        "CREATE TABLE friend_events (
              counter                BLOB NOT NULL PRIMARY KEY,
              event_type             TEXT CHECK (event_type == 'F') 
                                     DEFAULT 'F'
@@ -885,7 +885,7 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
     // Balances (per currency) in case of friend inconsistency event.
     // Friend inconsistency can be one of: 1. Channel reset, 2. Friend removal, 3. currency removal
     tx.execute(
-        "CREATE TABLE friend_inconsistency_event_balances (
+        "CREATE TABLE friend_event_balances (
              counter                BLOB NOT NULL,
              currency               TEXT NOT NULL,
              old_balance            BLOB NOT NULL,
