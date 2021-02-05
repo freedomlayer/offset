@@ -44,28 +44,21 @@ pub enum BackwardsOp {
 }
 
 #[derive(Debug)]
-pub struct CurrencyInfoLocal {
-    /// Is locally marked for removal?
-    pub is_remove: bool,
-    /// Was set by remote side too?
-    pub opt_remote: Option<McBalance>,
-}
-
-#[derive(Debug)]
 pub struct CurrencyInfo {
-    // TODO: Maybe remove this field?
-    /// Currency name
-    pub currency: Currency,
     /// Currency rate: This is how much it costs to the remote friend to send credits through us.
     pub rate: Rate,
     /// Maximum amount of debt we allow to the remote side. This is the maximum rich we can get
     /// from this currency relationship.
     pub remote_max_debt: u128,
+    /// Maximum amount of debt we are willing to get into.
+    pub local_max_debt: u128,
     /// Do we allow requests to go through this currency?
     /// TODO: Find out exactly what this means.
     pub is_open: bool,
-    /// Was the remote side told about this currency?
-    pub opt_local: Option<CurrencyInfoLocal>,
+    /// Is locally marked for removal?
+    pub is_remove: bool,
+    /// Is mutual credit open? Show balances
+    pub opt_mutual_credit: Option<McBalance>,
 }
 
 /*
