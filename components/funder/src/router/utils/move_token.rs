@@ -647,23 +647,6 @@ where
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
-    // Get list of interesting currencies:
-    let pre_move_token = PreMoveToken {
-        currencies_operations: move_token.currencies_operations.clone(),
-        currencies_diff: move_token.currencies_diff.clone(),
-    };
-    let currencies = get_mentioned_currencies(&pre_move_token);
-
-    // Record recv capacity for all interesting currencies
-    let currencies_info_before =
-        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
-
-    let recv_capacities_before = get_recv_capacities(
-        &currencies_info_before,
-        friend_public_key.clone(),
-        &currencies,
-    )?;
-
     // Handle incoming move token:
     let receive_move_token_output = handle_in_move_token(
         router_db_client
@@ -677,23 +660,34 @@ where
     )
     .await?;
 
-    let currencies_info_after =
-        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
+    // Get list of mentioned currencies:
+    let mentioned_currencies = if let ReceiveMoveTokenOutput::Received(move_token_received) =
+        &receive_move_token_output
+    {
+        let mentioned_currencies_set: HashSet<_> = move_token_received
+            .incoming_messages
+            .iter()
+            .map(|(currency, _incoming_message)| currency)
+            .cloned()
+            .collect();
+        let mut mentioned_currencies_vec: Vec<_> = mentioned_currencies_set.into_iter().collect();
+        // Sort currencies to make sure we get deterministic results:
+        mentioned_currencies_vec.sort();
+        mentioned_currencies_vec
+    } else {
+        Vec::new()
+    };
 
-    // Record recv capacity for all interesting currencies
-    let recv_capacities_after = get_recv_capacities(
-        &currencies_info_after,
+    // Get currency info for all mentioned currencies:
+    let currencies_info = get_currencies_info(
+        router_db_client,
         friend_public_key.clone(),
-        &currencies,
-    )?;
+        &mentioned_currencies,
+    )
+    .await?;
 
-    // Compare recv capacities and create index mutations:
-    let index_mutations = diff_capacities(
-        friend_public_key,
-        &recv_capacities_before,
-        &recv_capacities_after,
-        &currencies_info_after,
-    )?;
+    // For each currency, create index mutations based on currency information:
+    let index_mutations = create_index_mutations(friend_public_key.clone(), &currencies_info)?;
 
     Ok((receive_move_token_output, index_mutations))
 }
