@@ -34,19 +34,6 @@ use crate::token_channel::{
     TokenChannelError,
 };
 
-/*
-fn operations_vec_to_currencies_operations(
-    operations_vec: Vec<(Currency, FriendTcOp)>,
-) -> CurrenciesOperations {
-    let mut currencies_operations = HashMap::<Currency, Vec<FriendTcOp>>::new();
-    for (currency, tc_op) in operations_vec {
-        let entry = currencies_operations.entry(currency).or_insert(Vec::new());
-        (*entry).push(tc_op);
-    }
-    currencies_operations
-}
-*/
-
 async fn queue_backwards_op(
     router_db_client: &mut impl RouterDbClient,
     out_move_token: &mut OutMoveToken,
@@ -317,101 +304,6 @@ pub async fn collect_outgoing_move_token_allow_empty(
 }
 */
 
-/*
-/// Like MoveToken, but without the calculated `info_hash` and `signature`
-#[derive(Debug)]
-struct PreMoveToken {
-    pub currencies_operations: CurrenciesOperations,
-    pub currencies_diff: Vec<Currency>,
-}
-*/
-
-/*
-/// Like MoveTokenRequest, but wrapping PreMoveToken instead of MoveToken.
-#[derive(Debug)]
-struct PreMoveTokenRequest {
-    pub pre_move_token: PreMoveToken,
-    pub token_wanted: bool,
-}
-*/
-
-/*
-
-/// Attempt to create an outgoing move token
-/// Collect any information we need to send to remote friend:
-///
-/// - Currencies operations (requests, responses, cancels)
-/// - Currencies diff (Added and removed currencies)
-///
-/// Without actually sending this information yet.
-/// Return Ok(None) if we have nothing to send
-async fn collect_outgoing_pre_move_token(
-    router_db_client: &mut impl RouterDbClient,
-    local_public_key: &PublicKey,
-    friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
-) -> Result<Option<OutMoveToken>, RouterError> {
-    let out_move_token = collect_currencies_operations(
-        router_db_client,
-        local_public_key,
-        friend_public_key.clone(),
-        max_operations_in_batch,
-        router_output,
-    )
-    .await?;
-
-    Ok(if out_move_token.is_empty() {
-        // There is nothing interesting to send to remote side
-        None
-    } else {
-        // We have something to send to remote side
-        Some(out_move_token)
-    })
-}
-
-
-async fn send_pre_move_token(
-    router_db_client: &mut impl RouterDbClient,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    friend_public_key: PublicKey,
-    pre_move_token: PreMoveToken,
-) -> Result<MoveToken, RouterError> {
-    let move_token = handle_out_move_token(
-        router_db_client
-            .tc_db_client(friend_public_key.clone())
-            .await?
-            .ok_or(RouterError::InvalidState)?,
-        identity_client,
-        pre_move_token.currencies_operations,
-        pre_move_token.currencies_diff,
-        local_public_key,
-        &friend_public_key,
-    )
-    .await?;
-
-    Ok(move_token)
-}
-*/
-
-/*
-/// Collect all mentioned currencies from a PreMoveToken
-fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> Vec<Currency> {
-    // Collect all mentioned currencies:
-    let mut currencies = HashSet::new();
-    for currency in &pre_move_token.currencies_diff {
-        currencies.insert(currency.clone());
-    }
-
-    for (currency, _operation) in &pre_move_token.currencies_operations {
-        currencies.insert(currency.clone());
-    }
-
-    currencies.into_iter().collect()
-}
-*/
-
 async fn get_currencies_info(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
@@ -429,63 +321,6 @@ async fn get_currencies_info(
     }
     Ok(currencies_info)
 }
-
-/*
-/// Get receive capacities for a given list of currencies
-fn get_recv_capacities(
-    currencies_info: &HashMap<Currency, CurrencyInfo>,
-    friend_public_key: PublicKey,
-    currencies: &[Currency],
-) -> Result<HashMap<Currency, u128>, RouterError> {
-    let mut recv_capacities = HashMap::<Currency, u128>::new();
-    for currency in currencies.iter() {
-        let recv_capacity = if let Some(currency_info) = currencies_info.get(currency) {
-            calc_capacities(&currency_info)?
-        } else {
-            0u128
-        };
-
-        recv_capacities.insert(currency.clone(), recv_capacity);
-    }
-    Ok(recv_capacities)
-}
-
-fn diff_capacities(
-    friend_public_key: PublicKey,
-    capacities_before: &HashMap<Currency, u128>,
-    capacities_after: &HashMap<Currency, u128>,
-    currencies_info: &HashMap<Currency, CurrencyInfo>,
-) -> Result<Vec<IndexMutation>, RouterError> {
-    let mut index_mutations = Vec::new();
-    for (currency, capacity_before) in capacities_before {
-        let capacity_after = capacities_after
-            .get(&currency)
-            .ok_or(RouterError::InvalidState)?;
-
-        if capacity_before != capacity_after {
-            if *capacity_after == 0 {
-                index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
-                    public_key: friend_public_key.clone(),
-                    currency: currency.clone(),
-                }));
-            } else {
-                // We should have this currency's info if the capacity after is nonzero:
-                let currency_info = currencies_info
-                    .get(&currency)
-                    .ok_or(RouterError::InvalidState)?;
-
-                index_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
-                    public_key: friend_public_key.clone(),
-                    currency: currency.clone(),
-                    recv_capacity: *capacity_after,
-                    rate: currency_info.rate.clone(),
-                }));
-            }
-        }
-    }
-    Ok(index_mutations)
-}
-*/
 
 fn create_index_mutations(
     friend_public_key: PublicKey,
