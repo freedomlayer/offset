@@ -198,6 +198,7 @@ impl Into<UnsignedResponseSendFundsOp> for ResponseSendFundsOp {
     }
 }
 
+// TODO: Why is this struct in offset-proto?
 #[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct McBalance {
     /// Amount of credits this side has against the remote side.
