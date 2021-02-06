@@ -77,6 +77,7 @@ pub fn create_update_index_mutation(
     }))
 }
 
+/*
 /// Create a list of index mutations based on an outgoing MoveToken message.
 /// Note that the outgoing MoveToken message was already applied.
 pub async fn create_index_mutations_from_outgoing_move_token(
@@ -139,6 +140,7 @@ pub async fn create_index_mutations_from_outgoing_move_token(
 
     Ok(index_mutations)
 }
+*/
 
 /// Create a list of index mutations based on an incoming MoveToken message.
 /// Note that the incoming MoveToken message was already applied.

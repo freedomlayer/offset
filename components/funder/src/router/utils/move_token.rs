@@ -430,6 +430,7 @@ async fn get_currencies_info(
     Ok(currencies_info)
 }
 
+/*
 /// Get receive capacities for a given list of currencies
 fn get_recv_capacities(
     currencies_info: &HashMap<Currency, CurrencyInfo>,
@@ -484,6 +485,7 @@ fn diff_capacities(
     }
     Ok(index_mutations)
 }
+*/
 
 fn create_index_mutations(
     friend_public_key: PublicKey,

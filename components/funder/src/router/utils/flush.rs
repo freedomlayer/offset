@@ -26,7 +26,7 @@ use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
-use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
+// use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
 use crate::router::utils::move_token::{
     handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
 };
