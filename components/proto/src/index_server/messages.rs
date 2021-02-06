@@ -85,7 +85,9 @@ pub struct UpdateFriendCurrency {
     pub public_key: PublicKey,
     /// Currency being updated
     pub currency: Currency,
-    /// To denote local requests closed, assign 0 to recvCapacity
+    /// Maximum amount of credit that can be pushed from us to remote friend.
+    pub send_capacity: u128,
+    /// Maximum amount of credit that can be pushed from remote friend to us.
     pub recv_capacity: u128,
     /// The rate we charge for forwarding messages to another friend from this friend.
     /// For example, in the following diagram we are X and A is the friend we are updating:
