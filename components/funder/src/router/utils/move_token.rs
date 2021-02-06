@@ -28,7 +28,7 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, FriendBalance, FriendBalanceDiff, RouterDbClient, RouterError,
     RouterOutput, RouterState, SentRelay,
 };
-use crate::router::utils::index_mutation::calc_recv_capacity;
+use crate::router::utils::index_mutation::calc_capacities;
 use crate::token_channel::{
     handle_in_move_token, OutMoveToken, ReceiveMoveTokenOutput, TcDbClient, TcOp, TcStatus,
     TokenChannelError,
@@ -317,12 +317,14 @@ pub async fn collect_outgoing_move_token_allow_empty(
 }
 */
 
+/*
 /// Like MoveToken, but without the calculated `info_hash` and `signature`
 #[derive(Debug)]
 struct PreMoveToken {
     pub currencies_operations: CurrenciesOperations,
     pub currencies_diff: Vec<Currency>,
 }
+*/
 
 /*
 /// Like MoveTokenRequest, but wrapping PreMoveToken instead of MoveToken.
@@ -367,7 +369,7 @@ async fn collect_outgoing_pre_move_token(
         Some(out_move_token)
     })
 }
-*/
+
 
 async fn send_pre_move_token(
     router_db_client: &mut impl RouterDbClient,
@@ -391,7 +393,9 @@ async fn send_pre_move_token(
 
     Ok(move_token)
 }
+*/
 
+/*
 /// Collect all mentioned currencies from a PreMoveToken
 fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> Vec<Currency> {
     // Collect all mentioned currencies:
@@ -406,6 +410,7 @@ fn get_mentioned_currencies(pre_move_token: &PreMoveToken) -> Vec<Currency> {
 
     currencies.into_iter().collect()
 }
+*/
 
 async fn get_currencies_info(
     router_db_client: &mut impl RouterDbClient,
@@ -434,7 +439,7 @@ fn get_recv_capacities(
     let mut recv_capacities = HashMap::<Currency, u128>::new();
     for currency in currencies.iter() {
         let recv_capacity = if let Some(currency_info) = currencies_info.get(currency) {
-            calc_recv_capacity(&currency_info)?
+            calc_capacities(&currency_info)?
         } else {
             0u128
         };
@@ -480,6 +485,45 @@ fn diff_capacities(
     Ok(index_mutations)
 }
 
+fn create_index_mutations(
+    friend_public_key: PublicKey,
+    currencies_info: &HashMap<Currency, CurrencyInfo>,
+) -> Result<Vec<IndexMutation>, RouterError> {
+    let mut index_mutations = Vec::new();
+
+    // Sort currencies_info, to have deterministic results
+    let currencies_info_vec = {
+        let mut currencies_info_vec: Vec<(&Currency, &CurrencyInfo)> = currencies_info
+            .iter()
+            .map(|(currency, currency_info)| (currency, currency_info))
+            .collect();
+        currencies_info_vec.sort_by(|(c_a, c_a_inf), (c_b, c_b_inf)| c_a.cmp(c_b));
+        currencies_info_vec
+    };
+
+    // Create an `IndexMutation` for every currency_info:
+    for (currency, currency_info) in currencies_info_vec {
+        let (send_capacity, recv_capacity) = calc_capacities(currency_info)?;
+        if send_capacity == 0 && recv_capacity == 0 {
+            index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+                public_key: friend_public_key.clone(),
+                currency: currency.clone(),
+            }));
+        } else {
+            // UpdateFriendCurrency
+            index_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
+                public_key: friend_public_key.clone(),
+                currency: currency.clone(),
+                send_capacity,
+                recv_capacity,
+                rate: currency_info.rate.clone(),
+            }));
+        }
+    }
+
+    Ok(index_mutations)
+}
+
 async fn apply_out_move_token(
     router_db_client: &mut impl RouterDbClient,
     identity_client: &mut IdentityClient,
@@ -487,46 +531,31 @@ async fn apply_out_move_token(
     friend_public_key: PublicKey,
     out_move_token: OutMoveToken,
 ) -> Result<(MoveTokenRequest, Vec<IndexMutation>), RouterError> {
-    // Collect all mentioned currencies:
-    let currencies = get_mentioned_currencies(&pre_move_token);
+    let tc_client = router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .ok_or(RouterError::InvalidState)?;
 
-    let currencies_info_before =
-        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
+    // Send move token:
+    let (move_token, mentioned_currencies) = out_move_token
+        .finalize(
+            tc_client,
+            identity_client,
+            local_public_key,
+            &friend_public_key,
+        )
+        .await?;
 
-    // Record recv capacity for all interesting currencies
-    let recv_capacities_before = get_recv_capacities(
-        &currencies_info_before,
-        friend_public_key.clone(),
-        &currencies,
-    )?;
-
-    // Send MoveToken:
-    let move_token = send_pre_move_token(
+    // Get currency info for all mentioned currencies:
+    let currencies_info = get_currencies_info(
         router_db_client,
-        identity_client,
-        local_public_key,
         friend_public_key.clone(),
-        pre_move_token,
+        &mentioned_currencies,
     )
     .await?;
 
-    let currencies_info_after =
-        get_currencies_info(router_db_client, friend_public_key.clone(), &currencies).await?;
-
-    // Record recv capacity for all interesting currencies
-    let recv_capacities_after = get_recv_capacities(
-        &currencies_info_after,
-        friend_public_key.clone(),
-        &currencies,
-    )?;
-
-    // Compare recv capacities and create index mutations:
-    let index_mutations = diff_capacities(
-        friend_public_key.clone(),
-        &recv_capacities_before,
-        &recv_capacities_after,
-        &currencies_info_after,
-    )?;
+    // For each currency, create index mutations based on currency information:
+    let index_mutations = create_index_mutations(friend_public_key.clone(), &currencies_info)?;
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -603,13 +632,7 @@ pub async fn is_pending_move_token(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
 ) -> Result<bool, RouterError> {
-    Ok(
-        is_pending_currencies_operations(router_db_client, friend_public_key.clone()).await?
-            || !router_db_client
-                .currencies_diff(friend_public_key.clone())
-                .await?
-                .is_empty(),
-    )
+    Ok(is_pending_currencies_operations(router_db_client, friend_public_key.clone()).await?)
 }
 
 pub async fn handle_in_move_token_index_mutations<RC>(

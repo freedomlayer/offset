@@ -154,7 +154,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .queue_request(&mut tc_b_a, currency1.clone(), mc_request.clone())
         .await
         .unwrap();
-    let move_token = out_move_token
+    let (move_token, _mentioned_currencies) = out_move_token
         .finalize(&mut tc_b_a, &mut identity_client_b, &pk_b, &pk_a)
         .await
         .unwrap();
@@ -255,7 +255,7 @@ async fn task_move_token_basic(test_executor: TestExecutor) {
         .queue_response(&mut tc_a_b, currency1.clone(), mc_response, &pk_a)
         .await
         .unwrap();
-    let move_token = out_move_token
+    let (move_token, _mentioned_currencies) = out_move_token
         .finalize(&mut tc_a_b, &mut identity_client_a, &pk_a, &pk_b)
         .await
         .unwrap();

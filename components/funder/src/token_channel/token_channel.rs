@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -763,6 +763,21 @@ fn friend_tc_op_from_outgoing_tc_op(tc_op: TcOp) -> FriendTcOp {
     }
 }
 
+fn mentioned_currencies(tc_ops: &[TcOp]) -> Vec<Currency> {
+    let mentioned_set: HashSet<Currency> = tc_ops
+        .iter()
+        .map(|tc_op| &tc_op.currency)
+        .cloned()
+        .collect();
+
+    let mut mentioned_vec: Vec<Currency> = mentioned_set.into_iter().collect();
+
+    // We sort the mentioned currencies to have deterministic output:
+    mentioned_vec.sort();
+
+    mentioned_vec
+}
+
 pub struct OutMoveToken {
     tc_ops: Vec<TcOp>,
 }
@@ -878,13 +893,15 @@ impl OutMoveToken {
         Ok(mc_client.get_balance().await?)
     }
 
+    // TODO: Possibly rename to "send" or something related?
+    /// Create MoveToken, and apply to token channel
     pub async fn finalize(
         self,
         tc_client: &mut impl TcDbClient,
         identity_client: &mut IdentityClient,
         local_public_key: &PublicKey,
         remote_public_key: &PublicKey,
-    ) -> Result<MoveToken, TokenChannelError> {
+    ) -> Result<(MoveToken, Vec<Currency>), TokenChannelError> {
         // Token channel must be at a consistent incoming state
         assert!(matches!(
             tc_client.get_tc_status().await?,
@@ -912,6 +929,9 @@ impl OutMoveToken {
 
         let info_hash = hash_token_info(local_public_key, remote_public_key, &token_info);
 
+        // Get all mentioned currencies in this move token message:
+        let mentioned_currencies = mentioned_currencies(&self.tc_ops[..]);
+
         let mut move_token = MoveToken {
             old_token: move_token_in.new_token,
             operations: self
@@ -935,7 +955,7 @@ impl OutMoveToken {
             .set_direction_outgoing(move_token.clone(), new_move_token_counter)
             .await?;
 
-        Ok(move_token)
+        Ok((move_token, mentioned_currencies))
     }
 }
 
@@ -947,7 +967,7 @@ pub async fn accept_remote_reset(
     operations: Vec<FriendTcOp>,
     local_public_key: &PublicKey,
     remote_public_key: &PublicKey,
-) -> Result<MoveToken, TokenChannelError> {
+) -> Result<(MoveToken, Vec<Currency>), TokenChannelError> {
     // Make sure that we are in an inconsistent state,
     // and that the remote side has already sent his reset terms:
     let (remote_reset_token, remote_reset_move_token_counter) =

@@ -26,15 +26,16 @@ use crate::router::types::{
 };
 use crate::token_channel::{TcDbClient, TcStatus, TokenChannelError};
 
-/// Calculate receive capacity for a certain currency
+/// Calculate send and receive capacity for a certain currency
 /// This is the number we are going to report to an index server
-pub fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterError> {
+pub fn calc_capacities(currency_info: &CurrencyInfo) -> Result<(u128, u128), RouterError> {
     todo!();
     // TODO:
     // Should also take into account:
     // - Liveness
     // - Open/Closed currencies
 
+    /*
     if !currency_info.is_open {
         return Ok(0);
     }
@@ -57,17 +58,20 @@ pub fn calc_recv_capacity(currency_info: &CurrencyInfo) -> Result<u128, RouterEr
             .checked_add_unsigned(mc_balance.remote_pending_debt)
             .ok_or(RouterError::BalanceOverflow)?,
     ))
+    */
 }
 
 /// Create one update index mutation, based on a given currency info.
 pub fn create_update_index_mutation(
     friend_public_key: PublicKey,
+    currency: Currency,
     currency_info: CurrencyInfo,
 ) -> Result<IndexMutation, RouterError> {
-    let recv_capacity = calc_recv_capacity(&currency_info)?;
+    let (send_capacity, recv_capacity) = calc_capacities(&currency_info)?;
     Ok(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
         public_key: friend_public_key,
-        currency: currency_info.currency,
+        currency,
+        send_capacity,
         recv_capacity,
         rate: currency_info.rate,
     }))
@@ -106,6 +110,10 @@ pub async fn create_index_mutations_from_outgoing_move_token(
         currencies
     };
 
+    // TODO: Sort currencies set here, to get deterministic result.
+    // Possibly use a function instead of inlining here.
+    todo!();
+
     let mut index_mutations = Vec::new();
 
     // Create all index mutations:
@@ -117,6 +125,7 @@ pub async fn create_index_mutations_from_outgoing_move_token(
             // Currency exists
             index_mutations.push(create_update_index_mutation(
                 friend_public_key.clone(),
+                currency.clone(),
                 currency_info,
             )?);
         } else {
