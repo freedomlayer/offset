@@ -776,6 +776,10 @@ impl OutMoveToken {
         self.tc_ops.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.tc_ops.is_empty()
+    }
+
     pub async fn queue_request(
         &mut self,
         tc_client: &mut impl TcDbClient,
