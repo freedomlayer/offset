@@ -14,9 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -28,7 +27,7 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::flush::flush_friend;
-use crate::router::utils::index_mutation::create_update_index_mutation;
+use crate::router::utils::index_mutation::create_index_mutation;
 use crate::router::utils::move_token::is_pending_move_token;
 use crate::token_channel::{
     handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
@@ -159,17 +158,32 @@ pub async fn set_remote_max_debt(
             .set_remote_max_debt(friend_public_key.clone(), currency.clone(), remote_max_debt)
             .await?;
 
+        // TODO: It is possible that the capacity was already zero, and when we changed
+        // remote_max_debt the capacity has somehow stayed zero. In that case we will not need to
+        // resend an index mutation. Currently we do send. It wastes bandwidth, but it is still
+        // correct. Maybe in the future we can decide more elegantly when to send an index
+        // mutation.
+
         // Create an index mutation if needed:
         if currency_info.is_open {
             // Currency is open:
-            output.add_index_mutation(create_update_index_mutation(
+            output.add_index_mutation(create_index_mutation(
                 friend_public_key.clone(),
+                currency,
                 currency_info,
             )?);
         }
     }
 
     Ok(output)
+}
+pub async fn set_local_max_debt(
+    router_db_client: &mut impl RouterDbClient,
+    friend_public_key: PublicKey,
+    currency: Currency,
+    remote_max_debt: u128,
+) -> Result<RouterOutput, RouterError> {
+    todo!();
 }
 
 pub async fn open_currency(
@@ -198,14 +212,14 @@ pub async fn open_currency(
 
             // Open currency:
             router_db_client
-                .open_currency(friend_public_key.clone(), currency)
+                .open_currency(friend_public_key.clone(), currency.clone())
                 .await?;
 
-            // Add index mutation:
-            output.add_index_mutation(create_update_index_mutation(
-                friend_public_key,
-                currency_info,
-            )?);
+            let index_mutation = create_index_mutation(friend_public_key, currency, currency_info)?;
+            if matches!(index_mutation, IndexMutation::UpdateFriendCurrency(..)) {
+                // Add index mutation:
+                output.add_index_mutation(index_mutation);
+            }
         }
     }
 
