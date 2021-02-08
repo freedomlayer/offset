@@ -14,9 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -28,8 +27,10 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::flush::flush_friend;
-use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::is_pending_move_token;
+
+use crate::mutual_credit::{McCancel, McRequest, McResponse};
+
 use crate::token_channel::{
     handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
@@ -38,14 +39,11 @@ pub async fn send_request(
     router_db_client: &mut impl RouterDbClient,
     router_state: &RouterState,
     currency: Currency,
-    mut request: RequestSendFundsOp,
+    mut request: McRequest,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO: Do not forward if requests not enabled? / Friend not enabled?
-    todo!();
-
     // Make sure that the provided route is valid:
     if !request.route.is_valid() {
         return Err(RouterError::InvalidRoute);
@@ -58,9 +56,12 @@ pub async fn send_request(
         .await?
     {
         // We already have a local request with the same id. Return back a cancel.
-        output.add_incoming_cancel(CancelSendFundsOp {
-            request_id: request.request_id,
-        });
+        output.add_incoming_cancel(
+            currency,
+            McCancel {
+                request_id: request.request_id,
+            },
+        );
         return Ok(output);
     }
 
@@ -82,9 +83,12 @@ pub async fn send_request(
     } else {
         // Friend is not ready to accept a request.
         // We cancel the request:
-        output.add_incoming_cancel(CancelSendFundsOp {
-            request_id: request.request_id.clone(),
-        });
+        output.add_incoming_cancel(
+            currency,
+            McCancel {
+                request_id: request.request_id.clone(),
+            },
+        );
         return Ok(output);
     };
 
@@ -118,9 +122,12 @@ pub async fn send_request(
         )
         .await?;
     } else {
-        output.add_incoming_cancel(CancelSendFundsOp {
-            request_id: request.request_id,
-        });
+        output.add_incoming_cancel(
+            currency,
+            McCancel {
+                request_id: request.request_id,
+            },
+        );
     }
 
     Ok(output)
@@ -128,7 +135,7 @@ pub async fn send_request(
 
 pub async fn send_response(
     router_db_client: &mut impl RouterDbClient,
-    response: ResponseSendFundsOp,
+    response: McResponse,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
@@ -146,8 +153,7 @@ pub async fn send_response(
         router_db_client
             .pending_backwards_push_back(
                 request_origin.friend_public_key.clone(),
-                request_origin.currency,
-                BackwardsOp::Response(response),
+                BackwardsOp::Response(request_origin.currency, response),
             )
             .await?;
 
@@ -167,7 +173,7 @@ pub async fn send_response(
 
 pub async fn send_cancel(
     router_db_client: &mut impl RouterDbClient,
-    cancel: CancelSendFundsOp,
+    cancel: McCancel,
     identity_client: &mut IdentityClient,
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
@@ -185,8 +191,7 @@ pub async fn send_cancel(
         router_db_client
             .pending_backwards_push_back(
                 request_origin.friend_public_key.clone(),
-                request_origin.currency,
-                BackwardsOp::Cancel(cancel),
+                BackwardsOp::Cancel(request_origin.currency, cancel),
             )
             .await?;
 
