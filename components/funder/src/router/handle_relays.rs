@@ -14,9 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -29,7 +28,6 @@ use crate::router::types::{
 };
 
 use crate::mutual_credit::incoming::IncomingMessage;
-use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::is_pending_move_token;
 use crate::token_channel::{
     handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
