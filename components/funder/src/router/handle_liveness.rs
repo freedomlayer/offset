@@ -14,9 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -27,13 +26,17 @@ use crate::route::Route;
 use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
 };
+
+use crate::mutual_credit::McCancel;
+
+use crate::token_channel::{
+    handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
+};
+
 use crate::router::utils::flush::flush_friend;
 use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::{
     handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
-};
-use crate::token_channel::{
-    handle_in_move_token, ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError,
 };
 
 pub async fn set_friend_online(
@@ -82,12 +85,15 @@ pub async fn set_friend_online(
                 local_public_key,
                 friend_public_key.clone(),
                 max_operations_in_batch,
+                &mut output,
             )
             .await?;
 
             if let Some((move_token_request, _index_mutations)) = opt_tuple {
                 // We discard index_mutations calculation here, because we are going to add all
                 // open currencies anyways.
+                // TODO: Reconsider index mutations here.
+                todo!();
 
                 // We have something to send to remote side:
                 output.add_friend_message(
@@ -123,11 +129,12 @@ pub async fn set_friend_online(
     // Add an index mutation for all open currencies:
     let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
-        let open_currency = res?;
+        let (open_currency, open_currency_info) = res?;
 
         output.add_index_mutation(create_update_index_mutation(
             friend_public_key.clone(),
             open_currency,
+            open_currency_info,
         )?);
     }
 
@@ -165,7 +172,7 @@ pub async fn set_friend_offline(
             .remove_local_request(pending_user_request.request_id.clone())
             .await?;
         // Send outgoing cancel to user:
-        output.add_incoming_cancel(CancelSendFundsOp {
+        output.add_incoming_cancel(McCancel {
             request_id: pending_user_request.request_id,
         });
     }
@@ -187,9 +194,12 @@ pub async fn set_friend_offline(
                 .pending_backwards_push_back(
                     request_origin.friend_public_key,
                     request_origin.currency,
-                    BackwardsOp::Cancel(CancelSendFundsOp {
-                        request_id: pending_request.request_id,
-                    }),
+                    BackwardsOp::Cancel(
+                        currency,
+                        McCancel {
+                            request_id: pending_request.request_id,
+                        },
+                    ),
                 )
                 .await?;
         }
@@ -199,10 +209,10 @@ pub async fn set_friend_offline(
     // We send index mutations to remove all currencies that are considered open
     let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
-        let open_currency = res?;
+        let (open_currency, _open_currency_info) = res?;
         output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
             public_key: friend_public_key.clone(),
-            currency: open_currency.currency,
+            currency: open_currency,
         }));
     }
 

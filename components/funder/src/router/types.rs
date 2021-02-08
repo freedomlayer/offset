@@ -213,8 +213,10 @@ pub trait RouterDbClient {
 
     fn pending_requests_is_empty(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<bool>;
 
-    fn list_open_currencies(&mut self, friend_public_key: PublicKey)
-        -> AsyncOpStream<CurrencyInfo>;
+    fn list_open_currencies(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpStream<(Currency, CurrencyInfo)>;
 
     fn get_currency_info(
         &mut self,
