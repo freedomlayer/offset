@@ -183,6 +183,7 @@ pub async fn set_local_max_debt(
     currency: Currency,
     remote_max_debt: u128,
 ) -> Result<RouterOutput, RouterError> {
+    // TODO: Fill in
     todo!();
 }
 
