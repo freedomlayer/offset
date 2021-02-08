@@ -138,9 +138,12 @@ async fn queue_request(
                 .await?
             {
                 // Request is of local origin
-                router_output.add_incoming_cancel(McCancel {
-                    request_id: mc_request.request_id.clone(),
-                });
+                router_output.add_incoming_cancel(
+                    currency,
+                    McCancel {
+                        request_id: mc_request.request_id.clone(),
+                    },
+                );
             } else {
                 if let Some(request_origin) = router_db_client
                     .get_remote_pending_request_origin(mc_request.request_id.clone())

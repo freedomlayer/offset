@@ -163,7 +163,7 @@ pub async fn set_friend_offline(
     router_state.liveness.set_offline(&friend_public_key);
 
     // Cancel all pending user requests
-    while let Some((_currency, pending_user_request)) = router_db_client
+    while let Some((currency, pending_user_request)) = router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
@@ -172,9 +172,12 @@ pub async fn set_friend_offline(
             .remove_local_request(pending_user_request.request_id.clone())
             .await?;
         // Send outgoing cancel to user:
-        output.add_incoming_cancel(McCancel {
-            request_id: pending_user_request.request_id,
-        });
+        output.add_incoming_cancel(
+            currency,
+            McCancel {
+                request_id: pending_user_request.request_id,
+            },
+        );
     }
 
     // Cancel all pending requests
