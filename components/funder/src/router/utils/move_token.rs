@@ -149,7 +149,6 @@ async fn queue_request(
                     // Request is of remote origin
                     router_db_client.pending_backwards_push_back(
                         request_origin.friend_public_key.clone(),
-                        request_origin.currency.clone(),
                         BackwardsOp::Cancel(
                             request_origin.currency.clone(),
                             McCancel {
@@ -177,7 +176,7 @@ async fn collect_currencies_operations(
     let mut out_move_token = OutMoveToken::new();
 
     // Collect any pending responses and cancels:
-    while let Some((currency, backwards_op)) = router_db_client
+    while let Some(backwards_op) = router_db_client
         .pending_backwards_pop_front(friend_public_key.clone())
         .await?
     {

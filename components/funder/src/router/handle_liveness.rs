@@ -183,19 +183,24 @@ pub async fn set_friend_offline(
         .await?
     {
         // Find from which friend this pending request has originated from.
-        // Due to inconsistencies, it is possible that this pending request has no origin.
+        // Due to inconsistencies, it is possible that this pending request has no origin (An
+        // orphan request)
         let opt_request_origin = router_db_client
             .get_remote_pending_request_origin(pending_request.request_id.clone())
             .await?;
 
         if let Some(request_origin) = opt_request_origin {
+            // Currency should be the same!
+            if currency != request_origin.currency {
+                return Err(RouterError::InvalidState);
+            }
+
             // Cancel request by queue-ing a cancel into the relevant friend's queue:
             router_db_client
                 .pending_backwards_push_back(
                     request_origin.friend_public_key,
-                    request_origin.currency,
                     BackwardsOp::Cancel(
-                        currency,
+                        request_origin.currency,
                         McCancel {
                             request_id: pending_request.request_id,
                         },

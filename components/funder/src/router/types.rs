@@ -166,12 +166,11 @@ pub trait RouterDbClient {
     fn pending_backwards_pop_front(
         &mut self,
         friend_public_key: PublicKey,
-    ) -> AsyncOpResult<Option<(Currency, BackwardsOp)>>;
+    ) -> AsyncOpResult<Option<BackwardsOp>>;
 
     fn pending_backwards_push_back(
         &mut self,
         friend_public_key: PublicKey,
-        currency: Currency,
         backwards_op: BackwardsOp,
     ) -> AsyncOpResult<()>;
 
