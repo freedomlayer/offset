@@ -28,7 +28,7 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, FriendBalance, FriendBalanceDiff, RouterDbClient, RouterError,
     RouterOutput, RouterState, SentRelay,
 };
-use crate::router::utils::index_mutation::calc_capacities;
+use crate::router::utils::index_mutation::create_index_mutation;
 use crate::token_channel::{
     handle_in_move_token, OutMoveToken, ReceiveMoveTokenOutput, TcDbClient, TcOp, TcStatus,
     TokenChannelError,
@@ -281,14 +281,14 @@ async fn get_currencies_info(
 
 fn create_index_mutations(
     friend_public_key: PublicKey,
-    currencies_info: &HashMap<Currency, CurrencyInfo>,
+    currencies_info: HashMap<Currency, CurrencyInfo>,
 ) -> Result<Vec<IndexMutation>, RouterError> {
     let mut index_mutations = Vec::new();
 
     // Sort currencies_info, to have deterministic results
     let currencies_info_vec = {
-        let mut currencies_info_vec: Vec<(&Currency, &CurrencyInfo)> = currencies_info
-            .iter()
+        let mut currencies_info_vec: Vec<(Currency, CurrencyInfo)> = currencies_info
+            .into_iter()
             .map(|(currency, currency_info)| (currency, currency_info))
             .collect();
         currencies_info_vec.sort_by(|(c_a, c_a_inf), (c_b, c_b_inf)| c_a.cmp(c_b));
@@ -297,22 +297,11 @@ fn create_index_mutations(
 
     // Create an `IndexMutation` for every currency_info:
     for (currency, currency_info) in currencies_info_vec {
-        let (send_capacity, recv_capacity) = calc_capacities(currency_info)?;
-        if send_capacity == 0 && recv_capacity == 0 {
-            index_mutations.push(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
-                public_key: friend_public_key.clone(),
-                currency: currency.clone(),
-            }));
-        } else {
-            // UpdateFriendCurrency
-            index_mutations.push(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
-                public_key: friend_public_key.clone(),
-                currency: currency.clone(),
-                send_capacity,
-                recv_capacity,
-                rate: currency_info.rate.clone(),
-            }));
-        }
+        index_mutations.push(create_index_mutation(
+            friend_public_key.clone(),
+            currency,
+            currency_info,
+        )?);
     }
 
     Ok(index_mutations)
@@ -349,7 +338,7 @@ async fn apply_out_move_token(
     .await?;
 
     // For each currency, create index mutations based on currency information:
-    let index_mutations = create_index_mutations(friend_public_key.clone(), &currencies_info)?;
+    let index_mutations = create_index_mutations(friend_public_key.clone(), currencies_info)?;
 
     let move_token_request = MoveTokenRequest {
         move_token,
@@ -481,7 +470,7 @@ where
     .await?;
 
     // For each currency, create index mutations based on currency information:
-    let index_mutations = create_index_mutations(friend_public_key.clone(), &currencies_info)?;
+    let index_mutations = create_index_mutations(friend_public_key.clone(), currencies_info)?;
 
     Ok((receive_move_token_output, index_mutations))
 }

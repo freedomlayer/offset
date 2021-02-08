@@ -28,7 +28,7 @@ use crate::token_channel::{TcDbClient, TcStatus, TokenChannelError};
 
 /// Calculate send and receive capacity for a certain currency
 /// This is the number we are going to report to an index server
-pub fn calc_capacities(currency_info: &CurrencyInfo) -> Result<(u128, u128), RouterError> {
+fn calc_capacities(currency_info: &CurrencyInfo) -> Result<(u128, u128), RouterError> {
     // TODO: Should also take into account liveness?  Maybe from the outside?
 
     if !currency_info.is_open {
