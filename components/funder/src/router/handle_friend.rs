@@ -14,9 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey, Uid};
 use proto::funder::messages::{
-    CancelSendFundsOp, CurrenciesOperations, Currency, CurrencyOperations, FriendMessage,
-    FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate, RequestSendFundsOp, ResetTerms,
-    ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
+    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -31,8 +30,8 @@ use crate::router::types::{
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingMessage, IncomingResponseSendFundsOp,
 };
+use crate::mutual_credit::{McCancel, McRequest};
 use crate::router::utils::flush::flush_friend;
-use crate::router::utils::index_mutation::create_update_index_mutation;
 use crate::router::utils::move_token::{
     handle_in_move_token_index_mutations, handle_out_move_token_index_mutations_allow_empty,
     handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
@@ -63,16 +62,7 @@ async fn is_credit_line_ready(
         return Ok(false);
     };
 
-    if let Some(currency_info_local) = currency_info.opt_local {
-        if let Some(mc_balance) = currency_info_local.opt_remote {
-            // A mutual credit line is open for this currency
-        } else {
-            return Ok(false);
-        }
-    } else {
-        return Ok(false);
-    }
-
+    // Note: We bypass `is_open` check if the request is of local origin:
     Ok(currency_info.is_open || router_db_client.is_request_local_origin(request_id).await?)
 }
 
@@ -84,7 +74,6 @@ async fn incoming_message_request<RC>(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
     router_output: &mut RouterOutput,
-    currency: Currency,
     mut request_send_funds: RequestSendFundsOp,
 ) -> Result<(), RouterError>
 where
@@ -96,7 +85,7 @@ where
         router_db_client,
         &*router_state,
         friend_public_key.clone(),
-        currency.clone(),
+        request_send_funds.currency.clone(),
         request_send_funds.request_id.clone(),
     )
     .await?
@@ -105,10 +94,12 @@ where
         router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
-                currency,
-                BackwardsOp::Cancel(CancelSendFundsOp {
-                    request_id: request_send_funds.request_id.clone(),
-                }),
+                BackwardsOp::Cancel(
+                    request_send_funds.currency,
+                    McCancel {
+                        request_id: request_send_funds.request_id.clone(),
+                    },
+                ),
             )
             .await?;
 
@@ -128,7 +119,15 @@ where
     // If directed to us, punt
     if request_send_funds.route.is_empty() {
         // Directed to us. Punt:
-        router_output.add_incoming_request(request_send_funds);
+        let mc_request = McRequest {
+            request_id: request_send_funds.request_id,
+            src_hashed_lock: request_send_funds.src_hashed_lock,
+            dest_payment: request_send_funds.dest_payment,
+            invoice_hash: request_send_funds.invoice_hash,
+            route: request_send_funds.route,
+            left_fees: request_send_funds.left_fees,
+        };
+        router_output.add_incoming_request(request_send_funds.currency, mc_request);
         return Ok(());
     }
 
@@ -143,7 +142,7 @@ where
         router_db_client,
         &*router_state,
         next_public_key.clone(),
-        currency.clone(),
+        request_send_funds.currency.clone(),
         request_send_funds.request_id.clone(),
     )
     .await?
@@ -156,9 +155,21 @@ where
     todo!();
 
     if should_forward {
+        let mc_request = McRequest {
+            request_id: request_send_funds.request_id,
+            src_hashed_lock: request_send_funds.src_hashed_lock,
+            dest_payment: request_send_funds.dest_payment,
+            invoice_hash: request_send_funds.invoice_hash,
+            route: request_send_funds.route,
+            left_fees: request_send_funds.left_fees,
+        };
         // Queue request to friend and flush destination friend
         router_db_client
-            .pending_requests_push_back(next_public_key.clone(), currency, request_send_funds)
+            .pending_requests_push_back(
+                next_public_key.clone(),
+                request_send_funds.currency,
+                mc_request,
+            )
             .await?;
         flush_friend(
             router_db_client,
@@ -174,10 +185,12 @@ where
         router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
-                currency,
-                BackwardsOp::Cancel(CancelSendFundsOp {
-                    request_id: request_send_funds.request_id.clone(),
-                }),
+                BackwardsOp::Cancel(
+                    request_send_funds.currency,
+                    McCancel {
+                        request_id: request_send_funds.request_id.clone(),
+                    },
+                ),
             )
             .await?;
 

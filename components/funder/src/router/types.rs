@@ -323,9 +323,9 @@ pub struct RouterOutput {
     pub friends_messages: HashMap<PublicKey, Vec<FriendMessage>>,
     pub index_mutations: Vec<IndexMutation>,
     pub updated_remote_relays: Vec<PublicKey>,
-    pub incoming_requests: Vec<McRequest>,
-    pub incoming_responses: Vec<McResponse>,
-    pub incoming_cancels: Vec<McCancel>,
+    pub incoming_requests: Vec<(Currency, McRequest)>,
+    pub incoming_responses: Vec<(Currency, McResponse)>,
+    pub incoming_cancels: Vec<(Currency, McCancel)>,
 }
 
 impl RouterOutput {
@@ -354,15 +354,15 @@ impl RouterOutput {
 
     // TODO: Add updated remote relays?
 
-    pub fn add_incoming_request(&mut self, request: McRequest) {
-        self.incoming_requests.push(request);
+    pub fn add_incoming_request(&mut self, currency: Currency, request: McRequest) {
+        self.incoming_requests.push((currency, request));
     }
 
-    pub fn add_incoming_response(&mut self, response: McResponse) {
-        self.incoming_responses.push(response);
+    pub fn add_incoming_response(&mut self, currency: Currency, response: McResponse) {
+        self.incoming_responses.push((currency, response));
     }
 
-    pub fn add_incoming_cancel(&mut self, cancel: McCancel) {
-        self.incoming_cancels.push(cancel);
+    pub fn add_incoming_cancel(&mut self, currency: Currency, cancel: McCancel) {
+        self.incoming_cancels.push((currency, cancel));
     }
 }
