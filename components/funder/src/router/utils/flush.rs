@@ -56,6 +56,7 @@ pub async fn flush_friend(
                 local_public_key,
                 friend_public_key.clone(),
                 max_operations_in_batch,
+                router_output,
             )
             .await?;
 
