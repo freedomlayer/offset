@@ -1,9 +1,10 @@
 use common::async_rpc::AsyncOpResult;
-// use common::ser_utils::ser_string;
 use common::u256::U256;
 
 use proto::crypto::{HashResult, HashedLock, PlainLock, PublicKey, Signature, Uid};
-use proto::funder::messages::McBalance;
+use proto::funder::messages::{
+    CancelSendFundsOp, McBalance, RequestSendFundsOp, ResponseSendFundsOp,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingTransaction {
@@ -115,6 +116,38 @@ impl From<McRequest> for PendingTransaction {
             invoice_hash: mc_request.invoice_hash,
             route: mc_request.route,
             left_fees: mc_request.left_fees,
+        }
+    }
+}
+
+impl From<RequestSendFundsOp> for McRequest {
+    fn from(request_send_funds: RequestSendFundsOp) -> Self {
+        Self {
+            request_id: request_send_funds.request_id,
+            src_hashed_lock: request_send_funds.src_hashed_lock,
+            dest_payment: request_send_funds.dest_payment,
+            invoice_hash: request_send_funds.invoice_hash,
+            route: request_send_funds.route,
+            left_fees: request_send_funds.left_fees,
+        }
+    }
+}
+
+impl From<ResponseSendFundsOp> for McResponse {
+    fn from(response_send_funds: ResponseSendFundsOp) -> Self {
+        Self {
+            request_id: response_send_funds.request_id,
+            src_plain_lock: response_send_funds.src_plain_lock,
+            serial_num: response_send_funds.serial_num,
+            signature: response_send_funds.signature,
+        }
+    }
+}
+
+impl From<CancelSendFundsOp> for McCancel {
+    fn from(cancel_send_funds: CancelSendFundsOp) -> Self {
+        Self {
+            request_id: cancel_send_funds.request_id,
         }
     }
 }

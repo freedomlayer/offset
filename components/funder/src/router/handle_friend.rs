@@ -74,7 +74,8 @@ async fn incoming_message_request<RC>(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
     router_output: &mut RouterOutput,
-    mut request_send_funds: RequestSendFundsOp,
+    currency: Currency,
+    mut mc_request: McRequest,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
@@ -85,8 +86,8 @@ where
         router_db_client,
         &*router_state,
         friend_public_key.clone(),
-        request_send_funds.currency.clone(),
-        request_send_funds.request_id.clone(),
+        currency.clone(),
+        mc_request.request_id.clone(),
     )
     .await?
     {
@@ -95,9 +96,9 @@ where
             .pending_backwards_push_back(
                 friend_public_key.clone(),
                 BackwardsOp::Cancel(
-                    request_send_funds.currency,
+                    currency.clone(),
                     McCancel {
-                        request_id: request_send_funds.request_id.clone(),
+                        request_id: mc_request.request_id.clone(),
                     },
                 ),
             )
@@ -117,17 +118,9 @@ where
     }
 
     // If directed to us, punt
-    if request_send_funds.route.is_empty() {
+    if mc_request.route.is_empty() {
         // Directed to us. Punt:
-        let mc_request = McRequest {
-            request_id: request_send_funds.request_id,
-            src_hashed_lock: request_send_funds.src_hashed_lock,
-            dest_payment: request_send_funds.dest_payment,
-            invoice_hash: request_send_funds.invoice_hash,
-            route: request_send_funds.route,
-            left_fees: request_send_funds.left_fees,
-        };
-        router_output.add_incoming_request(request_send_funds.currency, mc_request);
+        router_output.add_incoming_request(currency.clone(), mc_request.into());
         return Ok(());
     }
 
@@ -135,19 +128,19 @@ where
     //      - If friend exists and ready, forward to next hop
     //      - Otherwise, queue cancel
     // Route is not empty. We need to forward the request to a friend
-    let next_public_key = request_send_funds.route.remove(0);
+    let next_public_key = mc_request.route.remove(0);
 
     // Check if next public key corresponds to a friend that is ready
     let should_forward = is_credit_line_ready(
         router_db_client,
         &*router_state,
         next_public_key.clone(),
-        request_send_funds.currency.clone(),
-        request_send_funds.request_id.clone(),
+        currency.clone(),
+        mc_request.request_id.clone(),
     )
     .await?
         && !router_db_client
-            .is_local_request_exists(request_send_funds.request_id.clone())
+            .is_local_request_exists(mc_request.request_id.clone())
             .await?;
 
     // Attempt to collect fees according to rate. If credits in fees jar are insufficient, do not
@@ -155,21 +148,9 @@ where
     todo!();
 
     if should_forward {
-        let mc_request = McRequest {
-            request_id: request_send_funds.request_id,
-            src_hashed_lock: request_send_funds.src_hashed_lock,
-            dest_payment: request_send_funds.dest_payment,
-            invoice_hash: request_send_funds.invoice_hash,
-            route: request_send_funds.route,
-            left_fees: request_send_funds.left_fees,
-        };
         // Queue request to friend and flush destination friend
         router_db_client
-            .pending_requests_push_back(
-                next_public_key.clone(),
-                request_send_funds.currency,
-                mc_request,
-            )
+            .pending_requests_push_back(next_public_key.clone(), currency, mc_request.into())
             .await?;
         flush_friend(
             router_db_client,
@@ -186,9 +167,9 @@ where
             .pending_backwards_push_back(
                 friend_public_key.clone(),
                 BackwardsOp::Cancel(
-                    request_send_funds.currency,
+                    currency,
                     McCancel {
-                        request_id: request_send_funds.request_id.clone(),
+                        request_id: mc_request.request_id.clone(),
                     },
                 ),
             )
@@ -216,7 +197,7 @@ async fn incoming_message_request_cancel<RC>(
     identity_client: &mut IdentityClient,
     router_output: &mut RouterOutput,
     currency: Currency,
-    request_send_funds: RequestSendFundsOp,
+    mc_request: McRequest,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
@@ -229,14 +210,17 @@ where
         .await?
         .is_consistent()
     {
-        // TODO: Something is strange here. Are we actually queueing a cancel message or something
-        // else?
+        let backwards_op = BackwardsOp::Cancel(
+            currency,
+            McCancel {
+                request_id: mc_request.request_id,
+            },
+        );
 
         // Queue cancel to friend_public_key (Request origin)
         router_db_client
-            .pending_requests_push_back(friend_public_key.clone(), currency, request_send_funds)
+            .pending_backwards_push_back(friend_public_key.clone(), backwards_op)
             .await?;
-        todo!();
     } else {
         // We have just received a cancel message from this friend.
         // We expect that this friend is consistent
@@ -281,7 +265,8 @@ where
                 .await?;
 
             // We punt the response
-            router_output.add_incoming_response(incoming_response.incoming_response);
+            router_output
+                .add_incoming_response(currency.clone(), incoming_response.incoming_response);
         }
         (false, Some(request_origin)) => {
             // Request has originated from a friend.
@@ -292,8 +277,7 @@ where
             router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
-                    currency,
-                    BackwardsOp::Response(incoming_response.incoming_response),
+                    BackwardsOp::Response(currency, incoming_response.incoming_response),
                 )
                 .await?;
 
@@ -356,7 +340,7 @@ where
                 .await?;
 
             // We punt the cancel
-            router_output.add_incoming_cancel(incoming_cancel.incoming_cancel);
+            router_output.add_incoming_cancel(currency, incoming_cancel.incoming_cancel);
         }
         (false, Some(request_origin)) => {
             // Request has originated from a friend.
@@ -367,8 +351,7 @@ where
             router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
-                    currency,
-                    BackwardsOp::Cancel(incoming_cancel.incoming_cancel),
+                    BackwardsOp::Cancel(currency, incoming_cancel.incoming_cancel),
                 )
                 .await?;
 
@@ -388,7 +371,7 @@ where
             // Note that this only happen during a cycle request, but a cycle always begins and
             // ends at the local node.
             // Therefore, this should never happen when processing a friend incoming cancel.
-            unreachable!();
+            return Err(RouterError::InvalidState);
         }
     }
     Ok(())
@@ -440,6 +423,7 @@ where
                         local_public_key,
                         friend_public_key.clone(),
                         max_operations_in_batch,
+                        &mut output,
                     )
                     .await?;
 
@@ -474,7 +458,7 @@ where
         ReceiveMoveTokenOutput::Received(move_token_received) => {
             for (currency, incoming_message) in move_token_received.incoming_messages {
                 match incoming_message {
-                    IncomingMessage::Request(request_send_funds) => {
+                    IncomingMessage::Request(mc_request) => {
                         incoming_message_request(
                             router_db_client,
                             router_state,
@@ -484,18 +468,18 @@ where
                             max_operations_in_batch,
                             &mut output,
                             currency,
-                            request_send_funds,
+                            mc_request,
                         )
                         .await
                     }
-                    IncomingMessage::RequestCancel(request_send_funds) => {
+                    IncomingMessage::RequestCancel(mc_request) => {
                         incoming_message_request_cancel(
                             router_db_client,
                             friend_public_key.clone(),
                             identity_client,
                             &mut output,
                             currency,
-                            request_send_funds,
+                            mc_request,
                         )
                         .await
                     }
@@ -541,6 +525,7 @@ where
                         local_public_key,
                         friend_public_key.clone(),
                         max_operations_in_batch,
+                        &mut output,
                     )
                     .await?,
                 )
@@ -552,6 +537,7 @@ where
                     local_public_key,
                     friend_public_key.clone(),
                     max_operations_in_batch,
+                    &mut output,
                 )
                 .await?
             };
