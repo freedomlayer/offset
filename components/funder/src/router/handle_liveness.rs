@@ -34,7 +34,7 @@ use crate::token_channel::{
 };
 
 use crate::router::utils::flush::flush_friend;
-use crate::router::utils::index_mutation::create_update_index_mutation;
+use crate::router::utils::index_mutation::create_index_mutation;
 use crate::router::utils::move_token::{
     handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
 };
@@ -92,8 +92,6 @@ pub async fn set_friend_online(
             if let Some((move_token_request, _index_mutations)) = opt_tuple {
                 // We discard index_mutations calculation here, because we are going to add all
                 // open currencies anyways.
-                // TODO: Reconsider index mutations here.
-                todo!();
 
                 // We have something to send to remote side:
                 output.add_friend_message(
@@ -131,11 +129,13 @@ pub async fn set_friend_online(
     while let Some(res) = open_currencies.next().await {
         let (open_currency, open_currency_info) = res?;
 
-        output.add_index_mutation(create_update_index_mutation(
-            friend_public_key.clone(),
-            open_currency,
-            open_currency_info,
-        )?);
+        let index_mutation =
+            create_index_mutation(friend_public_key.clone(), open_currency, open_currency_info)?;
+
+        // We only add currencies with non zero send/recv capacity
+        if matches!(IndexMutation::UpdateFriendCurrency, index_mutation) {
+            output.add_index_mutation(index_mutation);
+        }
     }
 
     Ok(output)

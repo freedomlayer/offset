@@ -66,20 +66,29 @@ pub fn calc_capacities(currency_info: &CurrencyInfo) -> Result<(u128, u128), Rou
     Ok((send_capacity, recv_capacity))
 }
 
-/// Create one update index mutation, based on a given currency info.
-pub fn create_update_index_mutation(
+/// Create one index mutation, based on a given currency info.
+/// Returns IndexMutation::UpdateFriendCurrency if there is any send/recv capacity.
+/// Otherwise, returns IndexMutation::RemoveFriendCurrency
+pub fn create_index_mutation(
     friend_public_key: PublicKey,
     currency: Currency,
     currency_info: CurrencyInfo,
 ) -> Result<IndexMutation, RouterError> {
     let (send_capacity, recv_capacity) = calc_capacities(&currency_info)?;
-    Ok(IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
-        public_key: friend_public_key,
-        currency,
-        send_capacity,
-        recv_capacity,
-        rate: currency_info.rate,
-    }))
+    Ok(if send_capacity == 0 && recv_capacity == 0 {
+        IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
+            public_key: friend_public_key,
+            currency,
+        })
+    } else {
+        IndexMutation::UpdateFriendCurrency(UpdateFriendCurrency {
+            public_key: friend_public_key,
+            currency,
+            send_capacity,
+            recv_capacity,
+            rate: currency_info.rate,
+        })
+    })
 }
 
 /*
