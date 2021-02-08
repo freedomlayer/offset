@@ -177,14 +177,51 @@ pub async fn set_remote_max_debt(
 
     Ok(output)
 }
+
 pub async fn set_local_max_debt(
     router_db_client: &mut impl RouterDbClient,
     friend_public_key: PublicKey,
     currency: Currency,
-    remote_max_debt: u128,
+    local_max_debt: u128,
 ) -> Result<RouterOutput, RouterError> {
-    // TODO: Fill in
-    todo!();
+    // First we make sure that the friend exists:
+    let mut output = RouterOutput::new();
+    if router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_none()
+    {
+        return Ok(output);
+    }
+
+    let opt_currency_info = router_db_client
+        .get_currency_info(friend_public_key.clone(), currency.clone())
+        .await?;
+    if let Some(currency_info) = opt_currency_info {
+        // Currency exists (We don't do anything otherwise)
+        // Set remote max debt:
+        router_db_client
+            .set_local_max_debt(friend_public_key.clone(), currency.clone(), local_max_debt)
+            .await?;
+
+        // TODO: It is possible that the capacity was already zero, and when we changed
+        // remote_max_debt the capacity has somehow stayed zero. In that case we will not need to
+        // resend an index mutation. Currently we do send. It wastes bandwidth, but it is still
+        // correct. Maybe in the future we can decide more elegantly when to send an index
+        // mutation.
+
+        // Create an index mutation if needed:
+        if currency_info.is_open {
+            // Currency is open:
+            output.add_index_mutation(create_index_mutation(
+                friend_public_key.clone(),
+                currency,
+                currency_info,
+            )?);
+        }
+    }
+
+    Ok(output)
 }
 
 pub async fn open_currency(
