@@ -260,6 +260,9 @@ pub async fn close_currency(
                 public_key: friend_public_key,
                 currency,
             }));
+
+            // TODO: Cancel all requests pending for this currency.
+            todo!();
         }
     }
 
