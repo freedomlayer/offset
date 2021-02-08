@@ -54,6 +54,8 @@ pub async fn add_currency(
         .add_currency_config(friend_public_key.clone(), currency)
         .await?;
 
+    // TODO: Update flush_friend to a newer mechanism.
+    todo!();
     flush_friend(
         router_db_client,
         friend_public_key,
@@ -87,6 +89,8 @@ pub async fn set_remove_currency(
         .set_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
+    // TODO: Update flush_friend to a newer mechanism.
+    todo!();
     flush_friend(
         router_db_client,
         friend_public_key,
@@ -120,6 +124,8 @@ pub async fn unset_remove_currency(
         .unset_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
+    // TODO: Update flush_friend to a newer mechanism.
+    todo!();
     flush_friend(
         router_db_client,
         friend_public_key,
@@ -295,12 +301,25 @@ pub async fn close_currency(
 
             // Add index mutation:
             output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
-                public_key: friend_public_key,
+                public_key: friend_public_key.clone(),
                 currency,
             }));
 
-            // TODO: Cancel all requests pending for this currency.
-            todo!();
+            // Cancel all user requests pending for this currency:
+            while let Some(mc_request) = router_db_client
+                .pending_user_requests_pop_front_by_currency(friend_public_key.clone())
+                .await?
+            {
+                todo!();
+            }
+
+            // Cancel all requests pending for this currency:
+            while let Some(mc_request) = router_db_client
+                .pending_user_requests_pop_front_by_currency(friend_public_key.clone())
+                .await?
+            {
+                todo!();
+            }
         }
     }
 

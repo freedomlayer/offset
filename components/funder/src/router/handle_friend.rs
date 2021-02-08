@@ -104,6 +104,9 @@ where
             )
             .await?;
 
+        // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
+        // requests before flushing this friend. Find out how to do this.
+        todo!();
         flush_friend(
             router_db_client,
             friend_public_key,
@@ -152,6 +155,9 @@ where
         router_db_client
             .pending_requests_push_back(next_public_key.clone(), currency, mc_request.into())
             .await?;
+        // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
+        // requests before flushing this friend. Find out how to do this.
+        todo!();
         flush_friend(
             router_db_client,
             next_public_key,
@@ -175,6 +181,9 @@ where
             )
             .await?;
 
+        // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
+        // requests before flushing this friend. Find out how to do this.
+        todo!();
         flush_friend(
             router_db_client,
             friend_public_key,
@@ -282,6 +291,9 @@ where
                 .await?;
 
             // Attempt to send a move token if possible
+            // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
+            // requests before flushing this friend. Find out how to do this.
+            todo!();
             flush_friend(
                 router_db_client,
                 friend_public_key.clone(),
@@ -297,7 +309,7 @@ where
             // Note that this only happen during a cycle request, but a cycle always begins and
             // ends at the local node.
             // Therefore, this should never happen when processing a friend incoming response.
-            unreachable!();
+            return Err(RouterError::InvalidState);
         }
     }
     Ok(())
@@ -356,6 +368,9 @@ where
                 .await?;
 
             // Attempt to send a move token if possible
+            // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
+            // requests before flushing this friend. Find out how to do this.
+            todo!();
             flush_friend(
                 router_db_client,
                 friend_public_key.clone(),

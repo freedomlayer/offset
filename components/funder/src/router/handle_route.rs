@@ -112,6 +112,8 @@ pub async fn send_request(
         // response/cancel message later.
         router_db_client.add_local_request(request_id).await?;
 
+        // TODO: Change flush_friend design
+        todo!();
         flush_friend(
             router_db_client,
             friend_public_key.clone(),
@@ -157,6 +159,8 @@ pub async fn send_response(
             )
             .await?;
 
+        // TODO: Change flush_friend design
+        todo!();
         flush_friend(
             router_db_client,
             request_origin.friend_public_key,
@@ -195,6 +199,8 @@ pub async fn send_cancel(
             )
             .await?;
 
+        // TODO: Change flush_friend design
+        todo!();
         flush_friend(
             router_db_client,
             request_origin.friend_public_key,

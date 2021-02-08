@@ -181,6 +181,11 @@ pub trait RouterDbClient {
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, McRequest)>>;
 
+    fn pending_user_requests_pop_front_by_currency(
+        &mut self,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<Option<McRequest>>;
+
     fn pending_user_requests_push_back(
         &mut self,
         friend_public_key: PublicKey,
@@ -197,6 +202,12 @@ pub trait RouterDbClient {
         &mut self,
         friend_public_key: PublicKey,
     ) -> AsyncOpResult<Option<(Currency, McRequest)>>;
+
+    fn pending_requests_pop_front_by_currency(
+        &mut self,
+        friend_public_key: PublicKey,
+        currency: Currency,
+    ) -> AsyncOpResult<Option<McRequest>>;
 
     /// Check if a `request_id` is already in use.
     /// Searches all local pending requests, and all local open transactions.
