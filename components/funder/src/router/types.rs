@@ -390,13 +390,14 @@ impl RouterOutput {
     }
 }
 
+#[derive(Debug)]
 pub struct RouterControl<'a, RC> {
     pub router_db_client: &'a mut RC,
-    pub friend_public_key: PublicKey,
-    pub currency: Currency,
     pub identity_client: &'a mut IdentityClient,
     pub local_public_key: PublicKey,
     pub max_operations_in_batch: usize,
+    /// Ephemeral state:
+    pub state: RouterState,
 }
 
 #[derive(Debug)]
