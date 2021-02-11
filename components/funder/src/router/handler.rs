@@ -50,8 +50,12 @@ where
             handle_friend::incoming_friend_message(control, info, friend_public_key, friend_message)
                 .await
         }
-        RouterOp::SetFriendOnline(friend_public_key) => todo!(),
-        RouterOp::SetFriendOffline(friend_public_key) => todo!(),
+        RouterOp::SetFriendOnline(friend_public_key) => {
+            handle_liveness::set_friend_online(control, info, friend_public_key).await
+        }
+        RouterOp::SetFriendOffline(friend_public_key) => {
+            handle_liveness::set_friend_offline(control, friend_public_key).await
+        }
         RouterOp::UpdateFriendLocalRelays(friend_public_key, friend_local_relays) => todo!(),
         RouterOp::UpdateLocalRelays(local_relays) => todo!(),
         RouterOp::SendRequest(currency, mc_request) => todo!(),

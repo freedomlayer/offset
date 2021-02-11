@@ -24,7 +24,8 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use crate::route::Route;
 use crate::router::types::{
-    BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
+    BackwardsOp, CurrencyInfo, RouterControl, RouterDbClient, RouterError, RouterInfo,
+    RouterOutput, RouterState, SentRelay,
 };
 
 use crate::mutual_credit::McCancel;
@@ -39,37 +40,35 @@ use crate::router::utils::move_token::{
 };
 
 pub async fn set_friend_online(
-    router_db_client: &mut impl RouterDbClient,
-    router_state: &mut RouterState,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<(), RouterError> {
     // First we make sure that the friend exists:
-    let mut output = RouterOutput::new();
-    let tc_status = if let Some(tc_db_client) = router_db_client
+    let tc_status = if let Some(tc_db_client) = control
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
     {
         tc_db_client.get_tc_status().await?
     } else {
-        return Ok(output);
+        return Ok(());
     };
 
-    if router_state.liveness.is_online(&friend_public_key) {
+    if control.state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as online!
         return Err(RouterError::FriendAlreadyOnline);
     }
-    router_state.liveness.set_online(friend_public_key.clone());
+    control.state.liveness.set_online(friend_public_key.clone());
 
     // Check if we have any relays information to send to the remote side:
-    if let (Some(generation), relays) = router_db_client
+    if let (Some(generation), relays) = control
+        .router_db_client
         .get_last_sent_relays(friend_public_key.clone())
         .await?
     {
         // Add a message for sending relays:
-        output.add_friend_message(
+        control.output.add_friend_message(
             friend_public_key.clone(),
             FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
         );
@@ -79,12 +78,12 @@ pub async fn set_friend_online(
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
             let opt_tuple = handle_out_move_token_index_mutations_disallow_empty(
-                router_db_client,
-                identity_client,
-                local_public_key,
+                control.router_db_client,
+                control.identity_client,
+                &info.local_public_key,
                 friend_public_key.clone(),
-                max_operations_in_batch,
-                &mut output,
+                info.max_operations_in_batch,
+                &mut control.output,
             )
             .await?;
 
@@ -93,7 +92,7 @@ pub async fn set_friend_online(
                 // open currencies anyways.
 
                 // We have something to send to remote side:
-                output.add_friend_message(
+                control.output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
                 );
@@ -102,12 +101,12 @@ pub async fn set_friend_online(
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
             // Resend outgoing move token,
             // possibly asking for the token if we have something to send
-            output.add_friend_message(
+            control.output.add_friend_message(
                 friend_public_key.clone(),
                 FriendMessage::MoveTokenRequest(MoveTokenRequest {
                     move_token: move_token_out,
                     token_wanted: is_pending_move_token(
-                        router_db_client,
+                        control.router_db_client,
                         friend_public_key.clone(),
                     )
                     .await?,
@@ -116,7 +115,7 @@ pub async fn set_friend_online(
         }
         TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
             // Resend reset terms
-            output.add_friend_message(
+            control.output.add_friend_message(
                 friend_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms),
             );
@@ -124,7 +123,9 @@ pub async fn set_friend_online(
     }
 
     // Add an index mutation for all open currencies:
-    let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
+    let mut open_currencies = control
+        .router_db_client
+        .list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
         let (open_currency, open_currency_info) = res?;
 
@@ -133,45 +134,47 @@ pub async fn set_friend_online(
 
         // We only add currencies with non zero send/recv capacity
         if matches!(IndexMutation::UpdateFriendCurrency, index_mutation) {
-            output.add_index_mutation(index_mutation);
+            control.output.add_index_mutation(index_mutation);
         }
     }
 
-    Ok(output)
+    Ok(())
 }
 
 pub async fn set_friend_offline(
-    router_db_client: &mut impl RouterDbClient,
-    router_state: &mut RouterState,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
     friend_public_key: PublicKey,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<(), RouterError> {
     // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
-    if router_db_client
+    if control
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
         .is_none()
     {
-        return Ok(output);
+        return Ok(());
     }
 
-    if !router_state.liveness.is_online(&friend_public_key) {
+    if !control.state.liveness.is_online(&friend_public_key) {
         // The friend is already marked as offline!
         return Err(RouterError::FriendAlreadyOffline);
     }
-    router_state.liveness.set_offline(&friend_public_key);
+    control.state.liveness.set_offline(&friend_public_key);
 
     // Cancel all pending user requests
-    while let Some((currency, pending_user_request)) = router_db_client
+    while let Some((currency, pending_user_request)) = control
+        .router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
         // Clear the request from local requests list
-        router_db_client
+        control
+            .router_db_client
             .remove_local_request(pending_user_request.request_id.clone())
             .await?;
         // Send outgoing cancel to user:
-        output.add_incoming_cancel(
+        control.output.add_incoming_cancel(
             currency,
             McCancel {
                 request_id: pending_user_request.request_id,
@@ -180,14 +183,16 @@ pub async fn set_friend_offline(
     }
 
     // Cancel all pending requests
-    while let Some((currency, pending_request)) = router_db_client
+    while let Some((currency, pending_request)) = control
+        .router_db_client
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
         // Find from which friend this pending request has originated from.
         // Due to inconsistencies, it is possible that this pending request has no origin (An
         // orphan request)
-        let opt_request_origin = router_db_client
+        let opt_request_origin = control
+            .router_db_client
             .get_remote_pending_request_origin(pending_request.request_id.clone())
             .await?;
 
@@ -198,7 +203,8 @@ pub async fn set_friend_offline(
             }
 
             // Cancel request by queue-ing a cancel into the relevant friend's queue:
-            router_db_client
+            control
+                .router_db_client
                 .pending_backwards_push_back(
                     request_origin.friend_public_key,
                     BackwardsOp::Cancel(
@@ -214,7 +220,9 @@ pub async fn set_friend_offline(
 
     // Add index mutations
     // We send index mutations to remove all currencies that are considered open
-    let mut open_currencies = router_db_client.list_open_currencies(friend_public_key.clone());
+    let mut open_currencies = control
+        .router_db_client
+        .list_open_currencies(friend_public_key.clone());
     while let Some(res) = open_currencies.next().await {
         let (open_currency, _open_currency_info) = res?;
         output.add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
@@ -223,5 +231,5 @@ pub async fn set_friend_offline(
         }));
     }
 
-    Ok(output)
+    Ok(())
 }
