@@ -342,15 +342,6 @@ pub struct RouterOutput {
     pub incoming_cancels: Vec<(Currency, McCancel)>,
 }
 
-#[derive(Debug)]
-pub struct RouterHandle<'a, RC> {
-    pub router_db_client: &'a mut RC,
-    pub identity_client: &'a mut IdentityClient,
-    pub local_public_key: PublicKey,
-    pub max_operations_in_batch: usize,
-    pub output: RouterOutput,
-}
-
 impl RouterOutput {
     pub fn new() -> Self {
         RouterOutput {
