@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use derive_more::From;
 
@@ -382,13 +382,21 @@ impl RouterOutput {
 }
 
 #[derive(Debug)]
+pub struct RouterInfo {
+    pub local_public_key: PublicKey,
+    pub max_operations_in_batch: usize,
+}
+
+#[derive(Debug)]
 pub struct RouterControl<'a, RC> {
     pub router_db_client: &'a mut RC,
     pub identity_client: &'a mut IdentityClient,
-    pub local_public_key: PublicKey,
-    pub max_operations_in_batch: usize,
+    /// Friends with new pending outgoing messages
+    pub pending_send: HashSet<PublicKey>,
     /// Ephemeral state:
-    pub state: RouterState,
+    pub state: &'a mut RouterState,
+    /// Router's output:
+    pub output: RouterOutput,
 }
 
 #[derive(Debug)]

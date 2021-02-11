@@ -1,17 +1,45 @@
-use crate::router::types::{RouterControl, RouterDbClient, RouterOp};
+use crate::router::types::{RouterControl, RouterDbClient, RouterError, RouterInfo, RouterOp};
 use crate::router::{handle_config, handle_friend, handle_liveness, handle_relays, handle_route};
 
-pub async fn handle_router_op<RC>(router_control: &mut RouterControl<'_, RC>, router_op: RouterOp)
+pub async fn handle_router_op<RC>(
+    control: &mut RouterControl<'_, RC>,
+    info: &RouterInfo,
+    router_op: RouterOp,
+) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
 {
     match router_op {
-        RouterOp::AddCurrency(friend_public_key, currency) => todo!(),
+        RouterOp::AddCurrency(friend_public_key, currency) => {
+            handle_config::add_currency(control, info, friend_public_key, currency).await?
+        }
         RouterOp::RemoveCurrency(friend_public_key, currency) => todo!(),
-        RouterOp::SetRemoteMaxDebt(friend_public_key, currency, remote_max_debt) => todo!(),
-        RouterOp::SetLocalMaxDebt(friend_public_key, currency, remote_max_debt) => todo!(),
-        RouterOp::OpenCurrency(friend_public_key, currency) => todo!(),
-        RouterOp::CloseCurrency(friend_public_key, currency) => todo!(),
+        RouterOp::SetRemoteMaxDebt(friend_public_key, currency, remote_max_debt) => {
+            handle_config::set_remote_max_debt(
+                control,
+                info,
+                friend_public_key,
+                currency,
+                remote_max_debt,
+            )
+            .await?
+        }
+        RouterOp::SetLocalMaxDebt(friend_public_key, currency, local_max_debt) => {
+            handle_config::set_local_max_debt(
+                control,
+                info,
+                friend_public_key,
+                currency,
+                local_max_debt,
+            )
+            .await?
+        }
+        RouterOp::OpenCurrency(friend_public_key, currency) => {
+            handle_config::open_currency(control, friend_public_key, currency).await?
+        }
+        RouterOp::CloseCurrency(friend_public_key, currency) => {
+            handle_config::close_currency(control, friend_public_key, currency).await?
+        }
         RouterOp::FriendMessage(friend_public_key, friend_message) => todo!(),
         RouterOp::SetFriendOnline(friend_public_key) => todo!(),
         RouterOp::SetFriendOffline(friend_public_key) => todo!(),
