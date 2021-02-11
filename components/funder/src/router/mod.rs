@@ -6,4 +6,6 @@ mod handle_liveness;
 mod handle_relays;
 mod handle_route;
 
+mod handler;
+
 mod types;

@@ -8,6 +8,8 @@ use common::u256::U256;
 use crate::liveness::Liveness;
 use crate::token_channel::TcDbClient;
 
+use identity::IdentityClient;
+
 use proto::app_server::messages::{NamedRelayAddress, RelayAddressPort};
 use proto::crypto::{PublicKey, Uid};
 use proto::funder::messages::{
@@ -15,6 +17,7 @@ use proto::funder::messages::{
     ResponseSendFundsOp,
 };
 use proto::index_server::messages::IndexMutation;
+use proto::net::messages::NetAddress;
 
 use crate::mutual_credit::{McCancel, McRequest, McResponse};
 use crate::token_channel::TokenChannelError;
@@ -339,6 +342,15 @@ pub struct RouterOutput {
     pub incoming_cancels: Vec<(Currency, McCancel)>,
 }
 
+#[derive(Debug)]
+pub struct RouterHandle<'a, RC> {
+    pub router_db_client: &'a mut RC,
+    pub identity_client: &'a mut IdentityClient,
+    pub local_public_key: PublicKey,
+    pub max_operations_in_batch: usize,
+    pub output: RouterOutput,
+}
+
 impl RouterOutput {
     pub fn new() -> Self {
         RouterOutput {
@@ -376,4 +388,55 @@ impl RouterOutput {
     pub fn add_incoming_cancel(&mut self, currency: Currency, cancel: McCancel) {
         self.incoming_cancels.push((currency, cancel));
     }
+}
+
+pub struct RouterControl<'a, RC> {
+    pub router_db_client: &'a mut RC,
+    pub friend_public_key: PublicKey,
+    pub currency: Currency,
+    pub identity_client: &'a mut IdentityClient,
+    pub local_public_key: PublicKey,
+    pub max_operations_in_batch: usize,
+}
+
+#[derive(Debug)]
+pub enum RouterOp {
+    // Config
+    // ------
+    /// (friend_public_key, currency)
+    AddCurrency(PublicKey, Currency),
+    /// (friend_public_key, currency)
+    RemoveCurrency(PublicKey, Currency),
+    /// (friend_public_key, currency, remote_max_debt)
+    SetRemoteMaxDebt(PublicKey, Currency, u128),
+    /// (friend_public_key, currency, local_max_debt)
+    SetLocalMaxDebt(PublicKey, Currency, u128),
+    /// (friend_public_key, currency)
+    OpenCurrency(PublicKey, Currency),
+    /// (friend_public_key, currency)
+    CloseCurrency(PublicKey, Currency),
+    // Friend
+    // ------
+    /// (friend_public_key, friend_message)
+    FriendMessage(PublicKey, FriendMessage),
+    // Livenesss
+    // ---------
+    /// (friend_public_key)
+    SetFriendOnline(PublicKey),
+    /// (friend_public_key)
+    SetFriendOffline(PublicKey),
+    // Relays
+    // ------
+    /// (friend_public_key, friend_local_relays)
+    UpdateFriendLocalRelays(PublicKey, HashMap<PublicKey, NetAddress>),
+    /// (friend_public_key, local_relays)
+    UpdateLocalRelays(HashMap<PublicKey, NetAddress>),
+    // Route
+    // -----
+    /// (currency, mc_request)
+    SendRequest(Currency, McRequest),
+    /// (mc_response)
+    SendResponse(McResponse),
+    /// (mc_cancel)
+    SendCancel(McCancel),
 }

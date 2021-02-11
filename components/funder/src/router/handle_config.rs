@@ -76,6 +76,8 @@ pub async fn set_remove_currency(
     local_public_key: &PublicKey,
     max_operations_in_batch: usize,
 ) -> Result<RouterOutput, RouterError> {
+    // Revise implementation with respect to new design
+    todo!();
     // First we make sure that the friend exists:
     let mut output = RouterOutput::new();
     if router_db_client
