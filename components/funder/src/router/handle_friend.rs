@@ -23,14 +23,15 @@ use proto::net::messages::NetAddress;
 use crypto::rand::{CryptoRandom, RandGen};
 
 use crate::route::Route;
-use crate::router::types::{
-    BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
-};
 
 use crate::mutual_credit::incoming::{
     IncomingCancelSendFundsOp, IncomingMessage, IncomingResponseSendFundsOp,
 };
 use crate::mutual_credit::{McCancel, McRequest};
+use crate::router::types::{
+    BackwardsOp, CurrencyInfo, RouterControl, RouterDbClient, RouterError, RouterInfo,
+    RouterOutput, RouterState, SentRelay,
+};
 use crate::router::utils::flush::flush_friend;
 use crate::router::utils::move_token::{
     handle_in_move_token_index_mutations, handle_out_move_token_index_mutations_allow_empty,
@@ -41,19 +42,19 @@ use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenCh
 /// Check if credit line between this node and a friend is ready
 /// Works for sending requests in both directions
 async fn is_credit_line_ready(
-    router_db_client: &mut impl RouterDbClient,
-    router_state: &RouterState,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
     friend_public_key: PublicKey,
     currency: Currency,
     request_id: Uid,
 ) -> Result<bool, RouterError> {
     // Friend must be online:
-    if !router_state.liveness.is_online(&friend_public_key) {
+    if !control.state.liveness.is_online(&friend_public_key) {
         return Ok(false);
     }
 
     // Currency must exist:
-    let currency_info = if let Some(currency_info) = router_db_client
+    let currency_info = if let Some(currency_info) = control
+        .router_db_client
         .get_currency_info(friend_public_key, currency)
         .await?
     {
@@ -63,17 +64,17 @@ async fn is_credit_line_ready(
     };
 
     // Note: We bypass `is_open` check if the request is of local origin:
-    Ok(currency_info.is_open || router_db_client.is_request_local_origin(request_id).await?)
+    Ok(currency_info.is_open
+        || control
+            .router_db_client
+            .is_request_local_origin(request_id)
+            .await?)
 }
 
 async fn incoming_message_request<RC>(
-    mut router_db_client: &mut RC,
-    router_state: &mut RouterState,
+    control: &mut RouterControl<'_, RC>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
     currency: Currency,
     mut mc_request: McRequest,
 ) -> Result<(), RouterError>
@@ -83,8 +84,7 @@ where
     // Make sure that we are ready to receive this request operation
     // We might not be ready in the case of currency being closed.
     if !is_credit_line_ready(
-        router_db_client,
-        &*router_state,
+        control,
         friend_public_key.clone(),
         currency.clone(),
         mc_request.request_id.clone(),
@@ -92,7 +92,8 @@ where
     .await?
     {
         // Return a cancel message and flush origin friend
-        router_db_client
+        control
+            .router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
                 BackwardsOp::Cancel(
@@ -104,18 +105,7 @@ where
             )
             .await?;
 
-        // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
-        // requests before flushing this friend. Find out how to do this.
-        todo!();
-        flush_friend(
-            router_db_client,
-            friend_public_key,
-            identity_client,
-            local_public_key,
-            max_operations_in_batch,
-            router_output,
-        )
-        .await?;
+        control.pending_send.insert(friend_public_key);
 
         return Ok(());
     }
@@ -123,7 +113,9 @@ where
     // If directed to us, punt
     if mc_request.route.is_empty() {
         // Directed to us. Punt:
-        router_output.add_incoming_request(currency.clone(), mc_request.into());
+        control
+            .output
+            .add_incoming_request(currency.clone(), mc_request.into());
         return Ok(());
     }
 
@@ -135,14 +127,14 @@ where
 
     // Check if next public key corresponds to a friend that is ready
     let should_forward = is_credit_line_ready(
-        router_db_client,
-        &*router_state,
+        control,
         next_public_key.clone(),
         currency.clone(),
         mc_request.request_id.clone(),
     )
     .await?
-        && !router_db_client
+        && !control
+            .router_db_client
             .is_local_request_exists(mc_request.request_id.clone())
             .await?;
 
@@ -152,24 +144,18 @@ where
 
     if should_forward {
         // Queue request to friend and flush destination friend
-        router_db_client
+        control
+            .router_db_client
             .pending_requests_push_back(next_public_key.clone(), currency, mc_request.into())
             .await?;
         // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
         // requests before flushing this friend. Find out how to do this.
-        todo!();
-        flush_friend(
-            router_db_client,
-            next_public_key,
-            identity_client,
-            local_public_key,
-            max_operations_in_batch,
-            router_output,
-        )
-        .await?;
+
+        control.pending_send.insert(next_public_key);
     } else {
         // Return a cancel message and flush origin friend
-        router_db_client
+        control
+            .router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
                 BackwardsOp::Cancel(
@@ -181,18 +167,7 @@ where
             )
             .await?;
 
-        // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
-        // requests before flushing this friend. Find out how to do this.
-        todo!();
-        flush_friend(
-            router_db_client,
-            friend_public_key,
-            identity_client,
-            local_public_key,
-            max_operations_in_batch,
-            router_output,
-        )
-        .await?;
+        control.pending_send.insert(friend_public_key);
     }
 
     Ok(())
@@ -201,17 +176,16 @@ where
 /// An incoming request was received, but due to insufficient trust we can not
 /// forward this request. We return a cancel message to the sender friend
 async fn incoming_message_request_cancel<RC>(
-    mut router_db_client: &mut RC,
+    control: &mut RouterControl<'_, RC>,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    router_output: &mut RouterOutput,
     currency: Currency,
     mc_request: McRequest,
 ) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
 {
-    if router_db_client
+    if control
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
         .ok_or(RouterError::InvalidState)?
@@ -227,7 +201,8 @@ where
         );
 
         // Queue cancel to friend_public_key (Request origin)
-        router_db_client
+        control
+            .router_db_client
             .pending_backwards_push_back(friend_public_key.clone(), backwards_op)
             .await?;
     } else {
@@ -239,13 +214,9 @@ where
 }
 
 async fn incoming_message_response<RC>(
-    mut router_db_client: &mut RC,
-    router_state: &mut RouterState,
+    control: &mut RouterControl<'_, RC>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
     currency: Currency,
     incoming_response: IncomingResponseSendFundsOp,
 ) -> Result<(), RouterError>
@@ -253,10 +224,12 @@ where
     RC: RouterDbClient,
 {
     // Gather information about request's origin:
-    let opt_request_origin = router_db_client
+    let opt_request_origin = control
+        .router_db_client
         .get_remote_pending_request_origin(incoming_response.incoming_response.request_id.clone())
         .await?;
-    let is_local_origin = router_db_client
+    let is_local_origin = control
+        .router_db_client
         .is_request_local_origin(incoming_response.incoming_response.request_id.clone())
         .await?;
 
@@ -269,12 +242,14 @@ where
             // Request has originated locally
 
             // Clear the request from local requests list
-            router_db_client
+            control
+                .router_db_client
                 .remove_local_request(incoming_response.incoming_response.request_id.clone())
                 .await?;
 
             // We punt the response
-            router_output
+            control
+                .output
                 .add_incoming_response(currency.clone(), incoming_response.incoming_response);
         }
         (false, Some(request_origin)) => {
@@ -283,26 +258,15 @@ where
             // an origin.
 
             // Push response:
-            router_db_client
+            control
+                .router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
                     BackwardsOp::Response(currency, incoming_response.incoming_response),
                 )
                 .await?;
 
-            // Attempt to send a move token if possible
-            // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
-            // requests before flushing this friend. Find out how to do this.
-            todo!();
-            flush_friend(
-                router_db_client,
-                friend_public_key.clone(),
-                identity_client,
-                local_public_key,
-                max_operations_in_batch,
-                router_output,
-            )
-            .await?;
+            control.pending_send.insert(friend_public_key);
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -315,26 +279,21 @@ where
     Ok(())
 }
 
-// TODO: This function seems too similar to`incoming_message_response`
-async fn incoming_message_cancel<RC>(
-    mut router_db_client: &mut RC,
-    router_state: &mut RouterState,
+// TODO: This function seems too similar to `incoming_message_response`
+async fn incoming_message_cancel(
+    control: &mut RouterControl<'_, impl RouterDbClient>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
     currency: Currency,
     incoming_cancel: IncomingCancelSendFundsOp,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-{
+) -> Result<(), RouterError> {
     // Gather information about request's origin:
-    let opt_request_origin = router_db_client
+    let opt_request_origin = control
+        .router_db_client
         .get_remote_pending_request_origin(incoming_cancel.incoming_cancel.request_id.clone())
         .await?;
-    let is_local_origin = router_db_client
+    let is_local_origin = control
+        .router_db_client
         .is_request_local_origin(incoming_cancel.incoming_cancel.request_id.clone())
         .await?;
 
@@ -347,12 +306,15 @@ where
             // Request has originated locally
 
             // Clear the request from local requests list
-            router_db_client
+            control
+                .router_db_client
                 .remove_local_request(incoming_cancel.incoming_cancel.request_id.clone())
                 .await?;
 
             // We punt the cancel
-            router_output.add_incoming_cancel(currency, incoming_cancel.incoming_cancel);
+            control
+                .output
+                .add_incoming_cancel(currency, incoming_cancel.incoming_cancel);
         }
         (false, Some(request_origin)) => {
             // Request has originated from a friend.
@@ -360,26 +322,15 @@ where
             // an origin.
 
             // Push cancel:
-            router_db_client
+            control
+                .router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
                     BackwardsOp::Cancel(currency, incoming_cancel.incoming_cancel),
                 )
                 .await?;
 
-            // Attempt to send a move token if possible
-            // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
-            // requests before flushing this friend. Find out how to do this.
-            todo!();
-            flush_friend(
-                router_db_client,
-                friend_public_key.clone(),
-                identity_client,
-                local_public_key,
-                max_operations_in_batch,
-                router_output,
-            )
-            .await?;
+            control.pending_send.insert(friend_public_key.clone());
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -393,63 +344,60 @@ where
 }
 
 async fn incoming_move_token_request<RC>(
-    mut router_db_client: &mut RC,
-    router_state: &mut RouterState,
+    control: &mut RouterControl<'_, RC>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
     in_move_token_request: MoveTokenRequest,
-) -> Result<RouterOutput, RouterError>
+) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
     // TODO: Maybe not necessary:
     RC::TcDbClient: Transaction + Send,
     <RC::TcDbClient as TcDbClient>::McDbClient: Send,
 {
-    let mut output = RouterOutput::new();
-
     let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
-        router_db_client,
-        identity_client,
+        control.router_db_client,
+        control.identity_client,
         in_move_token_request.move_token,
-        local_public_key,
+        &info.local_public_key,
         friend_public_key.clone(),
     )
     .await?;
 
     // Add mutations:
     for index_mutation in index_mutations {
-        output.add_index_mutation(index_mutation);
+        control.output.add_index_mutation(index_mutation);
     }
 
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {
             // We should have nothing else to send at this point, otherwise we would have already
             // sent it.
-            assert!(!is_pending_move_token(router_db_client, friend_public_key.clone()).await?);
+            assert!(
+                !is_pending_move_token(control.router_db_client, friend_public_key.clone()).await?
+            );
 
             // Possibly send token to remote side (According to token_wanted)
             if in_move_token_request.token_wanted {
                 let (out_move_token_request, index_mutations) =
                     handle_out_move_token_index_mutations_allow_empty(
-                        router_db_client,
-                        identity_client,
-                        local_public_key,
+                        control.router_db_client,
+                        control.identity_client,
+                        &info.local_public_key,
                         friend_public_key.clone(),
-                        max_operations_in_batch,
-                        &mut output,
+                        info.max_operations_in_batch,
+                        &mut control.output,
                     )
                     .await?;
 
                 // We just got a message from remote side. Remote side should be online:
-                assert!(router_state.liveness.is_online(&friend_public_key));
+                assert!(control.state.liveness.is_online(&friend_public_key));
 
                 // Add index mutations:
                 for index_mutation in index_mutations {
-                    output.add_index_mutation(index_mutation);
+                    control.output.add_index_mutation(index_mutation);
                 }
-                output.add_friend_message(
+                control.output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(out_move_token_request),
                 );
@@ -459,12 +407,15 @@ where
             // Retransmit outgoing move token message to friend:
             let move_token_request = MoveTokenRequest {
                 move_token,
-                token_wanted: is_pending_move_token(router_db_client, friend_public_key.clone())
-                    .await?,
+                token_wanted: is_pending_move_token(
+                    control.router_db_client,
+                    friend_public_key.clone(),
+                )
+                .await?,
             };
 
-            if router_state.liveness.is_online(&friend_public_key) {
-                output.add_friend_message(
+            if control.state.liveness.is_online(&friend_public_key) {
+                control.output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
                 );
@@ -475,13 +426,9 @@ where
                 match incoming_message {
                     IncomingMessage::Request(mc_request) => {
                         incoming_message_request(
-                            router_db_client,
-                            router_state,
+                            control,
+                            info,
                             friend_public_key.clone(),
-                            identity_client,
-                            local_public_key,
-                            max_operations_in_batch,
-                            &mut output,
                             currency,
                             mc_request,
                         )
@@ -489,10 +436,8 @@ where
                     }
                     IncomingMessage::RequestCancel(mc_request) => {
                         incoming_message_request_cancel(
-                            router_db_client,
+                            control,
                             friend_public_key.clone(),
-                            identity_client,
-                            &mut output,
                             currency,
                             mc_request,
                         )
@@ -500,13 +445,9 @@ where
                     }
                     IncomingMessage::Response(incoming_response) => {
                         incoming_message_response(
-                            router_db_client,
-                            router_state,
+                            control,
+                            info,
                             friend_public_key.clone(),
-                            identity_client,
-                            local_public_key,
-                            max_operations_in_batch,
-                            &mut output,
                             currency,
                             incoming_response,
                         )
@@ -514,13 +455,9 @@ where
                     }
                     IncomingMessage::Cancel(incoming_cancel) => {
                         incoming_message_cancel(
-                            router_db_client,
-                            router_state,
+                            control,
+                            info,
                             friend_public_key.clone(),
-                            identity_client,
-                            local_public_key,
-                            max_operations_in_batch,
-                            &mut output,
                             currency,
                             incoming_cancel,
                         )
@@ -535,37 +472,37 @@ where
                 // to remote side, even if it is empty
                 Some(
                     handle_out_move_token_index_mutations_allow_empty(
-                        router_db_client,
-                        identity_client,
-                        local_public_key,
+                        control.router_db_client,
+                        control.identity_client,
+                        &info.local_public_key,
                         friend_public_key.clone(),
-                        max_operations_in_batch,
-                        &mut output,
+                        info.max_operations_in_batch,
+                        &mut control.output,
                     )
                     .await?,
                 )
             } else {
                 // We only send a MoveTokenRequest to remote side if we have something to send:
                 handle_out_move_token_index_mutations_disallow_empty(
-                    router_db_client,
-                    identity_client,
-                    local_public_key,
+                    control.router_db_client,
+                    control.identity_client,
+                    &info.local_public_key,
                     friend_public_key.clone(),
-                    max_operations_in_batch,
-                    &mut output,
+                    info.max_operations_in_batch,
+                    &mut control.output,
                 )
                 .await?
             };
 
             if let Some((out_move_token_request, index_mutations)) = opt_res {
                 // We just got a message from remote side. Remote side should be online:
-                assert!(router_state.liveness.is_online(&friend_public_key));
+                assert!(control.state.liveness.is_online(&friend_public_key));
 
                 // Add index mutations:
                 for index_mutation in index_mutations {
-                    output.add_index_mutation(index_mutation);
+                    control.output.add_index_mutation(index_mutation);
                 }
-                output.add_friend_message(
+                control.output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(out_move_token_request),
                 );
@@ -586,42 +523,39 @@ where
         }
     }
 
-    Ok(output)
+    Ok(())
 }
 
 async fn incoming_inconsistency_error(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
     friend_public_key: PublicKey,
     reset_terms: ResetTerms,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<(), RouterError> {
     todo!();
 }
 
 async fn incoming_relays_update(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
     friend_public_key: PublicKey,
     relays_update: RelaysUpdate,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<(), RouterError> {
     todo!();
 }
 
 async fn incoming_relays_ack(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut RouterControl<'_, impl RouterDbClient>,
     friend_public_key: PublicKey,
     generation: u128,
-) -> Result<RouterOutput, RouterError> {
+) -> Result<(), RouterError> {
     todo!();
 }
 
 pub async fn incoming_friend_message<RC>(
-    router_db_client: &mut RC,
-    router_state: &mut RouterState,
+    control: &mut RouterControl<'_, RC>,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
     friend_message: FriendMessage,
-) -> Result<RouterOutput, RouterError>
+) -> Result<(), RouterError>
 where
     RC: RouterDbClient,
     RC::TcDbClient: Transaction + Send,
@@ -629,25 +563,16 @@ where
 {
     match friend_message {
         FriendMessage::MoveTokenRequest(move_token_request) => {
-            incoming_move_token_request(
-                router_db_client,
-                router_state,
-                friend_public_key,
-                identity_client,
-                local_public_key,
-                max_operations_in_batch,
-                move_token_request,
-            )
-            .await
+            incoming_move_token_request(control, info, friend_public_key, move_token_request).await
         }
         FriendMessage::InconsistencyError(reset_terms) => {
-            incoming_inconsistency_error(router_db_client, friend_public_key, reset_terms).await
+            incoming_inconsistency_error(control, friend_public_key, reset_terms).await
         }
         FriendMessage::RelaysUpdate(relays_update) => {
-            incoming_relays_update(router_db_client, friend_public_key, relays_update).await
+            incoming_relays_update(control, friend_public_key, relays_update).await
         }
         FriendMessage::RelaysAck(generation) => {
-            incoming_relays_ack(router_db_client, friend_public_key, generation).await
+            incoming_relays_ack(control, friend_public_key, generation).await
         }
     }
 }
