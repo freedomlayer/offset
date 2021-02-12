@@ -35,13 +35,14 @@ use crate::token_channel::{
 };
 
 pub async fn add_currency(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -49,26 +50,27 @@ pub async fn add_currency(
     {
         return Ok(());
     }
-    control
+    access
         .router_db_client
         .add_currency_config(friend_public_key.clone(), currency)
         .await?;
 
-    control.pending_send.insert(friend_public_key);
+    access.pending_send.insert(friend_public_key);
 
     Ok(())
 }
 
 pub async fn set_remove_currency(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // Revise implementation with respect to new design
     todo!();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -76,26 +78,27 @@ pub async fn set_remove_currency(
     {
         return Ok(());
     }
-    control
+    access
         .router_db_client
         .set_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    control.pending_send.insert(friend_public_key);
+    access.pending_send.insert(friend_public_key);
     Ok(())
 }
 
 pub async fn unset_remove_currency(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // TODO: Update implementation according to new design
     todo!();
 
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -103,24 +106,25 @@ pub async fn unset_remove_currency(
     {
         return Ok(());
     }
-    control
+    access
         .router_db_client
         .unset_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    control.pending_send.insert(friend_public_key);
+    access.pending_send.insert(friend_public_key);
     Ok(())
 }
 
 pub async fn set_remote_max_debt(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
     remote_max_debt: u128,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -129,14 +133,14 @@ pub async fn set_remote_max_debt(
         return Ok(());
     }
 
-    let opt_currency_info = control
+    let opt_currency_info = access
         .router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
         .await?;
     if let Some(currency_info) = opt_currency_info {
         // Currency exists (We don't do anything otherwise)
         // Set remote max debt:
-        control
+        access
             .router_db_client
             .set_remote_max_debt(friend_public_key.clone(), currency.clone(), remote_max_debt)
             .await?;
@@ -150,7 +154,7 @@ pub async fn set_remote_max_debt(
         // Create an index mutation if needed:
         if currency_info.is_open {
             // Currency is open:
-            control.output.add_index_mutation(create_index_mutation(
+            access.output.add_index_mutation(create_index_mutation(
                 friend_public_key.clone(),
                 currency,
                 currency_info,
@@ -162,14 +166,15 @@ pub async fn set_remote_max_debt(
 }
 
 pub async fn set_local_max_debt(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
     local_max_debt: u128,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -178,14 +183,14 @@ pub async fn set_local_max_debt(
         return Ok(());
     }
 
-    let opt_currency_info = control
+    let opt_currency_info = access
         .router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
         .await?;
     if let Some(currency_info) = opt_currency_info {
         // Currency exists (We don't do anything otherwise)
         // Set remote max debt:
-        control
+        access
             .router_db_client
             .set_local_max_debt(friend_public_key.clone(), currency.clone(), local_max_debt)
             .await?;
@@ -199,7 +204,7 @@ pub async fn set_local_max_debt(
         // Create an index mutation if needed:
         if currency_info.is_open {
             // Currency is open:
-            control.output.add_index_mutation(create_index_mutation(
+            access.output.add_index_mutation(create_index_mutation(
                 friend_public_key.clone(),
                 currency,
                 currency_info,
@@ -211,12 +216,13 @@ pub async fn set_local_max_debt(
 }
 
 pub async fn open_currency(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -225,7 +231,7 @@ pub async fn open_currency(
         return Ok(());
     }
 
-    let opt_currency_info = control
+    let opt_currency_info = access
         .router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
         .await?;
@@ -236,7 +242,7 @@ pub async fn open_currency(
             // currency is closed:
 
             // Open currency:
-            control
+            access
                 .router_db_client
                 .open_currency(friend_public_key.clone(), currency.clone())
                 .await?;
@@ -244,7 +250,7 @@ pub async fn open_currency(
             let index_mutation = create_index_mutation(friend_public_key, currency, currency_info)?;
             if matches!(index_mutation, IndexMutation::UpdateFriendCurrency(..)) {
                 // Add index mutation:
-                control.output.add_index_mutation(index_mutation);
+                access.output.add_index_mutation(index_mutation);
             }
         }
     }
@@ -253,12 +259,13 @@ pub async fn open_currency(
 }
 
 pub async fn close_currency(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
+    let access = control.access();
     // First we make sure that the friend exists:
-    if control
+    if access
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -267,7 +274,7 @@ pub async fn close_currency(
         return Ok(());
     }
 
-    let opt_currency_info = control
+    let opt_currency_info = access
         .router_db_client
         .get_currency_info(friend_public_key.clone(), currency.clone())
         .await?;
@@ -278,13 +285,13 @@ pub async fn close_currency(
             // currency is open:
 
             // Close currency:
-            control
+            access
                 .router_db_client
                 .close_currency(friend_public_key.clone(), currency.clone())
                 .await?;
 
             // Add index mutation:
-            control
+            access
                 .output
                 .add_index_mutation(IndexMutation::RemoveFriendCurrency(RemoveFriendCurrency {
                     public_key: friend_public_key.clone(),
@@ -292,7 +299,7 @@ pub async fn close_currency(
                 }));
 
             // Cancel all user requests pending for this currency:
-            while let Some(mc_request) = control
+            while let Some(mc_request) = access
                 .router_db_client
                 .pending_user_requests_pop_front_by_currency(friend_public_key.clone())
                 .await?
@@ -301,7 +308,7 @@ pub async fn close_currency(
             }
 
             // Cancel all requests pending for this currency:
-            while let Some(mc_request) = control
+            while let Some(mc_request) = access
                 .router_db_client
                 .pending_user_requests_pop_front_by_currency(friend_public_key.clone())
                 .await?

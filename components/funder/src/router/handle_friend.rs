@@ -42,18 +42,24 @@ use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenCh
 /// Check if credit line between this node and a friend is ready
 /// Works for sending requests in both directions
 async fn is_credit_line_ready(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     currency: Currency,
     request_id: Uid,
 ) -> Result<bool, RouterError> {
     // Friend must be online:
-    if !control.state.liveness.is_online(&friend_public_key) {
+    if !control
+        .access()
+        .ephemeral
+        .liveness
+        .is_online(&friend_public_key)
+    {
         return Ok(false);
     }
 
     // Currency must exist:
     let currency_info = if let Some(currency_info) = control
+        .access()
         .router_db_client
         .get_currency_info(friend_public_key, currency)
         .await?
@@ -66,21 +72,19 @@ async fn is_credit_line_ready(
     // Note: We bypass `is_open` check if the request is of local origin:
     Ok(currency_info.is_open
         || control
+            .access()
             .router_db_client
             .is_request_local_origin(request_id)
             .await?)
 }
 
-async fn incoming_message_request<RC>(
-    control: &mut RouterControl<'_, RC>,
+async fn incoming_message_request(
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
     mut mc_request: McRequest,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-{
+) -> Result<(), RouterError> {
     // Make sure that we are ready to receive this request operation
     // We might not be ready in the case of currency being closed.
     if !is_credit_line_ready(
@@ -93,6 +97,7 @@ where
     {
         // Return a cancel message and flush origin friend
         control
+            .access()
             .router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
@@ -105,7 +110,7 @@ where
             )
             .await?;
 
-        control.pending_send.insert(friend_public_key);
+        control.access().pending_send.insert(friend_public_key);
 
         return Ok(());
     }
@@ -114,6 +119,7 @@ where
     if mc_request.route.is_empty() {
         // Directed to us. Punt:
         control
+            .access()
             .output
             .add_incoming_request(currency.clone(), mc_request.into());
         return Ok(());
@@ -125,15 +131,18 @@ where
     // Route is not empty. We need to forward the request to a friend
     let next_public_key = mc_request.route.remove(0);
 
-    // Check if next public key corresponds to a friend that is ready
-    let should_forward = is_credit_line_ready(
+    let is_credit_line_ready = is_credit_line_ready(
         control,
         next_public_key.clone(),
         currency.clone(),
         mc_request.request_id.clone(),
     )
-    .await?
+    .await?;
+
+    // Check if next public key corresponds to a friend that is ready
+    let should_forward = is_credit_line_ready
         && !control
+            .access()
             .router_db_client
             .is_local_request_exists(mc_request.request_id.clone())
             .await?;
@@ -145,16 +154,18 @@ where
     if should_forward {
         // Queue request to friend and flush destination friend
         control
+            .access()
             .router_db_client
             .pending_requests_push_back(next_public_key.clone(), currency, mc_request.into())
             .await?;
         // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
         // requests before flushing this friend. Find out how to do this.
 
-        control.pending_send.insert(next_public_key);
+        control.access().pending_send.insert(next_public_key);
     } else {
         // Return a cancel message and flush origin friend
         control
+            .access()
             .router_db_client
             .pending_backwards_push_back(
                 friend_public_key.clone(),
@@ -167,7 +178,7 @@ where
             )
             .await?;
 
-        control.pending_send.insert(friend_public_key);
+        control.access().pending_send.insert(friend_public_key);
     }
 
     Ok(())
@@ -175,16 +186,14 @@ where
 
 /// An incoming request was received, but due to insufficient trust we can not
 /// forward this request. We return a cancel message to the sender friend
-async fn incoming_message_request_cancel<RC>(
-    control: &mut RouterControl<'_, RC>,
+async fn incoming_message_request_cancel(
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     currency: Currency,
     mc_request: McRequest,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-{
+) -> Result<(), RouterError> {
     if control
+        .access()
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -202,6 +211,7 @@ where
 
         // Queue cancel to friend_public_key (Request origin)
         control
+            .access()
             .router_db_client
             .pending_backwards_push_back(friend_public_key.clone(), backwards_op)
             .await?;
@@ -213,22 +223,21 @@ where
     Ok(())
 }
 
-async fn incoming_message_response<RC>(
-    control: &mut RouterControl<'_, RC>,
+async fn incoming_message_response(
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
     incoming_response: IncomingResponseSendFundsOp,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-{
+) -> Result<(), RouterError> {
     // Gather information about request's origin:
     let opt_request_origin = control
+        .access()
         .router_db_client
         .get_remote_pending_request_origin(incoming_response.incoming_response.request_id.clone())
         .await?;
     let is_local_origin = control
+        .access()
         .router_db_client
         .is_request_local_origin(incoming_response.incoming_response.request_id.clone())
         .await?;
@@ -243,12 +252,14 @@ where
 
             // Clear the request from local requests list
             control
+                .access()
                 .router_db_client
                 .remove_local_request(incoming_response.incoming_response.request_id.clone())
                 .await?;
 
             // We punt the response
             control
+                .access()
                 .output
                 .add_incoming_response(currency.clone(), incoming_response.incoming_response);
         }
@@ -259,6 +270,7 @@ where
 
             // Push response:
             control
+                .access()
                 .router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
@@ -266,7 +278,7 @@ where
                 )
                 .await?;
 
-            control.pending_send.insert(friend_public_key);
+            control.access().pending_send.insert(friend_public_key);
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -281,7 +293,7 @@ where
 
 // TODO: This function seems too similar to `incoming_message_response`
 async fn incoming_message_cancel(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     currency: Currency,
@@ -289,10 +301,12 @@ async fn incoming_message_cancel(
 ) -> Result<(), RouterError> {
     // Gather information about request's origin:
     let opt_request_origin = control
+        .access()
         .router_db_client
         .get_remote_pending_request_origin(incoming_cancel.incoming_cancel.request_id.clone())
         .await?;
     let is_local_origin = control
+        .access()
         .router_db_client
         .is_request_local_origin(incoming_cancel.incoming_cancel.request_id.clone())
         .await?;
@@ -307,12 +321,14 @@ async fn incoming_message_cancel(
 
             // Clear the request from local requests list
             control
+                .access()
                 .router_db_client
                 .remove_local_request(incoming_cancel.incoming_cancel.request_id.clone())
                 .await?;
 
             // We punt the cancel
             control
+                .access()
                 .output
                 .add_incoming_cancel(currency, incoming_cancel.incoming_cancel);
         }
@@ -323,6 +339,7 @@ async fn incoming_message_cancel(
 
             // Push cancel:
             control
+                .access()
                 .router_db_client
                 .pending_backwards_push_back(
                     friend_public_key.clone(),
@@ -330,7 +347,10 @@ async fn incoming_message_cancel(
                 )
                 .await?;
 
-            control.pending_send.insert(friend_public_key.clone());
+            control
+                .access()
+                .pending_send
+                .insert(friend_public_key.clone());
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -343,21 +363,16 @@ async fn incoming_message_cancel(
     Ok(())
 }
 
-async fn incoming_move_token_request<RC>(
-    control: &mut RouterControl<'_, RC>,
+async fn incoming_move_token_request(
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     in_move_token_request: MoveTokenRequest,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-    // TODO: Maybe not necessary:
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
-{
+) -> Result<(), RouterError> {
+    let access = control.access();
     let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
-        control.router_db_client,
-        control.identity_client,
+        access.router_db_client,
+        access.identity_client,
         in_move_token_request.move_token,
         &info.local_public_key,
         friend_public_key.clone(),
@@ -366,38 +381,39 @@ where
 
     // Add mutations:
     for index_mutation in index_mutations {
-        control.output.add_index_mutation(index_mutation);
+        control.access().output.add_index_mutation(index_mutation);
     }
 
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {
+            let mut access = control.access();
             // We should have nothing else to send at this point, otherwise we would have already
             // sent it.
             assert!(
-                !is_pending_move_token(control.router_db_client, friend_public_key.clone()).await?
+                !is_pending_move_token(access.router_db_client, friend_public_key.clone()).await?
             );
 
             // Possibly send token to remote side (According to token_wanted)
             if in_move_token_request.token_wanted {
                 let (out_move_token_request, index_mutations) =
                     handle_out_move_token_index_mutations_allow_empty(
-                        control.router_db_client,
-                        control.identity_client,
+                        access.router_db_client,
+                        access.identity_client,
                         &info.local_public_key,
                         friend_public_key.clone(),
                         info.max_operations_in_batch,
-                        &mut control.output,
+                        &mut access.output,
                     )
                     .await?;
 
                 // We just got a message from remote side. Remote side should be online:
-                assert!(control.state.liveness.is_online(&friend_public_key));
+                assert!(access.ephemeral.liveness.is_online(&friend_public_key));
 
                 // Add index mutations:
                 for index_mutation in index_mutations {
-                    control.output.add_index_mutation(index_mutation);
+                    access.output.add_index_mutation(index_mutation);
                 }
-                control.output.add_friend_message(
+                access.output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(out_move_token_request),
                 );
@@ -408,14 +424,19 @@ where
             let move_token_request = MoveTokenRequest {
                 move_token,
                 token_wanted: is_pending_move_token(
-                    control.router_db_client,
+                    control.access().router_db_client,
                     friend_public_key.clone(),
                 )
                 .await?,
             };
 
-            if control.state.liveness.is_online(&friend_public_key) {
-                control.output.add_friend_message(
+            if control
+                .access()
+                .ephemeral
+                .liveness
+                .is_online(&friend_public_key)
+            {
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
                 );
@@ -470,39 +491,45 @@ where
             let opt_res = if in_move_token_request.token_wanted {
                 // Remote side wants to have the token back, so we have to send a MoveTokenRequest
                 // to remote side, even if it is empty
+                let mut access = control.access();
                 Some(
                     handle_out_move_token_index_mutations_allow_empty(
-                        control.router_db_client,
-                        control.identity_client,
+                        access.router_db_client,
+                        access.identity_client,
                         &info.local_public_key,
                         friend_public_key.clone(),
                         info.max_operations_in_batch,
-                        &mut control.output,
+                        &mut access.output,
                     )
                     .await?,
                 )
             } else {
                 // We only send a MoveTokenRequest to remote side if we have something to send:
+                let mut access = control.access();
                 handle_out_move_token_index_mutations_disallow_empty(
-                    control.router_db_client,
-                    control.identity_client,
+                    access.router_db_client,
+                    access.identity_client,
                     &info.local_public_key,
                     friend_public_key.clone(),
                     info.max_operations_in_batch,
-                    &mut control.output,
+                    &mut access.output,
                 )
                 .await?
             };
 
             if let Some((out_move_token_request, index_mutations)) = opt_res {
                 // We just got a message from remote side. Remote side should be online:
-                assert!(control.state.liveness.is_online(&friend_public_key));
+                assert!(control
+                    .access()
+                    .ephemeral
+                    .liveness
+                    .is_online(&friend_public_key));
 
                 // Add index mutations:
                 for index_mutation in index_mutations {
-                    control.output.add_index_mutation(index_mutation);
+                    control.access().output.add_index_mutation(index_mutation);
                 }
-                control.output.add_friend_message(
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(out_move_token_request),
                 );
@@ -527,7 +554,7 @@ where
 }
 
 async fn incoming_inconsistency_error(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     reset_terms: ResetTerms,
 ) -> Result<(), RouterError> {
@@ -535,7 +562,7 @@ async fn incoming_inconsistency_error(
 }
 
 async fn incoming_relays_update(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     relays_update: RelaysUpdate,
 ) -> Result<(), RouterError> {
@@ -543,24 +570,19 @@ async fn incoming_relays_update(
 }
 
 async fn incoming_relays_ack(
-    control: &mut RouterControl<'_, impl RouterDbClient>,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
     generation: u128,
 ) -> Result<(), RouterError> {
     todo!();
 }
 
-pub async fn incoming_friend_message<RC>(
-    control: &mut RouterControl<'_, RC>,
+pub async fn incoming_friend_message(
+    control: &mut impl RouterControl,
     info: &RouterInfo,
     friend_public_key: PublicKey,
     friend_message: FriendMessage,
-) -> Result<(), RouterError>
-where
-    RC: RouterDbClient,
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
-{
+) -> Result<(), RouterError> {
     match friend_message {
         FriendMessage::MoveTokenRequest(move_token_request) => {
             incoming_move_token_request(control, info, friend_public_key, move_token_request).await

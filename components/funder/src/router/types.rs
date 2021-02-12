@@ -5,10 +5,10 @@ use derive_more::From;
 use common::async_rpc::{AsyncOpResult, AsyncOpStream, OpError};
 use common::u256::U256;
 
-use crate::liveness::Liveness;
-use crate::token_channel::TcDbClient;
-
+use crypto::rand::CryptoRandom;
 use identity::IdentityClient;
+
+use database::transaction::Transaction;
 
 use proto::app_server::messages::{NamedRelayAddress, RelayAddressPort};
 use proto::crypto::{PublicKey, Uid};
@@ -19,7 +19,9 @@ use proto::funder::messages::{
 use proto::index_server::messages::IndexMutation;
 use proto::net::messages::NetAddress;
 
-use crate::mutual_credit::{McCancel, McRequest, McResponse};
+use crate::liveness::Liveness;
+use crate::mutual_credit::{McCancel, McDbClient, McRequest, McResponse};
+use crate::token_channel::TcDbClient;
 use crate::token_channel::TokenChannelError;
 
 #[derive(Debug, From)]
@@ -388,15 +390,83 @@ pub struct RouterInfo {
 }
 
 #[derive(Debug)]
-pub struct RouterControl<'a, RC> {
+pub struct RouterHandle<'a, R, RC> {
     pub router_db_client: &'a mut RC,
     pub identity_client: &'a mut IdentityClient,
+    pub rng: &'a mut R,
     /// Friends with new pending outgoing messages
     pub pending_send: HashSet<PublicKey>,
     /// Ephemeral state:
-    pub state: &'a mut RouterState,
+    pub ephemeral: &'a mut RouterState,
     /// Router's output:
     pub output: RouterOutput,
+}
+
+#[derive(Debug)]
+pub struct RouterAccess<'a, R, RC> {
+    pub router_db_client: &'a mut RC,
+    pub identity_client: &'a mut IdentityClient,
+    pub rng: &'a mut R,
+    /// Friends with new pending outgoing messages
+    pub pending_send: &'a mut HashSet<PublicKey>,
+    /// Ephemeral state:
+    pub ephemeral: &'a mut RouterState,
+    /// Router's output:
+    pub output: &'a mut RouterOutput,
+}
+
+pub trait RouterControl {
+    type Rng: CryptoRandom;
+    type RouterDbClient: RouterDbClient<TcDbClient = Self::TcDbClient>;
+    type TcDbClient: TcDbClient<McDbClient = Self::McDbClient> + Transaction + Send;
+    type McDbClient: McDbClient + Send;
+
+    fn access(&mut self) -> RouterAccess<'_, Self::Rng, Self::RouterDbClient>;
+}
+
+impl<'a, R, RC> RouterControl for RouterHandle<'a, R, RC>
+where
+    RC: RouterDbClient,
+    <RC as RouterDbClient>::TcDbClient: Transaction + Send,
+    <<RC as RouterDbClient>::TcDbClient as TcDbClient>::McDbClient: Send,
+    R: CryptoRandom,
+{
+    type Rng = R;
+    type RouterDbClient = RC;
+    type TcDbClient = <RC as RouterDbClient>::TcDbClient;
+    type McDbClient = <<RC as RouterDbClient>::TcDbClient as TcDbClient>::McDbClient;
+
+    fn access(&mut self) -> RouterAccess<'_, Self::Rng, Self::RouterDbClient> {
+        RouterAccess {
+            router_db_client: self.router_db_client,
+            identity_client: self.identity_client,
+            rng: self.rng,
+            pending_send: &mut self.pending_send,
+            ephemeral: self.ephemeral,
+            output: &mut self.output,
+        }
+    }
+
+    /*
+    fn router_db_client(&mut self) -> &mut Self::RouterDbClient {
+        self.router_db_client
+    }
+    fn identity_client(&mut self) -> &mut IdentityClient {
+        self.identity_client
+    }
+    fn rng(&mut self) -> &mut Self::Rng {
+        self.rng
+    }
+    fn add_pending_send(&mut self, friend_public_key: PublicKey) -> bool {
+        self.pending_send.insert(friend_public_key)
+    }
+    fn ephemeral(&mut self) -> &mut RouterState {
+        &mut self.state
+    }
+    fn output(&mut self) -> &mut RouterOutput {
+        &mut self.output
+    }
+    */
 }
 
 #[derive(Debug)]
