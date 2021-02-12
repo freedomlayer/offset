@@ -44,10 +44,9 @@ pub async fn set_friend_online(
     info: &RouterInfo,
     friend_public_key: PublicKey,
 ) -> Result<(), RouterError> {
-    let mut access = control.access();
-
     // First we make sure that the friend exists:
-    let tc_status = if let Some(tc_db_client) = access
+    let tc_status = if let Some(tc_db_client) = control
+        .access()
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -57,23 +56,30 @@ pub async fn set_friend_online(
         return Ok(());
     };
 
-    if access.ephemeral.liveness.is_online(&friend_public_key) {
+    if control
+        .access()
+        .ephemeral
+        .liveness
+        .is_online(&friend_public_key)
+    {
         // The friend is already marked as online!
         return Err(RouterError::FriendAlreadyOnline);
     }
-    access
+    control
+        .access()
         .ephemeral
         .liveness
         .set_online(friend_public_key.clone());
 
     // Check if we have any relays information to send to the remote side:
-    if let (Some(generation), relays) = access
+    if let (Some(generation), relays) = control
+        .access()
         .router_db_client
         .get_last_sent_relays(friend_public_key.clone())
         .await?
     {
         // Add a message for sending relays:
-        access.output.add_friend_message(
+        control.access().output.add_friend_message(
             friend_public_key.clone(),
             FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
         );
@@ -83,12 +89,9 @@ pub async fn set_friend_online(
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
             let opt_tuple = handle_out_move_token_index_mutations_disallow_empty(
-                access.router_db_client,
-                access.identity_client,
-                &info.local_public_key,
+                control,
+                info,
                 friend_public_key.clone(),
-                info.max_operations_in_batch,
-                &mut access.output,
             )
             .await?;
 
@@ -97,7 +100,7 @@ pub async fn set_friend_online(
                 // open currencies anyways.
 
                 // We have something to send to remote side:
-                access.output.add_friend_message(
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
                 );
@@ -106,21 +109,18 @@ pub async fn set_friend_online(
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
             // Resend outgoing move token,
             // possibly asking for the token if we have something to send
-            access.output.add_friend_message(
-                friend_public_key.clone(),
-                FriendMessage::MoveTokenRequest(MoveTokenRequest {
-                    move_token: move_token_out,
-                    token_wanted: is_pending_move_token(
-                        access.router_db_client,
-                        friend_public_key.clone(),
-                    )
-                    .await?,
-                }),
-            );
+            let friend_message = FriendMessage::MoveTokenRequest(MoveTokenRequest {
+                move_token: move_token_out,
+                token_wanted: is_pending_move_token(control, friend_public_key.clone()).await?,
+            });
+            control
+                .access()
+                .output
+                .add_friend_message(friend_public_key.clone(), friend_message);
         }
         TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
             // Resend reset terms
-            access.output.add_friend_message(
+            control.access().output.add_friend_message(
                 friend_public_key.clone(),
                 FriendMessage::InconsistencyError(local_reset_terms),
             );
@@ -128,6 +128,7 @@ pub async fn set_friend_online(
     }
 
     // Add an index mutation for all open currencies:
+    let access = control.access();
     let mut open_currencies = access
         .router_db_client
         .list_open_currencies(friend_public_key.clone());

@@ -25,8 +25,8 @@ use database::transaction::Transaction;
 use crate::mutual_credit::{McCancel, McRequest, McResponse};
 use crate::route::Route;
 use crate::router::types::{
-    BackwardsOp, CurrencyInfo, FriendBalance, FriendBalanceDiff, RouterDbClient, RouterError,
-    RouterOutput, RouterState, SentRelay,
+    BackwardsOp, CurrencyInfo, FriendBalance, FriendBalanceDiff, RouterControl, RouterDbClient,
+    RouterError, RouterInfo, RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::index_mutation::create_index_mutation;
 use crate::token_channel::{
@@ -35,13 +35,15 @@ use crate::token_channel::{
 };
 
 async fn queue_backwards_op(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     out_move_token: &mut OutMoveToken,
-    local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     backwards_op: BackwardsOp,
 ) -> Result<(), RouterError> {
-    let tc_db_client = if let Some(tc_db_client) = router_db_client
+    let tc_db_client = if let Some(tc_db_client) = control
+        .access()
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
     {
@@ -52,7 +54,7 @@ async fn queue_backwards_op(
     let friend_tc_op = match backwards_op {
         BackwardsOp::Response(currency, mc_response) => {
             out_move_token
-                .queue_response(tc_db_client, currency, mc_response, local_public_key)
+                .queue_response(tc_db_client, currency, mc_response, &info.local_public_key)
                 .await?;
         }
         BackwardsOp::Cancel(currency, mc_cancel) => {
@@ -67,15 +69,16 @@ async fn queue_backwards_op(
 /// Queue a request to an `out_move_token`.
 /// Handles failure by returning a cancel message to the relevant origin.
 async fn queue_request(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     out_move_token: &mut OutMoveToken,
-    local_public_key: &PublicKey,
     friend_public_key: PublicKey,
     currency: Currency,
     mc_request: McRequest,
-    router_output: &mut RouterOutput,
 ) -> Result<(), RouterError> {
-    let tc_db_client = if let Some(tc_db_client) = router_db_client
+    let tc_db_client = if let Some(tc_db_client) = control
+        .access()
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
     {
@@ -90,7 +93,9 @@ async fn queue_request(
 
     match res {
         Ok(mc_balance) => {
-            let currency_info = router_db_client
+            let currency_info = control
+                .access()
+                .router_db_client
                 .get_currency_info(friend_public_key.clone(), currency.clone())
                 .await?
                 // If currency does not exist, we should have already cancelled this request.
@@ -103,7 +108,9 @@ async fn queue_request(
                 && mc_balance.balance == 0
             {
                 // Remove currency:
-                router_db_client
+                control
+                    .access()
+                    .router_db_client
                     .remove_currency(friend_public_key.clone(), currency.clone())
                     .await?;
 
@@ -126,39 +133,48 @@ async fn queue_request(
                     balances_diff.insert(currency.clone(), friend_balance_diff);
                     balances_diff
                 };
-                router_db_client
+                control
+                    .access()
+                    .router_db_client
                     .add_friend_event(friend_public_key.clone(), balances_diff)
                     .await?;
             }
         }
         Err(mc_cancel) => {
             // We need to send a cancel message to the origin
-            if router_db_client
+            if control
+                .access()
+                .router_db_client
                 .is_request_local_origin(mc_request.request_id.clone())
                 .await?
             {
                 // Request is of local origin
-                router_output.add_incoming_cancel(
+                control.access().output.add_incoming_cancel(
                     currency,
                     McCancel {
                         request_id: mc_request.request_id.clone(),
                     },
                 );
             } else {
-                if let Some(request_origin) = router_db_client
+                if let Some(request_origin) = control
+                    .access()
+                    .router_db_client
                     .get_remote_pending_request_origin(mc_request.request_id.clone())
                     .await?
                 {
                     // Request is of remote origin
-                    router_db_client.pending_backwards_push_back(
-                        request_origin.friend_public_key.clone(),
-                        BackwardsOp::Cancel(
-                            request_origin.currency.clone(),
-                            McCancel {
-                                request_id: mc_request.request_id.clone(),
-                            },
-                        ),
-                    );
+                    control
+                        .access()
+                        .router_db_client
+                        .pending_backwards_push_back(
+                            request_origin.friend_public_key.clone(),
+                            BackwardsOp::Cancel(
+                                request_origin.currency.clone(),
+                                McCancel {
+                                    request_id: mc_request.request_id.clone(),
+                                },
+                            ),
+                        );
                 } else {
                     // Request is orphan, nothing to do here
                 }
@@ -169,75 +185,77 @@ async fn queue_request(
 }
 
 async fn collect_currencies_operations(
-    router_db_client: &mut impl RouterDbClient,
-    local_public_key: &PublicKey,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
 ) -> Result<OutMoveToken, RouterError> {
     // Create a structure that aggregates operations to be sent in a single MoveToken message:
     let mut out_move_token = OutMoveToken::new();
 
     // Collect any pending responses and cancels:
-    while let Some(backwards_op) = router_db_client
+    while let Some(backwards_op) = control
+        .access()
+        .router_db_client
         .pending_backwards_pop_front(friend_public_key.clone())
         .await?
     {
         queue_backwards_op(
-            router_db_client,
+            control,
+            info,
             &mut out_move_token,
-            local_public_key,
             friend_public_key.clone(),
             backwards_op,
         )
         .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if out_move_token.len() >= max_operations_in_batch {
+        if out_move_token.len() >= info.max_operations_in_batch {
             return Ok(out_move_token);
         }
     }
 
     // Collect any pending user requests:
-    while let Some((currency, mc_request)) = router_db_client
+    while let Some((currency, mc_request)) = control
+        .access()
+        .router_db_client
         .pending_user_requests_pop_front(friend_public_key.clone())
         .await?
     {
         queue_request(
-            router_db_client,
+            control,
+            info,
             &mut out_move_token,
-            local_public_key,
             friend_public_key.clone(),
             currency,
             mc_request,
-            router_output,
         )
         .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if out_move_token.len() >= max_operations_in_batch {
+        if out_move_token.len() >= info.max_operations_in_batch {
             return Ok(out_move_token);
         }
     }
 
     // Collect any pending requests:
-    while let Some((currency, mc_request)) = router_db_client
+    while let Some((currency, mc_request)) = control
+        .access()
+        .router_db_client
         .pending_requests_pop_front(friend_public_key.clone())
         .await?
     {
         queue_request(
-            router_db_client,
+            control,
+            info,
             &mut out_move_token,
-            local_public_key,
             friend_public_key.clone(),
             currency,
             mc_request,
-            router_output,
         )
         .await?;
 
         // Make sure we do not exceed maximum amount of operations:
-        if out_move_token.len() >= max_operations_in_batch {
+        if out_move_token.len() >= info.max_operations_in_batch {
             return Ok(out_move_token);
         }
     }
@@ -308,13 +326,14 @@ fn create_index_mutations(
 }
 
 async fn apply_out_move_token(
-    router_db_client: &mut impl RouterDbClient,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
     out_move_token: OutMoveToken,
 ) -> Result<(MoveTokenRequest, Vec<IndexMutation>), RouterError> {
-    let tc_client = router_db_client
+    let access = control.access();
+    let tc_client = access
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
         .ok_or(RouterError::InvalidState)?;
@@ -323,15 +342,15 @@ async fn apply_out_move_token(
     let (move_token, mentioned_currencies) = out_move_token
         .finalize(
             tc_client,
-            identity_client,
-            local_public_key,
+            access.identity_client,
+            &info.local_public_key,
             &friend_public_key,
         )
         .await?;
 
     // Get currency info for all mentioned currencies:
     let currencies_info = get_currencies_info(
-        router_db_client,
+        control.access().router_db_client,
         friend_public_key.clone(),
         &mentioned_currencies,
     )
@@ -342,28 +361,19 @@ async fn apply_out_move_token(
 
     let move_token_request = MoveTokenRequest {
         move_token,
-        token_wanted: is_pending_move_token(router_db_client, friend_public_key).await?,
+        token_wanted: is_pending_move_token(control, friend_public_key).await?,
     };
 
     Ok((move_token_request, index_mutations))
 }
 
 pub async fn handle_out_move_token_index_mutations_disallow_empty(
-    router_db_client: &mut impl RouterDbClient,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
 ) -> Result<Option<(MoveTokenRequest, Vec<IndexMutation>)>, RouterError> {
-    let out_move_token = collect_currencies_operations(
-        router_db_client,
-        local_public_key,
-        friend_public_key.clone(),
-        max_operations_in_batch,
-        router_output,
-    )
-    .await?;
+    let out_move_token =
+        collect_currencies_operations(control, info, friend_public_key.clone()).await?;
 
     // Do nothing if we have nothing to send to remote side:
     if out_move_token.is_empty() {
@@ -371,74 +381,51 @@ pub async fn handle_out_move_token_index_mutations_disallow_empty(
     }
 
     Ok(Some(
-        apply_out_move_token(
-            router_db_client,
-            identity_client,
-            local_public_key,
-            friend_public_key,
-            out_move_token,
-        )
-        .await?,
+        apply_out_move_token(control, info, friend_public_key, out_move_token).await?,
     ))
 }
 
 pub async fn handle_out_move_token_index_mutations_allow_empty(
-    router_db_client: &mut impl RouterDbClient,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
 ) -> Result<(MoveTokenRequest, Vec<IndexMutation>), RouterError> {
-    let out_move_token = collect_currencies_operations(
-        router_db_client,
-        local_public_key,
-        friend_public_key.clone(),
-        max_operations_in_batch,
-        router_output,
-    )
-    .await?;
+    let out_move_token =
+        collect_currencies_operations(control, info, friend_public_key.clone()).await?;
 
-    apply_out_move_token(
-        router_db_client,
-        identity_client,
-        local_public_key,
-        friend_public_key,
-        out_move_token,
-    )
-    .await
+    apply_out_move_token(control, info, friend_public_key, out_move_token).await
 }
 
 /// Check if we have anything to send to a remove friend on a move token message,
 /// without performing any data mutations
 pub async fn is_pending_move_token(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
     friend_public_key: PublicKey,
 ) -> Result<bool, RouterError> {
-    Ok(is_pending_currencies_operations(router_db_client, friend_public_key.clone()).await?)
+    Ok(is_pending_currencies_operations(
+        control.access().router_db_client,
+        friend_public_key.clone(),
+    )
+    .await?)
 }
 
-pub async fn handle_in_move_token_index_mutations<RC>(
-    router_db_client: &mut RC,
-    identity_client: &mut IdentityClient,
+pub async fn handle_in_move_token_index_mutations(
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     move_token: MoveToken,
-    local_public_key: &PublicKey,
     friend_public_key: PublicKey,
-) -> Result<(ReceiveMoveTokenOutput, Vec<IndexMutation>), RouterError>
-where
-    RC: RouterDbClient,
-    RC::TcDbClient: Transaction + Send,
-    <RC::TcDbClient as TcDbClient>::McDbClient: Send,
-{
+) -> Result<(ReceiveMoveTokenOutput, Vec<IndexMutation>), RouterError> {
     // Handle incoming move token:
+    let access = control.access();
     let receive_move_token_output = handle_in_move_token(
-        router_db_client
+        access
+            .router_db_client
             .tc_db_client(friend_public_key.clone())
             .await?
             .ok_or(RouterError::InvalidState)?,
-        identity_client,
+        access.identity_client,
         move_token,
-        local_public_key,
+        &info.local_public_key,
         &friend_public_key,
     )
     .await?;
@@ -463,7 +450,7 @@ where
 
     // Get currency info for all mentioned currencies:
     let currencies_info = get_currencies_info(
-        router_db_client,
+        control.access().router_db_client,
         friend_public_key.clone(),
         &mentioned_currencies,
     )

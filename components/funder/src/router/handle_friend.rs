@@ -369,12 +369,10 @@ async fn incoming_move_token_request(
     friend_public_key: PublicKey,
     in_move_token_request: MoveTokenRequest,
 ) -> Result<(), RouterError> {
-    let access = control.access();
     let (receive_move_token_output, index_mutations) = handle_in_move_token_index_mutations(
-        access.router_db_client,
-        access.identity_client,
+        control,
+        info,
         in_move_token_request.move_token,
-        &info.local_public_key,
         friend_public_key.clone(),
     )
     .await?;
@@ -386,34 +384,32 @@ async fn incoming_move_token_request(
 
     match receive_move_token_output {
         ReceiveMoveTokenOutput::Duplicate => {
-            let mut access = control.access();
             // We should have nothing else to send at this point, otherwise we would have already
             // sent it.
-            assert!(
-                !is_pending_move_token(access.router_db_client, friend_public_key.clone()).await?
-            );
+            assert!(!is_pending_move_token(control, friend_public_key.clone()).await?);
 
             // Possibly send token to remote side (According to token_wanted)
             if in_move_token_request.token_wanted {
                 let (out_move_token_request, index_mutations) =
                     handle_out_move_token_index_mutations_allow_empty(
-                        access.router_db_client,
-                        access.identity_client,
-                        &info.local_public_key,
+                        control,
+                        info,
                         friend_public_key.clone(),
-                        info.max_operations_in_batch,
-                        &mut access.output,
                     )
                     .await?;
 
                 // We just got a message from remote side. Remote side should be online:
-                assert!(access.ephemeral.liveness.is_online(&friend_public_key));
+                assert!(control
+                    .access()
+                    .ephemeral
+                    .liveness
+                    .is_online(&friend_public_key));
 
                 // Add index mutations:
                 for index_mutation in index_mutations {
-                    access.output.add_index_mutation(index_mutation);
+                    control.access().output.add_index_mutation(index_mutation);
                 }
-                access.output.add_friend_message(
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(out_move_token_request),
                 );
@@ -423,11 +419,7 @@ async fn incoming_move_token_request(
             // Retransmit outgoing move token message to friend:
             let move_token_request = MoveTokenRequest {
                 move_token,
-                token_wanted: is_pending_move_token(
-                    control.access().router_db_client,
-                    friend_public_key.clone(),
-                )
-                .await?,
+                token_wanted: is_pending_move_token(control, friend_public_key.clone()).await?,
             };
 
             if control
@@ -494,25 +486,18 @@ async fn incoming_move_token_request(
                 let mut access = control.access();
                 Some(
                     handle_out_move_token_index_mutations_allow_empty(
-                        access.router_db_client,
-                        access.identity_client,
-                        &info.local_public_key,
+                        control,
+                        info,
                         friend_public_key.clone(),
-                        info.max_operations_in_batch,
-                        &mut access.output,
                     )
                     .await?,
                 )
             } else {
                 // We only send a MoveTokenRequest to remote side if we have something to send:
-                let mut access = control.access();
                 handle_out_move_token_index_mutations_disallow_empty(
-                    access.router_db_client,
-                    access.identity_client,
-                    &info.local_public_key,
+                    control,
+                    info,
                     friend_public_key.clone(),
-                    info.max_operations_in_batch,
-                    &mut access.output,
                 )
                 .await?
             };

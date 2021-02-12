@@ -24,7 +24,8 @@ use crate::token_channel::{TcDbClient, TcStatus, TokenChannelError};
 
 use crate::route::Route;
 use crate::router::types::{
-    BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
+    BackwardsOp, CurrencyInfo, RouterControl, RouterDbClient, RouterError, RouterInfo,
+    RouterOutput, RouterState, SentRelay,
 };
 // use crate::router::utils::index_mutation::create_index_mutations_from_outgoing_move_token;
 use crate::router::utils::move_token::{
@@ -34,14 +35,13 @@ use crate::router::utils::move_token::{
 /// Attempt to send as much as possible through a token channel to remote side
 /// Assumes that the token channel is in consistent state (Incoming / Outgoing).
 pub async fn flush_friend(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
+    info: &RouterInfo,
     friend_public_key: PublicKey,
-    identity_client: &mut IdentityClient,
-    local_public_key: &PublicKey,
-    max_operations_in_batch: usize,
-    router_output: &mut RouterOutput,
 ) -> Result<(), RouterError> {
-    match router_db_client
+    match control
+        .access()
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
         .ok_or(RouterError::InvalidState)?
@@ -51,12 +51,9 @@ pub async fn flush_friend(
         TcStatus::ConsistentIn(_) => {
             // Create an outgoing move token if we have something to send.
             let opt_tuple = handle_out_move_token_index_mutations_disallow_empty(
-                router_db_client,
-                identity_client,
-                local_public_key,
+                control,
+                info,
                 friend_public_key.clone(),
-                max_operations_in_batch,
-                router_output,
             )
             .await?;
 
@@ -65,9 +62,9 @@ pub async fn flush_friend(
 
                 // Update index mutations:
                 for index_mutation in index_mutations {
-                    router_output.add_index_mutation(index_mutation);
+                    control.access().output.add_index_mutation(index_mutation);
                 }
-                router_output.add_friend_message(
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::MoveTokenRequest(move_token_request),
                 );
@@ -76,17 +73,14 @@ pub async fn flush_friend(
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
             // Resend outgoing move token,
             // possibly asking for the token if we have something to send
-            router_output.add_friend_message(
-                friend_public_key.clone(),
-                FriendMessage::MoveTokenRequest(MoveTokenRequest {
-                    move_token: move_token_out,
-                    token_wanted: is_pending_move_token(
-                        router_db_client,
-                        friend_public_key.clone(),
-                    )
-                    .await?,
-                }),
-            );
+            let friend_message = FriendMessage::MoveTokenRequest(MoveTokenRequest {
+                move_token: move_token_out,
+                token_wanted: is_pending_move_token(control, friend_public_key.clone()).await?,
+            });
+            control
+                .access()
+                .output
+                .add_friend_message(friend_public_key.clone(), friend_message);
         }
         // This state is not possible, because we did manage to locate our request with this
         // friend:
