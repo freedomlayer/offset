@@ -3,14 +3,13 @@ use database::transaction::Transaction;
 use crate::token_channel::TcDbClient;
 
 use crate::router::types::{RouterControl, RouterDbClient, RouterError, RouterInfo, RouterOp};
-// use crate::router::{handle_config, handle_friend, handle_liveness, handle_relays, handle_route};
+use crate::router::{handle_config, handle_friend, handle_liveness, handle_relays, handle_route};
 
 pub async fn handle_router_op(
     control: &mut impl RouterControl,
     info: &RouterInfo,
     router_op: RouterOp,
 ) -> Result<(), RouterError> {
-    /*
     match router_op {
         RouterOp::AddCurrency(friend_public_key, currency) => {
             handle_config::add_currency(control, info, friend_public_key, currency).await
@@ -58,6 +57,5 @@ pub async fn handle_router_op(
         RouterOp::SendResponse(mc_response) => todo!(),
         RouterOp::SendCancel(mc_cancel) => todo!(),
     }?;
-    */
     todo!();
 }
