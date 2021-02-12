@@ -476,7 +476,9 @@ pub enum RouterOp {
     /// (friend_public_key, currency)
     AddCurrency(PublicKey, Currency),
     /// (friend_public_key, currency)
-    RemoveCurrency(PublicKey, Currency),
+    SetRemoveCurrency(PublicKey, Currency),
+    /// (friend_public_key, currency)
+    UnsetRemoveCurrency(PublicKey, Currency),
     /// (friend_public_key, currency, remote_max_debt)
     SetRemoteMaxDebt(PublicKey, Currency, u128),
     /// (friend_public_key, currency, local_max_debt)

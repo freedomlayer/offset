@@ -14,7 +14,12 @@ pub async fn handle_router_op(
         RouterOp::AddCurrency(friend_public_key, currency) => {
             handle_config::add_currency(control, info, friend_public_key, currency).await
         }
-        RouterOp::RemoveCurrency(friend_public_key, currency) => todo!(),
+        RouterOp::SetRemoveCurrency(friend_public_key, currency) => {
+            handle_config::set_remove_currency(control, info, friend_public_key, currency).await
+        }
+        RouterOp::UnsetRemoveCurrency(friend_public_key, currency) => {
+            handle_config::unset_remove_currency(control, info, friend_public_key, currency).await
+        }
         RouterOp::SetRemoteMaxDebt(friend_public_key, currency, remote_max_debt) => {
             handle_config::set_remote_max_debt(
                 control,
