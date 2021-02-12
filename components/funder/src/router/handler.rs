@@ -3,7 +3,9 @@ use database::transaction::Transaction;
 use crate::token_channel::TcDbClient;
 
 use crate::router::types::{RouterControl, RouterDbClient, RouterError, RouterInfo, RouterOp};
-use crate::router::{handle_config, handle_friend, handle_liveness, handle_relays, handle_route};
+use crate::router::{
+    handle_config, handle_friend, handle_liveness, handle_relays, handle_route, send,
+};
 
 pub async fn handle_router_op(
     control: &mut impl RouterControl,
@@ -68,6 +70,5 @@ pub async fn handle_router_op(
         // TODO: Should also handle add/remove friend?
     }?;
 
-    // TODO: flush all pending send here
-    todo!();
+    send::flush_friends(control, info).await
 }
