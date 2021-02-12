@@ -62,5 +62,7 @@ pub async fn handle_router_op(
         RouterOp::SendCancel(mc_cancel) => handle_route::send_cancel(control, mc_cancel).await,
         // TODO: Should also handle add/remove friend?
     }?;
+
+    // TODO: flush all pending send here
     todo!();
 }
