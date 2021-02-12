@@ -24,7 +24,7 @@ use crypto::rand::{CryptoRandom, RandGen};
 
 use crate::route::Route;
 use crate::router::types::{
-    BackwardsOp, CurrencyInfo, RouterDbClient, RouterError, RouterOutput, RouterState, SentRelay,
+    BackwardsOp, CurrencyInfo, RouterControl, RouterDbClient, RouterError, RouterState, SentRelay,
 };
 
 use crate::mutual_credit::incoming::IncomingMessage;
@@ -54,18 +54,21 @@ fn max_generation(sent_relays: &[SentRelay]) -> Option<u128> {
 
 /// Returns whether friend's relays were updated
 async fn update_friend_local_relays(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
     local_relays: HashMap<PublicKey, NetAddress>,
     friend_public_key: PublicKey,
-    rng: &mut impl CryptoRandom,
 ) -> Result<Option<(u128, Vec<RelayAddressPort>)>, RouterError> {
     // First we make sure that the friend exists:
-    let _ = router_db_client
+    let _ = control
+        .access()
+        .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
         .ok_or(RouterError::InvalidState)?;
 
-    let sent_relays = router_db_client
+    let sent_relays = control
+        .access()
+        .router_db_client
         .get_sent_relays(friend_public_key.clone())
         .await?;
 
@@ -106,7 +109,7 @@ async fn update_friend_local_relays(
             public_key: relay_public_key,
             address,
             // Randomly generate a new port:
-            port: NodePort::rand_gen(rng),
+            port: NodePort::rand_gen(control.access().rng),
         };
         new_sent_relays.push(SentRelay {
             relay_address,
@@ -118,7 +121,9 @@ async fn update_friend_local_relays(
 
     Ok(if sent_relays_updated {
         // Update sent relays:
-        router_db_client
+        control
+            .access()
+            .router_db_client
             .set_sent_relays(friend_public_key.clone(), new_sent_relays.clone())
             .await?;
         Some((
@@ -134,27 +139,22 @@ async fn update_friend_local_relays(
 }
 
 pub async fn update_local_relays(
-    router_db_client: &mut impl RouterDbClient,
+    control: &mut impl RouterControl,
     router_state: &RouterState,
     local_relays: HashMap<PublicKey, NetAddress>,
-    rng: &mut impl CryptoRandom,
-) -> Result<RouterOutput, RouterError> {
-    let mut output = RouterOutput::new();
-
+) -> Result<(), RouterError> {
     let mut opt_friend_public_key = None;
-    while let Some(friend_public_key) = router_db_client
+    while let Some(friend_public_key) = control
+        .access()
+        .router_db_client
         .get_next_friend(opt_friend_public_key)
         .await?
     {
         opt_friend_public_key = Some(friend_public_key.clone());
 
-        let opt_res = update_friend_local_relays(
-            router_db_client,
-            local_relays.clone(),
-            friend_public_key.clone(),
-            rng,
-        )
-        .await?;
+        let opt_res =
+            update_friend_local_relays(control, local_relays.clone(), friend_public_key.clone())
+                .await?;
 
         // If sent_relays was updated and the friend is ready, we need to send relays to
         // remote friend:
@@ -162,7 +162,7 @@ pub async fn update_local_relays(
             // Make sure that remote friend is online:
             if router_state.liveness.is_online(&friend_public_key) {
                 // Add a message for sending relays:
-                output.add_friend_message(
+                control.access().output.add_friend_message(
                     friend_public_key.clone(),
                     FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
                 );
@@ -170,5 +170,5 @@ pub async fn update_local_relays(
         }
     }
 
-    Ok(output)
+    Ok(())
 }
