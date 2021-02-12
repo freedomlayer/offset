@@ -53,9 +53,14 @@ pub async fn handle_router_op(
         }
         RouterOp::UpdateFriendLocalRelays(friend_public_key, friend_local_relays) => todo!(),
         RouterOp::UpdateLocalRelays(local_relays) => todo!(),
-        RouterOp::SendRequest(currency, mc_request) => todo!(),
-        RouterOp::SendResponse(mc_response) => todo!(),
-        RouterOp::SendCancel(mc_cancel) => todo!(),
+        RouterOp::SendRequest(currency, mc_request) => {
+            handle_route::send_request(control, info, currency, mc_request).await
+        }
+        RouterOp::SendResponse(mc_response) => {
+            handle_route::send_response(control, info, mc_response).await
+        }
+        RouterOp::SendCancel(mc_cancel) => handle_route::send_cancel(control, mc_cancel).await,
+        // TODO: Should also handle add/remove friend?
     }?;
     todo!();
 }
