@@ -66,11 +66,10 @@ pub async fn set_remove_currency(
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
-    let access = control.access();
     // Revise implementation with respect to new design
-    todo!();
     // First we make sure that the friend exists:
-    if access
+    if control
+        .access()
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -78,12 +77,13 @@ pub async fn set_remove_currency(
     {
         return Ok(());
     }
-    access
+    control
+        .access()
         .router_db_client
         .set_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    access.pending_send.insert(friend_public_key);
+    control.access().pending_send.insert(friend_public_key);
     Ok(())
 }
 
@@ -93,12 +93,9 @@ pub async fn unset_remove_currency(
     friend_public_key: PublicKey,
     currency: Currency,
 ) -> Result<(), RouterError> {
-    let access = control.access();
-    // TODO: Update implementation according to new design
-    todo!();
-
     // First we make sure that the friend exists:
-    if access
+    if control
+        .access()
         .router_db_client
         .tc_db_client(friend_public_key.clone())
         .await?
@@ -106,12 +103,13 @@ pub async fn unset_remove_currency(
     {
         return Ok(());
     }
-    access
+    control
+        .access()
         .router_db_client
         .unset_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    access.pending_send.insert(friend_public_key);
+    control.access().pending_send.insert(friend_public_key);
     Ok(())
 }
 
