@@ -336,9 +336,8 @@ pub trait RouterDbClient {
 
 #[derive(Debug)]
 pub struct RouterOutput {
-    pub friends_messages: HashMap<PublicKey, Vec<FriendMessage>>,
     pub index_mutations: Vec<IndexMutation>,
-    pub updated_remote_relays: Vec<PublicKey>,
+    // pub updated_remote_relays: Vec<PublicKey>,
     pub incoming_requests: Vec<(Currency, McRequest)>,
     pub incoming_responses: Vec<(Currency, McResponse)>,
     pub incoming_cancels: Vec<(Currency, McCancel)>,
@@ -347,21 +346,12 @@ pub struct RouterOutput {
 impl RouterOutput {
     pub fn new() -> Self {
         RouterOutput {
-            friends_messages: HashMap::new(),
             index_mutations: Vec::new(),
-            updated_remote_relays: Vec::new(),
+            // updated_remote_relays: Vec::new(),
             incoming_requests: Vec::new(),
             incoming_responses: Vec::new(),
             incoming_cancels: Vec::new(),
         }
-    }
-
-    pub fn add_friend_message(&mut self, public_key: PublicKey, friend_message: FriendMessage) {
-        let entry = self
-            .friends_messages
-            .entry(public_key)
-            .or_insert(Vec::new());
-        (*entry).push(friend_message);
     }
 
     pub fn add_index_mutation(&mut self, index_mutation: IndexMutation) {

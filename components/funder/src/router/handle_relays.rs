@@ -159,14 +159,10 @@ pub async fn update_local_relays(
         // If sent_relays was updated and the friend is ready, we need to send relays to
         // remote friend:
         if let Some((generation, relays)) = opt_res {
-            // Make sure that remote friend is online:
-            if router_state.liveness.is_online(&friend_public_key) {
-                // Add a message for sending relays:
-                control.access().output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
-                );
-            }
+            control
+                .access()
+                .send_commands
+                .relays_update(friend_public_key.clone());
         }
     }
 

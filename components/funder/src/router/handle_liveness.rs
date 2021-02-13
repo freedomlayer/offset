@@ -76,11 +76,10 @@ pub async fn set_friend_online(
         .get_last_sent_relays(friend_public_key.clone())
         .await?
     {
-        // Add a message for sending relays:
-        control.access().output.add_friend_message(
-            friend_public_key.clone(),
-            FriendMessage::RelaysUpdate(RelaysUpdate { generation, relays }),
-        );
+        control
+            .access()
+            .send_commands
+            .relays_update(friend_public_key.clone());
     }
 
     match tc_status {
@@ -101,14 +100,11 @@ pub async fn set_friend_online(
                 .move_token_allow_empty(friend_public_key.clone());
         }
         TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
-            todo!();
-            // TODO: Should we signal using send_commands instead?
-
             // Resend reset terms
-            control.access().output.add_friend_message(
-                friend_public_key.clone(),
-                FriendMessage::InconsistencyError(local_reset_terms),
-            );
+            control
+                .access()
+                .send_commands
+                .move_token_allow_empty(friend_public_key.clone());
         }
     }
 

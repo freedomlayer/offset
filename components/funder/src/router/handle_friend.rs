@@ -32,7 +32,6 @@ use crate::router::types::{
     BackwardsOp, CurrencyInfo, RouterControl, RouterDbClient, RouterError, RouterInfo,
     RouterOutput, RouterState, SentRelay,
 };
-use crate::router::utils::flush::flush_friend;
 use crate::router::utils::move_token::handle_in_move_token_index_mutations;
 use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError};
 
