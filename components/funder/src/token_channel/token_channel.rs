@@ -334,7 +334,6 @@ async fn create_reset_token(
 }
 
 /// Set token channel to be inconsistent
-/// Local reset terms are automatically calculated
 async fn set_inconsistent(
     tc_client: &mut impl TcDbClient,
     identity_client: &mut IdentityClient,
@@ -360,12 +359,35 @@ async fn set_inconsistent(
     )
     .await?;
 
+    let balances = {
+        let mut balances = HashMap::<Currency, McBalance>::new();
+        let mut balances_stream = tc_client.list_balances();
+        while let Some(res) = balances_stream.next().await {
+            let (currency, mc_balance) = res?;
+            balances.insert(currency, mc_balance);
+        }
+        balances
+    };
+
     tc_client
-        .set_inconsistent(
+        .set_inconsistent_local_terms(
             local_reset_token.clone(),
             local_reset_move_token_counter.clone(),
         )
         .await?;
+
+    for (currency, mc_balance) in balances {
+        let reset_balance = ResetBalance {
+            balance: todo!(),
+            // TODO: How to calculate in_fees/out_fees? We need to take into account current
+            // pending requests.
+            in_fees: todo!(),
+            out_fees: todo!(),
+        };
+        tc_client
+            .add_local_reset_balance(currency, reset_balance)
+            .await?;
+    }
 
     Ok((local_reset_token, local_reset_move_token_counter))
 }

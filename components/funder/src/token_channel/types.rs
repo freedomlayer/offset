@@ -72,10 +72,19 @@ pub trait TcDbClient {
         move_token: MoveToken,
         move_token_counter: u128,
     ) -> AsyncOpResult<()>;
-    fn set_inconsistent(
+
+    fn set_inconsistent_local_terms(
         &mut self,
         local_reset_token: Signature,
         local_reset_move_token_counter: u128,
+    ) -> AsyncOpResult<()>;
+
+    /// Add a new local reset balance to the remote reset terms list
+    /// Can only be called if we already called `set_inconsistent_local_terms()`.
+    fn add_local_reset_balance(
+        &mut self,
+        currency: Currency,
+        reset_balance: ResetBalance,
     ) -> AsyncOpResult<()>;
 
     /// Set remote terms for reset. Can only be called if we are in inconsistent state.
