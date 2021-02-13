@@ -57,6 +57,14 @@ struct HashResult {
         inner @0: Buffer256;
 }
 
+struct HmacResult {
+        inner @0: Buffer256;
+}
+
+struct HmacKey {
+        inner @0: Buffer256;
+}
+
 struct InvoiceId {
         inner @0: Buffer256;
 }
@@ -73,9 +81,14 @@ struct PaymentId {
         inner @0: Buffer128;
 }
 
+struct NodePort {
+        inner @0: Buffer128;
+}
+
 struct PlainLock {
         inner @0: Buffer256;
 }
+
 
 struct HashedLock {
         inner @0: Buffer256;
@@ -103,6 +116,7 @@ struct Currency {
 struct RelayAddress {
         publicKey @0: PublicKey;
         address @1: NetAddress;
+        port @2: NodePort;
 }
 
 # Authenticated named address of a Relay (Includes public key)

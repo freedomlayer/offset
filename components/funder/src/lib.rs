@@ -1,7 +1,7 @@
 #![crate_type = "lib"]
 #![cfg_attr(not(feature = "cargo-clippy"), allow(unknown_lints))]
 #![deny(trivial_numeric_casts, warnings)]
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
@@ -9,6 +9,7 @@
     clippy::new_without_default
 )]
 
+#[allow(unused)]
 #[macro_use]
 extern crate log;
 
@@ -18,19 +19,25 @@ extern crate serde;
 #[macro_use]
 extern crate quickcheck_derive;
 
-mod ephemeral;
-mod friend;
-mod funder;
-mod handler;
+// mod ephemeral;
+// mod friend;
+// mod funder;
+// mod handler;
+#[allow(unused)]
 mod liveness;
+#[allow(unused)]
 mod mutual_credit;
-pub mod report;
-mod state;
+mod route;
+// pub mod report;
+// mod state;
+#[allow(unused)]
+mod router;
+#[allow(unused)]
 mod token_channel;
 pub mod types;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
-pub use self::funder::{funder_loop, FunderError};
-pub use self::state::{FunderMutation, FunderState};
+// pub use self::funder::{funder_loop, FunderError};
+// pub use self::state::{FunderMutation, FunderState};

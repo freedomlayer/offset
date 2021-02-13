@@ -1,60 +1,49 @@
-use signature::canonical::CanonicalSerialize;
-
+use common::conn::{BoxFuture, BoxStream, ConnPairVec};
 use common::ser_utils::ser_b64;
 
-use proto::crypto::{HashResult, HashedLock, PublicKey, RandValue, Signature, Uid};
+use proto::crypto::{DhPublicKey, PublicKey, Signature, Uid};
 
 use proto::app_server::messages::RelayAddress;
 use proto::funder::messages::{
-    CancelSendFundsOp, ChannelerUpdateFriend, Currency, CurrencyOperations, FriendMessage,
-    FunderIncomingControl, FunderOutgoingControl, MoveToken, PendingTransaction,
-    RequestSendFundsOp, ResponseSendFundsOp, TokenInfo, TransactionStage, UnsignedMoveToken,
-    UnsignedResponseSendFundsOp,
+    CancelSendFundsOp, ChannelerUpdateFriend, FriendMessage, FunderIncomingControl,
+    FunderOutgoingControl, MoveToken, TokenInfo,
 };
 
-use signature::signature_buff::{
-    create_response_signature_buffer, hash_token_info, move_token_signature_buff, prefix_hash,
-};
+// use signature::signature_buff::create_response_signature_buffer;
 
-use identity::IdentityClient;
+// use identity::IdentityClient;
 
-pub async fn sign_move_token<'a, B>(
-    unsigned_move_token: UnsignedMoveToken<B>,
-    identity_client: &'a mut IdentityClient,
-) -> MoveToken<B>
-where
-    B: CanonicalSerialize + Clone + 'a,
-{
-    let signature_buff = move_token_signature_buff(unsigned_move_token.clone());
-    let new_token = identity_client
-        .request_signature(signature_buff)
-        .await
-        .unwrap();
+use crypto::dh::DhStaticPrivateKey;
 
-    MoveToken {
-        old_token: unsigned_move_token.old_token,
-        currencies_operations: unsigned_move_token.currencies_operations,
-        opt_local_relays: unsigned_move_token.opt_local_relays,
-        opt_active_currencies: unsigned_move_token.opt_active_currencies,
-        info_hash: unsigned_move_token.info_hash,
-        rand_nonce: unsigned_move_token.rand_nonce,
-        new_token,
-    }
+#[derive(Debug)]
+struct RelayClientError;
+
+trait RelayClient {
+    fn connect(
+        &mut self,
+        relay: RelayAddress,
+        port: DhPublicKey,
+    ) -> BoxFuture<'_, Result<ConnPairVec, RelayClientError>>;
+
+    fn listen(
+        &mut self,
+        relay: RelayAddress,
+        port_private: DhStaticPrivateKey,
+    ) -> BoxStream<'_, ConnPairVec>;
 }
 
+/*
 pub async fn create_response_send_funds<'a>(
     currency: &Currency,
     pending_transaction: &'a PendingTransaction,
-    dest_hashed_lock: HashedLock,
-    is_complete: bool,
-    rand_nonce: RandValue,
+    src_plain_lock: PlainLock,
+    serial_num: u128,
     identity_client: &'a mut IdentityClient,
 ) -> ResponseSendFundsOp {
     let u_response_send_funds = UnsignedResponseSendFundsOp {
         request_id: pending_transaction.request_id.clone(),
-        dest_hashed_lock,
-        is_complete,
-        rand_nonce,
+        src_plain_lock: src_plain_lock.clone(),
+        serial_num,
     };
 
     let signature_buff = create_response_signature_buffer(
@@ -69,29 +58,34 @@ pub async fn create_response_send_funds<'a>(
 
     ResponseSendFundsOp {
         request_id: u_response_send_funds.request_id,
-        dest_hashed_lock: u_response_send_funds.dest_hashed_lock,
-        is_complete: u_response_send_funds.is_complete,
-        rand_nonce: u_response_send_funds.rand_nonce,
+        src_plain_lock,
+        serial_num,
         signature,
     }
 }
+*/
 
 pub fn create_cancel_send_funds(request_id: Uid) -> CancelSendFundsOp {
     CancelSendFundsOp { request_id }
 }
 
+/*
+// TODO:
+// 1. Maybe take RequestSendFundOp by value, delegate cloning to external code.
+// 2. Maybe PendingTransaction is just an alias for RequestSendFunds? Why do we have two
+//    structs?
 pub fn create_pending_transaction(request_send_funds: &RequestSendFundsOp) -> PendingTransaction {
     PendingTransaction {
         request_id: request_send_funds.request_id.clone(),
+        currency: request_send_funds.currency.clone(),
+        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
         route: request_send_funds.route.clone(),
         dest_payment: request_send_funds.dest_payment,
-        total_dest_payment: request_send_funds.total_dest_payment,
-        invoice_id: request_send_funds.invoice_id.clone(),
+        invoice_hash: request_send_funds.invoice_hash.clone(),
         left_fees: request_send_funds.left_fees,
-        src_hashed_lock: request_send_funds.src_hashed_lock.clone(),
-        stage: TransactionStage::Request,
     }
 }
+*/
 
 /*
 #[derive(Arbitrary, Eq, PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -111,31 +105,30 @@ pub enum UnsignedFriendTcOp {
 pub struct MoveTokenHashed {
     /// Hash of operations and local_relays
     #[serde(with = "ser_b64")]
-    pub prefix_hash: HashResult,
+    pub old_token: Signature,
     pub token_info: TokenInfo,
-    #[serde(with = "ser_b64")]
-    pub rand_nonce: RandValue,
     #[serde(with = "ser_b64")]
     pub new_token: Signature,
 }
 
+/*
+// TODO: Restore later:
 pub fn create_unsigned_move_token<B>(
     currencies_operations: Vec<CurrencyOperations>,
-    opt_local_relays: Option<Vec<RelayAddress<B>>>,
-    opt_active_currencies: Option<Vec<Currency>>,
+    relays_diff: Vec<RelayAddress<B>>,
+    currencies_diff: Vec<Currency>,
     token_info: &TokenInfo,
     old_token: Signature,
-    rand_nonce: RandValue,
 ) -> UnsignedMoveToken<B> {
     UnsignedMoveToken {
         old_token,
         currencies_operations,
-        opt_local_relays,
-        opt_active_currencies,
+        relays_diff,
+        currencies_diff,
         info_hash: hash_token_info(token_info),
-        rand_nonce,
     }
 }
+*/
 
 /*
 pub async fn create_move_token<A>(operations: Vec<FriendTcOp>,
@@ -174,14 +167,10 @@ where
 /// Create a hashed version of the MoveToken.
 /// Hashed version contains the hash of the operations instead of the operations themselves,
 /// hence it is usually shorter.
-pub fn create_hashed<B>(move_token: &MoveToken<B>, token_info: &TokenInfo) -> MoveTokenHashed
-where
-    B: CanonicalSerialize + Clone,
-{
+pub fn create_hashed(move_token: &MoveToken, token_info: TokenInfo) -> MoveTokenHashed {
     MoveTokenHashed {
-        prefix_hash: prefix_hash(move_token.clone()),
-        token_info: token_info.clone(),
-        rand_nonce: move_token.rand_nonce.clone(),
+        old_token: move_token.old_token.clone(),
+        token_info,
         new_token: move_token.new_token.clone(),
     }
 }
@@ -209,9 +198,9 @@ pub enum ChannelerConfig<RA> {
 
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum FunderIncomingComm<B> {
+pub enum FunderIncomingComm {
     Liveness(IncomingLivenessMessage),
-    Friend((PublicKey, FriendMessage<B>)),
+    Friend((PublicKey, FriendMessage)),
 }
 
 /// An incoming message to the Funder:
@@ -220,7 +209,7 @@ pub enum FunderIncomingComm<B> {
 pub enum FunderIncoming<B> {
     Init,
     Control(FunderIncomingControl<B>),
-    Comm(FunderIncomingComm<B>),
+    Comm(FunderIncomingComm),
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -229,13 +218,13 @@ pub enum FunderOutgoing<B>
 where
     B: Clone,
 {
-    Control(FunderOutgoingControl<B>),
+    Control(FunderOutgoingControl),
     Comm(FunderOutgoingComm<B>),
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum FunderOutgoingComm<B> {
-    FriendMessage((PublicKey, FriendMessage<B>)),
+    FriendMessage((PublicKey, FriendMessage)),
     ChannelerConfig(ChannelerConfig<RelayAddress<B>>),
 }

@@ -2,11 +2,8 @@ use byteorder::{BigEndian, WriteBytesExt};
 // use std::collections::HashMap;
 
 use proto::app_server::messages::RelayAddress;
-use proto::funder::messages::{
-    BalanceInfo, CancelSendFundsOp, CollectSendFundsOp, CountersInfo, Currency,
-    CurrencyBalanceInfo, CurrencyOperations, FriendTcOp, FriendsRoute, McInfo, OptLocalRelays,
-    Receipt, RequestSendFundsOp, ResponseSendFundsOp, TokenInfo,
-};
+use proto::crypto::PublicKey;
+use proto::funder::messages::{Currency, McBalance};
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
 
@@ -53,6 +50,16 @@ where
             res_data.extend_from_slice(&t.canonical_serialize());
         }
         res_data
+    }
+}
+
+// TODO: Possibly be more generic here? We might be able to impl CanonicalSerialize for all fixed
+// sized bytes types we have, if required. Not sure that we want to do this, though.
+impl CanonicalSerialize for PublicKey {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(self);
+        res_bytes
     }
 }
 
@@ -144,101 +151,7 @@ impl CanonicalSerialize for Currency {
     }
 }
 
-impl CanonicalSerialize for CurrencyOperations {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.currency.canonical_serialize());
-        res_bytes.extend_from_slice(&self.operations.canonical_serialize());
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for RequestSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.src_hashed_lock);
-        res_bytes.extend_from_slice(&self.route.canonical_serialize());
-        res_bytes
-            .write_u128::<BigEndian>(self.dest_payment)
-            .unwrap();
-        res_bytes
-            .write_u128::<BigEndian>(self.total_dest_payment)
-            .unwrap();
-        res_bytes.extend_from_slice(&self.invoice_id);
-        res_bytes.write_u128::<BigEndian>(self.left_fees).unwrap();
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for ResponseSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.dest_hashed_lock);
-        res_bytes.extend_from_slice(&self.is_complete.canonical_serialize());
-        res_bytes.extend_from_slice(&self.rand_nonce);
-        res_bytes.extend_from_slice(&self.signature);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for CancelSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for CollectSendFundsOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.request_id);
-        res_bytes.extend_from_slice(&self.src_plain_lock);
-        res_bytes.extend_from_slice(&self.dest_plain_lock);
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for FriendTcOp {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match self {
-            FriendTcOp::RequestSendFunds(request_send_funds) => {
-                res_bytes.push(0u8);
-                res_bytes.append(&mut request_send_funds.canonical_serialize())
-            }
-            FriendTcOp::ResponseSendFunds(response_send_funds) => {
-                res_bytes.push(1u8);
-                res_bytes.append(&mut response_send_funds.canonical_serialize())
-            }
-            FriendTcOp::CancelSendFunds(cancel_send_funds) => {
-                res_bytes.push(2u8);
-                res_bytes.append(&mut cancel_send_funds.canonical_serialize())
-            }
-            FriendTcOp::CollectSendFunds(commit_send_funds) => {
-                res_bytes.push(3u8);
-                res_bytes.append(&mut commit_send_funds.canonical_serialize())
-            }
-        }
-        res_bytes
-    }
-}
-
-impl CanonicalSerialize for FriendsRoute {
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        res_bytes
-            .write_u64::<BigEndian>(usize_to_u64(self.public_keys.len()).unwrap())
-            .unwrap();
-        for public_key in &self.public_keys {
-            res_bytes.extend_from_slice(public_key);
-        }
-        res_bytes
-    }
-}
-
+/*
 impl CanonicalSerialize for Receipt {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -251,6 +164,7 @@ impl CanonicalSerialize for Receipt {
         res_bytes
     }
 }
+*/
 
 impl CanonicalSerialize for NetAddress {
     fn canonical_serialize(&self) -> Vec<u8> {
@@ -266,23 +180,6 @@ where
         let mut res_bytes = Vec::new();
         res_bytes.extend_from_slice(&self.public_key);
         res_bytes.extend_from_slice(&self.address.canonical_serialize());
-        res_bytes
-    }
-}
-
-impl<B> CanonicalSerialize for OptLocalRelays<B>
-where
-    B: CanonicalSerialize,
-{
-    fn canonical_serialize(&self) -> Vec<u8> {
-        let mut res_bytes = Vec::new();
-        match self {
-            OptLocalRelays::Empty => res_bytes.push(0u8),
-            OptLocalRelays::Relays(relays) => {
-                res_bytes.push(1u8);
-                res_bytes.append(&mut relays.canonical_serialize());
-            }
-        };
         res_bytes
     }
 }
@@ -325,6 +222,7 @@ impl CanonicalSerialize for IndexMutation {
     }
 }
 
+/*
 impl CanonicalSerialize for BalanceInfo {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -343,7 +241,9 @@ impl CanonicalSerialize for CurrencyBalanceInfo {
         res_bytes
     }
 }
+*/
 
+/*
 impl CanonicalSerialize for McInfo {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
@@ -363,11 +263,40 @@ impl CanonicalSerialize for CountersInfo {
     }
 }
 
-impl CanonicalSerialize for TokenInfo {
+*/
+
+impl CanonicalSerialize for McBalance {
     fn canonical_serialize(&self) -> Vec<u8> {
         let mut res_bytes = Vec::new();
-        res_bytes.extend_from_slice(&self.mc.canonical_serialize());
-        res_bytes.extend_from_slice(&self.counters.canonical_serialize());
+        res_bytes.write_i128::<BigEndian>(self.balance).unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.local_pending_debt)
+            .unwrap();
+        res_bytes
+            .write_u128::<BigEndian>(self.remote_pending_debt)
+            .unwrap();
+
+        // Write in/out fees as big endian:
+        let mut temp_array = [0u8; 32];
+        self.in_fees.to_big_endian(&mut temp_array);
+        res_bytes.extend_from_slice(&temp_array);
+        self.out_fees.to_big_endian(&mut temp_array);
+        res_bytes.extend_from_slice(&temp_array);
+
         res_bytes
     }
 }
+/*
+impl CanonicalSerialize for TokenInfo {
+    fn canonical_serialize(&self) -> Vec<u8> {
+        let mut res_bytes = Vec::new();
+        res_bytes.extend_from_slice(&self.local_public_key);
+        res_bytes.extend_from_slice(&self.remote_public_key);
+        res_bytes.extend_from_slice(&self.balances_hash);
+        res_bytes
+            .write_u128::<BigEndian>(self.move_token_counter)
+            .unwrap();
+        res_bytes
+    }
+}
+*/

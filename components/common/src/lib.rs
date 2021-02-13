@@ -1,6 +1,6 @@
 #![crate_type = "lib"]
 #![deny(trivial_numeric_casts, warnings)]
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
@@ -14,9 +14,13 @@ extern crate log;
 #[cfg(test)]
 extern crate serde;
 
+pub mod async_rpc;
 pub mod int_convert;
 pub mod never;
 pub mod safe_arithmetic;
+pub mod u256;
+
+// TODO: Big array might not be needed:
 #[macro_use]
 pub mod big_array;
 #[macro_use]

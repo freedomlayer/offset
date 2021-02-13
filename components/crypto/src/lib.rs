@@ -1,5 +1,5 @@
 #![deny(trivial_numeric_casts, warnings)]
-#![allow(intra_doc_link_resolution_failure)]
+#![allow(broken_intra_doc_links)]
 #![allow(
     clippy::too_many_arguments,
     clippy::implicit_hasher,
@@ -16,6 +16,7 @@ pub mod dh;
 pub mod error;
 pub mod hash;
 pub mod hash_lock;
+pub mod hmac;
 pub mod identity;
 // pub mod nonce_window;
 pub mod rand;

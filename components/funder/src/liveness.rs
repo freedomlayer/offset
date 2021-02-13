@@ -2,15 +2,9 @@ use im::hashset::HashSet as ImHashSet;
 
 use proto::crypto::PublicKey;
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Liveness {
     pub friends: ImHashSet<PublicKey>,
-}
-
-#[derive(Debug)]
-pub enum LivenessMutation {
-    SetOnline(PublicKey),
-    SetOffline(PublicKey),
 }
 
 impl Liveness {
@@ -20,19 +14,16 @@ impl Liveness {
         }
     }
 
-    pub fn mutate(&mut self, mutation: &LivenessMutation) {
-        match mutation {
-            LivenessMutation::SetOnline(public_key) => {
-                self.friends.insert(public_key.clone());
-            }
-            LivenessMutation::SetOffline(public_key) => {
-                let _ = self.friends.remove(public_key);
-            }
-        }
+    pub fn set_online(&mut self, public_key: PublicKey) -> bool {
+        self.friends.insert(public_key).is_none()
     }
 
-    pub fn is_online(&self, friend_public_key: &PublicKey) -> bool {
-        self.friends.contains(&friend_public_key)
+    pub fn set_offline(&mut self, public_key: &PublicKey) -> bool {
+        self.friends.remove(&public_key).is_some()
+    }
+
+    pub fn is_online(&self, public_key: &PublicKey) -> bool {
+        self.friends.contains(public_key)
     }
 }
 
@@ -51,37 +42,37 @@ mod tests {
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOnline(pk_a.clone()));
+        liveness.set_online(pk_a.clone());
         assert!(liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOnline(pk_a.clone()));
+        liveness.set_online(pk_a.clone());
         assert!(liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOnline(pk_b.clone()));
+        liveness.set_online(pk_b.clone());
         assert!(liveness.is_online(&pk_a));
         assert!(liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOffline(pk_c.clone()));
+        liveness.set_offline(&pk_c);
         assert!(liveness.is_online(&pk_a));
         assert!(liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOffline(pk_b.clone()));
+        liveness.set_offline(&pk_b);
         assert!(liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOffline(pk_b.clone()));
+        liveness.set_offline(&pk_b);
         assert!(liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));
 
-        liveness.mutate(&LivenessMutation::SetOffline(pk_a.clone()));
+        liveness.set_offline(&pk_a);
         assert!(!liveness.is_online(&pk_a));
         assert!(!liveness.is_online(&pk_b));
         assert!(!liveness.is_online(&pk_c));

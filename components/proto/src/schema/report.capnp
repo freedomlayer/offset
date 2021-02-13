@@ -39,6 +39,7 @@ struct McInfo {
         balances @2: List(CurrencyBalanceInfo);
 }
 
+
 struct TokenInfo {
         mc @0: McInfo;
         counters @1: CountersInfo;

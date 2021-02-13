@@ -3,16 +3,12 @@ name = "offset-proto"
 version = "0.1.0"
 authors = ["real <real@freedomlayer.org>"]
 license = "MIT OR Apache-2.0"
-build = "build.rs"
 edition = "2018"
 
 [dependencies]
 
 common = { path = "../common", version = "0.1.0", package = "offset-common" }
 offset-mutual-from = { path = "../mutual_from", version = "0.1.0"}
-capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offset-capnp-conv" }
-
-capnp = "0.10.0"
 
 byteorder = "1.1"
 
@@ -33,12 +29,9 @@ num-traits = "0.2.6"
 paste = "0.1.5"
 
 # Quickcheck:
-quickcheck = {version = "0.9"}
-quickcheck_derive = {version = "0.2.1"}
+quickcheck = "0.9.2"
+quickcheck_derive = "0.3"
 rand = {version = "0.7.2"}
 
 [dev-dependencies]
 tempfile = "3.1.0"
-
-[build-dependencies]
-capnpc = "0.10.0"

@@ -1,5 +1,13 @@
+pub mod utils;
+
 pub mod incoming;
 pub mod outgoing;
 #[cfg(test)]
-mod tests;
-pub mod types;
+pub mod tests;
+
+mod types;
+
+pub use types::{McCancel, McDbClient, McOp, McRequest, McResponse, PendingTransaction};
+
+#[cfg(test)]
+pub use tests::MockMutualCredit;

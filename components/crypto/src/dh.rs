@@ -7,14 +7,14 @@ use crate::error::CryptoError;
 use crate::rand::CryptoRandom;
 use crate::sym_encrypt::SymmetricKey;
 
-pub const SHARED_SECRET_LEN: usize = 32;
+pub struct DhEphemeralPrivateKey(x25519_dalek::EphemeralSecret);
+pub struct DhStaticPrivateKey(x25519_dalek::StaticSecret);
 
-pub struct DhPrivateKey(x25519_dalek::EphemeralSecret);
-
-impl DhPrivateKey {
+/// A diffie hellman private key that we can reuse multiple times, and save to disk.
+impl DhStaticPrivateKey {
     /// Create a new ephemeral private key.
-    pub fn new<R: CryptoRandom>(rng: &mut R) -> Result<DhPrivateKey, CryptoError> {
-        Ok(DhPrivateKey(x25519_dalek::EphemeralSecret::new(rng)))
+    pub fn new<R: CryptoRandom>(rng: &mut R) -> Result<DhStaticPrivateKey, CryptoError> {
+        Ok(DhStaticPrivateKey(x25519_dalek::StaticSecret::new(rng)))
     }
 
     /// Compute public key from our private key.
@@ -25,6 +25,35 @@ impl DhPrivateKey {
         ))
     }
 
+    // TODO: Implement handshake
+}
+
+impl From<[u8; 32]> for DhStaticPrivateKey {
+    /// Load a static diffie hellman private key from an array of bytes
+    fn from(bytes: [u8; 32]) -> Self {
+        DhStaticPrivateKey(x25519_dalek::StaticSecret::from(bytes))
+    }
+}
+
+/// An ephemeral diffie hellman private key. Can be used only once, and should not be saved to
+/// disk.
+impl DhEphemeralPrivateKey {
+    /// Create a new ephemeral private key.
+    pub fn new<R: CryptoRandom>(rng: &mut R) -> Result<DhEphemeralPrivateKey, CryptoError> {
+        Ok(DhEphemeralPrivateKey(x25519_dalek::EphemeralSecret::new(
+            rng,
+        )))
+    }
+
+    /// Compute public key from our private key.
+    /// The public key will be sent to remote side.
+    pub fn compute_public_key(&self) -> Result<DhPublicKey, CryptoError> {
+        Ok(DhPublicKey::from(
+            x25519_dalek::PublicKey::from(&self.0).as_bytes(),
+        ))
+    }
+
+    // TODO: Maybe separate handshake and kdf part?
     /// Derive a symmetric key from our private key and remote's public key.
     pub fn derive_symmetric_key(
         self,
@@ -77,8 +106,8 @@ mod tests {
     #[test]
     fn test_derive_symmetric_key() {
         let mut rng = DummyRandom::new(&[1, 2, 3, 4, 5]);
-        let dh_private_a = DhPrivateKey::new(&mut rng).unwrap();
-        let dh_private_b = DhPrivateKey::new(&mut rng).unwrap();
+        let dh_private_a = DhEphemeralPrivateKey::new(&mut rng).unwrap();
+        let dh_private_b = DhEphemeralPrivateKey::new(&mut rng).unwrap();
 
         let public_key_a = dh_private_a.compute_public_key().unwrap();
         let public_key_b = dh_private_b.compute_public_key().unwrap();

@@ -5,7 +5,7 @@ use rand_core::impls;
 
 use crate::error::CryptoError;
 
-use proto::crypto::{InvoiceId, PaymentId, PlainLock, RandValue, Salt, Uid};
+use proto::crypto::{InvoiceId, NodePort, PaymentId, PlainLock, RandValue, Salt, Uid};
 
 // TODO: Maybe we shouldn't have Sync + Send here as bounds?
 pub trait CryptoRandom: RngCore + CryptoRng {
@@ -134,6 +134,14 @@ impl RandGen for Salt {
 }
 
 impl RandGen for InvoiceId {
+    fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
+        let mut res = Self::default();
+        crypt_rng.fill(&mut res).unwrap();
+        res
+    }
+}
+
+impl RandGen for NodePort {
     fn rand_gen(crypt_rng: &mut impl CryptoRandom) -> Self {
         let mut res = Self::default();
         crypt_rng.fill(&mut res).unwrap();

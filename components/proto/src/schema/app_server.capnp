@@ -17,8 +17,8 @@ using import "common.capnp".NetAddress;
 using import "common.capnp".NamedIndexServerAddress;
 using import "common.capnp".Currency;
 
-using import "report.capnp".NodeReport;
-using import "report.capnp".NodeReportMutation;
+# using import "report.capnp".NodeReport;
+# using import "report.capnp".NodeReportMutation;
 
 using import "index.capnp".RequestRoutes;
 using import "index.capnp".MultiRoute;
@@ -156,16 +156,16 @@ struct AppPermissions {
 }
 
 
-struct ReportMutations {
-        optAppRequestId: union {
-                appRequestId @0: Uid;
-                # Mutations were caused by an application request.
-                empty @1: Void;
-                # Mutations were caused for some other reason.
-        }
-        mutations @2: List(NodeReportMutation);
-        # A list of mutations
-}
+#       struct ReportMutations {
+#               optAppRequestId: union {
+#                       appRequestId @0: Uid;
+#                       # Mutations were caused by an application request.
+#                       empty @1: Void;
+#                       # Mutations were caused for some other reason.
+#               }
+#               mutations @2: List(NodeReportMutation);
+#               # A list of mutations
+#       }
 
 struct RequestResult {
         union {
@@ -207,10 +207,10 @@ struct AppServerToApp {
 
         # Reports about current state:
         # report @2: NodeReport;
-        reportMutations @2: ReportMutations;
+        # reportMutations @2: ReportMutations;
 
         # Routes:
-        responseRoutes @3: ClientResponseRoutes;
+        responseRoutes @2: ClientResponseRoutes;
 
     }
 }

@@ -1,16 +1,41 @@
 use proto::crypto::HashResult;
 use sha2::{Digest, Sha512Trunc256};
 
+pub struct Hasher {
+    inner: Sha512Trunc256,
+}
+
+impl Hasher {
+    pub fn new() -> Self {
+        Self {
+            inner: Sha512Trunc256::new(),
+        }
+    }
+
+    pub fn update(&mut self, data: &[u8]) {
+        self.inner.update(data);
+    }
+
+    pub fn chain(mut self, data: &[u8]) -> Self {
+        self.inner.update(data);
+        self
+    }
+
+    pub fn finalize(self) -> HashResult {
+        let digest_res = self.inner.clone().finalize();
+
+        let mut inner = [0x00; HashResult::len()];
+        inner.copy_from_slice(digest_res.as_ref());
+
+        HashResult::from(&inner)
+    }
+}
+
+// TODO: Possibly remove from interface in the future, use Hasher instead.
+// TODO: Possibly choose a more generic name, to allow changes in the future?
 /// Calculate SHA512/256 over the given data.
-pub fn sha_512_256(data: &[u8]) -> HashResult {
-    let mut hasher = Sha512Trunc256::new();
-    hasher.update(data);
-    let digest_res = hasher.finalize();
-
-    let mut inner = [0x00; HashResult::len()];
-    inner.copy_from_slice(digest_res.as_ref());
-
-    HashResult::from(&inner)
+pub fn hash_buffer(data: &[u8]) -> HashResult {
+    Hasher::new().chain(data).finalize()
 }
 
 #[cfg(test)]
@@ -21,7 +46,7 @@ mod tests {
     fn hash_basic() {
         let data = b"This is a test!";
 
-        let hash_res = sha_512_256(&data[..]);
+        let hash_res = hash_buffer(&data[..]);
 
         let expected = [
             0x34, 0x9c, 0x7e, 0xa7, 0x49, 0x8d, 0x04, 0x32, 0xdc, 0xb0, 0x60, 0x4a, 0x9e, 0xd3,
@@ -30,5 +55,14 @@ mod tests {
         ];
 
         assert_eq!(hash_res.as_ref(), expected);
+    }
+
+    #[test]
+    fn hasher_empty() {
+        let x = Hasher::new().finalize();
+        let y = Hasher::new().finalize();
+        let z = Hasher::new().finalize();
+        assert_eq!(x, y);
+        assert_eq!(y, z);
     }
 }

@@ -1,27 +1,27 @@
-use byteorder::{BigEndian, WriteBytesExt};
+// use byteorder::{BigEndian, WriteBytesExt};
 
-use crypto::hash;
-use crypto::hash_lock::HashLock;
+// use crypto::hash;
+// use crypto::hash_lock::HashLock;
 use crypto::identity::verify_signature;
 
-use proto::crypto::PublicKey;
+use proto::crypto::{HashResult, PublicKey};
 
-use proto::funder::messages::{Commit, MoveToken, Receipt};
+use proto::funder::messages::MoveToken;
 use proto::index_server::messages::MutationsUpdate;
-use proto::report::messages::MoveTokenHashedReport;
 
-use crate::canonical::CanonicalSerialize;
+// use crate::canonical::CanonicalSerialize;
 use crate::signature_buff::{
-    create_mutations_update_signature_buff, move_token_hashed_report_signature_buff,
-    move_token_signature_buff, FUNDS_RESPONSE_PREFIX,
+    create_mutations_update_signature_buff,
+    move_token_signature_buff, /*, FUNDS_RESPONSE_PREFIX,*/
 };
 
+/*
 // TODO: Add a local test that makes sure verify_receipt is in sync with verify_commit_signature
 /// Verify that a given receipt's signature is valid
 pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
 
-    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
     data.extend(receipt.response_hash.as_ref());
     data.extend_from_slice(&receipt.src_plain_lock.hash_lock());
     data.extend_from_slice(&receipt.dest_plain_lock.hash_lock());
@@ -33,12 +33,14 @@ pub fn verify_receipt(receipt: &Receipt, public_key: &PublicKey) -> bool {
     data.extend_from_slice(&receipt.currency.canonical_serialize());
     verify_signature(&data, public_key, &receipt.signature)
 }
+*/
 
+/*
 /// Verify that a given Commit signature is valid
 fn verify_commit_signature(commit: &Commit, local_public_key: &PublicKey) -> bool {
     let mut data = Vec::new();
 
-    data.extend_from_slice(&hash::sha_512_256(FUNDS_RESPONSE_PREFIX));
+    data.extend_from_slice(&hash::hash_buffer(FUNDS_RESPONSE_PREFIX));
     data.extend(commit.response_hash.as_ref());
     data.extend_from_slice(&commit.src_plain_lock.hash_lock());
     data.extend_from_slice(&commit.dest_hashed_lock);
@@ -62,13 +64,15 @@ pub fn verify_commit(commit: &Commit, local_public_key: &PublicKey) -> bool {
     // Verify signature:
     verify_commit_signature(commit, local_public_key)
 }
+*/
 
 /// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token<B>(move_token: MoveToken<B>, public_key: &PublicKey) -> bool
-where
-    B: CanonicalSerialize + Clone,
-{
-    let sig_buffer = move_token_signature_buff(move_token.clone());
+pub fn verify_move_token(
+    move_token: &MoveToken,
+    info_hash: &HashResult,
+    public_key: &PublicKey,
+) -> bool {
+    let sig_buffer = move_token_signature_buff(move_token, info_hash);
     verify_signature(&sig_buffer, public_key, &move_token.new_token)
 }
 
@@ -82,15 +86,4 @@ pub fn verify_mutations_update(mutations_update: &MutationsUpdate) -> bool {
         &mutations_update.node_public_key,
         &mutations_update.signature,
     )
-}
-
-// TODO: Is the public_key argument redundant now? (As it should be exactly the same
-// as move_token_hashed_report.local_public_key)
-/// Verify that new_token is a valid signature over the rest of the fields.
-pub fn verify_move_token_hashed_report(
-    move_token_hashed_report: &MoveTokenHashedReport,
-    public_key: &PublicKey,
-) -> bool {
-    let sig_buffer = move_token_hashed_report_signature_buff(move_token_hashed_report);
-    verify_signature(&sig_buffer, public_key, &move_token_hashed_report.new_token)
 }

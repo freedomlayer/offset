@@ -1,221 +1,153 @@
-use std::collections::HashMap as ImHashMap;
+use common::async_rpc::AsyncOpResult;
+use common::u256::U256;
 
-use common::safe_arithmetic::SafeSignedArithmetic;
-use common::ser_utils::{ser_b64, ser_map_b64_any, ser_string};
+use proto::crypto::{HashResult, HashedLock, PlainLock, PublicKey, Signature, Uid};
+use proto::funder::messages::{
+    CancelSendFundsOp, McBalance, RequestSendFundsOp, ResponseSendFundsOp,
+};
 
-use proto::crypto::{PublicKey, Uid};
-use proto::funder::messages::{Currency, PendingTransaction, TransactionStage};
-
-/*
-// TODO: Where do we need to check this value?
-/// The maximum possible funder debt.
-/// We don't use the full u128 because i128 can not go beyond this value.
-pub const MAX_FUNDER_DEBT: u128 = (1 << 127) - 1;
-*/
-
-// TODO: Rename this to McIdents
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct McIdents {
-    /// My public key
-    #[serde(with = "ser_b64")]
-    pub local_public_key: PublicKey,
-    /// Friend's public key
-    #[serde(with = "ser_b64")]
-    pub remote_public_key: PublicKey,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingTransaction {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
+    pub request_id: Uid,
+    /// A hash lock created by the originator of this request
+    pub src_hashed_lock: HashedLock,
+    /// Amount paid to destination
+    pub dest_payment: u128,
+    /// hash(hash(actionId) || hash(totalDestPayment) || hash(description) || hash(additional))
+    /// TODO: Check if this scheme is safe? Do we need to use pbkdf instead?
+    pub invoice_hash: HashResult,
+    /// List of next nodes to transfer this request
+    pub route: Vec<PublicKey>,
+    /// Amount of fees left to give to mediators
+    /// Every mediator takes the amount of fees he wants and subtracts this
+    /// value accordingly.
+    pub left_fees: u128,
 }
 
-// TODO: Rename this to McBalance
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct McBalance {
-    /// Amount of credits this side has against the remote side.
-    /// The other side keeps the negation of this value.
-    #[serde(with = "ser_string")]
-    pub balance: i128,
-    /// Frozen credits by our side
-    #[serde(with = "ser_string")]
-    pub local_pending_debt: u128,
-    /// Frozen credits by the remote side
-    #[serde(with = "ser_string")]
-    pub remote_pending_debt: u128,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McRequest {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
+    pub request_id: Uid,
+    /// A hash lock created by the originator of this request
+    pub src_hashed_lock: HashedLock,
+    /// Amount paid to destination
+    pub dest_payment: u128,
+    /// hash(hash(actionId) || hash(totalDestPayment) || hash(description) || hash(additional))
+    /// TODO: Check if this scheme is safe? Do we need to use pbkdf instead?
+    pub invoice_hash: HashResult,
+    /// List of next nodes to transfer this request
+    pub route: Vec<PublicKey>,
+    /// Amount of fees left to give to mediators
+    /// Every mediator takes the amount of fees he wants and subtracts this
+    /// value accordingly.
+    pub left_fees: u128,
 }
 
-impl McBalance {
-    fn new(balance: i128) -> McBalance {
-        McBalance {
-            balance,
-            local_pending_debt: 0,
-            remote_pending_debt: 0,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McResponse {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
+    pub request_id: Uid,
+    pub src_plain_lock: PlainLock,
+    /// Serial number used for this collection of invoice money.
+    /// This should be a u128 counter, increased by 1 for every collected
+    /// invoice.
+    pub serial_num: u128,
+    /// Signature{key=destinationKey}(
+    ///   hash("FUNDS_RESPONSE") ||
+    ///   hash(request_id || src_plain_lock || dest_payment) ||
+    ///   hash(currency) ||
+    ///   serialNum ||
+    ///   invoiceHash)
+    /// )
+    pub signature: Signature,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McCancel {
+    /// Id number of this request. Used to identify the whole transaction
+    /// over this route.
+    pub request_id: Uid,
+}
+
+#[derive(Debug, Clone)]
+pub enum McOp {
+    Request(McRequest),
+    Response(McResponse),
+    Cancel(McCancel),
+}
+
+pub trait McDbClient {
+    fn get_balance(&mut self) -> AsyncOpResult<McBalance>;
+    fn set_balance(&mut self, new_balance: i128) -> AsyncOpResult<()>;
+    fn set_local_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
+    fn set_remote_pending_debt(&mut self, debt: u128) -> AsyncOpResult<()>;
+    fn set_in_fees(&mut self, in_fees: U256) -> AsyncOpResult<()>;
+    fn set_out_fees(&mut self, out_fees: U256) -> AsyncOpResult<()>;
+    fn get_local_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> AsyncOpResult<Option<PendingTransaction>>;
+    fn insert_local_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> AsyncOpResult<()>;
+    fn remove_local_pending_transaction(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+    fn get_remote_pending_transaction(
+        &mut self,
+        request_id: Uid,
+    ) -> AsyncOpResult<Option<PendingTransaction>>;
+    fn insert_remote_pending_transaction(
+        &mut self,
+        pending_transaction: PendingTransaction,
+    ) -> AsyncOpResult<()>;
+    fn remove_remote_pending_transaction(&mut self, request_id: Uid) -> AsyncOpResult<()>;
+}
+
+impl From<McRequest> for PendingTransaction {
+    fn from(mc_request: McRequest) -> Self {
+        Self {
+            request_id: mc_request.request_id,
+            src_hashed_lock: mc_request.src_hashed_lock,
+            dest_payment: mc_request.dest_payment,
+            invoice_hash: mc_request.invoice_hash,
+            route: mc_request.route,
+            left_fees: mc_request.left_fees,
         }
     }
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct McPendingTransactions {
-    /// Pending transactions that were opened locally and not yet completed
-    #[serde(with = "ser_map_b64_any")]
-    pub local: ImHashMap<Uid, PendingTransaction>,
-    /// Pending transactions that were opened remotely and not yet completed
-    #[serde(with = "ser_map_b64_any")]
-    pub remote: ImHashMap<Uid, PendingTransaction>,
-}
-
-impl McPendingTransactions {
-    fn new() -> McPendingTransactions {
-        McPendingTransactions {
-            local: ImHashMap::new(),
-            remote: ImHashMap::new(),
+impl From<RequestSendFundsOp> for McRequest {
+    fn from(request_send_funds: RequestSendFundsOp) -> Self {
+        Self {
+            request_id: request_send_funds.request_id,
+            src_hashed_lock: request_send_funds.src_hashed_lock,
+            dest_payment: request_send_funds.dest_payment,
+            invoice_hash: request_send_funds.invoice_hash,
+            route: request_send_funds.route,
+            left_fees: request_send_funds.left_fees,
         }
     }
 }
 
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct MutualCreditState {
-    /// Public identities of local and remote side
-    pub idents: McIdents,
-    /// Currency in use (How much is one credit worth?)
-    pub currency: Currency,
-    /// Current credit balance with respect to remote side
-    pub balance: McBalance,
-    /// Requests in progress
-    pub pending_transactions: McPendingTransactions,
-}
-
-#[derive(Arbitrary, Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct MutualCredit {
-    state: MutualCreditState,
-}
-
-#[derive(Arbitrary, Eq, PartialEq, Debug, Clone)]
-pub enum McMutation {
-    SetBalance(i128),
-    InsertLocalPendingTransaction(PendingTransaction),
-    RemoveLocalPendingTransaction(Uid),
-    SetLocalPendingTransactionStage((Uid, TransactionStage)),
-    InsertRemotePendingTransaction(PendingTransaction),
-    RemoveRemotePendingTransaction(Uid),
-    SetRemotePendingTransactionStage((Uid, TransactionStage)),
-    SetLocalPendingDebt(u128),
-    SetRemotePendingDebt(u128),
-}
-
-impl MutualCredit {
-    pub fn new(
-        // TODO: Should we move instead of take a reference here?
-        local_public_key: &PublicKey,
-        remote_public_key: &PublicKey,
-        currency: &Currency,
-        balance: i128,
-    ) -> MutualCredit {
-        MutualCredit {
-            state: MutualCreditState {
-                idents: McIdents {
-                    local_public_key: local_public_key.clone(),
-                    remote_public_key: remote_public_key.clone(),
-                },
-                currency: currency.clone(),
-                balance: McBalance::new(balance),
-                pending_transactions: McPendingTransactions::new(),
-            },
+impl From<ResponseSendFundsOp> for McResponse {
+    fn from(response_send_funds: ResponseSendFundsOp) -> Self {
+        Self {
+            request_id: response_send_funds.request_id,
+            src_plain_lock: response_send_funds.src_plain_lock,
+            serial_num: response_send_funds.serial_num,
+            signature: response_send_funds.signature,
         }
     }
+}
 
-    /// Calculate required balance for reset.
-    /// This would be current balance plus additional future profits.
-    pub fn balance_for_reset(&self) -> i128 {
-        self.state
-            .balance
-            .balance
-            .checked_add_unsigned(self.state.balance.remote_pending_debt)
-            .expect("Overflow when calculating balance_for_reset")
-        // TODO: Is this the correct formula?
-        // Other options:
-        // *    balance
-        // *    balance + remote_pending_debt - local_pending_debt
-    }
-
-    pub fn state(&self) -> &MutualCreditState {
-        &self.state
-    }
-
-    pub fn mutate(&mut self, mc_mutation: &McMutation) {
-        match mc_mutation {
-            McMutation::SetBalance(balance) => self.set_balance(*balance),
-            McMutation::InsertLocalPendingTransaction(pending_friend_request) => {
-                self.insert_local_pending_transaction(pending_friend_request)
-            }
-            McMutation::RemoveLocalPendingTransaction(request_id) => {
-                self.remove_local_pending_transaction(request_id)
-            }
-            McMutation::SetLocalPendingTransactionStage((request_id, stage)) => {
-                self.set_local_pending_transaction_stage(&request_id, stage.clone())
-            }
-            McMutation::InsertRemotePendingTransaction(pending_friend_request) => {
-                self.insert_remote_pending_transaction(pending_friend_request)
-            }
-            McMutation::RemoveRemotePendingTransaction(request_id) => {
-                self.remove_remote_pending_transaction(request_id)
-            }
-            McMutation::SetRemotePendingTransactionStage((request_id, stage)) => {
-                self.set_remote_pending_transaction_stage(&request_id, stage.clone())
-            }
-            McMutation::SetLocalPendingDebt(local_pending_debt) => {
-                self.set_local_pending_debt(*local_pending_debt)
-            }
-            McMutation::SetRemotePendingDebt(remote_pending_debt) => {
-                self.set_remote_pending_debt(*remote_pending_debt)
-            }
+impl From<CancelSendFundsOp> for McCancel {
+    fn from(cancel_send_funds: CancelSendFundsOp) -> Self {
+        Self {
+            request_id: cancel_send_funds.request_id,
         }
-    }
-
-    fn set_balance(&mut self, balance: i128) {
-        self.state.balance.balance = balance;
-    }
-
-    fn insert_remote_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.state.pending_transactions.remote.insert(
-            pending_friend_request.request_id.clone(),
-            pending_friend_request.clone(),
-        );
-    }
-
-    fn remove_remote_pending_transaction(&mut self, request_id: &Uid) {
-        let _ = self.state.pending_transactions.remote.remove(request_id);
-    }
-
-    fn insert_local_pending_transaction(&mut self, pending_friend_request: &PendingTransaction) {
-        self.state.pending_transactions.local.insert(
-            pending_friend_request.request_id.clone(),
-            pending_friend_request.clone(),
-        );
-    }
-
-    fn remove_local_pending_transaction(&mut self, request_id: &Uid) {
-        let _ = self.state.pending_transactions.local.remove(request_id);
-    }
-
-    fn set_remote_pending_debt(&mut self, remote_pending_debt: u128) {
-        self.state.balance.remote_pending_debt = remote_pending_debt;
-    }
-
-    fn set_local_pending_debt(&mut self, local_pending_debt: u128) {
-        self.state.balance.local_pending_debt = local_pending_debt;
-    }
-
-    fn set_local_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
-        self.state
-            .pending_transactions
-            .local
-            .get_mut(&request_id)
-            .unwrap()
-            .stage = stage;
-    }
-
-    fn set_remote_pending_transaction_stage(&mut self, request_id: &Uid, stage: TransactionStage) {
-        self.state
-            .pending_transactions
-            .remote
-            .get_mut(&request_id)
-            .unwrap()
-            .stage = stage;
     }
 }

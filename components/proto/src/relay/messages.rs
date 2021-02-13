@@ -1,8 +1,5 @@
-use capnp_conv::{capnp_conv, CapnpConvError, ReadCapnp, WriteCapnp};
-
 use crate::crypto::PublicKey;
 
-#[capnp_conv(crate::relay_capnp::init_connection)]
 #[derive(Debug, PartialEq, Eq)]
 pub enum InitConnection {
     Listen,
@@ -12,13 +9,11 @@ pub enum InitConnection {
     Connect(PublicKey),
 }
 
-#[capnp_conv(crate::relay_capnp::reject_connection)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct RejectConnection {
     pub public_key: PublicKey,
 }
 
-#[capnp_conv(crate::relay_capnp::incoming_connection)]
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IncomingConnection {
     pub public_key: PublicKey,
