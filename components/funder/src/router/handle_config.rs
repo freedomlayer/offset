@@ -317,3 +317,71 @@ pub async fn close_currency(
 
     Ok(())
 }
+
+pub async fn add_friend(
+    control: &mut impl RouterControl,
+    friend_public_key: PublicKey,
+    friend_name: String,
+) -> Result<(), RouterError> {
+    // First we make sure that the friend does not exist:
+    if control
+        .access()
+        .router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+        .is_some()
+    {
+        return Ok(());
+    }
+
+    control
+        .access()
+        .router_db_client
+        .add_friend(friend_name, friend_public_key)
+        .await?;
+    Ok(())
+}
+
+pub async fn remove_friend(
+    control: &mut impl RouterControl,
+    friend_public_key: PublicKey,
+) -> Result<(), RouterError> {
+    // TODO: A sudden change of balance is possible
+    // How to document this change correctly (As a friend event)?
+
+    let tc_db_client = if let Some(tc_db_client) = control
+        .access()
+        .router_db_client
+        .tc_db_client(friend_public_key.clone())
+        .await?
+    {
+        tc_db_client
+    } else {
+        // No such friend exists
+        return Ok(());
+    };
+
+    // TODO: Somehow report balance changes:
+    if tc_db_client.get_tc_status().await?.is_consistent() {
+        todo!();
+    // tc_db_client.list_balances(&mut self) -> AsyncOpStream<(Currency, McBalance)>;
+    } else {
+        todo!();
+    }
+
+    /*
+    fn add_friend_event(
+        &mut self,
+        friend_public_key: PublicKey,
+        balances_diff: HashMap<Currency, FriendBalanceDiff>,
+    ) -> AsyncOpResult<()>;
+    */
+
+    control
+        .access()
+        .router_db_client
+        .remove_friend(friend_public_key)
+        .await?;
+
+    Ok(())
+}

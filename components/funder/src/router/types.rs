@@ -119,6 +119,16 @@ pub trait RouterDbClient {
     fn get_local_relays(&mut self) -> AsyncOpResult<Vec<NamedRelayAddress>>;
     */
 
+    /// Add a new friend
+    fn add_friend(
+        &mut self,
+        friend_name: String,
+        friend_public_key: PublicKey,
+    ) -> AsyncOpResult<()>;
+
+    /// Remove friend
+    fn remove_friend(&mut self, friend_public_key: PublicKey) -> AsyncOpResult<()>;
+
     /// A util to iterate over friends and mutating them.
     /// A None input will return the first friend.
     /// A None output means that there are no more friends.
@@ -510,6 +520,10 @@ pub enum RouterOp {
     OpenCurrency(PublicKey, Currency),
     /// (friend_public_key, currency)
     CloseCurrency(PublicKey, Currency),
+    /// (friend_public_key, friend_name)
+    AddFriend(PublicKey, String),
+    /// (friend_public_key)
+    RemoveFriend(PublicKey),
     // Friend
     // ------
     /// (friend_public_key, friend_message)

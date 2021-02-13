@@ -48,6 +48,12 @@ pub async fn handle_router_op(
         RouterOp::CloseCurrency(friend_public_key, currency) => {
             handle_config::close_currency(control, friend_public_key, currency).await
         }
+        RouterOp::AddFriend(friend_public_key, friend_name) => {
+            handle_config::add_friend(control, friend_public_key, friend_name).await
+        }
+        RouterOp::RemoveFriend(friend_public_key) => {
+            handle_config::remove_friend(control, friend_public_key).await
+        }
         RouterOp::FriendMessage(friend_public_key, friend_message) => {
             handle_friend::incoming_friend_message(control, info, friend_public_key, friend_message)
                 .await
