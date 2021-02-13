@@ -238,8 +238,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              currency                   TEXT NOT NULL,
 
              balance                    BLOB NOT NULL,
-             local_pending_debt         BLOB NOT NULL,
-             remote_pending_debt        BLOB NOT NULL,
+             -- TODO: Pending credits be calculated automatically from the pending requests:
+             -- local_pending_debt         BLOB NOT NULL,
+             -- remote_pending_debt        BLOB NOT NULL,
              in_fees                    BLOB NOT NULL,
              out_fees                   BLOB NOT NULL,
 
@@ -344,8 +345,9 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
              friend_public_key        BLOB NOT NULL,
              currency                 TEXT NOT NULL,
              balance                  BLOB NOT NULL,
-             local_pending_debt       BLOB NOT NULL,
-             remote_pending_debt      BLOB NOT NULL,
+             -- TODO: Pending credits be calculated automatically from the pending requests:
+             -- local_pending_debt       BLOB NOT NULL,
+             -- remote_pending_debt      BLOB NOT NULL,
              in_fees                  BLOB NOT NULL,
              out_fees                 BLOB NOT NULL,
              PRIMARY KEY(friend_public_key, currency),
