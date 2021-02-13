@@ -791,8 +791,8 @@ fn create_database(conn: &mut Connection) -> rusqlite::Result<()> {
         "CREATE TABLE events(
              counter      BLOB NOT NULL PRIMARY KEY,
              time         INTEGER NOT NULL,
-             event_type   TEXT CHECK (event_type IN ('P', 'I', 'R')) NOT NULL,
-             -- Event type: P: Payment, I: Invoice, R: Friend Removal
+             event_type   TEXT CHECK (event_type IN ('P', 'I', 'F')) NOT NULL,
+             -- Event type: P: Payment, I: Invoice, F: Friend
              -- Information about the application that trigerred this event:
              app_public_key             BLOB NOT NULL,
              app_name                   TEXT NOT NULL
