@@ -55,7 +55,7 @@ pub async fn add_currency(
         .add_currency_config(friend_public_key.clone(), currency)
         .await?;
 
-    access.pending_send.insert(friend_public_key);
+    access.send_commands.insert(friend_public_key);
 
     Ok(())
 }
@@ -83,7 +83,7 @@ pub async fn set_remove_currency(
         .set_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    control.access().pending_send.insert(friend_public_key);
+    control.access().send_commands.insert(friend_public_key);
     Ok(())
 }
 
@@ -109,7 +109,7 @@ pub async fn unset_remove_currency(
         .unset_currency_remove(friend_public_key.clone(), currency)
         .await?;
 
-    control.access().pending_send.insert(friend_public_key);
+    control.access().send_commands.insert(friend_public_key);
     Ok(())
 }
 

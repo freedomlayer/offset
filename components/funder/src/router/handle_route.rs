@@ -124,7 +124,7 @@ pub async fn send_request(
 
         control
             .access()
-            .pending_send
+            .send_commands
             .insert(friend_public_key.clone());
     } else {
         control.access().output.add_incoming_cancel(
@@ -164,7 +164,7 @@ pub async fn send_response(
 
         control
             .access()
-            .pending_send
+            .send_commands
             .insert(request_origin.friend_public_key);
     }
 
@@ -196,7 +196,7 @@ pub async fn send_cancel(
 
         control
             .access()
-            .pending_send
+            .send_commands
             .insert(request_origin.friend_public_key);
     }
 

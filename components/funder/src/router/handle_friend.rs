@@ -110,7 +110,7 @@ async fn incoming_message_request(
             )
             .await?;
 
-        control.access().pending_send.insert(friend_public_key);
+        control.access().send_commands.insert(friend_public_key);
 
         return Ok(());
     }
@@ -161,7 +161,7 @@ async fn incoming_message_request(
         // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
         // requests before flushing this friend. Find out how to do this.
 
-        control.access().pending_send.insert(next_public_key);
+        control.access().send_commands.insert(next_public_key);
     } else {
         // Return a cancel message and flush origin friend
         control
@@ -178,7 +178,7 @@ async fn incoming_message_request(
             )
             .await?;
 
-        control.access().pending_send.insert(friend_public_key);
+        control.access().send_commands.insert(friend_public_key);
     }
 
     Ok(())
@@ -278,7 +278,7 @@ async fn incoming_message_response(
                 )
                 .await?;
 
-            control.access().pending_send.insert(friend_public_key);
+            control.access().send_commands.insert(friend_public_key);
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -349,7 +349,7 @@ async fn incoming_message_cancel(
 
             control
                 .access()
-                .pending_send
+                .send_commands
                 .insert(friend_public_key.clone());
         }
         (true, Some(request_origin)) => {

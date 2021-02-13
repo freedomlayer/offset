@@ -390,12 +390,37 @@ pub struct RouterInfo {
 }
 
 #[derive(Debug)]
+pub struct SendCommands {
+    /// friend_public_key -> allow_empty
+    send_commands: HashMap<PublicKey, bool>,
+}
+
+impl SendCommands {
+    pub fn new() -> Self {
+        Self {
+            send_commands: HashMap::new(),
+        }
+    }
+
+    /// Schedule send for a friend.
+    pub fn insert(&mut self, friend_public_key: PublicKey) {
+        // Note: If we already set allow_empty = true, we will leave it equals to true.
+        let _ = self.send_commands.entry(friend_public_key).or_insert(false);
+    }
+
+    /// Schedule a send for a friend. Send will happen even if there is nothing to send.
+    pub fn insert_allow_empty(&mut self, friend_public_key: PublicKey) {
+        let _ = self.send_commands.insert(friend_public_key, true);
+    }
+}
+
+#[derive(Debug)]
 pub struct RouterHandle<'a, R, RC> {
     pub router_db_client: &'a mut RC,
     pub identity_client: &'a mut IdentityClient,
     pub rng: &'a mut R,
     /// Friends with new pending outgoing messages
-    pub pending_send: HashSet<PublicKey>,
+    pub send_commands: SendCommands,
     /// Ephemeral state:
     pub ephemeral: &'a mut RouterState,
     /// Router's output:
@@ -408,7 +433,7 @@ pub struct RouterAccess<'a, R, RC> {
     pub identity_client: &'a mut IdentityClient,
     pub rng: &'a mut R,
     /// Friends with new pending outgoing messages
-    pub pending_send: &'a mut HashSet<PublicKey>,
+    pub send_commands: &'a mut SendCommands,
     /// Ephemeral state:
     pub ephemeral: &'a mut RouterState,
     /// Router's output:
@@ -441,7 +466,7 @@ where
             router_db_client: self.router_db_client,
             identity_client: self.identity_client,
             rng: self.rng,
-            pending_send: &mut self.pending_send,
+            send_commands: &mut self.send_commands,
             ephemeral: self.ephemeral,
             output: &mut self.output,
         }
