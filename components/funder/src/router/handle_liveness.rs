@@ -35,9 +35,7 @@ use crate::token_channel::{
 };
 
 use crate::router::utils::index_mutation::create_index_mutation;
-use crate::router::utils::move_token::{
-    handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
-};
+use crate::router::utils::move_token::is_pending_move_token;
 
 pub async fn set_friend_online(
     control: &mut impl RouterControl,
@@ -87,38 +85,25 @@ pub async fn set_friend_online(
 
     match tc_status {
         TcStatus::ConsistentIn(_) => {
-            // Create an outgoing move token if we have something to send.
-            let opt_tuple = handle_out_move_token_index_mutations_disallow_empty(
-                control,
-                info,
-                friend_public_key.clone(),
-            )
-            .await?;
-
-            if let Some((move_token_request, _index_mutations)) = opt_tuple {
-                // We discard index_mutations calculation here, because we are going to add all
-                // open currencies anyways.
-
-                // We have something to send to remote side:
-                control.access().output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(move_token_request),
-                );
-            }
+            // Send an outgoing move token if we have something to send.
+            control
+                .access()
+                .send_commands
+                .move_token(friend_public_key.clone());
         }
         TcStatus::ConsistentOut(move_token_out, _opt_move_token_hashed_in) => {
             // Resend outgoing move token,
             // possibly asking for the token if we have something to send
-            let friend_message = FriendMessage::MoveTokenRequest(MoveTokenRequest {
-                move_token: move_token_out,
-                token_wanted: is_pending_move_token(control, friend_public_key.clone()).await?,
-            });
+            // Send an outgoing move token if we have something to send.
             control
                 .access()
-                .output
-                .add_friend_message(friend_public_key.clone(), friend_message);
+                .send_commands
+                .move_token_allow_empty(friend_public_key.clone());
         }
         TcStatus::Inconsistent(local_reset_terms, _opt_remote_reset_terms) => {
+            todo!();
+            // TODO: Should we signal using send_commands instead?
+
             // Resend reset terms
             control.access().output.add_friend_message(
                 friend_public_key.clone(),

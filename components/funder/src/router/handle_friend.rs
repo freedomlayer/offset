@@ -33,10 +33,7 @@ use crate::router::types::{
     RouterOutput, RouterState, SentRelay,
 };
 use crate::router::utils::flush::flush_friend;
-use crate::router::utils::move_token::{
-    handle_in_move_token_index_mutations, handle_out_move_token_index_mutations_allow_empty,
-    handle_out_move_token_index_mutations_disallow_empty, is_pending_move_token,
-};
+use crate::router::utils::move_token::handle_in_move_token_index_mutations;
 use crate::token_channel::{ReceiveMoveTokenOutput, TcDbClient, TcStatus, TokenChannelError};
 
 /// Check if credit line between this node and a friend is ready
@@ -110,7 +107,7 @@ async fn incoming_message_request(
             )
             .await?;
 
-        control.access().send_commands.insert(friend_public_key);
+        control.access().send_commands.move_token(friend_public_key);
 
         return Ok(());
     }
@@ -161,7 +158,7 @@ async fn incoming_message_request(
         // TODO: flush_friend() is delicate. We might be able to aggregate some more pending
         // requests before flushing this friend. Find out how to do this.
 
-        control.access().send_commands.insert(next_public_key);
+        control.access().send_commands.move_token(next_public_key);
     } else {
         // Return a cancel message and flush origin friend
         control
@@ -178,7 +175,7 @@ async fn incoming_message_request(
             )
             .await?;
 
-        control.access().send_commands.insert(friend_public_key);
+        control.access().send_commands.move_token(friend_public_key);
     }
 
     Ok(())
@@ -278,7 +275,7 @@ async fn incoming_message_response(
                 )
                 .await?;
 
-            control.access().send_commands.insert(friend_public_key);
+            control.access().send_commands.move_token(friend_public_key);
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -350,7 +347,7 @@ async fn incoming_message_cancel(
             control
                 .access()
                 .send_commands
-                .insert(friend_public_key.clone());
+                .move_token(friend_public_key.clone());
         }
         (true, Some(request_origin)) => {
             // This means the request has both originated locally, and from a friend.
@@ -386,53 +383,17 @@ async fn incoming_move_token_request(
         ReceiveMoveTokenOutput::Duplicate => {
             // We should have nothing else to send at this point, otherwise we would have already
             // sent it.
-            assert!(!is_pending_move_token(control, friend_public_key.clone()).await?);
-
-            // Possibly send token to remote side (According to token_wanted)
-            if in_move_token_request.token_wanted {
-                let (out_move_token_request, index_mutations) =
-                    handle_out_move_token_index_mutations_allow_empty(
-                        control,
-                        info,
-                        friend_public_key.clone(),
-                    )
-                    .await?;
-
-                // We just got a message from remote side. Remote side should be online:
-                assert!(control
-                    .access()
-                    .ephemeral
-                    .liveness
-                    .is_online(&friend_public_key));
-
-                // Add index mutations:
-                for index_mutation in index_mutations {
-                    control.access().output.add_index_mutation(index_mutation);
-                }
-                control.access().output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(out_move_token_request),
-                );
-            }
+            control
+                .access()
+                .send_commands
+                .move_token_allow_empty(friend_public_key.clone());
         }
         ReceiveMoveTokenOutput::RetransmitOutgoing(move_token) => {
             // Retransmit outgoing move token message to friend:
-            let move_token_request = MoveTokenRequest {
-                move_token,
-                token_wanted: is_pending_move_token(control, friend_public_key.clone()).await?,
-            };
-
-            if control
+            control
                 .access()
-                .ephemeral
-                .liveness
-                .is_online(&friend_public_key)
-            {
-                control.access().output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(move_token_request),
-                );
-            }
+                .send_commands
+                .move_token_allow_empty(friend_public_key.clone());
         }
         ReceiveMoveTokenOutput::Received(move_token_received) => {
             for (currency, incoming_message) in move_token_received.incoming_messages {
@@ -480,45 +441,20 @@ async fn incoming_move_token_request(
             }
 
             // Possibly send RequestMoveToken back to friend in one of the following cases:
-            let opt_res = if in_move_token_request.token_wanted {
+            if in_move_token_request.token_wanted {
                 // Remote side wants to have the token back, so we have to send a MoveTokenRequest
                 // to remote side, even if it is empty
-                let mut access = control.access();
-                Some(
-                    handle_out_move_token_index_mutations_allow_empty(
-                        control,
-                        info,
-                        friend_public_key.clone(),
-                    )
-                    .await?,
-                )
+                control
+                    .access()
+                    .send_commands
+                    .move_token_allow_empty(friend_public_key.clone());
             } else {
                 // We only send a MoveTokenRequest to remote side if we have something to send:
-                handle_out_move_token_index_mutations_disallow_empty(
-                    control,
-                    info,
-                    friend_public_key.clone(),
-                )
-                .await?
-            };
-
-            if let Some((out_move_token_request, index_mutations)) = opt_res {
-                // We just got a message from remote side. Remote side should be online:
-                assert!(control
+                control
                     .access()
-                    .ephemeral
-                    .liveness
-                    .is_online(&friend_public_key));
-
-                // Add index mutations:
-                for index_mutation in index_mutations {
-                    control.access().output.add_index_mutation(index_mutation);
-                }
-                control.access().output.add_friend_message(
-                    friend_public_key.clone(),
-                    FriendMessage::MoveTokenRequest(out_move_token_request),
-                );
-            }
+                    .send_commands
+                    .move_token(friend_public_key.clone());
+            };
         }
         ReceiveMoveTokenOutput::ChainInconsistent(reset_terms) => {
             // TODO:

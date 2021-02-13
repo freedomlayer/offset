@@ -14,8 +14,8 @@ use identity::IdentityClient;
 use proto::app_server::messages::RelayAddressPort;
 use proto::crypto::{NodePort, PublicKey};
 use proto::funder::messages::{
-    CancelSendFundsOp, Currency, FriendMessage, FriendTcOp, MoveToken, MoveTokenRequest,
-    RelaysUpdate, RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
+    CancelSendFundsOp, Currency, FriendTcOp, MoveToken, MoveTokenRequest, RelaysUpdate,
+    RequestSendFundsOp, ResetTerms, ResponseSendFundsOp,
 };
 use proto::index_server::messages::{IndexMutation, RemoveFriendCurrency, UpdateFriendCurrency};
 use proto::net::messages::NetAddress;
@@ -125,7 +125,7 @@ pub async fn send_request(
         control
             .access()
             .send_commands
-            .insert(friend_public_key.clone());
+            .move_token(friend_public_key.clone());
     } else {
         control.access().output.add_incoming_cancel(
             currency,
@@ -165,7 +165,7 @@ pub async fn send_response(
         control
             .access()
             .send_commands
-            .insert(request_origin.friend_public_key);
+            .move_token(request_origin.friend_public_key);
     }
 
     Ok(())
@@ -197,7 +197,7 @@ pub async fn send_cancel(
         control
             .access()
             .send_commands
-            .insert(request_origin.friend_public_key);
+            .move_token(request_origin.friend_public_key);
     }
 
     Ok(())

@@ -392,25 +392,33 @@ pub struct RouterInfo {
 #[derive(Debug)]
 pub struct SendCommands {
     /// friend_public_key -> allow_empty
-    send_commands: HashMap<PublicKey, bool>,
+    move_token: HashMap<PublicKey, bool>,
+    /// Should we send relays update to remote side?
+    relays_update: HashSet<PublicKey>,
 }
 
 impl SendCommands {
     pub fn new() -> Self {
         Self {
-            send_commands: HashMap::new(),
+            move_token: HashMap::new(),
+            relays_update: HashSet::new(),
         }
     }
 
     /// Schedule send for a friend.
-    pub fn insert(&mut self, friend_public_key: PublicKey) {
+    pub fn move_token(&mut self, friend_public_key: PublicKey) {
         // Note: If we already set allow_empty = true, we will leave it equals to true.
-        let _ = self.send_commands.entry(friend_public_key).or_insert(false);
+        let _ = self.move_token.entry(friend_public_key).or_insert(false);
     }
 
     /// Schedule a send for a friend. Send will happen even if there is nothing to send.
-    pub fn insert_allow_empty(&mut self, friend_public_key: PublicKey) {
-        let _ = self.send_commands.insert(friend_public_key, true);
+    pub fn move_token_allow_empty(&mut self, friend_public_key: PublicKey) {
+        let _ = self.move_token.insert(friend_public_key, true);
+    }
+
+    /// Schedule relays update message
+    pub fn relays_update(&mut self, friend_public_key: PublicKey) {
+        self.relays_update.insert(friend_public_key);
     }
 }
 
