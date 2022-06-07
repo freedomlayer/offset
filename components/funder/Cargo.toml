@@ -24,7 +24,7 @@ futures = "0.3.1"
 
 serde = {version = "1.0.104", features = ["derive"]}
 
-im = {version = "14.1.0", features = ["serde", "quickcheck"]}
+im = {version = "15.1.0", features = ["serde", "quickcheck"]}
 byteorder = {version = "1.1", features = ["i128"]}
 
 # Quickcheck:
