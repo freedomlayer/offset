@@ -11,7 +11,7 @@ common = { path = "../common", version = "0.1.0", package = "offset-common" }
 
 log = "0.4"
 futures = "0.3.1"
-im = "14.1.0"
+im = "15.1.0"
 
 atomicwrites = "0.2.2"
 
