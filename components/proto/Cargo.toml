@@ -12,7 +12,7 @@ common = { path = "../common", version = "0.1.0", package = "offset-common" }
 offset-mutual-from = { path = "../mutual_from", version = "0.1.0"}
 capnp_conv = { path = "../capnp_conv", version = "0.1.0", package = "offset-capnp-conv" }
 
-capnp = "0.10.0"
+capnp = "0.13.7"
 
 byteorder = "1.1"
 
